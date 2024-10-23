@@ -333,7 +333,7 @@ def test_track_run_no_handler(rundb_mock, run_name):
         # Mlflow creates a dir to log the run, this makes it in the tmpdir we create
         trainer_run = func.run(
             name=f"{run_name}_no_handler",
-            project=project,
+            project=project.name,
             artifact_path=test_directory,
             params={"tracking_uri": test_directory},
             local=True,

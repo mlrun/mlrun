@@ -43,7 +43,7 @@ def _clean_shared_in_mem_store() -> Iterator[None]:
     mlrun.datastore.in_memory_store = mlrun.datastore.inmem.InMemoryStore()
 
 
-def test_handler_hyper():
+def test_handler_hyper(rundb_mock):
     run_spec = tag_test(base_spec, "test_handler_hyper")
     run_spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
     result = new_function().run(run_spec, handler=my_func)

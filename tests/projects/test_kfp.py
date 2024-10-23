@@ -110,7 +110,7 @@ def test_kfp_function_run(kfp_dirs):
     assert result.status.state == "completed"
 
 
-def test_kfp_function_run_with_hyper_params(kfp_dirs):
+def test_kfp_function_run_with_hyper_params(rundb_mock, kfp_dirs):
     meta_dir, artifacts_dir, output_dir = kfp_dirs
     p1 = [1, 2, 3]
     task = _generate_task(p1, output_dir)

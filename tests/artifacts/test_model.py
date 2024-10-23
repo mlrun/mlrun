@@ -78,3 +78,22 @@ def test_tag_not_in_model_spec():
 
     assert "tag" not in model_spec, "tag should not be in model spec"
     assert "tag" not in model_spec["metadata"], "tag should not be in metadata"
+
+
+def test_sanitize_model_spec():
+    model_key = "model_key"
+    some_extra_data = "some_extra_data"
+    future_extra_data = "future_extra_data"
+    model = mlrun.artifacts.ModelArtifact(
+        key=model_key,
+        model_file=model_file,
+        extra_data={
+            some_extra_data: "abc",
+            future_extra_data: ...,
+        },
+    )
+    model.metadata.tag = "v1"
+    sanitized_model_spec = mlrun.artifacts.model._sanitize_model_spec(model)
+    assert "tag" not in sanitized_model_spec["metadata"]
+    assert some_extra_data in sanitized_model_spec["spec"]["extra_data"]
+    assert future_extra_data not in sanitized_model_spec["spec"]["extra_data"]

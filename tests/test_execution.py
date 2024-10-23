@@ -73,8 +73,10 @@ def test_log_serialization():
 def test_local_context(rundb_mock):
     project_name = "xtst"
     mlrun.mlconf.artifact_path = out_path
-    context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
     db = mlrun.get_run_db()
+    context = mlrun.get_or_create_ctx(
+        "xx", rundb=db, project=project_name, upload_artifacts=True
+    )
     run = db.read_run(context._uid, project=project_name)
     assert run["status"]["state"] == "running", "run status not updated in db"
 
@@ -99,13 +101,13 @@ def test_local_context(rundb_mock):
 
     # run state should be updated by the context for local run
     assert run["status"]["state"] == "completed", "run status was not updated in db"
-    assert (
-        run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
-    ), "artifact not updated in db"
-    assert (
-        run["status"]["artifacts"][0]["spec"]["format"] == "z"
-    ), "run/artifact attribute not updated in db"
-    assert run["status"]["artifacts"][1]["spec"]["target_path"].startswith(
+    assert run["status"]["artifact_uris"].get("xx"), "artifact not updated in db"
+
+    artifact = mlrun.datastore.get_store_resource(
+        run["status"]["artifact_uris"].get("xx")
+    )
+    assert artifact.spec.format == "z", "run/artifact attribute not updated in db"
+    assert artifact.spec.target_path.startswith(
         out_path
     ), "artifact not uploaded to subpath"
 

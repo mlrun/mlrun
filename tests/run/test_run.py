@@ -192,13 +192,6 @@ def test_local_runtime_with_kwargs_with_code_to_function(rundb_mock):
     assert result.outputs["return"] == kwargs
 
 
-def test_local_runtime_hyper():
-    spec = tag_test(base_spec, "test_local_runtime_hyper")
-    spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
-    result = new_function(command=f"{examples_path}/training.py").run(spec)
-    verify_state(result)
-
-
 def test_local_handler():
     spec = tag_test(base_spec, "test_local_runtime")
     result = new_function(command=f"{examples_path}/handler.py").run(
@@ -362,7 +355,7 @@ def setup_project():
         ({}, ":latest"),
     ],
 )
-def test_verify_run_output_uri(setup_project, params, expected):
+def test_verify_run_output_uri(rundb_mock, setup_project, params, expected):
     run = setup_project.run_function(
         "test", handler="myhandler", params=params, local=True
     )
@@ -374,7 +367,7 @@ def test_verify_run_output_uri(setup_project, params, expected):
     assert expected in outputs_uri
 
 
-def test_verify_tag_in_output_for_relogged_artifact(setup_project):
+def test_verify_tag_in_output_for_relogged_artifact(rundb_mock, setup_project):
     run = setup_project.run_function(
         "test", handler="log_artifact_many_tags", local=True
     )

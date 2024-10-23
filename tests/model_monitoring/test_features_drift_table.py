@@ -111,7 +111,7 @@ def plot_produce(context: mlrun.MLClientCtx):
     )
 
 
-def test_plot_produce(tmp_path: Path) -> None:
+def test_plot_produce(rundb_mock, tmp_path: Path) -> None:
     # Run the plot production and logging:
     app_plot_run = mlrun.new_function().run(
         artifact_path=str(tmp_path), handler=plot_produce

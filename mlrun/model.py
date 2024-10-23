@@ -1285,7 +1285,7 @@ class RunStatus(ModelObj):
         self.host = host
         self.commit = commit
         self.results = results
-        self.artifacts = artifacts
+        self._artifacts = artifacts
         self.start_time = start_time
         self.last_update = last_update
         self.iterations = iterations
@@ -1293,7 +1293,57 @@ class RunStatus(ModelObj):
         self.reason = reason
         self.notifications = notifications or {}
         # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
-        self.artifact_uris = artifact_uris or {}
+        self._artifact_uris = artifact_uris or {}
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        deprecated_fields = {
+            # Set artifacts as deprecated for lazy loading
+            "artifacts": "artifact_uris"
+        }
+        return super().from_dict(
+            struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+
+    @property
+    def artifacts(self):
+        """
+        Artifacts are lazy loaded to reduce memory consumption.
+        We keep artifact_uris (key -> store URI dictionary) to be able to get the run artifacts easily.
+        If the artifact is not already in the cache, we get it from the store (DB).
+        :return: List of artifact dictionaries
+        """
+        self._artifacts = self._artifacts or []
+        existing_artifact_keys = [
+            artifact["metadata"]["key"] for artifact in self._artifacts
+        ]
+        for key, uri in self.artifact_uris.items():
+            if key not in existing_artifact_keys:
+                artifact = mlrun.datastore.get_store_resource(uri)
+                self._artifacts.append(artifact.to_dict())
+        return self._artifacts
+
+    @artifacts.setter
+    def artifacts(self, artifacts):
+        self._artifacts = artifacts
+
+    @property
+    def artifact_uris(self):
+        return self._artifact_uris
+
+    @artifact_uris.setter
+    def artifact_uris(self, artifact_uris):
+        resolved_artifact_uris = {}
+        if isinstance(artifact_uris, list):
+            # artifact_uris is the deprecated list of artifacts - convert to new form
+            for artifact in artifact_uris:
+                if isinstance(artifact, dict):
+                    artifact = mlrun.artifacts.dict_to_artifact(artifact)
+                resolved_artifact_uris[artifact.key] = artifact.uri
+        else:
+            resolved_artifact_uris = artifact_uris
+
+        self._artifact_uris = resolved_artifact_uris
 
     def is_failed(self) -> Optional[bool]:
         """
@@ -1601,7 +1651,7 @@ class RunObject(RunTemplate):
 
         return outputs
 
-    def artifact(self, key: str) -> "mlrun.DataItem":
+    def artifact(self, key: str) -> typing.Optional["mlrun.DataItem"]:
         """Return artifact DataItem by key.
 
         This method waits for the outputs to complete, searches for the artifact matching the given key,
@@ -1644,7 +1694,7 @@ class RunObject(RunTemplate):
         :param key: The key of the artifact to retrieve.
         :return: The last artifact DataItem with the given key, or None if no such artifact is found.
         """
-        if not self.status.artifacts:
+        if not self.status.artifacts and not self.status.artifact_uris:
             return None
 
         # Collect artifacts that match the key
@@ -1655,7 +1705,12 @@ class RunObject(RunTemplate):
         ]
 
         if not matching_artifacts:
-            return None
+            if key not in self.status.artifact_uris:
+                return None
+
+            # Get artifact by store URI sanity (should have been enriched by now in status.artifacts property)
+            artifact_uri = self.status.artifact_uris[key]
+            matching_artifacts = [mlrun.datastore.get_store_resource(artifact_uri)]
 
         # Sort matching artifacts by creation date in ascending order.
         # The last element in the list will be the one created most recently.

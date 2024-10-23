@@ -765,6 +765,10 @@ def upload_extra_data(
         return
     target_path = artifact.target_path
     for key, item in extra_data.items():
+        if item is ...:
+            # Skip future links (packagers feature for linking artifacts before they are logged)
+            continue
+
         if isinstance(item, bytes):
             if target_path:
                 target = os.path.join(target_path, prefix + key)

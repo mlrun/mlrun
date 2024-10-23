@@ -17,6 +17,7 @@ import pathlib
 import pytest
 
 import mlrun
+import mlrun.lists
 import mlrun.render
 from tests.conftest import results, rundb_path
 
@@ -54,16 +55,23 @@ def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_path
     func = mlrun.code_to_function(
         filename=function_path, kind="job", handler="log_dataset"
     )
-    func.run(local=True, out_path=str(results))
+    run = func.run(local=True, out_path=str(results))
 
-    db = get_db()
-    runs = db.list_runs()
-    assert runs, "empty runs result"
-
+    # Verify target path in enriched run list
+    runs = mlrun.lists.RunList([run.to_dict()])
     html = runs.show(display=False)
     for expected_target_path in expected_target_paths:
         expected_link, _ = mlrun.render.link_to_ipython(expected_target_path)
         assert expected_link in html
+
+    runs = rundb_mock.list_runs()
+    assert runs, "empty runs result"
+
+    # Verify store URI in not-enriched runs
+    html = runs.show(display=False)
+    dataset_0_uri = list(runs[0]["status"]["artifact_uris"].values())[0]
+    assert dataset_0_uri
+    assert dataset_0_uri in html
 
 
 # FIXME: this test was counting on the fact it's running after some test (I think test_httpdb) which leaves runs and

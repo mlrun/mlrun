@@ -75,7 +75,7 @@ def framework_algorithm_functionality_pair_ids(
     FRAMEWORKS_ALGORITHM_FUNCTIONALITIES,
     ids=framework_algorithm_functionality_pair_ids,
 )
-def test_training(framework_algorithm_functionality_pair: tuple[str, str]):
+def test_training(rundb_mock, framework_algorithm_functionality_pair: tuple[str, str]):
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:
     (functions, artifacts_library, metrics_library) = FRAMEWORKS[framework]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary

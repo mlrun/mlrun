@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from io import StringIO
 from typing import Literal, Optional, Union
 
@@ -740,7 +740,7 @@ class V3IOTSDBConnector(TSDBConnector):
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
-        start = start or "now"
+        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end, delta_start=-24)
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
@@ -810,10 +810,10 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = None,
         end: Union[datetime, str] = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
+        start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.FileTargetKind.ERRORS,
             start=start,

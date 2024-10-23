@@ -13,8 +13,7 @@
 # limitations under the License.
 
 import typing
-from datetime import datetime, timezone
-from typing import Union
+from datetime import datetime, timezone, timedelta
 
 import pandas as pd
 import taosws
@@ -277,7 +276,7 @@ class TDEngineConnector(TSDBConnector):
         limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
-        group_by: typing.Optional[Union[list[str], str]] = None,
+        group_by: typing.Optional[typing.Union[list[str], str]] = None,
         preform_agg_columns: typing.Optional[list] = None,
         order_by: typing.Optional[str] = None,
         desc: typing.Optional[bool] = None,
@@ -300,6 +299,14 @@ class TDEngineConnector(TSDBConnector):
                                       `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
         :param timestamp_column:      The column name that holds the timestamp index.
+        :param group_by:              The column name to group by. Note that if `group_by` is provided, aggregation
+                                      functions must bg provided
+        :param preform_agg_columns:   The columns to preform aggregation on.
+                                      notice that all aggregation functions provided will preform on those columns.
+                                      If not provided The default behavior is to preform on all columns in columns,
+                                      if an empty list was provided The aggregation won't be performed.
+        :param order_by:              The column or alias to preform ordering on the query.
+        :param desc:                  Whether or not to sort the results in descending order.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
@@ -477,7 +484,7 @@ class TDEngineConnector(TSDBConnector):
 
     def get_last_request(
         self,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: typing.Union[str, list[str]],
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
@@ -520,15 +527,15 @@ class TDEngineConnector(TSDBConnector):
 
     def get_drift_status(
         self,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: typing.Union[str, list[str]],
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
-        start = start or "now"
-        start, end = self._get_start_end(start, end, delta_start=-24)
+        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
+        start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.APP_RESULTS,
             start=start,
@@ -629,14 +636,14 @@ class TDEngineConnector(TSDBConnector):
 
     def get_error_count(
         self,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: typing.Union[str, list[str]],
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
-        start, end = self._get_start_end(start, end)
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
+        start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.ERRORS,
             start=start,
@@ -660,7 +667,7 @@ class TDEngineConnector(TSDBConnector):
 
     def get_avg_latency(
         self,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: typing.Union[str, list[str]],
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:

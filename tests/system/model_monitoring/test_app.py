@@ -171,7 +171,6 @@ class _V3IORecordsChecker:
     def _test_tsdb_record(
         cls, ep_id: str, last_request: datetime, error_count: float
     ) -> None:
-        # V3IO TSDB
         df: pd.DataFrame = cls._tsdb_storage.get_results_metadata(endpoint_id=ep_id)
 
         assert not df.empty, "No TSDB data"

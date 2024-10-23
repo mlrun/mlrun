@@ -46,6 +46,7 @@ class _TDEngineColumn(mlrun.common.types.StrEnum):
     INT = _TDEngineColumnType("INT")
     BINARY_40 = _TDEngineColumnType("BINARY", 40)
     BINARY_64 = _TDEngineColumnType("BINARY", 64)
+    BINARY_1000 = _TDEngineColumnType("BINARY", 1000)
     BINARY_10000 = _TDEngineColumnType("BINARY", 10000)
 
 
@@ -318,7 +319,7 @@ class Errors(TDEngineSchema):
         super_table = mm_schemas.TDEngineSuperTables.ERRORS
         columns = {
             mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,
-            mm_schemas.EventFieldType.MODEL_ERROR: _TDEngineColumn.BINARY_10000,
+            mm_schemas.EventFieldType.MODEL_ERROR: _TDEngineColumn.BINARY_1000,
         }
         tags = {
             mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,

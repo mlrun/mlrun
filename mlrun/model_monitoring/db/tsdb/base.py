@@ -15,7 +15,6 @@
 import typing
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Union
 
 import pandas as pd
 import pydantic
@@ -193,7 +192,7 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_last_request(
         self,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: typing.Union[str, list[str]],
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
@@ -212,7 +211,7 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_drift_status(
         self,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: typing.Union[str, list[str]],
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
@@ -268,7 +267,7 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_error_count(
         self,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: typing.Union[str, list[str]],
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
@@ -286,7 +285,7 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_avg_latency(
         self,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: typing.Union[str, list[str]],
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
@@ -449,8 +448,8 @@ class TSDBConnector(ABC):
 
     @staticmethod
     def _get_start_end(
-        start: Union[str, datetime],
-        end: Union[str, datetime],
+        start: typing.Union[str, datetime],
+        end: typing.Union[str, datetime],
         delta_start: int = 0,
         delta_end: int = 0,
     ) -> tuple[datetime, datetime]:

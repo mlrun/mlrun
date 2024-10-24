@@ -1278,6 +1278,7 @@ def template_artifact_path(artifact_path, project, run_uid=None):
     run_uid = run_uid or "project"
     artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
     artifact_path = _fill_project_path_template(artifact_path, project)
+    artifact_path = _fill_environment_variable_templates(artifact_path)
     return artifact_path
 
 
@@ -1294,6 +1295,24 @@ def _fill_project_path_template(artifact_path, project):
             )
         artifact_path = artifact_path.replace("{{run.project}}", project)
         artifact_path = artifact_path.replace("{{project}}", project)
+    return artifact_path
+
+
+def _fill_environment_variable_templates(artifact_path):
+    """
+    Replace all occurrences of {{ENV_NAME}} with the values of the corresponding environment variables.
+    If any environment variable does not exist, raise MLRunBadRequestError error.
+    """
+    pattern = r"{{([A-Z_]+)}}"
+    env_vars = re.findall(pattern, artifact_path)
+    for env_var in env_vars:
+        env_val = os.getenv(env_var)
+        if not env_val:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Artifact path references a non-existing environment variable: {env_var}. "
+                f"Ensure it is defined or modify your path."
+            )
+        artifact_path = artifact_path.replace(f"{{{{{env_var}}}}}", env_val)
     return artifact_path
 
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import asyncio
+import os
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
@@ -744,7 +745,7 @@ def test_parse_store_uri(uri, expected_output):
         },
         {
             "artifact_path": "v3io://template-project-not-provided/{{project}}",
-            "raise": True,
+            "raise": mlrun.errors.MLRunInvalidArgumentError,
         },
         {
             "artifact_path": "v3io://template-project-provided/{{project}}",
@@ -756,17 +757,31 @@ def test_parse_store_uri(uri, expected_output):
             "project": "some-project",
             "expected_artifact_path": "v3io://legacy-template-project-provided/some-project",
         },
+        # Additional cases for _fill_environment_variable_templates function
+        {
+            "artifact_path": "s3://{{BUCKET_NAME}}/{{FOLDER}}",
+            "project": "some-project",
+            "expected_artifact_path": "s3://my-bucket/my-folder",
+            "environment": {"BUCKET_NAME": "my-bucket", "FOLDER": "my-folder"},
+        },
+        {
+            "artifact_path": "s3://bucket/{{INVALID_ENV}}",
+            "project": "some-project",
+            "raise": mlrun.errors.MLRunBadRequestError,
+        },
     ],
 )
 def test_template_artifact_path(case):
-    if case.get("raise"):
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            template_artifact_path(case["artifact_path"], case.get("project"))
-    else:
-        filled_artifact_path = template_artifact_path(
-            case["artifact_path"], case.get("project")
-        )
-        assert case["expected_artifact_path"] == filled_artifact_path
+    with unittest.mock.patch.dict(os.environ, case.get("environment", {})):
+        err = case.get("raise")
+        if err:
+            with pytest.raises(err):
+                template_artifact_path(case["artifact_path"], case.get("project"))
+        else:
+            filled_artifact_path = template_artifact_path(
+                case["artifact_path"], case.get("project")
+            )
+            assert case["expected_artifact_path"] == filled_artifact_path
 
 
 def test_update_in():

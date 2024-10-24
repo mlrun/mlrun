@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import os.path
 import pathlib
 import tempfile
@@ -635,6 +636,22 @@ def test_register_artifacts(rundb_mock):
 
     artifact = project.get_artifact(artifact_key)
     assert artifact.tree == expected_tree
+
+
+def test_artifact_with_additional_place_holders_in_artifact_path(monkeypatch):
+    project_name = "my-projects"
+    project = mlrun.new_project(project_name)
+    artifact_path = f"{results_dir}/{{{{FOLDER}}}}/{{{{SUB_FOLDER}}}}"
+
+    monkeypatch.setenv("FOLDER", "my-folder")
+    monkeypatch.setenv("SUB_FOLDER", "my-sub-folder")
+
+    artifact = project.log_artifact(
+        "res",
+        body="123",
+        artifact_path=artifact_path,
+    )
+    assert artifact.spec.target_path == f"{results_dir}/my-folder/my-sub-folder/res"
 
 
 def test_producer_in_exported_artifact():

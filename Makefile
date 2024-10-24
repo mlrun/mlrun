@@ -657,6 +657,10 @@ vale-docs: ## Run vale check for docs and sorts ignore.txt file
 	vale docs
 	@sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
 
+.PHONY: linkcheck
+linkcheck:
+	make -C docs/ linkcheck
+
 .PHONY: release
 release: ## Release a version
 ifndef MLRUN_VERSION

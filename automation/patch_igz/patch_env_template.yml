@@ -44,6 +44,7 @@ REGISTRY_USERNAME:
 # Optional - will attempt docker login if defined
 REGISTRY_PASSWORD:
 
+
 # Optional - only required if asking to reset DB
 DB_USER:
 

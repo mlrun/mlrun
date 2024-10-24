@@ -18,8 +18,9 @@ import string
 import time
 import typing
 
+import kubernetes.client.rest as k8s_client_rest
+import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
 from kubernetes import client, config
-from kubernetes.client.rest import ApiException
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -33,7 +34,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import server.api.runtime_handlers
 from mlrun.utils import logger
-from mlrun.utils.helpers import to_non_empty_values_dict
+from mlrun.utils.helpers import run_with_retry, to_non_empty_values_dict
 
 _k8s = None
 
@@ -61,7 +62,7 @@ def raise_for_status_code(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             raise mlrun.errors.err_for_status_code(
                 exc.status, message=mlrun.errors.err_to_str(exc)
             ) from exc
@@ -127,19 +128,41 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return items
 
     @raise_for_status_code
-    def list_pods_paginated(self, namespace=None, selector="", states=None):
+    def list_pods_paginated(
+        self,
+        namespace: str = None,
+        selector: str = "",
+        states: list[str] = None,
+        max_retry: int = 3,
+    ):
+        """
+        List pods paginated
+        :param namespace:       Namespace to query
+        :param selector:        Pods label selector
+        :param states:          List of pod states to filter by
+        :param max_retry:       Maximum number of retries on 410 Gone (when continue token is stale)
+        """
         _continue = None
+        retry_count = 0
         limit = int(mlrun.mlconf.kubernetes.pagination.list_pods_limit)
         if limit <= 0:
             limit = None
         while True:
-            pods_list = self.v1api.list_namespaced_pod(
-                self.resolve_namespace(namespace),
-                label_selector=selector,
-                watch=False,
-                limit=limit,
-                _continue=_continue,
-            )
+            try:
+                pods_list = self.v1api.list_namespaced_pod(
+                    self.resolve_namespace(namespace),
+                    label_selector=selector,
+                    watch=False,
+                    limit=limit,
+                    _continue=_continue,
+                )
+            except k8s_client_rest.ApiException as exc:
+                self._validate_paginated_list_retry(
+                    exc, retry_count, max_retry, resource_name="pods"
+                )
+                _continue = None
+                retry_count += 1
+                continue
 
             for item in pods_list.items:
                 if not states or item.status.phase in states:
@@ -153,13 +176,24 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def list_crds_paginated(
         self,
-        crd_group,
-        crd_version,
-        crd_plural,
-        namespace=None,
-        selector="",
+        crd_group: str,
+        crd_version: str,
+        crd_plural: str,
+        namespace: str = None,
+        selector: str = "",
+        max_retry: int = 3,
     ):
+        """
+        List custom resources paginated
+        :param crd_group:       The CRD group name
+        :param crd_version:     The CRD version
+        :param crd_plural:      The CRD plural name
+        :param namespace:       Namespace to query
+        :param selector:        Custom resource's label selector
+        :param max_retry:       Maximum number of retries on 410 Gone (when continue token is stale)
+        """
         _continue = None
+        retry_count = 0
         limit = int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit)
         if limit <= 0:
             limit = None
@@ -177,10 +211,15 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     _continue=_continue,
                     watch=False,
                 )
-            except ApiException as exc:
+            except k8s_client_rest.ApiException as exc:
                 # ignore error if crd is not defined
                 if exc.status != 404:
-                    raise
+                    self._validate_paginated_list_retry(
+                        exc, retry_count, max_retry, resource_name=crd_plural
+                    )
+                    _continue = None
+                    retry_count += 1
+                    continue
 
             else:
                 crd_items = crd_objects["items"]
@@ -201,7 +240,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         while True:
             try:
                 resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
-            except ApiException as exc:
+            except k8s_client_rest.ApiException as exc:
                 if retry_count > max_retry:
                     logger.error(
                         "Failed to create pod after max retries",
@@ -243,7 +282,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 propagation_policy="Background",
             )
             return api_response
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             # ignore error if pod is already removed
             if exc.status != 404:
                 logger.error(
@@ -261,7 +300,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 name=name, namespace=self.resolve_namespace(namespace)
             )
             return api_response
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             if exc.status != 404:
                 logger.error(
                     "Failed to get pod", pod_name=name, exc=mlrun.errors.err_to_str(exc)
@@ -303,7 +342,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 crd_name=name,
                 namespace=namespace,
             )
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             # ignore error if crd is already removed
             if exc.status != 404:
                 logger.error(
@@ -323,7 +362,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             resp = self.v1api.read_namespaced_pod_log(
                 name=name, namespace=self.resolve_namespace(namespace)
             )
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             logger.error("Failed to get pod logs", exc=mlrun.errors.err_to_str(exc))
             raise exc
 
@@ -370,7 +409,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             service_account = self.v1api.read_namespaced_service_account(
                 service_account_name, namespace
             )
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             # It's valid for the service account to not exist. Simply return None
             if exc.status != 404:
                 logger.error(
@@ -401,17 +440,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             hashed_access_key=hashed_access_key
         )
 
-    @staticmethod
-    def _hash_access_key(access_key: str):
-        return hashlib.sha224(access_key.encode()).hexdigest()
-
     def store_project_secrets(
         self, project, secrets, namespace=""
     ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
         secret_name = self.get_project_secret_name(project)
-        action = self.store_secrets(
-            secret_name, secrets, namespace, retry_on_conflict=True
-        )
+        action = self.store_secrets_with_retry(secret_name, secrets, namespace)
         return secret_name, action
 
     def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
@@ -419,7 +452,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         try:
             secret_data = self.v1api.read_namespaced_secret(secret_name, namespace).data
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             logger.error(
                 "Failed to read secret",
                 secret_name=secret_name,
@@ -466,25 +499,57 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 "access_key"
             ): access_key,
         }
-        action = self.store_secrets(
+        action = self.store_secrets_with_retry(
             secret_name,
             secret_data,
             namespace,
             type_=SecretTypes.v3io_fuse,
             labels=self._resolve_secret_labels(username),
-            retry_on_conflict=True,
         )
         return secret_name, action
+
+    def store_secrets_with_retry(
+        self,
+        secret_name: str,
+        secrets: dict[str, str],
+        namespace: str = "",
+        type_: str = SecretTypes.opaque,
+        labels: typing.Optional[dict] = None,
+        retry_on_conflict_count: int = 5,
+    ):
+        """
+        Stores secrets in a Kubernetes secret object with retry logic.
+
+        This function wraps `store_secrets` and retries the operation upon encountering
+        specified exceptions, such as `ConflictError`.
+
+        :param secret_name: The name of the Kubernetes secret.
+        :param secrets: The secrets to store, as a dictionary.
+        :param namespace: The Kubernetes namespace.
+        :param type_: The type of the Kubernetes secret.
+        :param labels: Labels to add to the Kubernetes secret.
+        :param retry_on_conflict_count: Number of times to retry in case of a conflict error.
+        :return: The action performed: created or updated, or None if nothing changed.
+        :raises Exception: Re-raises the last exception encountered after all retries are exhausted.
+        """
+        return run_with_retry(
+            retry_count=retry_on_conflict_count,
+            func=self.store_secrets,
+            secret_name=secret_name,
+            secrets=secrets,
+            namespace=namespace,
+            type_=type_,
+            labels=labels,
+        )
 
     @raise_for_status_code
     def store_secrets(
         self,
-        secret_name,
-        secrets,
-        namespace="",
-        type_=SecretTypes.opaque,
+        secret_name: str,
+        secrets: dict[str, str],
+        namespace: str = "",
+        type_: str = SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
-        retry_on_conflict: bool = False,
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         """
         Store secrets in a kubernetes secret object
@@ -493,7 +558,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param namespace:   k8s namespace
         :param type_:       k8s secret type
         :param labels:      k8s labels for the secret
-        :param retry_on_conflict:   if True, will retry to create the secret for race conditions
         :return: returns the action if the secret was created or updated, None if nothing changed
         """
         if not secrets:
@@ -502,56 +566,100 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         namespace = self.resolve_namespace(namespace)
         try:
-            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException as exc:
-            # If secret doesn't exist, we'll simply create it
-            if exc.status != 404:
-                logger.error(
-                    "Failed to retrieve k8s secret",
-                    secret_name=secret_name,
-                    exc=mlrun.errors.err_to_str(exc),
-                )
-                raise exc
-            k8s_secret = client.V1Secret(type=type_)
-            k8s_secret.metadata = client.V1ObjectMeta(
-                name=secret_name, namespace=namespace, labels=labels
+            k8s_secret = self._read_secret(
+                secret_name=secret_name,
+                namespace=namespace,
             )
-            k8s_secret.string_data = secrets
-            try:
-                self.v1api.create_namespaced_secret(namespace, k8s_secret)
-                return mlrun.common.schemas.SecretEventActions.created
-            except ApiException as exc:
-                if exc.status == 409 and retry_on_conflict:
-                    logger.warning(
-                        "Secret was created while we tried to create it, retrying...",
-                        secret_name=secret_name,
-                        exc=mlrun.errors.err_to_str(exc),
-                    )
-                    return self.store_secrets(
-                        secret_name,
-                        secrets,
-                        namespace,
-                        type_,
-                        labels,
-                        retry_on_conflict=False,
-                    )
-                raise exc
+        except (
+            k8s_dynamic_exceptions.NotFoundError
+        ):  # If secret doesn't exist, we'll simply create it
+            self._create_secret(
+                labels=labels,
+                namespace=namespace,
+                secret_name=secret_name,
+                secrets=secrets,
+                type_=type_,
+            )
+            return mlrun.common.schemas.SecretEventActions.created
 
+        # Secret exists and we are updating it.
+        self._update_secret(
+            k8s_secret=k8s_secret,
+            namespace=namespace,
+            secret_name=secret_name,
+            secrets=secrets,
+        )
+        return mlrun.common.schemas.SecretEventActions.updated
+
+    def _create_secret(
+        self,
+        secret_name: str,
+        secrets: dict[str, str],
+        namespace: str = "",
+        type_: str = SecretTypes.opaque,
+        labels: typing.Optional[dict] = None,
+    ):
+        k8s_secret = client.V1Secret(
+            type=type_,
+            metadata=client.V1ObjectMeta(
+                name=secret_name,
+                namespace=namespace,
+                labels=labels,
+            ),
+            string_data=secrets,
+        )
+        try:
+            self.v1api.create_namespaced_secret(
+                namespace=namespace,
+                body=k8s_secret,
+            )
+        except k8s_dynamic_exceptions.ConflictError as exc:
+            # There was a conflict while we tried to create the secret.
+            logger.warning(
+                "Secret was created while we tried to create it,",
+                secret_name=k8s_secret.metadata.name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise
+
+    def _update_secret(
+        self,
+        k8s_secret: client.V1Secret,
+        secret_name: str,
+        secrets: dict[str, str],
+        namespace: str = "",
+    ):
         secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
-
         for key, value in secrets.items():
             secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
-
         k8s_secret.data = secret_data
         self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
-        return mlrun.common.schemas.SecretEventActions.updated
+
+    def _read_secret(
+        self,
+        secret_name: str,
+        namespace: str = "",
+    ) -> client.V1Secret:
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(
+                name=secret_name,
+                namespace=namespace,
+            )
+        except k8s_client_rest.ApiException as exc:
+            logger.error(
+                "Failed to retrieve k8s secret",
+                secret_name=secret_name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise exc
+        return k8s_secret
 
     def load_secret(self, secret_name, namespace=""):
         namespace = namespace or self.resolve_namespace(namespace)
 
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException:
+        except k8s_client_rest.ApiException:
             return None
 
         return k8s_secret.data
@@ -585,7 +693,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             if exc.status == 404:
                 logger.info(
                     "Project secret does not exist, nothing to delete",
@@ -676,7 +784,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 self.v1api.replace_namespaced_config_map(
                     configmap_name, namespace=namespace, body=body
                 )
-            except ApiException as exc:
+            except k8s_client_rest.ApiException as exc:
                 logger.error(
                     "Failed to replace k8s config map",
                     name=configmap_name,
@@ -686,7 +794,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         else:
             try:
                 self.v1api.create_namespaced_config_map(namespace=namespace, body=body)
-            except ApiException as exc:
+            except k8s_client_rest.ApiException as exc:
                 logger.error(
                     "Failed to create k8s config map",
                     name=configmap_name,
@@ -718,7 +826,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 name=name,
                 namespace=namespace,
             )
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             logger.error(
                 "Failed to delete k8s config map",
                 name=name,
@@ -726,6 +834,46 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             if raise_on_error:
                 raise exc
+
+    @staticmethod
+    def _hash_access_key(access_key: str):
+        return hashlib.sha224(access_key.encode()).hexdigest()
+
+    @staticmethod
+    @raise_for_status_code
+    def _validate_paginated_list_retry(
+        exc: k8s_client_rest.ApiException,
+        retry_count: int,
+        max_retry: int,
+        resource_name: str,
+    ):
+        """
+        Validates 410 Gone retries.
+        Raises `exc` if error is not 410 or retries are exhausted.
+        Otherwise, logs an appropriate warning.
+        :param exc:             The k8s_client_rest.ApiException raised by the list query
+        :param retry_count:     The current retry count
+        :param max_retry:       The maximum retries allowed
+        :param resource_name:   The resource that was listed
+        """
+        if exc.status != 410:
+            raise exc
+
+        if retry_count >= max_retry:
+            logger.error(
+                "Failed to list resources paginated, max retries exceeded",
+                retry_count=retry_count,
+                max_retry=max_retry,
+                resource_name=resource_name,
+            )
+            raise exc
+
+        logger.warning(
+            "Failed to list resources due to stale continue token. Retrying from scratch",
+            retry_count=retry_count,
+            resource_name=resource_name,
+            exc=mlrun.errors.err_to_str(exc),
+        )
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)
@@ -736,7 +884,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException:
+        except k8s_client_rest.ApiException:
             return None
 
         return k8s_secret.data

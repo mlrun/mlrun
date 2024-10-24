@@ -11,9 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# TODO : delete this file in 1.9.0
-from mlrun.model_monitoring.applications import (  # noqa: F401
-    ModelMonitoringApplicationBase,
-    ModelMonitoringApplicationResult,
-)
+#

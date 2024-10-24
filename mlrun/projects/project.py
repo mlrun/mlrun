@@ -67,13 +67,7 @@ from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
-from ..utils import (
-    is_ipython,
-    is_relative_path,
-    is_yaml_path,
-    logger,
-    update_in,
-)
+from ..utils import is_jupyter, is_relative_path, is_yaml_path, logger, update_in
 from ..utils.clones import (
     add_credentials_git_remote_url,
     clone_git,
@@ -714,7 +708,7 @@ def _load_project_from_db(url, secrets, user_project=False):
 
 def _delete_project_from_db(project_name, secrets, deletion_strategy):
     db = mlrun.db.get_run_db(secrets=secrets)
-    return db.delete_project(project_name, deletion_strategy=deletion_strategy)
+    db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
 def _load_project_file(url, name="", secrets=None, allow_cross_project=None):
@@ -1558,7 +1552,7 @@ class MlrunProject(ModelObj):
             url = path.normpath(path.join(self.spec.get_code_path(), url))
 
         if (not in_context or check_path_in_context) and not path.isfile(url):
-            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
+            raise FileNotFoundError(f"{url} not found")
 
         return url, in_context
 
@@ -1599,7 +1593,9 @@ class MlrunProject(ModelObj):
         :param format:        artifact file format: csv, png, ..
         :param tag:           version tag
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
-        :param upload:        upload to datastore (default is True)
+        :param upload:        Whether to upload the artifact to the datastore. If not provided, and the `local_path`
+                              is not a directory, upload occurs by default. Directories are uploaded only when this
+                              flag is explicitly set to `True`.
         :param labels:        a set of key/value labels to tag the artifact with
 
         :returns: artifact object
@@ -1954,7 +1950,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2022,7 +2017,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2080,7 +2074,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
             None,
         ] = None,
         name: typing.Optional[str] = None,
@@ -2169,7 +2162,8 @@ class MlrunProject(ModelObj):
 
         :param default_controller_image:          Deprecated.
         :param base_period:                       The time period in minutes in which the model monitoring controller
-                                                  function is triggered. By default, the base period is 10 minutes.
+                                                  function is triggered. By default, the base period is 10 minutes
+                                                  (which is also the minimum value for production environments).
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
                                                   functions. By default, the image is mlrun/mlrun.
@@ -2188,6 +2182,12 @@ class MlrunProject(ModelObj):
                 FutureWarning,
             )
             image = default_controller_image
+        if base_period < 10:
+            logger.warn(
+                "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
+                project=self.name,
+            )
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,
@@ -2439,7 +2439,7 @@ class MlrunProject(ModelObj):
         ):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
-            if is_ipython:
+            if is_jupyter:
                 from IPython import get_ipython
 
                 kernel = get_ipython()
@@ -2842,11 +2842,13 @@ class MlrunProject(ModelObj):
         The function objects are synced against the definitions spec in `self.spec._function_definitions`.
         Referenced files/URLs in the function spec will be reloaded.
         Function definitions are parsed by the following precedence:
-            1. Contains runtime spec.
-            2. Contains module in the project's context.
-            3. Contains path to function definition (yaml, DB, Hub).
-            4. Contains path to .ipynb or .py files.
-            5. Contains a Nuclio/Serving function image / an 'Application' kind definition.
+
+        1. Contains runtime spec.
+        2. Contains module in the project's context.
+        3. Contains path to function definition (yaml, DB, Hub).
+        4. Contains path to .ipynb or .py files.
+        5. Contains a Nuclio/Serving function image / an 'Application' kind definition.
+
         If function definition is already an object, some project metadata updates will apply however,
         it will not be reloaded.
 
@@ -2902,6 +2904,16 @@ class MlrunProject(ModelObj):
                         continue
 
                     raise mlrun.errors.MLRunMissingDependencyError(message) from exc
+
+                except Exception as exc:
+                    if silent:
+                        logger.warn(
+                            "Failed to instantiate function",
+                            name=name,
+                            error=mlrun.utils.err_to_str(exc),
+                        )
+                        continue
+                    raise exc
             else:
                 message = f"Function {name} must be an object or dict."
                 if silent:
@@ -3060,6 +3072,7 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
+        workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3088,15 +3101,20 @@ class MlrunProject(ModelObj):
 
                           * Remote URL which is loaded dynamically to the workflow runner.
                           * A path to the project's context on the workflow runner's image.
-                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
-                          (enriched when building a project image with source, see `MlrunProject.build_image`).
-                          For other engines the source is used to validate that the code is up-to-date.
+                            Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
+                            (enriched when building a project image with source, see `MlrunProject.build_image`).
+                            For other engines the source is used to validate that the code is up-to-date.
+
         :param cleanup_ttl:
                           Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                           workflow and all its resources are deleted)
         :param notifications:
                           List of notifications to send for workflow completion
-
+        :param workflow_runner_node_selector:
+                          Defines the node selector for the workflow runner pod when using a remote engine.
+                          This allows you to control and specify where the workflow runner pod will be scheduled.
+                          This setting is only relevant when the engine is set to 'remote' or for scheduled workflows,
+                          and it will be ignored if the workflow is not run on a remote engine.
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
@@ -3162,6 +3180,16 @@ class MlrunProject(ModelObj):
             )
             inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
+        if workflow_runner_node_selector:
+            if workflow_engine.engine == "remote":
+                workflow_spec.workflow_runner_node_selector = (
+                    workflow_runner_node_selector
+                )
+            else:
+                logger.warn(
+                    "'workflow_runner_node_selector' applies only to remote engines"
+                    " and is ignored for non-remote runs."
+                )
 
         run = workflow_engine.run(
             self,
@@ -3762,7 +3790,7 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -3788,8 +3816,13 @@ class MlrunProject(ModelObj):
             case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
-            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
+        :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -3822,7 +3855,7 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -3841,8 +3874,13 @@ class MlrunProject(ModelObj):
             case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
-            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
+        :param labels: Filter model artifacts by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -3866,7 +3904,12 @@ class MlrunProject(ModelObj):
             tree=tree,
         ).to_objects()
 
-    def list_functions(self, name=None, tag=None, labels=None):
+    def list_functions(
+        self,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+    ):
         """Retrieve a list of functions, filtered by specific criteria.
 
         example::
@@ -3876,7 +3919,13 @@ class MlrunProject(ModelObj):
 
         :param name: Return only functions with a specific name.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
-        :param labels: Return functions that have specific labels assigned to them.
+        :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :returns: List of function objects.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -3889,7 +3938,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> Optional[list]:
         """
         Retrieve a list of all the model monitoring functions.
@@ -3899,8 +3948,13 @@ class MlrunProject(ModelObj):
 
         :param name:    Return only functions with a specific name.
         :param tag:     Return function versions with specific tags.
-        :param labels:  Return functions that have specific labels assigned to them.
-
+        :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :returns: List of function objects.
         """
 
@@ -3917,7 +3971,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        labels: Optional[Union[str, list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility
@@ -3952,9 +4006,13 @@ class MlrunProject(ModelObj):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
-        :param labels:  A list of labels to filter by. Label filters work by either filtering a specific value
-                of a label (i.e. list("key=value")) or by looking for the existence of a given
-                key (i.e. "key").
+        :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param state: Deprecated - List only runs whose state is specified.
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be

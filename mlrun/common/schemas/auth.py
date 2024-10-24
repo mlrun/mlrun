@@ -63,6 +63,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     event = "event"
     datastore_profile = "datastore-profile"
     api_gateway = "api-gateway"
+    project_summaries = "project-summaries"
 
     def to_resource_string(
         self,
@@ -72,6 +73,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
         return {
             # project is the resource itself, so no need for both resource_name and project_name
             AuthorizationResourceTypes.project: "/projects/{project_name}",
+            AuthorizationResourceTypes.project_summaries: "/projects/{project_name}/project-summaries/{resource_name}",
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
             AuthorizationResourceTypes.project_background_task: (
@@ -138,6 +140,9 @@ class AuthInfo(pydantic.BaseModel):
         if self.user_group_ids:
             member_ids.extend(self.user_group_ids)
         return member_ids
+
+    def get_session(self) -> str:
+        return self.data_session or self.session
 
 
 class Credentials(pydantic.BaseModel):

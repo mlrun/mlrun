@@ -13,6 +13,7 @@
 # limitations under the License.
 import abc
 import os
+import typing
 from copy import deepcopy
 from datetime import datetime
 from typing import Optional
@@ -562,6 +563,7 @@ with ctx:
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ):
         """
         Handling config maps deletion
@@ -585,7 +587,9 @@ with ctx:
                 )
                 if force or uid in uids:
                     server.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
-                        config_map.metadata.name, namespace
+                        config_map.metadata.name,
+                        namespace,
+                        grace_period_seconds=resource_deletion_grace_period,
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")
             except ApiException as exc:

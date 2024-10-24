@@ -774,6 +774,23 @@ class Notification(ModelObj):
 
         notification_class.validate_params(secret_params | params)
 
+    def enrich_unmasked_secret_params_from_project_secret(self):
+        """
+        Fill the notification secret params from the project secret.
+        We are using this function instead of unmask_secret_params_from_project_secret when we run inside the
+        workflow runner pod that doesn't have access to the k8s secrets (but have access to the project secret)
+        """
+        secret = self.secret_params.get("secret")
+        if secret:
+            secret_value = mlrun.get_secret_or_env(secret)
+            if secret_value:
+                try:
+                    self.secret_params = json.loads(secret_value)
+                except ValueError as exc:
+                    raise mlrun.errors.MLRunValueError(
+                        "Failed to parse secret value"
+                    ) from exc
+
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):
         """Validate that all notifications in the list are unique by name"""
@@ -2044,6 +2061,8 @@ class DataSource(ModelObj):
     ]
     kind = None
 
+    _fields_to_serialize = ["start_time", "end_time"]
+
     def __init__(
         self,
         name: str = None,
@@ -2071,6 +2090,16 @@ class DataSource(ModelObj):
 
     def set_secrets(self, secrets):
         self._secrets = secrets
+
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        value = super()._serialize_field(struct, field_name, strip)
+        # We pull the field from self and not from struct because it was excluded from the struct when looping over
+        # the fields to save.
+        if field_name in ("start_time", "end_time") and isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
 
 class DataTargetBase(ModelObj):

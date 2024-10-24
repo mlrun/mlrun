@@ -18,7 +18,7 @@ from os import path
 sys.path.insert(0, "..")
 
 
-def current_version():
+def current_version() -> str:
     root = path.dirname(path.dirname(path.abspath(__file__)))
     with open(f"{root}/mlrun/__init__.py") as fp:
         for line in fp:
@@ -31,19 +31,19 @@ def current_version():
 
 # -- Project information -----------------------------------------------------
 
-
 project = "mlrun"
 copyright = "2023, Iguazio"
 author = "Iguazio"
 
 master_doc = "contents"
 
-# The short X.Y version
-version = current_version()
-version = version[: version.rfind(".")]
-
 # The full version, including alpha/beta/rc tags
 release = current_version()
+
+# The short X.Y version
+version = release
+version = version[: version.rfind(".")]
+
 
 # -- General configuration ---------------------------------------------------
 
@@ -77,24 +77,13 @@ templates_path = [
 # Usually you set "language" from the command line for these cases.
 language = "en"
 
-linkcheck_ignore = {
-    r"https:\/\/github\.com\/.*\/.*#L\d+-L\d+",
-    # linkcheck doesn't work well with relative paths which contain anchor, so ignore them
-    r"^.*\.html#.*$",
-    r"^\./[^/]+\.html#.*$",
-    r"^\.\./[^/]+\.html#.*$",
-    r"^(?!https?:\/\/).*",
-    r"http:\/\/localhost:\d+",
-    "https://myservice/path",
-    "https://openai.com/research/whisper",
-    "https://platform.openai.com/docs/.*",
-}
-linkcheck_anchors = True
-
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
+exclude_patterns = [
+    "_build",
+    "CONTRIBUTING.md",
+]
 
 source_suffix = {
     ".rst": "restructuredtext",
@@ -102,6 +91,8 @@ source_suffix = {
     ".myst": "myst-nb",
     ".md": "myst-nb",
 }
+
+nitpicky = False  # TODO: Change to `True`.
 
 # versionwarning configuration
 versionwarning_default_message = (
@@ -139,7 +130,7 @@ html_theme_options = {
     "home_page_in_toc": False,
     "repository_branch": "development",
     "show_navbar_depth": 1,
-    "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
+    # "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',  # https://github.com/executablebooks/sphinx-book-theme/issues/810
     "extra_footer": "",
 }
 
@@ -179,6 +170,7 @@ autodoc_mock_imports = [
     "tensorflow",
     "tensorboard",
     "torch",
+    "tqdm",
     "lightgbm",
     "xgboost",
     "onnx",

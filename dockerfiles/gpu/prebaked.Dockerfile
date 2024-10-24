@@ -36,7 +36,7 @@ RUN apt update -qqq --fix-missing \
 
 # Install MiniConda (Python 3.9):
 ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.1.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.11.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
     /opt/conda/bin/conda update --all --use-local --yes && \
@@ -49,7 +49,7 @@ ENV PATH /opt/conda/bin:$PATH
 
 # Setup environment variables:
 ENV PIP_NO_CACHE_DIR=1
-ENV LD_LIBRARY_PATH /usr/local/cuda-11.7/lib64:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH /usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH
 
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5

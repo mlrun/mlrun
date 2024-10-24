@@ -587,14 +587,15 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
     assert pagination["page-size"] == 10
     assert runs[0]["metadata"]["name"] == "run_4"
 
-    response = client.get(
-        RUNS_API_ENDPOINT.format(project=project),
-        params={
+    runs = _list_and_assert_objects(
+        client,
+        {
             "page-token": token,
         },
+        0,
+        project=project,
     )
-    # token is expired
-    assert response.status_code == HTTPStatus.NOT_FOUND.value
+    assert not runs
 
     runs = _list_and_assert_objects(
         client,

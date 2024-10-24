@@ -41,7 +41,7 @@ import semver
 import yaml
 from dateutil import parser
 from mlrun_pipelines.models import PipelineRun
-from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
+from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
@@ -111,9 +111,12 @@ def get_artifact_target(item: dict, project=None):
     project_str = project or item["metadata"].get("project")
     tree = item["metadata"].get("tree")
     tag = item["metadata"].get("tag")
+    kind = item.get("kind")
 
-    if item.get("kind") in {"dataset", "model", "artifact"} and db_key:
-        target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
+    if kind in {"dataset", "model", "artifact"} and db_key:
+        target = (
+            f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
+        )
         target += f":{tag}" if tag else ":latest"
         if tree:
             target += f"@{tree}"
@@ -133,18 +136,25 @@ def is_legacy_artifact(artifact):
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
-is_ipython = False
+is_ipython = False  # is IPython terminal, including Jupyter
+is_jupyter = False  # is Jupyter notebook/lab terminal
 try:
-    import IPython
+    import IPython.core.getipython
 
-    ipy = IPython.get_ipython()
-    # if its IPython terminal ignore (cant show html)
-    if ipy and "Terminal" not in str(type(ipy)):
-        is_ipython = True
-except ImportError:
+    ipy = IPython.core.getipython.get_ipython()
+
+    is_ipython = ipy is not None
+    is_jupyter = (
+        is_ipython
+        # not IPython
+        and "Terminal" not in str(type(ipy))
+    )
+
+    del ipy
+except ModuleNotFoundError:
     pass
 
-if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
+if is_jupyter and config.nest_asyncio_enabled in ["1", "True"]:
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
@@ -258,12 +268,14 @@ def validate_tag_name(
 def validate_artifact_key_name(
     artifact_key: str, field_name: str, raise_on_failure: bool = True
 ) -> bool:
+    field_type = "key" if field_name == "artifact.key" else "db_key"
     return mlrun.utils.helpers.verify_field_regex(
         field_name,
         artifact_key,
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
-        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
+        log_message=f"Artifact {field_type} must start and end with an alphanumeric character, and may only contain "
+        "letters, numbers, hyphens, underscores, and dots.",
     )
 
 
@@ -1421,11 +1433,7 @@ def is_running_in_jupyter_notebook() -> bool:
     Check if the code is running inside a Jupyter Notebook.
     :return: True if running inside a Jupyter Notebook, False otherwise.
     """
-    import IPython
-
-    ipy = IPython.get_ipython()
-    # if its IPython terminal, it isn't a Jupyter ipython
-    return ipy and "Terminal" not in str(type(ipy))
+    return is_jupyter
 
 
 def create_ipython_display():
@@ -1776,3 +1784,43 @@ def _reload(module, max_recursion_depth):
         attribute = getattr(module, attribute_name)
         if type(attribute) is ModuleType:
             _reload(attribute, max_recursion_depth - 1)
+
+
+def run_with_retry(
+    retry_count: int,
+    func: typing.Callable,
+    retry_on_exceptions: typing.Union[
+        type[Exception],
+        tuple[type[Exception]],
+    ] = None,
+    *args,
+    **kwargs,
+):
+    """
+    Executes a function with retry logic upon encountering specified exceptions.
+
+    :param retry_count: The number of times to retry the function execution.
+    :param func: The function to execute.
+    :param retry_on_exceptions: Exception(s) that trigger a retry. Can be a single exception or a tuple of exceptions.
+    :param args: Positional arguments to pass to the function.
+    :param kwargs: Keyword arguments to pass to the function.
+    :return: The result of the function execution if successful.
+    :raises Exception: Re-raises the last exception encountered after all retries are exhausted.
+    """
+    if retry_on_exceptions is None:
+        retry_on_exceptions = (Exception,)
+    elif isinstance(retry_on_exceptions, list):
+        retry_on_exceptions = tuple(retry_on_exceptions)
+
+    last_exception = None
+    for attempt in range(retry_count + 1):
+        try:
+            return func(*args, **kwargs)
+        except retry_on_exceptions as exc:
+            last_exception = exc
+            logger.warning(
+                f"Attempt {{{attempt}/ {retry_count}}} failed with exception: {exc}",
+            )
+            if attempt == retry_count:
+                raise
+    raise last_exception

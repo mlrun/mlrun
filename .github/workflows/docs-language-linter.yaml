@@ -28,6 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: |
+          venv="$HOME/.local/share/venv"
+          python3 -m venv "$venv"
+          echo "$venv/bin" >> $GITHUB_PATH
       - uses: errata-ai/vale-action@reviewdog
         with:
           reporter: github-pr-check
@@ -52,6 +56,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: |
+          venv="$HOME/.local/share/venv"
+          python3 -m venv "$venv"
+          echo "$venv/bin" >> $GITHUB_PATH
       - name: Set up python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:

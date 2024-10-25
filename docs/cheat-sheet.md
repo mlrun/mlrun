@@ -958,7 +958,7 @@ quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
 
 #### Built-in transformations
 
-Docs: {py:meth}`storey.transformations`, [Built-in transformations](./feature-store/transformations.md#built-in-transformations)
+Docs: {py:class}`storey.transformations`, [Built-in transformations](./feature-store/transformations.md#built-in-transformations)
 
 ```python
 quotes_set.graph.to("storey.Filter", "filter", _fn="(event['bid'] > 50)")

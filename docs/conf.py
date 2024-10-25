@@ -193,7 +193,10 @@ smartquotes = False
 
 linkcheck_ignore = [
     r"project\.yaml",  # Ignore specific links to project.yaml
-    r"\.\.api/mlrun.runtimes/.*",
+    # Ignore all HTML links to local files
+    r"\.\.\/.*\.html",
+    r"\.\/.*\.html",
+    "http://host/path/model.pkl" "http://workflow.py",
 ]
 
 # -- Autosummary -------------------------------------------------------------
@@ -215,7 +218,6 @@ def copy_doc(src, dest, title=""):
 
 def setup(app):
     pass
-    # app.connect('source-read', replace_md_ipynb_links)
 
 
 #   project_root = path.dirname(path.dirname(path.abspath(__file__)))

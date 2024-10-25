@@ -26,14 +26,13 @@ apply_mlrun(model=model, model_name="my_model", x_test=x_test, y_test=y_test)
 When specifying the `x_test` and `y_test` data it generates various plots and calculations to evaluate the model.
 Metadata and parameters are automatically recorded (from the MLRun `context` object) and don't need to be specified.
 
-`apply_mlrun` is framework specific and can be imported from [MLRun's **frameworks**](../api/mlrun.frameworks/index.html) 
+`apply_mlrun` is framework specific and can be imported from [MLRun's **frameworks**](../api/mlrun.frameworks/index.rst) 
 package &mdash; a collection of commonly used machine and deep learning frameworks fully supported by MLRun.
 
 `apply_mlrun` can be used with its default settings, but it is highly flexible and rich with different options and 
 configurations. Reading the docs of your favorite framework to get the most out of MLRun:
-- [SciKit-Learn](../api/mlrun.frameworks/mlrun.frameworks.sklearn.html)
-- [TensorFlow (and Keras)](../api/mlrun.frameworks/mlrun.frameworks.tf_keras.html)
-- [PyTorch](../api/mlrun.frameworks/mlrun.frameworks.pytorch.html) 
-- [XGBoost](../api/mlrun.frameworks/mlrun.frameworks.xgboost.html) 
-- [LightGBM](../api/mlrun.frameworks/mlrun.frameworks.lgbm.html) 
-- [ONNX](../api/mlrun.frameworks/mlrun.frameworks.onnx.html)
+- [SciKit-Learn](../api/mlrun.frameworks/mlrun.frameworks.sklearn.rst)
+- [TensorFlow (and Keras)](../api/mlrun.frameworks/mlrun.frameworks.tf_keras.rst)
+- [PyTorch](../api/mlrun.frameworks/mlrun.frameworks.pytorch.rst) 
+- [XGBoost](../api/mlrun.frameworks/mlrun.frameworks.xgboost.rst) 
+- [LightGBM](../api/mlrun.frameworks/mlrun.frameworks.lgbm.rst)

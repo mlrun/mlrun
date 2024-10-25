@@ -6,7 +6,7 @@ MLRun supports configuring notifications on jobs and scheduled jobs. This sectio
 
 - [The notification object](#the-notification-object)
 - [Local vs. remote](#local-vs-remote)
-- [Notification parameters and secrets](#notification-params-and-secrets)
+- [Notification parameters and secrets](#notification-parameters-and-secrets)
 - [Notification kinds](#notification-kinds)
 - [Configuring notifications for runs](#configuring-notifications-for-runs)
 - [Configuring notifications for pipelines](#configuring-notifications-for-pipelines)
@@ -22,7 +22,7 @@ The notification object's schema is:
 - `name`: str - notification name
 - `message`: str - notification message
 - `severity`: str - notification severity (info, warning, error, debug)
-- `params`: dict - notification parameters (See definitions in [Notification Kinds](#notification-params-and-secrets))
+- `params`: dict - notification parameters (See definitions in [Notification Kinds](#notification-parameters-and-secrets))
 - `secret_params`: dict - secret data notification parameters (See definitions in [Notification Params and Secrets](#notification-kinds))
 - `condition`: str - jinja template for a condition that determines whether the notification is sent or not (See [Notification Conditions](#notification-conditions))
 

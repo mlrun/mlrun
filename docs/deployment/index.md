@@ -14,11 +14,11 @@ Generally, there are two main modes of deployment:
    eases that creation of a data transformation pipeline as part of the model serving. Feature store support
    is another way of ensuring that feature calculations remain consistent between the training process and the serving
    process. For an end-to-end demo of model serving, refer to the
-  [**Serving pre-trained ML/DL models tutorial**](../tutorials/03-model-serving.html).
+  [**Serving pre-trained ML/DL models tutorial**](../tutorials/03-model-serving.ipynb).
 2. **Batch inference**: this includes a process that runs on a large dataset. The data is usually read from
   an offline source, such as files or databases, and the result is also written to offline targets. It is common
   to set up a schedule when running batch inference. For an end-to-end demo of batch inference, refer to the
-  [**batch inference and drift detection tutorial**](../tutorials/07-batch-infer.html).
+  [**batch inference and drift detection tutorial**](../tutorials/06-batch-infer.ipynb).
 
 **In this section**
 

@@ -7,7 +7,7 @@ This release of MLRun supports only Python 3.9.
 
 **In this section**
 - [Using images](#using-images)
-- [MLRun images](#mlrun-images)
+- [MLRun images](#building-mlrun-images)
 - [Building MLRun images](#building-mlrun-images)
 - [Building a docker image using a Dockerfile and using it](#building-a-docker-image-using-a-dockerfile-and-using-it)
 - [MLRun images and external docker images](#mlrun-images-and-external-docker-images)
@@ -16,7 +16,7 @@ This release of MLRun supports only Python 3.9.
 
 See {ref}`build-function-image`.
 
-## MLRun runtime images  
+## MLRun runtime images
 
 All images are published to 
 [DockerHub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).

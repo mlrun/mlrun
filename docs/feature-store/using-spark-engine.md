@@ -35,7 +35,7 @@ See code examples in:
 - [Remote Spark ingestion example](#remote-spark-ingestion-example)
 - [Spark operator ingestion example](#spark-operator-ingestion-example)
 - [Spark dataframe ingestion example](#spark-dataframe-ingestion-example)
-- [Spark over S3 full flow example](#spark-over-s3-full-flow-example)
+- [Spark over S3 full flow example](#spark-over-s3---full-flow-example)
 - [Spark ingestion from Snowflake example](#spark-ingestion-from-snowflake-example)
 - [Spark ingestion from Azure example](#spark-ingestion-from-azure-example)
        
@@ -226,7 +226,7 @@ One-time setup:
 
    RemoteSparkRuntime.deploy_default_image()
    ```
-2. Store your S3 credentials in a k8s [secret](../secrets.html#kubernetes-project-secrets):
+2. Store your S3 credentials in a k8s [secret](../secrets.md#kubernetes-project-secrets):
    ```python
    import mlrun
 

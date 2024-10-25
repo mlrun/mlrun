@@ -50,7 +50,7 @@ project.run_function("train")
 ```
 
 **See also**
-- [Create and register functions](../runtimes/create-and-use-functions.html)
-- [How to annotate notebooks (to be used as functions)](../runtimes/mlrun_code_annotations.html)
-- [How to run, build, or deploy functions](../projects/run-build-deploy.html)
-- [Using functions in workflows](../projects/build-run-workflows-pipelines.html)
+- [Create and register functions](../runtimes/create-and-use-functions.ipynb)
+- [How to annotate notebooks (to be used as functions)](../runtimes/mlrun_code_annotations.ipynb)
+- [How to run, build, or deploy functions](../projects/run-build-deploy.md)
+- [Using functions in workflows](../projects/build-run-workflows-pipelines.md)

@@ -44,7 +44,6 @@ release = current_version()
 version = release
 version = version[: version.rfind(".")]
 
-
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -150,8 +149,9 @@ myst_enable_extensions = [
     "substitution",
 ]
 myst_url_schemes = ("http", "https", "mailto")
-myst_heading_anchors = 2
-myst_all_links_external = True
+myst_heading_anchors = 5
+myst_all_links_external = False
+myst_xref_missing = "ignore"
 
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
@@ -162,7 +162,7 @@ myst_substitutions = {
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
-
+suppress_warnings = [ 'ref.myst']
 # Add here external imports:
 autodoc_mock_imports = [
     "plotly",
@@ -192,6 +192,11 @@ redirects = {
 
 smartquotes = False
 
+linkcheck_ignore = [
+    r'project\.yaml',  # Ignore specific links to project.yaml
+    r'\.\.api/mlrun.runtimes/.*',
+]
+
 # -- Autosummary -------------------------------------------------------------
 
 autosummary_generate = True
@@ -211,7 +216,7 @@ def copy_doc(src, dest, title=""):
 
 def setup(app):
     pass
-
+    #app.connect('source-read', replace_md_ipynb_links)
 
 #   project_root = path.dirname(path.dirname(path.abspath(__file__)))
 #   copy_doc(f"{project_root}/examples/remote.md", "external/remote.md")

@@ -2,8 +2,8 @@
 # Model monitoring user flow
 
 This page gives an overview of the model monitoring user flow. See complete examples in the tutorials:
-- [Model monitoring and drift detection](../tutorials/05-model-monitoring.html)
-- [Model monitoring with a user-app](../tutorials/genai_02_model_monitor_user_app.html)
+- [Model monitoring and drift detection](../tutorials/05-model-monitoring.ipynb)
+- [Model monitoring with a user-app](../tutorials/genai-02-monitoring-llm.ipynb)
 
 In this section:
 - [APIs](#apis)
@@ -12,7 +12,6 @@ In this section:
 - [Import, enable monitoring, and deploy the serving function](#import-enable-monitoring-and-deploy-the-serving-function)
 - [Invoke the model](#invoke-the-model)
 - [Register and deploy the model-monitoring app](#register-and-deploy-the-model-monitoring-app)
-- [User-app](#)
 - [Invoke the model again](#invoke-the-model-again)
 - [View model monitoring artifacts and drift in Grafana](#view-model-monitoring-artifacts-and-drift-in-grafana)
 - [Batch infer model-monitoring](#batch-infer-model-monitoring)
@@ -134,7 +133,7 @@ project.deploy_function(my_app)
 ```
 
 You can use the MLRun built-in class, `EvidentlyModelMonitoringApplicationBase`, to integrate [Evidently](https://github.com/evidentlyai/evidently) as an MLRun function and create MLRun artifacts.
-See the [Model monitoring and drift detection tutorial](../tutorials/05-model-monitoring).
+See the [Model monitoring and drift detection tutorial](../tutorials/05-model-monitoring.ipynb).
 
 ## Invoke the model again
 
@@ -177,7 +176,7 @@ All of the Grafana dashboards are described in {ref}`monitoring-models`.
 You can use the batch function (stored in the [function hub](https://www.mlrun.org/hub/functions/master/batch_inference_v2/))
 to evaluate data against your logged model **without disturbing the model**, for example a one-time evaluation of new data.  
 
-See more in the [model monitoring tutorial](../tutorials/05-model-monitoring.html#batch-infer-model-monitoring).
+See more in the [model monitoring tutorial](../tutorials/05-model-monitoring.ipynb).
 
 ## See also
 

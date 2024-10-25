@@ -341,7 +341,7 @@ be provided.
 
 ### Setting up S3 credentials and endpoint
 
-Set up the following project-secrets (refer to [**Data stores**](../store/datastore.html) and [**Project secrets**](../secrets.html#mlrun-managed-secrets)) 
+Set up the following project-secrets (refer to [**Data stores**](../store/datastore.md) and [**Project secrets**](../secrets.md#mlrun-managed-secrets)) 
 for any project used:
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; S3 credentials
@@ -354,7 +354,7 @@ for any project used:
 
 Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it, since by default
 auto-mount adds S3 configurations that point at the MinIO service (refer to 
-[**Function storage**](../runtimes/function-storage.html) for more details on auto-mount). This can be done in one
+[**Function storage**](../runtimes/function-storage.md) for more details on auto-mount). This can be done in one
 of following ways:
 
 * Set the client-side MLRun configuration to disable auto-mount. This disables auto-mount for any function run
@@ -382,7 +382,7 @@ the same path structure as the default, while modifying the bucket name. For exa
 s3://<bucket name>/projects/{{run.project}}/artifacts
 ```
 
-The artifact path can be set in several ways, refer to [**Artifact path**](../store/artifacts.html#artifact-path) 
+The artifact path can be set in several ways, refer to [**Artifact path**](../store/artifacts.md#artifact-path) 
 for more details.
 
 ```{admonition} Note

@@ -3,14 +3,13 @@
 
 ML applications require you to implement the following stages in a scalable and reproducible way:
 
-1. [Ingest and process data](#ingest)
-2. [Develop and train models](#develop)
-2. [Deploy models and applications](#deploy)
-2. [Monitor and alert](#monitor)
+1. [Ingest and process data](#ingest-and-process-data)
+2. [Develop and train models](#develop-and-train-models)
+2. [Deploy models and applications](#deploy-models-and-applications)
+2. [Monitor and alert](#monitor-and-alert)
 
 MLRun automates the MLOps work. It simplifies & accelerates the time to production
 
-<a id="ingest"></a>
 ## Ingest and process data
 
 There is no ML without data. Before everything else, ML teams need access to historical and/or online data from multiple sources, and they 
@@ -33,12 +32,11 @@ audio, and visual data into machine learning- or deep learning-friendly data org
 
 <img src="_static/images/data-collect-and-prep.png" alt="data-collection-and-preparation" width="800" /><br>
 
-MLOps solutions should incorporate a [feature store](./feature-store/feature-store.html) that defines the data collection and transformations 
+MLOps solutions should incorporate a [feature store](./feature-store/feature-store.md) that defines the data collection and transformations 
 just once for both batch and real-time scenarios, processes features automatically without manual involvement, and serves the features from 
 a shared catalog to training, serving, and data governance applications. Feature stores must also extend beyond traditional analytics and 
 enable advanced transformations on unstructured data and complex layouts.
 
-<a id="develop"></a>
 ## Develop and train models
 Whether it’s deep learning or machine learning, MLRun allows you to train your models at scale and capture all the relevant metadata for experiments tracking and lineage. 
 
@@ -72,7 +70,6 @@ jobs complete faster, and computation resources are freed up once they complete,
 The resulting models are stored in a versioned model repository along with metadata, performance metrics, required parameters, statistical 
 information, etc. Models can be loaded later into batch or real-time serving micro-services or functions.
 
-<a id="deploy"></a>
 ## Deploy models and applications
 With MLRun, in addition to a batch inference, you can deploy a robust and scalable {ref}`real-time serving pipeline <serving-graph>` for more complex and online scenarios. 
 MLRun uses [Nuclio](https://nuclio.io/), an open source serverless framework for creating real-time pipelines for {ref}`model deployment <deployment>`.
@@ -115,7 +112,6 @@ Production pipeline development and deployment flow:
 2. Retrain models and re-engineer data when needed
 2. Upgrade pipeline components (non-disruptively) when needed
 
-<a id="monitor"></a>
 ## Monitor and alert
 
 AI services and applications are becoming an essential part of any business. This trend brings with it liabilities, which drive further 

@@ -11,7 +11,7 @@ Click on the step names in the following sections to see the full usage.
 - [Routers](#routers)
 - [Other](#other)
 
-See also [Data transformations](../feature-store/transformations.html#data-transformation-steps).
+See also [Data transformations](../feature-store/transformations.md#data-transformation-steps).
 
 
 ## Base Operators
@@ -37,12 +37,12 @@ See also [Data transformations](../feature-store/transformations.html#data-trans
 ## External IO and data enrichment
 | Class name                                                                                                                    | Description                                                                                    |   
 |-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| [BatchHttpRequests](../api/mlrun.serving.html#mlrun.serving.remote.BatchHttpRequests)                                         | A class for calling remote endpoints in parallel.                                              | 
-| [mlrun.datastore.DataItem](../api/mlrun.datastore.html#mlrun.datastore.DataItem)                                              | Data input/output class abstracting access to various local/remote data sources.               |
+| [BatchHttpRequests](../api/mlrun.serving/index.rst) (TODO: Kate)#mlrun.serving.remote.BatchHttpRequests)                      | A class for calling remote endpoints in parallel.                                              | 
+| [mlrun.datastore.DataItem](../api/mlrun.datastore/index.rst) (TODO: Kate)#mlrun.datastore.DataItem)                           | Data input/output class abstracting access to various local/remote data sources.               |
 | [storey.transformations.JoinWithTable](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.JoinWithTable) | Joins each event with data from the given table.                                               |
 | JoinWithV3IOTable                                                                                                             | Joins each event with a V3IO table. Used for event augmentation.                               | 
 | [QueryByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.QueryByKey)                                 | Similar to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
-| [RemoteStep](../api/mlrun.serving.html#mlrun.serving.remote.RemoteStep)                                                       | Class for calling remote endpoints.                                                            | 
+| [RemoteStep](../api/mlrun.serving/index.rst) (TODO: Kate)#mlrun.serving.remote.RemoteStep)                                                       | Class for calling remote endpoints.                                                            | 
 | [storey.transformations.SendToHttp](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.SendToHttp)       | Joins each event with data from any HTTP source. Used for event augmentation.                  |
  
 
@@ -57,16 +57,16 @@ See also [Data transformations](../feature-store/transformations.html#data-trans
 
 ## Routers
 
-| Class name                                                                             | Description                                                                                                                                                                                                                                                                   |        
-|----------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| mlrun.serving.EnrichmentModelRouter                                                    | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
-| mlrun.serving.EnrichmentVotingEnsemble                                                 | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
-| mlrun.serving.ModelRouter                                                              | Basic model router, for calling different models per each model path.                                                                                                                                                                                                         | 
-| [mlrun.serving.VotingEnsemble](../api/mlrun.serving.html#mlrun.serving.VotingEnsemble) | An ensemble machine learning model that combines the prediction of several models.                                                                                                                                                                                            |       
+| Class name                                                                                                | Description                                                                                                                                                                                                                                                                   |        
+|-----------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| mlrun.serving.EnrichmentModelRouter                                                                       | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
+| mlrun.serving.EnrichmentVotingEnsemble                                                                    | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
+| mlrun.serving.ModelRouter                                                                                 | Basic model router, for calling different models per each model path.                                                                                                                                                                                                         | 
+| [mlrun.serving.VotingEnsemble](../api/mlrun.serving/index.rst) (TODO: Kate)#mlrun.serving.VotingEnsemble) | An ensemble machine learning model that combines the prediction of several models.                                                                                                                                                                                            |       
 
 
 ## Other
-| Class name                                                                                                               | Description                                                                                                   |   
-|--------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| [mlrun.feature_store.FeaturesetValidator](../api/mlrun.feature_store.html#mlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
-| ReduceToDataFrame                                                                                                        | Builds a pandas DataFrame from events and returns that DataFrame on flow termination.                         |
+| Class name                                                                                                                                   | Description                                                                                                   |   
+|----------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| [mlrun.feature_store.FeaturesetValidator](../api/mlrun.feature_store/index.rst) (TODO: Kate) #mlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
+| ReduceToDataFrame                                                                                                                            | Builds a pandas DataFrame from events and returns that DataFrame on flow termination.                         |

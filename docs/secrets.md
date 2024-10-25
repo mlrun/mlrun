@@ -14,7 +14,7 @@ and how much exposure they create for your secrets.
   - [Secret providers](#secret-providers)
     - [Kubernetes project secrets](#kubernetes-project-secrets)
     - [Azure Vault](#azure-vault)
-    - [Demo/Development secret providers](#demo-development-secret-providers)
+    - [Demo/Development secret providers](#demodevelopment-secret-providers)
 - [Externally managed secrets](#externally-managed-secrets)
   - [Mapping secrets to environment](#mapping-secrets-to-environment)
   - [Mapping secrets as files](#mapping-secrets-as-files)

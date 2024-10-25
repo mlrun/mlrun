@@ -194,14 +194,11 @@ smartquotes = False
 linkcheck_ignore = [
     # Ignore all HTML links to local files
     r"^(?!https?://).*",
-
     # linkcheck doesn't work well with relative paths on github which contain anchor, so ignore them
     r"https:\/\/github.com/.*#.*$",
-    
     # open ai often blocks access and returns 403
     r"https:\/\/platform\.openai\.com\/.*",
     r"https:\/\/openai\.com\/.*",
-
     # Single links to ignore
     "./workflow.py",
     "http://workflow.py",

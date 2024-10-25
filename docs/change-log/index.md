@@ -218,12 +218,12 @@
 |ML-3784| Support for feature vector-defined feature-set relations and join-type (per-join). Tech Preview. See [Feature vector with different entities and complex joins](../feature-store/feature-vectors.md#feature-vectors-with-different-entities-and-complex-joins) and [view in Git](https://github.com/mlrun/mlrun/pull/3947). |
 
 ### Infrastructure
-| ID     | Description                                                                                                                                                                                                                                                |
-|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-3370| Accessing the MLRun hub is now available through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384). |
-|ML-3644| Support for self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.md#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013).                                                            |
-|ML-4132| The `invoke` function can now receive any parameter supported in the `requests.request` method. See [invoke](../api/mlrun.runtimes/mlrun.runtimes) (TODO: Kate) and [view in Git](https://github.com/mlrun/mlrun/pull/3872).                               |
-|NA| From v1.5, clients must be running Python 3.9.                                                                                                                                                                                                             |
+| ID      | Description                                                                                                                                                                                                                                                |
+|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ML-3370 | Accessing the MLRun hub is now available through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384). |
+| ML-3644 | Support for self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.md#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013).                                                            |
+| ML-4132 | The `invoke` function can now receive any parameter supported in the `requests.request` method. See {py:meth}`~mlrun.runtimes.RemoteRuntime.invoke` and [view in Git](https://github.com/mlrun/mlrun/pull/3872).                                           |
+| NA      | From v1.5, clients must be running Python 3.9.                                                                                                                                                                                                             |
 
 
 ### Runtimes
@@ -247,11 +247,11 @@
 |ML-4511|You can now change the image and add new requirements (such as `xgboost`) in the Batch Infer wizard.  |
 
 ### Documentation
-| ID      | Description                                                                                                                                                                       |
-|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ML-3763 | Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.md#number-of-workers-and-gpus).              |
-| ML-4420 | Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.ipynb).                                                                    |
-| ML-2380 | Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.ipynb) and [Spark3Runtime](../api/mlrun.runtimes/mlrun.runtimes.rst) (TODO: Kate). |
+| ID      | Description                                                                                                                                                          |
+|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ML-3763 | Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.md#number-of-workers-and-gpus). |
+| ML-4420 | Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.ipynb).                                                       |
+| ML-2380 | Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.ipynb) and {py:meth}`~mlrun.runtimes.SparkRuntime.invoke`.            |
 
 ### Breaking changes
 | ID     | Description                                                                                                                                                                                                                                                                      |

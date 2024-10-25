@@ -949,7 +949,7 @@ fset.ingest(
 
 #### Aggregations
 
-Docs: [add_aggregation()](./api/mlrun.feature_store/index.rst) (TODO: Kate) #mlrun.feature_store.FeatureSet.add_aggregation, [Aggregations](./feature-store/transformations.md#aggregations)
+Docs: {py:meth}`mlrun.feature_store.FeatureSet.add_aggregation`, [Aggregations](./feature-store/transformations.md#aggregations)
 
 ```python
 quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
@@ -958,7 +958,7 @@ quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
 
 #### Built-in transformations
 
-Docs: [storey.transformations](./api/storey.transormations/index.rst) (TODO: Kate) #module-storey.transformations), [Built-in transformations](./feature-store/transformations.md#built-in-transformations)
+Docs: {py:meth}`storey.transformations`, [Built-in transformations](./feature-store/transformations.md#built-in-transformations)
 
 ```python
 quotes_set.graph.to("storey.Filter", "filter", _fn="(event['bid'] > 50)")

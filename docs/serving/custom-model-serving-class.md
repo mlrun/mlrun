@@ -146,7 +146,7 @@ fn = code_to_function("my-function", kind="serving")
 fn.add_model("m1", model_path="<model-artifact/dir>", class_name="MyClass", x=100)
 ``` 
 
-See [`.add_model()`](../api/mlrun.runtimes/mlrun.runtimes.rst#mlrun.runtimes.ServingRuntime.add_model) docstring for help and parameters.
+See ({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`)) docstring for help and parameters.
 
 See the full [Model Server example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb).
 

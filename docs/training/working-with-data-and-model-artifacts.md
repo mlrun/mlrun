@@ -238,7 +238,7 @@ run = func.run(
 Storing plots is useful to visualize the data and to show any information regarding the model performance. For example, you can store 
 scatter plots, histograms and cross-correlation of the data, and for the model store the ROC curve and confusion matrix.
 
-The following code creates a confusion matrix plot using [sklearn.metrics.plot_confusion_matrix](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.plot_confusion_matrix.html#sklearn.metrics.plot_confusion_matrix) 
+The following code creates a confusion matrix plot using [sklearn.metrics.plot_confusion_matrix](https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html#confusion-matrix) 
 and stores the plot in the artifact repository:
 
 ``` python

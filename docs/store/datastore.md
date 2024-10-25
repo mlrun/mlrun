@@ -217,9 +217,9 @@ This parameter will become mandatory starting with version 1.9.
 ```{Admonition} Note
 Not supported by the spark and remote-spark runtimes.
 ```
-* `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
+* `DATABRICKS_HOST` &mdash; hostname in the format: `https://abc-d1e2345f-a6b2.cloud.databricks.com`'
 * `DATABRICKS_TOKEN` &mdash; Databricks access token. 
-   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth.html#databricks-personal-access-token-authentication).
+   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth/pat.html).
    
 ### DBFS data store profile
 

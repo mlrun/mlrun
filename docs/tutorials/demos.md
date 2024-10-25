@@ -5,7 +5,7 @@ These end-to-end demos demonstrate how to use the Iguazio AI platform, MLRun, an
 
 ```{admonition} For Iguazio AI Platform users
 For the demos that are in the [MLRun demos repository](https://github.com/mlrun/demos), use the provided 
-[update demos script](https://github.com/mlrun/demos/blob/v1.6.x/update_demos.sh)
+[update demos script](https://github.com/mlrun/demos/blob/1.6.x/update_demos.sh
 to get the updated demos from this repository.
 By default, the script retrieves the files from the latest release that matches the version of the installed `mlrun` package.
 The files are copied to the **/v3io/users/&lt;username&gt;/demos** directory, where `<username>` is the name of the running user (`$V3IO_USERNAME`) unless you set the `-u|--user` flag to another username.

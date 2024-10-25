@@ -173,7 +173,7 @@ mlrun.deploy_function(
 
 
 ```{admonition} Note
-If you want to create a simulated (mock) function instead of a real Kubernetes service, set the `mock` flag is set to `True`. See [deploy_function api](https://docs.mlrun.org/en/latest/api/mlrun.projects.html#mlrun.projects.MlrunProject.deploy_function).
+If you want to create a simulated (mock) function instead of a real Kubernetes service, set the `mock` flag is set to `True`. See {py:meth}`~mlrun.projects.MlrunProject.deploy_function`).
 ```
 
 <a id="default_image"></a>

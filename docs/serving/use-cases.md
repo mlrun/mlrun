@@ -72,7 +72,7 @@ You can implement your own model serving or data processing classes. All you nee
 
 You can override additional methods: `preprocess`, `validate`, `postprocess`, `explain`.<br>
 You can add custom API endpoints by adding the method `op_xx(event)` (which can be invoked by
-calling the `<model-url>/xx`, where operation = xx). See [model class API](https://docs.mlrun.org/en/latest/api/mlrun.model.html).
+calling the `<model-url>/xx`, where operation = xx). See {py:class}`~mlrun.model`.
 
 For an example of writing the minimal serving functions, see [Minimal sklearn serving function example](./custom-model-serving-class.md#minimal-sklearn-serving-function-example).
 

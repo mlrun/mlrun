@@ -114,7 +114,7 @@ See more examples in the end-to-end demos:
 
 ## Cheat sheet
 
-If you already know the basics, use the [cheat sheet](../cheat-sheet.html) as a guide to typical use cases and their flows/SDK.
+If you already know the basics, use the [cheat sheet](../cheat-sheet.md) as a guide to typical use cases and their flows/SDK.
 
 ## Running the demos in Open Source MLRun
 

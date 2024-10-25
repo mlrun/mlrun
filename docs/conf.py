@@ -162,7 +162,6 @@ myst_substitutions = {
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
-suppress_warnings = [ 'ref.myst']
 # Add here external imports:
 autodoc_mock_imports = [
     "plotly",
@@ -193,8 +192,8 @@ redirects = {
 smartquotes = False
 
 linkcheck_ignore = [
-    r'project\.yaml',  # Ignore specific links to project.yaml
-    r'\.\.api/mlrun.runtimes/.*',
+    r"project\.yaml",  # Ignore specific links to project.yaml
+    r"\.\.api/mlrun.runtimes/.*",
 ]
 
 # -- Autosummary -------------------------------------------------------------
@@ -216,7 +215,8 @@ def copy_doc(src, dest, title=""):
 
 def setup(app):
     pass
-    #app.connect('source-read', replace_md_ipynb_links)
+    # app.connect('source-read', replace_md_ipynb_links)
+
 
 #   project_root = path.dirname(path.dirname(path.abspath(__file__)))
 #   copy_doc(f"{project_root}/examples/remote.md", "external/remote.md")

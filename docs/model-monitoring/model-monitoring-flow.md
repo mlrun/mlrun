@@ -3,7 +3,6 @@
 
 This page gives an overview of the model monitoring user flow. See complete examples in the tutorials:
 - [Model monitoring and drift detection](../tutorials/05-model-monitoring.ipynb)
-- [Model monitoring with a user-app](../tutorials/genai-02-monitoring-llm.ipynb)
 
 In this section:
 - [APIs](#apis)

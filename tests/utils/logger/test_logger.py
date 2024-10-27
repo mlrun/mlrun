@@ -196,8 +196,8 @@ def test_custom_logger():
         formatter_kind=FormatterKinds.CUSTOM.name,
     )
     logger.debug("test custom")
-    #Remove the timestamp from the logger to avoid tests failing on millisecond differences
+    # Remove the timestamp from the logger to avoid tests failing on millisecond differences
     log_lines = stream.getvalue().strip().splitlines()
-    expected_logger = "["+ expected_logger.split("[")[-1]
+    expected_logger = "[" + expected_logger.split("[")[-1]
     logger_format = "[" + log_lines[0].split("[")[-1]
     assert logger_format == expected_logger

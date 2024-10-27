@@ -7,7 +7,7 @@ click~=8.1
 nest-asyncio~=1.0
 ipython~=8.10
 nuclio-jupyter~=0.10.4
-numpy>=1.16.5, <1.27.0
+numpy>=1.26.4, <1.27.0
 # pandas 2.2 requires sqlalchemy 2
 pandas>=1.2, <2.2
 # used as a the engine for parquet files by pandas

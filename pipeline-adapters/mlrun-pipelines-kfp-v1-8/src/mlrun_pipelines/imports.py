@@ -13,8 +13,69 @@
 # limitations under the License.
 #
 import logging
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DummyContainer:
+    env: list[dict[str, str]] = field(default_factory=list)
+    command: list[str] = field(default_factory=list)
+    args: list[str] = field(default_factory=list)
+    image: str = ""
+    resources: dict[str, Any] = field(default_factory=dict)
+
+    def set_command(self, command: list[str]) -> None:
+        logger.debug(f"[NoOp] set_command called with command={command}")
+        self.command = command
+
+    def set_args(self, args: list[str]) -> None:
+        logger.debug(f"[NoOp] set_args called with args={args}")
+        self.args = args
+
+    def set_image(self, image: str) -> None:
+        logger.debug(f"[NoOp] set_image called with image={image}")
+        self.image = image
+
+    def add_env_variable(self, name: str, value: str) -> None:
+        logger.debug(
+            f"[NoOp] add_env_variable called with name='{name}', value='{value}'"
+        )
+        self.env.append({"name": name, "value": value})
+
+    def set_resources(self, resources: dict[str, Any]) -> None:
+        logger.debug(f"[NoOp] set_resources called with resources={resources}")
+        self.resources = resources
+
+
+@dataclass
+class DummyContainerOp:
+    name: str
+    image: str
+    command: list[str]
+    file_outputs: Optional[dict[str, str]] = field(default_factory=dict)
+    kwargs: dict[str, Any] = field(default_factory=dict)
+    pod_labels: dict[str, str] = field(default_factory=dict)
+    pod_annotations: dict[str, str] = field(default_factory=dict)
+    volumes: list[dict[str, Any]] = field(default_factory=list)
+    container: DummyContainer = field(default_factory=DummyContainer)
+
+    def add_pod_label(self, key: str, value: str) -> None:
+        logger.debug(f"[NoOp] add_pod_label called with key='{key}', value='{value}'")
+        self.pod_labels[key] = value
+
+    def add_volume(self, *args: Any, **kwargs: Any) -> None:
+        logger.debug(f"[NoOp] add_volume called with args={args}, kwargs={kwargs}")
+        self.volumes.append({"args": args, "kwargs": kwargs})
+
+    def add_env_variable(self, name: str, value: str) -> None:
+        logger.debug(
+            f"[NoOp] add_env_variable called with name='{name}', value='{value}'"
+        )
+        self.container.env.append({"name": name, "value": value})
+
 
 try:
     import kfp as real_kfp
@@ -29,6 +90,7 @@ try:
     kfp = real_kfp
     dsl = real_dsl
     compiler = real_compiler
+    Compiler = real_compiler.Compiler
     ContainerOp = real_ContainerOp
     Client = real_Client
     PipelineParam = real_PipelineParam
@@ -39,31 +101,28 @@ try:
 
 except ImportError:
     logger.warning(
-        "Kubeflow Pipelines (KFP) is not installed. Using no-operation (noop) implementations."
+        "Kubeflow Pipelines (KFP) is not installed. Using noop implementations."
     )
     from mlrun_pipelines.common.imports import (
-        DummyClient,
-        DummyCompiler,
-        DummyContainerOp,
-        DummyDSL,
-        DummyPipelineConf,
-        DummyPipelineParam,
+        Client,
+        Compiler,
+        PipelineConf,
+        PipelineParam,
+        compiler,
+        dsl,
+        kfp,
     )
 
-    PipelineConf = DummyPipelineConf
-    PipelineParam = DummyPipelineParam
     ContainerOp = DummyContainerOp
-    Client = DummyClient
-    dsl = DummyDSL()
-    compiler = DummyCompiler()
 
 
 __all__ = [
-    "kfp",
-    "dsl",
-    "compiler",
-    "ContainerOp",
     "Client",
-    "PipelineParam",
+    "Compiler",
+    "ContainerOp",
     "PipelineConf",
+    "PipelineParam",
+    "compiler",
+    "dsl",
+    "kfp",
 ]

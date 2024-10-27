@@ -39,7 +39,7 @@ setup(
         "kfp",
     ],
     python_requires=">=3.9, <3.12",
-    install_requires=["kfp_server_api~=2.3.0"],
+    install_requires=["kfp_server_api~=2.0.0"],
     extras_require={
         "kfp": [
             "kfp[kubernetes]~=2.5.0",

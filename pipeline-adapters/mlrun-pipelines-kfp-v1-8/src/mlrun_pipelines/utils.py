@@ -17,7 +17,7 @@ import typing
 
 from kubernetes import client
 from mlrun_pipelines.helpers import new_pipe_metadata
-from mlrun_pipelines.imports import Client, compiler
+from mlrun_pipelines.imports import Client, compiler, kfp  # noqa: F401
 
 
 def apply_kfp(modify, cop, runtime):

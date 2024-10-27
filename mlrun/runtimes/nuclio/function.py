@@ -525,12 +525,8 @@ class RemoteRuntime(KubeResource):
             extra_attributes["ackWindowSize"] = ack_window_size
 
         access_key = kwargs.pop("access_key", None)
-        if access_key:
-            logger.warning(
-                "The access_key parameter is deprecated and will be ignored, "
-                "use the V3IO_ACCESS_KEY environment variable instead"
-            )
-        access_key = self._resolve_v3io_access_key()
+        if not access_key:
+            access_key = self._resolve_v3io_access_key()
 
         self.add_trigger(
             name,

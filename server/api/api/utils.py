@@ -223,22 +223,61 @@ def mask_notification_params_on_task(
     action: server.api.constants.MaskOperations,
 ):
     """
+    Mask notification config params from the task dictionary
+    :param task:    The task object to mask
+    :param action:  The masking operation to perform on the notification config params (conceal/redact)
+    """
+    run_uid = get_in(task, "metadata.uid")
+    project = get_in(task, "metadata.project")
+    notifications = task.get("spec", {}).get("notifications", [])
+    if notifications:
+        notifications_objects = _mask_notifications_params(
+            run_uid,
+            project,
+            [
+                mlrun.model.Notification.from_dict(notification)
+                for notification in notifications
+            ],
+            action,
+        )
+        task.setdefault("spec", {})["notifications"] = [
+            notification.to_dict() for notification in notifications_objects
+        ]
+
+
+def mask_notification_params_on_task_object(
+    task: mlrun.model.RunObject,
+    action: server.api.constants.MaskOperations,
+):
+    """
     Mask notification config params from the task object
     :param task:    The task object to mask
     :param action:  The masking operation to perform on the notification config params (conceal/redact)
     """
-    mask_op = _notification_params_mask_op(action)
-    run_uid = get_in(task, "metadata.uid")
-    project = get_in(task, "metadata.project")
-    notifications = task.get("spec", {}).get("notifications", [])
-    masked_notifications = []
+    run_uid = task.metadata.uid
+    project = task.metadata.project
+    notifications = task.spec.notifications
     if notifications:
-        for notification in notifications:
-            notification_object = mlrun.model.Notification.from_dict(notification)
-            masked_notifications.append(
-                mask_op(project, run_uid, notification_object).to_dict()
-            )
-        task.setdefault("spec", {})["notifications"] = masked_notifications
+        task.spec.notifications = _mask_notifications_params(
+            run_uid, project, notifications, action
+        )
+
+
+def _mask_notifications_params(
+    run_uid: str,
+    project: str,
+    notifications: list[mlrun.model.Notification],
+    action: server.api.constants.MaskOperations,
+):
+    """
+    Mask notification config params from notifications list
+    :param run_uid:         The run UID
+    :param project:         The project name
+    :param notifications:   The list of notification objects to mask
+    :param action:          The masking operation to perform on the notification config params (conceal/redact)
+    """
+    mask_op = _notification_params_mask_op(action)
+    return [mask_op(project, run_uid, notification) for notification in notifications]
 
 
 def _notification_params_mask_op(

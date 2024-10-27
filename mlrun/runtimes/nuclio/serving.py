@@ -314,8 +314,8 @@ class ServingRuntime(RemoteRuntime):
         tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
         enable_tracking: bool = True,
     ) -> None:
-        """apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
-           and analyze performance.
+        """Apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
+        and analyze performance.
 
         :param stream_path:         Path/url of the tracking stream e.g. v3io:///users/mike/mystream
                                     you can use the "dummy://" path for test/simulation.

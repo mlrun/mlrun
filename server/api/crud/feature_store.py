@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -130,6 +131,7 @@ class FeatureStore(
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
+        format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> mlrun.common.schemas.FeatureSetsOutput:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_feature_sets(
@@ -145,6 +147,7 @@ class FeatureStore(
             rows_per_partition,
             partition_sort_by,
             partition_order,
+            format_=format_,
         )
 
     def delete_feature_set(

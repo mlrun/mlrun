@@ -550,6 +550,53 @@ def _create_feature_set(name):
                     "top": "2016-05-25 13:30:00.222222",
                 }
             },
+            "preview": [
+                [
+                    "time",
+                    "bid",
+                    "ask",
+                ],
+                [
+                    "2016-05-25 13:30:00.222222",
+                    7.3,
+                    "10:30:00.222222",
+                ],
+                [
+                    "2016-05-24 13:30:00.222222",
+                    7.3,
+                    "11:30:00.222222",
+                ],
+                [
+                    "2016-05-23 13:30:00.222222",
+                    4.7,
+                    "13:20:00.222222",
+                ],
+                [
+                    "2016-05-22 13:30:00.222222",
+                    5.2,
+                    "13:15:00.222222",
+                ],
+                [
+                    "2016-05-21 13:30:00.222222",
+                    5,
+                    "18:30:00.222222",
+                ],
+                [
+                    "2016-05-20 13:30:00.222222",
+                    4.6,
+                    "09:30:00.222222",
+                ],
+                [
+                    "2016-05-19 13:30:00.222222",
+                    5.6,
+                    "08:30:00.222222",
+                ],
+                [
+                    "2016-05-24 13:30:00.222222",
+                    5.6,
+                    "13:30:00.222222",
+                ],
+            ],
         },
         "some_other_field": "blabla",
     }
@@ -583,7 +630,7 @@ def test_feature_sets(create_server):
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
-    assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert len(feature_sets) == count
 
     feature_sets = db.list_feature_sets(
         project=project,
@@ -592,10 +639,26 @@ def test_feature_sets(create_server):
         partition_sort_by="updated",
         partition_order="desc",
     )
-    assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert len(feature_sets) == count
+    assert all([feature_set.status.stats for feature_set in feature_sets])
+    assert all([feature_set.status.preview for feature_set in feature_sets])
 
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set.spec.features) == 4
+
+    # test minimal feature set format
+    feature_sets = db.list_feature_sets(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+        format_=mlrun.common.formatters.FeatureSetFormat.minimal,
+    )
+    assert len(feature_sets) == count
+    assert not any([feature_set.status.stats for feature_set in feature_sets])
+    assert not any([feature_set.status.preview for feature_set in feature_sets])
+    assert all([feature_set.status.state for feature_set in feature_sets])
 
     # Create a feature-set that has no labels
     name = "feature_set_no_labels"

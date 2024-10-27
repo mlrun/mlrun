@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -27,7 +26,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
 from mlrun.model_monitoring.applications import (
     _HAS_EVIDENTLY,
     EvidentlyModelMonitoringApplicationBase,
-    EvidentlyModelMonitoringApplicationBaseV2,
     ModelMonitoringApplicationResult,
 )
 
@@ -131,112 +129,6 @@ if _HAS_EVIDENTLY:
 
 class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     NAME = "evidently-app-test"
-
-    def __init__(
-        self,
-        evidently_workspace_path: str,
-        evidently_project_id: "STR_UUID",
-        with_training_set: bool,
-    ) -> None:
-        super().__init__(evidently_workspace_path, evidently_project_id)
-        self._init_evidently_project()
-        self._init_iris_data(with_training_set)
-
-    def _init_iris_data(self, with_training_set: bool) -> None:
-        iris = load_iris()
-        if with_training_set:
-            self.columns = [
-                "sepal_length_cm",
-                "sepal_width_cm",
-                "petal_length_cm",
-                "petal_width_cm",
-            ]
-        else:
-            self.columns = [f"f{i}" for i in range(4)]
-        self.train_set = pd.DataFrame(iris.data, columns=self.columns)
-
-    def _init_evidently_project(self) -> None:
-        if self.evidently_project is None:
-            if isinstance(self.evidently_project_id, str):
-                self.evidently_project_id = UUID(self.evidently_project_id)
-            self.evidently_project = _create_evidently_project(
-                self.evidently_workspace, self.evidently_project_id
-            )
-
-    def do_tracking(
-        self,
-        application_name: str,
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
-        sample_df: pd.DataFrame,
-        start_infer_time: pd.Timestamp,
-        end_infer_time: pd.Timestamp,
-        latest_request: pd.Timestamp,
-        endpoint_id: str,
-        output_stream_uri: str,
-    ) -> ModelMonitoringApplicationResult:
-        self.context.logger.info("Running evidently app")
-
-        sample_df = sample_df[self.columns]
-
-        data_drift_report = self.create_report(sample_df, end_infer_time)
-        self.evidently_workspace.add_report(
-            self.evidently_project_id, data_drift_report
-        )
-        data_drift_test_suite = self.create_test_suite(sample_df, end_infer_time)
-        self.evidently_workspace.add_test_suite(
-            self.evidently_project_id, data_drift_test_suite
-        )
-
-        self.log_evidently_object(data_drift_report, "evidently_report")
-        self.log_evidently_object(data_drift_test_suite, "evidently_suite")
-        self.log_project_dashboard(None, end_infer_time + datetime.timedelta(minutes=1))
-
-        self.context.logger.info("Logged evidently objects")
-        return ModelMonitoringApplicationResult(
-            name="data_drift_test",
-            value=0.5,
-            kind=ResultKindApp.data_drift,
-            status=ResultStatusApp.potential_detection,
-        )
-
-    def create_report(
-        self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "Report":
-        metrics = [
-            DatasetDriftMetric(),
-            DatasetMissingValuesMetric(),
-        ]
-        for col_name in self.columns:
-            metrics.extend(
-                [
-                    ColumnDriftMetric(column_name=col_name, stattest="wasserstein"),
-                    ColumnSummaryMetric(column_name=col_name),
-                ]
-            )
-
-        data_drift_report = Report(
-            metrics=metrics,
-            timestamp=schedule_time,
-        )
-
-        data_drift_report.run(reference_data=self.train_set, current_data=sample_df)
-        return data_drift_report
-
-    def create_test_suite(
-        self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "TestSuite":
-        data_drift_test_suite = TestSuite(
-            tests=[DataDriftTestPreset()],
-            timestamp=schedule_time,
-        )
-
-        data_drift_test_suite.run(reference_data=self.train_set, current_data=sample_df)
-        return data_drift_test_suite
-
-
-class CustomEvidentlyMonitoringAppV2(EvidentlyModelMonitoringApplicationBaseV2):
-    NAME = "evidently-app-test-v2"
 
     def __init__(
         self,

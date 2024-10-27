@@ -22,6 +22,7 @@ from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.helpers
 import mlrun.common.schemas as schemas
 import mlrun.common.types
 from mlrun.model import ModelObj
@@ -202,7 +203,12 @@ class APIGatewaySpec(ModelObj):
         self.project = project
         self.ports = ports
 
+        self.enrich()
         self.validate(project=project, functions=functions, canary=canary, ports=ports)
+
+    def enrich(self):
+        if self.path and not self.path.startswith("/"):
+            self.path = f"/{self.path}"
 
     def validate(
         self,

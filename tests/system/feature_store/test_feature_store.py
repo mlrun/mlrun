@@ -64,6 +64,7 @@ from mlrun.datastore.targets import (
     ParquetTarget,
     RedisNoSqlTarget,
     SnowflakeTarget,
+    StreamTarget,
     TargetTypes,
     get_offline_target,
     get_online_target,
@@ -900,41 +901,74 @@ class TestFeatureStore(TestMLRunSystem):
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize("with_tz", [False, True])
-    def test_filtering_parquet_by_time(self, with_tz):
+    @pytest.mark.parametrize("local", [True, False])
+    def test_filtering_parquet_by_time(self, with_tz, local):
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
         key = "patient_id"
         measurements = fstore.FeatureSet(
-            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+            "measurements",
+            entities=[Entity(key)],
+            timestamp_key="timestamp",
         )
+        df = pd.read_parquet(str(self.assets_path / "testdata.parquet"))
+        run_uuid = uuid.uuid4()
+        v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/test_filtering_parquet_by_time_{run_uuid}.parquet"
+        v3io_parquet_target_path = f"v3io:///projects/{self.project_name}/test_filtering_parquet_by_time{run_uuid}"
+        df.to_parquet(v3io_parquet_source_path)
+        start_time = datetime(
+            2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+        )
+        end_time_query = "2020-12-01 17:33:16"
+        start_time_query = start_time.replace(tzinfo=None)  # noqa
+        expected_result = df.query(
+            "timestamp > @start_time_query and timestamp < @end_time_query"
+        )
+        end_time = end_time_query + ("+00:00" if with_tz else "")
+
         source = ParquetSource(
             "myparquet",
-            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            start_time=datetime(
-                2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
-            ),
-            end_time="2020-12-01 17:33:16" + ("+00:00" if with_tz else ""),
+            path=v3io_parquet_source_path,
+            start_time=start_time,
+            end_time=end_time,
         )
 
-        resp = measurements.ingest(
+        measurements.ingest(
             source,
-            return_df=True,
+            targets=[ParquetTarget("parquet_target", path=v3io_parquet_target_path)],
+            run_config=run_config,
         )
-        assert len(resp) == 10
-
+        result_offline_target = get_offline_target(measurements, name="parquet_target")
+        result_df = result_offline_target.as_df()
+        assert_frame_equal(
+            sort_df(expected_result, ["patient_id"]),
+            sort_df(result_df.reset_index(drop=False), ["patient_id"]),
+        )
         # start time > timestamp in source
         source = ParquetSource(
             "myparquet",
-            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            path=v3io_parquet_source_path,
             start_time=datetime(
                 2022, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
             ),
             end_time="2022-12-01 17:33:16" + ("+00:00" if with_tz else ""),
         )
-
-        resp = measurements.ingest(
-            source,
-            return_df=True,
+        v3io_parquet_target_path = (
+            f"v3io:///projects/{self.project_name}/test_filtering_parquet_by_time{run_uuid}_"
+            f"second.parquet"
         )
-        assert len(resp) == 0
+        measurements.ingest(
+            source,
+            targets=[
+                ParquetTarget("second_parquet_target", path=v3io_parquet_target_path)
+            ],
+            run_config=run_config,
+        )
+        result_offline_target = get_offline_target(
+            measurements, name="second_parquet_target"
+        )
+        with pytest.raises(FileNotFoundError):
+            result_offline_target.as_df()
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
@@ -5047,6 +5081,23 @@ class TestFeatureStore(TestMLRunSystem):
             match=".*SnowflakeTarget does not support storey engine.*",
         ):
             feature_set.ingest(source, targets=[target], run_config=run_config)
+
+    def test_stream_target(self):
+        source = pd.DataFrame(
+            {
+                "time_stamp": [
+                    datetime(2024, 9, 19, 16, 22, 7, 51001),
+                    datetime(2024, 9, 19, 16, 22, 8, 52002),
+                    datetime(2024, 9, 19, 16, 22, 9, 53003),
+                ],
+                "key": [0.339612325, 0.3446700093, 0.9394242442],
+            }
+        )
+
+        target = StreamTarget(
+            path=f"v3io:///projects/{self.project_name}/test_stream_target"
+        )
+        verify_ingest(source, "key", infer=False, targets=[target])
 
 
 def verify_purge(fset, targets):

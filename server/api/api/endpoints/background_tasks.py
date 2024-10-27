@@ -199,14 +199,22 @@ async def _authorize_get_background_task_request(
     background_task: mlrun.common.schemas.BackgroundTask,
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
+    return
+
+    # TODO: Check resource permissions for background tasks. We need to ensure that the user can read the project
+    # when attempting to access the background task. It appears that when a project is deleted, its associated
+    # policies are also removed, leading to "access denied" errors for users trying to access the background task.
+    # Related to ML-7484
+    # Change the test `test_get_internal_background_task_auth` once this is resolved.
+
     # Iguazio manifest doesn't support the global background task resource yet - therefore if the background task has a
     # project (e.g. delete project), we can authorize on the project
-    if background_task.metadata.project:
-        return await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            background_task.metadata.project,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
+    # if background_task.metadata.project:
+    #     return await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    #         background_task.metadata.project,
+    #         mlrun.common.schemas.AuthorizationAction.read,
+    #         auth_info,
+    #     )
 
     # If there is no project we have to just omit authorization until iguazio supports it
     # igz_version = mlrun.mlconf.get_parsed_igz_version()

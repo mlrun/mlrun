@@ -45,6 +45,7 @@ V2_PREFIX = "v2/"
 DELETE_API_ARTIFACTS_V2_PATH = V2_PREFIX + DELETE_API_ARTIFACTS_PATH
 STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
 LIST_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
+GET_API_ARTIFACT_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
@@ -608,6 +609,80 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
     assert resp.status_code == HTTPStatus.OK.value
 
 
+def test_get_artifact_validate_tag_exists_in_the_response(
+    db: Session, unversioned_client: TestClient
+) -> None:
+    _create_project(unversioned_client)
+
+    # Create artifact with tag "v1"
+    artifact_data = _generate_artifact_body(tag="v1")
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_v1 = resp.json()
+
+    # Get artifact using UID and tag "v1"
+    url_with_uid_and_tag_v1 = _get_artifact_url(
+        artifact_v1["metadata"]["uid"], tag="v1"
+    )
+    resp = unversioned_client.get(url_with_uid_and_tag_v1)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"]["tag"] == "v1"
+
+    # Get the same artifact using UID without specifying a tag
+    url_with_uid = _get_artifact_url(artifact_v1["metadata"]["uid"])
+    resp = unversioned_client.get(url_with_uid)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"].get("tag") is None
+
+    # Get the same artifact using UID and tag "latest"
+    url_with_uid_and_latest = _get_artifact_url(
+        artifact_v1["metadata"]["uid"], tag="latest"
+    )
+    resp = unversioned_client.get(url_with_uid_and_latest)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"]["tag"] == "latest"
+
+    # Get the same artifact using tag "latest" without UID
+    url_tag_latest = _get_artifact_url(tag="latest")
+    resp = unversioned_client.get(url_tag_latest)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"]["tag"] == "latest"
+    assert artifact["metadata"]["uid"] == artifact_v1["metadata"]["uid"]
+
+    # Create another artifact with tag "v2" -> now this artifact is the latest
+    artifact_data = _generate_artifact_body(tag="v2")
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_v2 = resp.json()
+
+    # Get the second artifact using tag "latest" without UID
+    url_tag_latest = _get_artifact_url(tag="latest")
+    resp = unversioned_client.get(url_tag_latest)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"]["tag"] == "latest"
+    assert artifact["metadata"]["uid"] == artifact_v2["metadata"]["uid"]
+
+    # Get the first artifact (v1) using UID and tag "latest"
+    url_with_uid_tag_latest = _get_artifact_url(
+        uid=artifact_v1["metadata"]["uid"], tag="latest"
+    )
+    resp = unversioned_client.get(url_with_uid_tag_latest)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"].get("tag") is None
+
+
 def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
     _create_project(client)
 
@@ -983,3 +1058,15 @@ def _generate_artifact_body(
         data["spec"] = {"body": body}
 
     return data
+
+
+def _get_artifact_url(uid: str = None, tag: str = None) -> str:
+    url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
+    params = []
+
+    if uid:
+        params.append(f"object-uid={uid}")
+    if tag:
+        params.append(f"tag={tag}")
+
+    return f"{url}?{'&'.join(params)}" if params else url

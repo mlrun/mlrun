@@ -674,6 +674,8 @@ serving_fn = import_function("hub://v2_model_server", project=project_name).appl
 serving_fn.add_model(
     "model", model_path="store://models/project-name/model:latest"
 )  # Model path comes from experiment tracking DB
+
+# Enable monitoring
 serving_fn.set_tracking()
 
 # Deploy the model server
@@ -683,7 +685,7 @@ serving_fn.deploy()
 ### Batch drift detection
 
 ```python
-batch_inference = mlrun.import_function("hub://batch_inference")
+batch_inference = mlrun.import_function("hub://batch_inference_v2")
 batch_run = project.run_function(
     batch_inference,
     inputs={"dataset": prediction_set_path, "sample_set": training_set_path},

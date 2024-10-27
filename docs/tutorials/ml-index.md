@@ -37,5 +37,5 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 - {ref}`realtime-monitor-drift-tutor`
 - {ref}`batch-infor-draft-tutor`
 - {ref}`add-mlops-to-code`
-- {ref}`mlfow-tracker`
+- {ref}`mlflow-tracker`
 - {ref}`basic-demo` 

@@ -18,3 +18,4 @@ from .function import FunctionFormat  # noqa
 from .pipeline import PipelineFormat  # noqa
 from .project import ProjectFormat  # noqa
 from .run import RunFormat  # noqa
+from .feature_set import FeatureSetFormat  # noqa

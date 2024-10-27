@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
 import collections
 import os
 import time
@@ -21,15 +19,13 @@ import time
 import humanfriendly
 import pytest
 import requests
-from _pytest.config import ExitCode
-from _pytest.main import Session
-from _pytest.python import Function
-from _pytest.reports import TestReport
-from _pytest.runner import CallInfo
 from _pytest.terminal import TerminalReporter
+from pytest import CallInfo, ExitCode, Function, TestReport
 
 
-def pytest_sessionstart(session):
+def pytest_sessionstart(
+    session: pytest.Session,
+):
     # caching test results
     session.results = collections.defaultdict(TestReport)
 
@@ -52,7 +48,7 @@ def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
     #     print(f"Failed to post test report to slack: {exc}")
 
 
-def pytest_sessionfinish(session: Session, exitstatus: ExitCode):
+def pytest_sessionfinish(session: pytest.Session, exitstatus: ExitCode):
     slack_url = os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
     if slack_url:
         post_report_session_finish_to_slack(
@@ -63,7 +59,7 @@ def pytest_sessionfinish(session: Session, exitstatus: ExitCode):
 
 
 def post_report_session_finish_to_slack(
-    session: Session, exitstatus: ExitCode, slack_webhook_url
+    session: pytest.Session, exitstatus: ExitCode, slack_webhook_url
 ):
     reporter: TerminalReporter = session.config.pluginmanager.get_plugin(
         "terminalreporter"

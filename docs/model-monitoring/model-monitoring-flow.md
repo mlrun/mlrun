@@ -115,6 +115,7 @@ last prediction and average latency) in the **Models | Model Endpoints** page.
 
 You can also see the basic statistics in Grafana.
 
+(register-model-monitoring-app)=
 ## Register and deploy the model-monitoring app
 The next step is to deploy the model-monitoring job to generate the full meta data. 
 Add the monitoring function to the project using {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`. 

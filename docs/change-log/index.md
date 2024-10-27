@@ -40,7 +40,7 @@
 ### Documentation
 | ID    |Description                                                               |
 |-------|---------------------------------------------------------------------------|
-|ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
+|ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`model-monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
 |NA     | New {ref}`genai_01_basic_tutorial` tutorial.|
 |NA     | New sections describing gen AI tasks: {ref}`genai-flow`, {ref}`genai-data-mgmt`, {ref}`genai-development`, {ref}`genai-deployment`.
 |NA     | New page describing {ref}`log-artifacts`.                                 |
@@ -107,7 +107,7 @@
 ### Model monitoring 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4620|Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Application summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
+|ML-4620|Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`model-monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Application summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../model-monitoring/monitoring-models.html#model-monitoring-applications-dashboard).|
 
 ### Runtimes
 

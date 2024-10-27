@@ -24,6 +24,7 @@ from dateutil import parser
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 from mlrun.artifacts import ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
@@ -926,12 +927,42 @@ class MLClientCtx:
                 updates, self._uid, self.project, iter=self._iteration
             )
 
-    def get_notifications(self):
-        """Get the list of notifications"""
-        return [
-            mlrun.model.Notification.from_dict(notification)
-            for notification in self._notifications
-        ]
+    def get_notifications(self, unmask_secret_params=False):
+        """
+        Get the list of notifications
+
+        :param unmask_secret_params: Used as a workaround for sending notification from workflow-runner.
+                                     When used, if the notification will be saved again a new secret will be created.
+        """
+
+        # Get the full notifications from the DB since the run context does not contain the params due to bloating
+        run = self._rundb.read_run(
+            self.uid, format_=mlrun.common.formatters.RunFormat.notifications
+        )
+
+        notifications = []
+        for notification in run["spec"]["notifications"]:
+            notification: mlrun.model.Notification = mlrun.model.Notification.from_dict(
+                notification
+            )
+            # Fill the secret params from the project secret. We cannot use the server side internal secret mechanism
+            # here as it is the client side.
+            # TODO: This is a workaround to allow the notification to get the secret params from project secret
+            #       instead of getting them from the internal project secret that should be mounted.
+            #       We should mount the internal project secret that was created to the workflow-runner
+            #       and get the secret from there.
+            if unmask_secret_params:
+                try:
+                    notification.enrich_unmasked_secret_params_from_project_secret()
+                    notifications.append(notification)
+                except mlrun.errors.MLRunValueError:
+                    logger.warning(
+                        "Failed to fill secret params from project secret for notification."
+                        "Skip this notification.",
+                        notification=notification.name,
+                    )
+
+        return notifications
 
     def to_dict(self):
         """Convert the run context to a dictionary"""

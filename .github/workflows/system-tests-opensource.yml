@@ -163,6 +163,8 @@ jobs:
         # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
         python automation/deployment/ce.py deploy \
             --verbose \
+            --registry-url="myregistry-cicd:5000" \
+            --skip-registry-validation \
             --namespace=${NAMESPACE} \
             --registry-secret-name="" \
             --override-mlrun-api-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
@@ -177,7 +179,7 @@ jobs:
     - name: Prepare system tests env
       run: |
         python automation/system_test/prepare.py env \
-          --mlrun-dbpath "http://$(minikube ip):${MLRUN_API_NODE_PORT}" \
+          --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
 
     - name: Run system tests
@@ -192,14 +194,14 @@ jobs:
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x
-        kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
-        kubectl -- --namespace ${NAMESPACE} get all
-        kubectl -- --namespace ${NAMESPACE} get all -o yaml
-        kubectl -- --namespace ${NAMESPACE} describe pods
-        kubectl -- --namespace ${NAMESPACE} get cm
-        kubectl -- --namespace ${NAMESPACE} get cm -o yaml
-        kubectl -- --namespace ${NAMESPACE} get secrets
-        kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
-        kubectl -- --namespace ${NAMESPACE} get pvc
-        kubectl -- --namespace ${NAMESPACE} get pv
+        kubectl --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
+        kubectl --namespace ${NAMESPACE} get all
+        kubectl --namespace ${NAMESPACE} get all -o yaml
+        kubectl --namespace ${NAMESPACE} describe pods
+        kubectl --namespace ${NAMESPACE} get cm
+        kubectl --namespace ${NAMESPACE} get cm -o yaml
+        kubectl --namespace ${NAMESPACE} get secrets
+        kubectl --namespace ${NAMESPACE} get secrets -o yaml
+        kubectl --namespace ${NAMESPACE} get pvc
+        kubectl --namespace ${NAMESPACE} get pv
         set +x

@@ -57,9 +57,6 @@ env:
   MLRUN_API_NODE_PORT: 30070
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
 
-  # https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
-  UV_SYSTEM_PYTHON: 1
-
 jobs:
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source
@@ -84,6 +81,8 @@ jobs:
     - name: Install automation scripts dependencies
       run: |
         sudo apt-get install curl jq
+        uv venv venv --seed
+        source venv/bin/activate
         make install-requirements install-complete-requirements
         uv pip install -r automation/requirements.txt
 
@@ -166,6 +165,7 @@ jobs:
     - name: Install MLRun CE helm chart
       run: |
         # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
+        source venv/bin/activate
         python automation/deployment/ce.py deploy \
             --verbose \
             --registry-url="myregistry-cicd:5000" \
@@ -183,6 +183,7 @@ jobs:
 
     - name: Prepare system tests env
       run: |
+        source venv/bin/activate
         python automation/system_test/prepare.py env \
           --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
@@ -190,6 +191,7 @@ jobs:
     - name: Run system tests
       timeout-minutes: 180
       run: |
+        source venv/bin/activate
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
         MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \
           make test-system-open-source

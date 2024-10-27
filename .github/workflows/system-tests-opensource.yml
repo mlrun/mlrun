@@ -55,6 +55,7 @@ on:
 env:
   NAMESPACE: mlrun
   MLRUN_API_NODE_PORT: 30070
+  MLRUN_PYTHON_PACKAGE_INSTALLER: uv
 
 jobs:
   run-system-tests-opensource-ci:
@@ -67,16 +68,20 @@ jobs:
     - name: Freeing up disk space
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-    - name: Set up python
-      uses: actions/setup-python@v5
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
       with:
-        python-version: 3.9
-        cache: pip
+        enable-cache: true
+
+    - name: Set up Python
+      run: uv python install 3.9
+
     - name: Install automation scripts dependencies
       run: |
         sudo apt-get install curl jq
-        python -m pip install -r automation/requirements.txt
-        python -m pip install -r dev-requirements.txt
+        make install-requirements install-complete-requirements
+        uv pip install -r automation/requirements.txt
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests
     - name: Extract git branch

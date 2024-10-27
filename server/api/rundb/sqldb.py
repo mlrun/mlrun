@@ -1105,6 +1105,7 @@ class SQLRunDB(RunDBInterface):
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
+        events_offset: int = 0,
     ):
         raise NotImplementedError()
 

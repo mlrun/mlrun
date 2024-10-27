@@ -111,7 +111,6 @@ class SystemTestPreparer:
         self._mlrun_dbpath = mlrun_dbpath
 
         self._env_config = {
-            "SYSTEM_TEST_KUBECONFIG": kubeconfig_content,
             "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
@@ -120,6 +119,7 @@ class SystemTestPreparer:
             # Setting to MLRUN_SYSTEM_TESTS_GIT_TOKEN instead of GIT_TOKEN, to not affect tests which doesn't need it
             # (e.g. tests which use public repos, therefor doesn't need that access token)
             "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
+            "MLRUN_SYSTEM_TEST_KUBECONFIG": kubeconfig_content,
         }
 
     def prepare_local_env(self, save_to_path: str = ""):

@@ -34,7 +34,6 @@ Model monitoring is currently in Tech Preview status. Migrating from 1.7.0 to la
 :maxdepth: 1
 
 ../model-monitoring/index
-../model-monitoring/model-monitoring-flow
 ../model-monitoring/monitoring-models
 ../model-monitoring/applications
 ../concepts/alerts

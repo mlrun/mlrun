@@ -2,7 +2,7 @@
 # Change log
 
 
-- [v1.7.0](#v1-7-0-22-october-2024)
+- [v1.7.0](#v1-7-0-27-october-2024)
 - [v1.6.4](#v1-6-4-2-july-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -14,24 +14,28 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.0 (22 October 2024)
+## v1.7.0 (27 October 2024)
 
 ### Model monitoring
+```
+{admonition} Note
+{ref}`model-monitoring-overview` is TechPreview in v1.7.0.|
+```
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5460|The model monitoring now has a [per-endpoint view](../model-monitoring/index.html#model-and-model-monitoring-endpoints) that presents information about the actual inference of the model endpoint, including data on inputs, outputs and results.|
+|ML-5460|The model monitoring now has a [per-endpoint view](../model-monitoring/index.html#model-and-model-monitoring-endpoints) that presents information data on the monitoring metrics.|
 |ML-5851|Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO as TSDB platforms. See [Selecting the streaming and TSDB platforms](../model-monitoring/index.html#selecting-the-streaming-and-tsdb-platforms).|
 
 ### Alerts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5287|You can now configure {ref}`alerts <alerts>` for model monitoring and other possible problem situations.|
+|ML-5287|You can now configure {ref}`alerts <alerts>` for model monitoring and other possible problem situations. TechPreview. |
 
 
 ### Projects
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-2585|When deleting a project, you can also [delete its artifacts](../store/artifacts.html#deleting-artifacts).|
+|ML-2585|When deleting a project, you can also [delete a single artifact](../store/artifacts.html#deleting-artifacts).|
 |ML-3874|Node selector can now be [defined in the project spec](../runtimes/configuring-job-resources.html#node-selection).|
 
 ### Runtimes
@@ -46,7 +50,10 @@
 |-------|----------------------------------------------------------------------------|
 |ML-6885|You can now add run details to the notification by using `{{ runs }}` in the `override_body` section in notifications. See [Configuring notifications for runs](../concepts/notifications.html#configuring-notifications-for-runs).|
 
-
+### Functions
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-4248|You can now load models from a json file instead of adding all the models to the function spec.|
 
 ### Serving graph
 | ID    |Description                                                                 |
@@ -77,7 +84,7 @@
 ### Notifications
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-6644|Explicit control of [notification for pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
+|ML-6644|Explicit control of the configuration for the [Pipeline started](../concepts/notifications.html#configuring-notifications-for-pipelines) notification. |
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -105,7 +112,6 @@
 |ML-3143/ML-3432|Can now delete remote (Nuclio) functions from the DB with both the SDK and the UI.|
 |ML-3680|Function specs that are modified before running the workflow are now saved.|
 |ML-3804|A serving step with no class now inherits parameters from the function spec. |
-|ML-4248|You can now run a serving function with a large number of models.|
 |ML-4442|You can now add monitoring after a model is deployed (`set_tracking()` was not set on the serving function).|
 |ML-4636|A local run that was created via `get_or_create_ctx` can be marked as complete using `commit()` method.|
 |ML-4846|CE: `V3IO_ACCESS_KEY` is no longer required for Parquet target.|
@@ -114,12 +120,11 @@
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
 |ML-5774|UI: Improved speed of querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
-|ML-6065|Fixed model serving with Kafka trigger.|
+|ML-6065|Fixed serving graphs when working with Kafka.|
 |ML-6194|When running a remote workflow, the client side does not need to contain workflow local files.|
 |ML-6068|Feature-store Redis-target is now created by default with the project/feature-set in the path.|
 |ML-6249|Reduction in the time that feature sets with a large number of entities take to query (and no longer timeout).|
 |ML-6253|The `project.build_function()`now passes the `requirements_file parameter` when the  engine is not `kfp`.|
-|ML-6585|The application runtime base image is now taken from the data node registry to support dark sites. Requires Provazio v0.24.271 or higher.|
 |ML-6602/6556|You can now specify a UID when running `artifacts.get_model`.|
 |ML-6800|Resolved spiking of CPU and memory of mlrun-api service.|
 |ML-6885|Webhook notification now contains run logs when `override_body=True`|
@@ -133,14 +138,14 @@
 |ML-7226|Exception now raised when using use KFP engine with `pass schedule` argument, which is not supported with the KFP engine.|
 |ML-7256|Deleting artifact by UID deletes only the artifact with the given UID.|
 |ML-7290|Nuclio functions deployed by MLRun: At the Nuclio service level, node selectors are added by Nuclio. In cases where there is overlap between the node selectors specified at the MLRun service level and those applied by Nuclio, the node selectors from the MLRun side take precedence to prevent any conflicts. See [node selection](../runtimes/configuring-job-resources.html#node-selection).|
-|ML-7335|Serving functions now suport up to 4000 models.|
+|ML-7335|Serving functions now support up to 4500 models and the size of the serving specification to 1 MB.|
 |ML-7358|MLRun client now validates certificates by default.|
 |ML-7367|Updated OS packages for MLRun UI.|
 |ML-7416|An error message is displayed upon workflow failure in the "Monitor workflows" tab.|
 |ML-7599|Fixed mlrun-api vulnerabilities.|
 |ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. |See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.html#preventing-and-resolving-conflicts). v1.7.0|
 |ML-7613|The pipeline SDK output now displays the logs in addition to the graph animation, and it also raises a warning when a client uses notifications with `engine=kfp`.|
-|ML-7655|The "filter by label" in the Models pageis now case insensitive.|
+|ML-7655|The "filter by label" in the Models page is now case insensitive.|
 |ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines,|
 |ML-7706|Fixed the skip `sync_functions` when scheduling workflows or running remote workflows.|
 |ML-7796|New `project.run()` {py:meth}`workflow_runner_node_selector <mlrun.projects.MlrunProject.run>` parameter that defines the node selector for the workflow runner pod when using a remote engine.|
@@ -1106,7 +1111,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. |NA| v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.|NA| v1.7.0|              
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.|NA  | v1.7.0|
-|                                                 |Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
+
 
 
 ## Limitations
@@ -1123,6 +1128,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
 |ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.html#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Upgrade the client to v1.6.0 or higher. | v1.6.0 |
+|NA     |Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
 
 ## Deprecations and removed code
 

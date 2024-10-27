@@ -30,16 +30,21 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
 
     def __init__(self, project: str, endpoint_id: str) -> None:
         """
-        Initialize applications monitoring schedules file object
+        Initialize applications monitoring schedules file object.
+        The JSON file stores a dictionary of registered application name as key and Unix timestamp as value.
+        When working with the schedules data, use this class as a context manager to read and write the data.
 
         :param project:     The project name.
         :param endpoint_id: The endpoint ID.
         """
+        # `self._item` is the persistent version of the monitoring schedules.
         self._item = mlrun.model_monitoring.helpers.get_monitoring_schedules_data(
             project=project, endpoint_id=endpoint_id
         )
         self._path = self._item.url
         self._fs = cast(fsspec.AbstractFileSystem, self._item.store.filesystem)
+        # `self._schedules` is an in-memory copy of the DB for all the applications for
+        # the same model endpoint.
         self._schedules: dict[str, int] = {}
 
     @classmethod
@@ -86,6 +91,9 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
         traceback: Optional[TracebackType],
     ) -> Optional[bool]:
         self._close()
+
+    def get_application_time(self, application: str) -> Optional[int]:
+        return self._schedules.get(application)
 
     def update_application_time(self, application: str, timestamp: int) -> None:
         self._schedules[application] = timestamp

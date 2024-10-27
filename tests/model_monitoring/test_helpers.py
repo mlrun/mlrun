@@ -30,14 +30,13 @@ from mlrun.common.model_monitoring.helpers import (
     pad_hist,
 )
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
-from mlrun.datastore import DataItem
-from mlrun.datastore.inmem import InMemoryStore
 from mlrun.db.nopdb import NopDB
 from mlrun.model_monitoring.controller import (
     _BatchWindow,
     _BatchWindowGenerator,
     _Interval,
 )
+from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
     _get_monitoring_time_window_from_controller_run,
@@ -222,23 +221,30 @@ class TestBatchInterval:
         )
 
     @staticmethod
+    @pytest.fixture(autouse=True)
+    def _patch_store_prefixes(monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(
+            "MLRUN_MODEL_ENDPOINT_MONITORING__STORE_PREFIXES__DEFAULT",
+            "memory://users/pipelines/{{project}}/model-endpoints/{{kind}}",
+        )
+        mlrun.mlconf.reload()
+
+    @staticmethod
     @pytest.fixture
-    def endpoint_app_schedules() -> DataItem:
-        item = DataItem(key="", store=InMemoryStore(), subpath="ep.json")
-        item.put("{}")
-        return item
+    def schedules_file() -> ModelMonitoringSchedulesFile:
+        return ModelMonitoringSchedulesFile(project="test-intervals", endpoint_id="ep")
 
     @staticmethod
     @pytest.fixture
     def intervals(
-        endpoint_app_schedules: DataItem,
+        schedules_file: ModelMonitoringSchedulesFile,
         timedelta_seconds: int,
         first_request: int,
         last_updated: int,
     ) -> list[_Interval]:
         return list(
             _BatchWindow(
-                endpoint_app_schedules=endpoint_app_schedules,
+                schedules_file=schedules_file,
                 application="app",
                 timedelta_seconds=timedelta_seconds,
                 first_request=first_request,
@@ -312,11 +318,11 @@ class TestBatchInterval:
         last_updated: int,
         first_request: int,
         expected_last_analyzed: int,
-        endpoint_app_schedules: DataItem,
+        schedules_file: ModelMonitoringSchedulesFile,
     ) -> None:
         assert (
             _BatchWindow(
-                endpoint_app_schedules=endpoint_app_schedules,
+                schedules_file=schedules_file,
                 application="special-app",
                 timedelta_seconds=timedelta_seconds,
                 first_request=first_request,

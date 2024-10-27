@@ -19,7 +19,7 @@ import os
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import NamedTuple, NewType, Optional, cast
+from typing import NamedTuple, Optional, cast
 
 import nuclio_sdk
 
@@ -27,17 +27,13 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
-from mlrun.datastore import DataItem, get_stream_pusher
+from mlrun.datastore import get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
 from mlrun.model_monitoring.helpers import batch_dict2timedelta, get_stream_path
 from mlrun.utils import datetime_now, logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
-
-
-# `Schedules` is a dictionary of registered application name as key and Unix timestamp as value
-_Schedules = NewType("_Schedules", dict[str, int])
 
 
 class _Interval(NamedTuple):
@@ -49,7 +45,7 @@ class _BatchWindow:
     def __init__(
         self,
         *,
-        endpoint_app_schedules: DataItem,
+        schedules_file: ModelMonitoringSchedulesFile,
         application: str,
         timedelta_seconds: int,
         last_updated: int,
@@ -65,17 +61,18 @@ class _BatchWindow:
         self._first_request = first_request
         self._stop = last_updated
         self._step = timedelta_seconds
-        # `db` is the persistent version of the monitoring schedules.
-        self._db = endpoint_app_schedules
-        # `schedules` is an in-memory copy of the DB for all the applications for
-        # the same model endpoint.
+        self._db = schedules_file
         self._start = self._get_last_analyzed()
-        self.last_analyzed = self._start
 
-    def _update_db(self, schedules: _Schedules) -> None:
-        self._db.put(json.dumps(schedules))
+    def _get_saved_last_analyzed(self) -> Optional[int]:
+        return self._db.get_application_time(self._application)
 
-    def _init_last_analyzed(self) -> int:
+    def _update_last_analyzed(self, last_analyzed: int) -> None:
+        self._db.update_application_time(
+            application=self._application, timestamp=last_analyzed
+        )
+
+    def _get_initial_last_analyzed(self) -> int:
         logger.info(
             "No last analyzed time was found for this endpoint and application, as this is "
             "probably the first time this application is running. Initializing last analyzed "
@@ -92,29 +89,13 @@ class _BatchWindow:
         )
 
     def _get_last_analyzed(self) -> int:
-        content = self._db.get(encoding="utf-8")
-        # ModelMonitoringSchedulesFile
-        try:
-            schedules = json.loads(content)
-            if self._application in schedules:
-                return schedules[self._application]
-            else:
-                last_analyzed = self._init_last_analyzed()
-                schedules.update(_Schedules({self._application: last_analyzed}))
-        except json.JSONDecodeError:
-            # Using the earliest safe time to avoid TSDB misorders
-            last_analyzed = self._stop
-            schedules = _Schedules({self._application: last_analyzed})
-            logger.warning(
-                "The monitoring schedules file is corrupted, resetting it "
-                "with the last request as last_analyzed",
-                path=self._db.url,
-                content=content,
-                last_analyzed=last_analyzed,
-            )
-
-        # Updating the DB to avoid reoccurrence of missing keys, corrupted data, or a missing file
-        self._update_db(schedules)
+        saved_last_analyzed = self._get_saved_last_analyzed()
+        if saved_last_analyzed is not None:
+            return saved_last_analyzed
+        else:
+            last_analyzed = self._get_initial_last_analyzed()
+            # Update the in-memory DB to avoid duplicate initializations
+            self._update_last_analyzed(last_analyzed)
         return last_analyzed
 
     def get_intervals(self) -> Iterator[_Interval]:
@@ -133,13 +114,13 @@ class _BatchWindow:
             )
             yield _Interval(start_time, end_time)
 
-            self.last_analyzed = timestamp + self._step
+            last_analyzed = timestamp + self._step
+            self._update_last_analyzed(last_analyzed)
             logger.debug(
                 "Updated the last analyzed time for this endpoint and application",
                 application=self._application,
-                last_analyzed=self.last_analyzed,
+                last_analyzed=last_analyzed,
             )
-            # self._db.
 
         if not entered:
             logger.debug(
@@ -219,16 +200,13 @@ class _BatchWindowGenerator(AbstractContextManager):
         first_request is the first request time to the endpoint.
         """
         batch_window = _BatchWindow(
-            endpoint_app_schedules=self._schedules_file._item,
+            schedules_file=self._schedules_file,
             application=application,
             timedelta_seconds=self._timedelta,
             last_updated=self._get_last_updated_time(last_request, has_stream),
             first_request=self._date_string2timestamp(first_request),
         )
         yield from batch_window.get_intervals()
-        self._schedules_file.update_application_time(
-            application=application, timestamp=batch_window.last_analyzed
-        )
 
 
 def _get_window_length() -> int:

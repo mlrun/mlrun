@@ -27,6 +27,7 @@ import sqlalchemy.orm
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.constants
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
@@ -50,7 +51,7 @@ FUNCTIONS_API = "projects/{project}/functions/{name}"
 
 
 def test_build_status_pod_not_found(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    mocked_k8s_helper, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
     function = {
@@ -69,24 +70,22 @@ def test_build_status_pod_not_found(
         json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
-
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_pod = (
-        unittest.mock.Mock(
-            side_effect=kubernetes.client.rest.ApiException(
-                status=HTTPStatus.NOT_FOUND.value
-            )
+    with unittest.mock.patch.object(
+        server.api.utils.singletons.k8s.get_k8s_helper().v1api,
+        "read_namespaced_pod_status",
+        side_effect=kubernetes.client.rest.ApiException(
+            status=HTTPStatus.NOT_FOUND.value
+        ),
+    ):
+        response = client.get(
+            "build/status",
+            params={
+                "project": function["metadata"]["project"],
+                "name": function["metadata"]["name"],
+                "tag": function["metadata"]["tag"],
+            },
         )
-    )
-    response = client.get(
-        "build/status",
-        params={
-            "project": function["metadata"]["project"],
-            "name": function["metadata"]["name"],
-            "tag": function["metadata"]["tag"],
-        },
-    )
-    assert response.status_code == HTTPStatus.NOT_FOUND.value
+        assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
 @pytest.mark.asyncio
@@ -477,13 +476,12 @@ def test_tracking_on_serving(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    mocked_k8s_helper,
 ) -> None:
     """
     Validate that `.set_tracking()` configurations are applied to
     a serving function for model monitoring.
     """
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-
     config_map = unittest.mock.Mock()
     config_map.items = []
 
@@ -1001,6 +999,105 @@ def test_start_function(
         assert response.status_code == http.HTTPStatus.OK.value
         background_task = mlrun.common.schemas.BackgroundTask(**response.json())
         assert background_task.status.state == expected_status_result
+
+
+def test_build_status_events_and_logs(
+    mocked_k8s_helper, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": PROJECT,
+            "tag": "latest",
+        },
+        "status": {"build_pod": "some-pod-name"},
+    }
+    response = client.post(
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"], name=function["metadata"]["name"]
+        ),
+        json=function,
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    normal_event = kubernetes.client.CoreV1Event(
+        involved_object="mock",
+        metadata=kubernetes.client.V1ObjectMeta(name="normal-event"),
+    )
+    normal_event.message = "event"
+    normal_event.type = "Normal"
+    warning_event = kubernetes.client.CoreV1Event(
+        involved_object="mock",
+        metadata=kubernetes.client.V1ObjectMeta(name="warning-event"),
+    )
+    warning_event.message = "event"
+    warning_event.type = "Warning"
+    warning_event.reason = "reason"
+    events = [normal_event, warning_event]
+
+    with (
+        unittest.mock.patch.object(
+            server.api.utils.singletons.k8s.get_k8s_helper(),
+            "get_pod_phase",
+            return_value="pending",
+        ),
+        unittest.mock.patch.object(
+            server.api.utils.singletons.k8s.get_k8s_helper(),
+            "list_object_events",
+            return_value=events,
+        ),
+    ):
+        response = client.get(
+            "build/status",
+            params={
+                "project": function["metadata"]["project"],
+                "name": function["metadata"]["name"],
+                "tag": function["metadata"]["tag"],
+            },
+            headers={mlrun.common.schemas.HeaderNames.client_version: "1.8.0"},
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        assert (
+            response.headers.get(
+                "deploy_status_text_kind",
+            )
+            == mlrun.common.constants.DeployStatusTextKind.events
+        )
+        out = response.content.decode()
+        assert "warning-event" in out
+        assert "Warning" in out
+        assert "Normal" not in out
+
+    with (
+        unittest.mock.patch.object(
+            server.api.utils.singletons.k8s.get_k8s_helper(),
+            "get_pod_phase",
+            return_value="running",
+        ),
+        unittest.mock.patch.object(
+            server.api.utils.singletons.k8s.get_k8s_helper().v1api,
+            "read_namespaced_pod_log",
+            return_value="log",
+        ),
+    ):
+        response = client.get(
+            "build/status",
+            params={
+                "project": function["metadata"]["project"],
+                "name": function["metadata"]["name"],
+                "tag": function["metadata"]["tag"],
+            },
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        assert (
+            response.headers.get(
+                "deploy_status_text_kind",
+            )
+            == mlrun.common.constants.DeployStatusTextKind.logs
+        )
+        assert response.content.decode() == "log"
 
 
 def _generate_function(

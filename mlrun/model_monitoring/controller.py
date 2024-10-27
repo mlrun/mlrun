@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import concurrent.futures
 import datetime
 import json
@@ -25,7 +24,9 @@ import nuclio
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
+import mlrun.feature_store as fstore
 import mlrun.model_monitoring.db.stores
+from mlrun.config import config as mlconf
 from mlrun.datastore import get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (
@@ -286,9 +287,9 @@ class MonitoringApplicationController:
         )
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
-        self.tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project
-        )
+        self.storage_options = None
+        if mlconf.artifact_path.startswith("s3://"):
+            self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
     @staticmethod
     def _get_model_monitoring_access_key() -> Optional[str]:
@@ -375,7 +376,7 @@ class MonitoringApplicationController:
                         batch_window_generator=self._batch_window_generator,
                         project=self.project,
                         model_monitoring_access_key=self.model_monitoring_access_key,
-                        tsdb_connector=self.tsdb_connector,
+                        storage_options=self.storage_options,
                     )
 
     @classmethod
@@ -386,7 +387,7 @@ class MonitoringApplicationController:
         batch_window_generator: _BatchWindowGenerator,
         project: str,
         model_monitoring_access_key: str,
-        tsdb_connector: mlrun.model_monitoring.db.tsdb.TSDBConnector,
+        storage_options: Optional[dict] = None,
     ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
@@ -398,11 +399,13 @@ class MonitoringApplicationController:
         :param batch_window_generator:      (_BatchWindowGenerator) An object that generates _BatchWindow objects.
         :param project:                     (str) Project name.
         :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
-        :param tsdb_connector:              (mlrun.model_monitoring.db.tsdb.TSDBConnector) TSDB connector
+        :param storage_options:             (dict) Storage options for reading the infer parquet files.
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
-        # if false the endpoint represent batch infer step.
         has_stream = endpoint[mm_constants.EventFieldType.STREAM_PATH] != ""
+        m_fs = fstore.get_feature_set(
+            endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
+        )
         try:
             for application in applications_names:
                 batch_window = batch_window_generator.get_batch_window(
@@ -415,12 +418,13 @@ class MonitoringApplicationController:
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():
-                    prediction_metric = tsdb_connector.read_predictions(
-                        endpoint_id=endpoint_id,
-                        start=start_infer_time,
-                        end=end_infer_time,
+                    df = m_fs.to_dataframe(
+                        start_time=start_infer_time,
+                        end_time=end_infer_time,
+                        time_column=mm_constants.EventFieldType.TIMESTAMP,
+                        storage_options=storage_options,
                     )
-                    if not prediction_metric.data and has_stream:
+                    if len(df) == 0:
                         logger.info(
                             "No data found for the given interval",
                             start=start_infer_time,
@@ -442,6 +446,7 @@ class MonitoringApplicationController:
                             applications_names=[application],
                             model_monitoring_access_key=model_monitoring_access_key,
                         )
+
         except Exception:
             logger.exception(
                 "Encountered an exception",

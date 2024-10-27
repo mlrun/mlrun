@@ -42,6 +42,7 @@ class Alerts(
         project: str,
         name: str,
         alert_data: mlrun.common.schemas.AlertConfig,
+        force_reset: bool = False,
     ):
         project = project or mlrun.mlconf.default_project
 
@@ -57,6 +58,13 @@ class Alerts(
         if alert is not None:
             self._delete_notifications(alert)
             self._get_alert_by_id_cached().cache_remove(session, alert.id)
+
+            for kind in alert.trigger.events:
+                server.api.crud.Events().remove_event_configuration(
+                    project, kind, alert.id
+                )
+            alert_data.created = alert.created
+            alert_data.id = alert.id
         else:
             num_alerts = (
                 server.api.utils.singletons.db.get_db().get_num_configured_alerts(
@@ -70,14 +78,6 @@ class Alerts(
 
         self._validate_and_mask_notifications(alert_data)
 
-        if alert is not None:
-            for kind in alert.trigger.events:
-                server.api.crud.Events().remove_event_configuration(
-                    project, kind, alert.id
-                )
-            alert_data.created = alert.created
-            alert_data.id = alert.id
-
         new_alert = server.api.utils.singletons.db.get_db().store_alert(
             session, alert_data
         )
@@ -87,7 +87,17 @@ class Alerts(
                 project, kind, new_alert.id
             )
 
-        self.reset_alert(session, project, new_alert.name)
+        # if the alert already exist we should check if it should be reset or not
+        if alert is not None and self._should_reset_alert(
+            alert, alert_data, force_reset
+        ):
+            logger.debug(
+                "Resetting alert due to %s",
+                "force_reset being True"
+                if force_reset
+                else "changes in entities, criteria, or trigger of the alert",
+            )
+            self.reset_alert(session, project, new_alert.name)
 
         server.api.utils.singletons.db.get_db().enrich_alert(session, new_alert)
 
@@ -374,6 +384,20 @@ class Alerts(
         )
         self._get_alert_state_cached().cache_remove(session, alert.id)
         self._clear_alert_states(alert)
+
+    @staticmethod
+    def _should_reset_alert(old_alert_data, alert_data, force_reset):
+        if force_reset:
+            return True
+
+        # if one of these fields was modified then we should reset the alert
+        if (
+            old_alert_data.entities != alert_data.entities
+            or old_alert_data.trigger != alert_data.trigger
+            or old_alert_data.criteria != alert_data.criteria
+        ):
+            return True
+        return False
 
     @staticmethod
     def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):

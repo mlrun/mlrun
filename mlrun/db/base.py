@@ -763,6 +763,7 @@ class RunDBInterface(ABC):
         alert_name: str,
         alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
+        force_reset: bool = False,
     ):
         pass
 

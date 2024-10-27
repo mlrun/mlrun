@@ -21,6 +21,7 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas.alert
+import mlrun.common.schemas.alert as alert_objects
 import server.api.crud
 import tests.api.conftest
 
@@ -32,55 +33,44 @@ async def test_process_event_no_cache(
 ):
     project = "project-name"
     alert_name = "my-alert"
-    entity = mlrun.common.schemas.alert.EventEntities(
-        kind=mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+    alert_summary = "testing 1 2 3"
+    alert_reset_policy = alert_objects.ResetPolicy.MANUAL
+    alert_entity = alert_objects.EventEntities(
+        kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
         project=project,
         ids=[123],
     )
-    event_kind = mlrun.common.schemas.alert.EventKind.DATA_DRIFT_SUSPECTED
+    event_kind = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
+    alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
 
-    alert = mlrun.common.schemas.alert.AlertConfig(
+    alert_data = _generate_alert_data(
         project=project,
         name=alert_name,
-        summary="testing 1 2 3",
-        severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
-        entities=entity,
-        trigger=mlrun.common.schemas.alert.AlertTrigger(events=[event_kind]),
-        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
-        notifications=[
-            {
-                "notification": {
-                    "kind": "slack",
-                    "name": "slack_drift",
-                    "message": "Ay ay ay!",
-                    "severity": "warning",
-                    "when": ["now"],
-                    "condition": "failed",
-                    "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
-                    },
-                },
-            },
-        ],
+        entity=alert_entity,
+        summary=alert_summary,
+        trigger=alert_trigger,
+        reset_policy=alert_reset_policy,
     )
 
     server.api.crud.Alerts().store_alert(
-        db, project=project, name=alert_name, alert_data=alert
+        session=db,
+        project=project,
+        name=alert_name,
+        alert_data=alert_data,
     )
 
-    event = mlrun.common.schemas.alert.Event(
-        kind=event_kind,
-        entity=entity,
-    )
+    event = alert_objects.Event(kind=event_kind, entity=alert_entity)
 
     await fastapi.concurrency.run_in_threadpool(
         server.api.crud.Alerts().process_event_no_cache, db, event.kind, event
     )
 
     alert = server.api.crud.Alerts().get_enriched_alert(
-        db, project=project, name=alert_name
+        session=db,
+        project=project,
+        name=alert_name,
     )
-    assert alert.state == mlrun.common.schemas.alert.AlertActiveState.ACTIVE
+    assert alert.state == alert_objects.AlertActiveState.ACTIVE
 
 
 @pytest.mark.asyncio
@@ -104,33 +94,198 @@ async def test_validate_alert_name(
     expectation: AbstractContextManager,
 ):
     project = "project-name"
-    entity = mlrun.common.schemas.alert.EventEntities(
-        kind=mlrun.common.schemas.alert.EventEntityKind.JOB,
+    alert_summary = "The job has failed"
+    alert_entity = alert_objects.EventEntities(
+        kind=alert_objects.EventEntityKind.JOB,
         project=project,
         ids=[123],
     )
-    event_kind = mlrun.common.schemas.alert.EventKind.FAILED
-    notification = mlrun.common.schemas.Notification(
-        kind="slack",
-        name="slack_notification",
-        secret_params={
-            "webhook": "https://hooks.slack.com/services/",
-        },
-        condition="oops",
-    )
+    event_kind = alert_objects.EventKind.FAILED
+    alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
 
-    alert_data = mlrun.common.schemas.alert.AlertConfig(
+    alert_data = _generate_alert_data(
         project=project,
         name=alert_name,
-        summary="The job has failed",
-        severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
-        entities=entity,
-        trigger=mlrun.common.schemas.alert.AlertTrigger(events=[event_kind]),
-        notifications=[
-            mlrun.common.schemas.AlertNotification(notification=notification)
-        ],
+        entity=alert_entity,
+        summary=alert_summary,
+        trigger=alert_trigger,
     )
     with expectation:
         server.api.crud.Alerts().store_alert(
-            db, project=project, name=alert_name, alert_data=alert_data
+            session=db,
+            project=project,
+            name=alert_name,
+            alert_data=alert_data,
         )
+
+
+@pytest.mark.parametrize(
+    "modify_field, modified_value, should_reset",
+    [
+        # Non-functional fields:
+        ("summary", "The job has failed again", False),
+        ("description", "Job failure detected", False),
+        ("severity", alert_objects.AlertSeverity.HIGH, False),
+        (
+            "notifications",
+            [
+                alert_objects.AlertNotification(
+                    notification=mlrun.common.schemas.Notification(
+                        kind="webhook",
+                        name="webhook_notification",
+                        params={
+                            "url": "some-webhook-url",
+                        },
+                    )
+                )
+            ],
+            False,
+        ),
+        ("reset_policy", alert_objects.ResetPolicy.AUTO, False),
+        # Functional fields:
+        (
+            "entities",
+            alert_objects.EventEntities(
+                kind=alert_objects.EventEntityKind.JOB,
+                project="project-name",
+                ids=[456],
+            ),
+            True,
+        ),
+        (
+            "trigger",
+            alert_objects.AlertTrigger(
+                events=[alert_objects.EventKind.DATA_DRIFT_DETECTED]
+            ),
+            True,
+        ),
+        (
+            "criteria",
+            alert_objects.AlertCriteria(
+                count=5,
+                period="10m",
+            ),
+            True,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "force_reset",
+    [False, True],
+)
+async def test_alert_reset_with_fields_updates(
+    db: sqlalchemy.orm.Session,
+    modify_field,
+    modified_value,
+    should_reset,
+    force_reset,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    project = "project-name"
+    alert_name = "failed-alert"
+    alert_summary = "The job has failed"
+    alert_reset_policy = alert_objects.ResetPolicy.MANUAL
+    alert_entity = alert_objects.EventEntities(
+        kind=alert_objects.EventEntityKind.JOB,
+        project=project,
+        ids=[123],
+    )
+    event_kind = alert_objects.EventKind.FAILED
+    alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
+
+    alert_data = _generate_alert_data(
+        project=project,
+        name=alert_name,
+        entity=alert_entity,
+        summary=alert_summary,
+        trigger=alert_trigger,
+        reset_policy=alert_reset_policy,
+    )
+
+    # store the initial alert
+    server.api.crud.Alerts().store_alert(
+        session=db,
+        project=project,
+        name=alert_name,
+        alert_data=alert_data,
+    )
+
+    # activate the alert
+    event = alert_objects.Event(kind=event_kind, entity=alert_entity)
+    await fastapi.concurrency.run_in_threadpool(
+        server.api.crud.Alerts().process_event_no_cache,
+        db,
+        event.kind,
+        event,
+    )
+    alert = server.api.crud.Alerts().get_enriched_alert(
+        session=db,
+        project=project,
+        name=alert_name,
+    )
+    assert alert.state == alert_objects.AlertActiveState.ACTIVE
+
+    # modify the alert data based on the parameterized field
+    setattr(alert_data, modify_field, modified_value)
+
+    # store the modified alert
+    server.api.crud.Alerts().store_alert(
+        session=db,
+        project=project,
+        name=alert_name,
+        alert_data=alert_data,
+        force_reset=force_reset,
+    )
+
+    # fetch the updated alert
+    alert = server.api.crud.Alerts().get_enriched_alert(
+        session=db,
+        project=project,
+        name=alert_name,
+    )
+
+    # validate the state based on whether it should have reset
+    expected_state = (
+        alert_objects.AlertActiveState.INACTIVE
+        if should_reset or force_reset
+        else alert_objects.AlertActiveState.ACTIVE
+    )
+    assert alert.state == expected_state
+
+    # reset the alert so the next test starts clean
+    server.api.crud.Alerts().reset_alert(session=db, project=project, name=alert_name)
+
+
+def _generate_alert_data(
+    project,
+    name,
+    entity,
+    summary,
+    trigger,
+    description=None,
+    severity=alert_objects.AlertSeverity.LOW,
+    notifications=None,
+    criteria=None,
+    reset_policy=alert_objects.ResetPolicy.AUTO,
+):
+    if notifications is None:
+        notification = mlrun.common.schemas.Notification(
+            kind="slack",
+            name="slack_notification",
+            secret_params={
+                "webhook": "https://hooks.slack.com/services/",
+            },
+        )
+        notifications = [alert_objects.AlertNotification(notification=notification)]
+    return alert_objects.AlertConfig(
+        project=project,
+        name=name,
+        description=description,
+        summary=summary,
+        severity=severity,
+        entities=entity,
+        trigger=trigger,
+        criteria=criteria,
+        notifications=notifications,
+        reset_policy=reset_policy,
+    )

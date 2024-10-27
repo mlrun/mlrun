@@ -4327,6 +4327,7 @@ class HTTPRunDB(RunDBInterface):
         alert_name: str,
         alert_data: Union[dict, AlertConfig],
         project="",
+        force_reset: bool = False,
     ) -> AlertConfig:
         """
         Create/modify an alert.
@@ -4334,6 +4335,7 @@ class HTTPRunDB(RunDBInterface):
         :param alert_name: The name of the alert.
         :param alert_data: The data of the alert.
         :param project:    The project that the alert belongs to.
+        :param force_reset: If true and the alert already exist then we should force reset the alert.
         :returns:          The created/modified alert.
         """
         if not alert_data:
@@ -4358,7 +4360,10 @@ class HTTPRunDB(RunDBInterface):
 
         alert_data = alert_instance.to_dict()
         body = _as_json(alert_data)
-        response = self.api_call("PUT", endpoint_path, error_message, body=body)
+        params = {"force_reset": bool2str(force_reset)}
+        response = self.api_call(
+            "PUT", endpoint_path, error_message, params=params, body=body
+        )
         return AlertConfig.from_dict(response.json())
 
     def get_alert_config(self, alert_name: str, project="") -> AlertConfig:

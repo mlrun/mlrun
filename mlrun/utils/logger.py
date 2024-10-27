@@ -26,6 +26,7 @@ from typing import IO, Optional, Union
 import orjson
 import pydantic
 
+from mlrun import errors
 from mlrun.config import config
 
 
@@ -118,7 +119,9 @@ class CustomFormatter(HumanReadableFormatter):
                     for _, key, _, _ in formatter.parse(custom_format)
                     if key is not None
                 ]
-                missing_default_flags = list(set(default_keys) - set(custom_format_keys))
+                missing_default_flags = list(
+                    set(default_keys) - set(custom_format_keys)
+                )
 
                 if missing_default_flags:
                     logger.warning(
@@ -135,7 +138,8 @@ class CustomFormatter(HumanReadableFormatter):
                 )
         except KeyError as e:
             logger.warning(
-                f"Failed to create custom logger due to missing format key in the log record", error=mlrun.errors.err_to_str(e)
+                "Failed to create custom logger due to missing format key in the log record",
+                error=errors.err_to_str(e),
             )
             _format = (
                 f"> {self.formatTime(record, self.datefmt)} "
@@ -144,7 +148,10 @@ class CustomFormatter(HumanReadableFormatter):
                 f"{more}"
             )
         except Exception as e:
-            logger.warning("Failed to create custom logger, see Exception:", error=mlrun.errors.err_to_str(e))
+            logger.warning(
+                "Failed to create custom logger, see Exception:",
+                error=errors.err_to_str(e),
+            )
         _format = _custom_format or (
             f"> {self.formatTime(record, self.datefmt)} "
             f"[{record.levelname.lower()}] "

@@ -52,7 +52,7 @@ class ErrorExtractor(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        error = event.get("error")
+        error = str(event.get("error"))
         if len(error) > 1000:
             error = error[-1000:]
             logger.warning(f"Error message exceeds 1000 chars: The error message writen to TSDB will be it last "
@@ -60,7 +60,7 @@ class ErrorExtractor(mlrun.feature_store.steps.MapClass):
         timestamp = datetime.fromisoformat(event.get("when"))
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
         event = {
-            EventFieldType.MODEL_ERROR: str(error),
+            EventFieldType.MODEL_ERROR: error,
             EventFieldType.ENDPOINT_ID: endpoint_id,
             EventFieldType.TIME: timestamp,
             EventFieldType.PROJECT: event[EventFieldType.FUNCTION_URI].split("/")[0],

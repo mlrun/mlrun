@@ -617,6 +617,7 @@ class TestProject(TestMLRunSystem):
         )
         runner_run_result = project.list_runs(name=workflow_runner_name)[0]
         assert runner_run_result["spec"]["node_selector"] == {
+            **mlrun.mlconf.get_default_function_node_selector(),
             **project_default_function_node_selector,
             **runner_node_selector,
         }
@@ -640,6 +641,7 @@ class TestProject(TestMLRunSystem):
         mlrun.get_run_db().invoke_schedule(project=project_name, name=workflow_name)
         runner_run_result = project.list_runs(labels="job-type=workflow-runner")[0]
         assert runner_run_result["spec"]["node_selector"] == {
+            **mlrun.mlconf.get_default_function_node_selector(),
             **project_default_function_node_selector,
             **runner_node_selector,
         }

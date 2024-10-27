@@ -76,6 +76,7 @@ jobs:
       run: |
         sudo apt-get install curl jq
         python -m pip install -r automation/requirements.txt
+        python -m pip install -r dev-requirements.txt
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests
     - name: Extract git branch

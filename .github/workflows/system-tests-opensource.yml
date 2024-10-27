@@ -128,17 +128,14 @@ jobs:
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
 
-    - uses: azure/setup-helm@v4
-
-    - uses: manusa/actions-setup-minikube@v2.13.0
+    - name: Start a local k8s cluster
+      uses: jupyterhub/action-k3s-helm@v4
       with:
-        minikube version: "v1.34.0"
-        kubernetes version: "v1.31.1"
-        driver: docker
-        github token: ${{ github.token }}
-        # I couldn't find a way to configure the IP (https://github.com/kubernetes/minikube/issues/951)
-        # but this seems to work
-        start args: '--addons=registry --insecure-registry="192.168.49.2:5000"'
+        # - k3s versions at https://github.com/k3s-io/k3s/tags
+        k3s-version: v1.31.2+k3s1
+        # - helm versions at https://github.com/helm/helm/tags
+        helm-version: v3.13.0
+        extra-setup-args: "--config=automation/system_test/k3d_ci.yaml"
 
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
@@ -155,7 +152,6 @@ jobs:
         # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
         python automation/deployment/ce.py deploy \
             --verbose \
-            --minikube \
             --namespace=${NAMESPACE} \
             --registry-secret-name="" \
             --override-mlrun-api-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
@@ -185,16 +181,14 @@ jobs:
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x
-        minikube ip
-        minikube logs
-        minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
-        minikube kubectl -- --namespace ${NAMESPACE} get all
-        minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
-        minikube kubectl -- --namespace ${NAMESPACE} describe pods
-        minikube kubectl -- --namespace ${NAMESPACE} get cm
-        minikube kubectl -- --namespace ${NAMESPACE} get cm -o yaml
-        minikube kubectl -- --namespace ${NAMESPACE} get secrets
-        minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
-        minikube kubectl -- --namespace ${NAMESPACE} get pvc
-        minikube kubectl -- --namespace ${NAMESPACE} get pv
+        kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
+        kubectl -- --namespace ${NAMESPACE} get all
+        kubectl -- --namespace ${NAMESPACE} get all -o yaml
+        kubectl -- --namespace ${NAMESPACE} describe pods
+        kubectl -- --namespace ${NAMESPACE} get cm
+        kubectl -- --namespace ${NAMESPACE} get cm -o yaml
+        kubectl -- --namespace ${NAMESPACE} get secrets
+        kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
+        kubectl -- --namespace ${NAMESPACE} get pvc
+        kubectl -- --namespace ${NAMESPACE} get pv
         set +x

@@ -28,8 +28,6 @@ import pydantic
 
 from mlrun.config import config
 
-from mlrun.errors import MLRunValueError
-
 
 class _BaseFormatter(logging.Formatter):
     def _json_dump(self, json_object):
@@ -101,7 +99,7 @@ class CUSTOMFormatter(HumanReadableFormatter):
     """
     For using cusom logger you need to add the below env's :
     1. "MLRUN_LOG_FORMATTER" = "custom" - change the default log formatter.
-    2. "MLRUN_CUSTOM_FORMAT" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - the format for the logger
+    2. "MLRUN_CUSTOM_FORMAT" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - logger format
         * Please note that your custom format must include those 4 fields - timestamp, level, message and more
     If the custom format does not configure properly , MLRun will use the default logger (human format).
     """
@@ -140,8 +138,8 @@ class CUSTOMFormatter(HumanReadableFormatter):
                 )
         except KeyError as e:
             logger.warning(
-                    f"Failed to create custom logger due to missing format key in the log record {e}"
-                )
+                f"Failed to create custom logger due to missing format key in the log record {e}"
+            )
             _format = (
                 f"> {self.formatTime(record, self.datefmt)} "
                 f"[{record.levelname.lower()}] "
@@ -150,7 +148,7 @@ class CUSTOMFormatter(HumanReadableFormatter):
             )
         except Exception as e:
             logger.warning(e)
-        _format =_custom_format or (
+        _format = _custom_format or (
             f"> {self.formatTime(record, self.datefmt)} "
             f"[{record.levelname.lower()}] "
             f"{record.getMessage().rstrip()}"

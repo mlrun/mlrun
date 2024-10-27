@@ -17,7 +17,6 @@ import json
 from pprint import pprint
 from time import sleep
 
-from mlrun_pipelines.common.mounts import VolumeMount
 from mlrun_pipelines.mounts import (
     auto_mount,
     mount_configmap,

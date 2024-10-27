@@ -20,11 +20,11 @@ import unittest.mock
 
 import deepdiff
 import fastapi.testclient
-import kfp
 import kfp_server_api.models
 import pytest
 import sqlalchemy.orm
 from httpx import BasicAuth
+from mlrun_pipelines.imports import kfp
 from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.formatters

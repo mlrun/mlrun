@@ -19,12 +19,12 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 import deepdiff
 import httpx
-import kfp
 import pytest
 import pytest_asyncio
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
+from mlrun_pipelines.imports import kfp
 
 import mlrun.common.schemas
 import mlrun.common.secrets

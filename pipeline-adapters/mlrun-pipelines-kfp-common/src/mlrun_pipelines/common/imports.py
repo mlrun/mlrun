@@ -76,6 +76,13 @@ class DummyRunPipelineResult:
         return True
 
 
+class V1Experiment:
+    def __init__(self, id="", name="", description="", *args, **kwargs):
+        self.id = id
+        self.name = name
+        self.description = description
+
+
 class V1ListRunsResponse:
     def __init__(self, *args, **kwargs) -> None:
         pass
@@ -101,7 +108,7 @@ class DummyClient:
         experiment_name: Optional[str] = None,
         **kwargs: Any,
     ) -> "DummyRunPipelineResult":
-        logger.debug("[NoOp] create_run_from_pipeline_func called but does nothing.")
+        logger.debug("[NoOp] create_run_from_pipeline_func called.")
         return DummyRunPipelineResult()
 
     def list_runs(
@@ -113,6 +120,15 @@ class DummyClient:
     ) -> list[Any]:
         logger.debug("[NoOp] list_runs called")
         return V1ListRunsResponse()
+
+    def create_experiment(
+        self,
+        name: str,
+        description: str = None,
+        namespace: str = None,
+    ) -> V1Experiment:
+        logger.debug("[NoOp] list_runs called")
+        return V1Experiment()
 
 
 # Assign dummy implementations to kfp modules

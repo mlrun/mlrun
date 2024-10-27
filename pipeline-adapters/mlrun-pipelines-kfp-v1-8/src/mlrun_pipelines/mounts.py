@@ -15,8 +15,8 @@
 import os
 
 import semver
-from mlrun_pipelines.common.imports import kfp
 from mlrun_pipelines.common.mounts import _enrich_and_validate_v3io_mounts
+from mlrun_pipelines.imports import ContainerOp
 
 from mlrun.config import config
 from mlrun.config import config as mlconf
@@ -35,7 +35,7 @@ def v3io_cred(api="", user="", access_key=""):
         train.apply(use_v3io_cred())
     """
 
-    def _use_v3io_cred(container_op: kfp.dsl.ContainerOp):
+    def _use_v3io_cred(container_op: ContainerOp):
         from os import environ
 
         from kubernetes import client as k8s_client
@@ -84,7 +84,7 @@ def mount_v3io(
         user=user,
     )
 
-    def _attach_volume_mounts_and_creds(container_op: kfp.dsl.ContainerOp):
+    def _attach_volume_mounts_and_creds(container_op: ContainerOp):
         from kubernetes import client as k8s_client
 
         vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
@@ -106,7 +106,7 @@ def mount_v3io(
 
 
 def mount_spark_conf():
-    def _mount_spark(container_op: kfp.dsl.ContainerOp):
+    def _mount_spark(container_op: ContainerOp):
         from kubernetes import client as k8s_client
 
         container_op.container.add_volume_mount(
@@ -120,7 +120,7 @@ def mount_spark_conf():
 
 
 def mount_v3iod(namespace, v3io_config_configmap):
-    def _mount_v3iod(container_op: kfp.dsl.ContainerOp):
+    def _mount_v3iod(container_op: ContainerOp):
         from kubernetes import client as k8s_client
 
         def add_vol(name, mount_path, host_path):
@@ -461,7 +461,7 @@ def set_env_variables(env_vars_dict: dict[str, str] = None, **kwargs):
     for key, value in kwargs.items():
         env_data[key] = value
 
-    def _set_env_variables(container_op: kfp.dsl.ContainerOp):
+    def _set_env_variables(container_op: ContainerOp):
         from kubernetes import client as k8s_client
 
         for _key, _value in env_data.items():

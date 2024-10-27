@@ -191,7 +191,7 @@ def delete_runs(
     context: mlrun.MLClientCtx,
     kfp_client: Client,
     runs: list[tuple[str, str]],
-    artifact_path: str,
+    target_path: str,
 ) -> None:
     """
     Delete pipeline runs based on the provided runs.
@@ -199,13 +199,13 @@ def delete_runs(
     :param context: The context object to log results.
     :param runs: List of tuples containing run IDs and names.
     :param kfp_client: The KFP client used to interact with the pipeline API.
-    :param artifact_path: Path where details of successful and failed deletions will be logged as a dataset artifact
+    :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     """
     delete_items(
         context,
         runs,
         lambda run_id: kfp_client._run_api.delete_run(run_id),
-        artifact_path=artifact_path,
+        target_path=target_path,
     )
 
 
@@ -213,7 +213,7 @@ def delete_empty_experiments(
     context: mlrun.MLClientCtx,
     kfp_client: Client,
     experiments_ids: set[str],
-    artifact_path: str,
+    target_path: str,
 ) -> None:
     """
     Find and delete empty experiments based on the provided experiment IDs.
@@ -221,7 +221,7 @@ def delete_empty_experiments(
     :param context: The context object to log results.
     :param kfp_client: The KFP client used to interact with the pipeline API.
     :param experiments_ids: List of experiment IDs to check for emptiness.
-    :param artifact_path: Path where details of successful and failed deletions will be logged as a dataset artifact
+    :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     """
     empty_experiment_ids = find_empty_experiments(kfp_client, experiments_ids)
 
@@ -231,7 +231,7 @@ def delete_empty_experiments(
         lambda experiment_id: kfp_client._experiment_api.delete_experiment(
             id=experiment_id
         ),
-        artifact_path=artifact_path,
+        target_path=target_path,
         item_type="experiment",
     )
 
@@ -240,8 +240,8 @@ def log_results(
     context: mlrun.MLClientCtx,
     deleted_items: list[tuple[str, str]],
     failed_items: list[tuple[str, str, Exception, str]],
+    target_path: str,
     item_type: str = "run",
-    artifact_path: str = mlrun.mlconf.artifact_path,
 ):
     # Log results
     context.log_result(
@@ -255,7 +255,7 @@ def log_results(
         context.log_dataset(
             key=f"{item_type}s_deleted_details",
             df=df_succeeded,
-            artifact_path=artifact_path,
+            target_path=target_path,
         )
 
     # Log the count of failed deletions
@@ -270,7 +270,7 @@ def log_results(
         context.log_dataset(
             key=f"{item_type}s_failed_details",
             df=df_failed,
-            artifact_path=artifact_path,
+            target_path=target_path,
         )
 
 
@@ -321,7 +321,7 @@ def delete_items(
     context: mlrun.MLClientCtx,
     items: list[tuple[str, str]],
     delete_func: typing.Callable[[str], None],
-    artifact_path: str,
+    target_path: str,
     item_type: str = "run",
 ) -> None:
     """
@@ -331,7 +331,7 @@ def delete_items(
     :param items: A list of tuples, where each tuple contains the item ID and name to be deleted.
     :param delete_func: The function responsible for deleting each item.
                         It should take an ID as its argument.
-    :param artifact_path: Path where details of successful and failed deletions will be logged as a dataset artifact
+    :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     :param item_type: The type of items being deleted (used for logging).
                       Defaults to "run".
     """
@@ -341,7 +341,7 @@ def delete_items(
     mlrun.utils.logger.info(f"Deleting {total} {item_type}s")
 
     deleted, failed = perform_deletion(items, delete_func, total, item_type)
-    log_results(context, deleted, failed, artifact_path)
+    log_results(context, deleted, failed, target_path, item_type)
 
 
 def delete_project_old_pipelines(
@@ -350,7 +350,7 @@ def delete_project_old_pipelines(
     end_date: str,
     start_date: str = "",
     dry_run: bool = True,
-    artifact_path: str = mlrun.mlconf.artifact_path,
+    target_path: str = "",
 ) -> None:
     """
     Delete old pipeline runs associated with a specific project.
@@ -366,7 +366,7 @@ def delete_project_old_pipelines(
                        runs created on or after this date will be considered for deletion.
                        Defaults to an empty string, which means no start date filtering.
     :param dry_run: If True, perform a dry run (only log what would be deleted).
-    :param artifact_path: The artifact path where the deletion results dataset will be saved.
+    :param target_path: The artifact path where the deletion results dataset will be saved.
                           Defaults to the MLRun default artifact path.
 
     """
@@ -386,10 +386,10 @@ def delete_project_old_pipelines(
     )
     if not dry_run:
         # Delete runs
-        delete_runs(context, kfp_client, runs, artifact_path)
+        delete_runs(context, kfp_client, runs, target_path)
 
         # Find and delete empty experiments
-        delete_empty_experiments(context, kfp_client, experiments_ids, artifact_path)
+        delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
 
     else:
         mlrun.utils.logger.info(f"Dry run: {len(runs)} runs would be deleted")

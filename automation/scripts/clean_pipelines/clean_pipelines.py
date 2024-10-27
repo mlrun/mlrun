@@ -32,10 +32,7 @@ def validate_and_convert_date(date_input: str) -> str:
     :param date_input: A date string in a recognizable format.
     """
     try:
-        # Parse the date using dateutil.parser
         dt_object = parser.parse(date_input)
-
-        # Check if the parsed date has timezone information
         if dt_object.tzinfo is not None:
             # Convert to UTC if it's in a different timezone
             dt_object = dt_object.astimezone(pytz.utc)
@@ -48,7 +45,6 @@ def validate_and_convert_date(date_input: str) -> str:
         if not formatted_date.endswith("Z"):
             formatted_date += "Z"
 
-        # Return the date in RFC 3339 format with 'Z' for UTC
         return formatted_date
     except (ValueError, OverflowError) as e:
         raise ValueError(

@@ -177,11 +177,8 @@ jobs:
         # restart k3s to apply the changes
         sudo systemctl restart k3s
 
-        # wait for the registry to be ready
-        while ! curl -s -o /dev/null -w "%{http_code}" http://registry.localhost:5000/v2/; do
-          echo "Waiting for the registry to be ready..."
-          sleep 5
-        done
+        # wait ~30s for k3s to stabilize
+        sleep 30
 
     - name: Install MLRun CE helm chart
       run: |

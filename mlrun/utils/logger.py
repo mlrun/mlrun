@@ -95,9 +95,9 @@ class HumanReadableFormatter(_BaseFormatter):
         return record_with
 
 
-class CUSTOMFormatter(HumanReadableFormatter):
+class CustomFormatter(HumanReadableFormatter):
     """
-    For using cusom logger you need to add the below env's :
+    To enable custom logger formatter, configure MLRun with the following env variables:
     1. "MLRUN_LOG_FORMATTER" = "custom" - change the default log formatter.
     2. "MLRUN_CUSTOM_FORMAT" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - logger format
         * Please note that your custom format must include those 4 fields - timestamp, level, message and more
@@ -346,14 +346,14 @@ def resolve_formatter_by_kind(
         HumanReadableFormatter,
         HumanReadableExtendedFormatter,
         JSONFormatter,
-        CUSTOMFormatter,
+        CustomFormatter,
     ]
 ]:
     return {
         FormatterKinds.HUMAN: HumanReadableFormatter,
         FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter,
         FormatterKinds.JSON: JSONFormatter,
-        FormatterKinds.CUSTOM: CUSTOMFormatter,
+        FormatterKinds.CUSTOM: CustomFormatter,
     }[formatter_kind]
 
 

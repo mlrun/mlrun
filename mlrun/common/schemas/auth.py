@@ -141,6 +141,9 @@ class AuthInfo(pydantic.BaseModel):
             member_ids.extend(self.user_group_ids)
         return member_ids
 
+    def get_session(self) -> str:
+        return self.data_session or self.session
+
 
 class Credentials(pydantic.BaseModel):
     access_key: typing.Optional[str]

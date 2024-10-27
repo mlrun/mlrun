@@ -403,17 +403,34 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
     """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
-        # we don't want initiate logs collection for aborted runs
-        run_states = mlrun.common.runtimes.constants.RunStates.all()
-        run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
-
-        # list all the runs in the system which we didn't request logs collection for yet
+        # list all the runs currently still running in the system which we didn't request logs collection for yet
         runs_uids = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
             requested_logs_modes=[False],
             only_uids=True,
-            states=run_states,
+            states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
+        )
+
+        last_update_time = datetime.datetime.now(
+            datetime.timezone.utc
+        ) - datetime.timedelta(
+            seconds=int(config.runtime_resources_deletion_grace_period)
+        )
+
+        # Add all the completed/failed runs in the system which we didn't request logs collection for yet.
+        # Aborted means the pods were deleted and logs were already fetched.
+        run_states = mlrun.common.runtimes.constants.RunStates.terminal_states()
+        run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
+        runs_uids.extend(
+            await fastapi.concurrency.run_in_threadpool(
+                get_db().list_distinct_runs_uids,
+                db_session,
+                requested_logs_modes=[False],
+                only_uids=True,
+                last_update_time_from=last_update_time,
+                states=run_states,
+            )
         )
         if runs_uids:
             logger.debug(

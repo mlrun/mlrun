@@ -1,58 +1,98 @@
-*.pyc
+# Byte-compiled / optimized / DLL files
+*.py[cod]
 __pycache__/
-.aws-secrets
-.idea/
-.ipynb_checkpoints
+
+# Python virtual environments and environment files
+*venv*
+.python-version
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Testing and coverage files
+# pytest cache and Hypothesis directories
 .pytest_cache/
 .hypothesis/
-.vscode/
-.bin
-.DS_Store
-build
-chart
-chart.html
-dask-worker-space
-dask-worker-space/
-dataset.csv
-dist
-Dockerfile.mlrun-test-nb
-docs/_build
-docs/external/*.html
-docs/external/*.md
-docs/api/**/generated_rsts/
-iteration_results.csv
-mlrun.egg-info/
-model.txt
-result*.html
+
+# Test results and temporary test files
 tests/test_results/
 tests/temp*
 tests/*.pkl
 tests/project.yaml
-*venv*
-mlrun/utils/version/version.json
 tests/system/env.yml
-project.yaml
-server/api/db/mlrun.db
+# Coverage reports
+*.coverage
 
-# pyenv file for working with several python versions
-.python-version
-*.bak
-docs/contributing.md
-server/api/proto/*pb2*.py
-automation/patch_igz/patch[_-]env.yml
+# Editors and operating system files
+# Visual Studio Code settings
+.vscode/
+# PyCharm settings
+.idea/
+# macOS Finder metadata
+.DS_Store
+
+# Secrets and credentials
+# AWS credentials and other secret files
+.aws-secrets
+credentials.txt  
+credentials.json  
+google-big-query-credentials.json  
 kubeconfig
 
-# used for local development.
-# e.g., when developing for mlrun api, you may use this env to preset envvars.
-# then, when running the api, just feed it with "MLRUN_DEFAULT_ENV_FILE=<absolute-path-to-this-file>"
-hack/*.env
+# Build artifacts and generated files
+# Build directories and files
+.bin
+build/
+dist/
+mlrun.egg-info/
+mlrun/utils/version/version.json
+Dockerfile.mlrun-test-nb
 
-# files generated for openapi spec checks
+# Dask worker spaces
+dask-worker-space/
+
+# Charts and related files
+chart/
+chart.html
+
+# Dataset and model files
+dataset.csv
+model.txt
+iteration_results.csv
+
+# Result HTML files
+result*.html
+
+# OpenAPI specification check files
 mlrun_bc_*.json
 
-# used for local development.
+# Documentation build artifacts
+# Built documentation and generated files
+docs/_build/
+docs/api/**/generated_rsts/
+docs/api/generated_rsts/
+docs/external/*.html
+docs/external/*.md
+docs/contributing.md
+
+# Local development and configuration files
+# Project configuration and environment files
+project.yaml
+automation/patch_igz/patch[_-]env.yml
+
+# Local playground dir
 playground
-credentials.txt
-credentials.json
-google-big-query-credentials.json
-*.coverage
+
+# Note:
+# The files under 'hack/*.env' are used for local development.
+# For example, when developing for the MLRun API, you may use these env files to preset environment variables.
+# Then, when running the API, feed it with "MLRUN_DEFAULT_ENV_FILE=<absolute-path-to-this-file>"
+hack/*.env
+
+# Database and protobuf files
+server/api/db/mlrun.db
+server/api/proto/*pb2*.py
+
+# Temporary or backup files
+*.bak
+

@@ -104,3 +104,6 @@ def test_write_application_event(connector: TDEngineConnector) -> None:
     assert read_back_values.timestamp == end_infer_time
     assert read_back_values.value == result_value
     assert read_back_values.status == result_status
+
+    # ML-8062
+    connector.delete_tsdb_resources()

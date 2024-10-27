@@ -963,6 +963,37 @@ def test_validate_notification_params(monkeypatch, notification_kwargs, expectat
         notification.validate_notification_params()
 
 
+@pytest.mark.parametrize(
+    "secret_params, get_secret_or_env_return_value, expected_params, should_raise",
+    [
+        (
+            {"web": "secret-web"},
+            "check",
+            {"web": "secret-web"},
+            False,
+        ),
+        ({"secret": "Hello"}, "Hello", {}, True),
+        ({"secret": "Hello"}, '{"webhook": "Hello"}', {"webhook": "Hello"}, False),
+    ],
+)
+def test_enrich_unmasked_secret_params_from_project_secret(
+    secret_params, get_secret_or_env_return_value, expected_params, should_raise
+):
+    with unittest.mock.patch(
+        "mlrun.get_secret_or_env", return_value=get_secret_or_env_return_value
+    ):
+        notification = mlrun.model.Notification(
+            kind=mlrun.common.schemas.notification.NotificationKind.slack,
+            secret_params=secret_params,
+        )
+        if should_raise:
+            with pytest.raises(mlrun.errors.MLRunValueError):
+                notification.enrich_unmasked_secret_params_from_project_secret()
+        else:
+            notification.enrich_unmasked_secret_params_from_project_secret()
+            assert notification.secret_params == expected_params
+
+
 def _mock_async_response(monkeypatch, method, result):
     response_json_future = asyncio.Future()
     response_json_future.set_result(result)

@@ -268,12 +268,14 @@ def validate_tag_name(
 def validate_artifact_key_name(
     artifact_key: str, field_name: str, raise_on_failure: bool = True
 ) -> bool:
+    field_type = "key" if field_name == "artifact.key" else "db_key"
     return mlrun.utils.helpers.verify_field_regex(
         field_name,
         artifact_key,
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
-        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
+        log_message=f"Artifact {field_type} must start and end with an alphanumeric character, and may only contain "
+        "letters, numbers, hyphens, underscores, and dots.",
     )
 
 
@@ -1684,17 +1686,22 @@ def merge_dicts_with_precedence(*dicts: dict) -> dict:
 
 
 def validate_component_version_compatibility(
-    component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
+    component_name: typing.Literal["iguazio", "nuclio", "mlrun-client"],
+    *min_versions: str,
+    mlrun_client_version: str = None,
 ):
     """
     :param component_name: Name of the component to validate compatibility for.
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    :param mlrun_client_version: Client version to validate when component_name is "mlrun-client".
     """
     parsed_min_versions = [
         semver.VersionInfo.parse(min_version) for min_version in min_versions
     ]
     parsed_current_version = None
     component_current_version = None
+    # For mlrun client we don't assume compatability if we fail to parse the client version
+    assume_compatible = component_name not in ["mlrun-client"]
     try:
         if component_name == "iguazio":
             component_current_version = mlrun.mlconf.igz_version
@@ -1711,18 +1718,29 @@ def validate_component_version_compatibility(
             parsed_current_version = semver.VersionInfo.parse(
                 mlrun.mlconf.nuclio_version
             )
+        if component_name == "mlrun-client":
+            # dev version, assume compatible
+            if mlrun_client_version and (
+                mlrun_client_version.startswith("0.0.0+")
+                or "unstable" in mlrun_client_version
+            ):
+                return True
+
+            component_current_version = mlrun_client_version
+            parsed_current_version = semver.Version.parse(mlrun_client_version)
         if not parsed_current_version:
-            return True
+            return assume_compatible
     except ValueError:
         # only log when version is set but invalid
         if component_current_version:
             logger.warning(
-                "Unable to parse current version, assuming compatibility",
+                "Unable to parse current version",
                 component_name=component_name,
                 current_version=component_current_version,
                 min_versions=min_versions,
+                assume_compatible=assume_compatible,
             )
-        return True
+        return assume_compatible
 
     # Feature might have been back-ported e.g. nuclio node selection is supported from
     # 1.5.20 and 1.6.10 but not in 1.6.9 - therefore we reverse sort to validate against 1.6.x 1st and
@@ -1782,3 +1800,43 @@ def _reload(module, max_recursion_depth):
         attribute = getattr(module, attribute_name)
         if type(attribute) is ModuleType:
             _reload(attribute, max_recursion_depth - 1)
+
+
+def run_with_retry(
+    retry_count: int,
+    func: typing.Callable,
+    retry_on_exceptions: typing.Union[
+        type[Exception],
+        tuple[type[Exception]],
+    ] = None,
+    *args,
+    **kwargs,
+):
+    """
+    Executes a function with retry logic upon encountering specified exceptions.
+
+    :param retry_count: The number of times to retry the function execution.
+    :param func: The function to execute.
+    :param retry_on_exceptions: Exception(s) that trigger a retry. Can be a single exception or a tuple of exceptions.
+    :param args: Positional arguments to pass to the function.
+    :param kwargs: Keyword arguments to pass to the function.
+    :return: The result of the function execution if successful.
+    :raises Exception: Re-raises the last exception encountered after all retries are exhausted.
+    """
+    if retry_on_exceptions is None:
+        retry_on_exceptions = (Exception,)
+    elif isinstance(retry_on_exceptions, list):
+        retry_on_exceptions = tuple(retry_on_exceptions)
+
+    last_exception = None
+    for attempt in range(retry_count + 1):
+        try:
+            return func(*args, **kwargs)
+        except retry_on_exceptions as exc:
+            last_exception = exc
+            logger.warning(
+                f"Attempt {{{attempt}/ {retry_count}}} failed with exception: {exc}",
+            )
+            if attempt == retry_count:
+                raise
+    raise last_exception

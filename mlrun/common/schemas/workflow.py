@@ -16,8 +16,9 @@ import typing
 
 import pydantic
 
-from .notification import Notification
-from .schedule import ScheduleCronTrigger
+from mlrun.common.schemas.notification import Notification
+from mlrun.common.schemas.schedule import ScheduleCronTrigger
+from mlrun.common.types import StrEnum
 
 
 class WorkflowSpec(pydantic.BaseModel):
@@ -55,3 +56,9 @@ class WorkflowResponse(pydantic.BaseModel):
 
 class GetWorkflowResponse(pydantic.BaseModel):
     workflow_id: str = None
+
+
+class EngineType(StrEnum):
+    LOCAL = "local"
+    REMOTE = "remote"
+    KFP = "kfp"

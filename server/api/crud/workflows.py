@@ -22,6 +22,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.api.utils
+import server.api.constants
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
 from mlrun.utils import template_artifact_path
@@ -96,6 +97,12 @@ class WorkflowRunners(
             project=project,
             workflow_request=workflow_request,
             labels=labels,
+        )
+
+        # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
+        # key that was created.
+        server.api.api.utils.mask_notification_params_on_task_object(
+            run_spec, server.api.constants.MaskOperations.CONCEAL
         )
         workflow_spec = workflow_request.spec
         if workflow_spec.workflow_runner_node_selector:
@@ -233,6 +240,11 @@ class WorkflowRunners(
             run_name=runner.metadata.name,
             load_only=load_only,
         )
+        # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
+        # key that was created.
+        server.api.api.utils.mask_notification_params_on_task_object(
+            run_spec, server.api.constants.MaskOperations.CONCEAL
+        )
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
         if workflow_request:
@@ -349,7 +361,7 @@ class WorkflowRunners(
                 handler="mlrun.projects.load_and_run",
                 notifications=notifications,
             ),
-            metadata=RunMetadata(name=run_name),
+            metadata=RunMetadata(name=run_name, project=project.metadata.name),
         )
 
         if is_context:

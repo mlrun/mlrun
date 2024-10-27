@@ -187,7 +187,7 @@ def test_custom_logger():
 
     # Format the current time in the same format as the given timestamp
     formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
-    expected_logger = f"> {formatted_time} [debug] Running module: logger test custom"
+    expected_logger = f'> {formatted_time} [debug] Running module: logger test custom : '+ '{"a":1,"b":2}'
     mlrun.mlconf.custom_format = format
     logger = create_logger(
         "debug",
@@ -195,7 +195,7 @@ def test_custom_logger():
         stream=stream,
         formatter_kind=FormatterKinds.CUSTOM.name,
     )
-    logger.debug("test custom")
+    logger.debug("test custom",a=1,b=2)
     # Remove the timestamp from the logger to avoid tests failing on millisecond differences
     log_lines = stream.getvalue().strip().splitlines()
     expected_logger = "[" + expected_logger.split("[")[-1]

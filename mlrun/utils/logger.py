@@ -100,8 +100,8 @@ class CustomFormatter(HumanReadableFormatter):
     To enable custom logger formatter, configure MLRun with the following env variables:
     1. "MLRUN_LOG_FORMATTER" = "custom" - change the default log formatter.
     2. "MLRUN_CUSTOM_FORMAT" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - logger format
-        * Please note that your custom format must include those 4 fields - timestamp, level, message and more
-    If the custom format does not configure properly , MLRun will use the default logger (human format).
+        * Note that your custom format must include those 4 fields - timestamp, level, message and more
+    If the custom format is not configured properly , MLRun will use the default logger (human format).
     """
 
     def format(self, record) -> str:
@@ -118,15 +118,12 @@ class CustomFormatter(HumanReadableFormatter):
                     for _, key, _, _ in formatter.parse(custom_format)
                     if key is not None
                 ]
-                fail_on_missing_default_flags = [
-                    default_key
-                    for default_key in default_keys
-                    if default_key not in custom_format_keys
-                ]
-                if fail_on_missing_default_flags:
+                missing_default_flags = list(set(default_keys) - set(custom_format_keys))
+
+                if missing_default_flags:
                     logger.warning(
                         f'Custom loggers must include those keys within the logger format, {", ".join(default_keys)} '
-                        f'your format is missing: {", ".join(fail_on_missing_default_flags)}'
+                        f'your format is missing: {", ".join(missing_default_flags)}'
                     )
                 record_dict = record.__dict__
                 _custom_format = custom_format.format(
@@ -138,7 +135,7 @@ class CustomFormatter(HumanReadableFormatter):
                 )
         except KeyError as e:
             logger.warning(
-                f"Failed to create custom logger due to missing format key in the log record {e}"
+                f"Failed to create custom logger due to missing format key in the log record", error=mlrun.errors.err_to_str(e)
             )
             _format = (
                 f"> {self.formatTime(record, self.datefmt)} "
@@ -147,7 +144,7 @@ class CustomFormatter(HumanReadableFormatter):
                 f"{more}"
             )
         except Exception as e:
-            logger.warning(e)
+            logger.warning("Failed to create custom logger, see Exception:", error=mlrun.errors.err_to_str(e))
         _format = _custom_format or (
             f"> {self.formatTime(record, self.datefmt)} "
             f"[{record.levelname.lower()}] "

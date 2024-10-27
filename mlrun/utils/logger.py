@@ -99,11 +99,11 @@ class HumanReadableFormatter(_BaseFormatter):
 
 class CUSTOMFormatter(HumanReadableFormatter):
     """
-    To use Custom looger the use need to define two env vars:
-    1. "MLRUN_LOG_FORMATTER" = "custom" - change the default log formatter for the run
-    2. "MLRUN_CUSTOM_FORMAT" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - the format for the run logger
+    For using cusom logger you need to add the below env's :
+    1. "MLRUN_LOG_FORMATTER" = "custom" - change the default log formatter.
+    2. "MLRUN_CUSTOM_FORMAT" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - the format for the logger
         * Please note that your custom format must include those 4 fields - timestamp, level, message and more
-    If the custom format was not properly configured, MLRun will use the default logger and provide a warning to indicate why it did not work.
+    If the custom format does not configure properly , MLRun will use the default logger (human format).
     """
 
     def format(self, record) -> str:

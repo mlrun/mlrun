@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import json
-from typing import cast
+from contextlib import AbstractContextManager
+from types import TracebackType
+from typing import Optional, cast
 
 import fsspec
 
@@ -22,15 +24,23 @@ import mlrun.model_monitoring.helpers
 from mlrun.utils import logger
 
 
-class ModelMonitoringSchedulesFile:
+class ModelMonitoringSchedulesFile(AbstractContextManager):
     INITIAL_CONTENT = json.dumps({})
+    ENCODING = "utf-8"
 
     def __init__(self, project: str, endpoint_id: str) -> None:
+        """
+        Initialize applications monitoring schedules file object
+
+        :param project:     The project name.
+        :param endpoint_id: The endpoint ID.
+        """
         self._item = mlrun.model_monitoring.helpers.get_monitoring_schedules_data(
             project=project, endpoint_id=endpoint_id
         )
         self._path = self._item.url
         self._fs = cast(fsspec.AbstractFileSystem, self._item.store.filesystem)
+        self._schedules: dict[str, int] = {}
 
     @classmethod
     def from_model_endpoint(
@@ -58,6 +68,27 @@ class ModelMonitoringSchedulesFile:
                 "Model monitoring schedules file does not exist, nothing to delete",
                 path=self._item.url,
             )
+
+    def _open(self) -> None:
+        self._schedules = json.loads(self._item.get().decode(encoding=self.ENCODING))
+
+    def _close(self) -> None:
+        self._item.put(json.dumps(self._schedules))
+
+    def __enter__(self) -> "ModelMonitoringSchedulesFile":
+        self._open()
+        return super().__enter__()
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> Optional[bool]:
+        self._close()
+
+    def update_application_time(self, application: str, timestamp: int) -> None:
+        self._schedules[application] = timestamp
 
 
 def delete_model_monitoring_schedules_folder(project: str) -> None:

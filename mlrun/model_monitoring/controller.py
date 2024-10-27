@@ -17,6 +17,8 @@ import datetime
 import json
 import os
 from collections.abc import Iterator
+from contextlib import AbstractContextManager
+from types import TracebackType
 from typing import NamedTuple, NewType, Optional, cast
 
 import nuclio_sdk
@@ -27,11 +29,8 @@ import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 from mlrun.datastore import DataItem, get_stream_pusher
 from mlrun.errors import err_to_str
-from mlrun.model_monitoring.helpers import (
-    batch_dict2timedelta,
-    get_monitoring_schedules_data,
-    get_stream_path,
-)
+from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
+from mlrun.model_monitoring.helpers import batch_dict2timedelta, get_stream_path
 from mlrun.utils import datetime_now, logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
@@ -70,7 +69,8 @@ class _BatchWindow:
         self._db = endpoint_app_schedules
         # `schedules` is an in-memory copy of the DB for all the applications for
         # the same model endpoint.
-        self._schedules, self._start = self._get_schedules_and_last_analyzed()
+        self._start = self._get_last_analyzed()
+        self.last_analyzed = self._start
 
     def _update_db(self, schedules: _Schedules) -> None:
         self._db.put(json.dumps(schedules))
@@ -91,13 +91,13 @@ class _BatchWindow:
             self._stop - first_period_in_seconds,
         )
 
-    def _get_schedules_and_last_analyzed(self) -> tuple[_Schedules, int]:
+    def _get_last_analyzed(self) -> int:
         content = self._db.get(encoding="utf-8")
         # ModelMonitoringSchedulesFile
         try:
             schedules = json.loads(content)
             if self._application in schedules:
-                return _Schedules(schedules), schedules[self._application]
+                return schedules[self._application]
             else:
                 last_analyzed = self._init_last_analyzed()
                 schedules.update(_Schedules({self._application: last_analyzed}))
@@ -115,15 +115,7 @@ class _BatchWindow:
 
         # Updating the DB to avoid reoccurrence of missing keys, corrupted data, or a missing file
         self._update_db(schedules)
-        return schedules, last_analyzed
-
-    def _update_last_analyzed(self, last_analyzed: int) -> None:
-        logger.debug(
-            "Updating the last analyzed time for this endpoint and application",
-            application=self._application,
-            last_analyzed=last_analyzed,
-        )
-        self._schedules.update(_Schedules({self._application: last_analyzed}))
+        return last_analyzed
 
     def get_intervals(self) -> Iterator[_Interval]:
         """Generate the batch interval time ranges."""
@@ -140,8 +132,15 @@ class _BatchWindow:
                 timestamp + self._step, tz=datetime.timezone.utc
             )
             yield _Interval(start_time, end_time)
-            self._update_last_analyzed(timestamp + self._step)
-        self._update_db(self._schedules)
+
+            self.last_analyzed = timestamp + self._step
+            logger.debug(
+                "Updated the last analyzed time for this endpoint and application",
+                application=self._application,
+                last_analyzed=self.last_analyzed,
+            )
+            # self._db.
+
         if not entered:
             logger.debug(
                 "All the data is set, but no complete intervals were found. "
@@ -153,13 +152,32 @@ class _BatchWindow:
             )
 
 
-class _BatchWindowGenerator:
-    def __init__(self, window_length: int) -> None:
+class _BatchWindowGenerator(AbstractContextManager):
+    def __init__(self, project: str, endpoint_id: str, window_length: int) -> None:
         """
         Initialize a batch window generator object that generates batch window objects
         for the monitoring functions.
         """
+        self._project = project
+        self._endpoint_id = endpoint_id
         self._timedelta = window_length
+        self._schedules_file = ModelMonitoringSchedulesFile(
+            project=project, endpoint_id=endpoint_id
+        )
+
+    def __enter__(self) -> "_BatchWindowGenerator":
+        self._schedules_file.__enter__()
+        return super().__enter__()
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> Optional[bool]:
+        self._schedules_file.__exit__(
+            exc_type=exc_type, exc_value=exc_value, traceback=traceback
+        )
 
     @classmethod
     def _get_last_updated_time(cls, last_request: str, has_stream: bool) -> int:
@@ -188,29 +206,28 @@ class _BatchWindowGenerator:
     def _date_string2timestamp(date_string: str) -> int:
         return int(datetime.datetime.fromisoformat(date_string).timestamp())
 
-    def get_batch_window(
+    def get_intervals(
         self,
         *,
-        project: str,
-        endpoint: str,
         application: str,
         first_request: str,
         last_request: str,
         has_stream: bool,
-    ) -> _BatchWindow:
+    ) -> Iterator[_Interval]:
         """
         Get the batch window for a specific endpoint and application.
         first_request is the first request time to the endpoint.
         """
-
-        return _BatchWindow(
-            endpoint_app_schedules=get_monitoring_schedules_data(
-                project=project, endpoint_id=endpoint
-            ),
+        batch_window = _BatchWindow(
+            endpoint_app_schedules=self._schedules_file._item,
             application=application,
             timedelta_seconds=self._timedelta,
             last_updated=self._get_last_updated_time(last_request, has_stream),
             first_request=self._date_string2timestamp(first_request),
+        )
+        yield from batch_window.get_intervals()
+        self._schedules_file.update_application_time(
+            application=application, timestamp=batch_window.last_analyzed
         )
 
 
@@ -363,47 +380,50 @@ class MonitoringApplicationController:
         m_fs = fstore.get_feature_set(
             endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
         )
-        batch_window_generator = _BatchWindowGenerator(window_length=window_length)
         try:
-            for application in applications_names:
-                batch_window = batch_window_generator.get_batch_window(
-                    project=project,
-                    endpoint=endpoint_id,
-                    application=application,
-                    first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
-                    last_request=endpoint[mm_constants.EventFieldType.LAST_REQUEST],
-                    has_stream=has_stream,
-                )
-
-                for start_infer_time, end_infer_time in batch_window.get_intervals():
-                    df = m_fs.to_dataframe(
-                        start_time=start_infer_time,
-                        end_time=end_infer_time,
-                        time_column=mm_constants.EventFieldType.TIMESTAMP,
-                        storage_options=storage_options,
-                    )
-                    if len(df) == 0:
-                        logger.info(
-                            "No data found for the given interval",
-                            start=start_infer_time,
-                            end=end_infer_time,
-                            endpoint_id=endpoint_id,
+            with _BatchWindowGenerator(
+                project=project, endpoint_id=endpoint_id, window_length=window_length
+            ) as batch_window_generator:
+                for application in applications_names:
+                    for (
+                        start_infer_time,
+                        end_infer_time,
+                    ) in batch_window_generator.get_intervals(
+                        application=application,
+                        first_request=endpoint[
+                            mm_constants.EventFieldType.FIRST_REQUEST
+                        ],
+                        last_request=endpoint[mm_constants.EventFieldType.LAST_REQUEST],
+                        has_stream=has_stream,
+                    ):
+                        df = m_fs.to_dataframe(
+                            start_time=start_infer_time,
+                            end_time=end_infer_time,
+                            time_column=mm_constants.EventFieldType.TIMESTAMP,
+                            storage_options=storage_options,
                         )
-                    else:
-                        logger.info(
-                            "Data found for the given interval",
-                            start=start_infer_time,
-                            end=end_infer_time,
-                            endpoint_id=endpoint_id,
-                        )
-                        cls._push_to_applications(
-                            start_infer_time=start_infer_time,
-                            end_infer_time=end_infer_time,
-                            endpoint_id=endpoint_id,
-                            project=project,
-                            applications_names=[application],
-                            model_monitoring_access_key=model_monitoring_access_key,
-                        )
+                        if len(df) == 0:
+                            logger.info(
+                                "No data found for the given interval",
+                                start=start_infer_time,
+                                end=end_infer_time,
+                                endpoint_id=endpoint_id,
+                            )
+                        else:
+                            logger.info(
+                                "Data found for the given interval",
+                                start=start_infer_time,
+                                end=end_infer_time,
+                                endpoint_id=endpoint_id,
+                            )
+                            cls._push_to_applications(
+                                start_infer_time=start_infer_time,
+                                end_infer_time=end_infer_time,
+                                endpoint_id=endpoint_id,
+                                project=project,
+                                applications_names=[application],
+                                model_monitoring_access_key=model_monitoring_access_key,
+                            )
 
         except Exception:
             logger.exception(

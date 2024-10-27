@@ -321,7 +321,7 @@ class TestBatchInterval:
                 timedelta_seconds=timedelta_seconds,
                 first_request=first_request,
                 last_updated=last_updated,
-            )._get_schedules_and_last_analyzed()[1]
+            )._get_last_analyzed()
             == expected_last_analyzed
         ), "The last analyzed time is not as expected"
 

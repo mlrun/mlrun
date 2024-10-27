@@ -164,15 +164,18 @@ jobs:
 
     - name: Setup Local Docker Registry
       run: |
-        kubectl create namespace docker-registry
-        kubectl apply -f automation/system_test/docker_registry.yaml
-
         # fill /etc/rancher/k3s/registries.yaml
         registries_file="/etc/rancher/k3s/registries.yaml"
         echo "mirrors:"                              | sudo tee $registries_file
         echo "  registry.localhost:"                 | sudo tee --append $registries_file
         echo "    endpoint:"                         | sudo tee --append $registries_file
-        echo "    - http://registry.localhost:5000"  | sudo tee --append $registries_file
+        echo "    - http://registry.localhost:80"  | sudo tee --append $registries_file
+
+        # restart k3s to apply the changes
+        sudo systemctl restart k3s
+
+        kubectl create namespace docker-registry
+        kubectl --namespace docker-registry apply -f automation/system_test/docker_registry.yaml
 
         # restart k3s to apply the changes
         sudo systemctl restart k3s
@@ -186,7 +189,7 @@ jobs:
         source venv/bin/activate
         python automation/deployment/ce.py deploy \
             --verbose \
-            --registry-url="registry.localhost:5000" \
+            --registry-url="registry.localhost:80" \
             --skip-registry-validation \
             --namespace=${NAMESPACE} \
             --registry-secret-name="" \

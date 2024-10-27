@@ -128,12 +128,6 @@ jobs:
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
 
-    - name: Install kubectl
-      uses: azure/setup-kubectl@v4
-
-    - name: Install helm
-      uses: azure/setup-helm@v4
-
     - uses: jupyterhub/action-k3s-helm@v4
       name: "Start a local k8s cluster"
       with:

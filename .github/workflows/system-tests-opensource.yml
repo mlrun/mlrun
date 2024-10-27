@@ -145,6 +145,23 @@ jobs:
         # - helm versions at https://github.com/helm/helm/tags
         helm-version: v3.13.0
 
+    # TODO:
+    # Build MLRun images in case workflow is running against PR
+    # uncomment once done, and upload the images to cluster using
+    # - name: "Docker repo demo"
+    #   run: |
+    #     docker push <registry>
+
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: ${{ github.event.inputs.debug_enabled == 'true' }}
+      with:
+
+        # run in detach mode to allow the workflow to continue running while session is active
+        # this will wait up to 10 minutes AFTER the entire job is done. Once user connects to the session,
+        # it will wait until the user disconnects before finishing up the job.
+        detached: true
+
     - name: Setup Local Docker Registry
       run: |
         kubectl create namespace docker-registry
@@ -165,23 +182,6 @@ jobs:
           echo "Waiting for the registry to be ready..."
           sleep 5
         done
-
-    # TODO:
-    # Build MLRun images in case workflow is running against PR
-    # uncomment once done, and upload the images to cluster using
-    # - name: "Docker repo demo"
-    #   run: |
-    #     docker push <registry>
-
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
-      if: ${{ github.event.inputs.debug_enabled == 'true' }}
-      with:
-
-        # run in detach mode to allow the workflow to continue running while session is active
-        # this will wait up to 10 minutes AFTER the entire job is done. Once user connects to the session,
-        # it will wait until the user disconnects before finishing up the job.
-        detached: true
 
     - name: Install MLRun CE helm chart
       run: |

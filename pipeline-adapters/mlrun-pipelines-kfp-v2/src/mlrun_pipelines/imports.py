@@ -17,12 +17,8 @@ from types import ModuleType
 from typing import Any, Optional
 
 from mlrun_pipelines.common.imports import (
-    DummyClient,
-    DummyCompiler,
-    DummyContainerOp,
-    DummyDSL,
-    DummyPipelineConf,
-    DummyPipelineParam,
+    dsl,
+    kfp,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,45 +79,40 @@ try:
     import kfp.dsl as real_dsl
     import kfp.kubernetes as real_kubernetes
     from kfp import Client as real_Client
-    from kfp.dsl import ContainerOp as real_ContainerOp
-    from kfp.dsl import PipelineConf as real_PipelineConf
-    from kfp.dsl import PipelineParam as real_PipelineParam
     from kfp.dsl import PipelineTask as real_PipelineTask
 
     # Assign real KFP components
     kfp = real_kfp
     dsl = real_dsl
     compiler = real_compiler
+    Compiler = real_compiler.Compiler
     kubernetes = real_kubernetes
     PipelineTask = real_PipelineTask
-    ContainerOp = real_ContainerOp
     Client = real_Client
-    PipelineParam = real_PipelineParam
-    PipelineConf = real_PipelineConf
 
 except ImportError:
     logger.warning(
-        "Kubeflow Pipelines (KFP) v2 is not installed. Using no-operation (noop) implementations."
+        "Kubeflow Pipelines (KFP) is not installed. Using noop implementations."
     )
+    from mlrun_pipelines.common.imports import (
+        Client,
+        Compiler,
+        compiler,
+        dsl,
+        kfp,
+    )
+
     PipelineTask = DummyPipelineTask
-    PipelineConf = DummyPipelineConf
-    PipelineParam = DummyPipelineParam
-    ContainerOp = DummyContainerOp
-    Client = DummyClient
-    dsl = DummyDSL()
-    dsl.PipelineParam = DummyPipelineParam
-    Compiler = DummyCompiler()
-    kubernetes = DummyKubernetes()
+    dsl.PipelineTask = DummyPipelineTask
+    kubernetes = DummyKubernetes
     kfp.kubernetes = kubernetes
 
 __all__ = [
-    "kfp",
-    "dsl",
-    "compiler",
-    "kubernetes",
-    "PipelineTask",
-    "ContainerOp",
     "Client",
-    "PipelineParam",
-    "PipelineConf",
+    "Compiler",
+    "PipelineTask",
+    "compiler",
+    "dsl",
+    "kfp",
+    "kubernetes",
 ]

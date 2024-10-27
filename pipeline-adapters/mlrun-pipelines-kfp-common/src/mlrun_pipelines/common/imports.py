@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import ModuleType
 from typing import Any, Callable, Optional, TypeVar
 
@@ -21,64 +21,6 @@ logger = logging.getLogger(__name__)
 
 # Define a generic type variable for decorators
 Decoratable = TypeVar("Decoratable", bound=Callable[..., Any])
-
-
-@dataclass
-class DummyContainer:
-    env: list[dict[str, str]] = field(default_factory=list)
-    command: list[str] = field(default_factory=list)
-    args: list[str] = field(default_factory=list)
-    image: str = ""
-    resources: dict[str, Any] = field(default_factory=dict)
-
-    def set_command(self, command: list[str]) -> None:
-        logger.debug(f"[NoOp] set_command called with command={command}")
-        self.command = command
-
-    def set_args(self, args: list[str]) -> None:
-        logger.debug(f"[NoOp] set_args called with args={args}")
-        self.args = args
-
-    def set_image(self, image: str) -> None:
-        logger.debug(f"[NoOp] set_image called with image={image}")
-        self.image = image
-
-    def add_env_variable(self, name: str, value: str) -> None:
-        logger.debug(
-            f"[NoOp] add_env_variable called with name='{name}', value='{value}'"
-        )
-        self.env.append({"name": name, "value": value})
-
-    def set_resources(self, resources: dict[str, Any]) -> None:
-        logger.debug(f"[NoOp] set_resources called with resources={resources}")
-        self.resources = resources
-
-
-@dataclass
-class DummyContainerOp:
-    name: str
-    image: str
-    command: list[str]
-    file_outputs: Optional[dict[str, str]] = field(default_factory=dict)
-    kwargs: dict[str, Any] = field(default_factory=dict)
-    pod_labels: dict[str, str] = field(default_factory=dict)
-    pod_annotations: dict[str, str] = field(default_factory=dict)
-    volumes: list[dict[str, Any]] = field(default_factory=list)
-    container: DummyContainer = field(default_factory=DummyContainer)
-
-    def add_pod_label(self, key: str, value: str) -> None:
-        logger.debug(f"[NoOp] add_pod_label called with key='{key}', value='{value}'")
-        self.pod_labels[key] = value
-
-    def add_volume(self, *args: Any, **kwargs: Any) -> None:
-        logger.debug(f"[NoOp] add_volume called with args={args}, kwargs={kwargs}")
-        self.volumes.append({"args": args, "kwargs": kwargs})
-
-    def add_env_variable(self, name: str, value: str) -> None:
-        logger.debug(
-            f"[NoOp] add_env_variable called with name='{name}', value='{value}'"
-        )
-        self.container.env.append({"name": name, "value": value})
 
 
 @dataclass
@@ -112,21 +54,6 @@ class DummyPipelineDecorator:
     def __call__(self, func: Decoratable) -> Decoratable:
         logger.debug(f"[NoOp] Pipeline function '{func.__name__}' defined.")
         return func
-
-
-class DummyContainerOpModule:
-    _register_op_handler: Callable[[Any], Any] = lambda x: None
-
-
-@dataclass
-class DummyDSL:
-    pipeline: DummyPipelineDecorator = field(default_factory=DummyPipelineDecorator)
-    _container_op: DummyContainerOpModule = field(
-        default_factory=DummyContainerOpModule
-    )
-
-    PipelineParam = DummyPipelineParam
-    PipelineConf = DummyPipelineConf
 
 
 class DummyCompiler:
@@ -190,33 +117,27 @@ class DummyClient:
 
 # Assign dummy implementations to kfp modules
 compiler = ModuleType("compiler")
-compiler.Compiler = DummyCompiler.Compiler()
+Compiler = DummyCompiler.Compiler()
+compiler.Compiler = Compiler
 dsl = ModuleType("dsl")
+dsl.pipeline = DummyPipelineDecorator
 dsl.PipelineParam = DummyPipelineParam
 dsl.PipelineConf = DummyPipelineConf
 kfp = ModuleType("kfp")
 kfp.compiler = compiler
-kfp.dsl = DummyDSL()
-ContainerOp = DummyContainerOp
+kfp.dsl = dsl
+kfp.Client = DummyClient
 Client = DummyClient
 PipelineParam = DummyPipelineParam
 PipelineConf = DummyPipelineConf
 
 
 __all__ = [
-    "kfp",
-    "dsl",
-    "compiler",
     "Client",
-    "ContainerOp",
-    "DummyClient",
-    "DummyCompiler",
-    "DummyContainer",
-    "DummyContainerOp",
-    "DummyDSL",
-    "DummyPipelineConf",
-    "DummyPipelineDecorator",
-    "DummyPipelineParam",
+    "Compiler",
     "PipelineConf",
     "PipelineParam",
+    "compiler",
+    "dsl",
+    "kfp",
 ]

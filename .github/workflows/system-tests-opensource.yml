@@ -63,10 +63,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    # since github-actions gives us 14G only, and fills it up with some garbage
-    - name: Freeing up disk space
-      run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+#    # since github-actions gives us 14G only, and fills it up with some garbage
+#    - name: Freeing up disk space
+#      run: |
+#        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
     - name: Set up python
       uses: actions/setup-python@v5
       with:
@@ -137,7 +137,7 @@ jobs:
     - uses: AbsaOSS/k3d-action@v2
       name: "Create k3d Cluster"
       with:
-          k3d-version: v5.6.0
+          k3d-version: v5.7.4
           cluster-name: "k3d-mlrun-cicd"
           args: >-
             --config=automation/system_test/k3d_ci.yaml

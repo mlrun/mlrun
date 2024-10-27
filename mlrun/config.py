@@ -575,6 +575,7 @@ default_config = {
             },
             "kafka": {
                 "partition_count": 1,
+                # TODO: add retention period configuration
                 "replication_factor": 1,
                 "num_workers": 1,
                 "min_replicas": 1,

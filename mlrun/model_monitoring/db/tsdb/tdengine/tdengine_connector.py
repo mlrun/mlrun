@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import taosws

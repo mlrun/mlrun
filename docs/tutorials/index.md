@@ -25,7 +25,7 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 :maxdepth: 1
 :hidden:
 genai_01_basic_tutorial
-genai-02-monitoring-llm
+genai-02-model-monitor-llm
 ml-index
 demos
 /cheat-sheet

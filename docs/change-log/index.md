@@ -2,7 +2,7 @@
 # Change log
 
 
-- [v1.7.0](#v1-7-0-27-october-2024)
+- [v1.7.0](#v1-7-0-28-october-2024)
 - [v1.6.4](#v1-6-4-2-july-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -14,7 +14,7 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.0 (27 October 2024)
+## v1.7.0 (28 October 2024)
 
 ### Model monitoring
 ```
@@ -149,7 +149,7 @@
 |ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines,|
 |ML-7706|Fixed the skip `sync_functions` when scheduling workflows or running remote workflows.|
 |ML-7796|New `project.run()` {py:meth}`workflow_runner_node_selector <mlrun.projects.MlrunProject.run>` parameter that defines the node selector for the workflow runner pod when using a remote engine.|
-|ML-7907|Fixed model serving with RabbitMQ trigger.|
+|ML-7907|Fixed an issue with RabbitMQ event path when using Model serving functions.|
 
 ## v1.6.4 (2 July 2024)
 
@@ -1152,14 +1152,14 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
 | v1.9.0       |v1.7.0    |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|																																	
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`            | NA. Was not used.|
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                             |`states`            |
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                                |`states`            |
-| v1.9.0       |v1.7.0    |Class: `mlrun.common.runtimes.constants.RunLabels`                                    |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
-| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                       |MLRUN_DBPATH environment variable |
-| v1.9.0       |v1.7.0    |Query parameter: GET /projects/{project}/schedules?labels="label1=val1"               |`label`, which is an array of strings       |
-| v1.9.0       |v1.7.0    |Query parameter: DELETE /projects/{project}/artifacts/{key:path}?uid="some-uid"       |`object-uid`                                    |
-| v1.9.0       |v1.7.0    |Query parameter: GET /projects/{project}/artifacts/{key:path}?uid="some-uid"       |`object-uid`                                    |
+| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`         | NA. Was not used.|
+| v1.9.0       |v1.7.0    |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                           |`states`            |
+| v1.9.0       |v1.7.0    |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                             |`states`            |
+| v1.9.0       |v1.7.0    |Class: `mlrun.common.runtimes.constants.RunLabels`                                   |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
+| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                    |MLRUN_DBPATH environment variable |
+| v1.9.0       |v1.7.0    |Query parameter: GET `/projects/{project}/schedules?labels="label1=val1"`            |`label`, which is an array of strings       |
+| v1.9.0       |v1.7.0    |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
+| v1.9.0       |v1.7.0    |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
 | v1.9.0       |v1.6.3    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
 | v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|

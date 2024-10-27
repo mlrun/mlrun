@@ -31,6 +31,7 @@ import semver
 from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
+import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
@@ -1685,6 +1686,7 @@ class HTTPRunDB(RunDBInterface):
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
+        events_offset: int = 0,
     ):
         """Retrieve the status of a build operation currently in progress.
 
@@ -1694,6 +1696,7 @@ class HTTPRunDB(RunDBInterface):
         :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
                                     later than this parameter.
         :param verbose:             Add verbose logs into the output.
+        :param events_offset:       Offset into the build events to retrieve events from.
 
         :returns: The following parameters:
 
@@ -1710,6 +1713,7 @@ class HTTPRunDB(RunDBInterface):
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),
                 "offset": str(offset),
+                "events_offset": str(events_offset),
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
@@ -1722,6 +1726,7 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(f"failed resp, {resp.text}")
             raise RunDBError("bad function build response")
 
+        deploy_status_text_kind = mlrun.common.constants.DeployStatusTextKind.logs
         if resp.headers:
             func.status.state = resp.headers.get("x-mlrun-function-status", "")
             last_log_timestamp = float(
@@ -1740,10 +1745,15 @@ class HTTPRunDB(RunDBInterface):
             if function_image:
                 func.spec.image = function_image
 
+            deploy_status_text_kind = resp.headers.get(
+                "deploy_status_text_kind",
+                mlrun.common.constants.DeployStatusTextKind.logs,
+            )
+
         text = ""
         if resp.content:
             text = resp.content.decode()
-        return text, last_log_timestamp
+        return text, last_log_timestamp, deploy_status_text_kind
 
     def start_function(
         self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None

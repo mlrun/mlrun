@@ -57,6 +57,9 @@ env:
   MLRUN_API_NODE_PORT: 30070
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
 
+  # https://docs.astral.sh/uv/guides/integration/github/#using-uv-pip
+  UV_SYSTEM_PYTHON: 1
+
 jobs:
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source

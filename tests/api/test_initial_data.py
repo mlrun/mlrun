@@ -238,32 +238,44 @@ def test_create_project_summaries():
 
 
 @pytest.mark.parametrize(
-    "scheduled_object_labels, schedule_labels, expected_labels",
+    "scheduled_object_labels, schedule_labels, enrich_kind, expected_labels",
     [
         (
             {"label1": "value1"},
             {"label2": "value2"},
+            False,
             {"label1": "value1", "label2": "value2"},
         ),
-        ({"label1": "value1"}, {}, {"label1": "value1"}),
-        ({}, {"label2": "value2"}, {"label2": "value2"}),
+        ({"label1": "value1"}, {}, False, {"label1": "value1"}),
+        ({}, {"label2": "value2"}, False, {"label2": "value2"}),
         (
             {"label1": "value1", "label3": "value3"},
             {"label2": "value2"},
+            False,
             {"label1": "value1", "label2": "value2", "label3": "value3"},
         ),
         (
             {"label1": "value1", "label2": "value3"},
             {"label2": "value2"},
+            False,
             {"label1": "value1", "label2": "value3"},
         ),
-        (None, {"label2": "value2"}, {"label2": "value2"}),
-        ({"label1": "value1"}, None, {"label1": "value1"}),
-        (None, None, None),
+        (None, {"label2": "value2"}, False, {"label2": "value2"}),
+        ({"label1": "value1"}, None, False, {"label1": "value1"}),
+        (None, None, False, None),
+        # Enrich kind
+        ({}, {}, True, {"kind": "job"}),
+        ({"kind": "customkind"}, {}, True, {"kind": "customkind"}),
+        (
+            {"label1": "value1"},
+            {"label2": "value2"},
+            True,
+            {"label1": "value1", "label2": "value2", "kind": "job"},
+        ),
     ],
 )
 def test_align_schedule_labels(
-    scheduled_object_labels, schedule_labels, expected_labels
+    scheduled_object_labels, schedule_labels, enrich_kind, expected_labels
 ):
     db, db_session = _initialize_db_without_migrations()
 
@@ -280,7 +292,7 @@ def test_align_schedule_labels(
     )
 
     # Align schedule.labels and schedule.scheduled_object.task.metadata.labels
-    db.align_schedule_labels(db_session)
+    db.align_schedule_labels(db_session, enrich_kind)
 
     # Get updated schedules
     migrated_schedules = db.list_schedules(db_session)

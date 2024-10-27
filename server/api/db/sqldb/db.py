@@ -2416,13 +2416,20 @@ class SQLDB(DBInterface):
             main_table_identifier_values=names,
         )
 
-    def align_schedule_labels(self, session: Session):
+    def align_schedule_labels(self, session: Session, enrich_kind: bool = False):
         schedules_update = []
         for db_schedule in self.list_schedules(session=session, as_records=True):
             schedule_record = self._transform_schedule_record_to_scheme(db_schedule)
             db_schedule_labels = {
                 label.name: label.value for label in db_schedule.labels
             }
+            if (
+                enrich_kind
+                and mlrun_constants.MLRunInternalLabels.kind not in db_schedule_labels
+            ):
+                # We will assume that if the kind of schedule is empty, it should be job
+                # because currently we only support job schedules
+                db_schedule_labels[mlrun_constants.MLRunInternalLabels.kind] = "job"
             merged_labels = (
                 server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
                     labels=db_schedule_labels,

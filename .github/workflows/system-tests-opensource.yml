@@ -73,6 +73,7 @@ jobs:
       uses: astral-sh/setup-uv@v3
       with:
         enable-cache: true
+        cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Set up Python
       run: uv python install 3.9

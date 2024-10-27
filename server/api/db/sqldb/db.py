@@ -41,7 +41,6 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
-import server.api.crud
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
@@ -2354,6 +2353,7 @@ class SQLDB(DBInterface):
         name: str = None,
         labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
+        as_records: bool = False,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
@@ -2363,6 +2363,9 @@ class SQLDB(DBInterface):
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Schedule, labels)
+
+        if as_records:
+            return query
 
         schedules = [
             self._transform_schedule_record_to_scheme(db_schedule)
@@ -2412,6 +2415,27 @@ class SQLDB(DBInterface):
             main_table_identifier=Schedule.name,
             main_table_identifier_values=names,
         )
+
+    def align_schedule_labels(self, session: Session):
+        schedules_update = []
+        for db_schedule in self.list_schedules(session=session, as_records=True):
+            schedule_record = self._transform_schedule_record_to_scheme(db_schedule)
+            db_schedule_labels = {
+                label.name: label.value for label in db_schedule.labels
+            }
+            merged_labels = (
+                server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
+                    labels=db_schedule_labels,
+                    scheduled_object=schedule_record.scheduled_object,
+                )
+            )
+            self._update_schedule_body(
+                schedule=db_schedule,
+                scheduled_object=schedule_record.scheduled_object,
+                labels=merged_labels,
+            )
+            schedules_update.append(db_schedule)
+        self._upsert(session, schedules_update)
 
     @staticmethod
     def _delete_multi_objects(

@@ -33,6 +33,7 @@ import mlrun.launcher.factory
 import server.api.crud
 import server.api.utils.auth
 import server.api.utils.auth.verifier
+import server.api.utils.helpers
 import server.api.utils.singletons.project_member
 import tests.api.conftest
 from mlrun.common.runtimes.constants import RunStates
@@ -1528,7 +1529,7 @@ def test_store_schedule(db: Session, scheduler: Scheduler):
 def test_merge_schedule_and_schedule_object_labels(
     scheduler, labels, scheduled_object, expected
 ):
-    result = scheduler._merge_schedule_and_schedule_object_labels(
+    result = server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
         labels,
         scheduled_object,
     )
@@ -1676,7 +1677,7 @@ def test_merge_schedule_and_db_schedule_labels(
     db_schedule.scheduled_object = db_scheduled_object
 
     result_labels, result_scheduled_object = (
-        scheduler._merge_schedule_and_db_schedule_labels(
+        server.api.utils.helpers.merge_schedule_and_db_schedule_labels(
             labels,
             scheduled_object,
             db_schedule,

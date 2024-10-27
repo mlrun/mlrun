@@ -4335,7 +4335,7 @@ class HTTPRunDB(RunDBInterface):
         :param alert_name: The name of the alert.
         :param alert_data: The data of the alert.
         :param project:    The project that the alert belongs to.
-        :param force_reset: If true and the alert already exist then we should force reset the alert.
+        :param force_reset: If True and the alert already exists, the alert would be reset.
         :returns:          The created/modified alert.
         """
         if not alert_data:
@@ -4360,7 +4360,7 @@ class HTTPRunDB(RunDBInterface):
 
         alert_data = alert_instance.to_dict()
         body = _as_json(alert_data)
-        params = {"force_reset": bool2str(force_reset)}
+        params = {"force_reset": bool2str(force_reset)} if force_reset else {}
         response = self.api_call(
             "PUT", endpoint_path, error_message, params=params, body=body
         )

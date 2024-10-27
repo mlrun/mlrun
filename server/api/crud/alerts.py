@@ -46,7 +46,7 @@ class Alerts(
     ):
         project = project or mlrun.mlconf.default_project
 
-        alert = server.api.utils.singletons.db.get_db().get_alert(
+        existing_alert = server.api.utils.singletons.db.get_db().get_alert(
             session, project, name
         )
 
@@ -55,16 +55,18 @@ class Alerts(
         if alert_data.criteria is None:
             alert_data.criteria = mlrun.common.schemas.alert.AlertCriteria()
 
-        if alert is not None:
-            self._delete_notifications(alert)
-            self._get_alert_by_id_cached().cache_remove(session, alert.id)
+        if existing_alert is not None:
+            self._delete_notifications(existing_alert)
+            self._get_alert_by_id_cached().cache_remove(session, existing_alert.id)
 
-            for kind in alert.trigger.events:
+            for kind in existing_alert.trigger.events:
                 server.api.crud.Events().remove_event_configuration(
-                    project, kind, alert.id
+                    project, kind, existing_alert.id
                 )
-            alert_data.created = alert.created
-            alert_data.id = alert.id
+
+            # preserve the original creation time and id of the alert so that modifying the alert does not change them
+            alert_data.created = existing_alert.created
+            alert_data.id = existing_alert.id
         else:
             num_alerts = (
                 server.api.utils.singletons.db.get_db().get_num_configured_alerts(
@@ -87,9 +89,9 @@ class Alerts(
                 project, kind, new_alert.id
             )
 
-        # if the alert already exist we should check if it should be reset or not
-        if alert is not None and self._should_reset_alert(
-            alert, alert_data, force_reset
+        # if the alert already exists we should check if it should be reset or not
+        if existing_alert is not None and self._should_reset_alert(
+            existing_alert, alert_data, force_reset
         ):
             logger.debug(
                 "Resetting alert due to %s",
@@ -390,14 +392,16 @@ class Alerts(
         if force_reset:
             return True
 
-        # if one of these fields was modified then we should reset the alert
-        if (
-            old_alert_data.entities != alert_data.entities
-            or old_alert_data.trigger != alert_data.trigger
-            or old_alert_data.criteria != alert_data.criteria
-        ):
-            return True
-        return False
+        # reset the alert if a functional parameter (entities, trigger, or criteria) has changed, as these affect the
+        # conditions for alert activation.
+        return any(
+            getattr(old_alert_data, attr) != getattr(alert_data, attr)
+            for attr in [
+                "entities",
+                "trigger",
+                "criteria",
+            ]
+        )
 
     @staticmethod
     def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):

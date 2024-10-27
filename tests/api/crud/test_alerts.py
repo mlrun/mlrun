@@ -26,6 +26,12 @@ import server.api.crud
 import tests.api.conftest
 
 
+@pytest.fixture
+def reset_alert(db, project="project-name", alert_name="failed-alert"):
+    yield
+    server.api.crud.Alerts().reset_alert(session=db, project=project, name=alert_name)
+
+
 @pytest.mark.asyncio
 async def test_process_event_no_cache(
     db: sqlalchemy.orm.Session,
@@ -153,6 +159,15 @@ async def test_validate_alert_name(
             True,
         ),
         (
+            "entities",
+            alert_objects.EventEntities(
+                kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                project="project-name",
+                ids=[123],
+            ),
+            True,
+        ),
+        (
             "trigger",
             alert_objects.AlertTrigger(
                 events=[alert_objects.EventKind.DATA_DRIFT_DETECTED]
@@ -165,6 +180,48 @@ async def test_validate_alert_name(
                 count=5,
                 period="10m",
             ),
+            True,
+        ),
+        # Test multiple modifications
+        (
+            ["summary", "severity"],
+            [
+                "Job has failed again",
+                alert_objects.AlertSeverity.HIGH,
+            ],
+            False,
+        ),
+        (
+            ["summary", "severity", "reset_policy"],
+            [
+                "Job has failed again",
+                alert_objects.AlertSeverity.HIGH,
+                alert_objects.ResetPolicy.AUTO,
+            ],
+            False,
+        ),
+        (
+            ["summary", "severity", "trigger"],
+            [
+                "Job has failed again",
+                alert_objects.AlertSeverity.HIGH,
+                alert_objects.AlertTrigger(
+                    events=[alert_objects.EventKind.DATA_DRIFT_SUSPECTED]
+                ),
+            ],
+            True,
+        ),
+        (
+            ["criteria", "trigger"],
+            [
+                alert_objects.AlertCriteria(
+                    count=3,
+                    period="10m",
+                ),
+                alert_objects.AlertTrigger(
+                    events=[alert_objects.EventKind.DATA_DRIFT_SUSPECTED]
+                ),
+            ],
             True,
         ),
     ],
@@ -180,6 +237,7 @@ async def test_alert_reset_with_fields_updates(
     should_reset,
     force_reset,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    reset_alert,
 ):
     project = "project-name"
     alert_name = "failed-alert"
@@ -226,7 +284,11 @@ async def test_alert_reset_with_fields_updates(
     assert alert.state == alert_objects.AlertActiveState.ACTIVE
 
     # modify the alert data based on the parameterized field
-    setattr(alert_data, modify_field, modified_value)
+    if isinstance(modify_field, list):
+        for field, value in zip(modify_field, modified_value):
+            setattr(alert_data, field, value)
+    else:
+        setattr(alert_data, modify_field, modified_value)
 
     # store the modified alert
     server.api.crud.Alerts().store_alert(
@@ -251,9 +313,6 @@ async def test_alert_reset_with_fields_updates(
         else alert_objects.AlertActiveState.ACTIVE
     )
     assert alert.state == expected_state
-
-    # reset the alert so the next test starts clean
-    server.api.crud.Alerts().reset_alert(session=db, project=project, name=alert_name)
 
 
 def _generate_alert_data(

@@ -4213,7 +4213,7 @@ class MlrunProject(ModelObj):
 
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert.
-        :param force_reset: If true and the alert already exist then we should force reset the alert.
+        :param force_reset: If True and the alert already exists, the alert would be reset.
         :return: the created/modified alert.
         """
         if not alert_data:

@@ -134,20 +134,21 @@ jobs:
     - name: Install helm
       uses: azure/setup-helm@v4
 
-    - uses: AbsaOSS/k3d-action@v2
-      name: "Create k3d Cluster"
+    - uses: jupyterhub/action-k3s-helm@v4
+      name: "Start a local k8s cluster"
       with:
-          k3d-version: v5.7.4
-          cluster-name: "k3d-mlrun-cicd"
-          args: >-
-            --config=automation/system_test/k3d_ci.yaml
+        # - k3s versions at https://github.com/k3s-io/k3s/tags
+        k3s-version: v1.31.2+k3s1
+        # - helm versions at https://github.com/helm/helm/tags
+        helm-version: v3.13.0
 
     # TODO:
     # Build MLRun images in case workflow is running against PR
     # uncomment once done, and upload the images to cluster using
     # - name: "Docker repo demo"
     #   run: |
-    #     k3d image import <images> --cluster k3d-mlrun-cicd --verbose
+    #     docker push <registry>
+
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
       if: ${{ github.event.inputs.debug_enabled == 'true' }}

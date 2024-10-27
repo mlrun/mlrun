@@ -145,6 +145,27 @@ jobs:
         # - helm versions at https://github.com/helm/helm/tags
         helm-version: v3.13.0
 
+    - name: Setup Local Docker Registry
+      run: |
+        kubectl create namespace docker-registry
+        kubectl apply -f automation/system_test/docker_registry.yaml
+
+        # fill /etc/rancher/k3s/registries.yaml
+        registries_file="/etc/rancher/k3s/registries.yaml"
+        echo "mirrors:"                              | sudo tee $registries_file
+        echo "  registry.localhost:"                 | sudo tee --append $registries_file
+        echo "    endpoint:"                         | sudo tee --append $registries_file
+        echo "    - http://registry.localhost:5000"  | sudo tee --append $registries_file
+
+        # restart k3s to apply the changes
+        sudo systemctl restart k3s
+
+        # wait for the registry to be ready
+        while ! curl -s -o /dev/null -w "%{http_code}" http://registry.localhost:5000/v2/; do
+          echo "Waiting for the registry to be ready..."
+          sleep 5
+        done
+
     # TODO:
     # Build MLRun images in case workflow is running against PR
     # uncomment once done, and upload the images to cluster using

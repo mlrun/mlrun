@@ -16,3 +16,12 @@ volumes:
 registries:
   create:
     name: myregistry-cicd
+options:
+  k3s:
+    extraArgs:
+      - arg: --no-deploy=traefik,servicelb,metrics-server
+        nodeFilters:
+          - server:*
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true

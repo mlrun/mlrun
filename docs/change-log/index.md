@@ -1111,6 +1111,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. |NA| v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.|NA| v1.7.0|              
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.|NA  | v1.7.0|
+|ML-8110|The cross-project summary is not aligned with per project summary.       |NA  | v1.7.0|
 
 
 

@@ -35,7 +35,7 @@
 ### Projects
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-2585|When deleting a project, you can also [delete a single artifact](../store/artifacts.html#deleting-artifacts).|
+|ML-2585|When deleting a artifact, you can also [delete a single artifact content](../store/artifacts.html#deleting-artifacts).|
 |ML-3874|Node selector can now be [defined in the project spec](../runtimes/configuring-job-resources.html#node-selection).|
 
 ### Runtimes

@@ -106,7 +106,9 @@ class CustomFormatter(HumanReadableFormatter):
     """
 
     def format(self, record) -> str:
-        logger = create_logger(config.log_level, config.log_formatter, "logger", sys.stdout)
+        logger = create_logger(
+            config.log_level, config.log_formatter, "logger", sys.stdout
+        )
         more = self._resolve_more(record)
         custom_format = config.custom_format
         _custom_format = None

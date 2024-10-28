@@ -108,8 +108,6 @@
 |NA     |Updated page: {ref}`model-monitoring-des`.|
 |NA     |Updated {ref}`ecosystem`.|
 
-
-
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|

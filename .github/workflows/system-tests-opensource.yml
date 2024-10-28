@@ -149,7 +149,7 @@ jobs:
     with:
       docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
       docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
-      version: ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
+      version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
 
       # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
       # by overriding the version specifier, we allow using mlrun/mlrun as well.

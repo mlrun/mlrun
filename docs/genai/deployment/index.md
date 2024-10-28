@@ -17,5 +17,7 @@ genai_serving_graph
 
 **See also**
 - {ref}`genai_01_basic_tutorial`
-- {ref}`model-monitoring`
+- {ref}`genai-02-mm-llm`
+- {ref}`realtime-monitor-drift-tutor`
+- {ref}`model-monitoring-overview`
 - {ref}`alerts-notifications`

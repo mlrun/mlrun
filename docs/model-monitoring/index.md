@@ -99,7 +99,7 @@ as an MLRun function and create MLRun artifacts, using the built-in class `Evide
 Projects are used to group functions that use the same model monitoring application. You first need to create a project for a specific application. 
 Then you disable the default app, enable your customer app, and create and run the functions. 
 
-The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. See {ref}`realtime-monitor-drift-tutor`.
+The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. 
 
 ## Multi-port predictions
 

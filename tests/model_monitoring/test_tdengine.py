@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import datetime
-from typing import Union, Optional
 from io import StringIO
+from typing import Optional, Union
 
 import pytest
 
@@ -176,7 +176,7 @@ class TestTDEngineSchema:
                 None,
                 None,
                 None,
-                None
+                None,
             ),
             (
                 "subtable_2",
@@ -189,7 +189,7 @@ class TestTDEngineSchema:
                 None,
                 None,
                 None,
-                None
+                None,
             ),
             (
                 "subtable_3",
@@ -198,11 +198,11 @@ class TestTDEngineSchema:
                 mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
                 mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
                 "time_column",
-                ['avg'],
+                ["avg"],
                 ["column1"],
                 None,
                 None,
-                None
+                None,
             ),
             (
                 "subtable_4",
@@ -211,7 +211,7 @@ class TestTDEngineSchema:
                 mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
                 mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
                 "time_column",
-                ['avg'],
+                ["avg"],
                 ["column1"],
                 None,
                 ["column2"],
@@ -228,8 +228,8 @@ class TestTDEngineSchema:
                 ["column1"],
                 None,
                 None,
-                None
-            )
+                None,
+            ),
         ],
     )
     def test_get_records_query(
@@ -277,7 +277,7 @@ class TestTDEngineSchema:
             )
 
         else:
-            with StringIO() as  expected_query_group_by:
+            with StringIO() as expected_query_group_by:
                 if agg_funcs:
                     if columns_to_filter:
                         preform_agg_funcs_columns = (
@@ -286,20 +286,22 @@ class TestTDEngineSchema:
                             else preform_agg_funcs_columns
                         )
                         columns_to_select = ", ".join(
-                        [
-                            f"{a}({col})"
-                            if col.upper()
-                            in map(
-                                str.upper, preform_agg_funcs_columns
-                            )  # Case-insensitive check
-                            else f"{col}"
-                            for a in agg_funcs
-                            for col in columns_to_filter
-                        ]
-                    )
-                        expected_query = (f"SELECT {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
-                                          f"WHERE {filter_query} AND {timestamp_column} >= '{start}' "
-                                          f"AND {timestamp_column} <= '{end}'")
+                            [
+                                f"{a}({col})"
+                                if col.upper()
+                                in map(
+                                    str.upper, preform_agg_funcs_columns
+                                )  # Case-insensitive check
+                                else f"{col}"
+                                for a in agg_funcs
+                                for col in columns_to_filter
+                            ]
+                        )
+                        expected_query = (
+                            f"SELECT {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
+                            f"WHERE {filter_query} AND {timestamp_column} >= '{start}' "
+                            f"AND {timestamp_column} <= '{end}'"
+                        )
                         expected_query_group_by.write(expected_query)
                     else:
                         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -335,24 +337,20 @@ class TestTDEngineSchema:
                     expected_query_group_by.write(f" ORDER BY {order_by} {desc}")
                 expected_query_group_by.write(";")
                 assert (
-                        super_table._get_records_query(
-                    table=subtable,
-                    columns_to_filter=columns_to_filter,
-                    filter_query=filter_query,
-                    start=start,
-                    end=end,
-                    timestamp_column=timestamp_column,
-                    group_by=group_by,
-                    agg_funcs=agg_funcs,
-                    order_by=order_by,
-                    desc=desc,
+                    super_table._get_records_query(
+                        table=subtable,
+                        columns_to_filter=columns_to_filter,
+                        filter_query=filter_query,
+                        start=start,
+                        end=end,
+                        timestamp_column=timestamp_column,
+                        group_by=group_by,
+                        agg_funcs=agg_funcs,
+                        order_by=order_by,
+                        desc=desc,
+                    )
+                    == expected_query_group_by.getvalue()
                 )
-                == expected_query_group_by.getvalue()
-                )
-
-
-
-
 
     @pytest.mark.parametrize(
         (

@@ -19,8 +19,9 @@ import shutil
 import traceback
 from typing import Any, Union
 
+import mlrun.errors
 from mlrun.artifacts import Artifact
-from mlrun.datastore import DataItem, store_manager
+from mlrun.datastore import DataItem, get_store_resource, store_manager
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
 
@@ -733,7 +734,14 @@ class PackagersManager:
         artifact_uris = artifact_uris or {}
         for _key, uri in artifact_uris.items():
             if key == _key:
-                return uri
+                try:
+                    return get_store_resource(uri)
+                except mlrun.errors.MLRunNotFoundError as exc:
+                    logger.warn(
+                        f"Artifact {key=} not found when looking for extra data",
+                        exc=mlrun.errors.err_to_str(exc),
+                    )
+                    return None
 
         # Look in the artifacts:
         for artifact in artifacts:

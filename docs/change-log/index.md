@@ -147,7 +147,7 @@
 |ML-7613|The pipeline SDK output now displays the logs in addition to the graph animation, and it also raises a warning when a client uses notifications with `engine=kfp`.|
 |ML-7655|The "filter by label" in the Models page is now case insensitive.|
 |ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines.|
-|ML-7706|Fixed the skip `sync_functions` when scheduling workflows or running remote workflows.|
+|ML-7706|Change `sync_functions` to be "best effort" when scheduling workflows or running remote workflows.|
 |ML-7796|New `project.run()` {py:meth}`workflow_runner_node_selector <mlrun.projects.MlrunProject.run>` parameter that defines the node selector for the workflow runner pod when using a remote engine.|
 |ML-7907|Fixed an issue with RabbitMQ event path when using Model serving functions.|
 

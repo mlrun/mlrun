@@ -192,7 +192,7 @@ redirects = {
 smartquotes = False
 
 linkcheck_ignore = [
-    # Ignore all HTML links to local files
+    # Ignore all the links to local files
     r"^(?!https?://).*",
     # linkcheck doesn't work well with relative paths on github which contain anchor, so ignore them
     r"https:\/\/github.com/.*#.*$",

@@ -134,9 +134,11 @@ Collect production data, metadata, and metrics to tune the model and application
 {bdg-link-info}`Alerts and notifications <./concepts/alerts-notifications.html>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
-{bdg-link-primary}`Model monitoring using LLM <./tutorials/genai-02-monitoring-llm.html>`
+{bdg-link-primary}`Model monitoring using LLM  <./tutorials/-02-model-monitor-llm.html>`
+{bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 <br> {octicon}`code-square` **Demo:**
 {bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-primary}`Model Monitoring using an LLM <https://github.com/mlrun/demo-monitoring-and-feedback-loop/blob/main/llm-monitoring-main.ipynb>`
 `````
 
 ## MLOps tasks
@@ -192,8 +194,8 @@ Project access can be restricted to a set of users and roles.
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Projects and automation <./projects/ci-cd-automate.html>`
-{bdg-link-info}`CI/CD integration <./projects/ci-integration.html>`
+{bdg-link-info}`Projects and automation <./projects/project.html>`
+{bdg-link-info}`CI/CD integration <./projects/ci-cd-automate.html>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Quick start <./tutorials/01-mlrun-basics.html>`
 {bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.html>`
@@ -211,7 +213,7 @@ In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) a
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Ingest and process data <data-prep/index.html>`
+{bdg-link-info}`Ingest and process data <./data-prep/index.html>`
 {bdg-link-info}`Feature store <./feature-store/feature-store.html>`
 {bdg-link-info}`Data and artifacts <./concepts/data.html>`
 <br> {octicon}`code-square` **Tutorials:**
@@ -231,7 +233,7 @@ can work with 3rd party training/auto-ML services. You can also bring your own p
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Develop and train models <development>`
+{bdg-link-info}`Develop and train models <./development/index.html>`
 {bdg-link-info}`Model training and tracking <./development/model-training-tracking.html>`
 {bdg-link-info}`Batch runs and workflows <./concepts/runs-workflows.html>`
 <br> {octicon}`code-square` **Tutorials:**
@@ -249,13 +251,13 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Deploy models and applications <deployment>`
+{bdg-link-info}`Deploy models and applications <./deployment/index.html>`
 {bdg-link-info}`Realtime pipelines <./serving/serving-graph.html>`
 {bdg-link-info}`Batch inference <./deployment/batch_inference.html>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Realtime serving <./tutorials/03-model-serving.html>`
-{bdg-link-primary}`Batch inference <./tutorials/07-batch-infer.html>`
-{bdg-link-primary}`Advanced pipeline <./tutorials/07-batch-infer.html>`
+{bdg-link-primary}`Batch inference <./tutorials/06-batch-infer.html>`
+{bdg-link-primary}`Advanced pipeline <./tutorials/06-batch-infer.html>`
 <br> {octicon}`video` **Videos:**
 {bdg-link-warning}`Serve pre-trained models <https://youtu.be/OUjOus4dZfw>`
 `````
@@ -263,13 +265,14 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 ### Monitor and alert
 
 Observability is built into the different MLRun objects (data, functions, jobs, models, pipelines, etc.), eliminating the need for complex integrations and code instrumentation. With MLRun, you can observe the application/model resource usage and model behavior (drift, performance, etc.), define custom app metrics, and trigger alerts or retraining jobs.
-{bdg-link-primary-line}`more... <./model-monitoring/index.html>`
+{bdg-link-primary-line}`more... <./concepts/model-monitoring.html>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Model monitoring <monitoring>`
-{bdg-link-info}`Alerts and notifications <alerts-notifications>`
+{bdg-link-info}`Model monitoring <./concepts/model-monitoring.html>`
+{bdg-link-info}`Alerts and notifications <./concepts/alerts-notifications.html>`
 <br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Model monitoring using LLM  <./tutorials/-02-model-monitor-llm.html>`
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````
 
@@ -288,25 +291,25 @@ MLRun includes the following major components:
 ```
 
 ```{grid-item-card} Serverless functions
-:columns: 1 1 2 3
+:columns: 1 1 2 4
 :text-align: center
 :link: ./runtimes/functions.html
 ```
 
 ```{grid-item-card} Data & artifacts
-:columns: 1 1 2 3
+:columns: 1 1 2 4
 :text-align: center
 :link: ./concepts/data.html
 ```
 
 ```{grid-item-card} Batch runs & workflows 
-:columns: 1 1 2 3
+:columns: 1 1 2 4
 :text-align: center
 :link: ./concepts/runs-workflows.html
 ```
 
 ```{grid-item-card} Real-time pipelines
-:columns: 1 1 2 3
+:columns: 1 1 2 4
 :text-align: center
 :link: ./serving/serving-graph.html
 ```
@@ -324,12 +327,6 @@ MLRun includes the following major components:
 :link: ./concepts/alerts-notifications.html
 ```
 
-```{grid-item-card} Feature store
-:columns: 1 1 2 4
-:text-align: center
-:link: ./feature-store/feature-store.html
-```
-
 ````
 
 **{ref}`Project management <projects>`:** A service (API, SDK, DB, UI) that manages the different project assets (data, functions, jobs, workflows, secrets, etc.) and provides central control and metadata layer.  
@@ -345,8 +342,6 @@ MLRun includes the following major components:
 **{ref}`Real-time monitoring <model-monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
 **{ref}`Alerts and notifications <alerts-notifications>`:** Use alerts to identify and inform you of possible problem situations. Use notifications to report status on runs and pipelines.
-
-**{ref}`Feature store <feature-store>`:** Automatically collects, prepares, catalogs, and serves production data features for development (offline) and real-time (online) deployment using minimal engineering effort.
 
 ```{toctree}
 :maxdepth: 1

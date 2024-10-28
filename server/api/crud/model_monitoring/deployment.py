@@ -1231,7 +1231,6 @@ class MonitoringDeployment:
         )
         v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
         container, path = split_path(stream_path)
-        print(f"111 stream_path={stream_path}, container={container}, path={path}")
         # We don't expect the stream to exist. The purpose is to make sure we have access.
         v3io_client.stream.describe(
             container,

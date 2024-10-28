@@ -160,7 +160,7 @@ jobs:
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source
     runs-on: ubuntu-latest
-    needs: build-mlrun
+    needs: [prepare-inputs, build-mlrun]
     steps:
     - uses: actions/checkout@v4
 

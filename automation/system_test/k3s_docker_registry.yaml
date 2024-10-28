@@ -1,11 +1,25 @@
 # Local Docker registry running in Kubernetes - for k3s
 # https://gist.github.com/gdamjan-loka/ccc34502eccf9b156a8e7d7bfd8d20f5
 # - [Oct, 27th, 2024] Changed `storage: 10Gi` to `50Gi`
+# - [Oct, 28th, 2024] Added coredns custom config to ensure "registry.localhost" resolves to the registry service
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+    registry.override: |
+      rewrite stop {
+        name regex registry\.localhost docker-registry.docker-registry.svc.cluster.local
+        answer name docker-registry\.docker-registry\.svc\.cluster\.local\.$ registry.localhost
+      }
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: docker-registry-ingress
+  name: docker-registry
+  namespace: docker-registry
 spec:
   ingressClassName: traefik
   rules:
@@ -16,15 +30,16 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: docker-registry-service
+            name: docker-registry
             port:
-              number: 5000
+              number: 80
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: docker-registry-service
+  name: docker-registry
+  namespace: docker-registry
   labels:
     app: docker-registry
 spec:
@@ -32,13 +47,15 @@ spec:
     app: docker-registry
   ports:
     - protocol: TCP
-      port: 5000
+      port: 80
+      targetPort: 5000
 
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: docker-registry-pvc
+  name: docker-registry
+  namespace: docker-registry
   labels:
     app: docker-registry
 spec:
@@ -54,6 +71,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: docker-registry
+  namespace: docker-registry
   labels:
     app: docker-registry
 spec:
@@ -83,4 +101,4 @@ spec:
       volumes:
       - name: storage
         persistentVolumeClaim:
-          claimName: docker-registry-pvc
+          claimName: docker-registry

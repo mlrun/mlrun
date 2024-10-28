@@ -1116,7 +1116,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. |NA| v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.|NA| v1.7.0|              
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.|NA  | v1.7.0|
-|ML-8110|The cross-project summary is not aligned with per project summary.       |NA  | v1.7.0|
+|ML-8110|The cross-project summary is not aligned with per project summary: In the Projects page, **Monitoring > Scheduled**, the Jobs and Total counters are incorrect.      |NA  | v1.7.0|
 
 
 
@@ -1134,7 +1134,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
 |ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.html#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Upgrade the client to v1.6.0 or higher. | v1.6.0 |
-|NA     |Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
+|ML-8115|Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
 
 ## Deprecations and removed code
 

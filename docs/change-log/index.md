@@ -142,7 +142,7 @@
 |ML-7256|Deleting artifact by UID deletes only the artifact with the given UID.|
 |ML-7290|Nuclio functions deployed by MLRun: At the Nuclio service level, node selectors are added by Nuclio. In cases where there is overlap between the node selectors specified at the MLRun service level and those applied by Nuclio, the node selectors from the MLRun side take precedence to prevent any conflicts. See [node selection](../runtimes/configuring-job-resources.html#node-selection).|
 |ML-7335|Serving functions now support up to 4500 models and the size of the serving specification to 1 MB.|
-|ML-7358|MLRun client now validates certificates by default.|
+|ML-7358|MLRun client now validates SSL certificates by default.|
 |ML-7367|Updated OS packages for MLRun UI.|
 |ML-7416|An error message is displayed upon workflow failure in the "Monitor workflows" tab.|
 |ML-7599|Fixed mlrun-api vulnerabilities.|
@@ -329,6 +329,7 @@
 |ML-4810|Can now rerun a job when the "mlrun/client_version" label has "+" in its value. | 
 |ML-4821|Very big projects are deleted successfully.|
 |ML-4855|MLRun now supports TensorFlow up to 2.15.0.|
+|ML-4857|When local runs are aborted in the UI, the actual execution is also aborted.|
 |ML-4858|After aborting a job/run from the UI, the logs are populated.|
 |ML-4922|Preview and Metadata tabs now indicate when there are more columns that are not displayed.|
 |ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|
@@ -1087,7 +1088,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3626|The "Save and ingest" option is disabled for a scheduled feature set. |NA | v1.3.0|
 |ML-3627|The feature store allows ingestion of string type for the timestamp key resulting in errors when trying to query the offline store with time filtration.|Use only timestamp type.| v1.2.1    |
 |ML-3636|`get_online_feature_service` from Redis target returns truncated values. | NA | v1.3.0|
-|ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
 |ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA | v1.2.1|
 |ML-3867|Cannot search for project owners by first name. |NA| v1.4.0|
 |ML-6839|Schedules have a minimum interval between two scheduled jobs. By default, a job cannot be scheduled to run more than 2 times in 10 minutes. See {ref}`scheduled-jobs`.| NA | v1.6.3 |
@@ -1102,8 +1102,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.|NA|v1.4.1|
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.|Prepare suitable Data-item and provide it to the batch-rerun UI.| v1.5.0    |
 |ML-4769|After deleting a project, data is still present in the Artifacts and Executions of pipelines UI.  | NA | v1.4.0 |
-|ML-4857|Local runs can be aborted in the UI, though the actual execution continues.|NA | v1.5.0 |
-|NL-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
+|ML-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|

@@ -67,7 +67,12 @@ jobs:
     name: Prepare Open Source inputs
     runs-on: ubuntu-latest
     outputs:
-      computed_params: ${{ steps.computed_params.outputs }}
+      mlrun_docker_tag: ${{ steps.computed_params.outputs.mlrun_docker_tag }}
+      mlrun_ui_version: ${{ steps.computed_params.outputs.mlrun_ui_version }}
+      mlrun_docker_registry: ${{ steps.computed_params.outputs.mlrun_docker_registry }}
+      mlrun_system_tests_clean_resources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
+      mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
+      mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
     steps:
       - uses: actions/checkout@v4
 
@@ -231,11 +236,11 @@ jobs:
             --skip-registry-validation \
             --namespace=${NAMESPACE} \
             --registry-secret-name="" \
-            --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-ui-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}" \
-            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_version_specifier }}"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
+            --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+            --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+            --override-mlrun-ui-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.mlrun_docker_repo }}/mlrun-ui:${{ needs.prepare-inputs.outputs.mlrun_ui_version }}" \
+            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
             --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
@@ -250,8 +255,8 @@ jobs:
     - name: Run system tests
       run: |
         source venv/bin/activate
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}" \
+        MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}" \
           make test-system-open-source
 
     - name: Output some logs in case of failure

@@ -17,10 +17,12 @@
 ## v1.7.0 (28 October 2024)
 
 ### Model monitoring
+
+```{admonition} Note
+{ref}`model-monitoring-overview` is in TechPreview status in v1.7.0.
+
 ```
-{admonition} Note
-{ref}`model-monitoring-overview` is TechPreview in v1.7.0.|
-```
+
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-5460|The model monitoring now has a [per-endpoint view](../model-monitoring/index.html#model-and-model-monitoring-endpoints) that presents information data on the monitoring metrics.|
@@ -35,14 +37,19 @@
 ### Projects
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-2585|When deleting a artifact, you can also [delete a single artifact content](../store/artifacts.html#deleting-artifacts).|
 |ML-3874|Node selector can now be [defined in the project spec](../runtimes/configuring-job-resources.html#node-selection).|
+
+
+### Artifacts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-2585|When deleting a artifact, you can also [delete the data of a single artifact](../store/artifacts.html#deleting-artifacts).|
 
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2652|Supports [creating an API gateway using the MLRun SDK](../concepts/nuclio-real-time-functions.html#api-gateway).|
-|ML-4601|New {ref}`application runtime <application>` where you can run provide an image (for example a web-app) that runs as a deployment. |
+|ML-4601|New {ref}`application runtime <application>` where you can provide an image (for example, a web-app) that runs as a Kubernetes deployment. |
 
 
 ### Workflows
@@ -60,26 +67,10 @@
 |-------|----------------------------------------------------------------------------|
 |ML-6015|Storey/Nuclio serving graph: supports [concurrent processing](../serving/model-serving-get-started.html#concurrent-processing), typically used for serving of deep-learning models, where preparation steps and inference can be CPU/GPU heavy, or involving I/O.|
 
-### UI
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules that ran in the last 24 hours.   <p align="center"><img src="../_static/images/cross-project-view.png" alt="cross-project-view" /></p><br>|
-|ML-5140|Improved responsiveness for runs and functions.|
-|ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
-|ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
-|ML-7103/7131|By default the UI only retrieves tagged functions: non-tagged functions are only retrieved if explicitly asked for. By default the Functions page only shows functions that were modified in the last week: added filters for time. The changes an overall improvement in the responsiveness.|
-
 ### Data store
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-5726|Add support for [Hadoop/hdfs datastore](../store/datastore.html#hdfs-data-store-profile).|
-
-
-### Feature store
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-3303|Optimized the parquet read when the partitioning is on fields other than the timestamp.|
-|ML-5656|Add [Snowflake as an offline target store](../feature-store/sources-targets.html#snowflake-target)|
 
 ### Notifications
 | ID    |Description                                                                 |
@@ -91,6 +82,20 @@
 |-------|----------------------------------------------------------------------------|
 |ML-5741/3206|The new flag `allow_cross_project` ({py:meth}`mlrun.projects.get_or_create_project` and {py:meth}`mlrun.projects.load_project`) gives you options to manage a situation where you call `get_or_create_project` or `load_project` and there is already a `project.yaml` with a different project name. In v1.7 and v1.8 `allow_cross_project` is set to None by default, meaning if there is a mismatch in the name, you get a warning (that the project name is different than the `project.yaml`) and then the flow continues. If `allow_cross_project` is False, an exception is raised. And if `allow_cross_project` is True, the flow continues. (Prior to v1.9 you should set `allow_cross_project` to either True or False; the None option will be deprecated.)|
 
+### Feature store
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-3303|Optimized the parquet read when the partitioning is on fields other than the timestamp.|
+|ML-5656|Add [Snowflake as an offline target store](../feature-store/sources-targets.html#snowflake-target)|
+
+### UI
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules that ran in the last 24 hours.   <p align="center"><img src="../_static/images/cross-project-view.png" alt="cross-project-view" /></p><br>|
+|ML-5140|Improved responsiveness for runs and functions.|
+|ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
+|ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
+|ML-7103/7131|By default the UI only retrieves tagged functions: non-tagged functions are only retrieved if explicitly asked for. By default the Functions page only shows functions that were modified in the last week: added filters for time. The changes an overall improvement in the responsiveness.|
 
 ### Documentation
 | ID    |Description                                                                 |
@@ -143,7 +148,6 @@
 |ML-7367|Updated OS packages for MLRun UI.|
 |ML-7416|An error message is displayed upon workflow failure in the "Monitor workflows" tab.|
 |ML-7599|Fixed mlrun-api vulnerabilities.|
-|ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. |See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.html#preventing-and-resolving-conflicts). v1.7.0|
 |ML-7613|The pipeline SDK output now displays the logs in addition to the graph animation, and it also raises a warning when a client uses notifications with `engine=kfp`.|
 |ML-7655|The "filter by label" in the Models page is now case insensitive.|
 |ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines.|
@@ -1108,6 +1112,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
 |ML-7196|The models features statistics `feature_stats` is limited to 16MB. Further limitation to 1MB when using model-monitoring over V3IO-KV will be removed in 1.8.|NA| v1.7.0|
+|ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. |See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.html#preventing-and-resolving-conflicts). v1.7.0|
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. |NA| v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.|NA| v1.7.0|              
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.|NA  | v1.7.0|

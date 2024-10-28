@@ -255,14 +255,8 @@ class V2ModelServer(StepToDict):
         event_id = event.id
         op = event.path.strip("/")
 
-        # Generating model endpoint ID based on function uri and model version
-        model_endpoint_uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
-            function_uri=self.context.server.function_uri,
-            versioned_model=self.versioned_model_name,
-        ).uid
-
         partition_key = (
-            model_endpoint_uid if self.shard_by_endpoint is not False else None
+            self.model_endpoint_uid if self.shard_by_endpoint is not False else None
         )
 
         if event_body and isinstance(event_body, dict):

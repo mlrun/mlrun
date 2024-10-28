@@ -132,7 +132,7 @@ class TestTDEngineSchema:
     ):
         assert (
             super_table._get_subtables_query(values=values)
-            == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
+            == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
             f"WHERE tag1 LIKE '{values['tag1']}' AND tag2 LIKE '{values['tag2']}';"
         )
 
@@ -141,7 +141,7 @@ class TestTDEngineSchema:
             values.pop("tag1")
             assert (
                 super_table._get_subtables_query(values=values)
-                == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
+                == f"SELECT DISTINCT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
                 f"WHERE tag2 LIKE '{values['tag2']}';"
             )
 

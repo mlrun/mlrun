@@ -25,6 +25,7 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 :maxdepth: 1
 :hidden:
 genai_01_basic_tutorial
+genai-02-model-monitor-llm
 ml-index
 demos
 /cheat-sheet
@@ -42,9 +43,18 @@ demos
 :link: ./genai_01_basic_tutorial.html
 How to copy a dataset into your cluster, deploy an LLM in the cluster, and run your function.
 ```
+```{grid-item-card} Model monitoring using LLM
+:link: ./genai-02-model-monitor-llm.html
+Set up an effective model monitoring system that leverages LLMs to maintain high standards for deployed models.
+```
+```{grid-item-card} Model monitoring 
+:link: ./05-model-monitoring.html
+Demonstrate MLRun Serving pipelines, MLRun model monitoring, and automated drift detection.
+```
 
 ````
 `````
+
 
 (other-tutorial)=
 ## Machine learning tutorials
@@ -103,22 +113,9 @@ Use the feature store with data ingestion, model training, model serving, and au
 (e2e-demos)=
 ## End to end demos
 
-See more examples in the end-to-end demos:
-- [How-To: Converting Existing ML Code to an MLRun Project](https://github.com/mlrun/demos/tree/master/howto) 
-- [Mask Detection Demo](https://github.com/mlrun/demos/tree/master/mask-detection)
-- [News Article Summarization and Keyword Extraction via NLP](https://github.com/mlrun/demos/tree/master/news-article-nlp)
-- [Fraud Prevention - Iguazio Feature Store](https://github.com/mlrun/demos/tree/master/fraud-prevention-feature-store)
-- [Stocks Prices Prediction Demo](https://github.com/mlrun/demos/tree/master/stocks-prediction)
-- [Sagemaker demo](https://github.com/mlrun/demo-sagemaker)
-- [Call center demo](https://github.com/mlrun/demo-call-center)
+See {ref}`demos`.
+
 
 ## Cheat sheet
 
 If you already know the basics, use the [cheat sheet](../cheat-sheet.html) as a guide to typical use cases and their flows/SDK.
-
-## Running the demos in Open Source MLRun
-
-By default, these demos work with the online feature store, which is currently not part of the Open Source MLRun default deployment:
-- fraud-prevention-feature-store 
-- network-operations
-- azureml_demo

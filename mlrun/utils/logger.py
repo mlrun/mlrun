@@ -110,7 +110,7 @@ class CustomFormatter(HumanReadableFormatter):
             config.log_level, config.log_formatter, "logger", sys.stdout
         )
         more = self._resolve_more(record)
-        custom_format = config.custom_format
+        custom_format = config.log_format_override
         _custom_format = None
         try:
             if custom_format:

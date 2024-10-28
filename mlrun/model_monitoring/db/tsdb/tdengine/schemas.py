@@ -324,5 +324,6 @@ class Errors(TDEngineSchema):
         tags = {
             mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
             mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
+            mm_schemas.EventFieldType.ERROR_TYPE: _TDEngineColumn.BINARY_64,
         }
         super().__init__(super_table, columns, tags, database)

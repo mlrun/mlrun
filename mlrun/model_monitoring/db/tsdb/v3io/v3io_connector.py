@@ -310,6 +310,7 @@ class V3IOTSDBConnector(TSDBConnector):
             ],
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
+                mm_schemas.EventFieldType.ERROR_TYPE,
             ],
             max_events=tsdb_batching_max_events,
             flush_after_seconds=tsdb_batching_timeout_secs,
@@ -819,7 +820,8 @@ class V3IOTSDBConnector(TSDBConnector):
             start=start,
             end=end,
             columns=[mm_schemas.EventFieldType.ERROR_COUNT],
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]}) "
+            f"AND {mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}'",
             agg_funcs=["count"],
         )
         if not df.empty:

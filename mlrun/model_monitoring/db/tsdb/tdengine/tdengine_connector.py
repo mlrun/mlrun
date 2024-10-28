@@ -225,6 +225,7 @@ class TDEngineConnector(TSDBConnector):
             tag_cols=[
                 mm_schemas.EventFieldType.PROJECT,
                 mm_schemas.EventFieldType.ENDPOINT_ID,
+                mm_schemas.EventFieldType.ERROR_TYPE,
             ],
             max_events=tsdb_batching_max_events,
             flush_after_seconds=tsdb_batching_timeout_secs,
@@ -653,7 +654,8 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.SchedulingKeys.ENDPOINT_ID,
             ],
             agg_funcs=["count"],
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]}) "
+            f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'",
             group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
             preform_agg_columns=[mm_schemas.EventFieldType.MODEL_ERROR],
         )

@@ -19,7 +19,7 @@ import os
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import NamedTuple, Optional, cast
+from typing import Any, NamedTuple, Optional, cast
 
 import nuclio_sdk
 
@@ -200,7 +200,8 @@ class _BatchWindowGenerator(AbstractContextManager):
     ) -> Iterator[_Interval]:
         """
         Get the batch window for a specific endpoint and application.
-        first_request is the first request time to the endpoint.
+        `first_request` and `last_request` are the timestamps of the first request and last
+        request to the endpoint, respectively. They are guaranteed to be nonempty at this point.
         """
         batch_window = _BatchWindow(
             schedules_file=self._schedules_file,
@@ -254,6 +255,22 @@ class MonitoringApplicationController:
             access_key = mlrun.mlconf.get_v3io_access_key()
         return access_key
 
+    @staticmethod
+    def _should_monitor_endpoint(endpoint: dict[str, Any]) -> bool:
+        return (
+            # Is the model endpoint active?
+            endpoint[mm_constants.EventFieldType.ACTIVE]
+            # Is the model endpoint monitored?
+            and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
+            == mm_constants.ModelMonitoringMode.enabled
+            # Was the model endpoint called? I.e., are the first and last requests nonempty?
+            and endpoint[mm_constants.EventFieldType.FIRST_REQUEST]
+            and endpoint[mm_constants.EventFieldType.LAST_REQUEST]
+            # Is the model endpoint not a router endpoint? Router endpoint has no feature stats
+            and int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
+            != mm_constants.EndpointType.ROUTER
+        )
+
     def run(self) -> None:
         """
         Main method for run all the relevant monitoring applications on each endpoint.
@@ -304,28 +321,14 @@ class MonitoringApplicationController:
                 exc=err_to_str(e),
             )
             return
-        # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
+        # Initialize a thread pool that will be used to monitor each endpoint on a dedicated thread
         with concurrent.futures.ThreadPoolExecutor(
-            max_workers=min(len(endpoints), 10),
+            max_workers=min(len(endpoints), 10)
         ) as pool:
             for endpoint in endpoints:
                 if not _RUNNING:
                     break
-                if (
-                    endpoint[mm_constants.EventFieldType.ACTIVE]
-                    and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
-                    == mm_constants.ModelMonitoringMode.enabled.value
-                ):
-                    # Skip router endpoint:
-                    if (
-                        int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
-                        == mm_constants.EndpointType.ROUTER
-                    ):
-                        # Router endpoint has no feature stats
-                        logger.info(
-                            f"{endpoint[mm_constants.EventFieldType.UID]} is router, skipping"
-                        )
-                        continue
+                if self._should_monitor_endpoint(endpoint):
                     pool.submit(
                         MonitoringApplicationController.model_endpoint_process,
                         project=self.project,

@@ -1314,9 +1314,9 @@ class RunStatus(ModelObj):
         :return: List of artifact dictionaries
         """
         self._artifacts = self._artifacts or []
-        existing_artifact_keys = [
+        existing_artifact_keys = {
             artifact["metadata"]["key"] for artifact in self._artifacts
-        ]
+        }
         for key, uri in self.artifact_uris.items():
             if key not in existing_artifact_keys:
                 artifact = mlrun.datastore.get_store_resource(uri)

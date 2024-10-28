@@ -869,7 +869,7 @@ class MLClientCtx:
         )
         return self.get_artifact(key)
 
-    def get_artifact(self, key):
+    def get_artifact(self, key: str) -> Artifact:
         artifact_uri = self._artifacts_manager.artifact_uris[key]
         return self.get_store_resource(artifact_uri)
 

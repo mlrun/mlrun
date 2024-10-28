@@ -571,19 +571,17 @@ def update_model(
     return model_spec
 
 
-def _get_src_path(model_spec: ModelArtifact, filename):
-    if model_spec.src_path:
-        return path.join(model_spec.src_path, filename)
-    return filename
+def _get_src_path(model_spec: ModelArtifact, filename: str) -> str:
+    return path.join(model_spec.src_path, filename) if model_spec.src_path else filename
 
 
-def _load_model_spec(spec_path):
+def _load_model_spec(spec_path) -> ModelArtifact:
     data = mlrun.datastore.store_manager.object(url=spec_path).get()
     spec = yaml.load(data, Loader=yaml.FullLoader)
     return ModelArtifact.from_dict(spec)
 
 
-def _get_file_path(base_path: str, name: str, isdir=False):
+def _get_file_path(base_path: str, name: str, isdir: bool = False) -> str:
     if not is_relative_path(name):
         return name
     if not isdir:
@@ -591,7 +589,7 @@ def _get_file_path(base_path: str, name: str, isdir=False):
     return path.join(base_path, name).replace("\\", "/")
 
 
-def _get_extra(target, extra_data, is_dir=False):
+def _get_extra(target: str, extra_data: dict, is_dir: bool = False) -> dict:
     extra_dataitems = {}
     for k, v in extra_data.items():
         extra_dataitems[k] = mlrun.datastore.store_manager.object(
@@ -600,12 +598,12 @@ def _get_extra(target, extra_data, is_dir=False):
     return extra_dataitems
 
 
-def _sanitize_and_serialize_model_spec_yaml(model: ModelArtifact):
+def _sanitize_and_serialize_model_spec_yaml(model: ModelArtifact) -> str:
     model_dict = _sanitize_model_spec(model)
     return _serialize_model_spec_yaml(model_dict)
 
 
-def _sanitize_model_spec(model):
+def _sanitize_model_spec(model: ModelArtifact) -> dict:
     model_dict = model.to_dict()
 
     # The model spec yaml should not include the tag, as the same model can be used with different tags,
@@ -622,5 +620,5 @@ def _sanitize_model_spec(model):
     return model_dict
 
 
-def _serialize_model_spec_yaml(model_dict):
+def _serialize_model_spec_yaml(model_dict: dict) -> str:
     return yaml.safe_dump(model_dict)

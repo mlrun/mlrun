@@ -129,7 +129,7 @@
 |ML-6800|Resolved spiking of CPU and memory of mlrun-api service.|
 |ML-6885|Webhook notification now contains run logs when `override_body=True`|
 |ML-6991|UI: Now shows KFP pod errors.|
-|ML-7103|UI: New option to show untagged functions in the Functions page (disabled by default). Added time filters to the fFunctions page, by default shows only functions that were modified in the last week.|
+|ML-7103|UI: New option to show untagged functions in the Functions page (disabled by default). Added time filters to the Functions page, by default shows only functions that were modified in the last week.|
 |ML-7119|When attempting to create a project without the required permissions, the error now reads: You don’t have permission to create a project.|
 |ML-7135|Fixed upgrading to mlrun if the `spec.build` was saved incorrectly.|
 |ML-7162|UI: Erroneous "“No data matches…” messages no longer appear.|

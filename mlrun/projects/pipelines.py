@@ -984,76 +984,41 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
-def load_and_run(
-    context: mlrun.execution.MLClientCtx,
-    url: str = None,
-    project_name: str = "",
-    init_git: bool = None,
-    subpath: str = None,
-    clone: bool = False,
-    save: bool = True,
-    workflow_name: str = None,
-    workflow_path: str = None,
-    workflow_arguments: dict[str, typing.Any] = None,
-    artifact_path: str = None,
-    workflow_handler: typing.Union[str, typing.Callable] = None,
-    namespace: str = None,
-    sync: bool = False,
-    dirty: bool = False,
-    engine: str = None,
-    local: bool = None,
-    schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-    cleanup_ttl: int = None,
-    load_only: bool = False,
-    wait_for_completion: bool = False,
-    project_context: str = None,
+def load_and_run_workflow(
+        context: mlrun.execution.MLClientCtx,
+        url: str = None,
+        project_name: str = "",
+        init_git: bool = None,
+        subpath: str = None,
+        clone: bool = False,
+        save: bool = True,
+        workflow_name: str = None,
+        workflow_path: str = None,
+        workflow_arguments: dict[str, typing.Any] = None,
+        artifact_path: str = None,
+        workflow_handler: typing.Union[str, typing.Callable] = None,
+        namespace: str = None,
+        sync: bool = False,
+        dirty: bool = False,
+        engine: str = None,
+        local: bool = None,
+        schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
+        cleanup_ttl: int = None,
+        wait_for_completion: bool = False,
+        project_context: str = None,
 ):
-    """
-    Auxiliary function that the RemoteRunner run once or run every schedule.
-    This function loads a project from a given remote source and then runs the workflow.
-
-    :param context:             mlrun context.
-    :param url:                 remote url that represents the project's source.
-                                See 'mlrun.load_project()' for details
-    :param project_name:        project name
-    :param init_git:            if True, will git init the context dir
-    :param subpath:             project subpath (within the archive)
-    :param clone:               if True, always clone (delete any existing content)
-    :param save:                whether to save the created project and artifact in the DB
-    :param workflow_name:       name of the workflow
-    :param workflow_path:       url to a workflow file, if not a project workflow
-    :param workflow_arguments:  kubeflow pipelines arguments (parameters)
-    :param artifact_path:       target path/url for workflow artifacts, the string
-                                '{{workflow.uid}}' will be replaced by workflow id
-    :param workflow_handler:    workflow function handler (for running workflow function directly)
-    :param namespace:           kubernetes namespace if other than default
-    :param sync:                force functions sync before run
-    :param dirty:               allow running the workflow when the git repo is dirty
-    :param engine:              workflow engine running the workflow.
-                                supported values are 'kfp' (default) or 'local'
-    :param local:               run local pipeline with local functions (set local=True in function.run())
-    :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
-    :param cleanup_ttl:         pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                                workflow and all its resources are deleted)
-    :param load_only:           for just loading the project, inner use.
-    :param wait_for_completion: wait for workflow completion before returning
-    :param project_context:     project context path (used for loading the project)
-    """
-    if not load_only:
-        logger.info("Load onlyyyyy!!!", load_only=load_only)
-
-
+    project_context = project_context or f"./{project_name}"
     try:
-        logger.info("Load onlyyyyy!!!2", load_only=load_only)
-        project = mlrun.load_project(
-            context=project_context or f"./{project_name}",
+        # Load the project to clone remote files if they exist.
+        # Using save=False to avoid overriding changes from the DB if it already exists.
+        mlrun.load_project(
+            context=project_context,
             url=url,
             name=project_name,
             init_git=init_git,
             subpath=subpath,
             clone=clone,
-            save=save,
-            sync_functions=True,
+            save=False,
         )
     except Exception as error:
         if schedule:
@@ -1078,10 +1043,17 @@ def load_and_run(
 
         raise error
 
-    context.logger.info(f"Loaded project {project.name} successfully")
-
-    if load_only:
-        return
+    # Retrieve the project object:
+    # - If the project exists in the MLRun database, it will load it from there.
+    # - If it doesn't exist in the database, it will be created from the previously loaded local directory.
+    project = mlrun.get_or_create_project(
+        context=project_context or f"./{project_name}",
+        name=project_name,
+        init_git=init_git,
+        subpath=subpath,
+        clone=clone,
+        save=save,
+    )
 
     # extract "start" notification if exists
     start_notifications = [
@@ -1129,3 +1101,45 @@ def load_and_run(
             raise RuntimeError(
                 f"Workflow {workflow_log_message} failed, state={pipeline_state}"
             )
+
+
+def load_project_runner(
+    context: mlrun.execution.MLClientCtx,
+    url: str = None,
+    project_name: str = "",
+    init_git: bool = None,
+    subpath: str = None,
+    clone: bool = False,
+    save: bool = True,
+    project_context: str = None,
+):
+    """
+    Auxiliary function that the RemoteRunner run once or run every schedule.
+    This function loads a project from a given remote source and then runs the workflow.
+
+    :param context:             mlrun context.
+    :param url:                 remote url that represents the project's source.
+                                See 'mlrun.load_project()' for details
+    :param project_name:        project name
+    :param init_git:            if True, will git init the context dir
+    :param subpath:             project subpath (within the archive)
+    :param clone:               if True, always clone (delete any existing content)
+    :param save:                whether to save the created project and artifact in the DB
+    :param workflow_name:       name of the workflow
+    :param load_only:           for just loading the project, inner use.
+    :param project_context:     project context path (used for loading the project)
+    """
+    project = mlrun.load_project(
+        context=project_context or f"./{project_name}",
+        url=url,
+        name=project_name,
+        init_git=init_git,
+        subpath=subpath,
+        clone=clone,
+        save=save,
+        sync_functions=True,
+    )
+
+    context.logger.info(f"Loaded project {project.name} successfully")
+
+

@@ -374,7 +374,7 @@ If your function run is stuck with the status `pending`, it's possible that the 
 levels of node selectors in MLRun: function, project, and service. At runtime, the system combines these selectors and applies the resolved 
 configuration to the pod.
 
-**How to Investigate:
+**How to Investigate:**
 1. Check the Configuration Files: Look in the `function.yaml` and `project.yaml` files to see if there are any node selector settings.
 2. Review Node Selectors in the UI: Go to **Projects > Jobs and Workflows > Monitor Jobs > Overview > Node Selector**. This shows the node selector 
 that was ultimately defined for the run after combining the function, project, and service settings.

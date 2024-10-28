@@ -100,13 +100,13 @@ class CustomFormatter(HumanReadableFormatter):
     """
     To enable custom logger formatter, configure MLRun with the following env variables:
     1. "MLRUN_LOG_FORMATTER" = "custom" - change the default log formatter.
-    2. "MLRUN_CUSTOM_FORMAT" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - logger format
+    2. "MLRUN_LOG_FORMAT_OVERRIDE" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - logger format
         * Note that your custom format must include those 4 fields - timestamp, level, message and more
     If the custom format is not configured properly , MLRun will use the default logger (human format).
     """
 
     def format(self, record) -> str:
-        logger = create_logger("INFO", "human", "logger", sys.stdout)
+        logger = create_logger(config.log_level, config.log_formatter, "logger", sys.stdout)
         more = self._resolve_more(record)
         custom_format = config.custom_format
         _custom_format = None

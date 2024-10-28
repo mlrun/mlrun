@@ -19,6 +19,7 @@ on:
     branches:
       - '.+-os-system-tests'
 
+# disabled until we have a proper schedule definition
 #  schedule:
 #
 #    # * is a special character in YAML so you have to quote this string
@@ -32,9 +33,13 @@ on:
         required: true
         default: 'ghcr.io/'
       docker_repo:
-        description: 'Docker repo to pull images from (default: mlrun)'
-        required: true
-        default: 'mlrun'
+        description: 'Docker repo to pull images from (defaults: lower-case repository owner)'
+        required: false
+        default: ''
+      pr_number:
+        description: 'PR number to run the system tests against'
+        required: false
+        default: ''
       clean_resources_in_teardown:
         description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
         required: true
@@ -58,12 +63,102 @@ env:
   MLRUN_PYTHON_PACKAGE_INSTALLER: uv
 
 jobs:
+  prepare-inputs:
+    name: Prepare Open Source inputs
+    runs-on: ubuntu-latest
+    outputs:
+      computed_params: ${{ steps.computed_params.outputs }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract git hashes from upstream and latest version
+        id: git_upstream_info
+        run: |
+          # if the action is running on a PR, we need to get the latest commit hash from the PR branch
+          if [ -n "$PR_NUMBER" ]; then
+            echo "mlrun_hash=pr$PR_NUMBER" >> $GITHUB_OUTPUT
+          else
+            echo "mlrun_hash=$( \
+              cd /tmp && \
+              git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+              cd mlrun-upstream && \
+              git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
+              cd .. && \
+              rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+          fi
+          
+          # NOTE: for now, always take the latest commit hash from the development branch
+          # TODO: take from relevant branch [pr head branch]
+          echo "ui_hash=$( \
+              cd /tmp && \
+              git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+              cd mlrun-ui && \
+              git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
+              cd .. && \
+              rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+          echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
+        env:
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+
+      - name: Set computed versions params
+        id: computed_params
+        run: |
+          export mlrun_hash=$(echo ${{ steps.git_upstream_info.outputs.mlrun_hash }})
+          export ui_hash=$(echo ${{ steps.git_upstream_info.outputs.ui_hash }})
+          echo "mlrun_hash=$mlrun_hash" >> $GITHUB_OUTPUT
+          echo "ui_hash=$ui_hash" >> $GITHUB_OUTPUT
+
+          echo "mlrun_version=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)" >> $GITHUB_OUTPUT
+          echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
+          
+          export mlrun_version_specifier=$mlrun_hash
+          if [ -n "$PR_NUMBER" ]; then
+            mlrun_version_specifier="refs/pull/${PR_NUMBER}/merge"
+          fi
+          echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
+          
+          echo "mlrun_docker_repo=$( \
+            input_docker_repo=$INPUT_DOCKER_VERSION && \
+            default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
+            echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
+          
+          echo "mlrun_docker_registry=$( \
+            input_docker_registry=$INPUT_DOCKER_REGISTRY && \
+            echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
+          
+          echo "mlrun_system_tests_clean_resources=$( \
+            input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
+            echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
+        env:
+          INPUT_DOCKER_REPO: ${{ github.event.inputs.docker_repo }}
+          INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
+          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+
+  build-mlrun:
+    if : github.event.inputs.pr_number != ''
+    name: Build MLRun
+    uses: ./.github/workflows/build-internal.yaml
+    needs: prepare-inputs
+    with:
+      docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
+      docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
+      version: ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
+
+      # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
+      # by overriding the version specifier, we allow using mlrun/mlrun as well.
+      # TODO: support patching jupyter as well (maybe on demand?)
+      skip_images: test,mlrun-gpu,base,jupyter
+    secrets: inherit
+
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source
     runs-on: ubuntu-latest
-
+    needs: build-mlrun
     steps:
     - uses: actions/checkout@v4
+
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
       run: |
@@ -86,57 +181,6 @@ jobs:
         make install-requirements install-complete-requirements
         uv pip install -r automation/requirements.txt
 
-      # TODO: How can we avoid these duplicate lines from the enterprise system tests
-    - name: Extract git branch
-      id: git_info
-      run: |
-        echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
-    - name: Extract git hashes from upstream and latest version
-      id: git_upstream_info
-      run: |
-        echo "mlrun_hash=$( \
-          cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-          cd mlrun-upstream && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
-          cd .. && \
-          rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
-        echo "ui_hash=$( \
-          cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
-          cd mlrun-ui && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
-          cd .. && \
-          rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
-        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
-    - name: Set computed versions params
-      id: computed_params
-      run: |
-        action_mlrun_hash=${{ steps.git_action_info.outputs.mlrun_hash }} && \
-        upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
-        export mlrun_hash=${action_mlrun_hash:-`echo $upstream_mlrun_hash`}
-        echo "mlrun_hash=$(echo $mlrun_hash)" >> $GITHUB_OUTPUT
-        action_mlrun_ui_hash=${{ steps.git_action_ui_info.outputs.ui_hash }} && \
-        upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
-        export ui_hash=${action_mlrun_ui_hash:-`echo $upstream_mlrun_ui_hash`}
-        echo "ui_hash=$(echo $ui_hash)" >> $GITHUB_OUTPUT
-        echo "mlrun_version=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
-        echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_repo=$( \
-          input_docker_repo=$INPUT_DOCKER_REPO && \
-          echo ${input_docker_repo:-mlrun})" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_registry=$( \
-          input_docker_registry=$INPUT_DOCKER_REGISTRY && \
-          echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
-        echo "mlrun_system_tests_clean_resources=$( \
-          input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
-          echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
-      env:
-        INPUT_DOCKER_REPO: ${{ github.event.inputs.docker_repo }}
-        INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
-        INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
-
     - uses: jupyterhub/action-k3s-helm@v4
       name: "Start a local k8s cluster"
       with:
@@ -144,13 +188,6 @@ jobs:
         k3s-version: v1.31.2+k3s1
         # - helm versions at https://github.com/helm/helm/tags
         helm-version: v3.13.0
-
-    # TODO:
-    # Build MLRun images in case workflow is running against PR
-    # uncomment once done, and upload the images to cluster using
-    # - name: "Docker repo demo"
-    #   run: |
-    #     docker push <registry>
 
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
@@ -194,10 +231,10 @@ jobs:
             --skip-registry-validation \
             --namespace=${NAMESPACE} \
             --registry-secret-name="" \
-            --override-mlrun-api-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-log-collector-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/log-collector:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-ui-image="ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}" \
-            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}"' \
+            --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
+            --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
+            --override-mlrun-ui-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}" \
+            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_version_specifier }}"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
             --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
@@ -211,7 +248,6 @@ jobs:
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
 
     - name: Run system tests
-      timeout-minutes: 180
       run: |
         source venv/bin/activate
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \

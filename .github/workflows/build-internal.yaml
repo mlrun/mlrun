@@ -49,6 +49,11 @@ on:
         description: 'Whether to build images from cache or not. Default: true, set to false only if required because that will cause a significant increase in build time'
         default: 'true'
         type: string
+      pr_number:
+        description: 'The PR number to build'
+        default: ''
+        type: string
+        required: false
 
 jobs:
   matrix_prep:
@@ -68,9 +73,16 @@ jobs:
     needs: matrix_prep
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
+      matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
     steps:
     - uses: actions/checkout@v4
+      if: github.event.inputs.pr_number == ''
+
+    - uses: actions/checkout@v4
+      if: github.event.inputs.pr_number != ''
+      with:
+        fetch-depth: 0
+        ref: refs/pull/${{ github.event.inputs.pr_number }}/merge
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space

@@ -30,6 +30,7 @@ Table of Contents
    data-prep/index
    development/index
    deployment/index
+   model-monitoring/mlops-monitoring
    projects/ci-cd-automate
      
    

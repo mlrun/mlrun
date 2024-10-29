@@ -28,7 +28,10 @@ from sqlalchemy import (
     String,
     Table,
     UniqueConstraint,
+    PrimaryKeyConstraint,
+    event,
 )
+from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -38,7 +41,6 @@ from server.api.utils.db.sql_types import SQLTypesUtil
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-
 
 _tagged = None
 _labeled = None
@@ -188,6 +190,7 @@ def make_notification(table):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
+
     # deprecated, use ArtifactV2 instead
     # TODO: remove in 1.8.0. Note that removing it will require upgrading mlrun in at least 2 steps:
     #  1. upgrade to 1.6.x which will create the new table
@@ -214,6 +217,7 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
+
 
     class ArtifactV2(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "artifacts_v2"
@@ -268,6 +272,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
 
+
     class Function(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "functions"
         __table_args__ = (
@@ -291,6 +296,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
 
+
     class Log(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "logs"
 
@@ -302,6 +308,7 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
+
 
     class Run(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "runs"
@@ -339,6 +346,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
 
+
     class BackgroundTask(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "background_tasks"
         __table_args__ = (
@@ -364,6 +372,7 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
+
 
     class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"
@@ -407,6 +416,7 @@ with warnings.catch_warnings():
         def cron_trigger(self, trigger: mlrun.common.schemas.ScheduleCronTrigger):
             self.cron_trigger_str = orjson.dumps(trigger.dict(exclude_unset=True))
 
+
     # Define "many to many" users/projects
     project_users = Table(
         "project_users",
@@ -414,6 +424,7 @@ with warnings.catch_warnings():
         Column("project_id", Integer, ForeignKey("projects.id")),
         Column("user_id", Integer, ForeignKey("users.id")),
     )
+
 
     class User(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "users"
@@ -424,6 +435,7 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.name}"
+
 
     class Project(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "projects"
@@ -460,6 +472,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = pickle.dumps(value)
 
+
     class Feature(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "features"
         id = Column(Integer, primary_key=True)
@@ -474,6 +487,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.feature_set_id}/{self.name}"
 
+
     class Entity(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "entities"
         id = Column(Integer, primary_key=True)
@@ -487,6 +501,7 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
+
 
     class FeatureSet(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "feature_sets"
@@ -532,6 +547,7 @@ with warnings.catch_warnings():
             # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
+
     class FeatureVector(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "feature_vectors"
         __table_args__ = (
@@ -573,6 +589,7 @@ with warnings.catch_warnings():
             # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
+
     class HubSource(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "hub_sources"
         __table_args__ = (UniqueConstraint("name", name="_hub_sources_uc"),)
@@ -604,6 +621,7 @@ with warnings.catch_warnings():
             # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
+
     class DataVersion(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "data_versions"
         __table_args__ = (UniqueConstraint("version", name="_versions_uc"),)
@@ -617,6 +635,7 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.version}"
+
 
     class DatastoreProfile(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "datastore_profiles"
@@ -642,6 +661,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
 
+
     class PaginationCache(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "pagination_cache"
 
@@ -658,6 +678,7 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.key}"
+
 
     class AlertState(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_states"
@@ -691,6 +712,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.id}"
 
+
     class AlertConfig(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_configs"
         __table_args__ = (
@@ -722,6 +744,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+
     class AlertTemplate(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_templates"
         __table_args__ = (UniqueConstraint("name", name="_alert_templates_uc"),)
@@ -743,6 +766,7 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+
     class ProjectSummary(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "project_summaries"
         __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
@@ -757,6 +781,7 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}"
 
+
     class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "time_window_trackers"
 
@@ -769,6 +794,27 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.key}"
 
+
+    class AlertHistory(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "alert_history"
+
+        __table_args__ = (
+            PrimaryKeyConstraint("activation_time", "id", name="_alert_history_uc"),
+        )
+
+        id = Column(Integer)
+        activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
+        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        data = Column(JSON)
+        entity_id = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        entity_kind = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        event_kind = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        severity = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        number_of_events = Column(Integer, nullable=False)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}:{self.name}:{self.activation_time}"
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

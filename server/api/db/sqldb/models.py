@@ -109,8 +109,8 @@ def make_tag_v2(table):
         id = Column(Integer, primary_key=True)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         name = Column(String(255, collation=SQLTypesUtil.collation()))
-        obj_name = Column(String(255, collation=SQLTypesUtil.collation()))
         obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
+        obj_name = Column(String(255, collation=SQLTypesUtil.collation()))
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"

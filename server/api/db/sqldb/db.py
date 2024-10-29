@@ -2450,7 +2450,7 @@ class SQLDB(DBInterface):
             schedules_update.append(db_schedule)
         self._upsert(session, schedules_update)
 
-    def _delete_project_schedules(self, session: Session, project: str):
+    def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing project schedules from db", project=project)
         self._delete_multi_objects(
             session=session,
@@ -3221,7 +3221,7 @@ class SQLDB(DBInterface):
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
         self._delete_project_runs(session, project=name)
-        self._delete_project_schedules(session, name)
+        self.delete_project_schedules(session, name)
         self._delete_project_functions(session, name)
         self._delete_project_feature_sets(session, name)
         self._delete_project_feature_vectors(session, name)

@@ -36,7 +36,7 @@ demos
 
 `````{div}
 
-````{grid} 3
+````{grid} 2
 :gutter: 2
 
 ```{grid-item-card} Deploy LLM using MLRun

@@ -473,6 +473,10 @@ def _stop_running() -> None:
     _RUNNING = False
 
 
+def init_context(context: nuclio_sdk.Context) -> None:
+    context.platform.set_termination_callback(callback=_stop_running)
+
+
 def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
     """
     Run model monitoring application processor
@@ -480,5 +484,4 @@ def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
     :param context: the Nuclio context
     :param event:   trigger event
     """
-    context.platform.set_termination_callback(callback=_stop_running)
     MonitoringApplicationController().run()

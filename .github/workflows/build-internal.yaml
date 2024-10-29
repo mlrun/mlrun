@@ -54,6 +54,10 @@ on:
         default: ''
         type: string
         required: false
+      cache_tag_suffix:
+        description: 'The suffix to add to the cache tag'
+        default: ''
+        type: string
 
 jobs:
   matrix_prep:
@@ -103,12 +107,14 @@ jobs:
       run: |
         export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
+        export unstable_tag=$(if [ -z "$INPUT_CACHE_TAG_SUFFIX" ]; then echo "$unstable_tag" ; else echo "$unstable_tag-$INPUT_CACHE_TAG_SUFFIX";fi);
         export build_from_cache=$(if [ -z "$INPUT_BUILD_FROM_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_FROM_CACHE";fi);
         export no_cache=$(if [ "$build_from_cache" = "false" ]; then echo "true" ; else echo "";fi);
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
         echo "no_cache=$(echo $no_cache)" >> $GITHUB_OUTPUT
       env:
         INPUT_BUILD_FROM_CACHE: ${{ inputs.build_from_cache }}
+        INPUT_CACHE_TAG_SUFFIX: ${{ inputs.cache_tag_suffix }}
 
     - name: Set computed versions params
       id: computed_params

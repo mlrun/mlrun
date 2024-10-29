@@ -170,6 +170,7 @@ class ModelMonitoringWriter(StepToDict):
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
+        # TODO: Roy extend here the event for stats
         if not isinstance(event, dict):
             raise _WriterEventTypeError(
                 f"The event is of type: {type(event)}, expected a dictionary"

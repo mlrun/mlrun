@@ -116,13 +116,14 @@ class WriterEvent(MonitoringStrEnum):
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
-    EVENT_KIND = "event_kind"  # metric or result
+    EVENT_KIND = "event_kind"  # metric or result or stats
     DATA = "data"
 
 
 class WriterEventKind(MonitoringStrEnum):
     METRIC = "metric"
     RESULT = "result"
+    STATS = "stats"
 
 
 class MetricData(MonitoringStrEnum):
@@ -137,6 +138,11 @@ class ResultData(MonitoringStrEnum):
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
     CURRENT_STATS = "current_stats"
+
+
+class StateData(MonitoringStrEnum):
+    CURRENT_STATS = "current_stats"
+    DATA_DRIFT = "data_drift"
 
 
 class EventLiveStats:

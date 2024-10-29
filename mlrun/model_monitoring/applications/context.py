@@ -116,6 +116,7 @@ class MonitoringApplicationContext:
         self._model_endpoint: Optional[ModelEndpoint] = model_endpoint_dict.get(
             self.endpoint_id
         )
+        self._df_data_drift: Optional[pd.DataFrame] = None
 
     def _get_default_labels(self) -> dict[str, str]:
         return {
@@ -175,6 +176,7 @@ class MonitoringApplicationContext:
                 self.feature_stats, self.sample_df
             )
         return self._sample_df_stats
+
 
     @property
     def feature_names(self) -> list[str]:

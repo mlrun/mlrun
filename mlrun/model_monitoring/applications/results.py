@@ -97,3 +97,26 @@ class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
             mm_constant.MetricData.METRIC_NAME: self.name,
             mm_constant.MetricData.METRIC_VALUE: self.value,
         }
+
+@dataclasses.dataclass
+class ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
+    """
+    Class representing the stats of a custom model monitoring application.
+
+    :param current_stats        (dict) Dictionary representation of the current stats calculated in context
+    :param data_drift           (dict) Dictionary representation of the data drift calculated in model monitoring
+                                application
+    """
+    current_stats: dict = dataclasses.field(default_factory=dict)
+    data_drift: dict = dataclasses.field(default_factory=dict)
+
+    def to_dict(self):
+        """
+        Convert the object to a dictionary format suitable for writing.
+
+        :returns:    (dict) Dictionary representation of the result.
+        """
+        return {
+            mm_constant.StateData.CURRENT_STATS: self.current_stats,
+            mm_constant.StateData.DATA_DRIFT: self.data_drift,
+        }

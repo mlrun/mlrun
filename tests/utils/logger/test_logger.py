@@ -191,7 +191,7 @@ def test_custom_logger():
         f"> {formatted_time} [debug] Running module: logger test custom : "
         + '{"a":1,"b":2}'
     )
-    mlrun.mlconf.custom_format = format
+    mlrun.mlconf.log_format_override = format
     logger = create_logger(
         "debug",
         name="test-logger",

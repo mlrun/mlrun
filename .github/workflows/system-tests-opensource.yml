@@ -28,14 +28,6 @@ on:
 
   workflow_dispatch:
     inputs:
-      docker_registry:
-        description: 'Docker registry to pull images from (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
-        required: true
-        default: 'ghcr.io/'
-      docker_repo:
-        description: 'Docker repo to pull images from (defaults: lower-case repository owner)'
-        required: false
-        default: ''
       pr_number:
         description: 'PR number to run the system tests against'
         required: false
@@ -49,7 +41,7 @@ on:
           - 'true'
           - 'false'
       debug_enabled:
-        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+        description: 'Allow SSH debugging'
         required: false
         default: 'false'
         type: choice
@@ -124,21 +116,13 @@ jobs:
           fi
           echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
           
-          echo "mlrun_docker_repo=$( \
-            input_docker_repo=$INPUT_DOCKER_VERSION && \
-            default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
-            echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
-          
-          echo "mlrun_docker_registry=$( \
-            input_docker_registry=$INPUT_DOCKER_REGISTRY && \
-            echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_registry=ghcr.io/" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
           
           echo "mlrun_system_tests_clean_resources=$( \
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
             echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         env:
-          INPUT_DOCKER_REPO: ${{ github.event.inputs.docker_repo }}
-          INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
           INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
           PR_NUMBER: ${{ github.event.inputs.pr_number }}
 

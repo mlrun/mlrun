@@ -140,9 +140,10 @@ class ResultData(MonitoringStrEnum):
     CURRENT_STATS = "current_stats"
 
 
-class StateData(MonitoringStrEnum):
+class StatsData(MonitoringStrEnum):
     CURRENT_STATS = "current_stats"
-    DATA_DRIFT = "data_drift"
+    DRIFT_MEASURES = "drift_measures"
+    STAT_KIND = "stat_kind"
 
 
 class EventLiveStats:

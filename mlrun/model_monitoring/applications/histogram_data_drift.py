@@ -29,6 +29,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     HistogramDataDriftApplicationConstants,
     ResultKindApp,
     ResultStatusApp,
+    StatsData,
 )
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
@@ -120,6 +121,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}
+    _STATS_TYPES: tuple[StatsData] = (StatsData.CURRENT_STATS, StatsData.DRIFT_MEASURES)
 
     metrics: list[type[HistogramDistanceMetric]] = [
         HellingerDistance,
@@ -187,7 +189,6 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
                 ]
             ),
         )
-
         status = self._value_classifier.value_to_status(value)
         return mm_results.ModelMonitoringApplicationResult(
             name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
@@ -224,6 +225,26 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             )
 
         return metrics
+
+    @staticmethod
+    def _get_stats(
+        metrics: list[mm_results.ModelMonitoringApplicationMetric],
+        metrics_per_feature: DataFrame,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ):
+        monitoring_context._df_drift_measures = metrics_per_feature.T.to_dict() | {
+            metric.name: metric.value for metric in metrics
+        }
+        stats = []
+        for stats_type in HistogramDataDriftApplication._STATS_TYPES:
+            stats.append(
+                mm_results.ModelMonitoringApplicationStats(
+                    current_stats={},
+                    drift_measures={},  # TODO: Roy do we want to add the measures or stats here?
+                    stat_kind=stats_type,
+                )
+            )
+        return stats
 
     @staticmethod
     def _get_shared_features_sample_stats(
@@ -347,8 +368,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             monitoring_context=monitoring_context,
             metrics_per_feature=metrics_per_feature,
         )
-        metrics_and_result = metrics + [result]
+        stats = self._get_stats(metrics_per_feature)
+        metrics_result_and_stats = metrics + [result] + stats
         monitoring_context.logger.debug(
-            "Finished running the application", results=metrics_and_result
+            "Finished running the application", results=metrics_result_and_stats
         )
-        return metrics_and_result
+        return metrics_result_and_stats

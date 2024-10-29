@@ -26,7 +26,11 @@ from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
 from .context import MonitoringApplicationContext
-from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult, ModelMonitoringApplicationStats
+from .results import (
+    ModelMonitoringApplicationMetric,
+    ModelMonitoringApplicationResult,
+    ModelMonitoringApplicationStats,
+)
 
 
 class _PushToMonitoringWriter(StepToDict):
@@ -61,7 +65,9 @@ class _PushToMonitoringWriter(StepToDict):
         event: tuple[
             list[
                 Union[
-                    ModelMonitoringApplicationResult, ModelMonitoringApplicationMetric, ModelMonitoringApplicationStats
+                    ModelMonitoringApplicationResult,
+                    ModelMonitoringApplicationMetric,
+                    ModelMonitoringApplicationStats,
                 ]
             ],
             MonitoringApplicationContext,
@@ -92,21 +98,23 @@ class _PushToMonitoringWriter(StepToDict):
                     mm_constant.WriterEventKind.RESULT
                 )
                 data[mm_constant.ResultData.CURRENT_STATS] = json.dumps(
-                    application_context.sample_df_stats
+                    application_context.sample_df_stats  # TODO: Roy remove this
                 )
                 writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             elif isinstance(result, ModelMonitoringApplicationStats):
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.STATS
                 )
-                if mm_constant.StateData.CURRENT_STATS in data:
-                    data[mm_constant.StateData.CURRENT_STATS] = json.dumps(
+                kind = data.get(
+                    mm_constant.StatsData.STAT_KIND, mm_constant.StatsData.CURRENT_STATS
+                )
+                if kind == mm_constant.StatsData.CURRENT_STATS:
+                    data[mm_constant.StatsData.CURRENT_STATS] = json.dumps(
                         application_context.sample_df_stats
                     )
-                elif mm_constant.StateData.DATA_DRIFT in data: # is this check is valid both should be part of stats maybe boolean? maybe replace with get
-                    # TODO: Roy do we want it to be like that: do we already insert inside result stats or this is a place holder
-                    data[mm_constant.StateData.DATA_DRIFT] = json.dumps(
-                        application_context._df_data_drift
+                elif kind == mm_constant.StatsData.DRIFT_MEASURES:
+                    data[mm_constant.StatsData.DRIFT_MEASURES] = json.dumps(
+                        application_context._df_drift_measures
                     )
             else:
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (

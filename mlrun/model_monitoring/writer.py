@@ -26,10 +26,15 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultData,
     ResultKindApp,
     ResultStatusApp,
+    StatsData,
     WriterEvent,
     WriterEventKind,
 )
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasureFile,
+)
 from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -191,6 +196,8 @@ class ModelMonitoringWriter(StepToDict):
             expected_keys.extend(MetricData.list())
         elif kind == WriterEventKind.RESULT:
             expected_keys.extend(ResultData.list())
+        elif kind == WriterEventKind.STATS:
+            expected_keys.extend(StatsData.list())
         else:
             raise _WriterEventValueError(
                 f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}"
@@ -269,5 +276,24 @@ class ModelMonitoringWriter(StepToDict):
                 endpoint_id=endpoint_id,
                 attributes=attributes,
             )
+        if (
+            kind == WriterEventKind.STATS
+            and event[WriterEvent.APPLICATION_NAME]
+            == HistogramDataDriftApplicationConstants.NAME
+        ):
+            endpoint_id = event[WriterEvent.ENDPOINT_ID]
+            stat_kind = event.get(StatsData.STAT_KIND)
+            if stat_kind == StatsData.CURRENT_STATS:
+                with ModelMonitoringCurrentStatsFile(
+                    self.project, endpoint_id
+                ) as file_object:
+                    data = event.get(StatsData.CURRENT_STATS)
+                    file_object.create(data)
+            elif stat_kind == StatsData.DRIFT_MEASURES:
+                with ModelMonitoringDriftMeasureFile(
+                    self.project, endpoint_id
+                ) as file_object:
+                    data = event.get(StatsData.DRIFT_MEASURES)
+                    file_object.create(data)
 
         logger.info("Model monitoring writer finished handling event")

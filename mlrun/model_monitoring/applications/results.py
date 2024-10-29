@@ -98,17 +98,21 @@ class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
             mm_constant.MetricData.METRIC_VALUE: self.value,
         }
 
+
 @dataclasses.dataclass
 class ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
     """
     Class representing the stats of a custom model monitoring application.
 
     :param current_stats        (dict) Dictionary representation of the current stats calculated in context
-    :param data_drift           (dict) Dictionary representation of the data drift calculated in model monitoring
+    :param drift_measures           (dict) Dictionary representation of the data drift calculated in model monitoring
                                 application
+    :param stat_kind            (StatsData) Enum representation of the stats data kind of the event
     """
+
     current_stats: dict = dataclasses.field(default_factory=dict)
-    data_drift: dict = dataclasses.field(default_factory=dict)
+    drift_measures: dict = dataclasses.field(default_factory=dict)
+    stat_kind: mm_constant.StatsData = None
 
     def to_dict(self):
         """
@@ -117,6 +121,6 @@ class ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
         :returns:    (dict) Dictionary representation of the result.
         """
         return {
-            mm_constant.StateData.CURRENT_STATS: self.current_stats,
-            mm_constant.StateData.DATA_DRIFT: self.data_drift,
+            mm_constant.StatsData.CURRENT_STATS: self.current_stats,
+            mm_constant.StatsData.DRIFT_MEASURES: self.drift_measures,
         }

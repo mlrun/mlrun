@@ -27,7 +27,18 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, case, delete, distinct, func, or_, select, text
+from sqlalchemy import (
+    Column,
+    MetaData,
+    and_,
+    case,
+    delete,
+    distinct,
+    func,
+    or_,
+    select,
+    text,
+)
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, aliased
@@ -188,10 +199,13 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         self._delete(session, Log, project=project, uid=uid)
 
-    def _delete_logs(self, session: Session, project: str):
-        logger.debug("Removing logs from db", project=project)
-        for log in self._list_logs(session, project):
-            self.delete_log(session, project, log.uid)
+    def _delete_project_logs(self, session: Session, project: str):
+        logger.debug("Removing project logs from db", project=project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=Log,
+            project=project,
+        )
 
     def _list_logs(self, session: Session, project: str):
         return self._query(session, Log, project=project).all()
@@ -496,6 +510,14 @@ class SQLDB(DBInterface):
         for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    def _delete_project_runs(self, session: Session, project: str):
+        logger.debug("Removing project runs from db", project=project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=Run,
+            project=project,
+        )
 
     def _fill_run_struct_with_notifications(self, notifications, run_struct):
         if not notifications:
@@ -962,8 +984,8 @@ class SQLDB(DBInterface):
             deletions_count = self._delete_multi_objects(
                 session=session,
                 main_table=ArtifactV2,
-                related_tables=[ArtifactV2.Tag, ArtifactV2.Label],
                 project=project,
+                related_tables=[ArtifactV2.Tag, ArtifactV2.Label],
                 main_table_identifier=getattr(ArtifactV2, artifact_column_identifier),
                 main_table_identifier_values=column_values,
             )
@@ -1176,6 +1198,14 @@ class SQLDB(DBInterface):
             project=project,
             tag=tag_name,
             artifacts_keys=artifacts_keys,
+        )
+
+    def _delete_project_artifacts(self, session: Session, project: str):
+        logger.debug("Removing project artifacts from db", project=project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=ArtifactV2,
+            project=project,
         )
 
     def _mark_best_iteration_artifact(
@@ -1949,8 +1979,8 @@ class SQLDB(DBInterface):
         self._delete_multi_objects(
             session=session,
             main_table=Function,
-            related_tables=[Function.Tag, Function.Label],
             project=project,
+            related_tables=[Function.Tag, Function.Label],
             main_table_identifier=Function.name,
             main_table_identifier_values=names,
         )
@@ -2112,20 +2142,12 @@ class SQLDB(DBInterface):
             return tag_function_uid
 
     def _delete_project_functions(self, session: Session, project: str):
-        function_names = self._list_project_function_names(session, project)
-        self.delete_functions(
-            session,
-            project,
-            function_names,
+        logger.debug("Removing project functions from db", project=project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=Function,
+            project=project,
         )
-
-    def _list_project_function_names(self, session: Session, project: str) -> list[str]:
-        return [
-            name
-            for (name,) in self._query(
-                session, distinct(Function.name), project=project
-            ).all()
-        ]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -2394,17 +2416,6 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def delete_project_schedules(self, session: Session, project: str):
-        logger.debug("Removing schedules from db", project=project)
-        function_names = [
-            schedule.name for schedule in self.list_schedules(session, project=project)
-        ]
-        self.delete_schedules(
-            session,
-            project,
-            names=function_names,
-        )
-
     def delete_schedules(
         self, session: Session, project: str, names: typing.Union[str, list[str]]
     ) -> None:
@@ -2412,8 +2423,8 @@ class SQLDB(DBInterface):
         self._delete_multi_objects(
             session=session,
             main_table=Schedule,
-            related_tables=[Schedule.Label],
             project=project,
+            related_tables=[Schedule.Label],
             main_table_identifier=Schedule.name,
             main_table_identifier_values=names,
         )
@@ -2439,13 +2450,21 @@ class SQLDB(DBInterface):
             schedules_update.append(db_schedule)
         self._upsert(session, schedules_update)
 
+    def _delete_project_schedules(self, session: Session, project: str):
+        logger.debug("Removing project schedules from db", project=project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=Schedule,
+            project=project,
+        )
+
     @staticmethod
     def _delete_multi_objects(
         session: Session,
         main_table: mlrun.utils.db.BaseModel,
-        related_tables: list[mlrun.utils.db.BaseModel],
         project: str,
-        main_table_identifier: str,
+        related_tables: typing.Optional[list[mlrun.utils.db.BaseModel]] = None,
+        main_table_identifier: typing.Optional[Column] = None,
         main_table_identifier_values: typing.Union[str, list[str]] = None,
     ) -> int:
         """
@@ -2460,13 +2479,24 @@ class SQLDB(DBInterface):
 
         :return: The amount of deleted rows from the main table.
         """
-        if not main_table_identifier_values:
-            logger.debug(
-                "No identifier values provided, skipping deletion",
-                project=project,
-                tables=[main_table] + related_tables,
-            )
-            return 0
+        related_tables = related_tables or []
+        if project != "*":
+            where_clause = main_table.project == project
+            if main_table_identifier:
+                where_clause = and_(
+                    where_clause,
+                    main_table_identifier.in_(main_table_identifier_values),
+                )
+        else:
+            if not main_table_identifier_values or not main_table_identifier:
+                logger.debug(
+                    "No identifier values provided, skipping deletion",
+                    project=project,
+                    tables=[main_table] + related_tables,
+                )
+                return 0
+            where_clause = main_table_identifier.in_(main_table_identifier_values)
+
         for cls in related_tables:
             logger.debug(
                 "Removing objects",
@@ -2478,33 +2508,7 @@ class SQLDB(DBInterface):
 
             # The select is mandatory for sqlalchemy 1.4 because
             # query.delete does not support multiple-table criteria within DELETE
-            if project != "*":
-                subquery = (
-                    select(cls.id)
-                    .join(main_table)
-                    .where(
-                        and_(
-                            main_table.project == project,
-                            or_(
-                                main_table_identifier == value
-                                for value in main_table_identifier_values
-                            ),
-                        )
-                    )
-                    .subquery()
-                )
-            else:
-                subquery = (
-                    select(cls.id)
-                    .join(main_table)
-                    .where(
-                        or_(
-                            main_table_identifier == value
-                            for value in main_table_identifier_values
-                        )
-                    )
-                    .subquery()
-                )
+            subquery = select(cls.id).join(main_table).where(where_clause).subquery()
             stmt = (
                 delete(cls)
                 .where(cls.id.in_(aliased(subquery)))
@@ -2520,24 +2524,8 @@ class SQLDB(DBInterface):
                 main_table=main_table,
                 project=project,
             )
-        if project != "*":
-            query = session.query(main_table).filter(
-                and_(
-                    main_table.project == project,
-                    or_(
-                        main_table_identifier == value
-                        for value in main_table_identifier_values
-                    ),
-                )
-            )
-        else:
-            query = session.query(main_table).filter(
-                or_(
-                    main_table_identifier == value
-                    for value in main_table_identifier_values
-                ),
-            )
 
+        query = session.query(main_table).filter(where_clause)
         deletions_count = query.delete(synchronize_session=False)
         log_kwargs = {
             "deletions_count": deletions_count,
@@ -2560,12 +2548,13 @@ class SQLDB(DBInterface):
             )
         return schedule_record
 
-    def _delete_feature_vectors(self, session: Session, project: str):
-        logger.debug("Removing feature-vectors from db", project=project)
-        for feature_vector_name in self._list_project_feature_vector_names(
-            session, project
-        ):
-            self.delete_feature_vector(session, project, feature_vector_name)
+    def _delete_project_feature_vectors(self, session: Session, project: str):
+        logger.debug("Removing project feature-vectors from db", project=project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=FeatureVector,
+            project=project,
+        )
 
     def _list_project_feature_vector_names(
         self, session: Session, project: str
@@ -2984,7 +2973,7 @@ class SQLDB(DBInterface):
                     ),
                 ).label("preferred_label_value"),
             )
-            .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
+            .join(Schedule.Label, Schedule.Label.parent_id == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
             .filter(
@@ -3227,17 +3216,17 @@ class SQLDB(DBInterface):
         )
 
     def delete_project_related_resources(self, session: Session, name: str):
-        self.del_artifacts(session, project=name)
-        self._delete_logs(session, name)
+        self._delete_project_artifacts(session, project=name)
+        self._delete_project_logs(session, name)
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
-        self.del_runs(session, project=name)
-        self.delete_project_schedules(session, name)
+        self._delete_project_runs(session, project=name)
+        self._delete_project_schedules(session, name)
         self._delete_project_functions(session, name)
-        self._delete_feature_sets(session, name)
-        self._delete_feature_vectors(session, name)
-        self._delete_background_tasks(session, project=name)
-        self.delete_datastore_profiles(session, project=name)
+        self._delete_project_feature_sets(session, name)
+        self._delete_project_feature_vectors(session, name)
+        self._delete_project_background_tasks(session, project=name)
+        self._delete_project_datastore_profiles(session, project=name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -4218,10 +4207,13 @@ class SQLDB(DBInterface):
 
         return uid, new_object.metadata.tag, object_dict
 
-    def _delete_feature_sets(self, session: Session, project: str):
-        logger.debug("Removing feature-sets from db", project=project)
-        for feature_set_name in self._list_project_feature_set_names(session, project):
-            self.delete_feature_set(session, project, feature_set_name)
+    def _delete_project_feature_sets(self, session: Session, project: str):
+        logger.debug("Removing project feature-sets from db", project=project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=FeatureSet,
+            project=project,
+        )
 
     def _list_project_feature_set_names(
         self, session: Session, project: str
@@ -4830,8 +4822,8 @@ class SQLDB(DBInterface):
             subq = (
                 session.query(cls.Label)
                 .filter(or_(*preds))
-                .group_by(cls.Label.parent)
-                .having(func.count(cls.Label.parent) == len(preds))
+                .group_by(cls.Label.parent_id)
+                .having(func.count(cls.Label.parent_id) == len(preds))
                 .subquery("labels")
             )
 
@@ -5641,12 +5633,13 @@ class SQLDB(DBInterface):
     def _list_project_background_tasks(self, session: Session, project: str):
         return self._query(session, BackgroundTask, project=project)
 
-    def _delete_background_tasks(self, session: Session, project: str):
+    def _delete_project_background_tasks(self, session: Session, project: str):
         logger.debug("Removing project background tasks from db", project=project)
-        for background_task_name in self._list_project_background_task_names(
-            session, project
-        ):
-            self.delete_background_task(session, background_task_name, project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=BackgroundTask,
+            project=project,
+        )
 
     def _get_background_task_record(
         self,
@@ -5929,7 +5922,7 @@ class SQLDB(DBInterface):
             for datastore_record in datastore_records
         ]
 
-    def delete_datastore_profiles(
+    def _delete_project_datastore_profiles(
         self,
         session,
         project: str,
@@ -5941,10 +5934,12 @@ class SQLDB(DBInterface):
         :returns: None
         """
         project = project or config.default_project
-        query_results = self._query(session, DatastoreProfile, project=project)
-        for profile in query_results:
-            session.delete(profile)
-        session.commit()
+        logger.debug("Removing project datastore profiles from db", project=project)
+        self._delete_multi_objects(
+            session=session,
+            main_table=DatastoreProfile,
+            project=project,
+        )
 
     @staticmethod
     def _transform_datastore_profile_model_to_schema(

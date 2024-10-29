@@ -57,23 +57,27 @@ def post_table_definitions(base_cls):
         cls for cls in base_cls.__subclasses__() if hasattr(cls, "Notification")
     ]
     _classes = [cls for cls in base_cls.__subclasses__()]
+    for _labeled_cls in _labeled:
+        _labeled_cls.Label.parent = relationship(_labeled_cls, back_populates="labels")
+    for _tagged_cls in _tagged:
+        _tagged_cls.Tag.parent = relationship(_tagged_cls, back_populates="tags")
 
 
 def make_label(table):
     class Label(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_labels"
         __table_args__ = (
-            UniqueConstraint("name", "parent", name=f"_{table}_labels_uc"),
+            UniqueConstraint("name", "parent_id", name=f"_{table}_labels_uc"),
             Index(f"idx_{table}_labels_name_value", "name", "value"),
         )
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLTypesUtil.collation()))
         value = Column(String(255, collation=SQLTypesUtil.collation()))
-        parent = Column(Integer, ForeignKey(f"{table}.id"))
+        parent_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
 
         def get_identifier_string(self) -> str:
-            return f"{self.parent}/{self.name}/{self.value}"
+            return f"{self.parent_id}/{self.name}/{self.value}"
 
     return Label
 
@@ -105,8 +109,8 @@ def make_tag_v2(table):
         id = Column(Integer, primary_key=True)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         name = Column(String(255, collation=SQLTypesUtil.collation()))
-        obj_id = Column(Integer, ForeignKey(f"{table}.id"))
         obj_name = Column(String(255, collation=SQLTypesUtil.collation()))
+        obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -135,7 +139,7 @@ def make_artifact_tag(table):
         id = Column(Integer, primary_key=True)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         name = Column(String(255, collation=SQLTypesUtil.collation()))
-        obj_id = Column(Integer, ForeignKey(f"{table}.id"))
+        obj_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
         obj_name = Column(String(255, collation=SQLTypesUtil.collation()))
 
         def get_identifier_string(self) -> str:
@@ -253,8 +257,18 @@ with warnings.catch_warnings():
         )
         _full_object = Column("object", SQLTypesUtil.blob())
 
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
+        tags = relationship(
+            Tag,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
 
         @property
         def full_object(self):
@@ -285,8 +299,18 @@ with warnings.catch_warnings():
         body = Column(SQLTypesUtil.blob())
         updated = Column(SQLTypesUtil.timestamp())
 
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
+        tags = relationship(
+            Tag,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
@@ -332,8 +356,18 @@ with warnings.catch_warnings():
         # True - logs were requested for this run
         requested_logs = Column(BOOLEAN, default=False, index=True)
 
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
+        tags = relationship(
+            Tag,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
         notifications = relationship(Notification, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
@@ -384,7 +418,12 @@ with warnings.catch_warnings():
         last_run_uri = Column(String(255, collation=SQLTypesUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         struct = Column(SQLTypesUtil.blob())
-        labels = relationship(Label, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
         concurrency_limit = Column(Integer, nullable=False)
         next_run_time = Column(SQLTypesUtil.timestamp())
 
@@ -446,7 +485,12 @@ with warnings.catch_warnings():
 
         Label = make_label(__tablename__)
 
-        labels = relationship(Label, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.name}"
@@ -469,7 +513,12 @@ with warnings.catch_warnings():
         value_type = Column(String(255, collation=SQLTypesUtil.collation()))
 
         Label = make_label(__tablename__)
-        labels = relationship(Label, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.feature_set_id}/{self.name}"
@@ -483,7 +532,12 @@ with warnings.catch_warnings():
         value_type = Column(String(255, collation=SQLTypesUtil.collation()))
 
         Label = make_label(__tablename__)
-        labels = relationship(Label, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -513,8 +567,18 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)
 
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
+        tags = relationship(
+            Tag,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
 
         features = relationship(Feature, cascade="all, delete-orphan")
         entities = relationship(Entity, cascade="all, delete-orphan")
@@ -557,8 +621,18 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)
 
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
+        tags = relationship(
+            Tag,
+            cascade="all, delete-orphan",
+            back_populates="parent",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"

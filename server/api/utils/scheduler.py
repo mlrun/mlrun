@@ -315,7 +315,7 @@ class Scheduler:
                 schedule.name,
                 skip_notification_secrets=skip_notification_secrets,
             )
-        get_db().delete_project_schedules(db_session, project)
+        get_db()._delete_project_schedules(db_session, project)
 
     @server.api.utils.helpers.ensure_running_on_chief
     def store_schedule(

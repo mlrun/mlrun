@@ -454,7 +454,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_project_schedules(self, session, project: str):
+    def _delete_project_schedules(self, session, project: str):
         pass
 
     @abstractmethod

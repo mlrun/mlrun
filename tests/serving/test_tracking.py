@@ -97,7 +97,7 @@ def test_ensemble_tracking():
     }
 
 
-@pytest.mark.parametrize("enable_tracking", [False])
+@pytest.mark.parametrize("enable_tracking", [True, False])
 def test_tracked_function(rundb_mock, enable_tracking):
     with patch("mlrun.get_run_db", return_value=rundb_mock):
         project = mlrun.new_project("test-pro", save=False)

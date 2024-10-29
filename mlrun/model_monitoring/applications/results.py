@@ -29,8 +29,8 @@ class _ModelMonitoringApplicationDataRes(ABC):
     def __post_init__(self):
         pat = re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")
         if not re.fullmatch(pat, self.name):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Attribute name must be of the format [a-zA-Z_][a-zA-Z0-9_]*"
+            raise mlrun.errors.MLRunValueError(
+                "Attribute name must comply with the regex `[a-zA-Z_][a-zA-Z0-9_]*`"
             )
 
     @abstractmethod
@@ -45,7 +45,7 @@ class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
 
     :param name:           (str) Name of the application result. This name must be
                             unique for each metric in a single application
-                            (name must be of the format [a-zA-Z_][a-zA-Z0-9_]*).
+                            (name must be of the format :code:`[a-zA-Z_][a-zA-Z0-9_]*`).
     :param value:          (float) Value of the application result.
     :param kind:           (ResultKindApp) Kind of application result.
     :param status:         (ResultStatusApp) Status of the application result.
@@ -80,7 +80,7 @@ class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
 
     :param name:           (str) Name of the application metric. This name must be
                             unique for each metric in a single application
-                            (name must be of the format [a-zA-Z_][a-zA-Z0-9_]*).
+                            (name must be of the format :code:`[a-zA-Z_][a-zA-Z0-9_]*`).
     :param value:          (float) Value of the application metric.
     """
 

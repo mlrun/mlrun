@@ -51,3 +51,17 @@ def test_get_invoke_url(host, path, expected_url):
         ),
     )
     assert api_gateway.invoke_url == "https://" + expected_url
+
+
+def test_with_annotations():
+    annotations = {"key1": "value1", "key2": "value2"}
+
+    api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(name="test"),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            project="test", host="host", path="path", functions=["test"]
+        ),
+    )
+
+    api_gateway.with_annotations(annotations)
+    assert api_gateway.metadata.annotations == annotations

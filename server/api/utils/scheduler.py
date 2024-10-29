@@ -132,7 +132,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        labels = self._merge_schedule_and_schedule_object_labels(
+        labels = server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
             labels=labels,
             scheduled_object=scheduled_object,
         )
@@ -210,8 +210,10 @@ class Scheduler:
 
         db_schedule = get_db().get_schedule(db_session, project, name)
 
-        labels, scheduled_object = self._merge_schedule_and_db_schedule_labels(
-            labels, scheduled_object, db_schedule
+        labels, scheduled_object = (
+            server.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+                labels, scheduled_object, db_schedule
+            )
         )
 
         labels = self._enrich_schedule(
@@ -357,8 +359,10 @@ class Scheduler:
             #  because we must have kind to ensure that auth info has access key.
             kind = db_schedule.kind
 
-        labels, scheduled_object = self._merge_schedule_and_db_schedule_labels(
-            labels, scheduled_object, db_schedule
+        labels, scheduled_object = (
+            server.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+                labels, scheduled_object, db_schedule
+            )
         )
 
         labels = self._enrich_schedule(
@@ -949,105 +953,8 @@ class Scheduler:
         if fn_kind:
             labels = labels or {}
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
-        self._set_scheduled_object_labels(scheduled_object, labels)
+        server.api.utils.helpers.set_scheduled_object_labels(scheduled_object, labels)
         return labels
-
-    @staticmethod
-    def _set_scheduled_object_labels(
-        scheduled_object: Union[Optional[dict], Callable], labels: Optional[dict]
-    ) -> None:
-        if not isinstance(scheduled_object, dict):
-            return
-        scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
-            labels
-        )
-
-    def _merge_schedule_and_db_schedule_labels(
-        self,
-        labels: Optional[dict],
-        scheduled_object: Union[Optional[dict], Callable],
-        db_schedule: Optional[mlrun.common.schemas.ScheduleRecord],
-    ) -> tuple[Optional[dict], Union[Optional[dict], Callable]]:
-        """
-        Merges the provided schedule labels and scheduled object labels with the labels
-        from the database schedule. The method ensures that the scheduled object's labels
-        are properly aligned with the schedule labels.
-
-        :param labels: The labels of the schedule
-        :param scheduled_object: The scheduled object
-        :param db_schedule: A ScheduleRecord object from the database, containing the existing labels
-                            and scheduled object to be merged
-        :return: The merged labels and the updated scheduled object, ensuring alignment between
-                 provided and database labels
-        """
-        db_labels = {}
-        if db_schedule:
-            # convert list[LabelRecord] to dict
-            db_schedule_labels = {
-                label.name: label.value for label in db_schedule.labels
-            }
-            # merge schedule's labels and scheduled object's labels for object from db
-            db_labels = self._merge_schedule_and_schedule_object_labels(
-                db_schedule_labels, db_schedule.scheduled_object
-            )
-
-        # merge schedule's labels and scheduled object's labels for passed values
-        labels = self._merge_schedule_and_schedule_object_labels(
-            labels, scheduled_object
-        )
-
-        # if labels are None, then we don't want to overwrite them and labels should remain the same as in db
-        # if labels are {} then we do want to overwrite them
-        if labels is None and db_schedule:
-            labels = db_labels
-            # ensure that labels value in db are aligned (for cases when we upgrade from version, where they weren't)
-            scheduled_object = db_schedule.scheduled_object
-            self._set_scheduled_object_labels(scheduled_object, db_labels)
-
-        # If schedule object isn't passed,
-        # Ensure that schedule_object has the same value as schedule.labels
-        if scheduled_object is None and db_schedule:
-            scheduled_object = db_schedule.scheduled_object
-            self._set_scheduled_object_labels(scheduled_object, labels)
-
-        return labels, scheduled_object
-
-    def _merge_schedule_and_schedule_object_labels(
-        self,
-        labels: Optional[dict],
-        scheduled_object: Union[Optional[dict], Callable],
-    ) -> Optional[dict]:
-        """
-        Merges the labels of the scheduled object, giving precedence to the scheduled object labels
-        :param labels: The labels of a schedule
-        :param scheduled_object: A scheduled object
-
-        :return: Merged labels
-        """
-        # Ensure scheduled_object is a dictionary-like object
-        if not isinstance(scheduled_object, dict):
-            return labels
-
-        # Extract the scheduled object labels
-        scheduled_object_labels = (
-            scheduled_object.get("task", {}).get("metadata", {}).get("labels", {})
-        )
-
-        # If labels are empty, no need to update scheduled_object_labels,
-        if not labels:
-            return scheduled_object_labels
-
-        scheduled_object_labels = scheduled_object_labels or {}
-
-        # Merge labels, giving precedence to scheduled_object_labels
-        updated_labels = mlrun.utils.merge_dicts_with_precedence(
-            labels, scheduled_object_labels
-        )
-
-        # Update the original scheduled_object with the merged labels
-        self._set_scheduled_object_labels(scheduled_object, updated_labels)
-
-        return updated_labels
 
     @staticmethod
     def _remove_schedule_notification_secrets(

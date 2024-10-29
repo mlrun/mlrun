@@ -379,9 +379,16 @@ async def list_project_summaries(
     allowed_project_names = projects_output.projects
     # skip permission check if it's the leader
     if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
-        allowed_project_names = await server.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            projects_output.projects,
-            auth_info,
+        auth_verifier = server.api.utils.auth.verifier.AuthVerifier()
+        allowed_project_names = await auth_verifier.filter_project_resources_by_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.project_summaries,
+            resources=allowed_project_names,
+            project_and_resource_name_extractor=lambda project: (
+                project,
+                "",
+            ),
+            auth_info=auth_info,
+            action=mlrun.common.schemas.AuthorizationAction.read,
         )
     return await get_project_member().list_project_summaries(
         db_session,

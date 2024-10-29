@@ -31,7 +31,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultStatusApp,
 )
 from mlrun.model_monitoring.applications import (
-    ModelMonitoringApplicationBaseV2,
+    ModelMonitoringApplicationBase,
 )
 from mlrun.model_monitoring.metrics.histogram_distance import (
     HellingerDistance,
@@ -87,7 +87,7 @@ class DataDriftClassifier:
         return ResultStatusApp.no_detection
 
 
-class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
+class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     """
     MLRun's default data drift application for model monitoring.
 

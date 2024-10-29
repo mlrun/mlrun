@@ -18,7 +18,7 @@ Table of Contents
    genai/data-mgmt/index
    genai/development/index
    genai/deployment/index	  
-
+   genai/live-ops/index
 	  
 	
 	   
@@ -30,6 +30,7 @@ Table of Contents
    data-prep/index
    development/index
    deployment/index
+   model-monitoring/mlops-monitoring
    projects/ci-cd-automate
      
    
@@ -54,6 +55,7 @@ Table of Contents
    genindex
    api/index
    cli
+   resources
    glossary
    
 .. toctree::

@@ -22,7 +22,7 @@ import mlrun.model_monitoring.api
 from mlrun.db import RunDBInterface
 from mlrun.model_monitoring import ModelEndpoint
 
-from .assets.application import DemoMonitoringAppV2
+from .assets.application import DemoMonitoringApp
 
 
 def test_read_dataset_as_dataframe():
@@ -77,11 +77,11 @@ def test_record_result_updates_last_request() -> None:
     [
         {
             "func": str(pathlib.Path(__file__).parent / "assets" / "application.py"),
-            "application_class": DemoMonitoringAppV2(param_1=1, param_2=2),
+            "application_class": DemoMonitoringApp(param_1=1, param_2=2),
         },
         {
             "func": str(pathlib.Path(__file__).parent / "assets" / "application.py"),
-            "application_class": "DemoMonitoringAppV2",
+            "application_class": "DemoMonitoringApp",
             "param_1": 1,
             "param_2": 2,
         },
@@ -96,8 +96,9 @@ def test_create_model_monitoring_function(function) -> None:
     steps = app.spec.graph.steps
 
     assert "PrepareMonitoringEvent" in app.spec.graph.steps
-    assert "DemoMonitoringAppV2" in app.spec.graph.steps
+    assert "DemoMonitoringApp" in app.spec.graph.steps
     assert "PushToMonitoringWriter" in app.spec.graph.steps
+    assert "ApplicationErrorHandler" in app.spec.graph.steps
 
-    app_step = steps["DemoMonitoringAppV2"]
+    app_step = steps["DemoMonitoringApp"]
     assert app_step.class_args == {"param_1": 1, "param_2": 2}

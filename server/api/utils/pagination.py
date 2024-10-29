@@ -154,7 +154,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             )
 
         if page_size is None and token is None:
-            self._logger.debug("No token or page size provided, returning all records")
+            self._logger.debug(
+                "No token or page size provided, returning all records", method=method
+            )
             return await server.api.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs
             ), None

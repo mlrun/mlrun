@@ -2373,7 +2373,14 @@ def test_run_project_sync_functions_fails_silently(rundb_mock):
             "url": "prep_data.py",
             "image": "mlrun/mlrun",
             "handler": "prep_data",
-        }
+        },
+        "train": {
+            "url": "/User/some-notebook.ipynb",  # Absolute path
+            "name": "train",
+            "kind": "job",
+            "image": "mlrun/mlrun",
+            "handler": "trainer",
+        },
     }
     name = "my-pipeline"
     proj.set_workflow(

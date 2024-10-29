@@ -783,7 +783,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 	// open log file in read/write and append, to allow reading the logs while we write more logs to it
 	openFlags := os.O_RDWR | os.O_APPEND
-	file, err := os.OpenFile(logFilePath, openFlags, 0644)
+	file, err := os.OpenFile(logFilePath, openFlags, 0600)
 	if err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to open file",
@@ -1041,7 +1041,7 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 	}
 
 	// open log file for reading
-	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0600)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to open log file for run id %s", runUID)
 	}

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import traceback
+import typing
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
@@ -34,6 +35,7 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.common.runtime_handlers
+import server.api.crud as crud
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.common.runtimes.constants import PodPhases, RunStates, ThresholdStates
@@ -41,6 +43,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
 from mlrun.utils import logger, now_date
+from server.api.constants import LogSources
 from server.api.db.base import DBInterface
 
 
@@ -115,10 +118,16 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = None,
+        grace_period: typing.Optional[int] = None,
     ):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
+
+        # set resource deletion grace period to 0 when explicitly requested by force and grace period.
+        # 'force' is used to skip waiting X seconds *after* pod terminated.
+        # 'grace_period' is used to set the time to wait *after* the pod terminated and before it's deleted.
+        # if force is True and grace period is 0, simply delete the pod without waiting.
+        resource_deletion_grace_period = 0 if force and grace_period == 0 else None
         # We currently don't support removing runtime resources in non k8s env
         if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return
@@ -133,6 +142,7 @@ class BaseRuntimeHandler(ABC):
                 label_selector,
                 force,
                 grace_period,
+                resource_deletion_grace_period,
             )
         else:
             deleted_resources = self._delete_pod_resources(
@@ -142,6 +152,7 @@ class BaseRuntimeHandler(ABC):
                 label_selector,
                 force,
                 grace_period,
+                resource_deletion_grace_period,
             )
         self._delete_extra_resources(
             db,
@@ -151,6 +162,7 @@ class BaseRuntimeHandler(ABC):
             label_selector,
             force,
             grace_period,
+            resource_deletion_grace_period,
         )
 
     def delete_runtime_object_resources(
@@ -160,10 +172,8 @@ class BaseRuntimeHandler(ABC):
         object_id: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = None,
+        grace_period: typing.Optional[int] = None,
     ):
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
         )
@@ -234,10 +244,10 @@ class BaseRuntimeHandler(ABC):
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
-        if label_selector and default_label_selector not in label_selector:
-            label_selector = ",".join([default_label_selector, label_selector])
-        else:
+        if not label_selector:
             label_selector = default_label_selector
+        elif default_label_selector not in label_selector:
+            label_selector = ",".join([default_label_selector, label_selector])
 
         if project and project != "*":
             label_selector = ",".join(
@@ -672,7 +682,7 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         """
-        Override this to list resources other then pods or CRDs (which are handled by the base class)
+        Override this to list resources other than pods or CRDs (which are handled by the base class)
         """
         return response
 
@@ -703,13 +713,11 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ):
         """
         Override this to handle deletion of resources other than pods or CRDs (which are handled by the base class)
         Note that this is happening after the deletion of the CRDs or the pods
-        Note to add this at the beginning:
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         """
         pass
 
@@ -1015,9 +1023,8 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ) -> list[dict]:
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         deleted_pods = []
         for pod in server.api.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
             namespace, selector=label_selector
@@ -1059,7 +1066,9 @@ class BaseRuntimeHandler(ABC):
                         )
 
                 server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                    pod.metadata.name, namespace
+                    pod.metadata.name,
+                    namespace,
+                    grace_period_seconds=resource_deletion_grace_period,
                 )
                 deleted_pods.append(pod_dict)
             except Exception as exc:
@@ -1078,9 +1087,8 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ) -> list[dict]:
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
         try:
@@ -1149,6 +1157,7 @@ class BaseRuntimeHandler(ABC):
                         crd_version,
                         crd_plural,
                         namespace,
+                        resource_deletion_grace_period,
                     )
                     deleted_crds.append(crd_object)
                 except Exception as exc:
@@ -1197,6 +1206,7 @@ class BaseRuntimeHandler(ABC):
             run_state,
             runtime_resource=runtime_resource,
         )
+        self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _is_runtime_resource_run_in_terminal_state(
         self,
@@ -1351,6 +1361,9 @@ class BaseRuntimeHandler(ABC):
         # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
+
+        if updated_run_state in RunStates.terminal_states():
+            self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _resolve_resource_state_and_apply_threshold(
         self,
@@ -1624,6 +1637,31 @@ class BaseRuntimeHandler(ABC):
             f"{mlrun_constants.MLRunInternalLabels.uid}={run_uid}"
         )
 
+    @staticmethod
+    def _ensure_run_logs_collected(
+        db: DBInterface, db_session: Session, project: str, uid: str, run: dict = None
+    ):
+        # We use this method as a fallback in case the periodic collect job malfunctions,
+        # and also for backwards compatibility in case we would not use the log collector but rather
+        # the legacy method to pull logs.
+        log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
+        if log_file_exists:
+            # nothing to ensure
+            return
+
+        logs_from_k8s = crud.Logs()._get_logs_legacy_method(
+            db_session, project, uid, source=LogSources.K8S, run=run
+        )
+        if not logs_from_k8s:
+            # no log to store
+            return
+
+        logger.info("Storing run logs", project=project, uid=uid)
+        server.api.crud.Logs().store_log(logs_from_k8s, project, uid, append=False)
+        if run.get("status", {}).get("state") in RunStates.terminal_states():
+            # Tell the periodic log collection to not request logs
+            db.update_runs_requested_logs(db_session, [uid], requested_logs=True)
+
     def _ensure_run_state(
         self,
         db: DBInterface,
@@ -1739,7 +1777,19 @@ class BaseRuntimeHandler(ABC):
                 }
             }
             if search_run:
-                db.store_run(db_session, run, uid, project)
+                try:
+                    # It shouldn't really be possible that there is a runtime resource for a run and no run as:
+                    # 1. The run is created before the runtime resources.
+                    # 2. The runtime resources are deleted before the run can be.
+                    # Therefore, this means there is some DB isolation level issues here, so we do a best effort create
+                    # or get.
+                    run = db.create_or_get_run(db_session, run, uid, project)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to create or get run, ignoring..",
+                        uid=uid,
+                        exc=err_to_str(exc),
+                    )
 
         return run
 

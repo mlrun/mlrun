@@ -84,6 +84,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 ],
             ),
             unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
+            ),
+            unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
             ) as delete_logs_mock,
         ):
@@ -131,6 +135,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 return_value=k8s_client.V1PodList(
                     items=[], metadata=k8s_client.V1ListMeta()
                 ),
+            ),
+            unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
@@ -182,6 +190,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     Exception("Boom!"),
                     k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
                 ],
+            ),
+            unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
@@ -768,6 +780,69 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             assert "artifacts" not in run_2["status"]
             # run 2 should still have artifact uris even if the producer id is different
             assert "artifact_uris" in run_2["status"]
+
+    def test_get_run_notifications_format(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        notifications = self._generate_notifications()
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {mlrun_constants.MLRunInternalLabels.kind: "job"},
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        server.api.crud.Notifications().store_run_notifications(
+            session=db,
+            notification_objects=notifications,
+            run_uid=run_uid,
+            project=project,
+        )
+
+        run = server.api.crud.Runs().get_run(
+            db,
+            run_uid,
+            0,
+            project,
+            format_=mlrun.common.formatters.RunFormat.notifications,
+        )
+
+        assert "notifications" in run["status"]
+        assert "notifications" in run["spec"]
+        for notification in run["spec"]["notifications"]:
+            assert "params" in notification
+
+    @staticmethod
+    def _generate_notifications(
+        notifications_len=2,
+    ):
+        notifications = []
+        i = 0
+        while len(notifications) < notifications_len:
+            notification = {
+                "kind": "webhook",
+                "condition": "",
+                "severity": "verbose",
+                "params": {
+                    "url": "https://webhook.site/3c81ac80-1767-490f-bda3-a241fae47f43",
+                    "method": "POST",
+                    "verify_ssl": True,
+                },
+                "name": str(uuid.uuid4()),
+                "when": ["completed", "error", "running"],
+                "message": "Check1",
+            }
+            notification = mlrun.model.Notification.from_dict(notification)
+            notifications.append(notification)
+            i += 1
+        return notifications
 
     @staticmethod
     def _generate_artifacts(

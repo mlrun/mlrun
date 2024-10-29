@@ -19,10 +19,11 @@ import traceback
 import typing
 
 import kfp_server_api
+import mlrun_pipelines.common.ops
+import mlrun_pipelines.mixins
+import mlrun_pipelines.models
 import mlrun_pipelines.utils
 import sqlalchemy.orm
-from mlrun_pipelines.mixins import PipelineProviderMixin
-from mlrun_pipelines.models import PipelineExperiment, PipelineRun
 
 import mlrun
 import mlrun.common.formatters
@@ -37,7 +38,7 @@ from mlrun.utils import logger
 
 
 class Pipelines(
-    PipelineProviderMixin,
+    mlrun_pipelines.mixins.PipelineProviderMixin,
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     def list_pipelines(
@@ -88,7 +89,12 @@ class Pipelines(
                     sort_by=sort_by if page_token == "" else "",
                     filter=filter_ if page_token == "" else "",
                 )
-                runs.extend([PipelineRun(run) for run in response.runs or []])
+                runs.extend(
+                    [
+                        mlrun_pipelines.models.PipelineRun(run)
+                        for run in response.runs or []
+                    ]
+                )
                 page_token = response.next_page_token
             project_runs = []
             for run in runs:
@@ -116,7 +122,9 @@ class Pipelines(
                 raise mlrun.errors.err_for_status_code(
                     exc.status, err_to_str(error_message)
                 ) from exc
-            runs = [PipelineRun(run) for run in response.runs or []]
+            runs = [
+                mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []
+            ]
             runs = self._filter_runs_by_name(runs, name_contains)
             next_page_token = response.next_page_token
             # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
@@ -151,7 +159,7 @@ class Pipelines(
         experiment_ids = set()
         for pipeline_run in project_pipeline_runs:
             try:
-                pipeline_run = PipelineRun(pipeline_run)
+                pipeline_run = mlrun_pipelines.models.PipelineRun(pipeline_run)
                 # delete pipeline run also terminates it if it is in progress
                 kfp_client._run_api.delete_run(pipeline_run.id)
                 if pipeline_run.experiment_id:
@@ -212,7 +220,7 @@ class Pipelines(
         run = None
         try:
             api_run_detail = kfp_client.get_run(run_id)
-            run = PipelineRun(api_run_detail)
+            run = mlrun_pipelines.models.PipelineRun(api_run_detail)
             if run:
                 if project and project != "*":
                     run_project = self.resolve_project_from_pipeline(run)
@@ -259,9 +267,13 @@ class Pipelines(
                 http.HTTPStatus.BAD_REQUEST.value,
                 reason=f"unsupported pipeline type {content_type}",
             )
-
         logger.debug("Writing pipeline to temp file", content_type=content_type)
-
+        data = mlrun_pipelines.common.ops.replace_kfp_plaintext_secret_env_vars_with_secret_refs(
+            byte_buffer=data,
+            content_type=content_type,
+            env_var_names=["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"],
+            secrets_store=server.api.crud.Secrets(),
+        )
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:
             fp.write(data)
@@ -275,10 +287,10 @@ class Pipelines(
 
         try:
             kfp_client = self.initialize_kfp_client()
-            experiment = PipelineExperiment(
+            experiment = mlrun_pipelines.models.PipelineExperiment(
                 kfp_client.create_experiment(name=experiment_name)
             )
-            run = PipelineRun(
+            run = mlrun_pipelines.models.PipelineRun(
                 kfp_client.run_pipeline(
                     experiment.id, run_name, pipeline_file.name, params=arguments
                 )
@@ -314,7 +326,7 @@ class Pipelines(
 
     def _format_run(
         self,
-        run: PipelineRun,
+        run: mlrun_pipelines.models.PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         kfp_client: mlrun_pipelines.utils.kfp.Client = None,
     ) -> dict:
@@ -378,10 +390,14 @@ class Pipelines(
 
         return None
 
-    def resolve_project_from_pipeline(self, pipeline: PipelineRun):
+    def resolve_project_from_pipeline(
+        self, pipeline: mlrun_pipelines.models.PipelineRun
+    ):
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
 
-    def get_error_from_pipeline(self, kfp_client, run: PipelineRun):
+    def get_error_from_pipeline(
+        self, kfp_client, run: mlrun_pipelines.models.PipelineRun
+    ):
         pipeline = kfp_client.get_run(run.id)
         return self.resolve_error_from_pipeline(pipeline)
 

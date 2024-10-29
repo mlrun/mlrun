@@ -104,8 +104,9 @@ def my_spark_func(df, context=None):
 ```
 ```python
 from mlrun.datastore.sources import CSVSource
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
+
+mlrun.get_or_create_project(name="remote-spark")
 
 feature_set = fstore.FeatureSet(
     "stock-quotes", entities=[fstore.Entity("ticker")], engine="spark"
@@ -118,7 +119,7 @@ spark_service_name = (
 )
 
 feature_set.graph.to(name="s1", handler="my_spark_func")
-my_func = code_to_function("func", kind="remote-spark")
+my_func = project.set_function("func", kind="remote-spark")
 config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
 feature_set.ingest(source, run_config=config, spark_context=spark_service_name)
 ```
@@ -157,8 +158,9 @@ def my_spark_func(df, context=None):
 
 ```python
 from mlrun.datastore.sources import CSVSource
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
+
+mlrun.get_or_create_project(name="spark-oper")
 
 feature_set = fstore.FeatureSet(
     "stock-quotes", entities=[fstore.Entity("ticker")], engine="spark"
@@ -168,7 +170,7 @@ source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
 feature_set.graph.to(name="s1", handler="my_spark_func")
 
-my_func = code_to_function("func", kind="spark")
+my_func = project.set_function("func", kind="spark")
 
 my_func.with_driver_requests(cpu="200m", mem="1G")
 my_func.with_executor_requests(cpu="200m", mem="1G")
@@ -273,7 +275,6 @@ Ingestion invocation:
 ```python
 from mlrun.datastore.sources import CSVSource
 from mlrun.datastore.targets import ParquetTarget
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
 feature_set = fstore.FeatureSet(
@@ -284,7 +285,7 @@ source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
 spark_service_name = "spark"  # As configured & shown in the Iguazio dashboard
 
-fn = code_to_function(kind="remote-spark", name="func")
+fn = project.set_function(kind="remote-spark", name="func")
 
 run_config = fstore.RunConfig(local=False, function=fn, handler="ingest_handler")
 run_config.with_secret("kubernetes", ["s3_access_key", "s3_secret_key"])
@@ -360,7 +361,6 @@ RemoteSparkRuntime.deploy_default_image()
 
 from mlrun.datastore.sources import CSVSource
 from mlrun.datastore.targets import ParquetTarget
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
 feature_set = fstore.FeatureSet("rides7", entities=[fstore.Entity("ride_id")], engine="spark", timestamp_key="key")
@@ -369,7 +369,7 @@ source = CSVSource("rides", path="wasbs://warroom@mlrunwarroom.blob.core.windows
 
 spark_service_name = "spark-fs" # As configured & shown in the Iguazio dashboard
 
-fn = code_to_function(kind='remote-spark',  name='func')
+fn = project.set_function(kind='remote-spark',  name='func')
 
 run_config = fstore.RunConfig(local=False, function=fn, handler="ingest_handler")
 

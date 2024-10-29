@@ -48,6 +48,9 @@ For each artifact, you can view its content, its location, the artifact type, la
 the producer of the artifact, the artifact owner, last update date, and type-specific information.
 You can download the artifact. You can also tag and remove tags from artifacts using the UI.
 
+The UI limits the artifact query display to 1000 records. You can add filters to narrow the query results. 
+(Each search could results in a different set of records.) 
+
 
 ## Artifact path
 
@@ -136,14 +139,14 @@ Example artifact URLs:
 
 
 Artifacts are comprised of two parts: an artifact object that points to the artifact data; and the artifact data (files). You can delete artifacts from a specific project 
-and choose what you want to delete. You cannot delete artifacts of type: ModelArtifact, DirArtifact, and DatasetArtifact that has more than one file. 
+and choose what you want to delete. You cannot delete artifacts of type: ModelArtifact, DirArtifact, or DatasetArtifact that has more than one file. 
 Deleting artifact data is supported for V3IO, Google, Azure, DBFS, Filestore, and S3. 
 
 
 The options for {py:meth}`~mlrun.projects.MlrunProject.delete_artifact`:
 - metadata-only: Delete only the artifact object. The related artifact data remains.
 - data-optional: Delete the artifact object and the data. If data deletion is unsuccessful, deletes only the object.
-- data-force: Delete the artifact object and the data. If data deletion is unsuccessful, does not delete the object either.
+- data-force: Delete the artifact object and the data. If data deletion is unsuccessful, the object is also not deleted.
 
 For example:
 ```

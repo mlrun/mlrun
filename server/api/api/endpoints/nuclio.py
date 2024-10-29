@@ -17,6 +17,7 @@ import traceback
 import typing
 from http import HTTPStatus
 
+import semver
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -35,6 +36,7 @@ import server.api.utils.singletons.project_member
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
+from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from server.api.api import deps
 from server.api.crud.secrets import Secrets, SecretsClientType
 
@@ -526,9 +528,7 @@ def _deploy_nuclio_runtime(
             )
         )
         try:
-            monitoring_deployment.check_if_credentials_are_set(
-                with_upgrade_case_check=True, client_version=client_version
-            )
+            monitoring_deployment.check_if_credentials_are_set()
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:
                 err_txt = f"Can not deploy model monitoring application due to: {exc}"
@@ -546,12 +546,23 @@ def _deploy_nuclio_runtime(
             )
 
         if serving_to_monitor:
-            if monitoring_deployment.should_redeploy_monitoring_stream(
-                fn_image=fn.spec.image, client_version=client_version
+            if not client_version:
+                server.api.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=f"On deployment of serving-functions that are based on mlrun image "
+                    f"('mlrun/') and set-tracking is enabled, "
+                    f"client version must be specified and  >= {MINIMUM_CLIENT_VERSION_FOR_MM}",
+                )
+            elif fn.spec.image.startswith("mlrun/") and (
+                semver.Version.parse(client_version)
+                < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
+                and "unstable" not in client_version
             ):
-                # Redeploy the monitoring stream processing function
-                monitoring_deployment.deploy_model_monitoring_stream_processing(
-                    overwrite=True
+                server.api.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=f"On deployment of serving-functions that are based on mlrun image "
+                    f"('mlrun/') and set-tracking is enabled, "
+                    f"client version must be >= {MINIMUM_CLIENT_VERSION_FOR_MM}",
                 )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(

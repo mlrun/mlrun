@@ -27,6 +27,8 @@ import mlrun_pipelines.utils
 import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.function
+import mlrun.common.schemas.workflow
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
@@ -44,21 +46,21 @@ from ..runtimes.pod import AutoMountType
 
 def get_workflow_engine(engine_kind, local=False):
     if pipeline_context.is_run_local(local):
-        if engine_kind == "kfp":
+        if engine_kind == mlrun.common.schemas.workflow.EngineType.KFP:
             logger.warning(
                 "Running kubeflow pipeline locally, note some ops may not run locally!"
             )
-        elif engine_kind == "remote":
+        elif engine_kind == mlrun.common.schemas.workflow.EngineType.REMOTE:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
                 "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
-    if not engine_kind or engine_kind == "kfp":
+    if not engine_kind or engine_kind == mlrun.common.schemas.workflow.EngineType.KFP:
         return _KFPRunner
-    if engine_kind == "local":
+    if engine_kind == mlrun.common.schemas.workflow.EngineType.LOCAL:
         return _LocalRunner
-    if engine_kind == "remote":
+    if engine_kind == mlrun.common.schemas.workflow.EngineType.REMOTE:
         return _RemoteRunner
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"Provided workflow engine is not supported. engine_kind={engine_kind}"
@@ -80,6 +82,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: typing.Optional[int] = None,
         image: typing.Optional[str] = None,
+        workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
     ):
         self.engine = engine
         self.code = code
@@ -93,6 +96,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self._tmp_path = None
         self.schedule = schedule
         self.image = image
+        self.workflow_runner_node_selector = workflow_runner_node_selector
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -311,7 +315,11 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project, function, decorator=None, copy_function=True, try_auto_mount=True
+    project: mlrun.common.schemas.Project,
+    function: mlrun.runtimes.BaseRuntime,
+    decorator: typing.Callable = None,
+    copy_function: bool = True,
+    try_auto_mount: bool = True,
 ) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
@@ -352,7 +360,6 @@ def enrich_function_object(
         f.enrich_runtime_spec(
             project.spec.default_function_node_selector,
         )
-
     if try_auto_mount:
         if (
             decorator and AutoMountType.is_auto_modifier(decorator)
@@ -452,7 +459,12 @@ class _PipelineRunner(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+        timeout: typing.Optional[int] = None,
+        expected_statuses: list[str] = None,
+    ):
         pass
 
     @staticmethod
@@ -581,13 +593,13 @@ class _KFPRunner(_PipelineRunner):
             logger.warning(
                 "Setting notifications on kfp pipeline runner uses old notification behavior. "
                 "Notifications will only be sent if you wait for pipeline completion. "
-                "To use the new notification behavior, use the remote pipeline runner."
+                "Some of the features (like setting message or severity level) are not supported."
             )
             # for start message, fallback to old notification behavior
             for notification in notifications or []:
-                project.notifiers.add_notification(
-                    notification.kind, notification.params
-                )
+                params = notification.params
+                params.update(notification.secret_params)
+                project.notifiers.add_notification(notification.kind, params)
 
         run_id = _run_pipeline(
             workflow_handler,
@@ -625,12 +637,19 @@ class _KFPRunner(_PipelineRunner):
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
-    def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+        timeout: typing.Optional[int] = None,
+        expected_statuses: list[str] = None,
+    ):
+        project_name = project.metadata.name if project else ""
         logger.info(
-            "Waiting for pipeline run completion", run_id=run.run_id, project=project
+            "Waiting for pipeline run completion",
+            run_id=run.run_id,
+            project=project_name,
         )
         timeout = timeout or 60 * 60
-        project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
             run.run_id,
             timeout=timeout,
@@ -1062,7 +1081,7 @@ def load_and_run(
     # extract "start" notification if exists
     start_notifications = [
         notification
-        for notification in context.get_notifications()
+        for notification in context.get_notifications(unmask_secret_params=True)
         if "running" in notification.when
     ]
 

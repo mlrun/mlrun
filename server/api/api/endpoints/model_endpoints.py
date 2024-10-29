@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from http import HTTPStatus
 from typing import Annotated, Literal, Optional, Union
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -37,14 +37,19 @@ from mlrun.utils import logger
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
+ProjectAnnotation = Annotated[str, Path(pattern=mm_constants.PROJECT_PATTERN)]
+EndpointIDAnnotation = Annotated[
+    str, Path(pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN)
+]
+
 
 @router.post(
     "/{endpoint_id}",
     response_model=schemas.ModelEndpoint,
 )
 async def create_model_endpoint(
-    project: str,
-    endpoint_id: str,
+    project: ProjectAnnotation,
+    endpoint_id: EndpointIDAnnotation,
     model_endpoint: schemas.ModelEndpoint,
     auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
     db_session: Session = Depends(server.api.api.deps.get_db_session),
@@ -93,8 +98,8 @@ async def create_model_endpoint(
     response_model=schemas.ModelEndpoint,
 )
 async def patch_model_endpoint(
-    project: str,
-    endpoint_id: str,
+    project: ProjectAnnotation,
+    endpoint_id: EndpointIDAnnotation,
     attributes: str = None,
     auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
 ) -> schemas.ModelEndpoint:
@@ -141,8 +146,8 @@ async def patch_model_endpoint(
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 async def delete_model_endpoint(
-    project: str,
-    endpoint_id: str,
+    project: ProjectAnnotation,
+    endpoint_id: EndpointIDAnnotation,
     auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
 ):
     """
@@ -174,7 +179,7 @@ async def delete_model_endpoint(
     response_model=schemas.ModelEndpointList,
 )
 async def list_model_endpoints(
-    project: str,
+    project: ProjectAnnotation,
     model: Optional[str] = Query(None),
     function: Optional[str] = Query(None),
     labels: list[str] = Query([], alias="label"),
@@ -276,8 +281,8 @@ async def _verify_model_endpoint_read_permission(
     response_model=schemas.ModelEndpoint,
 )
 async def get_model_endpoint(
-    project: str,
-    endpoint_id: str,
+    project: ProjectAnnotation,
+    endpoint_id: EndpointIDAnnotation,
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: list[str] = Query([], alias="metric"),
@@ -329,8 +334,8 @@ async def get_model_endpoint(
     response_model=list[mm_endpoints.ModelEndpointMonitoringMetric],
 )
 async def get_model_endpoint_monitoring_metrics(
-    project: str,
-    endpoint_id: str,
+    project: ProjectAnnotation,
+    endpoint_id: EndpointIDAnnotation,
     auth_info: schemas.AuthInfo = Depends(server.api.api.deps.authenticate_request),
     type: Literal["results", "metrics", "all"] = "all",
 ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
@@ -367,7 +372,7 @@ async def get_model_endpoint_monitoring_metrics(
                 run_in_threadpool(
                     get_model_endpoint_metrics,
                     endpoint_id=endpoint_id,
-                    type=mm_endpoints.ModelEndpointMonitoringMetricType.RESULT,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
                 )
             )
         )
@@ -377,7 +382,7 @@ async def get_model_endpoint_monitoring_metrics(
                 run_in_threadpool(
                     get_model_endpoint_metrics,
                     endpoint_id=endpoint_id,
-                    type=mm_endpoints.ModelEndpointMonitoringMetricType.METRIC,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
                 )
             )
         )
@@ -399,11 +404,11 @@ class _MetricsValuesParams:
 
 
 async def _get_metrics_values_params(
-    project: str,
-    endpoint_id: str,
+    project: ProjectAnnotation,
+    endpoint_id: EndpointIDAnnotation,
     name: Annotated[
         list[str],
-        Query(pattern=mm_endpoints._FQN_PATTERN),
+        Query(pattern=mm_constants.FQN_PATTERN),
     ],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
@@ -441,16 +446,19 @@ async def _get_metrics_values_params(
             "Provided only one of start time, end time. Please provide both or neither."
         )
 
-    metrics_and_results = [
-        mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn) for fqn in name
-    ]
     metrics = []
     results = []
-    for m in metrics_and_results:
-        if m.type == mm_endpoints.ModelEndpointMonitoringMetricType.METRIC:
-            metrics.append(m)
+    for fqn in name:
+        metric = mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn)
+        if metric.project != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Metric '{fqn}' does not belong to the project '{project}' given "
+                f"in the API path, but to the project '{metric.project}'."
+            )
+        if metric.type == mm_constants.ModelEndpointMonitoringMetricType.METRIC:
+            metrics.append(metric)
         else:
-            results.append(m)
+            results.append(metric)
 
     return _MetricsValuesParams(
         project=project,

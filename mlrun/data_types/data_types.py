@@ -70,6 +70,11 @@ def pa_type_to_value_type(type_):
     if isinstance(type_, TimestampType):
         return ValueType.DATETIME
 
+    # pandas category type translates to pyarrow DictionaryType
+    # we need to unpack the value type (ML-7868)
+    if isinstance(type_, pyarrow.DictionaryType):
+        type_ = type_.value_type
+
     type_map = {
         pyarrow.bool_(): ValueType.BOOL,
         pyarrow.int64(): ValueType.INT64,
@@ -139,7 +144,7 @@ def gbq_to_pandas_dtype(gbq_type):
         "BOOL": "bool",
         "FLOAT": "float64",
         "INTEGER": pd.Int64Dtype(),
-        "TIMESTAMP": "datetime64[ns]",
+        "TIMESTAMP": "datetime64[ns, UTC]",
     }
     return type_map.get(gbq_type, "object")
 

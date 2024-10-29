@@ -13,16 +13,17 @@
 # limitations under the License.
 #
 import typing
+from http import HTTPStatus
 
 import fastapi
 from fastapi import Header
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import server.api.api.utils
 import server.api.utils.auth.verifier
+from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from server.api.api import deps
-from server.api.api.endpoints.nuclio import process_model_monitoring_secret
-from server.api.crud.model_monitoring.deployment import MonitoringDeployment
 
 router = fastapi.APIRouter(prefix="/projects/{project}/jobs")
 
@@ -48,12 +49,7 @@ async def create_model_monitoring_controller(
     ),
 ):
     """
-    Deploy model monitoring application controller, writer and stream functions.
-    While the main goal of the controller function is to handle the monitoring processing and triggering
-    applications, the goal of the model monitoring writer function is to write all the monitoring
-    application results to the databases.
-    And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
-    is detected. It processes the new events into statistics that are then written to statistics databases.
+    Deprecated.
 
     :param project:                  Project name.
     :param auth_info:                The auth info of the request.
@@ -65,34 +61,8 @@ async def create_model_monitoring_controller(
                                      is running. By default, the base period is 5 minutes.
     :param client_version:           The client version that sent the request.
     """
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project_name=project,
-        resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        action=mlrun.common.schemas.AuthorizationAction.store,
-        auth_info=auth_info,
+    server.api.api.utils.log_and_raise(
+        HTTPStatus.BAD_REQUEST.value,
+        reason=f"Model monitoring is supported from client version {MINIMUM_CLIENT_VERSION_FOR_MM}. "
+        f"Please upgrade your client accordingly.",
     )
-    model_monitoring_access_key = None
-    if not mlrun.mlconf.is_ce_mode():
-        # Generate V3IO Access Key
-        model_monitoring_access_key = process_model_monitoring_secret(
-            db_session,
-            project,
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-        )
-
-    MonitoringDeployment(
-        project=project,
-        auth_info=auth_info,
-        db_session=db_session,
-        model_monitoring_access_key=model_monitoring_access_key,
-    ).deploy_monitoring_functions(
-        image=default_controller_image,
-        base_period=base_period,
-        deploy_histogram_data_drift_app=False,  # mlrun client < 1.7.0
-        client_version=client_version,
-    )
-
-    return {
-        "func": "Submitted the model-monitoring controller, writer and stream deployment"
-    }

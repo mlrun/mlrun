@@ -1,8 +1,8 @@
 click~=8.1
 paramiko~=3.4
 semver~=3.0
-requests~=2.31
-boto3>=1.28.0,<1.29.0
+requests~=2.32
+boto3>=1.28.0,<1.36
 pyyaml>=5.4.1, <7
 packaging~=23.1
 coloredlogs~=15.0

@@ -100,7 +100,8 @@ class Feature(ModelObj):
         :param name:        name of the feature
         :param validator:   feature validation policy
         :param default:     default value
-        :param labels:      a set of key/value labels (tags)
+        :param labels:      a set of key/value labels (tags). Labels can be used to filter featues, for example,
+                            in the UI Feature store page.
         """
         self.name = name or ""
         if isinstance(value_type, ValueType):

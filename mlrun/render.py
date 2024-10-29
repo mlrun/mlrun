@@ -22,7 +22,7 @@ import mlrun.utils
 
 from .config import config
 from .datastore import uri_to_ipython
-from .utils import dict_to_list, get_in, is_ipython
+from .utils import dict_to_list, get_in, is_jupyter
 
 JUPYTER_SERVER_ROOT = environ.get("HOME", "/User")
 supported_viewers = [
@@ -181,8 +181,8 @@ def run_to_html(results, display=True):
 
 
 def ipython_display(html, display=True, alt_text=None):
-    if display and html and is_ipython:
-        import IPython
+    if display and html and is_jupyter:
+        import IPython.display
 
         IPython.display.display(IPython.display.HTML(html))
     elif alt_text:

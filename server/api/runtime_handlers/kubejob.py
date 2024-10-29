@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import typing
 
 import kubernetes
+import sqlalchemy.orm
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 from packaging.version import parse as parse_version
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import server.api.db.base as api_db_base
 import server.api.utils.singletons.k8s
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
@@ -210,6 +213,29 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
             _exec=client.V1ExecAction(command=["python", script_path])
         )
         return client.V1Lifecycle(pre_stop=pre_stop_handler)
+
+    def _delete_pod_resources(
+        self,
+        db: api_db_base.DBInterface,
+        db_session: sqlalchemy.orm.Session,
+        namespace: str,
+        label_selector: str = None,
+        force: bool = False,
+        grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
+    ) -> list[dict]:
+        # override the grace period for the deletion of the pods
+        # because the databricks pods needs to signal the databricks cluster to stop the run
+        return super()._delete_pod_resources(
+            db,
+            db_session,
+            namespace,
+            label_selector,
+            force,
+            grace_period,
+            # coupled with "databricks_runtime.py:DatabricksSpec"
+            resource_deletion_grace_period=60,
+        )
 
 
 def func_to_pod(

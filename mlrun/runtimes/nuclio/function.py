@@ -23,6 +23,7 @@ import inflection
 import nuclio
 import nuclio.utils
 import requests
+import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
 from mlrun_pipelines.common.mounts import VolumeMount
@@ -296,9 +297,36 @@ class RemoteRuntime(KubeResource):
         """
         if hasattr(spec, "to_dict"):
             spec = spec.to_dict()
+
+        self._validate_triggers(spec)
+
         spec["name"] = name
         self.spec.config[f"spec.triggers.{name}"] = spec
         return self
+
+    def _validate_triggers(self, spec):
+        # ML-7763 / NUC-233
+        min_nuclio_version = "1.13.12"
+        if mlconf.nuclio_version and semver.VersionInfo.parse(
+            mlconf.nuclio_version
+        ) < semver.VersionInfo.parse(min_nuclio_version):
+            explicit_ack_enabled = False
+            num_triggers = 0
+            trigger_name = spec.get("name", "UNKNOWN")
+            for key, config in [(f"spec.triggers.{trigger_name}", spec)] + list(
+                self.spec.config.items()
+            ):
+                if key.startswith("spec.triggers."):
+                    num_triggers += 1
+                    explicit_ack_enabled = (
+                        config.get("explicitAckMode", "disable") != "disable"
+                    )
+
+            if num_triggers > 1 and explicit_ack_enabled:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Multiple triggers cannot be used in conjunction with explicit ack. "
+                    f"Please upgrade to nuclio {min_nuclio_version} or newer."
+                )
 
     def with_source_archive(
         self,
@@ -495,6 +523,11 @@ class RemoteRuntime(KubeResource):
         extra_attributes = extra_attributes or {}
         if ack_window_size:
             extra_attributes["ackWindowSize"] = ack_window_size
+
+        access_key = kwargs.pop("access_key", None)
+        if not access_key:
+            access_key = self._resolve_v3io_access_key()
+
         self.add_trigger(
             name,
             V3IOStreamTrigger(
@@ -506,6 +539,7 @@ class RemoteRuntime(KubeResource):
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
                 read_batch_size=256,
+                access_key=access_key,
                 **kwargs,
             ),
         )
@@ -1240,6 +1274,13 @@ class RemoteRuntime(KubeResource):
                 )
 
         return self._resolve_invocation_url("", force_external_address)
+
+    @staticmethod
+    def _resolve_v3io_access_key():
+        # Nuclio supports generating access key for v3io stream trigger only from version 1.13.11
+        if validate_nuclio_version_compatibility("1.13.11"):
+            return mlrun.model.Credentials.generate_access_key
+        return None
 
 
 def parse_logs(logs):

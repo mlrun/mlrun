@@ -734,9 +734,11 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     if db:
         mlconf.dbpath = db
     if not project:
-        print("Warning, project parameter was not specified using default !")
+        logger.warning(
+            "Project parameter was not specified. Defaulting to 'default' project"
+        )
     if kind.startswith("po"):
-        print("Unsupported, use 'get runtimes' instead")
+        logger.warning("Unsupported, use 'get runtimes' instead")
         return
 
     elif kind.startswith("runtime"):

@@ -1051,6 +1051,7 @@ def _ingest_with_spark(
 
             spark = (
                 pyspark.sql.SparkSession.builder.appName(session_name)
+                .config("spark.driver.memory", "2g")
                 .config("spark.sql.session.timeZone", "UTC")
                 .getOrCreate()
             )

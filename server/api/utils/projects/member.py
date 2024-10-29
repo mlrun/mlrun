@@ -119,7 +119,7 @@ class Member(abc.ABC):
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOutput:
         pass
 
     @abc.abstractmethod

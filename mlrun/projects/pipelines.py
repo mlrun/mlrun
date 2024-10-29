@@ -1007,6 +1007,35 @@ def load_and_run_workflow(
     wait_for_completion: bool = False,
     project_context: str = None,
 ):
+    """
+    Auxiliary function that the RemoteRunner run once or run every schedule.
+    This function loads a project from a given remote source and then runs the workflow.
+    :param context:             mlrun context.
+    :param url:                 remote url that represents the project's source.
+                                See 'mlrun.load_project()' for details
+    :param project_name:        project name
+    :param init_git:            if True, will git init the context dir
+    :param subpath:             project subpath (within the archive)
+    :param clone:               if True, always clone (delete any existing content)
+    :param save:                whether to save the created project and artifact in the DB
+    :param workflow_name:       name of the workflow
+    :param workflow_path:       url to a workflow file, if not a project workflow
+    :param workflow_arguments:  kubeflow pipelines arguments (parameters)
+    :param artifact_path:       target path/url for workflow artifacts, the string
+                                '{{workflow.uid}}' will be replaced by workflow id
+    :param workflow_handler:    workflow function handler (for running workflow function directly)
+    :param namespace:           kubernetes namespace if other than default
+    :param sync:                force functions sync before run
+    :param dirty:               allow running the workflow when the git repo is dirty
+    :param engine:              workflow engine running the workflow.
+                                supported values are 'kfp' (default) or 'local'
+    :param local:               run local pipeline with local functions (set local=True in function.run())
+    :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
+    :param cleanup_ttl:         pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                                workflow and all its resources are deleted)
+    :param wait_for_completion: wait for workflow completion before returning
+    :param project_context:     project context path (used for loading the project)
+    """
     project_context = project_context or f"./{project_name}"
 
     # Load the project to fetch files which the runner needs, such as remote source files
@@ -1183,7 +1212,7 @@ def handle_workflow_completion(
         )
 
 
-def load_project_run(
+def project_loader(
     context: mlrun.execution.MLClientCtx,
     url: str = None,
     project_name: str = "",
@@ -1194,8 +1223,7 @@ def load_project_run(
     project_context: str = None,
 ):
     """
-    Auxiliary function that the RemoteRunner run once or run every schedule.
-    This function loads a project from a given remote source and then runs the workflow.
+    This function loads a project from a given remote source.
 
     :param context:             mlrun context.
     :param url:                 remote url that represents the project's source.
@@ -1205,8 +1233,6 @@ def load_project_run(
     :param subpath:             project subpath (within the archive)
     :param clone:               if True, always clone (delete any existing content)
     :param save:                whether to save the created project and artifact in the DB
-    :param workflow_name:       name of the workflow
-    :param load_only:           for just loading the project, inner use.
     :param project_context:     project context path (used for loading the project)
     """
     project = mlrun.load_project(

@@ -18,12 +18,12 @@ from pathlib import Path
 import pytest
 
 import mlrun
+import mlrun.utils
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFile,
     delete_model_monitoring_schedules_folder,
 )
 from mlrun.model_monitoring.helpers import _get_monitoring_schedules_folder_path
-import mlrun.utils
 
 
 @pytest.fixture(autouse=True)
@@ -94,7 +94,7 @@ def test_unique_last_analyzed_per_app(
     assert schedules_file.get_application_time(app2_name) is None
 
 
-def test_stored_last_analyzed_result(
+def test_stored_last_analyzed(
     schedules_file: ModelMonitoringSchedulesFile,
 ) -> None:
     application_name = "dummy-app"

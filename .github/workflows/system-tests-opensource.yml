@@ -32,6 +32,10 @@ on:
         description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
         required: false
         default: ''
+      pytest_markers:
+        description: 'Pytest markers to run'
+        required: false
+        default: 'not enterprise and smoke'
       clean_resources_in_teardown:
         description: 'Clean test resources upon test teardown'
         required: true
@@ -241,9 +245,12 @@ jobs:
     - name: Run system tests
       run: |
         source venv/bin/activate
+        MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS" \
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}" \
         MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}" \
           make test-system-open-source
+      env:
+        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers }}
 
     - name: Output some logs in case of failure
       if: ${{ failure() }}

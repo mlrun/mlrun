@@ -95,6 +95,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         # double check that the pipeline completed successfully
         mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
 
+    @pytest.mark.smoke
     def test_kfp_without_image(self):
         code_path = str(self.assets_path / "my_func.py")
         my_func = mlrun.code_to_function(

@@ -55,6 +55,8 @@ class EventFieldType:
     NAMED_PREDICTIONS = "named_predictions"
     ERROR_COUNT = "error_count"
     MODEL_ERROR = "model_error"
+    ERROR_TYPE = "error_type"
+    INFER_ERROR = "infer_error"
     ENTITIES = "entities"
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
@@ -244,6 +246,7 @@ class TDEngineSuperTables(MonitoringStrEnum):
     APP_RESULTS = "app_results"
     METRICS = "metrics"
     PREDICTIONS = "predictions"
+    ERRORS = "errors"
 
 
 @dataclass

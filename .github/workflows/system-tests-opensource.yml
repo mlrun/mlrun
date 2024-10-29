@@ -155,6 +155,7 @@ jobs:
       # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
       # by overriding the version specifier, we allow using mlrun/mlrun as well.
       # TODO: support patching jupyter as well (maybe on demand?)
+      # and use --override-mlrun-jupyter-image when patching mlrun ce
       skip_images: test,mlrun-gpu,base,jupyter
     secrets: inherit
 
@@ -239,7 +240,6 @@ jobs:
             --registry-secret-name="" \
             --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
             --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-ui-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.mlrun_docker_repo }}/mlrun-ui:${{ needs.prepare-inputs.outputs.mlrun_ui_version }}" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
             --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \

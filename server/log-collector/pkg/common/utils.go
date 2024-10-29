@@ -133,7 +133,7 @@ func WriteToFile(filePath string,
 	}
 
 	// open file
-	file, err := os.OpenFile(filePath, openFlags, 0644)
+	file, err := os.OpenFile(filePath, openFlags, 0600)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to open file - %s", filePath)
 	}
@@ -149,7 +149,7 @@ func WriteToFile(filePath string,
 
 // GetFileSize returns the size of the given file
 func GetFileSize(filePath string) (int64, error) {
-	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0600)
 	if err != nil {
 		return 0, errors.Wrapf(err, "Failed to open log file - %s", filePath)
 	}

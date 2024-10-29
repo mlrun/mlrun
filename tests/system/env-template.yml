@@ -82,3 +82,8 @@ SNOWFLAKE_WAREHOUSE:
 MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION:
 MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION:
 MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION:
+
+# Controls whether the client verifies the server's TLS certificate.
+# Set to `True` to enable TLS verification.
+# set to `False` when running in a lab environment where TLS verification may be disabled.
+MLRUN_HTTPDB__HTTP__VERIFY:

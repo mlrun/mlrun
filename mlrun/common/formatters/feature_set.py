@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,10 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-# TODO : delete this file in 1.9.0
-from mlrun.model_monitoring.applications import (  # noqa: F401
-    _HAS_EVIDENTLY,
-    SUPPORTED_EVIDENTLY_VERSION,
-    EvidentlyModelMonitoringApplicationBase,
-)
+import typing
+
+import mlrun.common.types
+
+from .base import ObjectFormat
+
+
+class FeatureSetFormat(ObjectFormat, mlrun.common.types.StrEnum):
+    minimal = "minimal"
+
+    @staticmethod
+    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+        return {
+            FeatureSetFormat.full: None,
+            FeatureSetFormat.minimal: FeatureSetFormat.filter_obj_method(
+                ["kind", "metadata", "spec", "status.state"]
+            ),
+        }[_format]

@@ -588,7 +588,11 @@ class SQLStoreBase(StoreBase):
 
         for endpoint_dict in endpoints:
             endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]
-
+            logger.debug(
+                "Deleting model endpoint resources from the SQL tables",
+                endpoint_id=endpoint_id,
+                project=self.project,
+            )
             # Delete last analyzed records
             self._delete_last_analyzed(endpoint_id=endpoint_id)
 
@@ -598,6 +602,16 @@ class SQLStoreBase(StoreBase):
 
             # Delete model endpoint record
             self.delete_model_endpoint(endpoint_id=endpoint_id)
+            logger.debug(
+                "Successfully deleted model endpoint resources",
+                endpoint_id=endpoint_id,
+                project=self.project,
+            )
+
+        logger.debug(
+            "Successfully deleted model monitoring endpoints resources from the SQL tables",
+            project=self.project,
+        )
 
     def get_model_endpoint_metrics(
         self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType

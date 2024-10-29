@@ -57,7 +57,8 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 import mlrun
 from sklearn.datasets import load_iris
 
-fn = mlrun.new_function("my_server", kind="serving")
+project = mlrun.get_or_create_project("sklearn")
+fn = project.set_function(name="my-server", kind="serving")
 
 # set the topology/router and add models
 graph = fn.set_topology("router")
@@ -193,4 +194,4 @@ set the credentials for the project:
 project.set_model_monitoring_credentials(...)
 ```
 
-See [model monitoring](../monitoring/model-monitoring.html) for the full details.
+See {ref}`model-monitoring-overview` for the full details.

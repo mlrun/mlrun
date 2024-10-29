@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from abc import ABC, abstractmethod
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.utils.helpers import is_ipython
+from mlrun.utils.helpers import is_jupyter
 
 
 class Plan(ABC):
@@ -84,7 +84,7 @@ class Plan(ABC):
             return
 
         # Call the correct display method according to the kernel:
-        if is_ipython:
+        if is_jupyter:
             self._gui_display()
         else:
             self._cli_display()

@@ -525,10 +525,6 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("external_platform_tracking")
                 or config.external_platform_tracking
             )
-            config.model_endpoint_monitoring.store_type = (
-                server_cfg.get("model_endpoint_monitoring_store_type")
-                or config.model_endpoint_monitoring.store_type
-            )
             config.model_endpoint_monitoring.endpoint_store_connection = (
                 server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
                 or config.model_endpoint_monitoring.endpoint_store_connection
@@ -1374,20 +1370,14 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-            logger.info(
-                "Using default grace period for runtime resources deletion",
-                grace_period=grace_period,
-            )
-
         params = {
             "label-selector": label_selector,
             "kind": kind,
             "object-id": object_id,
             "force": force,
-            "grace-period": grace_period,
         }
+        if grace_period is not None:
+            params["grace-period"] = grace_period
         error = "Failed deleting runtime resources"
         project_path = project if project else "*"
         response = self.api_call(
@@ -2245,6 +2235,9 @@ class HTTPRunDB(RunDBInterface):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
+        format_: Union[
+            str, mlrun.common.formatters.FeatureSetFormat
+        ] = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> list[FeatureSet]:
         """Retrieve a list of feature-sets matching the criteria provided.
 
@@ -2262,6 +2255,9 @@ class HTTPRunDB(RunDBInterface):
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
             Currently the only allowed value are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+        :param format_: Format of the results. Possible values are:
+            - ``minimal`` - Return minimal feature set objects, not including stats and preview for each feature set.
+            - ``full`` - Return full feature set objects.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
 
@@ -2274,6 +2270,7 @@ class HTTPRunDB(RunDBInterface):
             "entity": entities or [],
             "feature": features or [],
             "label": labels or [],
+            "format": format_,
         }
         if partition_by:
             params.update(
@@ -2757,7 +2754,7 @@ class HTTPRunDB(RunDBInterface):
         deletion_strategy: Union[
             str, mlrun.common.schemas.DeletionStrategy
         ] = mlrun.common.schemas.DeletionStrategy.default(),
-    ):
+    ) -> None:
         """Delete a project.
 
         :param name: Name of the project to delete.
@@ -2776,7 +2773,7 @@ class HTTPRunDB(RunDBInterface):
             "DELETE", f"projects/{name}", error_message, headers=headers, version="v2"
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
-            logger.info("Project is being deleted", project_name=name)
+            logger.info("Waiting for project to be deleted", project_name=name)
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
             background_task = self._wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name
@@ -2786,10 +2783,17 @@ class HTTPRunDB(RunDBInterface):
                 == mlrun.common.schemas.BackgroundTaskState.succeeded
             ):
                 logger.info("Project deleted", project_name=name)
-                return
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.error(
+                    "Project deletion failed",
+                    project_name=name,
+                    error=background_task.status.error,
+                )
         elif response.status_code == http.HTTPStatus.NO_CONTENT:
             logger.info("Project deleted", project_name=name)
-            return
 
     def store_project(
         self,
@@ -4193,6 +4197,9 @@ class HTTPRunDB(RunDBInterface):
         :param event_data: The data of the event.
         :param project:    The project that the event belongs to.
         """
+        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
+            logger.warning("Alerts are disabled, event will not be generated")
+
         project = project or config.default_project
         endpoint_path = f"projects/{project}/events/{name}"
         error_message = f"post event {project}/events/{name}"
@@ -4218,6 +4225,11 @@ class HTTPRunDB(RunDBInterface):
         """
         if not alert_data:
             raise mlrun.errors.MLRunInvalidArgumentError("Alert data must be provided")
+
+        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
+            logger.warning(
+                "Alerts are disabled, alert will still be stored but will not be triggered"
+            )
 
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"

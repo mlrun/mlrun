@@ -55,10 +55,6 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH /opt/conda/bin:$PATH
 
-RUN conda install -y -n base conda-libmamba-solver && \
-    conda config --set solver libmamba && \
-    conda clean -aqy
-
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5
 RUN conda install -y -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \

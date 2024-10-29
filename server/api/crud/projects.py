@@ -168,6 +168,13 @@ class Projects(
             skip_notification_secrets=True,
         )
 
+        # Same for pipelines - delete the runs so that the pipelines will stop creating pods
+        if mlrun.mlconf.kfp_url:
+            logger.debug("Removing KFP pipelines project resources", project_name=name)
+            server.api.crud.pipelines.Pipelines().delete_pipelines_runs(
+                db_session=session, project_name=name
+            )
+
         logger.debug(
             "Deleting project runtime resources",
             project_name=name,
@@ -177,12 +184,9 @@ class Projects(
             session,
             label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={name}",
             force=True,
+            # immediate deletion of resources
+            grace_period=0,
         )
-        if mlrun.mlconf.kfp_url:
-            logger.debug("Removing KFP pipelines project resources", project_name=name)
-            server.api.crud.pipelines.Pipelines().delete_pipelines_runs(
-                db_session=session, project_name=name
-            )
 
         # log collector service will delete the logs, so we don't need to do it here
         if (

@@ -62,11 +62,12 @@ def my_training_function(
     # The rest of your training code...
 ```
 
-And now you can create the MLRun function and run it locally or over the kubernetes cluster:
+And now you can create the MLRun project and function and run it locally or over the Kubernetes cluster:
 
 ```python
+project = mlrun.get_or_create_project("training")
 # Creating the training MLRun function with the code
-fn = mlrun.code_to_function("training", kind="job", handler="my_training_function")
+fn = project.set_function(name="training", kind="job", handler="my_training_function")
 
 # Creating the task to run the function with its dataset
 task = mlrun.new_task(

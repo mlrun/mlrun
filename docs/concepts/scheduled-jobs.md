@@ -16,12 +16,13 @@ def hello(context):
     print("You just ran a scheduled job!")
 ```
 
-To create the job, use the `code_to_function` syntax and specify the `kind` like below:
+To create the job, use the `set_function` syntax and specify the `kind` like below:
 
 ```python
 import mlrun
 
-job = mlrun.code_to_function(
+project = mlrun.get_or_create_project("schedule")
+job = project.set_function(
     name="my-scheduled-job",  # Name of the job (displayed in console and UI)
     filename="schedule.py",  # Python file or Jupyter notebook to run
     kind="job",  # Run as a job

@@ -12,11 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
 
-from enum import Enum
+
+class StrEnum(str, enum.Enum):
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
 
 
-class RunStatuses(str, Enum):
+class RunStatuses(StrEnum):
     """
     Class for different types of statuses a 'PipelineRun' can have using an enum type.
     Beyond enumerating all possible statuses, this class ensures comparisons are case-insensitive.

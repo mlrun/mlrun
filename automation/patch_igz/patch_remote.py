@@ -55,6 +55,7 @@ class MLRunPatcher:
         self._nodes = nodes
 
     def patch_mlrun_api(self):
+        self._docker_login_if_configured()
         vers = self._get_current_version()
 
         image_tag = self._get_image_tag(vers)
@@ -67,8 +68,6 @@ class MLRunPatcher:
                 "log-collector", image_tag, "log-collector"
             )
             built_images.append(built_log_collector_image)
-
-        self._docker_login_if_configured()
 
         built_images = self._tag_images_for_multi_node_registries(built_images)
         self._push_docker_images(built_images)
@@ -119,17 +118,23 @@ class MLRunPatcher:
     def _docker_login_if_configured(self):
         registry_username = self._config.get("REGISTRY_USERNAME")
         registry_password = self._config.get("REGISTRY_PASSWORD")
-        if registry_username is not None:
-            self._exec_local(
-                [
-                    "docker",
-                    "login",
-                    "--username",
-                    registry_username,
-                    "--password",
-                    registry_password,
-                ],
-                live=True,
+        registry_url = self._config.get("REGISTRY_URL")
+        if not registry_username:
+            return
+        command = [
+            "docker",
+            "login",
+            registry_url or "",
+            "--username",
+            registry_username,
+            "--password-stdin",
+        ]
+        completed_process = subprocess.run(
+            command, input=registry_password.encode() + b"\n", capture_output=True
+        )
+        if completed_process.returncode != 0:
+            raise RuntimeError(
+                f"Failed to login to docker registry. Error: {completed_process.stderr}"
             )
 
     def _validate_config(self):

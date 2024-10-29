@@ -140,12 +140,11 @@ def test_v3io_stream_trigger():
         name="mystream",
         extra_attributes={"yy": "123"},
         ack_window_size=10,
-        access_key="x",
     )
     trigger = function.spec.config["spec.triggers.mystream"]
     assert trigger["attributes"]["containerName"] == "projects"
     assert trigger["attributes"]["streamPath"] == "x/y"
-    assert trigger["password"] == "x"
+    assert trigger["password"] == mlrun.model.Credentials.generate_access_key
     assert trigger["attributes"]["yy"] == "123"
     assert trigger["attributes"]["ackWindowSize"] == 10
 
@@ -164,7 +163,6 @@ def test_v3io_stream_trigger_validate_consumer_group(consumer_group, expected):
             "v3io:///projects/x/y",
             name="mystream",
             group=consumer_group,
-            access_key="x",
         )
         trigger = function.spec.config["spec.triggers.mystream"]
         assert trigger["attributes"]["consumerGroup"] == consumer_group

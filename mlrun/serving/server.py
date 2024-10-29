@@ -401,6 +401,8 @@ def v2_serving_handler(context, event, get_body=False):
         "kafka-cluster",
         "v3ioStream",
         "v3io-stream",
+        "rabbit-mq",
+        "rabbitMq",
     ):
         event.path = "/"
 

@@ -33,7 +33,8 @@ def db_session() -> DBSession:
 def model_endpoint() -> mlrun.common.schemas.ModelEndpoint:
     return mlrun.common.schemas.ModelEndpoint(
         metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
-            uid=123123,
+            project="my-proj",
+            uid="123123",
         ),
         spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
             model_uri="some_fake_uri"

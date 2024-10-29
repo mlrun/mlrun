@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import datetime
 from typing import Union
 
@@ -75,7 +74,7 @@ class TestTDEngineSchema:
         remove_tag: bool,
     ):
         assert (
-            super_table._create_subtable_query(subtable=subtable, values=values)
+            super_table._create_subtable_sql(subtable=subtable, values=values)
             == f"CREATE TABLE if NOT EXISTS {_MODEL_MONITORING_DATABASE}.{subtable} "
             f"USING {super_table.super_table} TAGS ('{values['tag1']}', '{values['tag2']}');"
         )
@@ -83,7 +82,7 @@ class TestTDEngineSchema:
             # test with missing tag
             values.pop("tag1")
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                super_table._create_subtable_query(subtable=subtable, values=values)
+                super_table._create_subtable_sql(subtable=subtable, values=values)
 
     @pytest.mark.parametrize(
         ("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)]

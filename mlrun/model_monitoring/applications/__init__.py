@@ -13,12 +13,11 @@
 # limitations under the License.
 #
 
-from .base import ModelMonitoringApplicationBase, ModelMonitoringApplicationBaseV2
+from .base import ModelMonitoringApplicationBase
 from .context import MonitoringApplicationContext
 from .evidently_base import (
     _HAS_EVIDENTLY,
     SUPPORTED_EVIDENTLY_VERSION,
     EvidentlyModelMonitoringApplicationBase,
-    EvidentlyModelMonitoringApplicationBaseV2,
 )
 from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult

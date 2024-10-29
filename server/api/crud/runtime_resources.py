@@ -114,7 +114,7 @@ class RuntimeResources(
         object_id: typing.Optional[str] = None,
         label_selector: typing.Optional[str] = None,
         force: bool = False,
-        grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
+        grace_period: typing.Optional[int] = None,
     ):
         kinds = mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
         if kind is not None:

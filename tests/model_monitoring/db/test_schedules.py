@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ from mlrun.model_monitoring.db._schedules import (
     delete_model_monitoring_schedules_folder,
 )
 from mlrun.model_monitoring.helpers import _get_monitoring_schedules_folder_path
+import mlrun.utils
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +33,14 @@ def _patch_store_prefixes(tmpdir: Path, monkeypatch: pytest.MonkeyPatch) -> None
         f"file://{tmpdir}/users/pipelines/{{project}}/model-endpoints/{{kind}}",
     )
     mlrun.mlconf.reload()
+
+
+@pytest.fixture
+def schedules_file() -> Iterator[ModelMonitoringSchedulesFile]:
+    f = ModelMonitoringSchedulesFile(project="project-0", endpoint_id="endpoint-0")
+    f.create()
+    yield f
+    f.delete()
 
 
 def test_create_file() -> None:
@@ -67,3 +77,40 @@ def test_delete_folder() -> None:
     assert not filesystem.exists(
         _get_monitoring_schedules_folder_path(project)
     ), "Schedules folder should have been removed"
+
+
+def test_unique_last_analyzed_per_app(
+    schedules_file: ModelMonitoringSchedulesFile,
+) -> None:
+    app1_name = "app-A"
+    app1_last_analyzed = 1716720842
+    app2_name = "app-B"
+
+    schedules_file.update_application_time(
+        application=app1_name, timestamp=app1_last_analyzed
+    )
+
+    assert schedules_file.get_application_time(app1_name) == app1_last_analyzed
+    assert schedules_file.get_application_time(app2_name) is None
+
+
+def test_stored_last_analyzed_result(
+    schedules_file: ModelMonitoringSchedulesFile,
+) -> None:
+    application_name = "dummy-app"
+    # Try to get last analyzed value, we expect it to be empty
+    with schedules_file as f:
+        assert f.get_application_time(application=application_name) is None
+
+    # Update the application timestamp record and validate it is stored as expected
+    current_time = int(mlrun.utils.datetime_now().timestamp())
+    with schedules_file as f:
+        f.update_application_time(
+            application=application_name,
+            timestamp=current_time,
+        )
+
+    with schedules_file as f:
+        last_analyzed = f.get_application_time(application=application_name)
+
+    assert last_analyzed == current_time

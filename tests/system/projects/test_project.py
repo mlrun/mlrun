@@ -720,7 +720,10 @@ class TestProject(TestMLRunSystem):
         project_from_db = mlrun.get_or_create_project(project_name, context)
 
         # Assert that the project's fields remains unchanged
-        assert project_from_db.default_function_node_selector == project_default_function_node_selector
+        assert (
+            project_from_db.default_function_node_selector
+            == project_default_function_node_selector
+        )
 
     def test_remote_from_archive(self):
         name = "pipe6"

@@ -108,8 +108,11 @@ class CustomFormatter(HumanReadableFormatter):
     # This attribute is used to solve an issue
     # that causes the warning to be written numerous times(for any log generation).
     # We want to print the errors just once, not for each logger generation.
-    fail_on_format_configuration = False # for issues that relates to unrecognized keys
-    fail_on_missing_default_keys_key = False # for issues that relates to missing default keys
+    fail_on_format_configuration = False  # for issues that relates to unrecognized keys
+    fail_on_missing_default_keys_key = (
+        False  # for issues that relates to missing default keys
+    )
+
     def format(self, record) -> str:
         more = self._resolve_more(record)
         custom_format = config.log_format_override
@@ -141,7 +144,11 @@ class CustomFormatter(HumanReadableFormatter):
                     )
                     CustomFormatter.fail_on_missing_default_keys_key = True
                 record_dict = record.__dict__
-                missing_format_configuraiton_keys = list(set(custom_format_keys)- set(default_keys) -set(record_dict.keys()))
+                missing_format_configuraiton_keys = list(
+                    set(custom_format_keys)
+                    - set(default_keys)
+                    - set(record_dict.keys())
+                )
                 if missing_format_configuraiton_keys:
                     if not CustomFormatter.fail_on_format_configuration:
                         print(

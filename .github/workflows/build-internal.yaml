@@ -145,6 +145,7 @@ jobs:
 
     - name: Docker login (quay.io)
       continue-on-error: true
+      if: github.event.inputs.pr_number == ''
       uses: docker/login-action@v3
       with:
         registry: quay.io
@@ -152,6 +153,7 @@ jobs:
         password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
 
     - name: Docker login (docker.com)
+      if: github.event.inputs.pr_number == ''
       continue-on-error: true
       uses: docker/login-action@v3
       with:

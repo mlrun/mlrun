@@ -29,11 +29,11 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to run the system tests against'
+        description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
         required: false
         default: ''
       clean_resources_in_teardown:
-        description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
+        description: 'Clean test resources upon test teardown'
         required: true
         default: 'true'
         type: choice

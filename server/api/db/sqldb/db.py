@@ -2149,6 +2149,14 @@ class SQLDB(DBInterface):
             project=project,
         )
 
+    def _list_project_function_names(self, session: Session, project: str) -> list[str]:
+        return [
+            name
+            for (name,) in self._query(
+                session, distinct(Function.name), project=project
+            ).all()
+        ]
+
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
             self._delete(session, tagged_class, project=project)

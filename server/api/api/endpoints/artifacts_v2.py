@@ -155,9 +155,7 @@ async def list_artifacts(
     tree: str = None,
     producer_uri: str = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
-    format_: str = Query(
-        mlrun.common.formatters.ArtifactFormat.full, alias="format"
-    ),
+    format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     limit: int = Query(None),
     since: str = None,
     until: str = None,

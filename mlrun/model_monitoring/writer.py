@@ -282,17 +282,31 @@ class ModelMonitoringWriter(StepToDict):
             == HistogramDataDriftApplicationConstants.NAME
         ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
+            logger.debug(
+                "Updating the model endpoint with stats",
+                endpoint_id=endpoint_id,
+            )
             stat_kind = event.get(StatsData.STATS_NAME)
             data = event.get(StatsData.STATS)
-            if stat_kind == StatsKind.CURRENT_STATS:
+            if stat_kind == StatsKind.CURRENT_STATS.value:
                 with ModelMonitoringCurrentStatsFile(
                     self.project, endpoint_id
                 ) as file_object:
+                    logger.info(
+                        "Updating the model endpoint with metadata specific to the histogram "
+                        "data drift app Current stats",
+                        endpoint_id=endpoint_id,
+                    )
                     file_object.create(data)
-            elif stat_kind == StatsKind.DRIFT_MEASURES:
+            elif stat_kind == StatsKind.DRIFT_MEASURES.value:
                 with ModelMonitoringDriftMeasureFile(
                     self.project, endpoint_id
                 ) as file_object:
+                    logger.info(
+                        "Updating the model endpoint with metadata specific to the histogram "
+                        "data drift app Drift measures",
+                        endpoint_id=endpoint_id,
+                    )
                     file_object.create(data)
 
         logger.info("Model monitoring writer finished handling event")

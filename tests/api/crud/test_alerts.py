@@ -27,9 +27,10 @@ import tests.api.conftest
 
 
 @pytest.fixture
-def reset_alert(db, project="project-name", alert_name="failed-alert"):
+def reset_alert_caches():
     yield
-    server.api.crud.Alerts().reset_alert(session=db, project=project, name=alert_name)
+    server.api.crud.Alerts()._alert_cache.cache_clear()
+    server.api.crud.Alerts()._alert_state_cache.cache_clear()
 
 
 @pytest.mark.asyncio
@@ -237,7 +238,7 @@ async def test_alert_reset_with_fields_updates(
     should_reset,
     force_reset,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
-    reset_alert,
+    reset_alert_caches,
 ):
     project = "project-name"
     alert_name = "failed-alert"

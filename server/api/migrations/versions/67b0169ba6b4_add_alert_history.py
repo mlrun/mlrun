@@ -83,8 +83,6 @@ def upgrade():
     )
     # ### end Alembic commands ###
 
-    # ### end Alembic commands ###
-
     # Add initial partitioning
     partition_interval = os.getenv("PARTITION_INTERVAL", "YEARWEEK")
     default_partition_value = os.getenv("DEFAULT_PARTITION_VALUE", "2023-01-01")

@@ -5,6 +5,7 @@ Revises: fcf2ea01f99a
 Create Date: 2024-10-29 18:10:32.458406
 
 """
+import os
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
@@ -34,13 +35,15 @@ def upgrade():
     # ### end Alembic commands ###
 
     # Add initial partitioning
-    op.execute("""
+    partition_interval = os.getenv('PARTITION_INTERVAL', 'YEARWEEK')
+    default_partition_value = os.getenv('DEFAULT_PARTITION_VALUE', '2023-01-01')
+    partition_sql = f"""
         ALTER TABLE alert_history
-        PARTITION BY RANGE (YEARWEEK(activation_time)) (
-            PARTITION p0 VALUES LESS THAN (YEARWEEK('2023-01-01'))
-            -- Add more partitions as needed
+        PARTITION BY RANGE ({partition_interval}(activation_time)) (
+            PARTITION p0 VALUES LESS THAN ({partition_interval}('{default_partition_value}'))
         );
-        """)
+    """
+    op.execute(partition_sql)
 
 
 def downgrade():

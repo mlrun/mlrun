@@ -2473,15 +2473,17 @@ class SQLDB(DBInterface):
         project: str,
         related_tables: typing.Optional[list[mlrun.utils.db.BaseModel]] = None,
         main_table_identifier: typing.Optional[Column] = None,
-        main_table_identifier_values: typing.Union[str, list[str]] = None,
+        main_table_identifier_values: typing.Optional[
+            typing.Union[str, list[str]]
+        ] = None,
     ) -> int:
         """
         Delete multiple objects from the DB, including related tables.
         :param session: SQLAlchemy session.
         :param main_table: The main table to delete from.
+        :param project: The project to delete from.
         :param related_tables: Related tables to delete from, will be joined with the main table by the identifiers
             since in SQLite the deletion is not always cascading.
-        :param project: The project to delete from.
         :param main_table_identifier: The main table attribute to filter by.
         :param main_table_identifier_values: The values corresponding to main_table_identifier to filter by.
 
@@ -2981,7 +2983,7 @@ class SQLDB(DBInterface):
                     ),
                 ).label("preferred_label_value"),
             )
-            .join(Schedule.Label, Schedule.Label.parent_id == Schedule.id)
+            .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
             .filter(
@@ -4830,8 +4832,8 @@ class SQLDB(DBInterface):
             subq = (
                 session.query(cls.Label)
                 .filter(or_(*preds))
-                .group_by(cls.Label.parent_id)
-                .having(func.count(cls.Label.parent_id) == len(preds))
+                .group_by(cls.Label.parent)
+                .having(func.count(cls.Label.parent) == len(preds))
                 .subquery("labels")
             )
 

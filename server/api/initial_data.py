@@ -693,7 +693,7 @@ def _migrate_artifact_labels(
             new_label = artifact.Label(
                 name=name,
                 value=value,
-                parent_id=artifact.id,
+                parent=artifact.id,
             )
             labels.append(new_label)
     if labels:

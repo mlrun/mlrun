@@ -57,27 +57,31 @@ def post_table_definitions(base_cls):
         cls for cls in base_cls.__subclasses__() if hasattr(cls, "Notification")
     ]
     _classes = [cls for cls in base_cls.__subclasses__()]
+    # Add a relationship from labels/tags to parents to enable the foreign key cascade delete on the ORM level
     for _labeled_cls in _labeled:
-        _labeled_cls.Label.parent = relationship(_labeled_cls, back_populates="labels")
+        # Unfortunately parent is already taken and changing to parent_id requires data migration
+        _labeled_cls.Label.parent_rel = relationship(
+            _labeled_cls, back_populates="labels"
+        )
     for _tagged_cls in _tagged:
-        _tagged_cls.Tag.parent = relationship(_tagged_cls, back_populates="tags")
+        _tagged_cls.Tag.parent_rel = relationship(_tagged_cls, back_populates="tags")
 
 
 def make_label(table):
     class Label(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_labels"
         __table_args__ = (
-            UniqueConstraint("name", "parent_id", name=f"_{table}_labels_uc"),
+            UniqueConstraint("name", "parent", name=f"_{table}_labels_uc"),
             Index(f"idx_{table}_labels_name_value", "name", "value"),
         )
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLTypesUtil.collation()))
         value = Column(String(255, collation=SQLTypesUtil.collation()))
-        parent_id = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
+        parent = Column(Integer, ForeignKey(f"{table}.id", ondelete="CASCADE"))
 
         def get_identifier_string(self) -> str:
-            return f"{self.parent_id}/{self.name}/{self.value}"
+            return f"{self.parent}/{self.name}/{self.value}"
 
     return Label
 
@@ -260,13 +264,13 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
         tags = relationship(
             Tag,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
 
@@ -302,13 +306,13 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
         tags = relationship(
             Tag,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
 
@@ -359,13 +363,13 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
         tags = relationship(
             Tag,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
         notifications = relationship(Notification, cascade="all, delete-orphan")
@@ -421,7 +425,7 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
         concurrency_limit = Column(Integer, nullable=False)
@@ -488,7 +492,7 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
 
@@ -516,7 +520,7 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
 
@@ -535,7 +539,7 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
 
@@ -570,13 +574,13 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
         tags = relationship(
             Tag,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
 
@@ -624,13 +628,13 @@ with warnings.catch_warnings():
         labels = relationship(
             Label,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
         tags = relationship(
             Tag,
             cascade="all, delete-orphan",
-            back_populates="parent",
+            back_populates="parent_rel",
             passive_deletes=True,
         )
 

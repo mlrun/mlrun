@@ -57,7 +57,7 @@ def update_labels(obj, labels: dict):
             old[name].value = value
             obj.labels.append(old[name])
         else:
-            obj.labels.append(obj.Label(name=name, value=value, parent_id=obj.id))
+            obj.labels.append(obj.Label(name=name, value=value, parent=obj.id))
 
 
 def to_dict(obj):

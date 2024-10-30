@@ -1864,7 +1864,7 @@ class SQLDB(DBInterface):
         tag: typing.Optional[str] = None,
         labels: list[str] = None,
         hash_key: typing.Optional[str] = None,
-        format_: str = mlrun.common.formatters.FunctionFormat.full,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
         since: datetime = None,

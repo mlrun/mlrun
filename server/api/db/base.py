@@ -356,7 +356,7 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
-        format_: str = None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         page: int = None,
         page_size: int = None,
         since: datetime.datetime = None,

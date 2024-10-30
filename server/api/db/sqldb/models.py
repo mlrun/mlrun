@@ -773,12 +773,8 @@ with warnings.catch_warnings():
         __tablename__ = "alert_history"
         __table_args__ = (
             PrimaryKeyConstraint("activation_time", "id", name="_alert_history_uc"),
-            Index("ix_alert_history_project", "project"),
-            Index("ix_alert_history_entity_kind", "entity_kind"),
-            Index("ix_alert_history_event_kind", "event_kind"),
-            Index("ix_alert_history_severity", "severity"),
-            Index("ix_alert_history_entity_id", "entity_id"),
-            Index("ix_alert_history_name", "name"),
+            Index("ix_alert_history_project_name", "project", "name"),
+            Index("ix_alert_history_activation_time", "activation_time"),
         )
 
         id = Column(Integer)

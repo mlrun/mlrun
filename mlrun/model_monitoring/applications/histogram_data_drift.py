@@ -30,6 +30,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
     StatsData,
+    StatsKind,
 )
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
@@ -121,7 +122,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}
-    _STATS_TYPES: tuple[StatsData] = (StatsData.CURRENT_STATS, StatsData.DRIFT_MEASURES)
+    _STATS_TYPES: tuple[StatsData] = (StatsKind.CURRENT_STATS, StatsKind.DRIFT_MEASURES)
 
     metrics: list[type[HistogramDistanceMetric]] = [
         HellingerDistance,
@@ -239,9 +240,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         for stats_type in HistogramDataDriftApplication._STATS_TYPES:
             stats.append(
                 mm_results.ModelMonitoringApplicationStats(
-                    current_stats={},
-                    drift_measures={},  # TODO: Roy do we want to add the measures or stats here?
-                    stat_kind=stats_type,
+                    name=stats_type.value,
+                    stats={},
                 )
             )
         return stats
@@ -368,7 +368,11 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             monitoring_context=monitoring_context,
             metrics_per_feature=metrics_per_feature,
         )
-        stats = self._get_stats(metrics_per_feature)
+        stats = self._get_stats(
+            metrics=metrics,
+            monitoring_context=monitoring_context,
+            metrics_per_feature=metrics_per_feature,
+        )
         metrics_result_and_stats = metrics + [result] + stats
         monitoring_context.logger.debug(
             "Finished running the application", results=metrics_result_and_stats

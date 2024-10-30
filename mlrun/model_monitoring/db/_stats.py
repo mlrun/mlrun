@@ -69,7 +69,12 @@ class ModelMonitoringJsonFile(AbstractContextManager):
             )
 
     def _open(self) -> None:
-        self._data = json.loads(self._item.get().decode(encoding=self.ENCODING))
+        try:
+            self._data = json.loads(self._item.get().decode(encoding=self.ENCODING))
+        except Exception as exc:
+            logger.debug(
+                f"Error while trying to read data for json file {self._file_type}", exc
+            )
 
     def _close(self) -> None:
         self._item.put(json.dumps(self._data))

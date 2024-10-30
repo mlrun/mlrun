@@ -27,6 +27,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
     StatsData,
+    StatsKind,
     WriterEvent,
     WriterEventKind,
 )
@@ -175,7 +176,6 @@ class ModelMonitoringWriter(StepToDict):
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
-        # TODO: Roy extend here the event for stats
         if not isinstance(event, dict):
             raise _WriterEventTypeError(
                 f"The event is of type: {type(event)}, expected a dictionary"
@@ -282,18 +282,17 @@ class ModelMonitoringWriter(StepToDict):
             == HistogramDataDriftApplicationConstants.NAME
         ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
-            stat_kind = event.get(StatsData.STAT_KIND)
-            if stat_kind == StatsData.CURRENT_STATS:
+            stat_kind = event.get(StatsData.STATS_NAME)
+            data = event.get(StatsData.STATS)
+            if stat_kind == StatsKind.CURRENT_STATS:
                 with ModelMonitoringCurrentStatsFile(
                     self.project, endpoint_id
                 ) as file_object:
-                    data = event.get(StatsData.CURRENT_STATS)
                     file_object.create(data)
-            elif stat_kind == StatsData.DRIFT_MEASURES:
+            elif stat_kind == StatsKind.DRIFT_MEASURES:
                 with ModelMonitoringDriftMeasureFile(
                     self.project, endpoint_id
                 ) as file_object:
-                    data = event.get(StatsData.DRIFT_MEASURES)
                     file_object.create(data)
 
         logger.info("Model monitoring writer finished handling event")

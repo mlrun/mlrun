@@ -106,14 +106,14 @@ class _PushToMonitoringWriter(StepToDict):
                     mm_constant.WriterEventKind.STATS
                 )
                 kind = data.get(
-                    mm_constant.StatsData.STAT_KIND, mm_constant.StatsData.CURRENT_STATS
+                    mm_constant.StatsData.STATS_NAME, mm_constant.StatsKind.CURRENT_STATS
                 )
-                if kind == mm_constant.StatsData.CURRENT_STATS:
-                    data[mm_constant.StatsData.CURRENT_STATS] = json.dumps(
+                if kind == mm_constant.StatsKind.CURRENT_STATS:
+                    data[mm_constant.StatsData.STATS] = json.dumps(
                         application_context.sample_df_stats
                     )
-                elif kind == mm_constant.StatsData.DRIFT_MEASURES:
-                    data[mm_constant.StatsData.DRIFT_MEASURES] = json.dumps(
+                elif kind == mm_constant.StatsKind.DRIFT_MEASURES:
+                    data[mm_constant.StatsData.STATS] = json.dumps(
                         application_context._df_drift_measures
                     )
             else:

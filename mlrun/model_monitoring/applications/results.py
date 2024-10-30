@@ -17,6 +17,8 @@ import json
 import re
 from abc import ABC, abstractmethod
 
+import typing
+
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
@@ -104,15 +106,12 @@ class ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
     """
     Class representing the stats of a custom model monitoring application.
 
-    :param current_stats        (dict) Dictionary representation of the current stats calculated in context
-    :param drift_measures           (dict) Dictionary representation of the data drift calculated in model monitoring
-                                application
-    :param stat_kind            (StatsData) Enum representation of the stats data kind of the event
-    """
+    :param name             (str) Enum mm_constant.StatsData str representation of the stats data kind of the event
+    :param stats            (dict) Dictionary representation of the stats calculated for the event
 
-    current_stats: dict = dataclasses.field(default_factory=dict)
-    drift_measures: dict = dataclasses.field(default_factory=dict)
-    stat_kind: mm_constant.StatsData = None
+    """
+    name: typing.Union[mm_constant.StatsData,str]
+    stats: dict = dataclasses.field(default_factory=dict)
 
     def to_dict(self):
         """
@@ -121,6 +120,6 @@ class ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
         :returns:    (dict) Dictionary representation of the result.
         """
         return {
-            mm_constant.StatsData.CURRENT_STATS: self.current_stats,
-            mm_constant.StatsData.DRIFT_MEASURES: self.drift_measures,
+            mm_constant.StatsData.STATS_NAME: self.name,
+            mm_constant.StatsData.STATS: self.stats,
         }

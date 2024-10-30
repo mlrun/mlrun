@@ -80,7 +80,7 @@ def upgrade():
     )
     # ### end Alembic commands ###
 
-    partition_interval = os.getenv("PARTITION_INTERVAL", "DAY").upper()
+    partition_interval = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
     valid_partition_intervals = ["DAY", "YEARWEEK", "MONTH"]
 
     # Validate the partition interval

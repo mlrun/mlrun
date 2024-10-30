@@ -729,7 +729,7 @@ class PackagersManager:
         :param artifact_uris:   Artifacts URIs to look in.
         :param results:         Results to look in.
 
-        :return: The artifact or artifact uri or result with the same key or None if not found.
+        :return: The artifact or result with the same key or None if not found.
         """
         artifact_uris = artifact_uris or {}
         for _key, uri in artifact_uris.items():

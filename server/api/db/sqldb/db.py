@@ -742,7 +742,9 @@ class SQLDB(DBInterface):
         most_recent: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: int = None,
-    ):
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> typing.Union[list, ArtifactList]:
         project = project or config.default_project
 
         if best_iteration and iter is not None:
@@ -767,6 +769,8 @@ class SQLDB(DBInterface):
             most_recent=most_recent,
             attach_tags=not as_records,
             limit=limit,
+            page=page,
+            page_size=page_size,
         )
         if as_records:
             return artifact_records
@@ -1398,6 +1402,8 @@ class SQLDB(DBInterface):
         attach_tags: bool = False,
         limit: int = None,
         with_entities: list[Any] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> typing.Union[list[Any],]:
         """
         Find artifacts by the given filters.
@@ -1420,6 +1426,8 @@ class SQLDB(DBInterface):
         :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
         :param limit: Maximum number of artifacts to return
         :param with_entities: List of columns to return
+        :param page: The page number to query.
+        :param page_size: The page size to query.
 
         :return: May return:
             1. a list of tuples of (ArtifactV2, tag_name)
@@ -1491,6 +1499,8 @@ class SQLDB(DBInterface):
             outer_query = outer_query.with_entities(*with_entities, subquery.c.name)
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
+
+        outer_query = self._paginate_query(outer_query, page, page_size)
 
         results = outer_query.all()
         if not attach_tags:

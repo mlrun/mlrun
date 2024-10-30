@@ -236,7 +236,9 @@ class DBInterface(ABC):
         producer_uri: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: int = None,
-    ):
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+    ) -> typing.Union[list, mlrun.lists.ArtifactList]:
         pass
 
     @abstractmethod

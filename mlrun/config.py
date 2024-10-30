@@ -101,6 +101,9 @@ default_config = {
     "log_level": "INFO",
     # log formatter (options: human | human_extended | json)
     "log_formatter": "human",
+    # custom logger format, workes only with log_formatter: custom
+    # Note that your custom format must include those 4 fields - timestamp, level, message and more
+    "log_format_override": None,
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",

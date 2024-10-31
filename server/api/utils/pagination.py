@@ -13,9 +13,9 @@
 # limitations under the License.
 #
 import inspect
-import json
 import typing
 
+import orjson
 import pydantic
 import sqlalchemy.orm
 
@@ -227,7 +227,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                     f"Token {token} not found in pagination cache"
                 )
             method = PaginatedMethods.get_method(pagination_cache_record.function)
-            method_kwargs = json.loads(pagination_cache_record.kwargs)
+            method_kwargs = orjson.loads(pagination_cache_record.kwargs)
             page = page or pagination_cache_record.current_page + 1
             page_size = pagination_cache_record.page_size
             user = pagination_cache_record.user

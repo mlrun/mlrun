@@ -307,6 +307,7 @@ jobs:
         - datastore
         - logs
         - feature_store
+        - alerts
     steps:
     - name: Install Dependencies
       run: |

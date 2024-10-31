@@ -91,13 +91,22 @@ def upgrade():
             f"Partition interval can only be one of the following: {valid_partition_intervals}"
         )
 
-    # Current UTC date
+    # Calculate the date of next partitioning interval
     now_utc = datetime.utcnow()
+    if partition_interval == "DAY":
+        next_partition_date = now_utc + timedelta(days=1)
+    elif partition_interval == "MONTH":
+        # Set to the first day of the next month
+        next_partition_date = (now_utc.replace(day=1) + timedelta(days=32)).replace(
+            day=1
+        )
+    else:
+        next_partition_date = now_utc + timedelta(weeks=1)
 
     partition_name, partition_value, partition_expression = (
         server.api.crud.alert_activation.AlertActivation.get_partition_info_for_datetime(
             partition_interval=partition_interval,
-            partition_datetime=now_utc,
+            partition_datetime=next_partition_date,
         )
     )
 

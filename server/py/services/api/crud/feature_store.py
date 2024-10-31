@@ -58,7 +58,9 @@ class FeatureStore(
             feature_set.spec.engine = "storey"
 
         if not feature_set.status.state:
-            feature_set.status.state = mlrun.common.schemas.object.ObjectStatusState.CREATED
+            feature_set.status.state = (
+                mlrun.common.schemas.object.ObjectStatusState.CREATED
+            )
 
         return self._store_object(
             db_session,
@@ -99,7 +101,9 @@ class FeatureStore(
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.FeatureSet:
-        return self._get_object(db_session, mlrun.common.schemas.FeatureSet, project, name, tag, uid)
+        return self._get_object(
+            db_session, mlrun.common.schemas.FeatureSet, project, name, tag, uid
+        )
 
     def list_feature_sets_tags(
         self,
@@ -109,7 +113,9 @@ class FeatureStore(
         """
         :return: a list of Tuple of (project, feature_set.name, tag)
         """
-        return self._list_object_type_tags(db_session, mlrun.common.schemas.FeatureSet, project)
+        return self._list_object_type_tags(
+            db_session, mlrun.common.schemas.FeatureSet, project
+        )
 
     def list_feature_sets(
         self,
@@ -310,7 +316,9 @@ class FeatureStore(
         """
         :return: a list of Tuple of (project, feature_vector.name, tag)
         """
-        return self._list_object_type_tags(db_session, mlrun.common.schemas.FeatureVector, project)
+        return self._list_object_type_tags(
+            db_session, mlrun.common.schemas.FeatureVector, project
+        )
 
     def list_feature_vectors(
         self,
@@ -360,32 +368,42 @@ class FeatureStore(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str,
-        object_: typing.Union[mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector],
+        object_: typing.Union[
+            mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector
+        ],
         versioned: bool = True,
     ) -> str:
         project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_creation(project, object_)
         if isinstance(object_, mlrun.common.schemas.FeatureSet):
-            return services.api.utils.singletons.db.get_db().create_feature_set(db_session, project, object_, versioned)
+            return services.api.utils.singletons.db.get_db().create_feature_set(
+                db_session, project, object_, versioned
+            )
         elif isinstance(object_, mlrun.common.schemas.FeatureVector):
             return services.api.utils.singletons.db.get_db().create_feature_vector(
                 db_session, project, object_, versioned
             )
         else:
-            raise NotImplementedError(f"Provided object type is not supported. object_type={type(object_)}")
+            raise NotImplementedError(
+                f"Provided object type is not supported. object_type={type(object_)}"
+            )
 
     def _store_object(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str,
         name: str,
-        object_: typing.Union[mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector],
+        object_: typing.Union[
+            mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector
+        ],
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         versioned: bool = True,
     ) -> str:
         project = project or mlrun.mlconf.default_project
-        self._validate_and_enrich_identity_for_object_store(object_, project, name, tag, uid)
+        self._validate_and_enrich_identity_for_object_store(
+            object_, project, name, tag, uid
+        )
         if isinstance(object_, mlrun.common.schemas.FeatureSet):
             return services.api.utils.singletons.db.get_db().store_feature_set(
                 db_session,
@@ -407,7 +425,9 @@ class FeatureStore(
                 versioned,
             )
         else:
-            raise NotImplementedError(f"Provided object type is not supported. object_type={type(object_)}")
+            raise NotImplementedError(
+                f"Provided object type is not supported. object_type={type(object_)}"
+            )
 
     def _patch_object(
         self,
@@ -462,12 +482,18 @@ class FeatureStore(
         name: str,
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-    ) -> typing.Union[mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector]:
+    ) -> typing.Union[
+        mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector
+    ]:
         project = project or mlrun.mlconf.default_project
         if object_schema.__name__ == mlrun.common.schemas.FeatureSet.__name__:
-            return services.api.utils.singletons.db.get_db().get_feature_set(db_session, project, name, tag, uid)
+            return services.api.utils.singletons.db.get_db().get_feature_set(
+                db_session, project, name, tag, uid
+            )
         elif object_schema.__name__ == mlrun.common.schemas.FeatureVector.__name__:
-            return services.api.utils.singletons.db.get_db().get_feature_vector(db_session, project, name, tag, uid)
+            return services.api.utils.singletons.db.get_db().get_feature_vector(
+                db_session, project, name, tag, uid
+            )
         else:
             raise NotImplementedError(
                 f"Provided object type is not supported. object_type={object_schema.__class__.__name__}"
@@ -481,9 +507,13 @@ class FeatureStore(
     ) -> list[tuple[str, str, str]]:
         project = project or mlrun.mlconf.default_project
         if object_schema.__name__ == mlrun.common.schemas.FeatureSet.__name__:
-            return services.api.utils.singletons.db.get_db().list_feature_sets_tags(db_session, project)
+            return services.api.utils.singletons.db.get_db().list_feature_sets_tags(
+                db_session, project
+            )
         elif object_schema.__name__ == mlrun.common.schemas.FeatureVector.__name__:
-            return services.api.utils.singletons.db.get_db().list_feature_vectors_tags(db_session, project)
+            return services.api.utils.singletons.db.get_db().list_feature_vectors_tags(
+                db_session, project
+            )
         else:
             raise NotImplementedError(
                 f"Provided object type is not supported. object_type={object_schema.__class__.__name__}"
@@ -500,9 +530,13 @@ class FeatureStore(
     ):
         project = project or mlrun.mlconf.default_project
         if object_schema.__name__ == mlrun.common.schemas.FeatureSet.__name__:
-            services.api.utils.singletons.db.get_db().delete_feature_set(db_session, project, name, tag, uid)
+            services.api.utils.singletons.db.get_db().delete_feature_set(
+                db_session, project, name, tag, uid
+            )
         elif object_schema.__name__ == mlrun.common.schemas.FeatureVector.__name__:
-            services.api.utils.singletons.db.get_db().delete_feature_vector(db_session, project, name, tag, uid)
+            services.api.utils.singletons.db.get_db().delete_feature_vector(
+                db_session, project, name, tag, uid
+            )
         else:
             raise NotImplementedError(
                 f"Provided object type is not supported. object_type={object_schema.__class__.__name__}"
@@ -518,7 +552,9 @@ class FeatureStore(
         uid: str,
     ):
         if not tag and not uid:
-            raise ValueError(f"cannot store {object_type} without reference (tag or uid)")
+            raise ValueError(
+                f"cannot store {object_type} without reference (tag or uid)"
+            )
 
         object_project = object_patch.get("metadata", {}).get("project")
         if object_project and object_project != project:
@@ -528,11 +564,15 @@ class FeatureStore(
 
         object_name = object_patch.get("metadata", {}).get("name")
         if object_name and object_name != name:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Changing name for an existing {object_type}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Changing name for an existing {object_type}"
+            )
 
     @staticmethod
     def _validate_and_enrich_identity_for_object_store(
-        object_: typing.Union[mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector],
+        object_: typing.Union[
+            mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector
+        ],
         project: str,
         name: str,
         tag: str,
@@ -541,7 +581,9 @@ class FeatureStore(
         object_type = object_.__class__.__name__
 
         if not tag and not uid:
-            raise ValueError(f"cannot store {object_type} without reference (tag or uid)")
+            raise ValueError(
+                f"cannot store {object_type} without reference (tag or uid)"
+            )
 
         object_project = object_.metadata.project
         if object_project and object_project != project:
@@ -552,16 +594,22 @@ class FeatureStore(
         object_.metadata.project = project
 
         if object_.metadata.name != name:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Changing name for an existing {object_type}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Changing name for an existing {object_type}"
+            )
 
     @staticmethod
     def _validate_and_enrich_identity_for_object_creation(
         project: str,
-        object_: typing.Union[mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector],
+        object_: typing.Union[
+            mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector
+        ],
     ):
         object_type = object_.__class__.__name__
         if not object_.metadata.name or not project:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"{object_type} missing name or project")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{object_type} missing name or project"
+            )
 
         object_project = object_.metadata.project
         if object_project and object_project != project:

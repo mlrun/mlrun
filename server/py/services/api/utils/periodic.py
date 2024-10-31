@@ -24,7 +24,9 @@ from mlrun.utils import logger
 tasks: dict = {}
 
 
-async def _periodic_function_wrapper(interval: typing.Union[int, float], function, *args, **kwargs):
+async def _periodic_function_wrapper(
+    interval: typing.Union[int, float], function, *args, **kwargs
+):
     while True:
         try:
             if asyncio.iscoroutinefunction(function):
@@ -58,7 +60,9 @@ def run_function_periodically(
             raise mlrun.errors.MLRunInvalidArgumentError(message)
         cancel_periodic_function(name)
     loop = asyncio.get_running_loop()
-    task = loop.create_task(_periodic_function_wrapper(interval, function, *args, **kwargs))
+    task = loop.create_task(
+        _periodic_function_wrapper(interval, function, *args, **kwargs)
+    )
     tasks[name] = task
 
 

@@ -295,7 +295,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["artifacts.id"], name="_artifacts_labels_paren_fk"),
+        sa.ForeignKeyConstraint(
+            ["parent"], ["artifacts.id"], name="_artifacts_labels_paren_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_artifacts_labels_pk"),
         sa.UniqueConstraint("name", "parent", name="_artifacts_labels_uc"),
     )
@@ -313,7 +315,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("obj_id", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["obj_id"], ["artifacts.id"], name="_artifacts_tags_obj_id_fk"),
+        sa.ForeignKeyConstraint(
+            ["obj_id"], ["artifacts.id"], name="_artifacts_tags_obj_id_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_artifacts_tags_pk"),
         sa.UniqueConstraint("project", "name", "obj_id", name="_artifacts_tags_uc"),
     )
@@ -331,7 +335,9 @@ def upgrade():
             sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.ForeignKeyConstraint(["feature_set_id"], ["feature_sets.id"], name="_entities_feature_set_id_fk"),
+        sa.ForeignKeyConstraint(
+            ["feature_set_id"], ["feature_sets.id"], name="_entities_feature_set_id_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_entities_pk"),
     )
     op.create_table(
@@ -348,7 +354,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["feature_sets.id"], name="_feature_sets_labels_parent_fk"),
+        sa.ForeignKeyConstraint(
+            ["parent"], ["feature_sets.id"], name="_feature_sets_labels_parent_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_feature_sets_labels_pk"),
         sa.UniqueConstraint("name", "parent", name="_feature_sets_labels_uc"),
     )
@@ -371,10 +379,16 @@ def upgrade():
             sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.ForeignKeyConstraint(["obj_id"], ["feature_sets.id"], name="_feature_sets_tags_obj_id_fk"),
-        sa.ForeignKeyConstraint(["obj_name"], ["feature_sets.name"], name="_feature_sets_tags_obj_name_fk"),
+        sa.ForeignKeyConstraint(
+            ["obj_id"], ["feature_sets.id"], name="_feature_sets_tags_obj_id_fk"
+        ),
+        sa.ForeignKeyConstraint(
+            ["obj_name"], ["feature_sets.name"], name="_feature_sets_tags_obj_name_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_feature_sets_tags_pk"),
-        sa.UniqueConstraint("project", "name", "obj_name", name="_feature_sets_tags_uc"),
+        sa.UniqueConstraint(
+            "project", "name", "obj_name", name="_feature_sets_tags_uc"
+        ),
     )
     op.create_table(
         "feature_vectors_labels",
@@ -390,7 +404,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["feature_vectors.id"], name="_feature_vectors_labels_parent_fk"),
+        sa.ForeignKeyConstraint(
+            ["parent"], ["feature_vectors.id"], name="_feature_vectors_labels_parent_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_feature_vectors_labels_pk"),
         sa.UniqueConstraint("name", "parent", name="_feature_vectors_labels_uc"),
     )
@@ -413,14 +429,18 @@ def upgrade():
             sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.ForeignKeyConstraint(["obj_id"], ["feature_vectors.id"], name="_feature_vectors_tags_obj_id_fk"),
+        sa.ForeignKeyConstraint(
+            ["obj_id"], ["feature_vectors.id"], name="_feature_vectors_tags_obj_id_fk"
+        ),
         sa.ForeignKeyConstraint(
             ["obj_name"],
             ["feature_vectors.name"],
             name="_feature_vectors_tags_obj_name_fk",
         ),
         sa.PrimaryKeyConstraint("id", name="_feature_vectors_tags_pk"),
-        sa.UniqueConstraint("project", "name", "obj_name", name="_feature_vectors_tags_uc"),
+        sa.UniqueConstraint(
+            "project", "name", "obj_name", name="_feature_vectors_tags_uc"
+        ),
     )
     op.create_table(
         "features",
@@ -436,7 +456,9 @@ def upgrade():
             sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.ForeignKeyConstraint(["feature_set_id"], ["feature_sets.id"], name="_features_feature_set_id_fk"),
+        sa.ForeignKeyConstraint(
+            ["feature_set_id"], ["feature_sets.id"], name="_features_feature_set_id_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_features_pk"),
     )
     op.create_table(
@@ -453,7 +475,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["functions.id"], name="_functions_labels_parent_fk"),
+        sa.ForeignKeyConstraint(
+            ["parent"], ["functions.id"], name="_functions_labels_parent_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_functions_labels_pk"),
         sa.UniqueConstraint("name", "parent", name="_functions_labels_uc"),
     )
@@ -476,8 +500,12 @@ def upgrade():
             sa.String(length=255, collation=SQLTypesUtil.collation()),
             nullable=True,
         ),
-        sa.ForeignKeyConstraint(["obj_id"], ["functions.id"], name="_functions_tags_obj_id_fk"),
-        sa.ForeignKeyConstraint(["obj_name"], ["functions.name"], name="_functions_tags_obj_name_fk"),
+        sa.ForeignKeyConstraint(
+            ["obj_id"], ["functions.id"], name="_functions_tags_obj_id_fk"
+        ),
+        sa.ForeignKeyConstraint(
+            ["obj_name"], ["functions.name"], name="_functions_tags_obj_name_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_functions_tags_pk"),
         sa.UniqueConstraint("project", "name", "obj_name", name="_functions_tags_uc"),
     )
@@ -485,8 +513,12 @@ def upgrade():
         "project_users",
         sa.Column("project_id", sa.Integer(), nullable=True),
         sa.Column("user_id", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], name="_project_users_project_id_fk"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="_project_users_user_id_fk"),
+        sa.ForeignKeyConstraint(
+            ["project_id"], ["projects.id"], name="_project_users_project_id_fk"
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name="_project_users_user_id_fk"
+        ),
     )
     op.create_table(
         "projects_labels",
@@ -502,7 +534,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["projects.id"], name="_projects_labels_parent_fk"),
+        sa.ForeignKeyConstraint(
+            ["parent"], ["projects.id"], name="_projects_labels_parent_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_projects_labels_pk"),
         sa.UniqueConstraint("name", "parent", name="_projects_labels_uc"),
     )
@@ -556,7 +590,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["schedules_v2.id"], name="_schedules_v2_labels_parent_fk"),
+        sa.ForeignKeyConstraint(
+            ["parent"], ["schedules_v2.id"], name="_schedules_v2_labels_parent_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_schedules_v2_labels_pk"),
         sa.UniqueConstraint("name", "parent", name="_schedules_v2_labels_uc"),
     )
@@ -574,7 +610,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["entities.id"], name="_entities_labels_parent_fk"),
+        sa.ForeignKeyConstraint(
+            ["parent"], ["entities.id"], name="_entities_labels_parent_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_entities_labels_pk"),
         sa.UniqueConstraint("name", "parent", name="_entities_labels_uc"),
     )
@@ -592,7 +630,9 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("parent", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["parent"], ["features.id"], name="_features_labels_parent_fk"),
+        sa.ForeignKeyConstraint(
+            ["parent"], ["features.id"], name="_features_labels_parent_fk"
+        ),
         sa.PrimaryKeyConstraint("id", name="_features_labels_pk"),
         sa.UniqueConstraint("name", "parent", name="_features_labels_uc"),
     )

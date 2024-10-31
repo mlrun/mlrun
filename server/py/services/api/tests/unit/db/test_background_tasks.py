@@ -38,7 +38,9 @@ def test_store_project_background_task(db: DBInterface, db_session: Session):
     assert background_task.status.state == "running"
 
 
-def test_get_project_background_task_with_timeout_exceeded(db: DBInterface, db_session: Session):
+def test_get_project_background_task_with_timeout_exceeded(
+    db: DBInterface, db_session: Session
+):
     project = "test-project"
     db.store_background_task(db_session, "test", timeout=1, project=project)
     background_task = db.get_background_task(
@@ -58,7 +60,9 @@ def test_get_project_background_task_with_timeout_exceeded(db: DBInterface, db_s
     assert background_task.status.state == "failed"
 
 
-def test_get_project_background_task_doesnt_exists(db: DBInterface, db_session: Session):
+def test_get_project_background_task_doesnt_exists(
+    db: DBInterface, db_session: Session
+):
     project = "test-project"
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.get_background_task(
@@ -69,7 +73,9 @@ def test_get_project_background_task_doesnt_exists(db: DBInterface, db_session: 
         )
 
 
-def test_store_project_background_task_after_status_updated(db: DBInterface, db_session: Session):
+def test_store_project_background_task_after_status_updated(
+    db: DBInterface, db_session: Session
+):
     project = "test-project"
     db.store_background_task(db_session, "test", project=project)
     background_task = db.get_background_task(
@@ -78,7 +84,9 @@ def test_store_project_background_task_after_status_updated(db: DBInterface, db_
         project=project,
         background_task_exceeded_timeout_func=background_task_exceeded_timeout,
     )
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
 
     db.store_background_task(
         db_session,
@@ -92,7 +100,9 @@ def test_store_project_background_task_after_status_updated(db: DBInterface, db_
         project=project,
         background_task_exceeded_timeout_func=background_task_exceeded_timeout,
     )
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
 
     # Expecting to fail
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
@@ -119,12 +129,16 @@ def test_store_project_background_task_after_status_updated(db: DBInterface, db_
     )
 
 
-def test_get_project_background_task_with_disabled_timeout(db: DBInterface, db_session: Session):
+def test_get_project_background_task_with_disabled_timeout(
+    db: DBInterface, db_session: Session
+):
     task_name = "test"
     project = "test-project"
     task_timeout = 0
     mlrun.mlconf.background_tasks.timeout_mode = "disabled"
-    db.store_background_task(db_session, name=task_name, timeout=task_timeout, project=project)
+    db.store_background_task(
+        db_session, name=task_name, timeout=task_timeout, project=project
+    )
     background_task = db.get_background_task(
         db_session,
         task_name,
@@ -135,7 +149,9 @@ def test_get_project_background_task_with_disabled_timeout(db: DBInterface, db_s
     assert background_task.metadata.timeout is None
     # expecting created and updated time to be equal because mode disabled even if timeout exceeded
     assert background_task.metadata.created == background_task.metadata.updated
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     task_name = "test1"
     db.store_background_task(db_session, name=task_name, project=project)
     # because timeout default mode is disabled, expecting not to enrich the background task timeout
@@ -147,7 +163,9 @@ def test_get_project_background_task_with_disabled_timeout(db: DBInterface, db_s
     )
     assert background_task.metadata.timeout is None
     assert background_task.metadata.created == background_task.metadata.updated
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
 
     db.store_background_task(
         db_session,
@@ -161,7 +179,10 @@ def test_get_project_background_task_with_disabled_timeout(db: DBInterface, db_s
         project,
         background_task_exceeded_timeout_func=background_task_exceeded_timeout,
     )
-    assert background_task_new.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
+    assert (
+        background_task_new.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
+    )
     assert background_task_new.metadata.updated > background_task.metadata.updated
     assert background_task_new.metadata.created == background_task.metadata.created
 
@@ -191,7 +212,8 @@ def test_list_project_background_task_filters(db: DBInterface, db_session: Sessi
 
     with unittest.mock.patch(
         "mlrun.utils.now_date",
-        return_value=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=10),
+        return_value=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=10),
     ):
         db.store_background_task(db_session, old_task, timeout=600, project=project)
 
@@ -211,7 +233,8 @@ def test_list_project_background_task_filters(db: DBInterface, db_session: Sessi
         db_session,
         project=project,
         background_task_exceeded_timeout_func=background_task_exceeded_timeout,
-        created_from=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=5),
+        created_from=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=5),
     )
 
     assert len(background_tasks) == 3
@@ -224,7 +247,8 @@ def test_list_project_background_task_filters(db: DBInterface, db_session: Sessi
         db_session,
         project=project,
         background_task_exceeded_timeout_func=background_task_exceeded_timeout,
-        last_update_time_from=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=5),
+        last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=5),
     )
 
     assert len(background_tasks) == 3
@@ -237,7 +261,8 @@ def test_list_project_background_task_filters(db: DBInterface, db_session: Sessi
         db_session,
         project=project,
         background_task_exceeded_timeout_func=background_task_exceeded_timeout,
-        last_update_time_to=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=5),
+        last_update_time_to=datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=5),
     )
 
     assert len(background_tasks) == 1

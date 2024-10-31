@@ -111,14 +111,18 @@ class NotificationBase:
         alert: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
     ) -> (str, str):
-        if event_data.entity.kind == mlrun.common.schemas.alert.EventEntityKind.JOB:  # JOB entity
+        if (
+            event_data.entity.kind == mlrun.common.schemas.alert.EventEntityKind.JOB
+        ):  # JOB entity
             uid = event_data.value_dict.get("uid")
             url = mlrun.utils.helpers.get_ui_url(alert.project, uid)
             overview_type = "Job overview"
         else:  # MODEL entity
             model_name = event_data.value_dict.get("model")
             model_endpoint_id = event_data.value_dict.get("model_endpoint_id")
-            url = mlrun.utils.helpers.get_model_endpoint_url(alert.project, model_name, model_endpoint_id)
+            url = mlrun.utils.helpers.get_model_endpoint_url(
+                alert.project, model_name, model_endpoint_id
+            )
             overview_type = "Model endpoint"
 
         return overview_type, url

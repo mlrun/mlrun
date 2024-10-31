@@ -55,12 +55,16 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             runtime.store_run(run)
         new_meta = self._get_meta(runtime, run)
 
-        self.add_secrets_to_spec_before_running(runtime, project_name=run.metadata.project)
+        self.add_secrets_to_spec_before_running(
+            runtime, project_name=run.metadata.project
+        )
         workdir = self._resolve_workdir(runtime)
 
         pod_spec = func_to_pod(
             runtime.full_image_path(
-                client_version=run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.client_version),
+                client_version=run.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.client_version
+                ),
                 client_python_version=run.metadata.labels.get(
                     mlrun_constants.MLRunInternalLabels.client_python_version
                 ),
@@ -96,7 +100,11 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             extra_env["PYTHONPATH"] = runtime.spec.pythonpath
         args = []
         command = runtime.spec.command
-        code = runtime.spec.build.functionSourceCode if hasattr(runtime.spec, "build") else None
+        code = (
+            runtime.spec.build.functionSourceCode
+            if hasattr(runtime.spec, "build")
+            else None
+        )
 
         if run.spec.handler and runtime.spec.mode == "pass":
             raise ValueError('cannot use "pass" mode with handler')
@@ -104,7 +112,9 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         if code:
             extra_env["MLRUN_EXEC_CODE"] = code
 
-        load_archive = runtime.spec.build.load_source_on_run and runtime.spec.build.source
+        load_archive = (
+            runtime.spec.build.load_source_on_run and runtime.spec.build.source
+        )
         need_mlrun = code or load_archive or runtime.spec.mode != "pass"
 
         if need_mlrun:
@@ -196,8 +206,12 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
     def _get_lifecycle():
         script_path = "/mlrun/mlrun/runtimes/databricks_job/databricks_cancel_task.py"
-        handler_class = DatabricksRuntimeHandler._get_kubernetes_lifecycle_handler_class()
-        pre_stop_handler = handler_class(_exec=client.V1ExecAction(command=["python", script_path]))
+        handler_class = (
+            DatabricksRuntimeHandler._get_kubernetes_lifecycle_handler_class()
+        )
+        pre_stop_handler = handler_class(
+            _exec=client.V1ExecAction(command=["python", script_path])
+        )
         return client.V1Lifecycle(pre_stop=pre_stop_handler)
 
     def _delete_pod_resources(
@@ -247,9 +261,13 @@ def func_to_pod(
         lifecycle=lifecycle,
     )
 
-    pod_spec = services.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(runtime.spec, container, node_selector)
+    pod_spec = services.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
+        runtime.spec, container, node_selector
+    )
 
     if runtime.spec.image_pull_secret:
-        pod_spec.image_pull_secrets = [client.V1LocalObjectReference(name=runtime.spec.image_pull_secret)]
+        pod_spec.image_pull_secrets = [
+            client.V1LocalObjectReference(name=runtime.spec.image_pull_secret)
+        ]
 
     return pod_spec

@@ -24,7 +24,9 @@ import mlrun.common.schemas.model_monitoring
 from mlrun.artifacts import PlotlyArtifact
 
 # A type for representing a drift result, a tuple of the status and the drift mean:
-DriftResultType = tuple[mlrun.common.schemas.model_monitoring.constants.ResultStatusApp, float]
+DriftResultType = tuple[
+    mlrun.common.schemas.model_monitoring.constants.ResultStatusApp, float
+]
 
 
 class _PlotlyTableArtifact(PlotlyArtifact):
@@ -68,7 +70,9 @@ class FeaturesDriftTablePlot:
 
     # Table column widths:
     _FEATURE_NAME_COLUMN_WIDTH = 140
-    _VALUE_COLUMN_WIDTH = 70  # The width for the values of all the statistics and metrics columns.
+    _VALUE_COLUMN_WIDTH = (
+        70  # The width for the values of all the statistics and metrics columns.
+    )
     _HISTOGRAMS_COLUMN_WIDTH = 180
     _STATUS_COLUMN_WIDTH = 20
 
@@ -93,8 +97,12 @@ class FeaturesDriftTablePlot:
     _FONT_COLOR = "rgb(68,68,68)"  # Dark Grey
 
     # General configurations:
-    _FEATURE_NAME_MAX_LENGTH = 16  # Each 16 characters the feature name will continue in a new line.
-    _VALUES_MAX_DIGITS = 6  # Each of the statistics and metrics will be rounded to show 6 digits.
+    _FEATURE_NAME_MAX_LENGTH = (
+        16  # Each 16 characters the feature name will continue in a new line.
+    )
+    _VALUES_MAX_DIGITS = (
+        6  # Each of the statistics and metrics will be rounded to show 6 digits.
+    )
     _BACKGROUND_COLOR = "rgb(255,255,255)"  # White
     _SEPARATORS_COLOR = "rgb(240,240,240)"  # Light grey
 
@@ -157,10 +165,14 @@ class FeaturesDriftTablePlot:
         called.
         """
         # For the statistics, 2x`value_width` as there will be two values, one for the sample and one for the input:
-        self._value_columns_widths = [2 * self._VALUE_COLUMN_WIDTH] * len(self._statistics_columns)
+        self._value_columns_widths = [2 * self._VALUE_COLUMN_WIDTH] * len(
+            self._statistics_columns
+        )
 
         # For the metrics:
-        self._value_columns_widths += [self._VALUE_COLUMN_WIDTH] * len(self._metrics_columns)
+        self._value_columns_widths += [self._VALUE_COLUMN_WIDTH] * len(
+            self._metrics_columns
+        )
 
     def _plot_headers_tables(self) -> tuple[go.Table, go.Table]:
         """
@@ -206,7 +218,10 @@ class FeaturesDriftTablePlot:
         # Generate the sub-headers (for each of the statistics column there should be two columns, one for the sample
         # set and one for the inputs):
         sub_headers = (
-            [""] + ["Sample", "Input"] * len(self._statistics_columns) + [""] * len(self._metrics_columns) + ["", ""]
+            [""]
+            + ["Sample", "Input"] * len(self._statistics_columns)
+            + [""] * len(self._metrics_columns)
+            + ["", ""]
         )
         sub_header_table = go.Table(
             header={
@@ -217,7 +232,8 @@ class FeaturesDriftTablePlot:
             },
             columnwidth=(
                 [self._FEATURE_NAME_COLUMN_WIDTH]
-                + [self._VALUE_COLUMN_WIDTH] * (2 * len(self._statistics_columns) + len(self._metrics_columns))
+                + [self._VALUE_COLUMN_WIDTH]
+                * (2 * len(self._statistics_columns) + len(self._metrics_columns))
                 + [self._HISTOGRAMS_COLUMN_WIDTH, self._STATUS_COLUMN_WIDTH]
             ),
             header_fill_color=self._BACKGROUND_COLOR,
@@ -308,7 +324,9 @@ class FeaturesDriftTablePlot:
             cells_values.append(metrics[column])
 
         # Get the cells values formats:
-        cells_formats = [self._get_value_format(value=cell_value) for cell_value in cells_values]
+        cells_formats = [
+            self._get_value_format(value=cell_value) for cell_value in cells_values
+        ]
 
         # Create the row:
         feature_row_table = go.Table(
@@ -389,8 +407,15 @@ class FeaturesDriftTablePlot:
 
         :return: The row height.
         """
-        feature_name_seperations = max([len(self._separate_feature_name(feature_name)) for feature_name in features])
-        return max(self._FEATURE_ROW_HEIGHT, 1.5 * self._FONT_SIZE * feature_name_seperations)
+        feature_name_seperations = max(
+            [
+                len(self._separate_feature_name(feature_name))
+                for feature_name in features
+            ]
+        )
+        return max(
+            self._FEATURE_ROW_HEIGHT, 1.5 * self._FONT_SIZE * feature_name_seperations
+        )
 
     def _plot_status_circle(
         self,
@@ -412,12 +437,16 @@ class FeaturesDriftTablePlot:
         # circle will be sized correctly. The axis number is equal to the row number - 3 (plots with axes starts at
         # row 3) times the plot columns (2 columns has axes in each row) + 2 (to get to the column of the notification):
         axis_number = (row - 3) * 2 + 2
-        figure["layout"][f"xaxis{axis_number}"].update(range=[0, self._STATUS_COLUMN_WIDTH])
+        figure["layout"][f"xaxis{axis_number}"].update(
+            range=[0, self._STATUS_COLUMN_WIDTH]
+        )
         figure["layout"][f"yaxis{axis_number}"].update(range=[0, row_height])
 
         # Get the color:
         notification_color = self._STATUS_COLORS[drift_result[0]]
-        half_transparent_notification_color = notification_color.replace("rgb", "rgba").replace(")", ",0.5)")
+        half_transparent_notification_color = notification_color.replace(
+            "rgb", "rgba"
+        ).replace(")", ",0.5)")
 
         # Calculate the circle points adjusted to the given row height (aimed to where the text starts and to be at the
         # size of the text as well):
@@ -462,7 +491,9 @@ class FeaturesDriftTablePlot:
         :return: The plot's figure.
         """
         # Read and calculate widths and heights for the table:
-        self._read_columns_names(statistics_dictionary=sample_set_statistics, drift_metrics=metrics)
+        self._read_columns_names(
+            statistics_dictionary=sample_set_statistics, drift_metrics=metrics
+        )
         self._calculate_columns_widths()
         row_height = self._calculate_row_height(features=features)
         rows = 2 + len(features)  # Header + sub-header + row per feature
@@ -482,10 +513,17 @@ class FeaturesDriftTablePlot:
         main_figure = make_subplots(
             rows=rows,
             cols=columns,
-            specs=([[{"type": "table", "colspan": 3}, None, None]] * 2 + [[{"type": "table"}, {}, {}]] * (rows - 2)),
-            row_heights=([self._HEADER_ROW_HEIGHT / height] * 2 + [row_height / height] * (rows - 2)),
+            specs=(
+                [[{"type": "table", "colspan": 3}, None, None]] * 2
+                + [[{"type": "table"}, {}, {}]] * (rows - 2)
+            ),
+            row_heights=(
+                [self._HEADER_ROW_HEIGHT / height] * 2
+                + [row_height / height] * (rows - 2)
+            ),
             column_widths=[
-                (self._FEATURE_NAME_COLUMN_WIDTH + sum(self._value_columns_widths)) / width,
+                (self._FEATURE_NAME_COLUMN_WIDTH + sum(self._value_columns_widths))
+                / width,
                 self._HISTOGRAMS_COLUMN_WIDTH / width,
                 self._STATUS_COLUMN_WIDTH / width,
             ],
@@ -526,7 +564,9 @@ class FeaturesDriftTablePlot:
                 )
             # Add the histograms (both traces are added to the same subplot figure):
             self._plot_histogram_bars(
-                figure_add_trace=functools.partial(main_figure.add_trace, row=row, col=2),
+                figure_add_trace=functools.partial(
+                    main_figure.add_trace, row=row, col=2
+                ),
                 sample_hist=sample_set_statistics[feature]["hist"],
                 input_hist=inputs_statistics[feature]["hist"],
                 # Only the first row should have its legend visible

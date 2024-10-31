@@ -27,7 +27,9 @@ import services.api.crud.secrets
 
 
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:
-    return json.loads(field) if field and field != "null" and field is not None else None
+    return (
+        json.loads(field) if field and field != "null" and field is not None else None
+    )
 
 
 def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
@@ -63,7 +65,9 @@ def get_monitoring_parquet_path(
     """
 
     # Get the artifact path from the project record that was stored in the DB
-    project_obj = services.api.crud.projects.Projects().get_project(session=db_session, name=project)
+    project_obj = services.api.crud.projects.Projects().get_project(
+        session=db_session, name=project
+    )
     artifact_path = project_obj.spec.artifact_path
     # Generate monitoring parquet path value
     parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -114,5 +118,7 @@ def get_store_object(project: str) -> mlrun.model_monitoring.db.stores.StoreBase
     """Handle the get store object function for the server side, using the project secret provider."""
     return mlrun.model_monitoring.get_store_object(
         project=project,
-        secret_provider=services.api.crud.secrets.get_project_secret_provider(project=project),
+        secret_provider=services.api.crud.secrets.get_project_secret_provider(
+            project=project
+        ),
     )

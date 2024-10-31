@@ -56,8 +56,14 @@ class Member(project_leader.Member):
 
     @staticmethod
     def _update_state(project: mlrun.common.schemas.Project):
-        if not project.status.state or project.status.state in mlrun.common.schemas.ProjectState.terminal_states():
-            project.status.state = mlrun.common.schemas.ProjectState(project.spec.desired_state)
+        if (
+            not project.status.state
+            or project.status.state
+            in mlrun.common.schemas.ProjectState.terminal_states()
+        ):
+            project.status.state = mlrun.common.schemas.ProjectState(
+                project.spec.desired_state
+            )
 
     def delete_project(
         self,
@@ -76,7 +82,9 @@ class Member(project_leader.Member):
         updated_after: typing.Optional[datetime.datetime] = None,
     ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
         return (
-            services.api.utils.singletons.project_member.get_project_member().list_projects(self.db_session).projects,
+            services.api.utils.singletons.project_member.get_project_member()
+            .list_projects(self.db_session)
+            .projects,
             datetime.datetime.utcnow(),
         )
 
@@ -85,9 +93,13 @@ class Member(project_leader.Member):
         session: str,
         name: str,
     ) -> mlrun.common.schemas.Project:
-        return services.api.utils.singletons.project_member.get_project_member().get_project(self.db_session, name)
+        return services.api.utils.singletons.project_member.get_project_member().get_project(
+            self.db_session, name
+        )
 
-    def format_as_leader_project(self, project: mlrun.common.schemas.Project) -> mlrun.common.schemas.IguazioProject:
+    def format_as_leader_project(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
         return mlrun.common.schemas.IguazioProject(data=project.dict())
 
     def get_project_owner(
@@ -96,4 +108,6 @@ class Member(project_leader.Member):
         name: str,
     ) -> mlrun.common.schemas.ProjectOwner:
         project = self.get_project(session, name)
-        return mlrun.common.schemas.ProjectOwner(username=project.spec.owner, access_key=self.project_owner_access_key)
+        return mlrun.common.schemas.ProjectOwner(
+            username=project.spec.owner, access_key=self.project_owner_access_key
+        )

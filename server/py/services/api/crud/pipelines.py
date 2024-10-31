@@ -89,7 +89,12 @@ class Pipelines(
                     sort_by=sort_by if page_token == "" else "",
                     filter=filter_ if page_token == "" else "",
                 )
-                runs.extend([mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []])
+                runs.extend(
+                    [
+                        mlrun_pipelines.models.PipelineRun(run)
+                        for run in response.runs or []
+                    ]
+                )
                 page_token = response.next_page_token
             project_runs = []
             for run in runs:
@@ -104,7 +109,8 @@ class Pipelines(
             try:
                 response = kfp_client.list_runs(
                     page_token=page_token,
-                    page_size=page_size or mlrun.common.schemas.PipelinesPagination.default_page_size,
+                    page_size=page_size
+                    or mlrun.common.schemas.PipelinesPagination.default_page_size,
                     sort_by=sort_by,
                     filter=filter_,
                 )
@@ -113,8 +119,12 @@ class Pipelines(
                 error_message = exc.body or exc.reason or exc
                 if "message" in error_message:
                     error_message = error_message["message"]
-                raise mlrun.errors.err_for_status_code(exc.status, err_to_str(error_message)) from exc
-            runs = [mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []]
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, err_to_str(error_message)
+                ) from exc
+            runs = [
+                mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []
+            ]
             runs = self._filter_runs_by_name(runs, name_contains)
             next_page_token = response.next_page_token
             # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
@@ -127,7 +137,9 @@ class Pipelines(
 
         return total_size, next_page_token, runs
 
-    def delete_pipelines_runs(self, db_session: sqlalchemy.orm.Session, project_name: str):
+    def delete_pipelines_runs(
+        self, db_session: sqlalchemy.orm.Session, project_name: str
+    ):
         _, _, project_pipeline_runs = self.list_pipelines(
             db_session=db_session,
             project=project_name,
@@ -230,7 +242,9 @@ class Pipelines(
         except mlrun.errors.MLRunHTTPStatusError:
             raise
         except Exception as exc:
-            raise mlrun.errors.MLRunRuntimeError(f"Failed getting kfp run: {err_to_str(exc)}") from exc
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed getting kfp run: {err_to_str(exc)}"
+            ) from exc
 
         return run
 
@@ -273,9 +287,13 @@ class Pipelines(
 
         try:
             kfp_client = self.initialize_kfp_client()
-            experiment = mlrun_pipelines.models.PipelineExperiment(kfp_client.create_experiment(name=experiment_name))
+            experiment = mlrun_pipelines.models.PipelineExperiment(
+                kfp_client.create_experiment(name=experiment_name)
+            )
             run = mlrun_pipelines.models.PipelineRun(
-                kfp_client.run_pipeline(experiment.id, run_name, pipeline_file.name, params=arguments)
+                kfp_client.run_pipeline(
+                    experiment.id, run_name, pipeline_file.name, params=arguments
+                )
             )
         except Exception as exc:
             logger.warning(
@@ -283,7 +301,9 @@ class Pipelines(
                 traceback=traceback.format_exc(),
                 exc=err_to_str(exc),
             )
-            raise mlrun.errors.MLRunBadRequestError(f"Failed creating pipeline: {err_to_str(exc)}")
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Failed creating pipeline: {err_to_str(exc)}"
+            )
         finally:
             pipeline_file.close()
 
@@ -326,13 +346,16 @@ class Pipelines(
     ):
         # project has precedence over function url so search for it first
         for index, argument in enumerate(command):
-            if ((argument == "-p" and hyphen_p_is_also_project) or argument == "--project") and index + 1 < len(
-                command
-            ):
+            if (
+                (argument == "-p" and hyphen_p_is_also_project)
+                or argument == "--project"
+            ) and index + 1 < len(command):
                 return command[index + 1]
         if has_func_url_flags:
             for index, argument in enumerate(command):
-                if (argument == "-f" or argument == "--func-url") and index + 1 < len(command):
+                if (argument == "-f" or argument == "--func-url") and index + 1 < len(
+                    command
+                ):
                     function_url = command[index + 1]
                     if function_url.startswith("db://"):
                         (
@@ -340,12 +363,16 @@ class Pipelines(
                             _,
                             _,
                             _,
-                        ) = mlrun.common.helpers.parse_versioned_object_uri(function_url[len("db://") :])
+                        ) = mlrun.common.helpers.parse_versioned_object_uri(
+                            function_url[len("db://") :]
+                        )
                         if project:
                             return project
         if has_runtime_flags:
             for index, argument in enumerate(command):
-                if (argument == "-r" or argument == "--runtime") and index + 1 < len(command):
+                if (argument == "-r" or argument == "--runtime") and index + 1 < len(
+                    command
+                ):
                     runtime = command[index + 1]
                     try:
                         parsed_runtime = ast.literal_eval(runtime)
@@ -363,10 +390,14 @@ class Pipelines(
 
         return None
 
-    def resolve_project_from_pipeline(self, pipeline: mlrun_pipelines.models.PipelineRun):
+    def resolve_project_from_pipeline(
+        self, pipeline: mlrun_pipelines.models.PipelineRun
+    ):
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
 
-    def get_error_from_pipeline(self, kfp_client, run: mlrun_pipelines.models.PipelineRun):
+    def get_error_from_pipeline(
+        self, kfp_client, run: mlrun_pipelines.models.PipelineRun
+    ):
         pipeline = kfp_client.get_run(run.id)
         return self.resolve_error_from_pipeline(pipeline)
 
@@ -381,7 +412,9 @@ class Pipelines(
             return runs
 
         def filter_by(run):
-            run_name = run.get("name", "").removeprefix(self.resolve_project_from_pipeline(run) + "-")
+            run_name = run.get("name", "").removeprefix(
+                self.resolve_project_from_pipeline(run) + "-"
+            )
             if target_name in run_name:
                 return True
             return False

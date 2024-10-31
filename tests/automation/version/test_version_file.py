@@ -138,14 +138,18 @@ def test_current_version(git_repo, base_version, tags, expected_current_version)
         ("major", "1.0.0-rc1", "1.0.0", "ft-test", "2.0.0-rc1+ft-test"),
     ],
 )
-def test_next_version(bump_type, current_version, base_version, feature_name, expected_next_version):
+def test_next_version(
+    bump_type, current_version, base_version, feature_name, expected_next_version
+):
     next_version = resolve_next_version(
         bump_type,
         packaging.version.parse(current_version),
         packaging.version.parse(base_version),
         feature_name,
     )
-    assert next_version == expected_next_version, f"expected {expected_next_version}, got {next_version}"
+    assert (
+        next_version == expected_next_version
+    ), f"expected {expected_next_version}, got {next_version}"
 
 
 @pytest.mark.parametrize(
@@ -166,7 +170,9 @@ def test_next_version(bump_type, current_version, base_version, feature_name, ex
     indirect=["git_repo"],
 )
 def test_create_or_update_version_file(git_repo, base_version, expected_version):
-    latest_commit_hash = subprocess.run(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE)
+    latest_commit_hash = subprocess.run(
+        ["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE
+    )
     create_or_update_version_file(base_version, git_repo / "version.json")
     with open(git_repo / "version.json") as f:
         version = json.loads(f.read())

@@ -70,13 +70,17 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
                     pod_template,
                     "image",
                     runtime.full_image_path(
-                        client_version=run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.client_version),
+                        client_version=run.metadata.labels.get(
+                            mlrun_constants.MLRunInternalLabels.client_version
+                        ),
                         client_python_version=run.metadata.labels.get(
                             mlrun_constants.MLRunInternalLabels.client_python_version
                         ),
                     ),
                 )
-            self._update_container(pod_template, "volumeMounts", runtime.spec.volume_mounts)
+            self._update_container(
+                pod_template, "volumeMounts", runtime.spec.volume_mounts
+            )
             self._update_container(pod_template, "env", extra_env + runtime.spec.env)
             if runtime.spec.image_pull_policy:
                 self._update_container(
@@ -96,7 +100,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
                 update_in(
                     pod_template,
                     "spec.securityContext",
-                    mlrun.runtimes.pod.get_sanitized_attribute(runtime.spec, "security_context"),
+                    mlrun.runtimes.pod.get_sanitized_attribute(
+                        runtime.spec, "security_context"
+                    ),
                 )
             update_in(pod_template, "metadata.labels", pod_labels)
             update_in(pod_template, "spec.volumes", runtime.spec.volumes)
@@ -116,7 +122,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
                 "spec.tolerations",
                 mlrun.runtimes.pod.get_sanitized_attribute(runtime.spec, "tolerations"),
             )
-            if runtime.spec.priority_class_name and len(mlconf.get_valid_function_priority_class_names()):
+            if runtime.spec.priority_class_name and len(
+                mlconf.get_valid_function_priority_class_names()
+            ):
                 update_in(
                     pod_template,
                     "spec.priorityClassName",
@@ -135,10 +143,14 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         self._enrich_worker_configurations(runtime, worker_pod_template)
 
         # configuration for launcher only
-        self._enrich_launcher_configurations(runtime, launcher_pod_template, [command] + args)
+        self._enrich_launcher_configurations(
+            runtime, launcher_pod_template, [command] + args
+        )
 
         # generate mpi job using both pod templates
-        job = self._generate_mpi_job_template(launcher_pod_template, worker_pod_template)
+        job = self._generate_mpi_job_template(
+            launcher_pod_template, worker_pod_template
+        )
 
         # update the replicas only for workers
         update_in(
@@ -205,7 +217,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
     def _update_container(struct, key, value):
         struct["spec"]["containers"][0][key] = value
 
-    def _enrich_launcher_configurations(self, runtime: MpiRuntimeV1, launcher_pod_template, args):
+    def _enrich_launcher_configurations(
+        self, runtime: MpiRuntimeV1, launcher_pod_template, args
+    ):
         quoted_args = args or []
         quoted_mpi_args = []
         for arg in runtime.spec.mpi_args:
@@ -223,7 +237,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     def _enrich_worker_configurations(self, runtime: MpiRuntimeV1, worker_pod_template):
         if runtime.spec.resources:
-            self._update_container(worker_pod_template, "resources", runtime.spec.resources)
+            self._update_container(
+                worker_pod_template, "resources", runtime.spec.resources
+            )
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
@@ -232,7 +248,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         https://github.com/kubeflow/mpi-operator/blob/v0.3.0/pkg/apis/kubeflow/v1/types.go#L29
         https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L55
         """
-        launcher_status = crd_object.get("status", {}).get("replicaStatuses", {}).get("Launcher", {})
+        launcher_status = (
+            crd_object.get("status", {}).get("replicaStatuses", {}).get("Launcher", {})
+        )
         # the launcher status also has running property, but it's empty for
         # short period after the creation, so we're
         # checking terminal state by the completion time existence
@@ -241,9 +259,15 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         completion_time = None
         if in_terminal_state:
             completion_time = datetime.fromisoformat(
-                crd_object.get("status", {}).get("completionTime").replace("Z", "+00:00")
+                crd_object.get("status", {})
+                .get("completionTime")
+                .replace("Z", "+00:00")
             )
-            desired_run_state = RunStates.error if launcher_status.get("failed", 0) > 0 else RunStates.completed
+            desired_run_state = (
+                RunStates.error
+                if launcher_status.get("failed", 0) > 0
+                else RunStates.completed
+            )
         return in_terminal_state, completion_time, desired_run_state
 
     def _resolve_container_error_status(self, crd_object: dict) -> tuple[str, str]:
@@ -256,7 +280,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         return "", ""
 
     def _is_terminal_state(self, runtime_resource: dict) -> bool:
-        return runtime_resource.get("status", {}).get("completionTime", None) is not None
+        return (
+            runtime_resource.get("status", {}).get("completionTime", None) is not None
+        )
 
     @staticmethod
     def are_resources_coupled_to_run_object() -> bool:

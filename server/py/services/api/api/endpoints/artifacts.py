@@ -68,7 +68,9 @@ async def store_artifact(
     # the v1 artifacts `uid` parameter is essentially the `tree` parameter in v2
     tree = uid
 
-    logger.debug("Storing artifact", project=project, tree=tree, key=key, tag=tag, iter=iter)
+    logger.debug(
+        "Storing artifact", project=project, tree=tree, key=key, tag=tag, iter=iter
+    )
     await run_in_threadpool(
         services.api.crud.Artifacts().store_artifact,
         db_session,
@@ -104,7 +106,9 @@ async def list_artifact_tags(
         auth_info,
     )
 
-    tags = await run_in_threadpool(services.api.crud.Artifacts().list_artifact_tags, db_session, project, category)
+    tags = await run_in_threadpool(
+        services.api.crud.Artifacts().list_artifact_tags, db_session, project, category
+    )
 
     return {
         "project": project,
@@ -179,7 +183,9 @@ async def delete_artifact(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    await run_in_threadpool(services.api.crud.Artifacts().delete_artifact, db_session, key, tag, project)
+    await run_in_threadpool(
+        services.api.crud.Artifacts().delete_artifact, db_session, key, tag, project
+    )
     return {}
 
 

@@ -37,7 +37,9 @@ async def store_log(
     project: str,
     uid: str,
     append: bool = True,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.log,
@@ -70,8 +72,12 @@ async def get_log(
     uid: str,
     size: int = -1,
     offset: int = 0,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        services.api.api.deps.get_db_session
+    ),
 ):
     if offset < 0:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -84,7 +90,9 @@ async def get_log(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    run_state, log_stream = await services.api.crud.Logs().get_logs(db_session, project, uid, size, offset)
+    run_state, log_stream = await services.api.crud.Logs().get_logs(
+        db_session, project, uid, size, offset
+    )
     headers = {
         "x-mlrun-run-state": run_state,
     }
@@ -99,7 +107,9 @@ async def get_log(
 async def get_log_size(
     project: str,
     uid: str,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.log,

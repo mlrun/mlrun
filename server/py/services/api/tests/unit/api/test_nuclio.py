@@ -30,17 +30,21 @@ PROJECT = "project-name"
 
 
 @patch.object(services.api.utils.clients.async_nuclio.Client, "list_api_gateways")
-def test_list_api_gateways(list_api_gateway_mocked, client: fastapi.testclient.TestClient):
+def test_list_api_gateways(
+    list_api_gateway_mocked, client: fastapi.testclient.TestClient
+):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    services.api.utils.clients.iguazio.AsyncClient().verify_request_session = unittest.mock.AsyncMock(
-        return_value=(
-            mlrun.common.schemas.AuthInfo(
-                username="admin",
-                session="some-session",
-                data_session="some-session",
-                user_id=None,
-                user_unix_id=0,
-                user_group_ids=[],
+    services.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+        unittest.mock.AsyncMock(
+            return_value=(
+                mlrun.common.schemas.AuthInfo(
+                    username="admin",
+                    session="some-session",
+                    data_session="some-session",
+                    user_id=None,
+                    user_unix_id=0,
+                    user_group_ids=[],
+                )
             )
         )
     )
@@ -53,7 +57,11 @@ def test_list_api_gateways(list_api_gateway_mocked, client: fastapi.testclient.T
                 name="new-gw",
                 path="/",
                 host="http://my-api-gateway.com",
-                upstreams=[mlrun.common.schemas.APIGatewayUpstream(nucliofunction={"name": "test-func"})],
+                upstreams=[
+                    mlrun.common.schemas.APIGatewayUpstream(
+                        nucliofunction={"name": "test-func"}
+                    )
+                ],
             ),
         )
     }
@@ -98,15 +106,17 @@ def test_store_api_gateway(
     client: fastapi.testclient.TestClient,
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    services.api.utils.clients.iguazio.AsyncClient().verify_request_session = unittest.mock.AsyncMock(
-        return_value=(
-            mlrun.common.schemas.AuthInfo(
-                username="admin",
-                session="some-session",
-                data_session="some-session",
-                user_id=None,
-                user_unix_id=0,
-                user_group_ids=[],
+    services.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+        unittest.mock.AsyncMock(
+            return_value=(
+                mlrun.common.schemas.AuthInfo(
+                    username="admin",
+                    session="some-session",
+                    data_session="some-session",
+                    user_id=None,
+                    user_unix_id=0,
+                    user_group_ids=[],
+                )
             )
         )
     )
@@ -121,7 +131,11 @@ def test_store_api_gateway(
             name="new-gw",
             path="/",
             host="http://my-api-gateway.com",
-            upstreams=[mlrun.common.schemas.APIGatewayUpstream(nucliofunction={"name": "test-func"})],
+            upstreams=[
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "test-func"}
+                )
+            ],
         ),
     )
 
@@ -132,7 +146,11 @@ def test_store_api_gateway(
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
             path="/",
-            upstreams=[mlrun.common.schemas.APIGatewayUpstream(nucliofunction={"name": "test-func"})],
+            upstreams=[
+                mlrun.common.schemas.APIGatewayUpstream(
+                    nucliofunction={"name": "test-func"}
+                )
+            ],
         ),
     )
 
@@ -174,13 +192,23 @@ def test_mlrun_function_translation_to_nuclio(
     project_name = "test-project"
     api_gateway_client_side = mlrun.runtimes.APIGateway(
         metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(name="new-gw"),
-        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(functions=functions, project=project_name),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=functions, project=project_name
+        ),
     )
     api_gateway_server_side = api_gateway_client_side.to_scheme().enrich_mlrun_names()
-    assert api_gateway_server_side.get_function_names() == expected_nuclio_function_names
-
-    assert api_gateway_server_side.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION] == expected_mlrun_functions_label
-    api_gateway_with_replaced_nuclio_names_to_mlrun = api_gateway_server_side.replace_nuclio_names_with_mlrun_names()
     assert (
-        api_gateway_with_replaced_nuclio_names_to_mlrun.get_function_names() == api_gateway_client_side.spec.functions
+        api_gateway_server_side.get_function_names() == expected_nuclio_function_names
+    )
+
+    assert (
+        api_gateway_server_side.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION]
+        == expected_mlrun_functions_label
+    )
+    api_gateway_with_replaced_nuclio_names_to_mlrun = (
+        api_gateway_server_side.replace_nuclio_names_with_mlrun_names()
+    )
+    assert (
+        api_gateway_with_replaced_nuclio_names_to_mlrun.get_function_names()
+        == api_gateway_client_side.spec.functions
     )

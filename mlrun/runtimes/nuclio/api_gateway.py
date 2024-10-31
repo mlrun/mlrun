@@ -39,7 +39,10 @@ class Authenticator(typing.Protocol):
 
     @classmethod
     def from_scheme(cls, api_gateway_spec: schemas.APIGatewaySpec):
-        if api_gateway_spec.authenticationMode == schemas.APIGatewayAuthenticationMode.basic.value:
+        if (
+            api_gateway_spec.authenticationMode
+            == schemas.APIGatewayAuthenticationMode.basic.value
+        ):
             if api_gateway_spec.authentication:
                 return BasicAuth(
                     username=api_gateway_spec.authentication.get("username", ""),
@@ -47,7 +50,10 @@ class Authenticator(typing.Protocol):
                 )
             else:
                 return BasicAuth()
-        elif api_gateway_spec.authenticationMode == schemas.APIGatewayAuthenticationMode.access_key.value:
+        elif (
+            api_gateway_spec.authenticationMode
+            == schemas.APIGatewayAuthenticationMode.access_key.value
+        ):
             return AccessKeyAuth()
         else:
             return NoneAuth()
@@ -89,7 +95,11 @@ class BasicAuth(APIGatewayAuthenticator):
     def to_scheme(
         self,
     ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
-        return {"basicAuth": schemas.APIGatewayBasicAuth(username=self._username, password=self._password)}
+        return {
+            "basicAuth": schemas.APIGatewayBasicAuth(
+                username=self._username, password=self._password
+            )
+        }
 
 
 class AccessKeyAuth(APIGatewayAuthenticator):
@@ -127,7 +137,9 @@ class APIGatewayMetadata(ModelObj):
         self.creation_timestamp = creation_timestamp
 
         if not self.name:
-            raise mlrun.errors.MLRunInvalidArgumentError("API Gateway name cannot be empty")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "API Gateway name cannot be empty"
+            )
 
 
 class APIGatewaySpec(ModelObj):
@@ -229,17 +241,25 @@ class APIGatewaySpec(ModelObj):
 
     def _validate_canary(self, canary: list[int]):
         if len(self.functions) != len(canary):
-            raise mlrun.errors.MLRunInvalidArgumentError("Function and canary lists lengths do not match")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Function and canary lists lengths do not match"
+            )
         for canary_percent in canary:
             if canary_percent < 0 or canary_percent > 100:
-                raise mlrun.errors.MLRunInvalidArgumentError("The percentage value must be in the range from 0 to 100")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The percentage value must be in the range from 0 to 100"
+                )
         if sum(canary) != 100:
-            raise mlrun.errors.MLRunInvalidArgumentError("The sum of canary function percents should be equal to 100")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The sum of canary function percents should be equal to 100"
+            )
         return canary
 
     def _validate_ports(self, ports):
         if len(self.functions) != len(ports):
-            raise mlrun.errors.MLRunInvalidArgumentError("Function and port lists lengths do not match")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Function and port lists lengths do not match"
+            )
 
         return ports
 
@@ -274,24 +294,33 @@ class APIGatewaySpec(ModelObj):
         for func in functions:
             if isinstance(func, str):
                 # check whether the function was passed as a URI or just a name
-                parsed_project, function_name, _, _ = mlrun.common.helpers.parse_versioned_object_uri(func)
+                parsed_project, function_name, _, _ = (
+                    mlrun.common.helpers.parse_versioned_object_uri(func)
+                )
 
                 if parsed_project and function_name:
                     # check that parsed project and passed project are the same
                     if parsed_project != project:
-                        raise mlrun.errors.MLRunInvalidArgumentError("Function doesn't belong to passed project")
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "Function doesn't belong to passed project"
+                        )
                     function_uri = func
                 else:
                     function_uri = mlrun.utils.generate_object_uri(project, func)
                 function_names.append(function_uri)
                 continue
 
-            function_name = func.metadata.name if hasattr(func, "metadata") else func.name
+            function_name = (
+                func.metadata.name if hasattr(func, "metadata") else func.name
+            )
             if func.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-                raise mlrun.errors.MLRunInvalidArgumentError(f"Input function {function_name} is not a Nuclio function")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Input function {function_name} is not a Nuclio function"
+                )
             if func.metadata.project != project:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"input function {function_name} " f"does not belong to this project"
+                    f"input function {function_name} "
+                    f"does not belong to this project"
                 )
             function_uri = mlrun.utils.generate_object_uri(
                 project,
@@ -393,14 +422,22 @@ class APIGateway(ModelObj):
 
         auth = None
 
-        if self.spec.authentication.authentication_mode == schemas.APIGatewayAuthenticationMode.basic.value:
+        if (
+            self.spec.authentication.authentication_mode
+            == schemas.APIGatewayAuthenticationMode.basic.value
+        ):
             if not credentials:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "API Gateway invocation requires authentication. Please pass credentials"
                 )
-            auth = NuclioAuthInfo(username=credentials[0], password=credentials[1]).to_requests_auth()
+            auth = NuclioAuthInfo(
+                username=credentials[0], password=credentials[1]
+            ).to_requests_auth()
 
-        if self.spec.authentication.authentication_mode == schemas.APIGatewayAuthenticationMode.access_key.value:
+        if (
+            self.spec.authentication.authentication_mode
+            == schemas.APIGatewayAuthenticationMode.access_key.value
+        ):
             # inject access key from env
             if credentials:
                 auth = NuclioAuthInfo(
@@ -443,9 +480,13 @@ class APIGateway(ModelObj):
 
         def _ensure_ready():
             if not self.is_ready():
-                raise AssertionError(f"Waiting for gateway readiness is taking more than {max_wait_time} seconds")
+                raise AssertionError(
+                    f"Waiting for gateway readiness is taking more than {max_wait_time} seconds"
+                )
 
-        return mlrun.utils.helpers.retry_until_successful(3, max_wait_time, logger, False, _ensure_ready)
+        return mlrun.utils.helpers.retry_until_successful(
+            3, max_wait_time, logger, False, _ensure_ready
+        )
 
     def is_ready(self):
         if self.status.state is not schemas.api_gateway.APIGatewayState.ready:
@@ -457,7 +498,9 @@ class APIGateway(ModelObj):
         """
         Synchronize the API gateway from the server.
         """
-        synced_gateway = mlrun.get_run_db().get_api_gateway(self.metadata.name, self.spec.project)
+        synced_gateway = mlrun.get_run_db().get_api_gateway(
+            self.metadata.name, self.spec.project
+        )
         synced_gateway = self.from_scheme(synced_gateway)
 
         self.spec.host = synced_gateway.spec.host
@@ -518,7 +561,9 @@ class APIGateway(ModelObj):
                 f"Gateway with canary can be created only with two functions, "
                 f"the number of functions passed is {len(functions)}"
             )
-        self.spec.validate(project=self.spec.project, functions=functions, canary=canary)
+        self.spec.validate(
+            project=self.spec.project, functions=functions, canary=canary
+        )
 
     def with_ports(self, ports: list[int]):
         """
@@ -527,20 +572,26 @@ class APIGateway(ModelObj):
         :param ports: The ports of the API gateway, as a list of integers that correspond to the functions in the
             functions list. for instance: [8050] or [8050, 8081]
         """
-        self.spec.validate(project=self.spec.project, functions=self.spec.functions, ports=ports)
+        self.spec.validate(
+            project=self.spec.project, functions=self.spec.functions, ports=ports
+        )
 
     def with_force_ssl_redirect(self):
         """
         Set SSL redirect annotation for the API gateway.
         """
-        self.metadata.annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
+        self.metadata.annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = (
+            "true"
+        )
 
     def with_gateway_timeout(self, gateway_timeout: int):
         """
         Set gateway proxy connect/read/send timeout annotations
         :param gateway_timeout: The timeout in seconds
         """
-        mlrun.runtimes.utils.enrich_gateway_timeout_annotations(self.metadata.annotations, gateway_timeout)
+        mlrun.runtimes.utils.enrich_gateway_timeout_annotations(
+            self.metadata.annotations, gateway_timeout
+        )
 
     def with_annotations(self, annotations: dict):
         """set a key/value annotations in the metadata of the api gateway"""
@@ -550,9 +601,15 @@ class APIGateway(ModelObj):
 
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
-        project = api_gateway.metadata.labels.get(mlrun_constants.MLRunInternalLabels.nuclio_project_name)
+        project = api_gateway.metadata.labels.get(
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name
+        )
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
-        state = api_gateway.status.state if api_gateway.status else schemas.APIGatewayState.none
+        state = (
+            api_gateway.status.state
+            if api_gateway.status
+            else schemas.APIGatewayState.none
+        )
         new_api_gateway = cls(
             metadata=APIGatewayMetadata(
                 name=api_gateway.spec.name,

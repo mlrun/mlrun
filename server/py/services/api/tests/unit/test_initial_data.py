@@ -70,20 +70,34 @@ def test_perform_data_migrations_from_first_version():
     db.create_data_version(db_session, "1")
 
     # keep a reference to the original functions, so we can restore them later
-    original_perform_version_2_data_migrations = services.api.initial_data._perform_version_2_data_migrations
+    original_perform_version_2_data_migrations = (
+        services.api.initial_data._perform_version_2_data_migrations
+    )
     services.api.initial_data._perform_version_2_data_migrations = unittest.mock.Mock()
-    original_perform_version_3_data_migrations = services.api.initial_data._perform_version_3_data_migrations
+    original_perform_version_3_data_migrations = (
+        services.api.initial_data._perform_version_3_data_migrations
+    )
     services.api.initial_data._perform_version_3_data_migrations = unittest.mock.Mock()
-    original_perform_version_4_data_migrations = services.api.initial_data._perform_version_4_data_migrations
+    original_perform_version_4_data_migrations = (
+        services.api.initial_data._perform_version_4_data_migrations
+    )
     services.api.initial_data._perform_version_4_data_migrations = unittest.mock.Mock()
-    original_perform_version_5_data_migrations = services.api.initial_data._perform_version_5_data_migrations
+    original_perform_version_5_data_migrations = (
+        services.api.initial_data._perform_version_5_data_migrations
+    )
     services.api.initial_data._perform_version_5_data_migrations = unittest.mock.Mock()
-    original_perform_version_6_data_migrations = services.api.initial_data._perform_version_6_data_migrations
+    original_perform_version_6_data_migrations = (
+        services.api.initial_data._perform_version_6_data_migrations
+    )
     services.api.initial_data._perform_version_6_data_migrations = unittest.mock.Mock()
-    original_perform_version_7_data_migrations = services.api.initial_data._perform_version_7_data_migrations
+    original_perform_version_7_data_migrations = (
+        services.api.initial_data._perform_version_7_data_migrations
+    )
     services.api.initial_data._perform_version_7_data_migrations = unittest.mock.Mock()
 
-    original_perform_version_8_data_migrations = services.api.initial_data._perform_version_8_data_migrations
+    original_perform_version_8_data_migrations = (
+        services.api.initial_data._perform_version_8_data_migrations
+    )
     services.api.initial_data._perform_version_8_data_migrations = unittest.mock.Mock()
 
     # perform migrations
@@ -105,13 +119,27 @@ def test_perform_data_migrations_from_first_version():
     )
 
     # restore original functions
-    services.api.initial_data._perform_version_2_data_migrations = original_perform_version_2_data_migrations
-    services.api.initial_data._perform_version_3_data_migrations = original_perform_version_3_data_migrations
-    services.api.initial_data._perform_version_4_data_migrations = original_perform_version_4_data_migrations
-    services.api.initial_data._perform_version_5_data_migrations = original_perform_version_5_data_migrations
-    services.api.initial_data._perform_version_6_data_migrations = original_perform_version_6_data_migrations
-    services.api.initial_data._perform_version_7_data_migrations = original_perform_version_7_data_migrations
-    services.api.initial_data._perform_version_8_data_migrations = original_perform_version_8_data_migrations
+    services.api.initial_data._perform_version_2_data_migrations = (
+        original_perform_version_2_data_migrations
+    )
+    services.api.initial_data._perform_version_3_data_migrations = (
+        original_perform_version_3_data_migrations
+    )
+    services.api.initial_data._perform_version_4_data_migrations = (
+        original_perform_version_4_data_migrations
+    )
+    services.api.initial_data._perform_version_5_data_migrations = (
+        original_perform_version_5_data_migrations
+    )
+    services.api.initial_data._perform_version_6_data_migrations = (
+        original_perform_version_6_data_migrations
+    )
+    services.api.initial_data._perform_version_7_data_migrations = (
+        original_perform_version_7_data_migrations
+    )
+    services.api.initial_data._perform_version_8_data_migrations = (
+        original_perform_version_8_data_migrations
+    )
 
 
 def test_resolve_current_data_version_version_exists():
@@ -133,7 +161,9 @@ def test_resolve_current_data_version_before_and_after_projects(table_exists, db
         # simulating table doesn't exist in DB
         db.get_current_data_version = unittest.mock.Mock()
         if db_type == "sqlite":
-            db.get_current_data_version.side_effect = sqlalchemy.exc.OperationalError("no such table", None, None)
+            db.get_current_data_version.side_effect = sqlalchemy.exc.OperationalError(
+                "no such table", None, None
+            )
         elif db_type == "mysql":
             db.get_current_data_version.side_effect = sqlalchemy.exc.ProgrammingError(
                 "Table 'mlrun.data_versions' doesn't exist", None, None
@@ -180,7 +210,9 @@ def test_add_default_hub_source_if_needed():
     assert hub_source.source.spec.path == config.hub.default_source.url
 
     # Make sure the hub source is not updated if it already exists
-    with unittest.mock.patch("services.api.initial_data._update_default_hub_source") as update_default_hub_source:
+    with unittest.mock.patch(
+        "services.api.initial_data._update_default_hub_source"
+    ) as update_default_hub_source:
         services.api.initial_data._add_default_hub_source_if_needed(db, db_session)
         assert update_default_hub_source.call_count == 0
 
@@ -230,7 +262,9 @@ def test_create_project_summaries():
         (None, None, None),
     ],
 )
-def test_align_schedule_labels(scheduled_object_labels, schedule_labels, expected_labels):
+def test_align_schedule_labels(
+    scheduled_object_labels, schedule_labels, expected_labels
+):
     db, db_session = _initialize_db_without_migrations()
 
     # Create a schedule
@@ -252,7 +286,9 @@ def test_align_schedule_labels(scheduled_object_labels, schedule_labels, expecte
     migrated_schedules = db.list_schedules(db_session)
 
     # Convert list[LabelRecord] to dict
-    migrated_schedules_dict = {label.name: label.value for label in migrated_schedules[0].labels}
+    migrated_schedules_dict = {
+        label.name: label.value for label in migrated_schedules[0].labels
+    }
 
     assert (
         migrated_schedules[0].scheduled_object["task"]["metadata"]["labels"]
@@ -261,7 +297,9 @@ def test_align_schedule_labels(scheduled_object_labels, schedule_labels, expecte
     )
 
 
-def _initialize_db_without_migrations() -> tuple[services.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]:
+def _initialize_db_without_migrations() -> (
+    tuple[services.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
+):
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
     mlrun.common.db.sql_session._init_engine(dsn=dsn)

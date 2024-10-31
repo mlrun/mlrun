@@ -104,7 +104,11 @@ class FlexibleMapper(MutableMapping):
 
         :return: an iterator over the object properties.
         """
-        yield from [m[0] for m in inspect.getmembers(self) if not callable(m[1]) and not m[0].startswith("_")]
+        yield from [
+            m[0]
+            for m in inspect.getmembers(self)
+            if not callable(m[1]) and not m[0].startswith("_")
+        ]
 
     def __bool__(self) -> bool:
         """

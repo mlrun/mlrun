@@ -39,7 +39,9 @@ def apply_kfp(modify, cop, runtime):
     for k, v in cop.pod_annotations.items():
         runtime.metadata.annotations[k] = v
     if cop.container.env:
-        env_names = [e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env]
+        env_names = [
+            e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
+        ]
         for e in api.sanitize_for_serialization(cop.container.env):
             name = e["name"]
             if name in env_names:
@@ -74,11 +76,15 @@ def compile_pipeline(
         cleanup_ttl=cleanup_ttl,
         op_transformers=ops,
     )
-    kfp.compiler.Compiler().compile(pipeline, pipe_file, type_check=type_check, pipeline_conf=conf)
+    kfp.compiler.Compiler().compile(
+        pipeline, pipe_file, type_check=type_check, pipeline_conf=conf
+    )
     return pipe_file
 
 
-def get_client(url: typing.Optional[str] = None, namespace: typing.Optional[str] = None) -> kfp.Client:
+def get_client(
+    url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
+) -> kfp.Client:
     if url or namespace:
         return kfp.Client(host=url, namespace=namespace)
     return kfp.Client()

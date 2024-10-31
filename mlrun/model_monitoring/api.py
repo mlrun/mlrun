@@ -33,7 +33,9 @@ from .helpers import update_model_endpoint_last_request
 from .model_endpoint import ModelEndpoint
 
 # A union of all supported dataset types:
-DatasetType = typing.Union[mlrun.DataItem, list, dict, pd.DataFrame, pd.Series, np.ndarray, typing.Any]
+DatasetType = typing.Union[
+    mlrun.DataItem, list, dict, pd.DataFrame, pd.Series, np.ndarray, typing.Any
+]
 
 
 def get_or_create_model_endpoint(
@@ -79,13 +81,17 @@ def get_or_create_model_endpoint(
 
     if not endpoint_id:
         # Generate a new model endpoint id based on the project name and model name
-        endpoint_id = hashlib.sha1(f"{project}_{model_endpoint_name}".encode()).hexdigest()
+        endpoint_id = hashlib.sha1(
+            f"{project}_{model_endpoint_name}".encode()
+        ).hexdigest()
 
     if not db_session:
         # Generate a runtime database
         db_session = mlrun.get_run_db()
     try:
-        model_endpoint = db_session.get_model_endpoint(project=project, endpoint_id=endpoint_id)
+        model_endpoint = db_session.get_model_endpoint(
+            project=project, endpoint_id=endpoint_id
+        )
         # If other fields provided, validate that they are correspond to the existing model endpoint data
         _model_endpoint_validations(
             model_endpoint=model_endpoint,
@@ -270,7 +276,10 @@ def _model_endpoint_validations(
             )
 
     # Feature stats
-    if sample_set_statistics and sample_set_statistics != model_endpoint.status.feature_stats:
+    if (
+        sample_set_statistics
+        and sample_set_statistics != model_endpoint.status.feature_stats
+    ):
         logger.warning(
             "Provided sample set statistics is different from the registered statistics. "
             "If new sample set statistics is to be used, new model endpoint should be created"
@@ -301,7 +310,9 @@ def write_monitoring_df(
                 "Please provide either a valid monitoring feature set object or a monitoring feature set uri"
             )
 
-        monitoring_feature_set = mlrun.feature_store.get_feature_set(uri=feature_set_uri)
+        monitoring_feature_set = mlrun.feature_store.get_feature_set(
+            uri=feature_set_uri
+        )
 
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
     if mm_constants.EventFieldType.TIMESTAMP not in infer_results_df.columns:
@@ -352,18 +363,24 @@ def _generate_model_endpoint(
     if function_name:
         model_endpoint.spec.function_uri = project + "/" + function_name
     elif not context:
-        raise mlrun.errors.MLRunInvalidArgumentError("Please provide either a function name or a valid MLRun context")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Please provide either a function name or a valid MLRun context"
+        )
     else:
         model_endpoint.spec.function_uri = context.to_dict()["spec"]["function"]
     model_endpoint.spec.model_uri = model_path
     model_endpoint.spec.model = model_endpoint_name
     model_endpoint.spec.model_class = "drift-analysis"
     model_endpoint.spec.monitoring_mode = monitoring_mode
-    model_endpoint.status.first_request = model_endpoint.status.last_request = datetime_now().isoformat()
+    model_endpoint.status.first_request = model_endpoint.status.last_request = (
+        datetime_now().isoformat()
+    )
     if sample_set_statistics:
         model_endpoint.status.feature_stats = sample_set_statistics
 
-    db_session.create_model_endpoint(project=project, endpoint_id=endpoint_id, model_endpoint=model_endpoint)
+    db_session.create_model_endpoint(
+        project=project, endpoint_id=endpoint_id, model_endpoint=model_endpoint
+    )
 
     return db_session.get_model_endpoint(project=project, endpoint_id=endpoint_id)
 
@@ -481,7 +498,8 @@ def read_dataset_as_dataframe(
         if (
             not dataset.url
             and dataset.artifact_url
-            and mlrun.datastore.parse_store_uri(dataset.artifact_url)[0] == mlrun.utils.StorePrefix.FeatureVector
+            and mlrun.datastore.parse_store_uri(dataset.artifact_url)[0]
+            == mlrun.utils.StorePrefix.FeatureVector
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"No data has been found. Make sure you have applied `get_offline_features` "
@@ -558,7 +576,8 @@ def _create_model_monitoring_function_base(
     """
     if name in mm_constants._RESERVED_FUNCTION_NAMES:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "An application cannot have the following names: " f"{mm_constants._RESERVED_FUNCTION_NAMES}"
+            "An application cannot have the following names: "
+            f"{mm_constants._RESERVED_FUNCTION_NAMES}"
         )
     if func is None:
         func = ""

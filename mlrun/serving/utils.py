@@ -34,7 +34,9 @@ def _extract_input_data(input_path, body):
 def _update_result_body(result_path, event_body, result):
     if result_path and event_body:
         if not hasattr(event_body, "__getitem__"):
-            raise TypeError("result_path parameter supports only dict-like event bodies")
+            raise TypeError(
+                "result_path parameter supports only dict-like event bodies"
+            )
         update_in(event_body, result_path, result)
     else:
         event_body = result
@@ -79,7 +81,9 @@ class StepToDict:
             class_path = f"{mod_name}.{class_path}"
         struct = {
             "class_name": class_path,
-            "name": self.name if hasattr(self, "name") and self.name else self.__class__.__name__,
+            "name": self.name
+            if hasattr(self, "name") and self.name
+            else self.__class__.__name__,
             "class_args": args,
         }
         if hasattr(self, "_STEP_KIND"):

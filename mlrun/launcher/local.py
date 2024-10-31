@@ -44,7 +44,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -54,7 +56,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
-        schedule: Optional[Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]] = None,
+        schedule: Optional[
+            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+        ] = None,
         hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
@@ -131,8 +135,13 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
     ):
-        if "V3IO_USERNAME" in os.environ and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels:
-            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = os.environ.get("V3IO_USERNAME")
+        if (
+            "V3IO_USERNAME" in os.environ
+            and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels
+        ):
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = (
+                os.environ.get("V3IO_USERNAME")
+            )
 
         # store function object in db unless running from within a run pod
         if not runtime.is_child:
@@ -215,7 +224,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
 
         meta = mlrun.model.BaseMetadata(function_name, project=project)
 
-        command, loaded_runtime = mlrun.run.load_func_code(command or runtime, workdir, name=name)
+        command, loaded_runtime = mlrun.run.load_func_code(
+            command or runtime, workdir, name=name
+        )
         # loaded_runtime is loaded from runtime or yaml file, if passed a command it should be None,
         # so we keep the current runtime for enrichment
         runtime = loaded_runtime or runtime
@@ -259,7 +270,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
                     args = sp[1:]
         return command, args
 
-    def _push_notifications(self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"):
+    def _push_notifications(
+        self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"
+    ):
         if not self._run_has_valid_notifications(runobj):
             return
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the

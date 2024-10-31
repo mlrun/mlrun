@@ -54,12 +54,16 @@ class Files(
         # to override its value, we allow the user to interfere with how MLRun manages its secrets internally,
         # which can lead to unexpected results.
         for secret_key in secrets.keys():
-            services.api.crud.Secrets().validate_internal_project_secret_key_allowed(secret_key)
+            services.api.crud.Secrets().validate_internal_project_secret_key_allowed(
+                secret_key
+            )
 
         project_secrets = self._verify_and_get_project_secrets(project)
         project_secrets.update(secrets)
 
-        self._delete_artifact_data(schema, path, user, auth_info, project_secrets, project)
+        self._delete_artifact_data(
+            schema, path, user, auth_info, project_secrets, project
+        )
 
     def _get_filestat(
         self,
@@ -78,7 +82,9 @@ class Files(
         try:
             stat = store_manager.object(url=path, secrets=enriched_secrets).stat()
         except FileNotFoundError as exc:
-            services.api.api.utils.log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=err_to_str(exc))
+            services.api.api.utils.log_and_raise(
+                HTTPStatus.NOT_FOUND.value, path=path, err=err_to_str(exc)
+            )
 
         ctype, _ = mimetypes.guess_type(path)
         if not ctype:
@@ -106,7 +112,9 @@ class Files(
         obj.delete()
 
     @staticmethod
-    def _enrich_secrets_with_auth_info(auth_info: mlrun.common.schemas.AuthInfo, secrets: dict = None):
+    def _enrich_secrets_with_auth_info(
+        auth_info: mlrun.common.schemas.AuthInfo, secrets: dict = None
+    ):
         """
         Update user-provided secrets with auth_info (user-provided secrets take precedence)
         """
@@ -128,7 +136,9 @@ class Files(
 
     @staticmethod
     def _verify_and_get_project_secrets(project):
-        if not services.api.utils.singletons.k8s.get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+        if not services.api.utils.singletons.k8s.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
             return {}
 
         secrets_data = services.api.crud.Secrets().list_project_secrets(

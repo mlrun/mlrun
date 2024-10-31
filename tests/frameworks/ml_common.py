@@ -52,13 +52,19 @@ def get_dataset(
         if algorithm_functionality.is_binary_classification():
             n_classes = 2
         if algorithm_functionality.is_single_output():
-            x, y = make_classification(n_samples=n_samples, n_classes=n_classes, n_informative=n_classes)
+            x, y = make_classification(
+                n_samples=n_samples, n_classes=n_classes, n_informative=n_classes
+            )
             stratify = y
         else:
-            x, y = make_multilabel_classification(n_samples=n_samples, n_classes=n_classes)
+            x, y = make_multilabel_classification(
+                n_samples=n_samples, n_classes=n_classes
+            )
             stratify = None
 
     if not for_training:
         return x, y
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, stratify=stratify)
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.2, stratify=stratify
+    )
     return x_train, x_test, y_train, y_test

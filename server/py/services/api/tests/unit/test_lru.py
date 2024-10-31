@@ -73,7 +73,9 @@ class LRUTest(unittest.TestCase):
         self.assertTrue(info.misses == 0)
         self.assertTrue(info.currsize == 0)
 
-        lru = services.api.utils.lru_cache.LRUCache(self._func_getter2, maxsize=3, ignore_args_for_hash=[0])
+        lru = services.api.utils.lru_cache.LRUCache(
+            self._func_getter2, maxsize=3, ignore_args_for_hash=[0]
+        )
         lru("not_important", 1)
         self.assertTrue(lru.cached("not_important", 1))
         self.assertTrue(lru.cached("not_at_all_important", 1))

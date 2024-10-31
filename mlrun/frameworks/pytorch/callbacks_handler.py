@@ -270,7 +270,9 @@ class CallbacksHandler:
             metric_values=metric_values,
         )
 
-    def on_train_batch_begin(self, batch: int, x, y_true: Tensor, callbacks: list[str] = None) -> bool:
+    def on_train_batch_begin(
+        self, batch: int, x, y_true: Tensor, callbacks: list[str] = None
+    ) -> bool:
         """
         Call the 'on_train_batch_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -319,7 +321,9 @@ class CallbacksHandler:
             y_true=y_true,
         )
 
-    def on_validation_batch_begin(self, batch: int, x, y_true: Tensor, callbacks: list[str] = None) -> bool:
+    def on_validation_batch_begin(
+        self, batch: int, x, y_true: Tensor, callbacks: list[str] = None
+    ) -> bool:
         """
         Call the 'on_validation_batch_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -425,7 +429,9 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_train_loss_end(self, loss_value: PyTorchTypes.MetricValueType, callbacks: list[str] = None) -> bool:
+    def on_train_loss_end(
+        self, loss_value: PyTorchTypes.MetricValueType, callbacks: list[str] = None
+    ) -> bool:
         """
         Call the 'on_train_loss_end' method of every callback in the callbacks list. If the list is 'None' (not given),
         all callbacks will be called.
@@ -455,7 +461,9 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_validation_loss_end(self, loss_value: PyTorchTypes.MetricValueType, callbacks: list[str] = None) -> bool:
+    def on_validation_loss_end(
+        self, loss_value: PyTorchTypes.MetricValueType, callbacks: list[str] = None
+    ) -> bool:
         """
         Call the 'on_validation_loss_end' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -637,7 +645,9 @@ class CallbacksHandler:
             return names
         return list(self._callbacks.keys())
 
-    def _run_callbacks(self, method_name: str, callbacks: list[str], *args, **kwargs) -> bool:
+    def _run_callbacks(
+        self, method_name: str, callbacks: list[str], *args, **kwargs
+    ) -> bool:
         """
         Run the given method from the 'CallbackInterface' on all the specified callbacks with the given arguments.
 

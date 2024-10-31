@@ -75,7 +75,8 @@ def test_commit_regex_matching():
             "expected_pull_request_number": "#1055",
         },
         {
-            "commit_line": "a654a04e {Hedingber} [CI] Mistakenly removing the space(#685)" "",
+            "commit_line": "a654a04e {Hedingber} [CI] Mistakenly removing the space(#685)"
+            "",
             "expected_commit_id": "a654a04e",
             "expected_username": "Hedingber",
             "expected_scope": "CI",
@@ -94,7 +95,10 @@ def test_commit_regex_matching():
         assert case["expected_username"] == match.groupdict()["username"]
         assert case["expected_scope"] == match.groupdict()["scope"]
         assert case["expected_commit_message"] == match.groupdict()["commitMessage"]
-        assert case["expected_pull_request_number"] == match.groupdict()["pullRequestNumber"]
+        assert (
+            case["expected_pull_request_number"]
+            == match.groupdict()["pullRequestNumber"]
+        )
 
 
 def test_generate_release_notes():

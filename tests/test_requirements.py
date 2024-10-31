@@ -38,7 +38,9 @@ def test_extras_requirement_file_aligned():
     setup_py_extras_requirements_specifiers_map = _parse_requirement_specifiers_list(
         setup_py_extras_requirements_specifiers
     )
-    extras_requirements_file_specifiers_map = _parse_requirement_specifiers_list(extras_requirements_file_specifiers)
+    extras_requirements_file_specifiers_map = _parse_requirement_specifiers_list(
+        extras_requirements_file_specifiers
+    )
     assert (
         deepdiff.DeepDiff(
             setup_py_extras_requirements_specifiers_map,
@@ -70,7 +72,11 @@ def test_requirement_specifiers_convention():
             if not tested_requirement_specifier.startswith("~="):
                 invalid_requirement = True
             else:
-                major_version = int(tested_requirement_specifier[len("~=") : tested_requirement_specifier.find(".")])
+                major_version = int(
+                    tested_requirement_specifier[
+                        len("~=") : tested_requirement_specifier.find(".")
+                    ]
+                )
 
                 # either major or part of limited group of "stable" packages
                 is_stable_requirement = major_version >= 1 or requirement_name in [
@@ -79,14 +85,21 @@ def test_requirement_specifiers_convention():
                 # if it's stable we want to prevent only major changes, meaning version should be X.Y
                 # if it's not stable we want to prevent major and minor changes, meaning version should be X.Y.Z
                 wanted_number_of_dot_occurrences = 1 if is_stable_requirement else 2
-                if tested_requirement_specifier.count(".") != wanted_number_of_dot_occurrences:
+                if (
+                    tested_requirement_specifier.count(".")
+                    != wanted_number_of_dot_occurrences
+                ):
                     invalid_requirement = True
             if invalid_requirement:
-                invalid_requirement_specifiers_map[requirement_name].add(requirement_specifier)
+                invalid_requirement_specifiers_map[requirement_name].add(
+                    requirement_specifier
+                )
 
     # filter out pinned requirements (==) and requirements with both upper and lower bounds
     # this is done on requirement with single specifier only, for simplicity
-    for requirement_name, requirement_specifiers in list(invalid_requirement_specifiers_map.items()):
+    for requirement_name, requirement_specifiers in list(
+        invalid_requirement_specifiers_map.items()
+    ):
         if requirement_specifiers and len(requirement_specifiers) == 1:
             requirement_specifier = list(requirement_specifiers)[0]
             bound_up = ">=" in requirement_specifier or "~=" in requirement_specifier
@@ -108,7 +121,9 @@ def test_requirement_specifiers_convention():
         "python-dotenv": {""},
         # These are not semver
         "pyhive": {" @ git+https://github.com/v3io/PyHive.git@v0.6.999"},
-        "v3io-generator": {" @ git+https://github.com/v3io/data-science.git#subdirectory=generator"},
+        "v3io-generator": {
+            " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
+        },
         "databricks-sdk": {"~=0.13.0"},
         "distributed": {"~=2023.12.1"},
         "dask": {"~=2023.12.1"},
@@ -207,9 +222,13 @@ def test_requirement_from_remote():
 
 
 def _generate_all_requirement_specifiers_map() -> dict[str, set]:
-    requirements_file_paths = list(pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt"))
+    requirements_file_paths = list(
+        pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
+    )
     venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
-    requirements_file_paths = list(filter(lambda path: str(venv_path) not in str(path), requirements_file_paths))
+    requirements_file_paths = list(
+        filter(lambda path: str(venv_path) not in str(path), requirements_file_paths)
+    )
 
     requirement_specifiers = []
     for requirements_file_path in requirements_file_paths:
@@ -229,12 +248,20 @@ def _parse_requirement_specifiers_list(
         r"(?P<requirementExtra>\[[a-zA-Z\-0-9_]+\])?"
         r"(?P<requirementSpecifier>.*)"
     )
-    remote_location_regex = r"^(?P<requirementSpecifier>.*)#egg=(?P<requirementName>[^#]+)"
+    remote_location_regex = (
+        r"^(?P<requirementSpecifier>.*)#egg=(?P<requirementName>[^#]+)"
+    )
     requirement_specifiers_map = collections.defaultdict(set)
     for requirement_specifier in requirement_specifiers:
-        regex = remote_location_regex if "#egg=" in requirement_specifier else specific_module_regex
+        regex = (
+            remote_location_regex
+            if "#egg=" in requirement_specifier
+            else specific_module_regex
+        )
         match = re.fullmatch(regex, requirement_specifier)
-        assert match is not None, f"Requirement specifier did not matched regex. {requirement_specifier}"
+        assert (
+            match is not None
+        ), f"Requirement specifier did not matched regex. {requirement_specifier}"
         requirement_specifiers_map[match.groupdict()["requirementName"].lower()].add(
             match.groupdict()["requirementSpecifier"]
         )
@@ -244,7 +271,9 @@ def _parse_requirement_specifiers_list(
 def _import_extras_requirements():
     def mock_file_open(file, *args, **kwargs):
         if "setup.py" not in str(file):
-            return unittest.mock.mock_open(read_data=json.dumps({"version": "some-ver"})).return_value
+            return unittest.mock.mock_open(
+                read_data=json.dumps({"version": "some-ver"})
+            ).return_value
         else:
             return original_open(file, *args, **kwargs)
 
@@ -299,7 +328,9 @@ def _is_ignored_requirement_line(line):
 
 
 @pytest.mark.skipif(
-    subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], capture_output=True).stdout.decode().strip()
+    subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], capture_output=True)
+    .stdout.decode()
+    .strip()
     != "true",
     reason="Not inside a Git repository",  # e.g. in a Docker image, as happens in the CI
 )
@@ -314,7 +345,9 @@ def test_scikit_learn_requirements_are_aligned() -> None:
     scikit_learn_version = "1.5.1"
 
     escaped_version = re.escape(scikit_learn_version)
-    pattern = f"scikit-learn.=(?!{escaped_version})[0-9\\.]*"  # match only other versions
+    pattern = (
+        f"scikit-learn.=(?!{escaped_version})[0-9\\.]*"  # match only other versions
+    )
 
     ignored_files = [
         "tests/test_requirements.py",  # this test file

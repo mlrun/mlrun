@@ -65,7 +65,9 @@ def test_database_exists_unknown(mock_alembic, mock_database):
 
 
 @pytest.fixture()
-def mock_database(monkeypatch, mock_alembic, mock_db_file_name) -> typing.Callable[[list[str], str, bool, bool], None]:
+def mock_database(
+    monkeypatch, mock_alembic, mock_db_file_name
+) -> typing.Callable[[list[str], str, bool, bool], None]:
     def _mock_database(
         revision_history: list[str] = None,
         current_revision: str = "",
@@ -84,7 +86,9 @@ def mock_database(monkeypatch, mock_alembic, mock_db_file_name) -> typing.Callab
 
         def _current_revision(alembic_config: typing.Any):
             if current_revision != "" and current_revision not in revision_history:
-                raise Exception(f"Can't locate revision identified by '{current_revision}'")
+                raise Exception(
+                    f"Can't locate revision identified by '{current_revision}'"
+                )
 
             alembic_config.print_stdout(current_revision)
 

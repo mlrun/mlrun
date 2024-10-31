@@ -38,7 +38,11 @@ class SupportedFormat(ABC, Generic[FileHandlerType]):
 
         :return: A list of all the supported formats.
         """
-        return [value for key, value in cls.__dict__.items() if isinstance(value, str) and not key.startswith("_")]
+        return [
+            value
+            for key, value in cls.__dict__.items()
+            if isinstance(value, str) and not key.startswith("_")
+        ]
 
     @classmethod
     def get_format_handler(cls, fmt: str) -> type[FileHandlerType]:

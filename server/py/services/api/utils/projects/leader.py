@@ -99,7 +99,9 @@ class Member(
     ) -> tuple[mlrun.common.schemas.Project, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers(True, "patch_project", db_session, name, project, patch_mode)
+        self._run_on_all_followers(
+            True, "patch_project", db_session, name, project, patch_mode
+        )
         return self.get_project(db_session, name), False
 
     def delete_project(
@@ -115,7 +117,9 @@ class Member(
     ) -> bool:
         self._projects_in_deletion.add(name)
         try:
-            self._run_on_all_followers(False, "delete_project", db_session, name, deletion_strategy, auth_info)
+            self._run_on_all_followers(
+                False, "delete_project", db_session, name, deletion_strategy, auth_info
+            )
         finally:
             self._projects_in_deletion.remove(name)
         return False
@@ -141,7 +145,9 @@ class Member(
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
-        return self._leader_follower.list_projects(db_session, owner, format_, labels, state, names)
+        return self._leader_follower.list_projects(
+            db_session, owner, format_, labels, state, names
+        )
 
     async def list_project_summaries(
         self,
@@ -153,7 +159,9 @@ class Member(
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
-        return await self._leader_follower.list_project_summaries(db_session, owner, labels, state, names)
+        return await self._leader_follower.list_project_summaries(
+            db_session, owner, labels, state, names
+        )
 
     async def get_project_summary(
         self,
@@ -186,7 +194,9 @@ class Member(
             )
 
     def _stop_periodic_sync(self):
-        services.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
+        services.api.utils.periodic.cancel_periodic_function(
+            self._sync_projects.__name__
+        )
 
     def _sync_projects(self):
         db_session = services.api.db.session.create_session()
@@ -194,19 +204,27 @@ class Member(
             # re-generating all of the maps every time since _ensure_follower_projects_synced might cause changes
             leader_projects: mlrun.common.schemas.ProjectsOutput
             follower_projects_map: dict[str, mlrun.common.schemas.ProjectsOutput]
-            leader_projects, follower_projects_map = self._run_on_all_followers(True, "list_projects", db_session)
-            leader_project_names = {project.metadata.name for project in leader_projects.projects}
+            leader_projects, follower_projects_map = self._run_on_all_followers(
+                True, "list_projects", db_session
+            )
+            leader_project_names = {
+                project.metadata.name for project in leader_projects.projects
+            }
             # create reverse map project -> follower names
             project_follower_names_map = collections.defaultdict(set)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    project_follower_names_map[project.metadata.name].add(_follower_name)
+                    project_follower_names_map[project.metadata.name].add(
+                        _follower_name
+                    )
 
             # create map - follower name -> project name -> project for easier searches
             followers_projects_map = collections.defaultdict(dict)
             for _follower_name, follower_projects in follower_projects_map.items():
                 for project in follower_projects.projects:
-                    followers_projects_map[_follower_name][project.metadata.name] = project
+                    followers_projects_map[_follower_name][project.metadata.name] = (
+                        project
+                    )
 
             # create map - leader project name -> leader project for easier searches
             leader_projects_map = {}
@@ -274,7 +292,9 @@ class Member(
 
         # only if project in leader - align the rest of followers
         if project_in_leader:
-            missing_followers = set(follower_names).symmetric_difference(self._followers.keys())
+            missing_followers = set(follower_names).symmetric_difference(
+                self._followers.keys()
+            )
             project.metadata.name = project_name
             if self._should_sync_project_to_followers(project):
                 if missing_followers:
@@ -287,7 +307,9 @@ class Member(
                     )
 
                 # we possibly enriched the project we found in the follower, so let's update the followers that had it
-                self._store_project_in_followers(db_session, follower_names, project_name, project)
+                self._store_project_in_followers(
+                    db_session, follower_names, project_name, project
+                )
 
     def _store_project_in_followers(
         self,
@@ -350,7 +372,9 @@ class Member(
                     traceback=traceback.format_exc(),
                 )
 
-    def _should_sync_project_to_followers(self, project: mlrun.common.schemas.Project) -> bool:
+    def _should_sync_project_to_followers(
+        self, project: mlrun.common.schemas.Project
+    ) -> bool:
         """
         projects name validation is enforced on creation, the only way for a project name to be invalid is if it was
         created prior to 0.6.0, and the version was upgraded we do not want to sync these projects since it will
@@ -358,7 +382,9 @@ class Member(
         """
         return mlrun.projects.ProjectMetadata.validate_project_name(
             project.metadata.name, raise_on_failure=False
-        ) and mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels, raise_on_failure=False)
+        ) and mlrun.projects.ProjectMetadata.validate_project_labels(
+            project.metadata.labels, raise_on_failure=False
+        )
 
     def _run_on_all_followers(
         self, leader_first: bool, method: str, *args, **kwargs
@@ -378,15 +404,23 @@ class Member(
     def _initialize_followers(self):
         leader_name = mlrun.mlconf.httpdb.projects.leader
         self._leader_follower = self._initialize_follower(leader_name)
-        followers = mlrun.mlconf.httpdb.projects.followers.split(",") if mlrun.mlconf.httpdb.projects.followers else []
-        self._followers = {follower: self._initialize_follower(follower) for follower in followers}
+        followers = (
+            mlrun.mlconf.httpdb.projects.followers.split(",")
+            if mlrun.mlconf.httpdb.projects.followers
+            else []
+        )
+        self._followers = {
+            follower: self._initialize_follower(follower) for follower in followers
+        }
         logger.debug(
             "Initialized leader and followers",
             leader=leader_name,
             followers=list(self._followers.keys()),
         )
 
-    def _initialize_follower(self, name: str) -> services.api.utils.projects.remotes.follower.Member:
+    def _initialize_follower(
+        self, name: str
+    ) -> services.api.utils.projects.remotes.follower.Member:
         followers_classes_map = {
             "mlrun": services.api.crud.Projects(),
             "nuclio": services.api.utils.clients.nuclio.Client(),
@@ -410,12 +444,16 @@ class Member(
     @staticmethod
     def _enrich_project_patch(project_patch: dict):
         if project_patch.get("spec", {}).get("desired_state"):
-            project_patch.setdefault("status", {})["state"] = project_patch["spec"]["desired_state"]
+            project_patch.setdefault("status", {})["state"] = project_patch["spec"][
+                "desired_state"
+            ]
 
     @staticmethod
     def validate_project_name(name: str, raise_on_failure: bool = True) -> bool:
         try:
-            mlrun.utils.helpers.verify_field_regex("project.metadata.name", name, mlrun.utils.regex.project_name)
+            mlrun.utils.helpers.verify_field_regex(
+                "project.metadata.name", name, mlrun.utils.regex.project_name
+            )
         except mlrun.errors.MLRunInvalidArgumentError:
             if raise_on_failure:
                 raise

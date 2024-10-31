@@ -21,7 +21,9 @@ import mlrun.common.schemas
 import mlrun.config
 
 
-def test_health(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient) -> None:
+def test_health(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
     # sanity
     response = client.get("healthz")
     assert response.status_code == http.HTTPStatus.OK.value

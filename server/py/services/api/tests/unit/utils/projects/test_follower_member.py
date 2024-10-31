@@ -41,7 +41,9 @@ def projects_follower() -> typing.Iterator[services.api.utils.projects.follower.
     mlrun.mlconf.httpdb.projects.leader = "nop"
     mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
     services.api.utils.singletons.project_member.initialize_project_member()
-    projects_follower = services.api.utils.singletons.project_member.get_project_member()
+    projects_follower = (
+        services.api.utils.singletons.project_member.get_project_member()
+    )
     yield projects_follower
     logger.info("Stopping projects follower")
     projects_follower.shutdown()
@@ -420,7 +422,9 @@ async def test_list_project_summaries(
         project.metadata.name,
         project,
     )
-    services.api.utils.singletons.db.get_db().refresh_project_summaries(db, [project_summary])
+    services.api.utils.singletons.db.get_db().refresh_project_summaries(
+        db, [project_summary]
+    )
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
 
@@ -428,7 +432,9 @@ async def test_list_project_summaries(
 
     # cannot compare exact datetime objects, so assert that the difference from now is less than 10 seconds
     # and then remove the updated field for comparison.
-    assert datetime.datetime.utcnow() - db_project_summary["updated"] < datetime.timedelta(seconds=10)
+    assert datetime.datetime.utcnow() - db_project_summary[
+        "updated"
+    ] < datetime.timedelta(seconds=10)
     db_project_summary["updated"] = None
     assert (
         deepdiff.DeepDiff(
@@ -460,8 +466,8 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
         project_name,
         project,
     )
-    services.api.utils.singletons.db.get_db().get_project_resources_counters = unittest.mock.AsyncMock(
-        return_value=tuple({project_name: i} for i in range(9))
+    services.api.utils.singletons.db.get_db().get_project_resources_counters = (
+        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(9)))
     )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
     project_summaries = await projects_follower.list_project_summaries(db)
@@ -503,7 +509,9 @@ def _assert_list_projects(
 ):
     projects = projects_follower.list_projects(db_session, **kwargs)
     assert len(projects.projects) == len(expected_projects)
-    expected_projects_map = {_project.metadata.name: _project for _project in expected_projects}
+    expected_projects_map = {
+        _project.metadata.name: _project for _project in expected_projects
+    }
     for project in projects.projects:
         _assert_projects_equal(project, expected_projects_map[project.metadata.name])
 
@@ -553,9 +561,9 @@ def _assert_projects_equal(project_1, project_2):
         )
         == {}
     )
-    assert mlrun.common.schemas.ProjectState(project_1.status.state) == mlrun.common.schemas.ProjectState(
-        project_2.status.state
-    )
+    assert mlrun.common.schemas.ProjectState(
+        project_1.status.state
+    ) == mlrun.common.schemas.ProjectState(project_2.status.state)
 
 
 def _assert_project_not_in_follower(

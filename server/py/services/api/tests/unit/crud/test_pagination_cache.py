@@ -41,9 +41,13 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
             db, f"user{i}", method, page, page_size, kwargs
         )
 
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+    )
 
-    logger.debug("Sleeping for cache TTL so that records will be removed in the monitor")
+    logger.debug(
+        "Sleeping for cache TTL so that records will be removed in the monitor"
+    )
     time.sleep(ttl + 2)
 
     logger.debug("Creating new paginated cache record that won't be expired")
@@ -55,8 +59,13 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
     services.api.crud.PaginationCache().monitor_pagination_cache(db)
 
     logger.debug("Checking that old records were removed and new record still exists")
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 1
-    assert services.api.crud.PaginationCache().get_pagination_cache_record(db, new_key) is not None
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 1
+    )
+    assert (
+        services.api.crud.PaginationCache().get_pagination_cache_record(db, new_key)
+        is not None
+    )
 
 
 def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
@@ -80,13 +89,18 @@ def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
     logger.debug("Sleeping for 1 second to create time difference between records")
     time.sleep(1)
 
-    logger.debug("Creating paginated cache records up to max size (including the old record)")
+    logger.debug(
+        "Creating paginated cache records up to max size (including the old record)"
+    )
     for i in range(1, max_size):
         services.api.crud.PaginationCache().store_pagination_cache_record(
             db, f"user{i}", method, page, page_size, kwargs
         )
 
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == max_size
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db))
+        == max_size
+    )
 
     logger.debug("Creating new paginated cache record to replace the old one")
     new_key = services.api.crud.PaginationCache().store_pagination_cache_record(
@@ -96,10 +110,21 @@ def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
     logger.debug("Monitoring pagination cache")
     services.api.crud.PaginationCache().monitor_pagination_cache(db)
 
-    logger.debug("Checking that old record was removed and all other records still exist")
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == max_size
-    assert services.api.crud.PaginationCache().get_pagination_cache_record(db, new_key) is not None
-    assert services.api.crud.PaginationCache().get_pagination_cache_record(db, old_key) is None
+    logger.debug(
+        "Checking that old record was removed and all other records still exist"
+    )
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db))
+        == max_size
+    )
+    assert (
+        services.api.crud.PaginationCache().get_pagination_cache_record(db, new_key)
+        is not None
+    )
+    assert (
+        services.api.crud.PaginationCache().get_pagination_cache_record(db, old_key)
+        is None
+    )
 
 
 def test_pagination_cleanup(db: sqlalchemy.orm.Session):
@@ -117,11 +142,15 @@ def test_pagination_cleanup(db: sqlalchemy.orm.Session):
             db, f"user{i}", method, page, page_size, kwargs
         )
 
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+    )
 
     logger.debug("Cleaning up pagination cache")
     services.api.crud.PaginationCache().cleanup_pagination_cache(db)
     db.commit()
 
     logger.debug("Checking that all records were removed")
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+    )

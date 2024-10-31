@@ -94,15 +94,21 @@ class TestLogCollector:
         )
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
 
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
-        success, error = await log_collector.start_logs(run_uid=run_uid, project=project_name, selector=selector)
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        success, error = await log_collector.start_logs(
+            run_uid=run_uid, project=project_name, selector=selector
+        )
         assert success is True and not error
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(False, "Failed to start logs")
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
-            await log_collector.start_logs(run_uid=run_uid, project=project_name, selector=selector)
+            await log_collector.start_logs(
+                run_uid=run_uid, project=project_name, selector=selector
+            )
 
         success, error = await log_collector.start_logs(
             run_uid=run_uid,
@@ -121,8 +127,12 @@ class TestLogCollector:
         log_byte_string = b"some log"
 
         # mock responses for GetLogSize and GetLogs
-        log_collector._call = unittest.mock.AsyncMock(return_value=GetLogSizeResponse(True, "", 1))
-        log_collector._call_stream = unittest.mock.MagicMock(return_value=GetLogsResponse(True, "", log_byte_string, 1))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=GetLogSizeResponse(True, "", 1)
+        )
+        log_collector._call_stream = unittest.mock.MagicMock(
+            return_value=GetLogsResponse(True, "", log_byte_string, 1)
+        )
 
         log_stream = log_collector.get_logs(run_uid=run_uid, project=project_name)
         async for log in log_stream:
@@ -133,13 +143,19 @@ class TestLogCollector:
             return_value=GetLogsResponse(False, "Failed to get logs", b"", 5),
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
-            async for log in log_collector.get_logs(run_uid=run_uid, project=project_name):
+            async for log in log_collector.get_logs(
+                run_uid=run_uid, project=project_name
+            ):
                 assert log == b""  # should not get here
 
         # mock GetLogSize response to return 0
-        log_collector._call = unittest.mock.AsyncMock(return_value=GetLogSizeResponse(True, "", 0))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=GetLogSizeResponse(True, "", 0)
+        )
 
-        log_stream = log_collector.get_logs(run_uid=run_uid, project=project_name, raise_on_error=False)
+        log_stream = log_collector.get_logs(
+            run_uid=run_uid, project=project_name, raise_on_error=False
+        )
         async for log in log_stream:
             assert log == b""
 
@@ -157,7 +173,9 @@ class TestLogCollector:
             )
         )
 
-        log_stream = log_collector.get_logs(run_uid=run_uid, project=project_name, raise_on_error=False)
+        log_stream = log_collector.get_logs(
+            run_uid=run_uid, project=project_name, raise_on_error=False
+        )
         async for log in log_stream:
             assert log == b""
 
@@ -169,7 +187,9 @@ class TestLogCollector:
             )
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
-            async for log in log_collector.get_logs(run_uid=run_uid, project=project_name):
+            async for log in log_collector.get_logs(
+                run_uid=run_uid, project=project_name
+            ):
                 assert log == b""  # should not get here
 
     @pytest.mark.asyncio
@@ -179,7 +199,9 @@ class TestLogCollector:
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
 
         # test successful stop logs
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
         await log_collector.stop_logs(run_uids=run_uids, project=project_name)
         assert log_collector._call.call_count == 1
         assert log_collector._call.call_args[0][0] == "StopLogs"
@@ -202,7 +224,9 @@ class TestLogCollector:
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
 
         # test successful stop logs
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
         await log_collector.delete_logs(run_uids=run_uids, project=project_name)
         assert log_collector._call.call_count == 1
         assert log_collector._call.call_args[0][0] == "DeleteLogs"
@@ -238,7 +262,9 @@ class TestLogCollector:
 
         # mock a short response for ListRunsInProgress
         run_uids = [f"{str(i)}" for i in range(10)]
-        log_collector._call_stream = unittest.mock.MagicMock(return_value=ListRunsResponse(run_uids=run_uids))
+        log_collector._call_stream = unittest.mock.MagicMock(
+            return_value=ListRunsResponse(run_uids=run_uids)
+        )
         run_uids_stream = log_collector.list_runs_in_progress(project=project_name)
         await _verify_runs(run_uids_stream)
 

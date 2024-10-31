@@ -47,7 +47,9 @@ from .utils import (
 
 
 def load_spark_dataframe_with_options(session, spark_options, format=None):
-    non_hadoop_spark_options = spark_session_update_hadoop_options(session, spark_options)
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        session, spark_options
+    )
     if format:
         df = session.read.format(format).load(**non_hadoop_spark_options)
     else:
@@ -79,9 +81,14 @@ class BaseSourceDriver(DataSource):
         import storey
 
         if not self.support_storey:
-            raise mlrun.errors.MLRunRuntimeError(f"{type(self).__name__} does not support storey engine")
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support storey engine"
+            )
 
-        explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
+        explicit_ack = (
+            is_explicit_ack_supported(context)
+            and mlrun.mlconf.is_explicit_ack_enabled()
+        )
         return storey.SyncEmitSource(
             context=context,
             explicit_ack=explicit_ack,
@@ -102,7 +109,9 @@ class BaseSourceDriver(DataSource):
         additional_filters=None,
     ):
         """return the source data as dataframe"""
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
@@ -115,7 +124,9 @@ class BaseSourceDriver(DataSource):
         if self.support_spark:
             spark_options = self.get_spark_options()
             spark_format = spark_options.pop("format", None)
-            df = load_spark_dataframe_with_options(session, spark_options, format=spark_format)
+            df = load_spark_dataframe_with_options(
+                session, spark_options, format=spark_format
+            )
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
@@ -244,7 +255,9 @@ class CSVSource(BaseSourceDriver):
         time_field=None,
         additional_filters=None,
     ):
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
@@ -380,8 +393,12 @@ class ParquetSource(BaseSourceDriver):
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
-        new_obj = super().from_dict(struct=struct, fields=fields, deprecated_fields=deprecated_fields)
-        new_obj.attributes["additional_filters"] = transform_list_filters_to_tuple(new_obj.additional_filters)
+        new_obj = super().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        new_obj.attributes["additional_filters"] = transform_list_filters_to_tuple(
+            new_obj.additional_filters
+        )
         return new_obj
 
     def get_spark_options(self):
@@ -450,12 +467,16 @@ class ParquetSource(BaseSourceDriver):
                     filter_nan = column_types[col_name] not in ("timestamp", "date")
                     if value:
                         if op.lower() == "in":
-                            new_filter = col(col_name).isin(value) | col(col_name).isNull()
+                            new_filter = (
+                                col(col_name).isin(value) | col(col_name).isNull()
+                            )
                             if filter_nan:
                                 new_filter = new_filter | isnan(col(col_name))
 
                         else:
-                            new_filter = ~col(col_name).isin(value) & ~col(col_name).isNull()
+                            new_filter = (
+                                ~col(col_name).isin(value) & ~col(col_name).isNull()
+                            )
                             if filter_nan:
                                 new_filter = new_filter & ~isnan(col(col_name))
                     else:
@@ -475,7 +496,9 @@ class ParquetSource(BaseSourceDriver):
             elif op in operators:
                 new_filter = operators[op](col(col_name), value)
             else:
-                raise mlrun.errors.MLRunInvalidArgumentError(f"unsupported filter operator: {op}")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"unsupported filter operator: {op}"
+                )
             if spark_filter is not None:
                 spark_filter = spark_filter & new_filter
             else:
@@ -483,7 +506,9 @@ class ParquetSource(BaseSourceDriver):
         return spark_filter
 
     def _filter_spark_df(self, df, time_field=None, columns=None):
-        spark_additional_filters = self._build_spark_additional_filters(column_types=dict(df.dtypes))
+        spark_additional_filters = self._build_spark_additional_filters(
+            column_types=dict(df.dtypes)
+        )
         if spark_additional_filters is not None:
             df = df.filter(spark_additional_filters)
         return super()._filter_spark_df(df=df, time_field=time_field, columns=columns)
@@ -510,7 +535,9 @@ class BigQuerySource(BaseSourceDriver):
          )
 
          # read a table
-         source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+         source = BigQuerySource(
+             "bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project"
+         )
 
 
     :parameter name: source name
@@ -552,10 +579,18 @@ class BigQuerySource(BaseSourceDriver):
         **kwargs,
     ):
         if query and table:
-            raise mlrun.errors.MLRunInvalidArgumentError("cannot specify both table and query args")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify both table and query args"
+            )
         # Otherwise, the client library does not fully respect the limit
-        if max_results_for_table and chunksize and max_results_for_table % chunksize != 0:
-            raise mlrun.errors.MLRunInvalidArgumentError("max_results_for_table must be a multiple of chunksize")
+        if (
+            max_results_for_table
+            and chunksize
+            and max_results_for_table % chunksize != 0
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "max_results_for_table must be a multiple of chunksize"
+            )
         attrs = {
             "query": query,
             "table": table,
@@ -580,7 +615,9 @@ class BigQuerySource(BaseSourceDriver):
     def _get_credentials_string(self):
         gcp_project = self.attributes.get("gcp_project", None)
         key = "GCP_CREDENTIALS"
-        gcp_cred_string = os.getenv(key) or os.getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
+        gcp_cred_string = os.getenv(key) or os.getenv(
+            SecretsStore.k8s_env_variable_name_for_secret(key)
+        )
         return gcp_cred_string, gcp_project
 
     def _get_credentials(self):
@@ -589,7 +626,9 @@ class BigQuerySource(BaseSourceDriver):
         gcp_cred_string, gcp_project = self._get_credentials_string()
         if gcp_cred_string and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
             gcp_cred_dict = json.loads(gcp_cred_string, strict=False)
-            credentials = service_account.Credentials.from_service_account_info(gcp_cred_dict)
+            credentials = service_account.Credentials.from_service_account_info(
+                gcp_cred_dict
+            )
             return credentials, gcp_project or gcp_cred_dict["project_id"]
         return None, gcp_project
 
@@ -606,7 +645,9 @@ class BigQuerySource(BaseSourceDriver):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
 
         def schema_to_dtypes(schema):
             from mlrun.data_types.data_types import gbq_to_pandas_dtype
@@ -630,14 +671,20 @@ class BigQuerySource(BaseSourceDriver):
             table = self.attributes.get("table")
             max_results = self.attributes.get("max_results")
 
-            rows_iterator = bqclient.list_rows(table, page_size=chunksize, max_results=max_results)
+            rows_iterator = bqclient.list_rows(
+                table, page_size=chunksize, max_results=max_results
+            )
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError("table or query args must be specified")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "table or query args must be specified"
+            )
 
         dtypes = schema_to_dtypes(rows_iterator.schema)
         if chunksize:
             # passing bqstorage_client greatly improves performance
-            df = rows_iterator.to_dataframe_iterable(bqstorage_client=BigQueryReadClient(), dtypes=dtypes)
+            df = rows_iterator.to_dataframe_iterable(
+                bqstorage_client=BigQueryReadClient(), dtypes=dtypes
+            )
         else:
             df = rows_iterator.to_dataframe(dtypes=dtypes)
 
@@ -658,14 +705,18 @@ class BigQuerySource(BaseSourceDriver):
         options = copy(self.attributes.get("spark_options", {}))
         credentials, gcp_project = self._get_credentials_string()
         if credentials:
-            options["credentials"] = b64encode(credentials.encode("utf-8")).decode("utf-8")
+            options["credentials"] = b64encode(credentials.encode("utf-8")).decode(
+                "utf-8"
+            )
         if gcp_project:
             options["parentProject"] = gcp_project
         query = self.attributes.get("query")
         table = self.attributes.get("table")
         materialization_dataset = self.attributes.get("materialization_dataset")
         if not query and not table:
-            raise mlrun.errors.MLRunInvalidArgumentError("table or query args must be specified")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "table or query args must be specified"
+            )
         if query and not materialization_dataset:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "materialization_dataset must be specified when running a query"
@@ -742,7 +793,9 @@ class SnowflakeSource(BaseSourceDriver):
     ):
         # TODO: Remove in 1.9.0
         if schema:
-            warnings.warn("schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema")
+            warnings.warn(
+                "schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema"
+            )
         db_schema = db_schema or schema  # TODO: Remove in 1.9.0
 
         attributes = attributes or {}
@@ -785,7 +838,9 @@ class SnowflakeSource(BaseSourceDriver):
         time_field=None,
         additional_filters=None,
     ):
-        raise mlrun.errors.MLRunRuntimeError(f"{type(self).__name__} supports only spark engine")
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} supports only spark engine"
+        )
 
 
 class CustomSource(BaseSourceDriver):
@@ -849,7 +904,9 @@ class DataFrameSource:
         time_field=None,
         additional_filters=None,
     ):
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return self._df
 
     def is_iterator(self):
@@ -888,7 +945,10 @@ class OnlineSource(BaseSourceDriver):
         import storey
 
         source_args = self.attributes.get("source_args", {})
-        explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
+        explicit_ack = (
+            is_explicit_ack_supported(context)
+            and mlrun.mlconf.is_explicit_ack_enabled()
+        )
         # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
         src_class = storey.SyncEmitSource(
             context=context,
@@ -901,7 +961,9 @@ class OnlineSource(BaseSourceDriver):
         return src_class
 
     def add_nuclio_trigger(self, function):
-        raise mlrun.errors.MLRunInvalidArgumentError("This source type is not supported with ingestion service yet")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "This source type is not supported with ingestion service yet"
+        )
 
 
 class HttpSource(OnlineSource):
@@ -1043,7 +1105,9 @@ class KafkaSource(OnlineSource):
         time_field=None,
         additional_filters=None,
     ):
-        raise mlrun.MLRunInvalidArgumentError("KafkaSource does not support batch processing")
+        raise mlrun.MLRunInvalidArgumentError(
+            "KafkaSource does not support batch processing"
+        )
 
     def add_nuclio_trigger(self, function):
         if self.path and self.path.startswith("ds://"):
@@ -1059,7 +1123,9 @@ class KafkaSource(OnlineSource):
 
         if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             explicit_ack_mode = "explicitOnly"
-            extra_attributes["workerAllocationMode"] = extra_attributes.get("worker_allocation_mode", "static")
+            extra_attributes["workerAllocationMode"] = extra_attributes.get(
+                "worker_allocation_mode", "static"
+            )
 
         trigger_kwargs = {}
         if "max_workers" in extra_attributes:
@@ -1079,9 +1145,9 @@ class KafkaSource(OnlineSource):
 
         # ML-5499
         bug_fix_version = "1.12.10"
-        if config.nuclio_version and semver.VersionInfo.parse(config.nuclio_version) < semver.VersionInfo.parse(
-            bug_fix_version
-        ):
+        if config.nuclio_version and semver.VersionInfo.parse(
+            config.nuclio_version
+        ) < semver.VersionInfo.parse(bug_fix_version):
             warnings.warn(
                 f"Detected nuclio version {config.nuclio_version}, which is older "
                 f"than {bug_fix_version}. Forcing number of replicas of 1 in function '{function.metadata.name}'. "
@@ -1116,18 +1182,28 @@ class KafkaSource(OnlineSource):
 
         brokers = self.attributes.get("brokers")
         if not brokers:
-            raise mlrun.errors.MLRunInvalidArgumentError("brokers must be specified in the KafkaSource attributes")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "brokers must be specified in the KafkaSource attributes"
+            )
         topics = topics or self.attributes.get("topics")
         if not topics:
-            raise mlrun.errors.MLRunInvalidArgumentError("topics must be specified in the KafkaSource attributes")
-        new_topics = [NewTopic(topic, num_partitions, replication_factor) for topic in topics]
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "topics must be specified in the KafkaSource attributes"
+            )
+        new_topics = [
+            NewTopic(topic, num_partitions, replication_factor) for topic in topics
+        ]
         kafka_admin = KafkaAdminClient(
             bootstrap_servers=brokers,
             sasl_mechanism=self.attributes.get("sasl", {}).get("sasl_mechanism"),
             sasl_plain_username=self.attributes.get("sasl", {}).get("username"),
             sasl_plain_password=self.attributes.get("sasl", {}).get("password"),
-            sasl_kerberos_service_name=self.attributes.get("sasl", {}).get("sasl_kerberos_service_name", "kafka"),
-            sasl_kerberos_domain_name=self.attributes.get("sasl", {}).get("sasl_kerberos_domain_name"),
+            sasl_kerberos_service_name=self.attributes.get("sasl", {}).get(
+                "sasl_kerberos_service_name", "kafka"
+            ),
+            sasl_kerberos_domain_name=self.attributes.get("sasl", {}).get(
+                "sasl_kerberos_domain_name"
+            ),
             sasl_oauth_token_provider=self.attributes.get("sasl", {}).get("mechanism"),
         )
         try:
@@ -1187,7 +1263,9 @@ class SQLSource(BaseSourceDriver):
         """
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None:
-            raise mlrun.errors.MLRunInvalidArgumentError("cannot specify without db_path arg or secret MLRUN_SQL__URL")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify without db_path arg or secret MLRUN_SQL__URL"
+            )
         if time_field:
             if parse_dates:
                 parse_dates.append(time_field)
@@ -1224,7 +1302,9 @@ class SQLSource(BaseSourceDriver):
     ):
         import sqlalchemy as sqlalchemy
 
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
         parse_dates = self.attributes.get("parse_dates")
@@ -1250,7 +1330,9 @@ class SQLSource(BaseSourceDriver):
                     columns=columns,
                 )
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError("table_name and db_name args must be specified")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "table_name and db_name args must be specified"
+            )
 
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey

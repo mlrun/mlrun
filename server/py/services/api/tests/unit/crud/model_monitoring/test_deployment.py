@@ -78,7 +78,9 @@ class TestAppDeployment:
 
     @staticmethod
     def test_app_dep(monitoring_deployment: mm_dep.MonitoringDeployment) -> None:
-        monitoring_deployment.deploy_histogram_data_drift_app(image="mlrun/mlrun", overwrite=True)
+        monitoring_deployment.deploy_histogram_data_drift_app(
+            image="mlrun/mlrun", overwrite=True
+        )
 
     @staticmethod
     @pytest.fixture
@@ -86,10 +88,14 @@ class TestAppDeployment:
         return f"sqlite:///{tmp_path / 'test.db'}"
 
     @pytest.mark.skipif(
-        os.getenv("V3IO_FRAMESD") is None or os.getenv("V3IO_ACCESS_KEY") is None or os.getenv("V3IO_API") is None,
+        os.getenv("V3IO_FRAMESD") is None
+        or os.getenv("V3IO_ACCESS_KEY") is None
+        or os.getenv("V3IO_API") is None,
         reason="Configure Framsed to access V3IO store targets",
     )
-    def test_credentials(self, monitoring_deployment: mm_dep.MonitoringDeployment, store_connection: str) -> None:
+    def test_credentials(
+        self, monitoring_deployment: mm_dep.MonitoringDeployment, store_connection: str
+    ) -> None:
         # new project case
         with patch(
             "services.api.crud.Functions.get_function",
@@ -127,10 +133,17 @@ class TestAppDeployment:
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
             assert (
-                secrets[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION]
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                ]
                 == store_connection
             )
-            assert secrets[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION] == "v3io"
+            assert (
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+                ]
+                == "v3io"
+            )
 
             monitoring_deployment.set_credentials(
                 endpoint_store_connection=store_connection,
@@ -149,10 +162,17 @@ class TestAppDeployment:
             )
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
-            assert secrets[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION] == "v3io"
+            assert (
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                ]
+                == "v3io"
+            )
         # existing project - upgrade from 1.6.0 case
         monitoring_deployment.project = "1.6.0_project"
-        with patch("services.api.crud.Functions.get_function", return_value=Mock(spec={})):
+        with patch(
+            "services.api.crud.Functions.get_function", return_value=Mock(spec={})
+        ):
             with pytest.raises(mlrun.errors.MLRunConflictError):
                 monitoring_deployment.set_credentials(
                     endpoint_store_connection=store_connection,
@@ -161,7 +181,10 @@ class TestAppDeployment:
                 )
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
             for key, value in secrets.items():
-                if key != mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH:
+                if (
+                    key
+                    != mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                ):
                     assert value == "v3io"
             monitoring_deployment.set_credentials(
                 endpoint_store_connection=store_connection,
@@ -172,6 +195,8 @@ class TestAppDeployment:
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
             assert (
-                secrets[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION]
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                ]
                 == store_connection
             )

@@ -30,11 +30,15 @@ class _DummyStreamRaiser:
 def test_async_basic():
     function = mlrun.new_function("tests", kind="serving")
     flow = function.set_topology("flow", engine="async")
-    queue = flow.to(name="s1", class_name="ChainWithContext").to("$queue", "q1", path="")
+    queue = flow.to(name="s1", class_name="ChainWithContext").to(
+        "$queue", "q1", path=""
+    )
 
     s2 = queue.to(name="s2", class_name="ChainWithContext", function="some_function")
     s2.to(name="s4", class_name="ChainWithContext")
-    s2.to(name="s5", class_name="ChainWithContext").respond()  # this state returns the resp
+    s2.to(
+        name="s5", class_name="ChainWithContext"
+    ).respond()  # this state returns the resp
 
     queue.to(name="s3", class_name="ChainWithContext", function="some_other_function")
 
@@ -60,7 +64,9 @@ def test_async_basic():
 def test_async_error_on_missing_function_parameter():
     function = mlrun.new_function("tests", kind="serving")
     flow = function.set_topology("flow", engine="async")
-    queue = flow.to(name="s1", class_name="ChainWithContext").to("$queue", "q1", path="")
+    queue = flow.to(name="s1", class_name="ChainWithContext").to(
+        "$queue", "q1", path=""
+    )
 
     with pytest.raises(
         MLRunInvalidArgumentError,
@@ -79,7 +85,9 @@ def test_async_nested():
     router_step = graph.add_step("*", name="ensemble", after="s2")
     router_step.add_route("m1", class_name="ModelClass", model_path=".", multiplier=100)
     router_step.add_route("m2", class_name="ModelClass", model_path=".", multiplier=200)
-    router_step.add_route("m3:v1", class_name="ModelClass", model_path=".", multiplier=300)
+    router_step.add_route(
+        "m3:v1", class_name="ModelClass", model_path=".", multiplier=300
+    )
 
     graph.add_step(name="final", class_name="Echo", after="ensemble").respond()
 
@@ -97,7 +105,9 @@ def test_on_error():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     chain = graph.to("Chain", name="s1")
-    chain.to("Raiser").error_handler(name="catch", class_name="EchoError", full_event=True).to("Chain", name="s3")
+    chain.to("Raiser").error_handler(
+        name="catch", class_name="EchoError", full_event=True
+    ).to("Chain", name="s3")
 
     function.verbose = True
     server = function.to_mock_server()
@@ -107,9 +117,13 @@ def test_on_error():
     resp = server.test(body=[])
     server.wait_for_completion()
     if isinstance(resp, dict):
-        assert resp["error"] and resp["origin_state"] == "Raiser", f"error wasn't caught, resp={resp}"
+        assert (
+            resp["error"] and resp["origin_state"] == "Raiser"
+        ), f"error wasn't caught, resp={resp}"
     else:
-        assert resp.error and resp.origin_state == "Raiser", f"error wasn't caught, resp={resp}"
+        assert (
+            resp.error and resp.origin_state == "Raiser"
+        ), f"error wasn't caught, resp={resp}"
 
 
 def test_push_error():

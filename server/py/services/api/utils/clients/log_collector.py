@@ -56,7 +56,9 @@ class LogCollectorErrorCode(enum.Enum):
 class LogCollectorErrorRegex:
     # when multiple routines in the log collector service try to search the same directory,
     # one of them can fail with this error
-    readdirent_resource_temporarily_unavailable = "readdirent.*resource temporarily unavailable"
+    readdirent_resource_temporarily_unavailable = (
+        "readdirent.*resource temporarily unavailable"
+    )
 
     @classmethod
     def get_log_size_retryable_errors(cls):
@@ -112,7 +114,9 @@ class LogCollectorClient(
             projectName=project,
             bestEffort=best_effort,
         )
-        logger.debug("Starting logs", run_uid=run_uid, selector=selector, project=project)
+        logger.debug(
+            "Starting logs", run_uid=run_uid, selector=selector, project=project
+        )
         response = await self._call("StartLog", request)
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
@@ -146,7 +150,9 @@ class LogCollectorClient(
 
         # check if this run has logs to collect
         try:
-            log_size = await self.get_log_size(run_uid, project, verbose, raise_on_error)
+            log_size = await self.get_log_size(
+                run_uid, project, verbose, raise_on_error
+            )
             if log_size <= 0:
                 logger.debug(
                     "Run has no logs to collect",
@@ -158,7 +164,9 @@ class LogCollectorClient(
                 yield b""
                 return
         except mlrun.errors.MLRunInternalServerError as exc:
-            logger.warning("Failed to check if run has logs to collect", run_uid=run_uid)
+            logger.warning(
+                "Failed to check if run has logs to collect", run_uid=run_uid
+            )
             if raise_on_error:
                 raise mlrun.errors.MLRunInternalServerError(
                     f"Failed to check if run has logs to collect for {run_uid}. exception= {exc}"
@@ -219,7 +227,9 @@ class LogCollectorClient(
         :param raise_on_error: Whether to raise an exception on error
         :return: The log file size of the run, if it exists
         """
-        request = self._log_collector_pb2.GetLogSizeRequest(runUID=run_uid, projectName=project)
+        request = self._log_collector_pb2.GetLogSizeRequest(
+            runUID=run_uid, projectName=project
+        )
 
         response = await self._call("GetLogSize", request)
         if not response.success:
@@ -259,7 +269,9 @@ class LogCollectorClient(
         :param raise_on_error: Whether to raise an exception on error
         :return: None
         """
-        request = self._log_collector_pb2.StopLogsRequest(project=project, runUIDs=run_uids)
+        request = self._log_collector_pb2.StopLogsRequest(
+            project=project, runUIDs=run_uids
+        )
 
         response = await self._call("StopLogs", request)
         if not response.success:
@@ -287,7 +299,9 @@ class LogCollectorClient(
         :return: None
         """
 
-        request = self._log_collector_pb2.StopLogsRequest(project=project, runUIDs=run_uids)
+        request = self._log_collector_pb2.StopLogsRequest(
+            project=project, runUIDs=run_uids
+        )
 
         response = await self._call("DeleteLogs", request)
         if not response.success:

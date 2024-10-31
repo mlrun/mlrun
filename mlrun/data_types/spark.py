@@ -99,7 +99,8 @@ def _create_hist_data(df, calculation_cols, results_dict, bins=20):
                 hist_df = hist_df.withColumn(
                     col_name,
                     funcs.when(
-                        (funcs.col(orig_col) >= bins_start[i]) & (funcs.col(orig_col) < bins_start[i + 1]),
+                        (funcs.col(orig_col) >= bins_start[i])
+                        & (funcs.col(orig_col) < bins_start[i + 1]),
                         1,
                     ).otherwise(0),
                 )
@@ -130,7 +131,9 @@ def get_dtype(df, colname):
 # how many histograms will be calculated in a single query. By default we're using 20 bins per histogram, so
 # using 500 will calculate histograms over 25 columns in a single query. If there are more, more queries will
 # be executed.
-MAX_HISTOGRAM_COLUMNS_IN_QUERY = int(environ.get("MLRUN_MAX_HISTOGRAM_COLUMNS_IN_QUERY", 500))
+MAX_HISTOGRAM_COLUMNS_IN_QUERY = int(
+    environ.get("MLRUN_MAX_HISTOGRAM_COLUMNS_IN_QUERY", 500)
+)
 
 
 def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
@@ -217,7 +220,9 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
                 elif stat == "hist":
                     values = stats[stat][1]
                     for i in range(len(values)):
-                        values[i] = datetime.fromtimestamp(values[i], tz=pytz.UTC).isoformat()
+                        values[i] = datetime.fromtimestamp(
+                            values[i], tz=pytz.UTC
+                        ).isoformat()
         # for boolean values, keep mean and histogram values numeric (0 to 1 representation)
         if col in boolean_columns:
             for stat, val in stats.items():

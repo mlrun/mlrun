@@ -59,7 +59,9 @@ class MLFlowTracker(Tracker):
         :param context: Current mlrun context
         """
         # Check for a user set experiment name via the environment variable:
-        self._experiment_name = mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.get()
+        self._experiment_name = (
+            mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.get()
+        )
 
         # Check if the user configured for matching the experiment name with the context name:
         if mlconf.external_platform_tracking.mlflow.match_experiment_to_runtime:
@@ -71,7 +73,9 @@ class MLFlowTracker(Tracker):
                     f"with MLRun's runtime name as set in the MLRun configuration: '{context.name}'."
                 )
             self._experiment_name = context.name
-            mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(self._experiment_name)
+            mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+                self._experiment_name
+            )
 
         # We have 3 options to track our run:
         # 1. Set the run id.
@@ -237,7 +241,9 @@ class MLFlowTracker(Tracker):
         # Print a summary message after importing the run:
         result = ctx.to_dict()
         run_object = RunObject.from_dict(result)
-        ClientBaseLauncher._log_track_results(is_child=False, result=result, run=run_object)
+        ClientBaseLauncher._log_track_results(
+            is_child=False, result=result, run=run_object
+        )
 
         return run_object
 
@@ -283,7 +289,9 @@ class MLFlowTracker(Tracker):
             logger.info("model imported successfully", key=key)
             return model
 
-    def import_artifact(self, project: MlrunProject, reference_id: str, key: str = None) -> Artifact:
+    def import_artifact(
+        self, project: MlrunProject, reference_id: str, key: str = None
+    ) -> Artifact:
         """
         Import an artifact from MLFlow to MLRun.
 
@@ -302,7 +310,9 @@ class MLFlowTracker(Tracker):
         # Import the artifact:
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Download the artifact to local temp:
-            local_path = mlflow.artifacts.download_artifacts(artifact_uri=reference_id, dst_path=tmp_dir)
+            local_path = mlflow.artifacts.download_artifacts(
+                artifact_uri=reference_id, dst_path=tmp_dir
+            )
 
             # Log and return the artifact:
             artifact = self._log_artifact(
@@ -316,7 +326,9 @@ class MLFlowTracker(Tracker):
             return artifact
 
     @staticmethod
-    def _log_run(context: MLClientCtx, run: mlflow.entities.Run, is_offline: bool = False):
+    def _log_run(
+        context: MLClientCtx, run: mlflow.entities.Run, is_offline: bool = False
+    ):
         """
         Log the given MLFlow run to MLRun.
 
@@ -335,12 +347,18 @@ class MLFlowTracker(Tracker):
                 context.artifact_path = tmp_dir
 
             # Set new MLRun related tags to the MLFlow run:
-            client.set_tag(run_id=run.info.run_id, key="mlrun-context-id", value=context.uid)
-            client.set_tag(run_id=run.info.run_id, key="mlrun-project-name", value=context.project)
+            client.set_tag(
+                run_id=run.info.run_id, key="mlrun-context-id", value=context.uid
+            )
+            client.set_tag(
+                run_id=run.info.run_id, key="mlrun-project-name", value=context.project
+            )
 
             # Get the MLFlow run's tags and save them as labels:
             context.set_label(key="mlflow-user", value=run.data.tags.get("mlflow.user"))
-            context.set_label(key="mlflow-run-name", value=run.data.tags.get("mlflow.runName"))
+            context.set_label(
+                key="mlflow-run-name", value=run.data.tags.get("mlflow.runName")
+            )
             context.set_label(key="mlflow-run-id", value=run.info.run_id)
             context.set_label(key="mlflow-experiment-id", value=run.info.experiment_id)
 
@@ -364,7 +382,9 @@ class MLFlowTracker(Tracker):
                 )
                 # Check if the artifact is a model (will be logged after the artifacts):
                 if artifact.is_dir and os.path.exists(
-                    os.path.join(artifact_local_path, "MLmodel")  # Add tag to show model dir
+                    os.path.join(
+                        artifact_local_path, "MLmodel"
+                    )  # Add tag to show model dir
                 ):
                     model_paths.append(artifact_local_path)
                 else:
@@ -411,7 +431,9 @@ class MLFlowTracker(Tracker):
         """
         # Check that either project or context is provided:
         if not project and not context:
-            logger.error("One of context or project must be given in order to log model")
+            logger.error(
+                "One of context or project must be given in order to log model"
+            )
             return
 
         # Get the model info from MLFlow:
@@ -421,7 +443,9 @@ class MLFlowTracker(Tracker):
         model_uri = pathlib.Path(model_uri)
         archive_path = pathlib.Path(tmp_path) / f"{model_uri.stem}.zip"
         if not os.path.exists(model_uri):
-            local_path = mlflow.artifacts.download_artifacts(artifact_uri=str(model_uri))
+            local_path = mlflow.artifacts.download_artifacts(
+                artifact_uri=str(model_uri)
+            )
             model_uri = pathlib.Path(local_path)
 
         # TODO add progress bar for the case of large files
@@ -434,9 +458,13 @@ class MLFlowTracker(Tracker):
         inputs = outputs = None
         if model_info.signature is not None:
             if model_info.signature.inputs is not None:
-                inputs = MLFlowTracker._schema_to_feature(schema=model_info.signature.inputs)
+                inputs = MLFlowTracker._schema_to_feature(
+                    schema=model_info.signature.inputs
+                )
             if model_info.signature.outputs is not None:
-                outputs = MLFlowTracker._schema_to_feature(schema=model_info.signature.outputs)
+                outputs = MLFlowTracker._schema_to_feature(
+                    schema=model_info.signature.outputs
+                )
         # Log the model:
 
         kwargs = {
@@ -475,7 +503,9 @@ class MLFlowTracker(Tracker):
         """
         # Check that either project or context is provided:
         if not project and not context:
-            logger.error("One of context or project must be given in order to log artifact")
+            logger.error(
+                "One of context or project must be given in order to log artifact"
+            )
             return
         # Check if the artifact is a directory for archiving it:
         if pathlib.Path(local_path).is_dir():
@@ -493,7 +523,11 @@ class MLFlowTracker(Tracker):
             "local_path": local_path,
         }
         # Log and return the artifact in the local path:
-        return context.log_artifact(**kwargs) if context else project.log_artifact(**kwargs)
+        return (
+            context.log_artifact(**kwargs)
+            if context
+            else project.log_artifact(**kwargs)
+        )
 
     @staticmethod
     def _schema_to_feature(schema: mlflow.types.Schema) -> list[Feature]:

@@ -134,7 +134,9 @@ class SQLRunDB(RunDBInterface):
         partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[mlrun.common.schemas.OrderType, str] = mlrun.common.schemas.OrderType.desc,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
@@ -145,7 +147,9 @@ class SQLRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            states=mlrun.utils.helpers.as_list(state) if state is not None else states or None,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -170,7 +174,9 @@ class SQLRunDB(RunDBInterface):
             project,
         )
 
-    async def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
+    async def del_runs(
+        self, name=None, project=None, labels=None, state=None, days_ago=0
+    ):
         return await self._transform_db_error(
             services.api.crud.Runs().delete_runs,
             self.session,
@@ -181,7 +187,9 @@ class SQLRunDB(RunDBInterface):
             days_ago,
         )
 
-    def store_artifact(self, key, artifact, uid=None, iter=None, tag="", project="", tree=None):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         return self._transform_db_error(
             services.api.crud.Artifacts().store_artifact,
             self.session,
@@ -316,7 +324,9 @@ class SQLRunDB(RunDBInterface):
             name,
         )
 
-    def list_functions(self, name=None, project=None, tag=None, labels=None, since=None, until=None):
+    def list_functions(
+        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+    ):
         return self._transform_db_error(
             services.api.crud.Functions().list_functions,
             db_session=self.session,
@@ -333,7 +343,9 @@ class SQLRunDB(RunDBInterface):
         project=None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
-        return self._transform_db_error(self.db.list_artifact_tags, self.session, project)
+        return self._transform_db_error(
+            self.db.list_artifact_tags, self.session, project
+        )
 
     def tag_objects(
         self,
@@ -382,7 +394,9 @@ class SQLRunDB(RunDBInterface):
     ):
         tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
 
-        return self._transform_db_error(self.db.tag_objects, project, tag_name, tag_objects, replace)
+        return self._transform_db_error(
+            self.db.tag_objects, project, tag_name, tag_objects, replace
+        )
 
     def delete_artifacts_tags(
         self,
@@ -456,7 +470,9 @@ class SQLRunDB(RunDBInterface):
             deletion_strategy=deletion_strategy,
         )
 
-    def get_project(self, name: str = None, project_id: int = None) -> mlrun.common.schemas.Project:
+    def get_project(
+        self, name: str = None, project_id: int = None
+    ) -> mlrun.common.schemas.Project:
         return self._transform_db_error(
             services.api.crud.Projects().get_project,
             self.session,
@@ -488,7 +504,9 @@ class SQLRunDB(RunDBInterface):
             versioned,
         )
 
-    def get_feature_set(self, name: str, project: str = "", tag: str = None, uid: str = None):
+    def get_feature_set(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ):
         feature_set = self._transform_db_error(
             services.api.crud.FeatureStore().get_feature_set,
             self.session,
@@ -580,7 +598,9 @@ class SQLRunDB(RunDBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
-        format_: Union[str, mlrun.common.formatters.FeatureSetFormat] = mlrun.common.formatters.FeatureSetFormat.full,
+        format_: Union[
+            str, mlrun.common.formatters.FeatureSetFormat
+        ] = mlrun.common.formatters.FeatureSetFormat.full,
     ):
         return self._transform_db_error(
             services.api.crud.FeatureStore().list_feature_sets,
@@ -624,7 +644,9 @@ class SQLRunDB(RunDBInterface):
             versioned,
         )
 
-    def patch_feature_set(self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"):
+    def patch_feature_set(
+        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
+    ):
         return self._transform_db_error(
             services.api.crud.FeatureStore().patch_feature_set,
             self.session,
@@ -655,7 +677,9 @@ class SQLRunDB(RunDBInterface):
             versioned,
         )
 
-    def get_feature_vector(self, name: str, project: str = "", tag: str = None, uid: str = None):
+    def get_feature_vector(
+        self, name: str, project: str = "", tag: str = None, uid: str = None
+    ):
         return self._transform_db_error(
             services.api.crud.FeatureStore().get_feature_vector,
             self.session,
@@ -792,7 +816,9 @@ class SQLRunDB(RunDBInterface):
             selector,
         )
 
-    def start_function(self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None):
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ):
         """Execute a function remotely, Used for ``dask`` functions.
 
         :param func_url: URL to the function to be executed.
@@ -823,7 +849,9 @@ class SQLRunDB(RunDBInterface):
         run_id: str,
         namespace: str = None,
         timeout: int = 30,
-        format_: Union[str, mlrun.common.formatters.PipelineFormat] = mlrun.common.formatters.PipelineFormat.summary,
+        format_: Union[
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
         project: str = None,
     ):
         raise NotImplementedError()
@@ -905,7 +933,9 @@ class SQLRunDB(RunDBInterface):
     def create_user_secrets(
         self,
         user: str,
-        provider: Union[str, mlrun.common.schemas.SecretProviderName] = mlrun.common.schemas.SecretProviderName.vault,
+        provider: Union[
+            str, mlrun.common.schemas.SecretProviderName
+        ] = mlrun.common.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
         raise NotImplementedError()
@@ -914,7 +944,9 @@ class SQLRunDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: Union[mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict],
+        model_endpoint: Union[
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         raise NotImplementedError()
 
@@ -956,7 +988,9 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_hub_source(self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]):
+    def create_hub_source(
+        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
+    ):
         raise NotImplementedError()
 
     def store_hub_source(
@@ -1005,7 +1039,9 @@ class SQLRunDB(RunDBInterface):
     def watch_log(self, uid, project="", watch=True, offset=0):
         raise NotImplementedError("Watching logs is not supported on the server")
 
-    def get_datastore_profile(self, name: str, project: str) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         return self._transform_db_error(
             services.api.db.session.run_function_with_new_db_session,
             services.api.crud.DatastoreProfiles().get_datastore_profile,
@@ -1016,10 +1052,14 @@ class SQLRunDB(RunDBInterface):
     def delete_datastore_profile(self, name: str, project: str):
         raise NotImplementedError()
 
-    def list_datastore_profiles(self, project: str) -> list[mlrun.common.schemas.DatastoreProfile]:
+    def list_datastore_profiles(
+        self, project: str
+    ) -> list[mlrun.common.schemas.DatastoreProfile]:
         raise NotImplementedError()
 
-    def store_datastore_profile(self, profile: mlrun.common.schemas.DatastoreProfile, project: str):
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
         raise NotImplementedError()
 
     def submit_workflow(
@@ -1115,10 +1155,14 @@ class SQLRunDB(RunDBInterface):
     ) -> bool:
         raise NotImplementedError
 
-    def delete_model_monitoring_function(self, project: str, functions: list[str]) -> bool:
+    def delete_model_monitoring_function(
+        self, project: str, functions: list[str]
+    ) -> bool:
         raise NotImplementedError
 
-    def deploy_histogram_data_drift_app(self, project: str, image: str = "mlrun/mlrun") -> None:
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
         raise NotImplementedError
 
     def set_model_monitoring_credentials(
@@ -1142,7 +1186,9 @@ class SQLRunDB(RunDBInterface):
         except DBError as exc:
             raise mlrun.db.RunDBError(exc.args) from exc
 
-    def generate_event(self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""):
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
         pass
 
     def store_alert_config(

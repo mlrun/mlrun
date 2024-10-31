@@ -274,7 +274,9 @@ def test_store_project_update(
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
     # mock project response so store will update
-    requests_mock.get(f"{api_url}/api/projects/{project_name}", json=mocked_project_body)
+    requests_mock.get(
+        f"{api_url}/api/projects/{project_name}", json=mocked_project_body
+    )
     requests_mock.put(f"{api_url}/api/projects", json=verify_store_update)
     nuclio_client.store_project(
         None,
@@ -326,7 +328,9 @@ def test_patch_project(
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
-    requests_mock.get(f"{api_url}/api/projects/{project_name}", json=mocked_project_body)
+    requests_mock.get(
+        f"{api_url}/api/projects/{project_name}", json=mocked_project_body
+    )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
         None,
@@ -366,7 +370,9 @@ def test_patch_project_only_labels(
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
-    requests_mock.get(f"{api_url}/api/projects/{project_name}", json=mocked_project_body)
+    requests_mock.get(
+        f"{api_url}/api/projects/{project_name}", json=mocked_project_body
+    )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
         None,
@@ -401,11 +407,15 @@ def test_delete_project(
     nuclio_client.delete_project(None, project_name)
 
     # assert ignoring (and not exploding) on not found
-    requests_mock.delete(f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value)
+    requests_mock.delete(
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
+    )
     nuclio_client.delete_project(None, project_name)
 
     # assert correctly propagating 412 errors (will be returned when project has functions)
-    requests_mock.delete(f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value)
+    requests_mock.delete(
+        f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value
+    )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
         nuclio_client.delete_project(None, project_name)
 

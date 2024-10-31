@@ -144,7 +144,9 @@ def two_distributions_strategy(draw: st.DrawFn) -> tuple[np.ndarray, np.ndarray]
 class TestMetricProperties:
     @staticmethod
     @given(distrib=distribution_strategy())
-    def test_same_distrib_gives_zero_distance(metric_class: type[HistogramDistanceMetric], distrib: np.ndarray) -> None:
+    def test_same_distrib_gives_zero_distance(
+        metric_class: type[HistogramDistanceMetric], distrib: np.ndarray
+    ) -> None:
         return test_histogram_metric_calculation(
             metric_class=metric_class,
             distrib_t=distrib,

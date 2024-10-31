@@ -49,7 +49,9 @@ class TestEventPreparation:
         with patch(
             "mlrun.load_project",
             Mock(
-                return_value=mlrun.projects.MlrunProject(spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path)))
+                return_value=mlrun.projects.MlrunProject(
+                    spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path))
+                )
             ),
         ):
             yield
@@ -80,7 +82,9 @@ class TestEventPreparation:
         )
         graph = fn.set_topology(mlrun.serving.states.StepKinds.flow)
 
-        graph.to("_PrepareMonitoringEvent", application_name=cls.APPLICATION_NAME).respond()
+        graph.to(
+            "_PrepareMonitoringEvent", application_name=cls.APPLICATION_NAME
+        ).respond()
         server = fn.to_mock_server()
         monitoring_context = typing.cast(
             mm_context.MonitoringApplicationContext,
@@ -136,11 +140,17 @@ def push_to_monitoring_writer():
 @pytest.fixture
 def monitoring_context() -> Mock:
     mock_monitoring_context = Mock(spec=mm_context.MonitoringApplicationContext)
-    mock_monitoring_context.log_stream = Logger(name="test_data_drift_app", level=logging.DEBUG)
-    mock_monitoring_context._artifacts_manager = Mock(spec=mlrun.artifacts.manager.ArtifactManager)
+    mock_monitoring_context.log_stream = Logger(
+        name="test_data_drift_app", level=logging.DEBUG
+    )
+    mock_monitoring_context._artifacts_manager = Mock(
+        spec=mlrun.artifacts.manager.ArtifactManager
+    )
     mock_monitoring_context.application_name = "test_data_drift_app"
     mock_monitoring_context.endpoint_id = "test_endpoint_id"
-    mock_monitoring_context.start_infer_time = pd.Timestamp("2022-01-01 00:00:00.000000")
+    mock_monitoring_context.start_infer_time = pd.Timestamp(
+        "2022-01-01 00:00:00.000000"
+    )
     mock_monitoring_context.end_infer_time = pd.Timestamp("2022-01-01 00:00:00.000000")
     mock_monitoring_context.sample_df_stats = {}
     return mock_monitoring_context

@@ -67,7 +67,9 @@ def test_store_artifact_with_invalid_key(db: Session, client: TestClient):
 
     # use invalid key path, expect its validation to fail
     resp = client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=key_path, tag=TAG),
+        STORE_API_ARTIFACTS_PATH.format(
+            project=PROJECT, uid=UID, key=key_path, tag=TAG
+        ),
         data="{}",
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
@@ -83,9 +85,13 @@ def test_store_artifact_backwards_compatibility(db: Session, client: TestClient)
     artifact2 = mlrun.artifacts.Artifact(key=key_path, body="1234")
 
     # Store an artifact with invalid key (by mocking the regex)
-    with unittest.mock.patch("mlrun.utils.helpers.verify_field_regex", return_value=True):
+    with unittest.mock.patch(
+        "mlrun.utils.helpers.verify_field_regex", return_value=True
+    ):
         resp = client.post(
-            STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=key_path, tag="latest"),
+            STORE_API_ARTIFACTS_PATH.format(
+                project=PROJECT, uid=UID, key=key_path, tag="latest"
+            ),
             data=artifact.to_json(),
         )
         assert resp.status_code == HTTPStatus.OK.value
@@ -98,13 +104,17 @@ def test_store_artifact_backwards_compatibility(db: Session, client: TestClient)
 
     # Make a store request to an existing artifact with an invalid key name, and ensure that it is successful
     resp = client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=key_path, tag="latest"),
+        STORE_API_ARTIFACTS_PATH.format(
+            project=PROJECT, uid=UID, key=key_path, tag="latest"
+        ),
         data=artifact2.to_json(),
     )
     assert resp.status_code == HTTPStatus.OK.value
 
     resp = client.get(API_ARTIFACTS_PATH.format(project=PROJECT))
-    assert resp.status_code == HTTPStatus.OK.value and len(resp.json()["artifacts"]) == 1
+    assert (
+        resp.status_code == HTTPStatus.OK.value and len(resp.json()["artifacts"]) == 1
+    )
 
 
 def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
@@ -173,7 +183,9 @@ def test_store_artifact_with_iteration(db: Session, unversioned_client: TestClie
     assert artifact_dict["metadata"]["labels"]["a"] == json["metadata"]["labels"]["a"]
     assert artifact_dict["metadata"]["iter"] == iteration
 
-    artifacts_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"?iter={iteration}"
+    artifacts_path = (
+        LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"?iter={iteration}"
+    )
     resp = unversioned_client.get(artifacts_path)
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
@@ -209,7 +221,9 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
     assert resp.status_code == HTTPStatus.OK.value
 
     resp = client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=f"{UID}2", key=f"{KEY}2", tag=TAG),
+        STORE_API_ARTIFACTS_PATH.format(
+            project=PROJECT, uid=f"{UID}2", key=f"{KEY}2", tag=TAG
+        ),
         data=empty_artifact,
     )
     assert resp.status_code == HTTPStatus.OK.value
@@ -217,7 +231,10 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
     resp = client.get(API_ARTIFACTS_PATH.format(project=PROJECT, key=KEY))
     assert (
         deepdiff.DeepDiff(
-            [artifact.get("metadata", {}).get("tag", None) for artifact in resp.json()["artifacts"]],
+            [
+                artifact.get("metadata", {}).get("tag", None)
+                for artifact in resp.json()["artifacts"]
+            ],
             ["latest", "latest", TAG, TAG],
             ignore_order=True,
         )
@@ -265,12 +282,18 @@ def test_fails_deleting_artifact_data(
         "services.api.crud.files.Files.delete_artifact_data",
         side_effect=mlrun.errors.MLRunInternalServerError("some error"),
     ):
-        resp = unversioned_client.delete(url_with_deletion_strategy.format(deletion_strategy=deletion_strategy))
+        resp = unversioned_client.delete(
+            url_with_deletion_strategy.format(deletion_strategy=deletion_strategy)
+        )
     assert resp.status_code == expected_status_code
 
 
-def test_delete_artifact_data_default_deletion_strategy(db: Session, unversioned_client: TestClient):
-    with unittest.mock.patch("services.api.crud.Files.delete_artifact_data") as delete_artifact_data:
+def test_delete_artifact_data_default_deletion_strategy(
+    db: Session, unversioned_client: TestClient
+):
+    with unittest.mock.patch(
+        "services.api.crud.Files.delete_artifact_data"
+    ) as delete_artifact_data:
         # checking metadata-only as default deletion_strategy
         url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
         resp = unversioned_client.delete(url)
@@ -319,7 +342,9 @@ def test_delete_artifact_with_uid(db: Session, unversioned_client: TestClient):
         mlrun.artifacts.DirArtifact,
     ],
 )
-def test_fails_deleting_artifact_data_by_artifact_kind(artifact_kind, db: Session, unversioned_client: TestClient):
+def test_fails_deleting_artifact_data_by_artifact_kind(
+    artifact_kind, db: Session, unversioned_client: TestClient
+):
     _create_project(unversioned_client)
     artifact = artifact_kind(key=KEY, body="123", target_path="dummy-path")
 
@@ -347,9 +372,13 @@ def test_fails_deleting_artifact_data_by_artifact_kind(artifact_kind, db: Sessio
         "dummy-path.pq",
     ],
 )
-def test_deleting_dataset_artifact_data_includes_one_file(target_path, db: Session, unversioned_client: TestClient):
+def test_deleting_dataset_artifact_data_includes_one_file(
+    target_path, db: Session, unversioned_client: TestClient
+):
     _create_project(unversioned_client)
-    artifact = mlrun.artifacts.DatasetArtifact(key=KEY, body="123", target_path=target_path)
+    artifact = mlrun.artifacts.DatasetArtifact(
+        key=KEY, body="123", target_path=target_path
+    )
 
     resp = unversioned_client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
@@ -386,7 +415,9 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     assert resp.status_code == HTTPStatus.OK.value
 
     resp = client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=f"{UID}2", key=f"{KEY}2", tag=TAG),
+        STORE_API_ARTIFACTS_PATH.format(
+            project=PROJECT, uid=f"{UID}2", key=f"{KEY}2", tag=TAG
+        ),
         data="{}",
     )
     assert resp.status_code == HTTPStatus.OK.value
@@ -396,7 +427,10 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     assert resp.status_code == HTTPStatus.OK.value
     assert (
         deepdiff.DeepDiff(
-            [artifact.get("metadata", {}).get("tag", None) for artifact in resp.json()["artifacts"]],
+            [
+                artifact.get("metadata", {}).get("tag", None)
+                for artifact in resp.json()["artifacts"]
+            ],
             ["latest", "latest", TAG, TAG],
             ignore_order=True,
         )
@@ -405,7 +439,9 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
 
 
 @pytest.fixture
-def list_limit_unversioned_client(unversioned_client: TestClient, request) -> TestClient:
+def list_limit_unversioned_client(
+    unversioned_client: TestClient, request
+) -> TestClient:
     def ensure_endpoint_limit(limit_: int = None):
         for route in unversioned_client.app.routes:
             if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
@@ -422,7 +458,9 @@ def list_limit_unversioned_client(unversioned_client: TestClient, request) -> Te
 
 
 @pytest.mark.parametrize("list_limit_unversioned_client", [2], indirect=True)
-def test_list_artifacts_with_limits(db: Session, list_limit_unversioned_client: TestClient) -> None:
+def test_list_artifacts_with_limits(
+    db: Session, list_limit_unversioned_client: TestClient
+) -> None:
     list_limit, unversioned_client = list_limit_unversioned_client
     _create_project(unversioned_client, prefix="v1")
 
@@ -447,7 +485,9 @@ def test_list_artifacts_with_limits(db: Session, list_limit_unversioned_client: 
     assert len(artifacts) == list_limit
 
 
-def test_list_artifacts_with_producer_uri(db: Session, unversioned_client: TestClient) -> None:
+def test_list_artifacts_with_producer_uri(
+    db: Session, unversioned_client: TestClient
+) -> None:
     _create_project(unversioned_client, prefix="v1")
     producer_uri_1 = f"{PROJECT}/abc"
     producer_uri_2 = f"{PROJECT}/def"
@@ -515,7 +555,9 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
     resp = client.get(artifact_path)
     assert resp.status_code == HTTPStatus.OK.value
 
-    assert all(["src_path" not in artifact["spec"] for artifact in resp.json()["artifacts"]])
+    assert all(
+        ["src_path" not in artifact["spec"] for artifact in resp.json()["artifacts"]]
+    )
 
     # explicitly request full format
     artifact_path = f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=full"
@@ -560,12 +602,16 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
     assert "src_path" not in resp.json()["data"]["spec"]
 
     # explicitly request full format
-    artifact_path = f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=full"
+    artifact_path = (
+        f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=full"
+    )
     resp = client.get(artifact_path)
     assert resp.status_code == HTTPStatus.OK.value
 
 
-def test_get_artifact_validate_tag_exists_in_the_response(db: Session, unversioned_client: TestClient) -> None:
+def test_get_artifact_validate_tag_exists_in_the_response(
+    db: Session, unversioned_client: TestClient
+) -> None:
     _create_project(unversioned_client)
 
     # Create artifact with tag "v1"
@@ -578,7 +624,9 @@ def test_get_artifact_validate_tag_exists_in_the_response(db: Session, unversion
     artifact_v1 = resp.json()
 
     # Get artifact using UID and tag "v1"
-    url_with_uid_and_tag_v1 = _get_artifact_url(artifact_v1["metadata"]["uid"], tag="v1")
+    url_with_uid_and_tag_v1 = _get_artifact_url(
+        artifact_v1["metadata"]["uid"], tag="v1"
+    )
     resp = unversioned_client.get(url_with_uid_and_tag_v1)
     assert resp.status_code == HTTPStatus.OK.value
     artifact = resp.json()
@@ -592,7 +640,9 @@ def test_get_artifact_validate_tag_exists_in_the_response(db: Session, unversion
     assert artifact["metadata"].get("tag") is None
 
     # Get the same artifact using UID and tag "latest"
-    url_with_uid_and_latest = _get_artifact_url(artifact_v1["metadata"]["uid"], tag="latest")
+    url_with_uid_and_latest = _get_artifact_url(
+        artifact_v1["metadata"]["uid"], tag="latest"
+    )
     resp = unversioned_client.get(url_with_uid_and_latest)
     assert resp.status_code == HTTPStatus.OK.value
     artifact = resp.json()
@@ -624,7 +674,9 @@ def test_get_artifact_validate_tag_exists_in_the_response(db: Session, unversion
     assert artifact["metadata"]["uid"] == artifact_v2["metadata"]["uid"]
 
     # Get the first artifact (v1) using UID and tag "latest"
-    url_with_uid_tag_latest = _get_artifact_url(uid=artifact_v1["metadata"]["uid"], tag="latest")
+    url_with_uid_tag_latest = _get_artifact_url(
+        uid=artifact_v1["metadata"]["uid"], tag="latest"
+    )
     resp = unversioned_client.get(url_with_uid_tag_latest)
     assert resp.status_code == HTTPStatus.OK.value
     artifact = resp.json()
@@ -687,7 +739,9 @@ def test_store_artifact_calculate_size(db: Session, client: TestClient):
     file_length = 7
 
     # mock the get_allowed_path_prefixes_list function since we use a local path here for the testing
-    with unittest.mock.patch("services.api.api.utils.get_allowed_path_prefixes_list", return_value="/"):
+    with unittest.mock.patch(
+        "services.api.api.utils.get_allowed_path_prefixes_list", return_value="/"
+    ):
         # create the artifact
         artifact = mlrun.artifacts.Artifact(key=KEY, target_path=file_path)
         resp = client.post(
@@ -704,7 +758,9 @@ def test_store_artifact_calculate_size(db: Session, client: TestClient):
     assert artifact["data"]["spec"]["size"] == file_length
 
 
-def test_legacy_get_artifact_with_tree_as_tag_fallback(db: Session, client: TestClient) -> None:
+def test_legacy_get_artifact_with_tree_as_tag_fallback(
+    db: Session, client: TestClient
+) -> None:
     _create_project(client)
     artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
 
@@ -727,7 +783,9 @@ def test_legacy_get_artifact_with_tree_as_tag_fallback(db: Session, client: Test
     assert artifact["data"]["metadata"]["tree"] == tree
 
 
-def test_legacy_list_artifact_with_tree_as_tag_fallback(db: Session, client: TestClient) -> None:
+def test_legacy_list_artifact_with_tree_as_tag_fallback(
+    db: Session, client: TestClient
+) -> None:
     _create_project(client)
     artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
 
@@ -792,7 +850,9 @@ def test_store_oversized_artifact(
     expected_status_code,
 ) -> None:
     _create_project(client)
-    artifact = mlrun.artifacts.Artifact(key=KEY, body=body_char * body_size, is_inline=is_inline)
+    artifact = mlrun.artifacts.Artifact(
+        key=KEY, body=body_char * body_size, is_inline=is_inline
+    )
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
         data=artifact.to_json(),
@@ -872,12 +932,16 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     assert len(artifacts) == 4
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
-    resp = unversioned_client.get(artifact_path, params={"since": mlrun.utils.datetime_to_iso(t2)})
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(t2)}
+    )
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 3, "since t2 filter did not return 3 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert artifact_keys.sort() == [key2, key3, key4].sort(), "since t2 filter returned the wrong artifacts"
+    assert (
+        artifact_keys.sort() == [key2, key3, key4].sort()
+    ), "since t2 filter returned the wrong artifacts"
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
     resp = unversioned_client.get(
@@ -891,7 +955,9 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 2, "since t2 until t3 filter did not return 2 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert artifact_keys.sort() == [key2, key4].sort(), "since t2 until t3 filter returned the wrong artifacts"
+    assert (
+        artifact_keys.sort() == [key2, key4].sort()
+    ), "since t2 until t3 filter returned the wrong artifacts"
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
     resp = unversioned_client.get(
@@ -905,35 +971,51 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 2, "since t3 until start filter did not return 2 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert artifact_keys.sort() == [key3, key4].sort(), "since t3 until start filter returned the wrong artifacts"
+    assert (
+        artifact_keys.sort() == [key3, key4].sort()
+    ), "since t3 until start filter returned the wrong artifacts"
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
-    resp = unversioned_client.get(artifact_path, params={"since": mlrun.utils.datetime_to_iso(start)})
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(start)}
+    )
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 1, "since start filter did not return 1 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert artifact_keys.sort() == [key4].sort(), "since start filter returned the wrong artifacts"
+    assert (
+        artifact_keys.sort() == [key4].sort()
+    ), "since start filter returned the wrong artifacts"
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
-    resp = unversioned_client.get(artifact_path, params={"until": mlrun.utils.datetime_to_iso(start)})
+    resp = unversioned_client.get(
+        artifact_path, params={"until": mlrun.utils.datetime_to_iso(start)}
+    )
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 4, "until start filter did not return 4 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert artifact_keys.sort() == [key1, key2, key3, key4].sort(), "until start filter returned the wrong artifacts"
+    assert (
+        artifact_keys.sort() == [key1, key2, key3, key4].sort()
+    ), "until start filter returned the wrong artifacts"
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
-    resp = unversioned_client.get(artifact_path, params={"since": mlrun.utils.datetime_to_iso(datetime.now())})
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(datetime.now())}
+    )
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 0, "since now filter returned artifacts unexpectedly"
 
 
-def _create_project(client: TestClient, project_name: str = PROJECT, prefix: str = None):
+def _create_project(
+    client: TestClient, project_name: str = PROJECT, prefix: str = None
+):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(description="banana", source="source", goals="some goals"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="banana", source="source", goals="some goals"
+        ),
     )
     url = "projects" if prefix is None else f"{prefix}/projects"
     resp = client.post(url, json=project.dict())

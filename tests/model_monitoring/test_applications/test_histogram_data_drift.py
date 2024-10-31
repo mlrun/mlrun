@@ -59,14 +59,20 @@ def logger() -> mlrun.utils.Logger:
 @pytest.fixture
 def monitoring_context() -> Mock:
     mock_monitoring_context = Mock(spec=mm_context.MonitoringApplicationContext)
-    mock_monitoring_context.log_stream = Logger(name="test_data_drift_app", level=logging.DEBUG)
-    mock_monitoring_context._artifacts_manager = Mock(spec=mlrun.artifacts.manager.ArtifactManager)
+    mock_monitoring_context.log_stream = Logger(
+        name="test_data_drift_app", level=logging.DEBUG
+    )
+    mock_monitoring_context._artifacts_manager = Mock(
+        spec=mlrun.artifacts.manager.ArtifactManager
+    )
     return mock_monitoring_context
 
 
 class TestDataDriftClassifier:
     @staticmethod
-    @pytest.mark.parametrize(("potential", "detected"), [(0.4, 0.2), (0.0, 0.5), (0.7, 1.0), (-1, 2)])
+    @pytest.mark.parametrize(
+        ("potential", "detected"), [(0.4, 0.2), (0.0, 0.5), (0.7, 1.0), (-1, 2)]
+    )
     def test_invalid_threshold(potential: float, detected: float) -> None:
         with pytest.raises(InvalidThresholdValueError):
             DataDriftClassifier(potential=potential, detected=detected)
@@ -99,8 +105,12 @@ class TestDataDriftClassifier:
             (1, ResultStatusApp.detected),
         ],
     )
-    def test_status(classifier: DataDriftClassifier, value: float, expected_status: ResultStatusApp) -> None:
-        assert classifier.value_to_status(value) == expected_status, "The status is different than expected"
+    def test_status(
+        classifier: DataDriftClassifier, value: float, expected_status: ResultStatusApp
+    ) -> None:
+        assert (
+            classifier.value_to_status(value) == expected_status
+        ), "The status is different than expected"
 
 
 class TestApplication:
@@ -187,9 +197,14 @@ class TestApplication:
         monitoring_context.latest_request = Mock(spec=pd.Timestamp)
         monitoring_context.endpoint_id = Mock(spec=str)
         monitoring_context.output_stream_uri = Mock(spec=str)
-        monitoring_context.dict_to_histogram = mm_context.MonitoringApplicationContext.dict_to_histogram
+        monitoring_context.dict_to_histogram = (
+            mm_context.MonitoringApplicationContext.dict_to_histogram
+        )
         monitoring_context.logger = logger
-        assert kwargs.keys() == inspect.signature(application.do_tracking).parameters.keys()
+        assert (
+            kwargs.keys()
+            == inspect.signature(application.do_tracking).parameters.keys()
+        )
         return kwargs
 
     @classmethod
@@ -206,13 +221,19 @@ class TestApplication:
                 res,
                 mlrun.model_monitoring.applications.ModelMonitoringApplicationResult,
             ):
-                assert res.kind == ResultKindApp.data_drift, "The kind should be data drift"
-                assert res.name == "general_drift", "The result name should be general_drift"
+                assert (
+                    res.kind == ResultKindApp.data_drift
+                ), "The kind should be data drift"
+                assert (
+                    res.name == "general_drift"
+                ), "The result name should be general_drift"
                 assert (
                     res.status == ResultStatusApp.potential_detection
                 ), "Expected potential detection in the general drift"
                 assert (
-                    json.loads(res.extra_data[EventFieldType.CURRENT_STATS])[EventFieldType.TIMESTAMP]["count"]
+                    json.loads(res.extra_data[EventFieldType.CURRENT_STATS])[
+                        EventFieldType.TIMESTAMP
+                    ]["count"]
                     == cls.COUNT
                 ), "The current statistics count is different than expected"
             elif isinstance(
@@ -259,8 +280,12 @@ class TestMetricsPerFeature:
         monitoring_context.sample_df_stats = sample_df_stats
         monitoring_context.feature_stats = feature_stats
 
-        metrics_per_feature = application._compute_metrics_per_feature(monitoring_context=monitoring_context)
+        metrics_per_feature = application._compute_metrics_per_feature(
+            monitoring_context=monitoring_context
+        )
         assert set(metrics_per_feature.columns) == {
             metric.NAME for metric in application.metrics
         }, "Different metrics than expected"
-        assert set(metrics_per_feature.index) == set(feature_stats.columns), "The features are different than expected"
+        assert set(metrics_per_feature.index) == set(
+            feature_stats.columns
+        ), "The features are different than expected"

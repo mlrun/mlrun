@@ -161,7 +161,9 @@ class Retryer:
 
     def _raise_last_exception(self):
         if self.logger is not None:
-            self.logger.warning(f"Operation did not complete on time. last exception: {self.last_exception}")
+            self.logger.warning(
+                f"Operation did not complete on time. last exception: {self.last_exception}"
+            )
 
         raise mlrun.errors.MLRunRetryExhaustedError(
             f"Failed to execute command by the given deadline."

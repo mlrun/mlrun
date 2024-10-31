@@ -36,7 +36,9 @@ def test_migrations_already_in_progress(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ) -> None:
     background_task_name = "some-name"
-    services.api.api.endpoints.operations.current_migration_background_task_name = background_task_name
+    services.api.api.endpoints.operations.current_migration_background_task_name = (
+        background_task_name
+    )
     handler_mock = services.api.utils.background_tasks.InternalBackgroundTasksHandler()
     handler_mock.get_background_task = unittest.mock.Mock(
         return_value=(_generate_background_task_schema(background_task_name))
@@ -54,14 +56,18 @@ def test_migrations_already_in_progress(
     services.api.api.endpoints.operations.current_migration_background_task_name = None
 
 
-def test_migrations_failed(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient) -> None:
+def test_migrations_failed(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.migrations_failed
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
     assert "Migrations were already triggered and failed" in response.text
 
 
-def test_migrations_not_needed(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient) -> None:
+def test_migrations_not_needed(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -102,11 +108,16 @@ def test_migrations_success(
     response = client.post("operations/migrations")
     assert response.status_code == http.HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     response = client.get(f"background-tasks/{background_task.metadata.name}")
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
+    assert (
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
+    )
     assert mlrun.mlconf.httpdb.state == mlrun.common.schemas.APIStates.online
     # now we should be able to get projects
     response = client.get("projects")
@@ -124,6 +135,8 @@ def _generate_background_task_schema(
             created=datetime.utcnow(),
             updated=datetime.utcnow(),
         ),
-        status=mlrun.common.schemas.BackgroundTaskStatus(state=mlrun.common.schemas.BackgroundTaskState.running),
+        status=mlrun.common.schemas.BackgroundTaskStatus(
+            state=mlrun.common.schemas.BackgroundTaskState.running
+        ),
         spec=mlrun.common.schemas.BackgroundTaskSpec(),
     )

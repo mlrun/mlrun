@@ -51,7 +51,9 @@ def test_build_kv_cursor_filter_expression():
     with pytest.raises(MLRunInvalidArgumentError):
         endpoint_store._build_kv_cursor_filter_expression("")
 
-    filter_expression = endpoint_store._build_kv_cursor_filter_expression(project=TEST_PROJECT)
+    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
+        project=TEST_PROJECT
+    )
     assert filter_expression == f"project=='{TEST_PROJECT}'"
 
     filter_expression = endpoint_store._build_kv_cursor_filter_expression(
@@ -60,17 +62,22 @@ def test_build_kv_cursor_filter_expression():
         model="test_model",
     )
     expected = (
-        f"project=='{TEST_PROJECT}' " f"AND function_uri=='{TEST_PROJECT}/test_function' AND model=='test_model:latest'"
+        f"project=='{TEST_PROJECT}' "
+        f"AND function_uri=='{TEST_PROJECT}/test_function' AND model=='test_model:latest'"
     )
     assert filter_expression == expected
 
 
 def test_get_access_key():
-    key = services.api.crud.model_monitoring.helpers.get_access_key(mlrun.common.schemas.AuthInfo(data_session="asd"))
+    key = services.api.crud.model_monitoring.helpers.get_access_key(
+        mlrun.common.schemas.AuthInfo(data_session="asd")
+    )
     assert key == "asd"
 
     with pytest.raises(MLRunBadRequestError):
-        services.api.crud.model_monitoring.helpers.get_access_key(mlrun.common.schemas.AuthInfo())
+        services.api.crud.model_monitoring.helpers.get_access_key(
+            mlrun.common.schemas.AuthInfo()
+        )
 
 
 def test_get_endpoint_features_function():
@@ -210,7 +217,9 @@ def test_get_endpoint_features_function():
     }
     feature_names = list(stats.keys())
 
-    features = services.api.crud.model_monitoring.deployment.get_endpoint_features(feature_names, stats, stats)
+    features = services.api.crud.model_monitoring.deployment.get_endpoint_features(
+        feature_names, stats, stats
+    )
     assert len(features) == 4
     # Commented out asserts should be re-enabled once buckets/counts length mismatch bug is fixed
     for feature in features:
@@ -223,7 +232,9 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = services.api.crud.model_monitoring.deployment.get_endpoint_features(feature_names, stats, None)
+    features = services.api.crud.model_monitoring.deployment.get_endpoint_features(
+        feature_names, stats, None
+    )
     assert len(features) == 4
     for feature in features:
         assert feature.expected is not None
@@ -232,7 +243,9 @@ def test_get_endpoint_features_function():
         assert feature.expected.histogram is not None
         # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
 
-    features = services.api.crud.model_monitoring.deployment.get_endpoint_features(feature_names, None, stats)
+    features = services.api.crud.model_monitoring.deployment.get_endpoint_features(
+        feature_names, None, stats
+    )
     assert len(features) == 4
     for feature in features:
         assert feature.expected is None
@@ -241,7 +254,9 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = services.api.crud.model_monitoring.deployment.get_endpoint_features(feature_names[1:], None, stats)
+    features = services.api.crud.model_monitoring.deployment.get_endpoint_features(
+        feature_names[1:], None, stats
+    )
     assert len(features) == 3
 
 
@@ -298,7 +313,9 @@ def _mock_random_endpoint(
 def test_validate_model_endpoints_schema():
     # Validate that both model endpoint basemodel schema and model endpoint ModelObj schema have similar keys
     model_endpoint_basemodel = mlrun.common.schemas.ModelEndpoint(
-        metadata=mlrun.common.schemas.ModelEndpointMetadata(project=TEST_PROJECT, uid="a-12_")
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            project=TEST_PROJECT, uid="a-12_"
+        )
     )
     model_endpoint_modelobj = mlrun.model_monitoring.ModelEndpoint()
 

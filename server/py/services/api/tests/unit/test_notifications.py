@@ -32,7 +32,9 @@ import services.api.crud
 from mlrun.utils.notifications.notification.webhook import WebhookNotification
 
 
-@pytest.mark.parametrize("notification_kind", mlrun.common.schemas.notification.NotificationKind)
+@pytest.mark.parametrize(
+    "notification_kind", mlrun.common.schemas.notification.NotificationKind
+)
 def test_load_notification(notification_kind):
     run_uid = "test-run-uid"
     notification_name = "test-notification-name"
@@ -53,9 +55,14 @@ def test_load_notification(notification_kind):
         }
     )
 
-    notification_pusher = mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
     notification_pusher._load_notification(run, notification)
-    loaded_notifications = notification_pusher._sync_notifications + notification_pusher._async_notifications
+    loaded_notifications = (
+        notification_pusher._sync_notifications
+        + notification_pusher._async_notifications
+    )
     assert len(loaded_notifications) == 1
     assert loaded_notifications[0][0].name == notification_name
 
@@ -89,11 +96,15 @@ def test_load_notification(notification_kind):
         (["completed", "error"], "< 4", "error", True, False),
     ],
 )
-def test_notification_should_notify(when, condition, run_state, notification_previously_sent, expected):
+def test_notification_should_notify(
+    when, condition, run_state, notification_previously_sent, expected
+):
     if condition:
         condition = f'{{{{ run["status"]["results"]["val"] {condition} }}}}'
 
-    run = mlrun.model.RunObject.from_dict({"status": {"state": run_state, "results": {"val": 5}}})
+    run = mlrun.model.RunObject.from_dict(
+        {"status": {"state": run_state, "results": {"val": 5}}}
+    )
     notification = mlrun.model.Notification.from_dict(
         {
             "when": when,
@@ -102,7 +113,9 @@ def test_notification_should_notify(when, condition, run_state, notification_pre
         }
     )
 
-    notification_pusher = mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
     assert notification_pusher._should_notify(run, notification) == expected
 
 
@@ -129,13 +142,17 @@ def test_notification_reason(notification_kind):
         ),
     ]
 
-    notification_pusher = mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
 
     # dont really update, just mock it for later assertions
     notification_pusher._update_notification_status = unittest.mock.MagicMock()
 
     # mock the push method to raise an exception
-    notification_kind_type = getattr(mlrun.utils.notifications.NotificationTypes, notification_kind).get_notification()
+    notification_kind_type = getattr(
+        mlrun.utils.notifications.NotificationTypes, notification_kind
+    ).get_notification()
     if asyncio.iscoroutinefunction(notification_kind_type.push):
         concrete_notification = notification_pusher._async_notifications[0][0]
     else:
@@ -150,7 +167,10 @@ def test_notification_reason(notification_kind):
     notification_pusher._update_notification_status.assert_called_once()
     concrete_notification.push.assert_called_once()
 
-    assert str(error_exc) in notification_pusher._update_notification_status.call_args.kwargs["reason"]
+    assert (
+        str(error_exc)
+        in notification_pusher._update_notification_status.call_args.kwargs["reason"]
+    )
 
 
 def test_condition_evaluation_timeout():
@@ -164,12 +184,16 @@ def test_condition_evaluation_timeout():
         {% endfor %}
     """
 
-    run = mlrun.model.RunObject.from_dict({"status": {"state": "completed", "results": {"val": 5}}})
+    run = mlrun.model.RunObject.from_dict(
+        {"status": {"state": "completed", "results": {"val": 5}}}
+    )
     notification = mlrun.model.Notification.from_dict(
         {"when": ["completed"], "condition": condition, "status": "pending"}
     )
 
-    notification_pusher = mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
     assert notification_pusher._should_notify(run, notification)
 
 
@@ -180,14 +204,16 @@ def test_condition_evaluation_timeout():
 async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
     runs = _generate_run_result(state="completed", results={"return": 1})
-    await WebhookNotification(params={"override_body": override_body, "url": "http://test.com"}).push(
-        "test-message", "info", [runs]
-    )
+    await WebhookNotification(
+        params={"override_body": override_body, "url": "http://test.com"}
+    ).push("test-message", "info", [runs])
     expected_body = {
         "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-8lvl8', "
         "'status': {'state': 'completed', 'results': {'return': 1}}}]"
     }
-    requests_mock.assert_called_once_with("http://test.com", headers={}, json=expected_body, ssl=None)
+    requests_mock.assert_called_once_with(
+        "http://test.com", headers={}, json=expected_body, ssl=None
+    )
 
 
 @pytest.mark.parametrize(
@@ -196,15 +222,19 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
 )
 async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
-    runs = _generate_run_result(state="error", error='can only concatenate str (not "int") to str')
-    await WebhookNotification(params={"override_body": override_body, "url": "http://test.com"}).push(
-        "test-message", "info", [runs]
+    runs = _generate_run_result(
+        state="error", error='can only concatenate str (not "int") to str'
     )
+    await WebhookNotification(
+        params={"override_body": override_body, "url": "http://test.com"}
+    ).push("test-message", "info", [runs])
     expected_body = {
         "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-8lvl8', "
         "'status': {'state': 'error', 'error': 'can only concatenate str (not \"int\") to str'}}]"
     }
-    requests_mock.assert_called_once_with("http://test.com", headers={}, json=expected_body, ssl=None)
+    requests_mock.assert_called_once_with(
+        "http://test.com", headers={}, json=expected_body, ssl=None
+    )
 
 
 @pytest.mark.parametrize(
@@ -245,7 +275,9 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
     console_notification.push("test-message", "info", runs)
 
     if is_table:
-        expected = tabulate.tabulate(expected, headers=["status", "name", "uid", "results"])
+        expected = tabulate.tabulate(
+            expected, headers=["status", "name", "uid", "results"]
+        )
     assert print_result == expected
 
 
@@ -459,9 +491,15 @@ def test_inverse_dependencies(
 
     mock_console_push = unittest.mock.MagicMock(return_value=Exception())
     mock_ipython_push = unittest.mock.MagicMock(return_value=Exception())
-    monkeypatch.setattr(mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push)
-    monkeypatch.setattr(mlrun.utils.notifications.IPythonNotification, "push", mock_ipython_push)
-    monkeypatch.setattr(mlrun.utils.notifications.IPythonNotification, "active", ipython_active)
+    monkeypatch.setattr(
+        mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push
+    )
+    monkeypatch.setattr(
+        mlrun.utils.notifications.IPythonNotification, "push", mock_ipython_push
+    )
+    monkeypatch.setattr(
+        mlrun.utils.notifications.IPythonNotification, "active", ipython_active
+    )
 
     custom_notification_pusher.push("test-message", "info", [])
 
@@ -473,18 +511,27 @@ def test_notification_params_masking_on_run(monkeypatch):
     def _store_project_secrets(*args, **kwargs):
         pass
 
-    monkeypatch.setattr(services.api.crud.Secrets, "store_project_secrets", _store_project_secrets)
+    monkeypatch.setattr(
+        services.api.crud.Secrets, "store_project_secrets", _store_project_secrets
+    )
     params = {"sensitive": "sensitive-value"}
-    params_hash = hashlib.sha224(json.dumps(params, sort_keys=True).encode("utf-8")).hexdigest()
+    params_hash = hashlib.sha224(
+        json.dumps(params, sort_keys=True).encode("utf-8")
+    ).hexdigest()
     run_uid = "test-run-uid"
     run = {
         "metadata": {"uid": run_uid, "project": "test-project"},
         "spec": {"notifications": [{"when": "completed", "secret_params": params}]},
     }
-    services.api.api.utils.mask_notification_params_on_task(run, services.api.constants.MaskOperations.CONCEAL)
+    services.api.api.utils.mask_notification_params_on_task(
+        run, services.api.constants.MaskOperations.CONCEAL
+    )
     assert "sensitive" not in run["spec"]["notifications"][0]["secret_params"]
     assert "secret" in run["spec"]["notifications"][0]["secret_params"]
-    assert run["spec"]["notifications"][0]["secret_params"]["secret"] == f"mlrun.notifications.{params_hash}"
+    assert (
+        run["spec"]["notifications"][0]["secret_params"]["secret"]
+        == f"mlrun.notifications.{params_hash}"
+    )
 
 
 def test_notification_params_unmasking_on_run(monkeypatch):
@@ -511,7 +558,9 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     db_mock = unittest.mock.Mock()
     db_session_mock = unittest.mock.Mock()
 
-    monkeypatch.setattr(services.api.crud.Secrets, "get_project_secret", _get_valid_project_secret)
+    monkeypatch.setattr(
+        services.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
+    )
 
     unmasked_run = services.api.api.utils.unmask_notification_params_secret_on_task(
         db_mock, db_session_mock, copy.deepcopy(run)
@@ -520,7 +569,9 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     assert "secret" not in unmasked_run.spec.notifications[0].secret_params
     assert unmasked_run.spec.notifications[0].secret_params == secret_value
 
-    monkeypatch.setattr(services.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret)
+    monkeypatch.setattr(
+        services.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
+    )
     unmasked_run = services.api.api.utils.unmask_notification_params_secret_on_task(
         db_mock, db_session_mock, copy.deepcopy(run)
     )
@@ -610,7 +661,9 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
     "notification_kwargs,expectation",
     NOTIFICATION_VALIDATION_PARMETRIZE,
 )
-def test_notification_validation_on_object(monkeypatch, notification_kwargs, expectation):
+def test_notification_validation_on_object(
+    monkeypatch, notification_kwargs, expectation
+):
     with expectation:
         mlrun.model.Notification(**notification_kwargs)
 
@@ -628,7 +681,9 @@ def test_notification_validation_defaults(monkeypatch):
 
     for field, expected_value in notification_fields.items():
         value = getattr(notification, field)
-        assert value == expected_value, f"{field} field value is {value}, expected {expected_value}"
+        assert (
+            value == expected_value
+        ), f"{field} field value is {value}, expected {expected_value}"
 
 
 @pytest.mark.parametrize(
@@ -636,7 +691,9 @@ def test_notification_validation_defaults(monkeypatch):
     NOTIFICATION_VALIDATION_PARMETRIZE,
 )
 def test_notification_validation_on_run(monkeypatch, notification_kwargs, expectation):
-    notification = mlrun.model.Notification(name="test-notification", when=["completed"])
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
     for key, value in notification_kwargs.items():
         setattr(notification, key, value)
     function = mlrun.new_function(
@@ -665,10 +722,14 @@ def test_notification_sent_on_handler_run(monkeypatch):
         print(f"p1={p1}, p2={p2}, result={p1 * p2}")
         context.log_result("multiplier", p1 * p2)
 
-    notification = mlrun.model.Notification(name="test-notification", when=["completed"])
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
 
     grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
-    task = mlrun.new_task("grid-demo").with_hyper_params(grid_params, selector="max.multiplier")
+    task = mlrun.new_task("grid-demo").with_hyper_params(
+        grid_params, selector="max.multiplier"
+    )
     mlrun.new_function().run(task, handler=hyper_func, notifications=[notification])
     run_many_mock.assert_called_once()
     push_mock.assert_called_once()
@@ -681,7 +742,9 @@ def test_notification_sent_on_dask_run(monkeypatch):
     monkeypatch.setattr(mlrun.runtimes.LocalRuntime, "_run", run_mock)
     monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
 
-    notification = mlrun.model.Notification(name="test-notification", when=["completed"])
+    notification = mlrun.model.Notification(
+        name="test-notification", when=["completed"]
+    )
 
     function = mlrun.new_function(
         "function-from-module",
@@ -708,9 +771,15 @@ def test_notification_sent_on_dask_run(monkeypatch):
         ("n1", "n2", does_not_raise()),
     ],
 )
-def test_notification_name_uniqueness_validation(notification1_name, notification2_name, expectation):
-    notification1 = mlrun.model.Notification(name=notification1_name, when=["completed"])
-    notification2 = mlrun.model.Notification(name=notification2_name, when=["completed"])
+def test_notification_name_uniqueness_validation(
+    notification1_name, notification2_name, expectation
+):
+    notification1 = mlrun.model.Notification(
+        name=notification1_name, when=["completed"]
+    )
+    notification2 = mlrun.model.Notification(
+        name=notification2_name, when=["completed"]
+    )
     function = mlrun.new_function(
         "function-from-module",
         kind="job",
@@ -729,7 +798,9 @@ def test_notification_name_uniqueness_validation(notification1_name, notificatio
 def generate_notification_validation_params():
     validation_params = []
     valid_params_by_kind = {
-        mlrun.common.schemas.notification.NotificationKind.slack: {"webhook": "some-webhook"},
+        mlrun.common.schemas.notification.NotificationKind.slack: {
+            "webhook": "some-webhook"
+        },
         mlrun.common.schemas.notification.NotificationKind.git: {
             "repo": "some-repo",
             "issue": "some-issue",
@@ -908,7 +979,9 @@ def test_validate_notification_params(monkeypatch, notification_kwargs, expectat
 def test_enrich_unmasked_secret_params_from_project_secret(
     secret_params, get_secret_or_env_return_value, expected_params, should_raise
 ):
-    with unittest.mock.patch("mlrun.get_secret_or_env", return_value=get_secret_or_env_return_value):
+    with unittest.mock.patch(
+        "mlrun.get_secret_or_env", return_value=get_secret_or_env_return_value
+    ):
         notification = mlrun.model.Notification(
             kind=mlrun.common.schemas.notification.NotificationKind.slack,
             secret_params=secret_params,
@@ -939,7 +1012,9 @@ def _mock_async_response(monkeypatch, method, result):
 def _generate_run_result(state: str, error: str = None, results: dict = None):
     run_example = {
         "status": {
-            "notifications": {"Test": {"status": "pending", "sent_time": None, "reason": None}},
+            "notifications": {
+                "Test": {"status": "pending", "sent_time": None, "reason": None}
+            },
             "last_update": "2024-06-18T13:46:37.686443+00:00",
             "start_time": "2024-06-18T13:46:37.392158+00:00",
         },

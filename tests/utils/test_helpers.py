@@ -57,7 +57,9 @@ def test_retry_until_successful_fatal_failure():
         raise mlrun.errors.MLRunFatalFailureError(original_exception=original_exception)
 
     with pytest.raises(Exception, match=str(original_exception)):
-        mlrun.utils.helpers.retry_until_successful(0, 1, logger, True, _raise_fatal_failure)
+        mlrun.utils.helpers.retry_until_successful(
+            0, 1, logger, True, _raise_fatal_failure
+        )
 
 
 def test_retry_until_successful_sync():
@@ -83,7 +85,9 @@ async def test_retry_until_successful_async():
         if counter < 3:
             raise Exception("error")
 
-    await mlrun.utils.helpers.retry_until_successful_async(0, 3, logger, True, increase_counter)
+    await mlrun.utils.helpers.retry_until_successful_async(
+        0, 3, logger, True, increase_counter
+    )
 
 
 @pytest.mark.parametrize(
@@ -599,9 +603,13 @@ def test_enrich_image(case):
     config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
     config.images_registry = case.get("images_registry", "ghcr.io/")
     config.vendor_images_registry = case.get("vendor_images_registry", "dummy-repo/")
-    config.images_to_enrich_registry = case.get("images_to_enrich_registry", default_images_to_enrich_registry)
+    config.images_to_enrich_registry = case.get(
+        "images_to_enrich_registry", default_images_to_enrich_registry
+    )
     if case.get("version") is not None:
-        mlrun.utils.version.Version().get = unittest.mock.Mock(return_value={"version": case["version"]})
+        mlrun.utils.version.Version().get = unittest.mock.Mock(
+            return_value={"version": case["version"]}
+        )
     config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
     image = case["image"]
     expected_output = case["expected_output"]
@@ -755,7 +763,9 @@ def test_template_artifact_path(case):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             template_artifact_path(case["artifact_path"], case.get("project"))
     else:
-        filled_artifact_path = template_artifact_path(case["artifact_path"], case.get("project"))
+        filled_artifact_path = template_artifact_path(
+            case["artifact_path"], case.get("project")
+        )
         assert case["expected_artifact_path"] == filled_artifact_path
 
 
@@ -806,7 +816,9 @@ def test_verify_list_types_failure(actual_list, expected_types):
         verify_list_items_type(actual_list, expected_types)
 
 
-@pytest.mark.parametrize("actual_list", [[1.0, 8, "test"], ["test", 0.0], [None], [[["test"], 23]]])
+@pytest.mark.parametrize(
+    "actual_list", [[1.0, 8, "test"], ["test", 0.0], [None], [[["test"], 23]]]
+)
 @pytest.mark.parametrize("expected_types", [[str, int]])
 def test_verify_list_multiple_types_failure(actual_list, expected_types):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
@@ -923,7 +935,9 @@ def test_retry_until_successful():
         successful_mock = unittest.mock.Mock()
 
         def some_func(count_dict, a, b, some_other_thing=None):
-            logger.debug("Some function called", a=a, b=b, some_other_thing=some_other_thing)
+            logger.debug(
+                "Some function called", a=a, b=b, some_other_thing=some_other_thing
+            )
             if count_dict["count"] < 3:
                 logger.debug("Some function is still running, raising exception")
                 count_dict["count"] += 1
@@ -1118,4 +1132,6 @@ def test_validate_single_def_handler_valid_handler(code):
     try:
         mlrun.utils.validate_single_def_handler("mlrun", code)
     except mlrun.errors.MLRunInvalidArgumentError:
-        pytest.fail("validate_single_def_handler raised MLRunInvalidArgumentError unexpectedly.")
+        pytest.fail(
+            "validate_single_def_handler raised MLRunInvalidArgumentError unexpectedly."
+        )

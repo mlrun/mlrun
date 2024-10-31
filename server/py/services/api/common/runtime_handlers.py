@@ -19,7 +19,9 @@ from mlrun import mlconf
 
 
 def get_resource_labels(function, run=None, scrape_metrics=None):
-    scrape_metrics = scrape_metrics if scrape_metrics is not None else mlconf.scrape_metrics
+    scrape_metrics = (
+        scrape_metrics if scrape_metrics is not None else mlconf.scrape_metrics
+    )
     run_uid, run_name, run_project, run_owner = None, None, None, None
     if run:
         run_uid = run.metadata.uid
@@ -28,9 +30,13 @@ def get_resource_labels(function, run=None, scrape_metrics=None):
         run_owner = run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner)
     labels = copy.deepcopy(function.metadata.labels)
     labels[mlrun_constants.MLRunInternalLabels.mlrun_class] = function.kind
-    labels[mlrun_constants.MLRunInternalLabels.project] = run_project or function.metadata.project
+    labels[mlrun_constants.MLRunInternalLabels.project] = (
+        run_project or function.metadata.project
+    )
     labels[mlrun_constants.MLRunInternalLabels.function] = str(function.metadata.name)
-    labels[mlrun_constants.MLRunInternalLabels.tag] = str(function.metadata.tag or "latest")
+    labels[mlrun_constants.MLRunInternalLabels.tag] = str(
+        function.metadata.tag or "latest"
+    )
     labels[mlrun_constants.MLRunInternalLabels.scrape_metrics] = str(scrape_metrics)
 
     if run_uid:

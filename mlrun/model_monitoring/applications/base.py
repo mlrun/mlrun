@@ -33,7 +33,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 monitoring_context: mm_context.MonitoringApplicationContext,
             ) -> ModelMonitoringApplicationResult:
                 monitoring_context.log_artifact(
-                    TableArtifact("sample_df_stats", df=self.dict_to_histogram(sample_df_stats))
+                    TableArtifact(
+                        "sample_df_stats", df=self.dict_to_histogram(sample_df_stats)
+                    )
                 )
                 return ModelMonitoringApplicationResult(
                     name="data_drift_test",
@@ -72,7 +74,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         results = self.do_tracking(monitoring_context=monitoring_context)
         if isinstance(results, dict):
             results = [
-                mm_results.ModelMonitoringApplicationMetric(name=key, value=value) for key, value in results.items()
+                mm_results.ModelMonitoringApplicationMetric(name=key, value=value)
+                for key, value in results.items()
             ]
         results = results if isinstance(results, list) else [results]
         return results, monitoring_context

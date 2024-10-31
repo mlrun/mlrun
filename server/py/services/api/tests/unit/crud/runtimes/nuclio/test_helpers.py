@@ -23,7 +23,9 @@ from tests.conftest import examples_path
 
 def test_compiled_function_config_nuclio_golang():
     name = f"{examples_path}/training.py"
-    fn = mlrun.code_to_function("nuclio", filename=name, kind="nuclio", handler="my_hand")
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
     (
         name,
         project,
@@ -31,13 +33,19 @@ def test_compiled_function_config_nuclio_golang():
     ) = services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
     assert fn.kind == "remote", "kind not set, test failed"
     assert mlrun.utils.get_in(config, "spec.build.functionSourceCode"), "no source code"
-    assert mlrun.utils.get_in(config, "spec.runtime").startswith("py"), "runtime not set"
-    assert mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand", "wrong handler"
+    assert mlrun.utils.get_in(config, "spec.runtime").startswith(
+        "py"
+    ), "runtime not set"
+    assert (
+        mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand"
+    ), "wrong handler"
 
 
 def test_compiled_function_config_nuclio_python():
     name = f"{examples_path}/training.py"
-    fn = mlrun.code_to_function("nuclio", filename=name, kind="nuclio", handler="my_hand")
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
     (
         name,
         project,
@@ -45,14 +53,20 @@ def test_compiled_function_config_nuclio_python():
     ) = services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
     assert fn.kind == "remote", "kind not set, test failed"
     assert mlrun.utils.get_in(config, "spec.build.functionSourceCode"), "no source code"
-    assert mlrun.utils.get_in(config, "spec.runtime").startswith("py"), "runtime not set"
-    assert mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand", "wrong handler"
+    assert mlrun.utils.get_in(config, "spec.runtime").startswith(
+        "py"
+    ), "runtime not set"
+    assert (
+        mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand"
+    ), "wrong handler"
 
 
 def test_compiled_function_config_sidecar_image_enrichment():
     mlrun.mlconf.httpdb.builder.docker_registry = "docker.io"
     name = f"{examples_path}/training.py"
-    fn = mlrun.code_to_function("nuclio", filename=name, kind="nuclio", handler="my_hand")
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
     fn.with_sidecar("my-sidecar", ".mlrun/mlrun")
     (
         name,
@@ -61,7 +75,8 @@ def test_compiled_function_config_sidecar_image_enrichment():
     ) = services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
     assert mlrun.utils.get_in(config, "spec.sidecars"), "No sidecars"
     assert (
-        mlrun.utils.get_in(config, "spec.sidecars")[0]["image"] == "docker.io/mlrun/mlrun:unstable"
+        mlrun.utils.get_in(config, "spec.sidecars")[0]["image"]
+        == "docker.io/mlrun/mlrun:unstable"
     ), "Image not enriched"
 
 
@@ -77,7 +92,12 @@ def test_compiled_function_config_sidecar_image_enrichment():
     ],
 )
 def test_resolve_work_dir_and_handler(handler, expected):
-    assert expected == services.api.crud.runtimes.nuclio.helpers.resolve_work_dir_and_handler(handler)
+    assert (
+        expected
+        == services.api.crud.runtimes.nuclio.helpers.resolve_work_dir_and_handler(
+            handler
+        )
+    )
 
 
 @pytest.mark.parametrize(
@@ -94,7 +114,12 @@ def test_resolve_work_dir_and_handler(handler, expected):
         ("1.2.0", "3.7.16", "python:3.7"),
     ],
 )
-def test_resolve_nuclio_runtime_python_image(mlrun_client_version, python_version, expected_runtime):
-    assert expected_runtime == services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
-        mlrun_client_version, python_version
+def test_resolve_nuclio_runtime_python_image(
+    mlrun_client_version, python_version, expected_runtime
+):
+    assert (
+        expected_runtime
+        == services.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
+            mlrun_client_version, python_version
+        )
     )

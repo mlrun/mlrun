@@ -56,11 +56,15 @@ async def test_retry_os_exception_fail(
     with pytest.raises(exception.__class__):
         async_client.retry_options.attempts = max_retries
         await async_client.get("http://localhost:30678")
-    assert aioresponses_mock.called_times() == max_retries, f"Expected {max_retries} retries"
+    assert (
+        aioresponses_mock.called_times() == max_retries
+    ), f"Expected {max_retries} retries"
 
 
 @pytest.mark.asyncio
-async def test_retry_os_exception_success(async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock):
+async def test_retry_os_exception_success(
+    async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock
+):
     max_retries = 3
     for i in range(max_retries - 1):
         aioresponses_mock.get(
@@ -78,11 +82,15 @@ async def test_retry_os_exception_success(async_client: AsyncClientWithRetry, ai
         )
     response = await async_client.get("http://localhost:30678")
     assert response.status == 200, "Expected to succeed after retries"
-    assert aioresponses_mock.called_times() == max_retries - 1, f"Expected {max_retries - 1} retries"
+    assert (
+        aioresponses_mock.called_times() == max_retries - 1
+    ), f"Expected {max_retries - 1} retries"
 
 
 @pytest.mark.asyncio
-async def test_no_retry_on_blacklisted_method(async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock):
+async def test_no_retry_on_blacklisted_method(
+    async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock
+):
     aioresponses_mock.post(
         "http://localhost:30678",
         status=500,
@@ -136,11 +144,15 @@ async def test_retry_method_status_codes(
     assert response.status == status_codes[-1], "response status is not as expected"
 
     # ensure we called the request the correct number of times
-    assert aioresponses_mock.called_times() == len(status_codes), "Wrong number of retries"
+    assert aioresponses_mock.called_times() == len(
+        status_codes
+    ), "Wrong number of retries"
 
 
 @pytest.mark.asyncio
-async def test_headers_filtering(async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock):
+async def test_headers_filtering(
+    async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock
+):
     """
     Header keys/values type must be str to be serializable
     This tests ensures we drop headers with 'None' values
@@ -151,7 +163,9 @@ async def test_headers_filtering(async_client: AsyncClientWithRetry, aioresponse
 
     aioresponses_mock.add("http://nothinghere", method="GET", callback=callback)
 
-    response = await async_client.get("http://nothinghere", headers={"x": None, "y": "z"})
+    response = await async_client.get(
+        "http://nothinghere", headers={"x": None, "y": "z"}
+    )
     assert response.headers["y"] == "z", "header should not have been filtered"
     assert "x" not in response.headers, "header with 'None' value was not filtered"
 

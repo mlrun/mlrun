@@ -61,7 +61,9 @@ def alibaba_oss_configured(extra_params=None):
     return True
 
 
-@pytest.mark.skipif(not alibaba_oss_configured(), reason="ALIBABA OSS parameters not configured")
+@pytest.mark.skipif(
+    not alibaba_oss_configured(), reason="ALIBABA OSS parameters not configured"
+)
 @pytest.mark.parametrize("use_datastore_profile", [False])
 class TestAlibabaOssDataStore:
     def setup_method(self, method):
@@ -74,7 +76,11 @@ class TestAlibabaOssDataStore:
         object_file = f"file_{uid}.txt"
         csv_file = f"file_{uid}.csv"
 
-        self.oss = {"oss": self._make_target_names("oss://", self._bucket_name, object_dir, object_file, csv_file)}
+        self.oss = {
+            "oss": self._make_target_names(
+                "oss://", self._bucket_name, object_dir, object_file, csv_file
+            )
+        }
 
     def test_using_env_variables(self, use_datastore_profile):
         # Use "naked" env variables, useful in client-side sdk.
@@ -155,8 +161,14 @@ class TestAlibabaOssDataStore:
             assert_frame_equal(df1, dt1.as_df(), check_like=True)
             assert_frame_equal(df2, dt2.as_df(), check_like=True)
             dt_dir = mlrun.run.get_dataitem(csv_url)
-            tested_df = dt_dir.as_df(format="csv").sort_values("Column1").reset_index(drop=True)
-            expected_df = pd.concat([df1, df2], ignore_index=True).sort_values("Column1").reset_index(drop=True)
+            tested_df = (
+                dt_dir.as_df(format="csv").sort_values("Column1").reset_index(drop=True)
+            )
+            expected_df = (
+                pd.concat([df1, df2], ignore_index=True)
+                .sort_values("Column1")
+                .reset_index(drop=True)
+            )
             assert_frame_equal(tested_df, expected_df)
 
     def _perform_alibaba_oss_tests(self, use_datastore_profile, secrets=None):
@@ -178,8 +190,12 @@ class TestAlibabaOssDataStore:
         assert stat.size == len(test_string), "Stat size different than expected"
 
         dir_list = mlrun.run.get_dataitem(param["bucket_path_dir"]).listdir()
-        assert param["object_path"].split("/")[1] in dir_list, "File not in container dir-list"
-        assert param["df_path"].split("/")[1] in dir_list, "CSV file not in container dir-list"
+        assert (
+            param["object_path"].split("/")[1] in dir_list
+        ), "File not in container dir-list"
+        assert (
+            param["df_path"].split("/")[1] in dir_list
+        ), "CSV file not in container dir-list"
 
         upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
         upload_data_item.upload(test_filename)
@@ -192,7 +208,9 @@ class TestAlibabaOssDataStore:
         assert list(df) == ["col1", "col2", "col3"]
         assert df.shape == (1, 3)
 
-    def _make_target_names(self, prefix, bucket_name, object_dir, object_file, csv_file):
+    def _make_target_names(
+        self, prefix, bucket_name, object_dir, object_file, csv_file
+    ):
         bucket_path = prefix + bucket_name
         object_path = f"{object_dir}/{object_file}"
         df_path = f"{object_dir}/{csv_file}"

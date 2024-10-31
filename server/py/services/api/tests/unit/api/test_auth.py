@@ -21,16 +21,24 @@ import mlrun.common.schemas
 import services.api.utils.auth.verifier
 
 
-def test_verify_authorization(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient) -> None:
-    authorization_verification_input = mlrun.common.schemas.AuthorizationVerificationInput(
-        resource="/some-resource",
-        action=mlrun.common.schemas.AuthorizationAction.create,
+def test_verify_authorization(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    authorization_verification_input = (
+        mlrun.common.schemas.AuthorizationVerificationInput(
+            resource="/some-resource",
+            action=mlrun.common.schemas.AuthorizationAction.create,
+        )
     )
 
     async def _mock_successful_query_permissions(resource, action, *args):
         assert authorization_verification_input.resource == resource
         assert authorization_verification_input.action == action
 
-    services.api.utils.auth.verifier.AuthVerifier().query_permissions = _mock_successful_query_permissions
-    response = client.post("authorization/verifications", json=authorization_verification_input.dict())
+    services.api.utils.auth.verifier.AuthVerifier().query_permissions = (
+        _mock_successful_query_permissions
+    )
+    response = client.post(
+        "authorization/verifications", json=authorization_verification_input.dict()
+    )
     assert response.status_code == http.HTTPStatus.OK.value

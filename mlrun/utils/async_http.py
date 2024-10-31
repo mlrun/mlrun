@@ -74,7 +74,9 @@ class AsyncClientWithRetry(RetryClient):
 
     def methods_blacklist_update_required(self, new_blacklist: str):
         self._retry_options: ExponentialRetryOverride
-        return set(self._retry_options.blacklisted_methods).difference(set(new_blacklist))
+        return set(self._retry_options.blacklisted_methods).difference(
+            set(new_blacklist)
+        )
 
     def _make_requests(
         self,
@@ -150,9 +152,13 @@ class _CustomRequestContext(_RequestContext):
 
                 # enrich user agent
                 # will help traceability and debugging
-                headers[aiohttp.hdrs.USER_AGENT] = f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version}"
+                headers[aiohttp.hdrs.USER_AGENT] = (
+                    f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version}"
+                )
 
-                response: typing.Optional[aiohttp.ClientResponse] = await self._request_func(
+                response: typing.Optional[
+                    aiohttp.ClientResponse
+                ] = await self._request_func(
                     params.method,
                     params.url,
                     headers=headers,
@@ -162,7 +168,9 @@ class _CustomRequestContext(_RequestContext):
                     },
                     **(params.kwargs or {}),
                 )
-                retry_wait = self._retry_options.get_timeout(attempt=current_attempt, response=response)
+                retry_wait = self._retry_options.get_timeout(
+                    attempt=current_attempt, response=response
+                )
 
                 # if the response is not retryable, return it.
                 # this is done to prevent the retry logic from running on non-idempotent methods such as POST.
@@ -171,7 +179,9 @@ class _CustomRequestContext(_RequestContext):
                     return response
 
                 # allow user to provide a callback to decide if retry is needed
-                if await self._check_response_callback(params, current_attempt, retry_wait, response):
+                if await self._check_response_callback(
+                    params, current_attempt, retry_wait, response
+                ):
                     self._response = response
                     return response
 
@@ -224,7 +234,9 @@ class _CustomRequestContext(_RequestContext):
                 # by type
                 self.verify_exception_type(exc)
 
-                retry_wait = self._retry_options.get_timeout(attempt=current_attempt, response=None)
+                retry_wait = self._retry_options.get_timeout(
+                    attempt=current_attempt, response=None
+                )
                 self._logger.warning(
                     "Request failed on retryable exception, retrying",
                     retry_wait_secs=retry_wait,
@@ -250,7 +262,9 @@ class _CustomRequestContext(_RequestContext):
         if self._retry_options.evaluate_response_callback is not None:
             try:
                 result = self._retry_options.evaluate_response_callback(response)
-                if asyncio.iscoroutinefunction(self._retry_options.evaluate_response_callback):
+                if asyncio.iscoroutinefunction(
+                    self._retry_options.evaluate_response_callback
+                ):
                     return await result
                 else:
                     return result

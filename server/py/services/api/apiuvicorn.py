@@ -35,5 +35,7 @@ def run(logger, httpdb_config):
         port=httpdb_config.port,
         access_log=False,
         timeout_keep_alive=httpdb_config.http_connection_timeout_keep_alive,
-        log_config=_get_uvicorn_log_config(logger._logger.handlers[0].formatter.__class__),
+        log_config=_get_uvicorn_log_config(
+            logger._logger.handlers[0].formatter.__class__
+        ),
     )

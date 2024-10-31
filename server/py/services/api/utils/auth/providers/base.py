@@ -40,5 +40,7 @@ class Provider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def add_allowed_project_for_owner(self, project_name: str, auth_info: mlrun.common.schemas.AuthInfo):
+    def add_allowed_project_for_owner(
+        self, project_name: str, auth_info: mlrun.common.schemas.AuthInfo
+    ):
         pass

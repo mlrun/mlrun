@@ -33,7 +33,9 @@ def test_workflow_does_not_exist(db: Session, client: TestClient):
     # path with wrong name:
     wrong_name = "not-" + PROJECT_NAME
     resp = client.post(f"projects/{PROJECT_NAME}/workflows/{wrong_name}/submit")
-    assert resp.json()["detail"]["reason"] == f"Workflow {wrong_name} not found in project"
+    assert (
+        resp.json()["detail"]["reason"] == f"Workflow {wrong_name} not found in project"
+    )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
@@ -43,8 +45,12 @@ def test_bad_schedule_format(db: Session, client: TestClient):
     # Spec with bad schedule:
     workflow_body = {"spec": {"name": WORKFLOW_NAME, "schedule": "* * 1"}}
 
-    resp = client.post(f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/submit", json=workflow_body)
-    assert "Wrong number of fields in crontab expression" in resp.json()["detail"]["error"]
+    resp = client.post(
+        f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/submit", json=workflow_body
+    )
+    assert (
+        "Wrong number of fields in crontab expression" in resp.json()["detail"]["error"]
+    )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
 
@@ -70,7 +76,9 @@ def test_get_workflow_fail_fast(db: Session, client: TestClient):
         },
     }
     services.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
-    resp = client.get(f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{right_id}")
+    resp = client.get(
+        f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{right_id}"
+    )
 
     # remote runner has failed, so the run should be failed
     assert resp.status_code == HTTPStatus.PRECONDITION_FAILED
@@ -89,10 +97,16 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
     services.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
-    good_resp = client.get(f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{right_id}").json()
+    good_resp = client.get(
+        f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{right_id}"
+    ).json()
 
-    assert good_resp.get("workflow_id", "") == expected_workflow_id, f"response: {good_resp}"
-    bad_resp = client.get(f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{wrong_id}")
+    assert (
+        good_resp.get("workflow_id", "") == expected_workflow_id
+    ), f"response: {good_resp}"
+    bad_resp = client.get(
+        f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{wrong_id}"
+    )
     assert bad_resp.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -107,9 +121,14 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
     services.api.crud.Runs().store_run(db, data, run_id, project=PROJECT_NAME)
-    resp = client.get(f"projects/{wrong_project_name}/workflows/{WORKFLOW_NAME}/runs/{run_id}")
+    resp = client.get(
+        f"projects/{wrong_project_name}/workflows/{WORKFLOW_NAME}/runs/{run_id}"
+    )
     assert resp.status_code == HTTPStatus.NOT_FOUND
-    assert f"Run uid {run_id} of project {wrong_project_name} not found" in resp.json()["detail"]
+    assert (
+        f"Run uid {run_id} of project {wrong_project_name} not found"
+        in resp.json()["detail"]
+    )
 
 
 def test_schedule_not_enriched(db: Session, client: TestClient, k8s_secrets_mock):
@@ -122,7 +141,9 @@ def test_schedule_not_enriched(db: Session, client: TestClient, k8s_secrets_mock
         def uid(self):
             return "some uid"
 
-    with unittest.mock.patch.object(services.api.crud.WorkflowRunners, "run", return_value=UIDMock()):
+    with unittest.mock.patch.object(
+        services.api.crud.WorkflowRunners, "run", return_value=UIDMock()
+    ):
         resp = client.post(
             f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/submit",
             json=workflow_body,
@@ -132,7 +153,9 @@ def test_schedule_not_enriched(db: Session, client: TestClient, k8s_secrets_mock
         assert response_data["schedule"] is None
 
 
-def test_fill_workflow_missing_fields_preserves_empty_node_selector(db: Session, client: TestClient):
+def test_fill_workflow_missing_fields_preserves_empty_node_selector(
+    db: Session, client: TestClient
+):
     # Test to ensure that the `_fill_workflow_missing_fields_from_project` function, called as part of the `submit`
     # workflow endpoint, preserves an empty value in the workflow runner node selector when passed within the workflow
     # spec. Preserving empty values is important because they indicate that a specific node selector should be removed
@@ -142,11 +165,13 @@ def test_fill_workflow_missing_fields_preserves_empty_node_selector(db: Session,
     workflow_spec = mlrun.common.schemas.WorkflowSpec(
         name=WORKFLOW_NAME, workflow_runner_node_selector=workflow_runner_node_selector
     )
-    res_workflow = services.api.api.endpoints.workflows._fill_workflow_missing_fields_from_project(
-        project=project,
-        workflow_name=WORKFLOW_NAME,
-        spec=workflow_spec,
-        arguments={},
+    res_workflow = (
+        services.api.api.endpoints.workflows._fill_workflow_missing_fields_from_project(
+            project=project,
+            workflow_name=WORKFLOW_NAME,
+            spec=workflow_spec,
+            arguments={},
+        )
     )
     assert res_workflow.workflow_runner_node_selector == workflow_runner_node_selector
 

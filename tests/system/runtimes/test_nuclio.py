@@ -156,10 +156,14 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
     stream_container = "bigdata"
     path_uuid_part = uuid.uuid4()
     stream_path = f"/test_nuclio/test_serving_with_child_function-{path_uuid_part}/"
-    stream_path_out = f"/test_nuclio/test_serving_with_child_function_out-{path_uuid_part}/"
+    stream_path_out = (
+        f"/test_nuclio/test_serving_with_child_function_out-{path_uuid_part}/"
+    )
 
     def custom_teardown(self):
-        v3io_client = v3io.dataplane.Client(endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"])
+        v3io_client = v3io.dataplane.Client(
+            endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
+        )
         v3io_client.stream.delete(
             self.stream_container,
             self.stream_path,
@@ -228,11 +232,17 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 
         client = v3io.dataplane.Client()
 
-        resp = client.stream.seek(self.stream_container, self.stream_path_out, 2, "EARLIEST")
+        resp = client.stream.seek(
+            self.stream_container, self.stream_path_out, 2, "EARLIEST"
+        )
         self._logger.debug(f"Out stream Seek response: {resp.status_code}: {resp.body}")
         location = json.loads(resp.body.decode("utf8"))["Location"]
-        resp = client.stream.get_records(self.stream_container, self.stream_path_out, shard_id=2, location=location)
-        self._logger.debug(f"Out stream GetRecords response: {resp.status_code}: {resp.body}")
+        resp = client.stream.get_records(
+            self.stream_container, self.stream_path_out, shard_id=2, location=location
+        )
+        self._logger.debug(
+            f"Out stream GetRecords response: {resp.status_code}: {resp.body}"
+        )
         assert resp.status_code == 200
 
         assert len(resp.output.records) == 2
@@ -241,15 +251,23 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         expected_record = b'{"hello": "world"}'
         expected_other_record = b'{"hello": "world", "more_stuff": 5, "path": "/"}'
 
-        assert (record1.data == expected_record and record2.data == expected_other_record) or (
-            record2.data == expected_record and record1.data == expected_other_record
-        )
+        assert (
+            record1.data == expected_record and record2.data == expected_other_record
+        ) or (record2.data == expected_record and record1.data == expected_other_record)
 
-        resp = client.stream.seek(self.stream_container, self.stream_path, 1, "EARLIEST")
-        self._logger.debug(f"Intermediate stream Seek response: {resp.status_code}: {resp.body}")
+        resp = client.stream.seek(
+            self.stream_container, self.stream_path, 1, "EARLIEST"
+        )
+        self._logger.debug(
+            f"Intermediate stream Seek response: {resp.status_code}: {resp.body}"
+        )
         location = json.loads(resp.body.decode("utf8"))["Location"]
-        resp = client.stream.get_records(self.stream_container, self.stream_path, shard_id=1, location=location)
-        self._logger.debug(f"Intermediate stream GetRecords response: {resp.status_code}: {resp.body}")
+        resp = client.stream.get_records(
+            self.stream_container, self.stream_path, shard_id=1, location=location
+        )
+        self._logger.debug(
+            f"Intermediate stream GetRecords response: {resp.status_code}: {resp.body}"
+        )
         assert resp.status_code == 200
         assert len(resp.output.records) == 1
         record = resp.output.records[0]
@@ -286,8 +304,12 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         kafka_admin_client = kafka.KafkaAdminClient(bootstrap_servers=self.brokers)
         kafka_admin_client.create_topics(
             [
-                kafka.admin.NewTopic(self.topic, num_partitions=3, replication_factor=1),
-                kafka.admin.NewTopic(self.topic_out, num_partitions=3, replication_factor=1),
+                kafka.admin.NewTopic(
+                    self.topic, num_partitions=3, replication_factor=1
+                ),
+                kafka.admin.NewTopic(
+                    self.topic_out, num_partitions=3, replication_factor=1
+                ),
             ]
         )
 
@@ -330,7 +352,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             kafka_producer.send(self.topic_out, raw_bytes)
             kafka_producer.flush()
 
-    @pytest.mark.skipif(not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined")
+    @pytest.mark.skipif(
+        not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
+    )
     def test_kafka_source_with_avro(self, kafka_fixture):
         row_divide = 3
         stocks_df = pd.DataFrame(
@@ -381,7 +405,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         func.spec.min_replicas = 1
         func.spec.max_replicas = 1
 
-        run_config = fstore.RunConfig(local=False, function=func).apply(mlrun_pipelines.mounts.auto_mount())
+        run_config = fstore.RunConfig(local=False, function=func).apply(
+            mlrun_pipelines.mounts.auto_mount()
+        )
         stocks_set_endpoint, _ = stocks_set.deploy_ingestion_service(
             source=kafka_source,
             targets=[target],
@@ -412,7 +438,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
                 sum_of_offsets += offset_and_metadata.offset
         assert sum_of_offsets == 3
 
-    @pytest.mark.skipif(not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined")
+    @pytest.mark.skipif(
+        not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
+    )
     def test_serving_with_kafka_queue(self, kafka_fixture):
         kafka_consumer, _, _ = kafka_fixture
         code_path = str(self.assets_path / "nuclio_function.py")
@@ -478,7 +506,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         kafka_consumer.subscribe([self.topic_out])
         record1 = next(kafka_consumer)
         record2 = next(kafka_consumer)
-        assert (record1.value == expected_record and record2.value == expected_other_record) or (
+        assert (
+            record1.value == expected_record and record2.value == expected_other_record
+        ) or (
             record2.value == expected_record or record1.value == expected_other_record
         )
         assert record1.partition == 2
@@ -619,13 +649,17 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
             metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
                 name=self.gw_name,
             ),
-            spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(functions=[self.f1], project=self.project_name),
+            spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=[self.f1], project=self.project_name
+            ),
         )
 
     def _cleanup_gateway(self):
         self.project.delete_api_gateway(self.gw_name)
 
-    def _check_functions_external_invocation_urls(self, function_name: str, expected_url: str):
+    def _check_functions_external_invocation_urls(
+        self, function_name: str, expected_url: str
+    ):
         function = self.project.get_function(function_name)
         urls = function.to_dict().get("status", {}).get("external_invocation_urls")
         assert expected_url in urls

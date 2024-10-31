@@ -37,26 +37,34 @@ router = fastapi.APIRouter()
     response_model=mlrun.common.schemas.FrontendSpec,
 )
 def get_frontend_spec(
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     jobs_dashboard_url = None
     model_monitoring_dashboard_url = None
     session = auth_info.session
     if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
-        model_monitoring_dashboard_url = _resolve_model_monitoring_dashboard_url(session)
+        model_monitoring_dashboard_url = _resolve_model_monitoring_dashboard_url(
+            session
+        )
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
     repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
-    function_deployment_target_image_template = mlrun.runtimes.utils.fill_function_image_name_template(
-        f"{registry}/",
-        repository,
-        "{project}",
-        "{name}",
-        "{tag}",
+    function_deployment_target_image_template = (
+        mlrun.runtimes.utils.fill_function_image_name_template(
+            f"{registry}/",
+            repository,
+            "{project}",
+            "{name}",
+            "{tag}",
+        )
     )
     registries_to_enforce_prefix = mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
-    function_target_image_name_prefix_template = config.httpdb.builder.function_target_image_name_prefix_template
+    function_target_image_name_prefix_template = (
+        config.httpdb.builder.function_target_image_name_prefix_template
+    )
     return mlrun.common.schemas.FrontendSpec(
         jobs_dashboard_url=jobs_dashboard_url,
         model_monitoring_dashboard_url=model_monitoring_dashboard_url,
@@ -99,7 +107,8 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
     if grafana_service_url:
         # FIXME: this creates a heavy coupling between mlrun and the grafana dashboard (name and filters) + org id
         return (
-            grafana_service_url + "/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={filter_name}"
+            grafana_service_url
+            + "/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={filter_name}"
             "&var-filter={filter_value}"
         )
     return None
@@ -109,7 +118,8 @@ def _resolve_model_monitoring_dashboard_url(session: str) -> typing.Optional[str
     grafana_service_url = try_get_grafana_service_url(session)
     if grafana_service_url:
         return grafana_service_url + (
-            "/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}" "&var-MODELENDPOINT={model_endpoint}"
+            "/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}"
+            "&var-MODELENDPOINT={model_endpoint}"
         )
     return None
 
@@ -118,7 +128,9 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.disabled
     if mlrun.mlconf.httpdb.authorization.mode == "opa":
         project_membership = mlrun.common.schemas.ProjectMembershipFeatureFlag.enabled
-    authentication = mlrun.common.schemas.AuthenticationFeatureFlag(mlrun.mlconf.httpdb.authentication.mode)
+    authentication = mlrun.common.schemas.AuthenticationFeatureFlag(
+        mlrun.mlconf.httpdb.authentication.mode
+    )
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 
     if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(

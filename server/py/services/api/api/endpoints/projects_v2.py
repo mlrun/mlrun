@@ -49,26 +49,37 @@ async def delete_project(
         mlrun.common.schemas.DeletionStrategy.default(),
         alias=mlrun.common.schemas.HeaderNames.deletion_strategy,
     ),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        services.api.api.deps.get_db_session
+    ),
 ):
     # check if project exists
     try:
-        project = await run_in_threadpool(get_project_member().get_project, db_session, name, auth_info.session)
+        project = await run_in_threadpool(
+            get_project_member().get_project, db_session, name, auth_info.session
+        )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting to delete project, re-routing to chief",
             project=name,
             deletion_strategy=deletion_strategy,
         )
         chief_client = services.api.utils.clients.chief.Client()
-        return await chief_client.delete_project(name=name, request=request, api_version="v2")
+        return await chief_client.delete_project(
+            name=name, request=request, api_version="v2"
+        )
 
     # usually the CRUD for delete project will check permissions, however, since we are running the crud in a background
     # task, we need to check permissions here. skip permission check if the request is from the leader.
@@ -117,4 +128,6 @@ async def delete_project(
         background_tasks.add_task(task)
 
     response.status_code = http.HTTPStatus.ACCEPTED.value
-    return services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(task_name)
+    return services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
+    )

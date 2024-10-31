@@ -23,7 +23,9 @@ def test_mount_configmap():
     expected_volume = {"configMap": {"name": "my-config-map"}, "name": "my-volume"}
     expected_volume_mount = {"mountPath": "/myConfMapPath", "name": "my-volume"}
 
-    function = mlrun.new_function("function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job)
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
     function.apply(
         mlrun_pipelines.mounts.mount_configmap(
             configmap_name="my-config-map",
@@ -54,9 +56,13 @@ def test_mount_hostpath():
     expected_volume = {"hostPath": {"path": "/tmp", "type": ""}, "name": "my-volume"}
     expected_volume_mount = {"mountPath": "/myHostPath", "name": "my-volume"}
 
-    function = mlrun.new_function("function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job)
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
     function.apply(
-        mlrun_pipelines.mounts.mount_hostpath(host_path="/tmp", mount_path="/myHostPath", volume_name="my-volume")
+        mlrun_pipelines.mounts.mount_hostpath(
+            host_path="/tmp", mount_path="/myHostPath", volume_name="my-volume"
+        )
     )
 
     assert (
@@ -78,8 +84,14 @@ def test_mount_hostpath():
 
 
 def test_mount_s3():
-    function = mlrun.new_function("function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job)
-    function.apply(mlrun_pipelines.mounts.mount_s3(aws_access_key="xx", aws_secret_key="yy", endpoint_url="a.b"))
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(
+        mlrun_pipelines.mounts.mount_s3(
+            aws_access_key="xx", aws_secret_key="yy", endpoint_url="a.b"
+        )
+    )
     env_dict = {var["name"]: var["value"] for var in function.spec.env}
     assert env_dict == {
         "S3_ENDPOINT_URL": "a.b",
@@ -87,13 +99,21 @@ def test_mount_s3():
         "AWS_SECRET_ACCESS_KEY": "yy",
     }
 
-    function = mlrun.new_function("function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job)
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
     function.apply(mlrun_pipelines.mounts.mount_s3(secret_name="s", endpoint_url="a.b"))
-    env_dict = {var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env}
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
     assert env_dict == {
         "S3_ENDPOINT_URL": "a.b",
-        "AWS_ACCESS_KEY_ID": {"secretKeyRef": {"key": "AWS_ACCESS_KEY_ID", "name": "s"}},
-        "AWS_SECRET_ACCESS_KEY": {"secretKeyRef": {"key": "AWS_SECRET_ACCESS_KEY", "name": "s"}},
+        "AWS_ACCESS_KEY_ID": {
+            "secretKeyRef": {"key": "AWS_ACCESS_KEY_ID", "name": "s"}
+        },
+        "AWS_SECRET_ACCESS_KEY": {
+            "secretKeyRef": {"key": "AWS_SECRET_ACCESS_KEY", "name": "s"}
+        },
     }
 
 
@@ -104,7 +124,9 @@ def test_set_env_variables():
         "and_another": "like_this",
     }
 
-    function = mlrun.new_function("function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job)
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
     assert function.spec.env == []
 
     # Using a dictionary
@@ -113,7 +135,9 @@ def test_set_env_variables():
 
     assert env_dict == env_variables
 
-    function = mlrun.new_function("function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job)
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
     assert function.spec.env == []
 
     # And using key=value parameters

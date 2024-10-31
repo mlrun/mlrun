@@ -54,7 +54,9 @@ class Runs(
 
         # Some runtimes do not use the submit job flow, so their notifications are not masked.
         # Redact notification params if not concealed with a secret
-        services.api.api.utils.mask_notification_params_on_task(data, services.api.constants.MaskOperations.REDACT)
+        services.api.api.utils.mask_notification_params_on_task(
+            data, services.api.constants.MaskOperations.REDACT
+        )
 
         # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
         # to avoid bloating the DB.
@@ -87,7 +89,9 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         run_state = data.get("status.state") if data else None
-        logger.debug("Updating run", project=project, uid=uid, iter=iter, run_state=run_state)
+        logger.debug(
+            "Updating run", project=project, uid=uid, iter=iter, run_state=run_state
+        )
 
         # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
         # to avoid bloating the DB.
@@ -107,7 +111,9 @@ class Runs(
         # Note: Abort run moved to a separated endpoint
         # TODO: Remove below function for 1.8.0 (once 1.5.x clients are not supported)
         self._update_aborted_run(db_session, project, uid, iter, data)
-        services.api.utils.singletons.db.get_db().update_run(db_session, data, uid, project, iter)
+        services.api.utils.singletons.db.get_db().update_run(
+            db_session, data, uid, project, iter
+        )
 
     def get_run(
         self,
@@ -125,7 +131,8 @@ class Runs(
             uid,
             project,
             iter,
-            with_notifications=format_ == mlrun.common.formatters.RunFormat.notifications,
+            with_notifications=format_
+            == mlrun.common.formatters.RunFormat.notifications,
         )
 
         if format_ == mlrun.common.formatters.RunFormat.full:
@@ -140,15 +147,21 @@ class Runs(
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        state: typing.Optional[mlrun.common.runtimes.constants.RunStates] = None,  # Backward compatibility
+        state: typing.Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
         states: typing.Optional[typing.Union[str, list[str]]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
         start_time_from: typing.Optional[typing.Union[str, datetime.datetime]] = None,
         start_time_to: typing.Optional[typing.Union[str, datetime.datetime]] = None,
-        last_update_time_from: typing.Optional[typing.Union[str, datetime.datetime]] = None,
-        last_update_time_to: typing.Optional[typing.Union[str, datetime.datetime]] = None,
+        last_update_time_from: typing.Optional[
+            typing.Union[str, datetime.datetime]
+        ] = None,
+        last_update_time_to: typing.Optional[
+            typing.Union[str, datetime.datetime]
+        ] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -177,7 +190,9 @@ class Runs(
             and not iter
         ):
             # default to last week on no filter
-            start_time_from = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+            start_time_from = (
+                datetime.datetime.now() - datetime.timedelta(days=7)
+            ).isoformat()
             partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
             partition_sort_by = mlrun.common.schemas.SortField.updated
 
@@ -186,9 +201,13 @@ class Runs(
         if isinstance(start_time_to, str):
             start_time_to = mlrun.utils.helpers.datetime_from_iso(start_time_to)
         if isinstance(last_update_time_from, str):
-            last_update_time_from = mlrun.utils.helpers.datetime_from_iso(last_update_time_from)
+            last_update_time_from = mlrun.utils.helpers.datetime_from_iso(
+                last_update_time_from
+            )
         if isinstance(last_update_time_to, str):
-            last_update_time_to = mlrun.utils.helpers.datetime_from_iso(last_update_time_to)
+            last_update_time_to = mlrun.utils.helpers.datetime_from_iso(
+                last_update_time_to
+            )
 
         return services.api.utils.singletons.db.get_db().list_runs(
             session=db_session,
@@ -196,7 +215,9 @@ class Runs(
             uid=uid,
             project=project,
             labels=labels,
-            states=mlrun.utils.helpers.as_list(state) if state is not None else states or None,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -225,7 +246,9 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         try:
-            run = services.api.utils.singletons.db.get_db().read_run(db_session, uid, project, iter)
+            run = services.api.utils.singletons.db.get_db().read_run(
+                db_session, uid, project, iter
+            )
         except mlrun.errors.MLRunNotFoundError:
             logger.debug(
                 "Run not found, nothing to delete",
@@ -236,14 +259,23 @@ class Runs(
             return
 
         run_state = run.get("status", {}).get("state")
-        if run_state in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states():
+        if (
+            run_state
+            in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Can not delete run in {run_state} state, consider aborting the run first"
             )
 
-        runtime_kind = run.get("metadata", {}).get("labels", {}).get(mlrun_constants.MLRunInternalLabels.kind)
+        runtime_kind = (
+            run.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.kind)
+        )
         if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
-            runtime_handler = services.api.runtime_handlers.get_runtime_handler(runtime_kind)
+            runtime_handler = services.api.runtime_handlers.get_runtime_handler(
+                runtime_kind
+            )
             if runtime_handler.are_resources_coupled_to_run_object():
                 runtime_handler.delete_runtime_object_resources(
                     services.api.utils.singletons.db.get_db(),
@@ -260,7 +292,9 @@ class Runs(
             iter=iter,
             runtime_kind=runtime_kind,
         )
-        services.api.utils.singletons.db.get_db().del_run(db_session, uid, project, iter)
+        services.api.utils.singletons.db.get_db().del_run(
+            db_session, uid, project, iter
+        )
 
         await self._post_delete_run(project, uid)
 
@@ -275,7 +309,11 @@ class Runs(
         runs_list: mlrun.lists.RunList = None,
     ):
         project = project or mlrun.mlconf.default_project
-        if state and state in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states():
+        if (
+            state
+            and state
+            in mlrun.common.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Can not delete runs in {state} state, consider aborting the run first"
             )
@@ -283,7 +321,9 @@ class Runs(
         if not runs_list:
             start_time_from = None
             if days_ago:
-                start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days_ago)
+                start_time_from = datetime.datetime.now(
+                    datetime.timezone.utc
+                ) - datetime.timedelta(days=days_ago)
 
             runs_list = self.list_runs(
                 db_session,
@@ -351,14 +391,20 @@ class Runs(
         )
 
         if not run:
-            run = services.api.utils.singletons.db.get_db().read_run(db_session, uid, project, iter)
+            run = services.api.utils.singletons.db.get_db().read_run(
+                db_session, uid, project, iter
+            )
 
         current_run_state = run.get("status", {}).get("state")
         # ensure we are not triggering multiple internal aborts / internal abort on top of user abort
-        if new_background_task_id == services.api.constants.internal_abort_task_id and current_run_state in [
-            mlrun.common.runtimes.constants.RunStates.aborting,
-            mlrun.common.runtimes.constants.RunStates.aborted,
-        ]:
+        if (
+            new_background_task_id == services.api.constants.internal_abort_task_id
+            and current_run_state
+            in [
+                mlrun.common.runtimes.constants.RunStates.aborting,
+                mlrun.common.runtimes.constants.RunStates.aborted,
+            ]
+        ):
             logger.warning(
                 "Run is aborting/aborted, skipping internal abort",
                 new_background_task_id=new_background_task_id,
@@ -366,19 +412,32 @@ class Runs(
             )
             return
 
-        if current_run_state in mlrun.common.runtimes.constants.RunStates.terminal_states():
-            raise mlrun.errors.MLRunConflictError("Run is already in terminal state, can not be aborted")
+        if (
+            current_run_state
+            in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
+            raise mlrun.errors.MLRunConflictError(
+                "Run is already in terminal state, can not be aborted"
+            )
 
-        runtime_kind = run.get("metadata", {}).get("labels", {}).get(mlrun_constants.MLRunInternalLabels.kind)
+        runtime_kind = (
+            run.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.kind)
+        )
         if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
-            raise mlrun.errors.MLRunBadRequestError(f"Run of kind {runtime_kind} can not be aborted")
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Run of kind {runtime_kind} can not be aborted"
+            )
 
         # mark run as aborting
         aborting_updates = {
             "status.state": mlrun.common.runtimes.constants.RunStates.aborting,
             "status.abort_task_id": new_background_task_id,
         }
-        services.api.utils.singletons.db.get_db().update_run(db_session, aborting_updates, uid, project, iter)
+        services.api.utils.singletons.db.get_db().update_run(
+            db_session, aborting_updates, uid, project, iter
+        )
 
         run_updates["status.state"] = mlrun.common.runtimes.constants.RunStates.aborted
         try:
@@ -404,10 +463,14 @@ class Runs(
                 "status.state": mlrun.common.runtimes.constants.RunStates.error,
                 "status.error": f"Failed to abort run, error: {err}",
             }
-            services.api.utils.singletons.db.get_db().update_run(db_session, run_updates, uid, project, iter)
+            services.api.utils.singletons.db.get_db().update_run(
+                db_session, run_updates, uid, project, iter
+            )
             raise exc
 
-        services.api.utils.singletons.db.get_db().update_run(db_session, run_updates, uid, project, iter)
+        services.api.utils.singletons.db.get_db().update_run(
+            db_session, run_updates, uid, project, iter
+        )
 
     def _enrich_run_artifacts(
         self,
@@ -419,22 +482,33 @@ class Runs(
     ):
         # Since we don't store the artifacts in the run body, we need to fetch them separately
         # The client may be using them as in pipeline as input for the next step
-        workflow_id = run["metadata"].get("labels", {}).get(mlrun_constants.MLRunInternalLabels.workflow)
+        workflow_id = (
+            run["metadata"]
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.workflow)
+        )
         if not workflow_id:
-            artifacts = self._list_run_artifacts(db_session, iteration, producer_id=uid, project=project)
+            artifacts = self._list_run_artifacts(
+                db_session, iteration, producer_id=uid, project=project
+            )
 
         else:
             # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
             # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
             # filters by producer URI in memory.
-            artifacts = self._get_artifacts_from_uris(db_session, project=project, producer_id=workflow_id, run=run)
+            artifacts = self._get_artifacts_from_uris(
+                db_session, project=project, producer_id=workflow_id, run=run
+            )
         if artifacts or "artifacts" in run.get("status", {}):
             run.setdefault("status", {})
             run["status"]["artifacts"] = artifacts
 
     @staticmethod
     async def _post_delete_run(project, uid):
-        if mlrun.mlconf.log_collector.mode != mlrun.common.schemas.LogsCollectorMode.legacy:
+        if (
+            mlrun.mlconf.log_collector.mode
+            != mlrun.common.schemas.LogsCollectorMode.legacy
+        ):
             await services.api.crud.Logs().delete_run_logs(project, uid)
         else:
             await run_in_threadpool(
@@ -444,18 +518,30 @@ class Runs(
             )
 
     def _update_aborted_run(self, db_session, project, uid, iter, data):
-        if data and data.get("status.state") == mlrun.common.runtimes.constants.RunStates.aborted:
-            current_run = services.api.utils.singletons.db.get_db().read_run(db_session, uid, project, iter)
+        if (
+            data
+            and data.get("status.state")
+            == mlrun.common.runtimes.constants.RunStates.aborted
+        ):
+            current_run = services.api.utils.singletons.db.get_db().read_run(
+                db_session, uid, project, iter
+            )
             if (
                 current_run.get("status", {}).get("state")
                 in mlrun.common.runtimes.constants.RunStates.terminal_states()
             ):
-                raise mlrun.errors.MLRunConflictError("Run is already in terminal state, can not be aborted")
+                raise mlrun.errors.MLRunConflictError(
+                    "Run is already in terminal state, can not be aborted"
+                )
             runtime_kind = (
-                current_run.get("metadata", {}).get("labels", {}).get(mlrun_constants.MLRunInternalLabels.kind)
+                current_run.get("metadata", {})
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.kind)
             )
             if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
-                raise mlrun.errors.MLRunBadRequestError(f"Run of kind {runtime_kind} can not be aborted")
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Run of kind {runtime_kind} can not be aborted"
+                )
             # aborting the run meaning deleting its runtime resources
             # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
             #  "knowledge" on the label selector
@@ -466,13 +552,17 @@ class Runs(
             )
 
     @staticmethod
-    def _get_artifacts_from_uris(db_session: sqlalchemy.orm.Session, project: str, producer_id: str, run: dict):
+    def _get_artifacts_from_uris(
+        db_session: sqlalchemy.orm.Session, project: str, producer_id: str, run: dict
+    ):
         """Fetch run artifacts by their artifact URIs in the run status"""
         artifact_uris = run.get("status", {}).get("artifact_uris", {})
         key_tag_iteration_pairs = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
-            project, key, iteration, tag, artifact_producer_id = mlrun.utils.parse_artifact_uri(uri, project)
+            project, key, iteration, tag, artifact_producer_id = (
+                mlrun.utils.parse_artifact_uri(uri, project)
+            )
             if artifact_producer_id != producer_id:
                 logger.warning(
                     "Artifact producer ID does not match the run/workflow ID, skipping artifact",
@@ -498,7 +588,9 @@ class Runs(
 
         # DB artifacts result may contain more artifacts if the job is still running
         if len(artifacts) < len(artifact_uris):
-            missing_artifacts = set(artifact_uris.keys()) - {artifact["metadata"]["key"] for artifact in artifacts}
+            missing_artifacts = set(artifact_uris.keys()) - {
+                artifact["metadata"]["key"] for artifact in artifacts
+            }
             logger.warning(
                 "Some artifacts are missing from final run response, they may have been deleted",
                 project=project,

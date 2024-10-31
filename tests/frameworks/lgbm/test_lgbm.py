@@ -66,7 +66,9 @@ def test_sklearn_api_training(rundb_mock, algorithm_functionality: str):
     # Get assertion parameters:
     algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
     dummy_model = get_model(algorithm_functionality=algorithm_functionality)
-    _, dummy_y = get_dataset(algorithm_functionality=algorithm_functionality, for_training=False)
+    _, dummy_y = get_dataset(
+        algorithm_functionality=algorithm_functionality, for_training=False
+    )
     expected_artifacts = LGBMArtifactsLibrary.get_plans(model=dummy_model, y=dummy_y)
     expected_results = MetricsLibrary.get_metrics(model=dummy_model, y=dummy_y)
 
@@ -102,7 +104,9 @@ def test_sklearn_api_evaluation(rundb_mock, algorithm_functionality: str):
     # Get assertion parameters:
     algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
     dummy_model = get_model(algorithm_functionality=algorithm_functionality)
-    _, dummy_y = get_dataset(algorithm_functionality=algorithm_functionality, for_training=False)
+    _, dummy_y = get_dataset(
+        algorithm_functionality=algorithm_functionality, for_training=False
+    )
     expected_artifacts = [  # Count only pre and post prediction artifacts (evaluation artifacts).
         plan
         for plan in LGBMArtifactsLibrary.get_plans(model=dummy_model, y=dummy_y)

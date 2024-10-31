@@ -50,8 +50,12 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
     db.store_artifact(db_session, "k1", {}, producer_id="1", tag="t1", project="p1")
     db.store_artifact(db_session, "k1", {}, producer_id="2", tag="t2", project="p1")
     db.store_artifact(db_session, "k1", {}, producer_id="2", tag="t2", project="p2")
-    db.store_artifact(db_session, "k2", {"kind": "model"}, producer_id="3", tag="t3", project="p1")
-    db.store_artifact(db_session, "k3", {"kind": "dataset"}, producer_id="4", tag="t4", project="p2")
+    db.store_artifact(
+        db_session, "k2", {"kind": "model"}, producer_id="3", tag="t3", project="p1"
+    )
+    db.store_artifact(
+        db_session, "k3", {"kind": "dataset"}, producer_id="4", tag="t4", project="p2"
+    )
 
     tags = db.list_artifact_tags(db_session, "p1")
     expected_tags = [
@@ -63,11 +67,15 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
     assert deepdiff.DeepDiff(tags, expected_tags, ignore_order=True) == {}
 
     # filter by category
-    model_tags = db.list_artifact_tags(db_session, "p1", mlrun.common.schemas.ArtifactCategories.model)
+    model_tags = db.list_artifact_tags(
+        db_session, "p1", mlrun.common.schemas.ArtifactCategories.model
+    )
     expected_tags = ["t3", "latest"]
     assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
-    model_tags = db.list_artifact_tags(db_session, "p2", mlrun.common.schemas.ArtifactCategories.dataset)
+    model_tags = db.list_artifact_tags(
+        db_session, "p2", mlrun.common.schemas.ArtifactCategories.dataset
+    )
     expected_tags = ["t4", "latest"]
     assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
@@ -86,10 +94,14 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
         ("k3", t3, "p3"),
     ]:
         artifact_struct = mlrun.artifacts.Artifact(
-            metadata=mlrun.artifacts.ArtifactMetadata(key=key, project=project, tree=producer_id),
+            metadata=mlrun.artifacts.ArtifactMetadata(
+                key=key, project=project, tree=producer_id
+            ),
             spec=mlrun.artifacts.ArtifactSpec(),
         )
-        db_artifact = ArtifactV2(project=project, key=key, updated=updated, producer_id=producer_id)
+        db_artifact = ArtifactV2(
+            project=project, key=key, updated=updated, producer_id=producer_id
+        )
         db_artifact.full_object = artifact_struct.to_dict()
         artifacts_to_create.append(db_artifact)
 
@@ -101,7 +113,9 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
     arts = db.list_artifacts(db_session, project=project, since=t2, tag="*")
     assert 2 == len(arts), "since t2"
 
-    arts = db.list_artifacts(db_session, project=project, since=t1 + timedelta(days=1), tag="*")
+    arts = db.list_artifacts(
+        db_session, project=project, since=t1 + timedelta(days=1), tag="*"
+    )
     assert not arts, "since t1+"
 
     arts = db.list_artifacts(db_session, project=project, until=t2, tag="*")
@@ -144,8 +158,12 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     k1, t1, art1 = "k1", "t1", {"a": 1, "b": "blubla"}
     t2, art2 = "t2", {"a": 2, "b": "blublu"}
     prj = "p38"
-    db.store_artifact(db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag1")
-    db.store_artifact(db_session, k1, art2, producer_id=t2, iter=2, project=prj, tag="tag2")
+    db.store_artifact(
+        db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag1"
+    )
+    db.store_artifact(
+        db_session, k1, art2, producer_id=t2, iter=2, project=prj, tag="tag2"
+    )
 
     result = db.read_artifact(db_session, k1, "tag1", iter=1, project=prj)
     assert result["metadata"]["tag"] == "tag1"
@@ -168,9 +186,17 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     full_results = result
 
     result = db.list_artifacts(db_session, k1, tag="tag1", project=prj)
-    assert len(result) == 1 and result[0]["metadata"]["tag"] == "tag1" and result[0]["a"] == 1
+    assert (
+        len(result) == 1
+        and result[0]["metadata"]["tag"] == "tag1"
+        and result[0]["a"] == 1
+    )
     result = db.list_artifacts(db_session, k1, tag="tag2", project=prj)
-    assert len(result) == 1 and result[0]["metadata"]["tag"] == "tag2" and result[0]["a"] == 2
+    assert (
+        len(result) == 1
+        and result[0]["metadata"]["tag"] == "tag2"
+        and result[0]["a"] == 2
+    )
 
     # Add another tag to all objects (there are 2 at this point)
     new_tag = "new-tag"
@@ -185,16 +211,24 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
         expected_results.append(artifact_with_new_tag)
 
     artifacts = db_session.query(ArtifactV2).all()
-    db.tag_objects_v2(db_session, artifacts, prj, name=new_tag, obj_name_attribute="key")
+    db.tag_objects_v2(
+        db_session, artifacts, prj, name=new_tag, obj_name_attribute="key"
+    )
     result = db.list_artifacts(db_session, k1, prj, tag="*")
     assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}
 
     # Add another tag to the art1
-    db.store_artifact(db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag3")
+    db.store_artifact(
+        db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag3"
+    )
     # this makes it the latest object of this key, so we need to remove the artifact
     # with tag "latest" from the expected results
     expected_results = ArtifactList(
-        [artifact for artifact in expected_results if artifact["metadata"]["tag"] != "latest"]
+        [
+            artifact
+            for artifact in expected_results
+            if artifact["metadata"]["tag"] != "latest"
+        ]
     )
 
     result = db.read_artifact(db_session, k1, "tag3", iter=1, project=prj)
@@ -222,7 +256,9 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
 def test_projects_crud(db: SQLDB, db_session: Session):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="p1"),
-        spec=mlrun.common.schemas.ProjectSpec(description="banana", other_field="value"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="banana", other_field="value"
+        ),
         status=mlrun.common.schemas.ObjectStatus(state="active"),
     )
     db.create_project(db_session, project)
@@ -245,7 +281,9 @@ def test_projects_crud(db: SQLDB, db_session: Session):
         metadata=mlrun.common.schemas.ProjectMetadata(name="p2"),
     )
     db.create_project(db_session, project_2)
-    projects_output = db.list_projects(db_session, format_=mlrun.common.formatters.ProjectFormat.name_only)
+    projects_output = db.list_projects(
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
+    )
     assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 
 

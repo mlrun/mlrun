@@ -51,7 +51,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         project_function_object = project.spec._function_objects
         project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
         project.export(str(project_file_path))
-        imported_project = mlrun.load_project("./", str(project_file_path), allow_cross_project=True)
+        imported_project = mlrun.load_project(
+            "./", str(project_file_path), allow_cross_project=True
+        )
         assert imported_project.spec._function_objects == {}
         imported_project.sync_functions()
         _assert_project_function_objects(imported_project, project_function_object)
@@ -121,7 +123,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         # verify artifacts and functions were created
         project_artifacts = project.list_artifacts()
         loaded_project_artifacts = projects[0].list_artifacts()
-        assert len(project_artifacts) == len(artifact_keys) * 2  # project artifacts include "latest"
+        assert (
+            len(project_artifacts) == len(artifact_keys) * 2
+        )  # project artifacts include "latest"
         assert len(project_artifacts) == len(loaded_project_artifacts)
         assert project_artifacts == loaded_project_artifacts
 
@@ -130,8 +134,15 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(project_functions) == len(function_names) * len(function_tags)
         assert len(project_functions) == len(loaded_project_functions)
 
-        loaded_project_functions_dicts = [func.to_dict() for func in loaded_project_functions]
-        assert all([func.to_dict() in loaded_project_functions_dicts for func in project_functions])
+        loaded_project_functions_dicts = [
+            func.to_dict() for func in loaded_project_functions
+        ]
+        assert all(
+            [
+                func.to_dict() in loaded_project_functions_dicts
+                for func in project_functions
+            ]
+        )
 
         old_creation_time = projects[0].metadata.created
 
@@ -254,11 +265,15 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_set_project_secrets(self):
         # A basic test verifying that we can access (mocked) project-secrets functionality in integration tests.
         project_name = "some-project"
-        project_object = mlrun.get_or_create_project(project_name, allow_cross_project=True)
+        project_object = mlrun.get_or_create_project(
+            project_name, allow_cross_project=True
+        )
 
         secrets = {"secret1": "value1", "secret2": "value2"}
         project_object.set_secrets(secrets)
-        secret_keys = mlrun.get_run_db().list_project_secret_keys(project_name).secret_keys
+        secret_keys = (
+            mlrun.get_run_db().list_project_secret_keys(project_name).secret_keys
+        )
         assert secret_keys == list(secrets.keys())
 
 
@@ -286,7 +301,9 @@ def _assert_project_function_objects(project, expected_function_objects):
     for function_name, function_object in expected_function_objects.items():
         assert function_name in project_function_objects
         project_function = project_function_objects[function_name].to_dict()
-        project_function["metadata"]["tag"] = project_function["metadata"]["tag"] or "latest"
+        project_function["metadata"]["tag"] = (
+            project_function["metadata"]["tag"] or "latest"
+        )
         assert (
             deepdiff.DeepDiff(
                 project_function,

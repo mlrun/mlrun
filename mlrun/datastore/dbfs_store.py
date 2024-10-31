@@ -30,7 +30,9 @@ class DatabricksFileBugFixed(DatabricksFile):
         self.buffer.seek(0)
         data = self.buffer.getvalue()
 
-        data_chunks = [data[start:end] for start, end in self._to_sized_blocks(end=len(data))]
+        data_chunks = [
+            data[start:end] for start, end in self._to_sized_blocks(end=len(data))
+        ]
 
         for data_chunk in data_chunks:
             self.fs._add_data(handle=self.handle, data=data_chunk)
@@ -43,7 +45,9 @@ class DatabricksFileBugFixed(DatabricksFile):
         """Internal function to download a block of data"""
         return_buffer = b""
         for chunk_start, chunk_end in self._to_sized_blocks(start, end):
-            return_buffer += self.fs._get_data(path=self.path, start=chunk_start, end=chunk_end)
+            return_buffer += self.fs._get_data(
+                path=self.path, start=chunk_start, end=chunk_end
+            )
 
         return return_buffer
 
@@ -66,7 +70,9 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
 
         Only the default blocksize is allowed.
         """
-        return DatabricksFileBugFixed(self, path, mode=mode, block_size=block_size, **kwargs)
+        return DatabricksFileBugFixed(
+            self, path, mode=mode, block_size=block_size, **kwargs
+        )
 
     #  _ls_from_cache is not working properly, so we disable it.
     def _ls_from_cache(self, path):
@@ -99,9 +105,13 @@ class DBFSStore(DataStore):
 
     def _verify_filesystem_and_key(self, key: str):
         if not self.filesystem:
-            raise mlrun.errors.MLRunInvalidArgumentError("Performing actions on data-item without a valid filesystem")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Performing actions on data-item without a valid filesystem"
+            )
         if not key.startswith("/"):
-            raise mlrun.errors.MLRunInvalidArgumentError("Invalid key parameter - key must start with '/'")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid key parameter - key must start with '/'"
+            )
 
     def get(self, key: str, size=None, offset=0) -> bytes:
         self._verify_filesystem_and_key(key)
@@ -116,7 +126,9 @@ class DBFSStore(DataStore):
     def put(self, key, data, append=False):
         self._verify_filesystem_and_key(key)
         if append:
-            raise mlrun.errors.MLRunInvalidArgumentError("Append mode not supported for Databricks file system")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Append mode not supported for Databricks file system"
+            )
         #  can not use append mode because it overrides data.
         data, mode = self._prepare_put_data(data, append)
         with self.filesystem.open(key, mode) as f:

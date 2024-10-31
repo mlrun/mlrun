@@ -123,7 +123,9 @@ def test_verify_label_key(label_key, exception):
         ),
         # Value too long
         (
-            {"key": "value_with_very_long_string_that_exceeds_the_maximum_length_limit_of_63_characters"},
+            {
+                "key": "value_with_very_long_string_that_exceeds_the_maximum_length_limit_of_63_characters"
+            },
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         # Invalid character '#' in value

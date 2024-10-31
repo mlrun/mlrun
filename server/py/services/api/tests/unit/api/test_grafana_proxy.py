@@ -53,17 +53,21 @@ def _is_env_params_dont_exist() -> bool:
     return not all(os.environ.get(r, False) for r in ENV_PARAMS)
 
 
-def test_grafana_proxy_model_endpoints_check_connection(db: Session, client: TestClient):
+def test_grafana_proxy_model_endpoints_check_connection(
+    db: Session, client: TestClient
+):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    services.api.utils.clients.iguazio.AsyncClient().verify_request_session = unittest.mock.AsyncMock(
-        return_value=(
-            mlrun.common.schemas.AuthInfo(
-                username=None,
-                session="some-session",
-                data_session="some-session",
-                user_id=None,
-                user_unix_id=0,
-                user_group_ids=[],
+    services.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+        unittest.mock.AsyncMock(
+            return_value=(
+                mlrun.common.schemas.AuthInfo(
+                    username=None,
+                    session="some-session",
+                    data_session="some-session",
+                    user_id=None,
+                    user_unix_id=0,
+                    user_group_ids=[],
+                )
             )
         )
     )
@@ -82,7 +86,9 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
 
     # Initialize endpoint store target object
     store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
-    endpoint_store = store_type_object.to_object_store(project=TEST_PROJECT, access_key=_get_access_key())
+    endpoint_store = store_type_object.to_object_store(
+        project=TEST_PROJECT, access_key=_get_access_key()
+    )
 
     for endpoint in endpoints_in:
         endpoint_store.write_model_endpoint(endpoint.flat_dict())
@@ -90,7 +96,11 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     response = client.post(
         url="grafana-proxy/model-endpoints/query",
         headers={"X-V3io-Session-Key": _get_access_key()},
-        json={"targets": [{"target": f"project={TEST_PROJECT};target_endpoint=list_endpoints"}]},
+        json={
+            "targets": [
+                {"target": f"project={TEST_PROJECT};target_endpoint=list_endpoints"}
+            ]
+        },
     )
 
     response_json = response.json()
@@ -99,7 +109,9 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
 
     response_json = response_json[0]
     if not response_json:
-        fail(f"Empty dictionary, expected dictionary with 'columns', 'rows' and 'type' fields. {response_json}")
+        fail(
+            f"Empty dictionary, expected dictionary with 'columns', 'rows' and 'type' fields. {response_json}"
+        )
 
     if "columns" not in response_json:
         fail(f"Missing 'columns' key in response dictionary. {response_json}")
@@ -173,7 +185,9 @@ def test_grafana_individual_feature_analysis(db: Session, client: TestClient):
     _is_env_params_dont_exist(),
     reason=_build_skip_message(),
 )
-def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(db: Session, client: TestClient):
+def test_grafana_individual_feature_analysis_missing_field_doesnt_fail(
+    db: Session, client: TestClient
+):
     endpoint_data = {
         "timestamp": "2021-02-28 21:02:58.642108",
         "project": TEST_PROJECT,
@@ -304,11 +318,15 @@ def test_parse_query_parameters_success():
     assert params["test"] == "some_test"
 
     # Target query separated by equals ('=') char (multiple queries)
-    params = parse_query_parameters({"targets": [{"target": "test=some_test;another_test=some_other_test"}]})
+    params = parse_query_parameters(
+        {"targets": [{"target": "test=some_test;another_test=some_other_test"}]}
+    )
     assert params["test"] == "some_test"
     assert params["another_test"] == "some_other_test"
 
-    params = parse_query_parameters({"targets": [{"target": "test=some_test;another_test=some_other_test;"}]})
+    params = parse_query_parameters(
+        {"targets": [{"target": "test=some_test;another_test=some_other_test;"}]}
+    )
     assert params["test"] == "some_test"
     assert params["another_test"] == "some_other_test"
 
@@ -320,7 +338,9 @@ def test_validate_query_parameters_failure():
 
     # target_endpoint unsupported
     with pytest.raises(MLRunBadRequestError):
-        validate_query_parameters({"target_endpoint": "unsupported_endpoint"}, {"supported_endpoint"})
+        validate_query_parameters(
+            {"target_endpoint": "unsupported_endpoint"}, {"supported_endpoint"}
+        )
 
 
 def test_validate_query_parameters_success():
@@ -411,7 +431,9 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
 
     # Initialize endpoint store target object
     store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
-    endpoint_store = store_type_object.to_object_store(project=TEST_PROJECT, access_key=_get_access_key())
+    endpoint_store = store_type_object.to_object_store(
+        project=TEST_PROJECT, access_key=_get_access_key()
+    )
 
     for endpoint in endpoints:
         endpoint_store.write_model_endpoint(endpoint.flat_dict())

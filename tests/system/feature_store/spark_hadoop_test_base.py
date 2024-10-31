@@ -72,8 +72,12 @@ class SparkHadoopTestBase(TestMLRunSystem):
     def configure_namespace(cls, test_suite_name="hadoop"):
         cls.project_name = "fs-system-spark-engine-" + test_suite_name
         cls.ds_profile_name = "ds_profile_spark_" + test_suite_name
-        cls.remote_function_name = "remote-spark-default-image-deploy-temp-" + test_suite_name
-        cls.spark_service_name = cls._get_env_from_file().get("MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE")
+        cls.remote_function_name = (
+            "remote-spark-default-image-deploy-temp-" + test_suite_name
+        )
+        cls.spark_service_name = cls._get_env_from_file().get(
+            "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"
+        )
         cls.pq_source = "testdata.parquet"
         cls.pq_target = "testdata_target"
 
@@ -107,10 +111,14 @@ class SparkHadoopTestBase(TestMLRunSystem):
         return f"ds://{ds_profile.name}/{bucket}/bigdata/{self.pq_source}"
 
     def ds_target_path(self, ds_profile, bucket):
-        return f"ds://{ds_profile.name}/{bucket}/bigdata/{self.project_name}/spark_output"
+        return (
+            f"ds://{ds_profile.name}/{bucket}/bigdata/{self.project_name}/spark_output"
+        )
 
     def ds_upload_src(self, ds_profile, bucket):
-        store, _, _ = store_manager.get_or_create_store(f"ds://{ds_profile.name}/{bucket}")
+        store, _, _ = store_manager.get_or_create_store(
+            f"ds://{ds_profile.name}/{bucket}"
+        )
         store.upload(
             f"/bigdata/{self.pq_source}",
             os.path.relpath(str(self.get_assets_path() / self.pq_source)),
@@ -136,7 +144,9 @@ class SparkHadoopTestBase(TestMLRunSystem):
             source,
             return_df=True,
             spark_context=spark_service,
-            run_config=fstore.RunConfig(local=(self.deployment_type == Deployment.Local)),
+            run_config=fstore.RunConfig(
+                local=(self.deployment_type == Deployment.Local)
+            ),
         )
         assert measurements.status.targets[0].run_id is not None
 

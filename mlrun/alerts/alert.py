@@ -86,7 +86,9 @@ class AlertConfig(ModelObj):
                 name="drift-alert",
                 summary="a drift was detected",
                 severity=alert_objects.AlertSeverity.LOW,
-                entities=alert_objects.EventEntities(kind=entity_kind, project="my-project", ids=[entity_id]),
+                entities=alert_objects.EventEntities(
+                    kind=entity_kind, project="my-project", ids=[entity_id]
+                ),
                 trigger=alert_objects.AlertTrigger(events=[event_name]),
                 criteria=alert_objects.AlertCriteria(count=3, period="1h"),
                 notifications=[alert_objects.AlertNotification(notification=notification)],
@@ -139,25 +141,41 @@ class AlertConfig(ModelObj):
         if not self.name:
             raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
 
-    def _serialize_field(self, struct: dict, field_name: str = None, strip: bool = False):
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ):
         if field_name == "entities":
             if self.entities:
-                return self.entities.dict() if not isinstance(self.entities, dict) else self.entities
+                return (
+                    self.entities.dict()
+                    if not isinstance(self.entities, dict)
+                    else self.entities
+                )
             return None
         if field_name == "notifications":
             if self.notifications:
                 return [
-                    notification_data.dict() if not isinstance(notification_data, dict) else notification_data
+                    notification_data.dict()
+                    if not isinstance(notification_data, dict)
+                    else notification_data
                     for notification_data in self.notifications
                 ]
             return None
         if field_name == "trigger":
             if self.trigger:
-                return self.trigger.dict() if not isinstance(self.trigger, dict) else self.trigger
+                return (
+                    self.trigger.dict()
+                    if not isinstance(self.trigger, dict)
+                    else self.trigger
+                )
             return None
         if field_name == "criteria":
             if self.criteria:
-                return self.criteria.dict() if not isinstance(self.criteria, dict) else self.criteria
+                return (
+                    self.criteria.dict()
+                    if not isinstance(self.criteria, dict)
+                    else self.criteria
+                )
             return None
         return super()._serialize_field(struct, field_name, strip)
 
@@ -165,7 +183,9 @@ class AlertConfig(ModelObj):
         if self.entities is None:
             raise mlrun.errors.MLRunBadRequestError("Alert entity field is missing")
         if not self.notifications:
-            raise mlrun.errors.MLRunBadRequestError("Alert must have at least one notification")
+            raise mlrun.errors.MLRunBadRequestError(
+                "Alert must have at least one notification"
+            )
         return super().to_dict(self._dict_fields)
 
     @classmethod
@@ -180,7 +200,8 @@ class AlertConfig(ModelObj):
         notifications_data = struct.get("notifications")
         if notifications_data:
             notifications_objs = [
-                alert_objects.AlertNotification.parse_obj(notification) for notification in notifications_data
+                alert_objects.AlertNotification.parse_obj(notification)
+                for notification in notifications_data
             ]
             new_obj.notifications = notifications_objs
 
@@ -199,7 +220,9 @@ class AlertConfig(ModelObj):
         if not isinstance(notifications, list) or not all(
             isinstance(item, alert_objects.AlertNotification) for item in notifications
         ):
-            raise ValueError("Notifications parameter must be a list of AlertNotification")
+            raise ValueError(
+                "Notifications parameter must be a list of AlertNotification"
+            )
         for notification_data in notifications:
             self.notifications.append(notification_data)
         return self

@@ -115,7 +115,9 @@ app.add_middleware(
     services.api.middlewares.EnsureBackendVersionMiddleware,
     backend_version=config.version,
 )
-app.add_middleware(services.api.middlewares.UiClearCacheMiddleware, backend_version=config.version)
+app.add_middleware(
+    services.api.middlewares.UiClearCacheMiddleware, backend_version=config.version
+)
 app.add_middleware(services.api.middlewares.RequestLoggerMiddleware, logger=logger)
 
 
@@ -132,7 +134,9 @@ async def generic_error_handler(request: fastapi.Request, exc: Exception):
 
 
 @app.exception_handler(mlrun.errors.MLRunHTTPStatusError)
-async def http_status_error_handler(request: fastapi.Request, exc: mlrun.errors.MLRunHTTPStatusError):
+async def http_status_error_handler(
+    request: fastapi.Request, exc: mlrun.errors.MLRunHTTPStatusError
+):
     request_id = None
 
     # request might not have request id when the error is raised before the request id is set on middleware
@@ -171,20 +175,28 @@ async def setup_api():
         version=mlrun.utils.version.Version().get(),
     )
     loop = asyncio.get_running_loop()
-    loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=int(config.httpdb.max_workers)))
+    loop.set_default_executor(
+        concurrent.futures.ThreadPoolExecutor(
+            max_workers=int(config.httpdb.max_workers)
+        )
+    )
 
     initialize_logs_dir()
     initialize_db()
 
     # chief do stuff
-    if config.httpdb.clusterization.role == mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.chief
+    ):
         services.api.initial_data.init_data()
 
     # worker
     elif (
         config.httpdb.clusterization.worker.sync_with_chief.mode
         == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
-        and config.httpdb.clusterization.role == mlrun.common.schemas.ClusterizationRole.worker
+        and config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.worker
     ):
         # in the background, wait for chief to reach online state
         _start_chief_clusterization_spec_sync_loop()
@@ -209,7 +221,8 @@ async def move_api_to_online():
     # on chief - it allows to us to create/update/delete schedule(s)
     ensure_scheduler()
     if (
-        config.httpdb.clusterization.role == mlrun.common.schemas.ClusterizationRole.chief
+        config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.chief
         and config.httpdb.clusterization.chief.feature_gates.scheduler == "enabled"
     ):
         await start_scheduler()
@@ -221,17 +234,29 @@ async def move_api_to_online():
     get_project_member().start()
 
     # maintenance periodic functions should only run on the chief instance
-    if config.httpdb.clusterization.role == mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.chief
+    ):
         services.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             if config.httpdb.clusterization.chief.feature_gates.cleanup == "enabled":
                 _start_periodic_cleanup()
-            if config.httpdb.clusterization.chief.feature_gates.runs_monitoring == "enabled":
+            if (
+                config.httpdb.clusterization.chief.feature_gates.runs_monitoring
+                == "enabled"
+            ):
                 _start_periodic_runs_monitoring()
-            if config.httpdb.clusterization.chief.feature_gates.pagination_cache == "enabled":
+            if (
+                config.httpdb.clusterization.chief.feature_gates.pagination_cache
+                == "enabled"
+            ):
                 _start_periodic_pagination_cache_monitoring()
-            if config.httpdb.clusterization.chief.feature_gates.project_summaries == "enabled":
+            if (
+                config.httpdb.clusterization.chief.feature_gates.project_summaries
+                == "enabled"
+            ):
                 _start_periodic_project_summaries_calculation()
             if config.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
                 await _start_periodic_logs_collection()
@@ -251,7 +276,9 @@ async def _start_periodic_logs_collection():
         mode=config.log_collector.mode,
         interval=config.log_collector.periodic_start_log_interval,
     )
-    start_logs_limit = asyncio.Semaphore(config.log_collector.concurrent_start_logs_workers)
+    start_logs_limit = asyncio.Semaphore(
+        config.log_collector.concurrent_start_logs_workers
+    )
 
     await _verify_log_collection_started_on_startup(start_logs_limit)
 
@@ -287,11 +314,17 @@ async def _verify_log_collection_started_on_startup(
             int(config.runtime_resources_deletion_grace_period),
         ),
     )
-    await fastapi.concurrency.run_in_threadpool(log_collection_cycle_tracker.initialize, db_session)
-    last_update_time = await fastapi.concurrency.run_in_threadpool(log_collection_cycle_tracker.get_window, db_session)
+    await fastapi.concurrency.run_in_threadpool(
+        log_collection_cycle_tracker.initialize, db_session
+    )
+    last_update_time = await fastapi.concurrency.run_in_threadpool(
+        log_collection_cycle_tracker.get_window, db_session
+    )
     now = datetime.datetime.now(datetime.timezone.utc)
     try:
-        logger.debug("Getting all runs which are in non terminal state and require logs collection")
+        logger.debug(
+            "Getting all runs which are in non terminal state and require logs collection"
+        )
         runs_uids = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
@@ -317,15 +350,21 @@ async def _verify_log_collection_started_on_startup(
         )
         if runs_uids:
             skipped_run_uids = []
-            if len(runs_uids) > int(mlrun.mlconf.log_collector.start_logs_startup_run_limit):
+            if len(runs_uids) > int(
+                mlrun.mlconf.log_collector.start_logs_startup_run_limit
+            ):
                 logger.warning(
                     "Amount of runs requiring logs collection on startup exceeds configured limit, "
                     "skipping the rest but marking them as requested",
                     total_runs_count=len(runs_uids),
                     start_logs_startup_run_limit=mlrun.mlconf.log_collector.start_logs_startup_run_limit,
                 )
-                skipped_run_uids = runs_uids[int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) :]
-                runs_uids = runs_uids[: int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)]
+                skipped_run_uids = runs_uids[
+                    int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) :
+                ]
+                runs_uids = runs_uids[
+                    : int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
+                ]
 
             logger.debug(
                 "Found runs which require logs collection on startup",
@@ -350,7 +389,9 @@ async def _verify_log_collection_started_on_startup(
                     requested_logs=True,
                 )
     finally:
-        await fastapi.concurrency.run_in_threadpool(log_collection_cycle_tracker.update_window, db_session, now)
+        await fastapi.concurrency.run_in_threadpool(
+            log_collection_cycle_tracker.update_window, db_session, now
+        )
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
@@ -371,7 +412,9 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
             states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
         )
 
-        last_update_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+        last_update_time = datetime.datetime.now(
+            datetime.timezone.utc
+        ) - datetime.timedelta(
             seconds=int(config.runtime_resources_deletion_grace_period)
         )
 
@@ -424,7 +467,8 @@ async def _start_log_and_update_runs(
     # the max number of consecutive start log requests for a run before we mark it as requested logs collection
     # basically represents the grace period before the run's resources are deleted
     max_consecutive_start_log_requests = int(
-        int(config.log_collector.failed_runs_grace_period) / int(config.log_collector.periodic_start_log_interval)
+        int(config.log_collector.failed_runs_grace_period)
+        / int(config.log_collector.periodic_start_log_interval)
     )
 
     global _run_uid_start_log_request_counters
@@ -437,7 +481,8 @@ async def _start_log_and_update_runs(
         # so the API and the log collector won't be stuck in an endless loop of trying to collect logs for it
         if (
             run_uid in _run_uid_start_log_request_counters
-            and _run_uid_start_log_request_counters[run_uid] >= max_consecutive_start_log_requests
+            and _run_uid_start_log_request_counters[run_uid]
+            >= max_consecutive_start_log_requests
         ):
             logger.warning(
                 "Run reached max consecutive start log requests, marking it as requested logs collection",
@@ -448,7 +493,9 @@ async def _start_log_and_update_runs(
             continue
 
         start_logs_for_runs.append(
-            _start_log_for_run(run, start_logs_limit, raise_on_error=False, best_effort=best_effort)
+            _start_log_for_run(
+                run, start_logs_limit, raise_on_error=False, best_effort=best_effort
+            )
         )
         if run_uid:
             _run_uid_start_log_request_counters.setdefault(run_uid, 0)
@@ -461,7 +508,9 @@ async def _start_log_and_update_runs(
     successful_run_uids = [result for result in results if result]
 
     # distinct the runs uids
-    runs_to_mark_as_requested_logs = list(set(runs_to_mark_as_requested_logs + successful_run_uids))
+    runs_to_mark_as_requested_logs = list(
+        set(runs_to_mark_as_requested_logs + successful_run_uids)
+    )
 
     if len(runs_to_mark_as_requested_logs) > 0:
         logger.debug(
@@ -497,7 +546,9 @@ async def _start_log_for_run(
     # using semaphore to limit the number of concurrent log collection requests
     # this is to prevent opening too many connections to many connections
     async with start_logs_limit:
-        logs_collector_client = services.api.utils.clients.log_collector.LogCollectorClient()
+        logs_collector_client = (
+            services.api.utils.clients.log_collector.LogCollectorClient()
+        )
         run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
         project_name = run.get("metadata", {}).get("project", None)
         run_uid = run.get("metadata", {}).get("uid", None)
@@ -508,7 +559,9 @@ async def _start_log_for_run(
             return run_uid
         try:
             runtime_handler: services.api.runtime_handlers.BaseRuntimeHandler = (
-                await fastapi.concurrency.run_in_threadpool(get_runtime_handler, run_kind)
+                await fastapi.concurrency.run_in_threadpool(
+                    get_runtime_handler, run_kind
+                )
             )
             object_id = runtime_handler.resolve_object_id(run)
             label_selector = runtime_handler.resolve_label_selector(
@@ -547,14 +600,18 @@ def _start_periodic_cleanup():
     interval = int(config.runtimes_cleanup_interval)
     if interval > 0:
         logger.info("Starting periodic runtimes cleanup", interval=interval)
-        run_function_periodically(interval, _cleanup_runtimes.__name__, False, _cleanup_runtimes)
+        run_function_periodically(
+            interval, _cleanup_runtimes.__name__, False, _cleanup_runtimes
+        )
 
 
 def _start_periodic_runs_monitoring():
     interval = int(config.monitoring.runs.interval)
     if interval > 0:
         logger.info("Starting periodic runs monitoring", interval=interval)
-        run_function_periodically(interval, _monitor_runs.__name__, False, _monitor_runs)
+        run_function_periodically(
+            interval, _monitor_runs.__name__, False, _monitor_runs
+        )
 
 
 def _start_periodic_pagination_cache_monitoring():
@@ -573,7 +630,9 @@ def _start_periodic_pagination_cache_monitoring():
 def _start_periodic_project_summaries_calculation():
     interval = int(config.monitoring.projects.summaries.cache_interval)
     if interval > 0:
-        logger.info("Starting periodic project summaries calculation", interval=interval)
+        logger.info(
+            "Starting periodic project summaries calculation", interval=interval
+        )
         run_function_periodically(
             interval,
             services.api.crud.projects.Projects().refresh_project_resources_counters_cache.__name__,
@@ -793,7 +852,9 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-def _push_terminal_run_notifications(db: services.api.db.base.DBInterface, db_session, last_update_time):
+def _push_terminal_run_notifications(
+    db: services.api.db.base.DBInterface, db_session, last_update_time
+):
     """
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
@@ -818,14 +879,21 @@ def _push_terminal_run_notifications(db: services.api.db.base.DBInterface, db_se
     # Unmasking the run parameters from secrets before handing them over to the notification handler
     # as importing the `Secrets` crud in the notification handler will cause a circular import
     unmasked_runs = [
-        services.api.api.utils.unmask_notification_params_secret_on_task(db, db_session, run) for run in runs
+        services.api.api.utils.unmask_notification_params_secret_on_task(
+            db, db_session, run
+        )
+        for run in runs
     ]
 
-    logger.debug("Got terminal runs with configured notifications", runs_amount=len(runs))
+    logger.debug(
+        "Got terminal runs with configured notifications", runs_amount=len(runs)
+    )
     services.api.utils.notification_pusher.RunNotificationPusher(unmasked_runs).push()
 
 
-def _generate_event_on_failed_runs(db: services.api.db.base.DBInterface, db_session, last_update_time):
+def _generate_event_on_failed_runs(
+    db: services.api.db.base.DBInterface, db_session, last_update_time
+):
     """
     Send an event on the runs that ended with error state since the last call to the function
     """
@@ -861,13 +929,17 @@ def _generate_event_on_failed_runs(db: services.api.db.base.DBInterface, db_sess
 
 
 async def _abort_stale_runs(stale_runs: list[dict]):
-    semaphore = asyncio.Semaphore(int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers))
+    semaphore = asyncio.Semaphore(
+        int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers)
+    )
 
     async def abort_run(stale_run):
         # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
             # mark abort as internal, it doesn't have a background task
-            stale_run["new_background_task_id"] = services.api.constants.internal_abort_task_id
+            stale_run["new_background_task_id"] = (
+                services.api.constants.internal_abort_task_id
+            )
             await fastapi.concurrency.run_in_threadpool(
                 services.api.db.session.run_function_with_new_db_session,
                 services.api.crud.Runs().abort_run,
@@ -929,7 +1001,9 @@ async def _stop_logs_for_runs(runs: list, chunk_size: int = 10):
 
         # if we won't chunk the run uids, the grpc message might include many uids which will overflow the max message
         # size.
-        for chunked_run_uids in mlrun.utils.helpers.iterate_list_by_chunks(run_uids, chunk_size):
+        for chunked_run_uids in mlrun.utils.helpers.iterate_list_by_chunks(
+            run_uids, chunk_size
+        ):
             try:
                 await services.api.utils.clients.log_collector.LogCollectorClient().stop_logs(
                     project_name, chunked_run_uids

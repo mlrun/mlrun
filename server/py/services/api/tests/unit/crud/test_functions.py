@@ -31,7 +31,9 @@ def test_set_function_deletion_task_id_updates_correctly(db: sqlalchemy.orm.Sess
         db, project=project, function=function, name=function_name, tag=function_tag
     )
 
-    function = services.api.crud.Functions().get_function(db, name=function_name, project=project, tag=function_tag)
+    function = services.api.crud.Functions().get_function(
+        db, name=function_name, project=project, tag=function_tag
+    )
 
     result = services.api.crud.Functions().update_function(
         db_session=db,
@@ -61,7 +63,9 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
     uri = mlrun.utils.generate_object_uri(project, function_name)
 
     # add new external invocation URL
-    services.api.crud.Functions().add_function_external_invocation_url(db, uri, project, gw_host)
+    services.api.crud.Functions().add_function_external_invocation_url(
+        db, uri, project, gw_host
+    )
     updated_function = services.api.crud.Functions().get_function(
         db, project=project, name=function_name, tag=function_tag
     )
@@ -69,7 +73,9 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
     assert updated_function["status"]["external_invocation_urls"][0] == gw_host
 
     # try to add existing external invocation URL, with a slash at the end
-    services.api.crud.Functions().add_function_external_invocation_url(db, uri, project, gw_host + "/")
+    services.api.crud.Functions().add_function_external_invocation_url(
+        db, uri, project, gw_host + "/"
+    )
     updated_function = services.api.crud.Functions().get_function(
         db, project=project, name=function_name, tag=function_tag
     )
@@ -77,7 +83,9 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
     assert len(updated_function["status"]["external_invocation_urls"]) == 1
 
     # delete URL from the list
-    services.api.crud.Functions().delete_function_external_invocation_url(db, uri, project, gw_host)
+    services.api.crud.Functions().delete_function_external_invocation_url(
+        db, uri, project, gw_host
+    )
     updated_function = services.api.crud.Functions().get_function(
         db, project=project, name=function_name, tag=function_tag
     )

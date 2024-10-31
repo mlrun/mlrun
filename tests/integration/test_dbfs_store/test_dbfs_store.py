@@ -41,7 +41,9 @@ from tests.datastore.databricks_utils import (
 
 
 @pytest.mark.skipif(
-    not is_databricks_configured(os.path.join(os.path.dirname(__file__), "test-dbfs-store.yml")),
+    not is_databricks_configured(
+        os.path.join(os.path.dirname(__file__), "test-dbfs-store.yml")
+    ),
     reason="DBFS storage parameters not configured",
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
@@ -100,14 +102,18 @@ class TestDBFSStore:
 
     @classmethod
     def teardown_class(cls):
-        teardown_dbfs_dirs(workspace=cls.workspace, specific_test_class_dir=cls.class_dir)
+        teardown_dbfs_dirs(
+            workspace=cls.workspace, specific_test_class_dir=cls.class_dir
+        )
 
     def teardown_method(self, method):
         os.environ["DATABRICKS_TOKEN"] = self.token
         os.environ["DATABRICKS_HOST"] = self.host
 
     @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])
-    def test_put_get_and_download(self, use_datastore_profile, use_secrets_as_parameters):
+    def test_put_get_and_download(
+        self, use_datastore_profile, use_secrets_as_parameters
+    ):
         secrets = {}
         if use_secrets_as_parameters:
             os.environ["DATABRICKS_TOKEN"] = ""
@@ -261,16 +267,22 @@ class TestDBFSStore:
             token="test_token",
         )
         register_temporary_client_datastore_profile(test_profile)
-        test_data_item = mlrun.run.get_dataitem("ds://test_profile/test_directory/test_file.txt", secrets={})
+        test_data_item = mlrun.run.get_dataitem(
+            "ds://test_profile/test_directory/test_file.txt", secrets={}
+        )
         assert data_item.store.to_dict() != test_data_item._store.to_dict()
 
     @pytest.mark.parametrize("fake_token", [None, "fake_token"])
     def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
-        credentials_dict = {"token": fake_token, "endpoint_url": self.host} if fake_token else {}
+        credentials_dict = (
+            {"token": fake_token, "endpoint_url": self.host} if fake_token else {}
+        )
         os.environ.pop("DATABRICKS_TOKEN")
         os.environ.pop("DATABRICKS_HOST")
         if use_datastore_profile:
-            self.profile = DatastoreProfileDBFS(name=self.profile_name, **credentials_dict)
+            self.profile = DatastoreProfileDBFS(
+                name=self.profile_name, **credentials_dict
+            )
             register_temporary_client_datastore_profile(self.profile)
         else:
             if fake_token:

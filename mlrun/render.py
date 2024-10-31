@@ -349,7 +349,9 @@ tblframe = """
 
 
 def get_tblframe(df, display, classes=None):
-    table_html = df.to_html(escape=False, index=False, notebook=display, classes=classes)
+    table_html = df.to_html(
+        escape=False, index=False, notebook=display, classes=classes
+    )
     if not display:
         return table_html
 

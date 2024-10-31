@@ -86,7 +86,9 @@ def test_mount_v3io_multiple_user():
     )
     assert len(user_volume_mounts) == 1
     assert user_volume_mounts[0]["subPath"] == f"users/{username_2}"
-    assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key_2
+    assert (
+        function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key_2
+    )
 
 
 def test_mount_v3io():
@@ -112,14 +114,22 @@ def test_mount_v3io():
         },
         {"remote": "~/custom-remote", "expect_failure": True},
         {
-            "volume_mounts": [mlrun_pipelines.common.mounts.VolumeMount("/volume-mount-path", "volume-sub-path")],
+            "volume_mounts": [
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                )
+            ],
             "remote": "~/custom-remote",
             "expect_failure": True,
         },
         {
             "volume_mounts": [
-                mlrun_pipelines.common.mounts.VolumeMount("/volume-mount-path", "volume-sub-path"),
-                mlrun_pipelines.common.mounts.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                ),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path-2", "volume-sub-path-2"
+                ),
             ],
             "remote": "~/custom-remote",
             "set_user": True,
@@ -150,8 +160,12 @@ def test_mount_v3io():
         },
         {
             "volume_mounts": [
-                mlrun_pipelines.common.mounts.VolumeMount("/volume-mount-path", "volume-sub-path"),
-                mlrun_pipelines.common.mounts.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path", "volume-sub-path"
+                ),
+                mlrun_pipelines.common.mounts.VolumeMount(
+                    "/volume-mount-path-2", "volume-sub-path-2"
+                ),
             ],
             "set_user": True,
             "expected_volume": {
@@ -186,7 +200,9 @@ def test_mount_v3io():
             os.environ.pop("V3IO_USERNAME", None)
             os.environ.pop("V3IO_ACCESS_KEY", None)
 
-        function = mlrun.new_function("function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job)
+        function = mlrun.new_function(
+            "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+        )
         mount_v3io_kwargs = {
             "remote": case.get("remote"),
             "volume_mounts": case.get("volume_mounts"),
@@ -219,7 +235,9 @@ def test_mount_v3io():
 
 def test_is_iguazio_session_cookie():
     assert (
-        mlrun.platforms.is_iguazio_session_cookie("j%3A%7B%22sid%22%3A%20%22946b0749-5c40-4837-a4ac-341d295bfaf7%22%7D")
+        mlrun.platforms.is_iguazio_session_cookie(
+            "j%3A%7B%22sid%22%3A%20%22946b0749-5c40-4837-a4ac-341d295bfaf7%22%7D"
+        )
         is True
     )
     assert mlrun.platforms.is_iguazio_session_cookie("dummy") is False

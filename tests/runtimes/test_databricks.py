@@ -39,7 +39,9 @@ def mlrun_log_artifact(**kwargs):
 
 def test_prevent_run_locally():
     databricks_runtime = DatabricksRuntime()
-    with pytest.raises(MLRunInvalidArgumentError, match="Databricks runtime cannot run locally."):
+    with pytest.raises(
+        MLRunInvalidArgumentError, match="Databricks runtime cannot run locally."
+    ):
         databricks_runtime.run(local=True)
 
 
@@ -66,7 +68,10 @@ def test_get_internal_parameters(user_code):
         if isinstance(node, ast.FunctionDef) and node.name == "mlrun_log_artifact":
             if already_found:
                 raise RuntimeError("found more than mlrun_log_artifact function.")
-            assert hashlib.sha256(str(ast.unparse(node)).encode("utf-8")).hexdigest() == expected_hash
+            assert (
+                hashlib.sha256(str(ast.unparse(node)).encode("utf-8")).hexdigest()
+                == expected_hash
+            )
             already_found = True
     assert already_found
 

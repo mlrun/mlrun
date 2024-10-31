@@ -27,7 +27,9 @@ class LauncherFactory(
     def __init__(self):
         self._launcher_container = LauncherContainer()
 
-    def create_launcher(self, is_remote: bool, **kwargs) -> mlrun.launcher.base.BaseLauncher:
+    def create_launcher(
+        self, is_remote: bool, **kwargs
+    ) -> mlrun.launcher.base.BaseLauncher:
         """
         Creates the appropriate launcher for the specified run.
         ServerSideLauncher - if running as API.
@@ -49,7 +51,9 @@ class LauncherFactory(
 
 
 class LauncherContainer(containers.DeclarativeContainer):
-    client_remote_launcher = providers.Factory(mlrun.launcher.remote.ClientRemoteLauncher)
+    client_remote_launcher = providers.Factory(
+        mlrun.launcher.remote.ClientRemoteLauncher
+    )
     client_local_launcher = providers.Factory(mlrun.launcher.local.ClientLocalLauncher)
 
     # Provider for injection of a server side launcher.

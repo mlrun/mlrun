@@ -38,7 +38,9 @@ from mlrun.utils import logger
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
 ProjectAnnotation = Annotated[str, Path(pattern=mm_constants.PROJECT_PATTERN)]
-EndpointIDAnnotation = Annotated[str, Path(pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN)]
+EndpointIDAnnotation = Annotated[
+    str, Path(pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN)
+]
 
 
 @router.post(
@@ -312,7 +314,9 @@ async def get_model_endpoint(
 
     :return:  A `ModelEndpoint` object.
     """
-    await _verify_model_endpoint_read_permission(project=project, endpoint_id=endpoint_id, auth_info=auth_info)
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
+    )
 
     return await run_in_threadpool(
         services.api.crud.ModelEndpoints().get_model_endpoint,
@@ -344,11 +348,15 @@ async def get_model_endpoint_monitoring_metrics(
 
     :returns:           A list of the application metrics or/and results for this model endpoint.
     """
-    await _verify_model_endpoint_read_permission(project=project, endpoint_id=endpoint_id, auth_info=auth_info)
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
+    )
     try:
-        get_model_endpoint_metrics = services.api.crud.model_monitoring.helpers.get_store_object(
-            project=project
-        ).get_model_endpoint_metrics
+        get_model_endpoint_metrics = (
+            services.api.crud.model_monitoring.helpers.get_store_object(
+                project=project
+            ).get_model_endpoint_metrics
+        )
     except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
         logger.debug(
             "Failed to list model endpoint metrics because store connection is not defined."
@@ -418,15 +426,21 @@ async def _get_metrics_values_params(
 
     :return: _MetricsValuesParams object with the validated data.
     """
-    await _verify_model_endpoint_read_permission(project=project, endpoint_id=endpoint_id, auth_info=auth_info)
+    await _verify_model_endpoint_read_permission(
+        project=project, endpoint_id=endpoint_id, auth_info=auth_info
+    )
     if start is None and end is None:
         end = mlrun.utils.helpers.datetime_now()
         start = end - timedelta(days=1)
     elif start is not None and end is not None:
         if start.tzinfo is None or end.tzinfo is None:
-            raise mlrun.errors.MLRunInvalidArgumentTypeError("Custom start and end times must contain the timezone.")
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                "Custom start and end times must contain the timezone."
+            )
         if start > end:
-            raise mlrun.errors.MLRunInvalidArgumentError("The start time must precede the end time.")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The start time must precede the end time."
+            )
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Provided only one of start time, end time. Please provide both or neither."
@@ -486,11 +500,15 @@ async def get_model_endpoint_monitoring_metrics_values(
     """
     coroutines: list[Coroutine] = []
 
-    invocations_full_name = mlrun.model_monitoring.helpers.get_invocations_fqn(params.project)
+    invocations_full_name = mlrun.model_monitoring.helpers.get_invocations_fqn(
+        params.project
+    )
     try:
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=params.project,
-            secret_provider=services.api.crud.secrets.get_project_secret_provider(project=params.project),
+            secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                project=params.project
+            ),
         )
     except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
         logger.debug(
@@ -503,7 +521,9 @@ async def get_model_endpoint_monitoring_metrics_values(
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
         if metrics:
             metrics_without_invocations = list(
-                filter(lambda metric: metric.full_name != invocations_full_name, metrics)
+                filter(
+                    lambda metric: metric.full_name != invocations_full_name, metrics
+                )
             )
             if len(metrics_without_invocations) != len(metrics):
                 coroutines.append(

@@ -23,7 +23,9 @@ import mlrun.common.schemas
 
 class Member(abc.ABC):
     @abc.abstractmethod
-    def create_project(self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project):
+    def create_project(
+        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
+    ):
         pass
 
     @abc.abstractmethod
@@ -56,7 +58,9 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_project(self, session: sqlalchemy.orm.Session, name: str) -> mlrun.common.schemas.Project:
+    def get_project(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.common.schemas.Project:
         pass
 
     @abc.abstractmethod
@@ -83,5 +87,7 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_project_summary(self, session: sqlalchemy.orm.Session, name: str) -> mlrun.common.schemas.ProjectSummary:
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.common.schemas.ProjectSummary:
         pass

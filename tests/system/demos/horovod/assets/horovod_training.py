@@ -62,7 +62,9 @@ else:
     os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 if hvd.rank() == 0:
-    mlctx.logger.info(f"Validating paths:\nData_path:\t{DATA_PATH}\nModel_dir:\t{MODEL_DIR}\n")
+    mlctx.logger.info(
+        f"Validating paths:\nData_path:\t{DATA_PATH}\nModel_dir:\t{MODEL_DIR}\n"
+    )
     mlctx.logger.info(f"Categories map:{categories_map}")
     mlctx.logger.info(f"Got {df.shape[0]} files in {DATA_PATH}")
     mlctx.logger.info(f"Training data has {df.size} samples")
@@ -77,7 +79,9 @@ os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
 #
 
 # Prepare, test, and train the data
-train_df, validate_df = train_test_split(df, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+train_df, validate_df = train_test_split(
+    df, test_size=TEST_SIZE, random_state=RANDOM_STATE
+)
 train_df = train_df.reset_index(drop=True)
 validate_df = validate_df.reset_index(drop=True)
 train_df["category"] = train_df["category"].astype("str")
@@ -135,7 +139,9 @@ callbacks = [
 
 # Horovod: save checkpoints only on worker 0 to prevent other workers from corrupting them.
 if hvd.rank() == 0:
-    callbacks.append(ModelCheckpoint(os.path.join(CHECKPOINTS_DIR, "checkpoint-{epoch}.h5")))
+    callbacks.append(
+        ModelCheckpoint(os.path.join(CHECKPOINTS_DIR, "checkpoint-{epoch}.h5"))
+    )
 
 # Set up ImageDataGenerators to do data augmentation for the training images.
 train_datagen = ImageDataGenerator(

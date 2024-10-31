@@ -40,7 +40,9 @@ def test_get_project(
     db.create_project(
         db_session,
         mlrun.common.schemas.Project(
-            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name, labels=project_labels),
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=project_name, labels=project_labels
+            ),
             spec=mlrun.common.schemas.ProjectSpec(
                 description=project_description,
                 default_function_node_selector=project_default_node_selector,
@@ -75,14 +77,18 @@ def test_get_project_with_pre_060_record(
 ):
     project_name = "project_name"
     _generate_and_insert_pre_060_record(db_session, project_name)
-    pre_060_record = db_session.query(Project).filter(Project.name == project_name).one()
+    pre_060_record = (
+        db_session.query(Project).filter(Project.name == project_name).one()
+    )
     assert pre_060_record.full_object is None
     project = db.get_project(
         db_session,
         project_name,
     )
     assert project.metadata.name == project_name
-    updated_record = db_session.query(Project).filter(Project.name == project_name).one()
+    updated_record = (
+        db_session.query(Project).filter(Project.name == project_name).one()
+    )
     # when GET performed on a project of the old format - we're upgrading it to the new format - ensuring it happened
     assert updated_record.full_object is not None
 
@@ -105,8 +111,12 @@ def test_list_project(
         db.create_project(
             db_session,
             mlrun.common.schemas.Project(
-                metadata=mlrun.common.schemas.ProjectMetadata(name=project["name"], labels=project.get("labels")),
-                spec=mlrun.common.schemas.ProjectSpec(description=project.get("description")),
+                metadata=mlrun.common.schemas.ProjectMetadata(
+                    name=project["name"], labels=project.get("labels")
+                ),
+                spec=mlrun.common.schemas.ProjectSpec(
+                    description=project.get("description")
+                ),
             ),
         )
     projects_output = db.list_projects(db_session)
@@ -143,7 +153,9 @@ def test_list_project_minimal(
                 ),
             ),
         )
-    projects_output = db.list_projects(db_session, format_=mlrun.common.formatters.ProjectFormat.minimal)
+    projects_output = db.list_projects(
+        db_session, format_=mlrun.common.formatters.ProjectFormat.minimal
+    )
     for index, project in enumerate(projects_output.projects):
         assert project.metadata.name == expected_projects[index]
         assert project.spec.artifacts is None
@@ -347,7 +359,9 @@ def test_refresh_project_summaries(db: DBInterface, db_session: sqlalchemy.orm.S
     assert deleted_summary.project == "project-summary-2"
 
 
-def _generate_and_insert_pre_060_record(db_session: sqlalchemy.orm.Session, project_name: str):
+def _generate_and_insert_pre_060_record(
+    db_session: sqlalchemy.orm.Session, project_name: str
+):
     pre_060_record = Project(name=project_name)
     db_session.add(pre_060_record)
     db_session.commit()
@@ -362,7 +376,9 @@ def _generate_project(name="project-name"):
                 "some-label": "some-label-value",
             },
         ),
-        spec=mlrun.common.schemas.ProjectSpec(description="some description", owner="owner-name"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="some description", owner="owner-name"
+        ),
     )
 
 
@@ -401,7 +417,9 @@ def _assert_project_summary(
     db_session: sqlalchemy.orm.Session,
     expected_project_summary: mlrun.common.schemas.ProjectSummary,
 ):
-    project_summary_output = db.get_project_summary(db_session, expected_project_summary.name)
+    project_summary_output = db.get_project_summary(
+        db_session, expected_project_summary.name
+    )
     assert (
         deepdiff.DeepDiff(
             expected_project_summary,

@@ -37,7 +37,9 @@ class AzureVaultStore:
         client_id = self._get_secret_file_contents("client_id")
 
         if not tenant_id or not client_id:
-            logger.info("both tenant_id and client_id must be configured to use Azure vault")
+            logger.info(
+                "both tenant_id and client_id must be configured to use Azure vault"
+            )
             return
 
         client_secret = self._get_secret_file_contents("secret")
@@ -57,7 +59,9 @@ class AzureVaultStore:
 
     @staticmethod
     def _get_secret_file_contents(file_name):
-        full_path = expanduser(mlconf.secret_stores.azure_vault.secret_path + "/" + file_name)
+        full_path = expanduser(
+            mlconf.secret_stores.azure_vault.secret_path + "/" + file_name
+        )
         if os.path.isfile(full_path):
             with open(full_path) as secret_file:
                 contents = secret_file.read()

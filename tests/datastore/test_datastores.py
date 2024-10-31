@@ -52,7 +52,9 @@ def test_in_memory(in_mem_store: InMemoryStore) -> None:
     assert len(in_mem_store._items) == 1, "data not written properly to in mem store"
     assert in_mem_store.get("aa") == "123", "in mem store failed to get/put"
     assert len(new_df) == 5, "in mem store failed dataframe test"
-    assert mlrun.run.get_dataitem(k1.get_target_path()).get() == "abc", "failed to log in mem artifact"
+    assert (
+        mlrun.run.get_dataitem(k1.get_target_path()).get() == "abc"
+    ), "failed to log in mem artifact"
 
 
 def test_file(rundb_mock, tmpdir: Path) -> None:
@@ -69,7 +71,9 @@ def test_file(rundb_mock, tmpdir: Path) -> None:
     # test that we can get the artifact as dataitem
     assert k1.to_dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
 
-    assert "test1.txt" in mlrun.run.get_dataitem(str(tmpdir)).listdir(), "failed listdir"
+    assert (
+        "test1.txt" in mlrun.run.get_dataitem(str(tmpdir)).listdir()
+    ), "failed listdir"
 
     expected = [
         str(tmpdir / "test1.txt"),
@@ -77,17 +81,23 @@ def test_file(rundb_mock, tmpdir: Path) -> None:
         k1.get_target_path(),
     ]
     for a in expected:
-        assert os.path.isfile(a) and a.startswith(str(tmpdir)), f"artifact {a} was not generated"
+        assert os.path.isfile(a) and a.startswith(
+            str(tmpdir)
+        ), f"artifact {a} was not generated"
 
     new_fd = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
     assert len(new_fd) == 5, "failed dataframe test"
-    assert mlrun.run.get_dataitem(k1.get_target_path()).get() == b"abc", "failed to log in file artifact"
+    assert (
+        mlrun.run.get_dataitem(k1.get_target_path()).get() == b"abc"
+    ), "failed to log in file artifact"
 
     name = k2.uri
     artifact, _ = mlrun.artifacts.get_artifact_meta(name)
     print(artifact.to_yaml())
-    mlrun.artifacts.update_dataset_meta(artifact, extra_data={"k1": k1}, column_metadata={"age": "great"})
+    mlrun.artifacts.update_dataset_meta(
+        artifact, extra_data={"k1": k1}, column_metadata={"age": "great"}
+    )
     artifact, _ = mlrun.artifacts.get_artifact_meta(name)
     print(artifact.to_yaml())
     assert artifact.column_metadata == {"age": "great"}, "failed artifact update test"
@@ -233,7 +243,9 @@ def test_get_store_resource_with_linked_artifacts():
 
 @pytest.mark.usefixtures("patch_file_forbidden")
 def test_forbidden_file_access():
-    store = mlrun.datastore.datastore.StoreManager(secrets={"V3IO_ACCESS_KEY": "some-access-key"})
+    store = mlrun.datastore.datastore.StoreManager(
+        secrets={"V3IO_ACCESS_KEY": "some-access-key"}
+    )
 
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         obj = store.object("v3io://some-system/some-dir/")
@@ -258,7 +270,9 @@ def test_verify_data_stores_are_not_cached_in_api_when_not_needed():
     user2_objpath = "v3io://some-system/some-dir/user2"
 
     user3_objpath = "v3io://some-system/some-dir/user3"
-    store = mlrun.datastore.datastore.StoreManager(secrets={"V3IO_ACCESS_KEY": "api-access-key"})
+    store = mlrun.datastore.datastore.StoreManager(
+        secrets={"V3IO_ACCESS_KEY": "api-access-key"}
+    )
     obj = store.object(url=user1_objpath, secrets=user1_secrets)
     assert store._stores == {}
     assert obj._store._secrets == user1_secrets
@@ -280,7 +294,9 @@ def test_verify_data_stores_are_cached_when_not_api():
     user2_objpath = "v3io://some-system/some-dir/user2"
 
     user3_objpath = "v3io://some-system/some-dir/user3"
-    store = mlrun.datastore.datastore.StoreManager(secrets={"V3IO_ACCESS_KEY": "api-access-key"})
+    store = mlrun.datastore.datastore.StoreManager(
+        secrets={"V3IO_ACCESS_KEY": "api-access-key"}
+    )
     # if secrets provided then store is not cached
     obj = store.object(url=user1_objpath, secrets=user1_secrets)
     assert store._stores == {}
@@ -308,9 +324,13 @@ def test_verify_data_stores_are_cached_when_not_api():
 
 def test_object_from_empty_url():
     user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
-    store = mlrun.datastore.datastore.StoreManager(secrets={"V3IO_ACCESS_KEY": "api-access-key"})
+    store = mlrun.datastore.datastore.StoreManager(
+        secrets={"V3IO_ACCESS_KEY": "api-access-key"}
+    )
     data_item = store.object(url="", secrets=user1_secrets)
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="Cannot parse an empty URL"):
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Cannot parse an empty URL"
+    ):
         data_item.as_df()
 
 
@@ -324,10 +344,14 @@ def test_fsspec(tmpdir: Path) -> None:
     files = file_system.ls(tmpdir)
     assert len(files) == 2, "2 test files were not written"
     assert files[0].endswith("x.txt"), "wrong file name"
-    assert file_system.open(tmpdir / "1x.txt", "r").read() == "123", "wrong file content"
+    assert (
+        file_system.open(tmpdir / "1x.txt", "r").read() == "123"
+    ), "wrong file content"
 
 
-@pytest.mark.parametrize("virtual_path", ["/dummy/path", "c:\\dummy\\path", "/dummy/path/"])
+@pytest.mark.parametrize(
+    "virtual_path", ["/dummy/path", "c:\\dummy\\path", "/dummy/path/"]
+)
 def test_item_to_real_path_map(virtual_path: str, tmpdir: Path) -> None:
     # test that the virtual dir (/dummy/path) is replaced with a real dir
     mlrun.mlconf.storage.item_to_real_path = f"{virtual_path}::{tmpdir}"

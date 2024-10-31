@@ -58,6 +58,8 @@ def raise_exception():
     ],
 )
 def test_session_retry(http_session: HTTPSessionWithRetry, error_to_raise, expected):
-    with unittest.mock.patch("mlrun.utils.http.requests.Session.request", side_effect=error_to_raise):
+    with unittest.mock.patch(
+        "mlrun.utils.http.requests.Session.request", side_effect=error_to_raise
+    ):
         with expected:
             http_session.request("GET", "http://localhost:30678")

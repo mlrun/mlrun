@@ -89,7 +89,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_runs_requested_logs(self, session, uids: list[str], requested_logs: bool = True):
+    def update_runs_requested_logs(
+        self, session, uids: list[str], requested_logs: bool = True
+    ):
         pass
 
     @abstractmethod
@@ -248,7 +250,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_artifact(self, session, key, tag="", project="", uid=None, producer_id=None, iter=None):
+    def del_artifact(
+        self, session, key, tag="", project="", uid=None, producer_id=None, iter=None
+    ):
         pass
 
     @abstractmethod
@@ -264,13 +268,16 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_artifact_tags(self, session, project, category: mlrun.common.schemas.ArtifactCategories = None):
+    def list_artifact_tags(
+        self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
+    ):
         return []
 
     # TODO: remove in 1.8.0
     @deprecated(
         version="1.8.0",
-        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use " "'store_artifact' instead",
+        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use "
+        "'store_artifact' instead",
         category=FutureWarning,
     )
     def store_artifact_v1(
@@ -293,7 +300,8 @@ class DBInterface(ABC):
     # TODO: remove in 1.8.0
     @deprecated(
         version="1.8.0",
-        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use " "'read_artifact' instead",
+        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use "
+        "'read_artifact' instead",
         category=FutureWarning,
     )
     def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
@@ -332,7 +340,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_functions(self, session, project: str, names: typing.Union[str, list[str]]) -> None:
+    def delete_functions(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
         pass
 
     @abstractmethod
@@ -448,7 +458,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_schedules(self, session, project: str, names: typing.Union[str, list[str]]) -> None:
+    def delete_schedules(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
         pass
 
     @abstractmethod
@@ -544,7 +556,9 @@ class DBInterface(ABC):
     ):
         pass
 
-    def refresh_project_summaries(self, session, project_summaries: list[mlrun.common.schemas.ProjectSummary]):
+    def refresh_project_summaries(
+        self, session, project_summaries: list[mlrun.common.schemas.ProjectSummary]
+    ):
         pass
 
     @abstractmethod
@@ -763,7 +777,9 @@ class DBInterface(ABC):
     ):
         pass
 
-    def create_hub_source(self, session, ordered_source: mlrun.common.schemas.IndexedHubSource):
+    def create_hub_source(
+        self, session, ordered_source: mlrun.common.schemas.IndexedHubSource
+    ):
         pass
 
     def store_hub_source(
@@ -780,7 +796,9 @@ class DBInterface(ABC):
     def delete_hub_source(self, session, name):
         pass
 
-    def get_hub_source(self, session, name=None, index=None) -> mlrun.common.schemas.IndexedHubSource:
+    def get_hub_source(
+        self, session, name=None, index=None
+    ) -> mlrun.common.schemas.IndexedHubSource:
         pass
 
     def store_background_task(
@@ -822,7 +840,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_alert_template(self, session, name: str) -> mlrun.common.schemas.AlertTemplate:
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
         pass
 
     @abstractmethod
@@ -834,7 +854,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig) -> mlrun.common.schemas.AlertConfig:
+    def store_alert(
+        self, session, alert: mlrun.common.schemas.AlertConfig
+    ) -> mlrun.common.schemas.AlertConfig:
         pass
 
     @abstractmethod
@@ -842,15 +864,21 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_alerts(self, session, project: str = None) -> list[mlrun.common.schemas.AlertConfig]:
+    def list_alerts(
+        self, session, project: str = None
+    ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 
     @abstractmethod
-    def get_alert(self, session, project: str, name: str) -> mlrun.common.schemas.AlertConfig:
+    def get_alert(
+        self, session, project: str, name: str
+    ) -> mlrun.common.schemas.AlertConfig:
         pass
 
     @abstractmethod
-    def get_alert_by_id(self, session, alert_id: int) -> mlrun.common.schemas.AlertConfig:
+    def get_alert_by_id(
+        self, session, alert_id: int
+    ) -> mlrun.common.schemas.AlertConfig:
         pass
 
     @abstractmethod
@@ -1002,7 +1030,9 @@ class DBInterface(ABC):
         raise NotImplementedError
 
     # EO Pagination Section
-    def generate_event(self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""):
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
         pass
 
     def store_alert_config(
@@ -1034,5 +1064,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def get_time_window_tracker_record(self, session, key: str, raise_on_not_found: bool = True):
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ):
         pass

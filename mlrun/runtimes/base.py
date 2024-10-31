@@ -263,7 +263,9 @@ class BaseRuntime(ModelObj):
         self._ensure_run_db()
         if not self._db_conn:
             if self.spec.rundb:
-                self._db_conn = mlrun.db.get_run_db(self.spec.rundb, secrets=self._secrets)
+                self._db_conn = mlrun.db.get_run_db(
+                    self.spec.rundb, secrets=self._secrets
+                )
         return self._db_conn
 
     # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.
@@ -271,7 +273,9 @@ class BaseRuntime(ModelObj):
     def try_auto_mount_based_on_config(self):
         pass
 
-    def validate_and_enrich_service_account(self, allowed_service_account, default_service_account):
+    def validate_and_enrich_service_account(
+        self, allowed_service_account, default_service_account
+    ):
         pass
 
     def _fill_credentials(self):
@@ -283,11 +287,17 @@ class BaseRuntime(ModelObj):
         """
         if self.metadata.credentials.access_key and (
             # if contains secret reference or $generate then no need to overwrite the access key
-            self.metadata.credentials.access_key.startswith(mlrun.model.Credentials.secret_reference_prefix)
-            or self.metadata.credentials.access_key.startswith(mlrun.model.Credentials.generate_access_key)
+            self.metadata.credentials.access_key.startswith(
+                mlrun.model.Credentials.secret_reference_prefix
+            )
+            or self.metadata.credentials.access_key.startswith(
+                mlrun.model.Credentials.generate_access_key
+            )
         ):
             return
-        self.metadata.credentials.access_key = mlrun.model.Credentials.generate_access_key
+        self.metadata.credentials.access_key = (
+            mlrun.model.Credentials.generate_access_key
+        )
 
     def generate_runtime_k8s_env(self, runobj: RunObject = None) -> list[dict]:
         """
@@ -296,11 +306,16 @@ class BaseRuntime(ModelObj):
         :param runobj: Run context object (RunObject) with run metadata and status
         :return: List of dicts with the structure {"name": "var_name", "value": "var_value"}
         """
-        return [{"name": k, "value": v} for k, v in self._generate_runtime_env(runobj).items()]
+        return [
+            {"name": k, "value": v}
+            for k, v in self._generate_runtime_env(runobj).items()
+        ]
 
     def run(
         self,
-        runspec: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]] = None,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -421,7 +436,9 @@ class BaseRuntime(ModelObj):
             uid = task.metadata.uid
             iter = task.metadata.iteration
             try:
-                return self._get_db().read_run(uid, project, iter=iter, format_=run_format)
+                return self._get_db().read_run(
+                    uid, project, iter=iter, format_=run_format
+                )
             except mlrun.db.RunDBError:
                 return None
         if task:
@@ -435,9 +452,13 @@ class BaseRuntime(ModelObj):
         :param runobj: Run context object (RunObject) with run metadata and status
         :return: Dictionary with all the variables that could be parsed
         """
-        runtime_env = {"MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project}
+        runtime_env = {
+            "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
+        }
         if runobj:
-            runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(exclude_notifications_params=True)
+            runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
+                exclude_notifications_params=True
+            )
             if runobj.metadata.project:
                 runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
             if runobj.spec.verbose:
@@ -454,11 +475,15 @@ class BaseRuntime(ModelObj):
         # so we don't need to update the run state and we can just raise the error.
         # more status code handling can be added here if needed
         if error.response.status_code == http.HTTPStatus.BAD_REQUEST.value:
-            raise mlrun.errors.MLRunBadRequestError(f"Bad request to mlrun api: {error.response.text}")
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Bad request to mlrun api: {error.response.text}"
+            )
 
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
-        mlrun.runtimes.utils.enrich_run_labels(meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner])
+        mlrun.runtimes.utils.enrich_run_labels(
+            meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
+        )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 "{{run.user}}", meta.labels[mlrun_constants.MLRunInternalLabels.owner]
@@ -466,7 +491,9 @@ class BaseRuntime(ModelObj):
 
         if db and self.kind != "handler":
             struct = self.to_dict()
-            hash_key = db.store_function(struct, self.metadata.name, self.metadata.project, versioned=True)
+            hash_key = db.store_function(
+                struct, self.metadata.name, self.metadata.project, versioned=True
+            )
             runspec.spec.function = self._function_uri(hash_key=hash_key)
 
     def _pre_run(self, runspec: RunObject, execution):
@@ -568,7 +595,8 @@ class BaseRuntime(ModelObj):
         elif (
             not was_none
             and last_state != mlrun.common.runtimes.constants.RunStates.completed
-            and last_state not in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
+            and last_state
+            not in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
         ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)
@@ -615,11 +643,15 @@ class BaseRuntime(ModelObj):
         update_in(run, "status.state", "completed")
         return updates
 
-    def full_image_path(self, image=None, client_version: str = None, client_python_version: str = None):
+    def full_image_path(
+        self, image=None, client_version: str = None, client_python_version: str = None
+    ):
         image = image or self.spec.image or ""
 
         image = enrich_image_url(image, client_version, client_python_version)
-        if not image.startswith(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
+        if not image.startswith(
+            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+        ):
             return image
         registry, repository = get_parsed_docker_registry()
         if registry:
@@ -703,7 +735,9 @@ class BaseRuntime(ModelObj):
             url = None
 
         if runspec is not None:
-            verify_field_regex("run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name)
+            verify_field_regex(
+                "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
+            )
 
         return mlrun_op(
             name,
@@ -739,7 +773,9 @@ class BaseRuntime(ModelObj):
         :return: function object
         """
         if body and from_file:
-            raise mlrun.errors.MLRunInvalidArgumentError("must provide either body or from_file argument. not both")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "must provide either body or from_file argument. not both"
+            )
 
         if (not body and not from_file) or (from_file and from_file.endswith(".ipynb")):
             from nuclio import build_file
@@ -751,9 +787,13 @@ class BaseRuntime(ModelObj):
                 with open(from_file) as fp:
                     body = fp.read()
             if self.kind == mlrun.runtimes.RuntimeKinds.serving:
-                body = body + mlrun_footer.format(mlrun.runtimes.nuclio.serving.serving_subkind)
+                body = body + mlrun_footer.format(
+                    mlrun.runtimes.nuclio.serving.serving_subkind
+                )
 
-        self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode("utf-8")
+        self.spec.build.functionSourceCode = b64encode(body.encode("utf-8")).decode(
+            "utf-8"
+        )
         if with_doc:
             update_function_entry_points(self, body)
         return self
@@ -811,7 +851,11 @@ class BaseRuntime(ModelObj):
 
     def requires_build(self) -> bool:
         build = self.spec.build
-        return build.commands or build.requirements or (build.source and not build.load_source_on_run)
+        return (
+            build.commands
+            or build.requirements
+            or (build.source and not build.load_source_on_run)
+        )
 
     def enrich_runtime_spec(
         self,
@@ -825,7 +869,9 @@ class BaseRuntime(ModelObj):
         but because we allow the user to set 'spec.image' for usability purposes,
         we need to check whether this is a built image or it requires to be built on top.
         """
-        launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(is_remote=self._is_remote)
+        launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
+            is_remote=self._is_remote
+        )
         launcher.prepare_image_for_deploy(self)
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
@@ -840,7 +886,8 @@ class BaseRuntime(ModelObj):
         """
         if self.kind == "handler":
             raise ValueError(
-                "cannot export local handler function, use " + "code_to_function() to serialize your function"
+                "cannot export local handler function, use "
+                + "code_to_function() to serialize your function"
             )
         calc_hash(self)
         struct = self.to_dict(strip=strip)
@@ -856,8 +903,12 @@ class BaseRuntime(ModelObj):
         return self
 
     def save(self, tag="", versioned=False, refresh=False) -> str:
-        launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(is_remote=self._is_remote)
-        return launcher.save_function(self, tag=tag, versioned=versioned, refresh=refresh)
+        launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
+            is_remote=self._is_remote
+        )
+        return launcher.save_function(
+            self, tag=tag, versioned=versioned, refresh=refresh
+        )
 
     def doc(self):
         print("function:", self.metadata.name)

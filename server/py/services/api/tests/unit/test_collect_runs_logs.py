@@ -49,7 +49,9 @@ class TestCollectRunSLogs:
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
         for run_uid in run_uids:
             for i in range(3):
-                _create_new_run(db, project_name, uid=run_uid, name=run_uid, iteration=i, kind="job")
+                _create_new_run(
+                    db, project_name, uid=run_uid, name=run_uid, iteration=i, kind="job"
+                )
 
         runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
@@ -58,16 +60,27 @@ class TestCollectRunSLogs:
         )
         assert len(runs) == 3
 
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs = unittest.mock.Mock()
-        services.api.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(return_value=runs)
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        services.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+            unittest.mock.Mock()
+        )
+        services.api.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(
+            return_value=runs
+        )
 
         await services.api.main._initiate_logs_collection(self.start_log_limit)
 
-        assert services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count == 1
+        assert (
+            services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            == 1
+        )
         assert (
             deepdiff.DeepDiff(
-                services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[1]["uids"],
+                services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
+                    1
+                ]["uids"],
                 run_uids,
                 ignore_order=True,
             )
@@ -89,12 +102,19 @@ class TestCollectRunSLogs:
         )
         assert len(runs) == 0
 
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs = unittest.mock.Mock()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        services.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+            unittest.mock.Mock()
+        )
 
         await services.api.main._initiate_logs_collection(self.start_log_limit)
 
-        assert services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count == 0
+        assert (
+            services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            == 0
+        )
 
     @pytest.mark.asyncio
     async def test_collect_logs_on_startup(
@@ -104,7 +124,9 @@ class TestCollectRunSLogs:
     ):
         # run the loop once to initialize the time window tracker and set it to the current time before completing the
         # following runs. (this simulates the first ever startup of the server before any runs are created)
-        await services.api.main._verify_log_collection_started_on_startup(self.start_log_limit)
+        await services.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
 
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
 
@@ -129,16 +151,29 @@ class TestCollectRunSLogs:
         )
         assert len(runs) == 3
 
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs = unittest.mock.Mock()
-        services.api.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(return_value=runs)
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        services.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+            unittest.mock.Mock()
+        )
+        services.api.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(
+            return_value=runs
+        )
 
-        await services.api.main._verify_log_collection_started_on_startup(self.start_log_limit)
+        await services.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
 
-        assert services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count == 1
+        assert (
+            services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            == 1
+        )
         assert (
             deepdiff.DeepDiff(
-                services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[1]["uids"],
+                services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
+                    1
+                ]["uids"],
                 run_uids,
                 ignore_order=True,
             )
@@ -157,7 +192,9 @@ class TestCollectRunSLogs:
 
         # run the loop once to initialize the time window tracker and set it to the current time before completing the
         # following runs. (this simulates the first ever startup of the server before any runs are created)
-        await services.api.main._verify_log_collection_started_on_startup(self.start_log_limit)
+        await services.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
 
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
 
@@ -196,7 +233,9 @@ class TestCollectRunSLogs:
         )
         assert len(runs) == 2
 
-        log_collector_call_mock = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
+        log_collector_call_mock = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
         monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
         update_runs_requested_logs_mock = unittest.mock.Mock()
         monkeypatch.setattr(
@@ -211,7 +250,9 @@ class TestCollectRunSLogs:
             list_runs_mock,
         )
 
-        await services.api.main._verify_log_collection_started_on_startup(self.start_log_limit)
+        await services.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
 
         assert update_runs_requested_logs_mock.call_count == 1
         assert len(update_runs_requested_logs_mock.call_args[1]["uids"]) == 1
@@ -226,7 +267,9 @@ class TestCollectRunSLogs:
     ):
         # run the loop once to initialize the time window tracker and set it to the current time before completing the
         # following runs. (this simulates the first ever startup of the server before any runs are created)
-        await services.api.main._verify_log_collection_started_on_startup(self.start_log_limit)
+        await services.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
 
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
 
@@ -255,7 +298,9 @@ class TestCollectRunSLogs:
         # split the uid by "_" and take the last part, which is the number
         runs = sorted(runs, key=lambda run: int(run["metadata"]["uid"].split("_")[-1]))
 
-        log_collector_call_mock = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
+        log_collector_call_mock = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
         monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
         update_runs_requested_logs_mock = unittest.mock.Mock()
         monkeypatch.setattr(
@@ -264,7 +309,9 @@ class TestCollectRunSLogs:
             update_runs_requested_logs_mock,
         )
         list_runs_mock = unittest.mock.Mock(
-            return_value=runs[: int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)]
+            return_value=runs[
+                : int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
+            ]
         )
         monkeypatch.setattr(
             services.api.utils.singletons.db.get_db(),
@@ -272,7 +319,9 @@ class TestCollectRunSLogs:
             list_runs_mock,
         )
 
-        await services.api.main._verify_log_collection_started_on_startup(self.start_log_limit)
+        await services.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
 
         # we expect to call update_runs_requested_logs twice - once for the runs that are under the limit,
         # and once for the rest
@@ -283,14 +332,16 @@ class TestCollectRunSLogs:
             mlrun.mlconf.log_collector.start_logs_startup_run_limit
         )
         # second call should have the rest of the runs
-        assert len(update_runs_requested_logs_mock.call_args_list[1][1]["uids"]) == num_of_runs - int(
-            mlrun.mlconf.log_collector.start_logs_startup_run_limit
-        )
+        assert len(
+            update_runs_requested_logs_mock.call_args_list[1][1]["uids"]
+        ) == num_of_runs - int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
 
         # the runs are not sorted by creation time, so we can only verify there is no intersection between the two calls
         assert (
             len(
-                set(update_runs_requested_logs_mock.call_args_list[0][1]["uids"]).intersection(
+                set(
+                    update_runs_requested_logs_mock.call_args_list[0][1]["uids"]
+                ).intersection(
                     update_runs_requested_logs_mock.call_args_list[1][1]["uids"]
                 )
             )
@@ -378,7 +429,9 @@ class TestCollectRunSLogs:
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
         for run_uid in run_uids:
             for i in range(3):
-                _create_new_run(db, project_name, uid=run_uid, name=run_uid, iteration=i, kind="job")
+                _create_new_run(
+                    db, project_name, uid=run_uid, name=run_uid, iteration=i, kind="job"
+                )
 
         runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
@@ -387,21 +440,32 @@ class TestCollectRunSLogs:
         )
         assert len(runs) == 3
 
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(False, "some error"))
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs = unittest.mock.Mock()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(False, "some error")
+        )
+        services.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+            unittest.mock.Mock()
+        )
 
         await services.api.main._initiate_logs_collection(self.start_log_limit)
 
-        assert services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count == 0
+        assert (
+            services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            == 0
+        )
 
     @pytest.mark.asyncio
     async def test_start_log_for_run_success_local_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
         _, _, uid, _, run = _create_new_run(db, "some-project")
-        run_uid = await services.api.main._start_log_for_run(run, self.start_log_limit, raise_on_error=False)
+        run_uid = await services.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
         assert run_uid == uid
         assert log_collector._call.call_count == 0
 
@@ -410,9 +474,13 @@ class TestCollectRunSLogs:
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
         _, _, uid, _, run = _create_new_run(db, "some-project", kind="job")
-        run_uid = await services.api.main._start_log_for_run(run, self.start_log_limit, raise_on_error=False)
+        run_uid = await services.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
         assert run_uid == uid
         assert log_collector._call.call_count == 1
 
@@ -421,14 +489,20 @@ class TestCollectRunSLogs:
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
         project_name = "some-project"
         uid = "my-uid"
         function_name = "some-function"
         function = f"{project_name}/{function_name}@{uid}"
 
-        _, _, uid, _, run = _create_new_run(db, "some-project", kind="dask", function=function)
-        run_uid = await services.api.main._start_log_for_run(run, self.start_log_limit, raise_on_error=False)
+        _, _, uid, _, run = _create_new_run(
+            db, "some-project", kind="dask", function=function
+        )
+        run_uid = await services.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
         assert run_uid == uid
         # not expected to call start log, because dask is not log collectable runtime
         assert log_collector._call.call_count == 0
@@ -438,16 +512,24 @@ class TestCollectRunSLogs:
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(False, "some error"))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(False, "some error")
+        )
         _, _, uid, _, run = _create_new_run(db, "some-project", kind="job")
-        run_uid = await services.api.main._start_log_for_run(run, self.start_log_limit, raise_on_error=False)
+        run_uid = await services.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
         assert run_uid is None
         assert log_collector._call.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_stop_logs(self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient):
+    async def test_stop_logs(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
-        log_collector._call = unittest.mock.AsyncMock(return_value=BaseLogCollectorResponse(True, ""))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
 
         # create a mock runs list
         num_of_runs, num_of_projects = 1000, 2
@@ -469,10 +551,14 @@ class TestCollectRunSLogs:
                 if run_uid not in run_uids:
                     run_uids.append(run_uid)
 
-        await services.api.main._stop_logs_for_runs(runs, chunk_size=stop_logs_run_uids_chunk_size)
+        await services.api.main._stop_logs_for_runs(
+            runs, chunk_size=stop_logs_run_uids_chunk_size
+        )
 
         # every time we stop <stop_logs_run_uids_chunk_size> amoutn of runs
-        assert log_collector._call.call_count == num_of_projects * (num_of_runs / stop_logs_run_uids_chunk_size)
+        assert log_collector._call.call_count == num_of_projects * (
+            num_of_runs / stop_logs_run_uids_chunk_size
+        )
 
         stop_log_request = log_collector._call.call_args_list[0].args[1]
 
@@ -524,7 +610,9 @@ class TestCollectRunSLogs:
         run_uids_log_collected = run_uids[1:]
 
         # update requested logs field to True
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs(db, run_uids, True)
+        services.api.utils.singletons.db.get_db().update_runs_requested_logs(
+            db, run_uids, True
+        )
 
         runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
@@ -560,7 +648,9 @@ class TestCollectRunSLogs:
         )
 
         # update requested logs field to False for one run
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs(db, [run_uids[1]], False)
+        services.api.utils.singletons.db.get_db().update_runs_requested_logs(
+            db, [run_uids[1]], False
+        )
 
         runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
@@ -620,5 +710,7 @@ def _create_new_run(
     if function:
         run["spec"] = {"function": function}
     if store:
-        services.api.crud.Runs().store_run(db_session, run, uid, iter=iteration, project=project)
+        services.api.crud.Runs().store_run(
+            db_session, run, uid, iter=iteration, project=project
+        )
     return project, name, uid, iteration, run

@@ -67,9 +67,9 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
                 ),
                 auth_info=mlrun.common.schemas.AuthInfo(),
             )
-            assert list(k8s_secrets_mock.project_secrets_map["project-name"].keys())[0].startswith(
-                "mlrun.notifications."
-            )
+            assert list(k8s_secrets_mock.project_secrets_map["project-name"].keys())[
+                0
+            ].startswith("mlrun.notifications.")
 
     @pytest.mark.parametrize(
         "source_code_target_dir",
@@ -140,12 +140,20 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             assert "project_context" not in run.spec.parameters
         else:
             if source_code_target_dir and source.startswith("."):
-                expected_project_context = os.path.normpath(os.path.join(source_code_target_dir, source))
-                assert run.spec.parameters["project_context"] == expected_project_context
+                expected_project_context = os.path.normpath(
+                    os.path.join(source_code_target_dir, source)
+                )
+                assert (
+                    run.spec.parameters["project_context"] == expected_project_context
+                )
             else:
                 assert run.spec.parameters["project_context"] == source
             assert "url" not in run.spec.parameters
-        assert run.spec.notifications[0].secret_params.get("secret", "").startswith("mlrun.notifications.")
+        assert (
+            run.spec.notifications[0]
+            .secret_params.get("secret", "")
+            .startswith("mlrun.notifications.")
+        )
         assert run.spec.handler == "mlrun.projects.load_and_run"
 
     @pytest.mark.parametrize(

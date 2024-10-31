@@ -65,7 +65,13 @@ def test_get_events_client(
     mlrun.mlconf.igz_version = igz_version
     if expected_error:
         with pytest.raises(expected_error):
-            services.api.utils.events.events_factory.EventsFactory.get_events_client(kind)
+            services.api.utils.events.events_factory.EventsFactory.get_events_client(
+                kind
+            )
     else:
-        instance = services.api.utils.events.events_factory.EventsFactory.get_events_client(kind)
+        instance = (
+            services.api.utils.events.events_factory.EventsFactory.get_events_client(
+                kind
+            )
+        )
         assert isinstance(instance, expected_instance)

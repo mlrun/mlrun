@@ -63,8 +63,12 @@ class DaskFeatureMerger(BaseMerger):
         def sort_partition(partition, timestamp):
             return partition.sort_values(timestamp)
 
-        entity_df = entity_df.map_partitions(sort_partition, timestamp=entity_timestamp_column)
-        featureset_df = featureset_df.map_partitions(sort_partition, timestamp=featureset_timestamp)
+        entity_df = entity_df.map_partitions(
+            sort_partition, timestamp=entity_timestamp_column
+        )
+        featureset_df = featureset_df.map_partitions(
+            sort_partition, timestamp=featureset_timestamp
+        )
 
         merged_df = merge_asof(
             entity_df,
@@ -163,7 +167,9 @@ class DaskFeatureMerger(BaseMerger):
         )
 
     def _drop_columns_from_result(self):
-        self._result_df = self._result_df.drop(columns=self._drop_columns, errors="ignore")
+        self._result_df = self._result_df.drop(
+            columns=self._drop_columns, errors="ignore"
+        )
 
     def _filter(self, query):
         self._result_df = self._result_df.query(query)

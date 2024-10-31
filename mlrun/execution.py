@@ -132,7 +132,9 @@ class MLClientCtx:
     @property
     def tag(self):
         """Run tag (uid or workflow id if exists)"""
-        return self._labels.get(mlrun_constants.MLRunInternalLabels.workflow) or self._uid
+        return (
+            self._labels.get(mlrun_constants.MLRunInternalLabels.workflow) or self._uid
+        )
 
     @property
     def state(self):
@@ -252,7 +254,9 @@ class MLClientCtx:
         :return: Child context
         """
         if self.iteration != 0:
-            raise MLRunInvalidArgumentError("cannot create child from a child iteration!")
+            raise MLRunInvalidArgumentError(
+                "cannot create child from a child iteration!"
+            )
         ctx = deepcopy(self.to_dict())
         if not with_parent_params:
             update_in(ctx, ["spec", "parameters"], {})
@@ -262,12 +266,16 @@ class MLClientCtx:
 
         update_in(ctx, ["metadata", "iteration"], len(self._children) + 1)
         ctx["status"] = {}
-        ctx = MLClientCtx.from_dict(ctx, self._rundb, self._autocommit, log_stream=self._logger)
+        ctx = MLClientCtx.from_dict(
+            ctx, self._rundb, self._autocommit, log_stream=self._logger
+        )
         ctx._parent = self
         self._children.append(ctx)
         return ctx
 
-    def update_child_iterations(self, best_run=0, commit_children=False, completed=True):
+    def update_child_iterations(
+        self, best_run=0, commit_children=False, completed=True
+    ):
         """Update children results in the parent, and optionally mark the best.
 
         :param best_run:  Marks the child iteration number (starts from 1)
@@ -288,7 +296,9 @@ class MLClientCtx:
     def mark_as_best(self):
         """mark a child as the best iteration result, see .get_child_context()"""
         if not self._parent or not self._iteration:
-            raise MLRunInvalidArgumentError("can only mark a child run as best iteration")
+            raise MLRunInvalidArgumentError(
+                "can only mark a child run as best iteration"
+            )
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
     def get_store_resource(self, url, secrets: dict = None):
@@ -296,7 +306,9 @@ class MLClientCtx:
 
         Example::
 
-            feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
+            feature_vector = context.get_store_resource(
+                "store://feature-vectors/default/myvec"
+            )
             dataset = context.get_store_resource("store://artifacts/default/mydata")
 
         :param url:    Store resource uri/path, store://<type>/<project>/<name>:<version>
@@ -373,16 +385,24 @@ class MLClientCtx:
             self._handler = spec.get("handler", self._handler)
             if not self._iteration:
                 self._hyperparams = spec.get("hyperparams", self._hyperparams)
-                self._hyper_param_options = spec.get("hyper_param_options", self._hyper_param_options)
+                self._hyper_param_options = spec.get(
+                    "hyper_param_options", self._hyper_param_options
+                )
                 if isinstance(self._hyper_param_options, dict):
-                    self._hyper_param_options = HyperParamOptions.from_dict(self._hyper_param_options)
+                    self._hyper_param_options = HyperParamOptions.from_dict(
+                        self._hyper_param_options
+                    )
             self._outputs = spec.get("outputs", self._outputs)
-            self._allow_empty_resources = spec.get("allow_empty_resources", self._allow_empty_resources)
+            self._allow_empty_resources = spec.get(
+                "allow_empty_resources", self._allow_empty_resources
+            )
             self.artifact_path = spec.get(RunKeys.output_path, self.artifact_path)
             self._in_path = spec.get(RunKeys.input_path, self._in_path)
             inputs = spec.get(RunKeys.inputs)
             self._notifications = spec.get("notifications", self._notifications)
-            self._state_thresholds = spec.get("state_thresholds", self._state_thresholds)
+            self._state_thresholds = spec.get(
+                "state_thresholds", self._state_thresholds
+            )
             self._node_selector = spec.get("node_selector", self._node_selector)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
@@ -410,7 +430,9 @@ class MLClientCtx:
             self._results = status.get("results", self._results)
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
-                self._artifacts_manager.artifact_uris[artifact_obj.key] = artifact_obj.uri
+                self._artifacts_manager.artifact_uris[artifact_obj.key] = (
+                    artifact_obj.uri
+                )
             for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
             self._state = status.get("state", self._state)
@@ -439,7 +461,9 @@ class MLClientCtx:
 
         """
         if not self.is_logging_worker():
-            logger.warning("Setting labels is only supported in the logging worker, ignoring")
+            logger.warning(
+                "Setting labels is only supported in the logging worker, ignoring"
+            )
             return
 
         if replace or not self._labels.get(key):
@@ -558,7 +582,9 @@ class MLClientCtx:
 
         if best:
             # Recreate the best iteration context for the interface of getting its artifacts
-            best_context = MLClientCtx.from_dict(task, store_run=False, include_status=True)
+            best_context = MLClientCtx.from_dict(
+                task, store_run=False, include_status=True
+            )
             self._results["best_iteration"] = best
             for key, result in best_context.results.items():
                 self._results[key] = result
@@ -679,7 +705,9 @@ class MLClientCtx:
                 "age": [42, 52, 36, 24, 73],
                 "testScore": [25, 94, 57, 62, 70],
             }
-            df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+            df = pd.DataFrame(
+                raw_data, columns=["first_name", "last_name", "age", "testScore"]
+            )
             context.log_dataset("mydf", df=df, stats=True)
 
         :param key:           Artifact key
@@ -798,7 +826,9 @@ class MLClientCtx:
         """
 
         if training_set is not None and inputs:
-            raise MLRunInvalidArgumentError("Cannot specify inputs and training set together")
+            raise MLRunInvalidArgumentError(
+                "Cannot specify inputs and training set together"
+            )
 
         model = ModelArtifact(
             key,
@@ -893,20 +923,28 @@ class MLClientCtx:
             self._error = str(error)
             updates["status.state"] = "error"
             updates["status.error"] = error
-        elif execution_state and execution_state != self._state and self._state != "error":
+        elif (
+            execution_state
+            and execution_state != self._state
+            and self._state != "error"
+        ):
             self._state = execution_state
             updates["status.state"] = execution_state
         self._last_update = now_date()
 
         if self._rundb and commit:
-            self._rundb.update_run(updates, self._uid, self.project, iter=self._iteration)
+            self._rundb.update_run(
+                updates, self._uid, self.project, iter=self._iteration
+            )
 
     def set_hostname(self, host: str):
         """Update the hostname, for internal use"""
         self._host = host
         if self._rundb:
             updates = {"status.host": host}
-            self._rundb.update_run(updates, self._uid, self.project, iter=self._iteration)
+            self._rundb.update_run(
+                updates, self._uid, self.project, iter=self._iteration
+            )
 
     def get_notifications(self, unmask_secret_params=False):
         """
@@ -917,11 +955,15 @@ class MLClientCtx:
         """
 
         # Get the full notifications from the DB since the run context does not contain the params due to bloating
-        run = self._rundb.read_run(self.uid, format_=mlrun.common.formatters.RunFormat.notifications)
+        run = self._rundb.read_run(
+            self.uid, format_=mlrun.common.formatters.RunFormat.notifications
+        )
 
         notifications = []
         for notification in run["spec"]["notifications"]:
-            notification: mlrun.model.Notification = mlrun.model.Notification.from_dict(notification)
+            notification: mlrun.model.Notification = mlrun.model.Notification.from_dict(
+                notification
+            )
             # Fill the secret params from the project secret. We cannot use the server side internal secret mechanism
             # here as it is the client side.
             # TODO: This is a workaround to allow the notification to get the secret params from project secret
@@ -934,7 +976,8 @@ class MLClientCtx:
                     notifications.append(notification)
                 except mlrun.errors.MLRunValueError:
                     logger.warning(
-                        "Failed to fill secret params from project secret for notification." "Skip this notification.",
+                        "Failed to fill secret params from project secret for notification."
+                        "Skip this notification.",
                         notification=notification.name,
                     )
 
@@ -1009,7 +1052,9 @@ class MLClientCtx:
         """
         self._write_tmpfile()
         if self._rundb:
-            self._rundb.store_run(self.to_dict(), self._uid, self.project, iter=self._iteration)
+            self._rundb.store_run(
+                self.to_dict(), self._uid, self.project, iter=self._iteration
+            )
 
     def is_logging_worker(self):
         """
@@ -1026,7 +1071,9 @@ class MLClientCtx:
         ):
             # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
             # the following template: ...-worker-<rank>
-            rank = int(labels[mlrun_constants.MLRunInternalLabels.host].rsplit("-", 1)[1])
+            rank = int(
+                labels[mlrun_constants.MLRunInternalLabels.host].rsplit("-", 1)[1]
+            )
             return rank == mlrun.mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:
@@ -1043,7 +1090,9 @@ class MLClientCtx:
         if commit or self._autocommit:
             self._commit = message
             if self._rundb:
-                self._rundb.update_run(self._get_updates(), self._uid, self.project, iter=self._iteration)
+                self._rundb.update_run(
+                    self._get_updates(), self._uid, self.project, iter=self._iteration
+                )
 
     def _get_updates(self):
         def set_if_not_none(_struct, key, val):
@@ -1064,7 +1113,10 @@ class MLClientCtx:
         # multiple executions for a single run (e.g. mpi).
         # For kinds that are not monitored by the API (local) we allow changing the state.
         run_kind = self.labels.get(mlrun_constants.MLRunInternalLabels.kind, "")
-        if mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind) or self._state != "completed":
+        if (
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind)
+            or self._state != "completed"
+        ):
             struct["status.state"] = self._state
 
         if self.is_logging_worker():
@@ -1074,7 +1126,9 @@ class MLClientCtx:
         set_if_not_none(struct, "status.commit", self._commit)
         set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        struct[f"status.{RunKeys.artifact_uris}"] = self._artifacts_manager.artifact_uris
+        struct[f"status.{RunKeys.artifact_uris}"] = (
+            self._artifacts_manager.artifact_uris
+        )
         return struct
 
     def _init_dbs(self, rundb):
@@ -1091,10 +1145,14 @@ class MLClientCtx:
     def _load_project_object(self):
         if not self._project_object:
             if not self._project:
-                self.logger.warning("Project cannot be loaded without a project name set in the context")
+                self.logger.warning(
+                    "Project cannot be loaded without a project name set in the context"
+                )
                 return None
             if not self._rundb:
-                self.logger.warning("Cannot retrieve project data - MLRun DB is not accessible")
+                self.logger.warning(
+                    "Cannot retrieve project data - MLRun DB is not accessible"
+                )
                 return None
             self._project_object = self._rundb.get_project(self._project)
         return self._project_object

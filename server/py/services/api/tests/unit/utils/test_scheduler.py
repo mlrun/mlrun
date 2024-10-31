@@ -84,10 +84,14 @@ async def do_nothing():
     pass
 
 
-def create_project(db: Session, project_name: str = None) -> mlrun.common.schemas.Project:
+def create_project(
+    db: Session, project_name: str = None
+) -> mlrun.common.schemas.Project:
     """API tests use sql db, so we need to create the project with its schema"""
     project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name or config.default_project)
+        metadata=mlrun.common.schemas.ProjectMetadata(
+            name=project_name or config.default_project
+        )
     )
     services.api.crud.Projects().create_project(db, project)
     return project
@@ -103,7 +107,9 @@ async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler)
         number_of_jobs=expected_call_counter, seconds_interval=1
     )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(second="*/1", start_date=start_date, end_date=end_date)
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
+        second="*/1", start_date=start_date, end_date=end_date
+    )
     schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(
@@ -132,9 +138,13 @@ async def test_create_schedule(db: Session, scheduler: Scheduler, store: bool):
     call_counter = 0
 
     expected_call_counter = 5
-    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(number_of_jobs=5, seconds_interval=1)
+    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
+        number_of_jobs=5, seconds_interval=1
+    )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(second="*/1", start_date=start_date, end_date=end_date)
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
+        second="*/1", start_date=start_date, end_date=end_date
+    )
     schedule_name = "schedule-name"
     project = config.default_project
     if store:
@@ -162,7 +172,9 @@ async def test_create_schedule(db: Session, scheduler: Scheduler, store: bool):
     # The trigger is defined with `second="*/1"` meaning it runs on round seconds,
     # but executing the actual functional code - bumping the counter - happens a few microseconds afterwards.
     # To avoid transient errors on slow systems, we add extra margin.
-    time_to_sleep = (end_date - mlrun.utils.now_date()).total_seconds() + schedule_end_time_margin
+    time_to_sleep = (
+        end_date - mlrun.utils.now_date()
+    ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
     assert call_counter == expected_call_counter
@@ -179,7 +191,9 @@ async def test_invoke_schedule(
     schedule_name = "schedule-name"
     project_name = config.default_project
     create_project(db, project_name)
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.create_schedule(
@@ -193,15 +207,21 @@ async def test_invoke_schedule(
     )
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
-    response_1 = await scheduler.invoke_schedule(db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name)
+    response_1 = await scheduler.invoke_schedule(
+        db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
+    )
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
-    response_2 = await scheduler.invoke_schedule(db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name)
+    response_2 = await scheduler.invoke_schedule(
+        db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
+    )
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 2
     for run in runs:
         assert run["status"]["state"] == RunStates.completed
-    response_uids = [response["data"]["metadata"]["uid"] for response in [response_1, response_2]]
+    response_uids = [
+        response["data"]["metadata"]["uid"] for response in [response_1, response_2]
+    ]
     db_uids = [run["metadata"]["uid"] for run in runs]
     assert (
         DeepDiff(
@@ -212,7 +232,9 @@ async def test_invoke_schedule(
         == {}
     )
 
-    schedule = scheduler.get_schedule(db, project_name, schedule_name, include_last_run=True)
+    schedule = scheduler.get_schedule(
+        db, project_name, schedule_name, include_last_run=True
+    )
     assert schedule.last_run is not None
     assert schedule.last_run["metadata"]["uid"] == response_uids[-1]
     assert schedule.last_run["metadata"]["project"] == project_name
@@ -230,7 +252,9 @@ async def test_get_schedule_last_run_deleted(
     schedule_name = "schedule-name"
     project_name = config.default_project
     create_project(db, project_name)
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
     scheduler.create_schedule(
         db,
         mlrun.common.schemas.AuthInfo(),
@@ -240,12 +264,16 @@ async def test_get_schedule_last_run_deleted(
         scheduled_object,
         cron_trigger,
     )
-    await scheduler.invoke_schedule(db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name)
+    await scheduler.invoke_schedule(
+        db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
+    )
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
 
     run_uid = runs[0]["metadata"]["uid"]
-    schedule = scheduler.get_schedule(db, project_name, schedule_name, include_last_run=True)
+    schedule = scheduler.get_schedule(
+        db, project_name, schedule_name, include_last_run=True
+    )
 
     assert schedule.last_run is not None
     assert schedule.last_run["metadata"]["uid"] == run_uid
@@ -253,7 +281,9 @@ async def test_get_schedule_last_run_deleted(
 
     # delete the last run for the schedule, ensure we can still get the schedule without failing
     get_db().del_run(db, uid=run_uid, project=project_name)
-    schedule = scheduler.get_schedule(db, project_name, schedule_name, include_last_run=True)
+    schedule = scheduler.get_schedule(
+        db, project_name, schedule_name, include_last_run=True
+    )
 
     assert schedule.last_run_uri is None
     assert schedule.last_run == {}
@@ -269,7 +299,9 @@ async def test_create_schedule_mlrun_function(
     project_name = config.default_project
     create_project(db, project_name)
 
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
 
@@ -278,7 +310,9 @@ async def test_create_schedule_mlrun_function(
         number_of_jobs=expected_call_counter, seconds_interval=1
     )
     # this way we're leaving ourselves one second to create the schedule preventing transient test failure
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(second="*/1", start_date=start_date, end_date=end_date)
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
+        second="*/1", start_date=start_date, end_date=end_date
+    )
     schedule_name = "schedule-name"
     scheduler.create_schedule(
         db,
@@ -289,7 +323,9 @@ async def test_create_schedule_mlrun_function(
         scheduled_object,
         cron_trigger,
     )
-    time_to_sleep = (end_date - mlrun.utils.now_date()).total_seconds() + schedule_end_time_margin
+    time_to_sleep = (
+        end_date - mlrun.utils.now_date()
+    ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project_name)
@@ -306,7 +342,9 @@ async def test_create_schedule_mlrun_function(
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_success_cron_trigger_validation(db: Session, scheduler: Scheduler):
+async def test_create_schedule_success_cron_trigger_validation(
+    db: Session, scheduler: Scheduler
+):
     scheduler._min_allowed_interval = "10 minutes"
     cases = [
         {"second": "1", "minute": "19"},
@@ -340,13 +378,17 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     project_name = config.default_project
     create_project(db, project_name)
 
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
 
     expected_call_counter = 3
     start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
         number_of_jobs=expected_call_counter, seconds_interval=1
     )
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(second="*/1", start_date=start_date, end_date=end_date)
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
+        second="*/1", start_date=start_date, end_date=end_date
+    )
     # we're before upgrade so create a schedule with empty auth info
     scheduler.create_schedule(
         db,
@@ -359,7 +401,9 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     )
     # stop scheduler, reconfigure to store credentials and start again (upgrade)
     await scheduler.stop()
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(return_value=True)
+    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
     await scheduler.start(db)
 
     # at this point the schedule is inside the scheduler without auth_info, so the first trigger should try to generate
@@ -367,18 +411,27 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     username = "some-username"
     access_key = "some-access_key"
     services.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
-        return_value=mlrun.common.schemas.ProjectOwner(username=username, access_key=access_key)
+        return_value=mlrun.common.schemas.ProjectOwner(
+            username=username, access_key=access_key
+        )
     )
-    time_to_sleep = (end_date - mlrun.utils.now_date()).total_seconds() + schedule_end_time_margin
+    time_to_sleep = (
+        end_date - mlrun.utils.now_date()
+    ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 3
-    assert services.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count == 1
+    assert (
+        services.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
+        == 1
+    )
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_failure_too_frequent_cron_trigger(db: Session, scheduler: Scheduler):
+async def test_create_schedule_failure_too_frequent_cron_trigger(
+    db: Session, scheduler: Scheduler
+):
     scheduler._min_allowed_interval = "10 minutes"
     cases = [
         {"second": "*"},
@@ -410,7 +463,9 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(db: Session, sc
 
 
 @pytest.mark.asyncio
-async def test_create_schedule_failure_already_exists(db: Session, scheduler: Scheduler):
+async def test_create_schedule_failure_already_exists(
+    db: Session, scheduler: Scheduler
+):
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
     project = config.default_project
@@ -608,7 +663,9 @@ async def test_get_schedule_next_run_time_from_db(db: Session, scheduler: Schedu
     assert chief_schedule.next_run_time is not None
 
     # simulating when running in worker
-    mlrun.mlconf.httpdb.clusterization.role = mlrun.common.schemas.ClusterizationRole.worker
+    mlrun.mlconf.httpdb.clusterization.role = (
+        mlrun.common.schemas.ClusterizationRole.worker
+    )
     worker_schedule = scheduler.get_schedule(db, project, schedule_name)
     assert worker_schedule.next_run_time is not None
     assert chief_schedule.next_run_time == worker_schedule.next_run_time
@@ -674,8 +731,14 @@ async def test_list_schedules_from_scheduler(db: Session, scheduler: Scheduler):
     for index in range(project_2_number_of_schedules):
         schedule_name = f"schedule-name-{index}"
         _create_do_nothing_schedule(db, scheduler, project_2, schedule_name)
-    assert len(scheduler._list_schedules_from_scheduler(project_1)) == project_1_number_of_schedules
-    assert len(scheduler._list_schedules_from_scheduler(project_2)) == project_2_number_of_schedules
+    assert (
+        len(scheduler._list_schedules_from_scheduler(project_1))
+        == project_1_number_of_schedules
+    )
+    assert (
+        len(scheduler._list_schedules_from_scheduler(project_2))
+        == project_2_number_of_schedules
+    )
 
 
 @pytest.mark.asyncio
@@ -744,7 +807,9 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
     start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
         number_of_jobs=expected_call_counter, seconds_interval=1
     )
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(second="*/1", start_date=start_date, end_date=end_date)
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(
+        second="*/1", start_date=start_date, end_date=end_date
+    )
     schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(
@@ -777,7 +842,9 @@ async def test_rescheduling_secrets_storing(
     scheduler: Scheduler,
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ):
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(return_value=True)
+    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
     name = "schedule-name"
     project = config.default_project
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
@@ -820,10 +887,14 @@ async def test_schedule_crud_secrets_handling(
     scheduler: Scheduler,
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ):
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(return_value=True)
+    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
     for schedule_name in ["valid-secret-key", "invalid/secret/key"]:
         project = config.default_project
-        scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+        scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+            db, project
+        )
         access_key = "some-user-access-key"
         username = "some-username"
         cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
@@ -879,14 +950,18 @@ async def test_schedule_access_key_generation(
     scheduler: Scheduler,
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ):
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(return_value=True)
+    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
     project = config.default_project
     schedule_name = "schedule-name"
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     access_key = "generated-access-key"
     get_or_create_access_key_mock = unittest.mock.Mock(return_value=access_key)
-    services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = get_or_create_access_key_mock
+    services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
+        get_or_create_access_key_mock
+    )
     scheduler.create_schedule(
         db,
         mlrun.common.schemas.AuthInfo(),
@@ -897,20 +972,28 @@ async def test_schedule_access_key_generation(
         cron_trigger,
     )
     get_or_create_access_key_mock.assert_called_once()
-    _assert_schedule_auth_secrets(k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key)
+    _assert_schedule_auth_secrets(
+        k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key
+    )
 
     access_key = "generated-access-key-2"
     get_or_create_access_key_mock = unittest.mock.Mock(return_value=access_key)
-    services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = get_or_create_access_key_mock
+    services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
+        get_or_create_access_key_mock
+    )
     scheduler.update_schedule(
         db,
-        mlrun.common.schemas.AuthInfo(access_key=mlrun.model.Credentials.generate_access_key),
+        mlrun.common.schemas.AuthInfo(
+            access_key=mlrun.model.Credentials.generate_access_key
+        ),
         project,
         schedule_name,
         labels={"label-key": "label-value"},
     )
     get_or_create_access_key_mock.assert_called_once()
-    _assert_schedule_auth_secrets(k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key)
+    _assert_schedule_auth_secrets(
+        k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key
+    )
 
 
 @pytest.mark.asyncio
@@ -919,7 +1002,9 @@ async def test_schedule_access_key_reference_handling(
     scheduler: Scheduler,
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ):
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = unittest.mock.Mock(return_value=True)
+    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
     project = config.default_project
     schedule_name = "schedule-name"
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
@@ -943,10 +1028,14 @@ async def test_schedule_access_key_reference_handling(
         labels={"label1": "value1", "label2": "value2"},
     )
 
-    _assert_schedule_get_and_list_credentials_enrichment(db, scheduler, project, schedule_name, access_key, username)
+    _assert_schedule_get_and_list_credentials_enrichment(
+        db, scheduler, project, schedule_name, access_key, username
+    )
 
 
-@unittest.mock.patch.object(Scheduler, "_store_schedule_secrets_using_auth_secret", return_value="auth-secret")
+@unittest.mock.patch.object(
+    Scheduler, "_store_schedule_secrets_using_auth_secret", return_value="auth-secret"
+)
 @pytest.mark.asyncio
 async def test_update_schedule(
     mock_store_schedule_secrets_using_auth_secret,
@@ -972,7 +1061,9 @@ async def test_update_schedule(
     project_name = config.default_project
     create_project(db, project_name)
 
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.create_schedule(
@@ -1101,7 +1192,9 @@ async def test_update_schedule(
         {"mlrun-auth-key": "auth-secret"},
         config.httpdb.scheduling.default_concurrency_limit,
     )
-    time_to_sleep = (end_date - mlrun.utils.now_date()).total_seconds() + schedule_end_time_margin
+    time_to_sleep = (
+        end_date - mlrun.utils.now_date()
+    ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
     runs = get_db().list_runs(db, project=project_name)
@@ -1110,19 +1203,27 @@ async def test_update_schedule(
 
 
 @pytest.mark.asyncio
-async def test_update_schedule_failure_not_found_in_db(db: Session, scheduler: Scheduler):
+async def test_update_schedule_failure_not_found_in_db(
+    db: Session, scheduler: Scheduler
+):
     schedule_name = "schedule-name"
     project = config.default_project
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
-        scheduler.update_schedule(db, mlrun.common.schemas.AuthInfo(), project, schedule_name)
+        scheduler.update_schedule(
+            db, mlrun.common.schemas.AuthInfo(), project, schedule_name
+        )
     assert "Schedule not found" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
-async def test_update_schedule_failure_not_found_in_scheduler(db: Session, scheduler: Scheduler):
+async def test_update_schedule_failure_not_found_in_scheduler(
+    db: Session, scheduler: Scheduler
+):
     schedule_name = "schedule-name"
     project_name = config.default_project
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
 
     # create the schedule only in the db
     inactive_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
@@ -1138,9 +1239,14 @@ async def test_update_schedule_failure_not_found_in_scheduler(db: Session, sched
 
     # update schedule should fail since the schedule job was not created in the scheduler
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
-        scheduler.update_schedule(db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name)
+        scheduler.update_schedule(
+            db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
+        )
     job_id = scheduler._resolve_job_id(project_name, schedule_name)
-    assert f"Schedule job with id {job_id} not found in scheduler. Reload schedules is required." in str(excinfo.value)
+    assert (
+        f"Schedule job with id {job_id} not found in scheduler. Reload schedules is required."
+        in str(excinfo.value)
+    )
 
 
 @pytest.mark.asyncio
@@ -1178,7 +1284,9 @@ async def test_schedule_job_concurrency_limit(
     create_project(db, project_name)
 
     scheduled_object = (
-        _create_mlrun_function_and_matching_scheduled_object(db, project_name, handler="sleep_two_seconds")
+        _create_mlrun_function_and_matching_scheduled_object(
+            db, project_name, handler="sleep_two_seconds"
+        )
         if schedule_kind == mlrun.common.schemas.ScheduleKinds.job
         else bump_counter_and_wait
     )
@@ -1285,7 +1393,9 @@ async def test_schedule_job_next_run_time(
     # invoke schedule should fail due to concurrency limit
     # the next run time should be updated to the next second after the invocation failure
     schedule_invocation_timestamp = mlrun.utils.now_date()
-    await scheduler.invoke_schedule(db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name)
+    await scheduler.invoke_schedule(
+        db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
+    )
 
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
@@ -1314,7 +1424,9 @@ def test_store_schedule(db: Session, scheduler: Scheduler):
     schedule_name = "store-schedule-test"
     project_name = config.default_project
 
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.store_schedule(
@@ -1375,7 +1487,11 @@ def test_store_schedule(db: Session, scheduler: Scheduler):
     [
         (
             {"key1": "value1", "key2": "value2"},
-            {"task": {"metadata": {"labels": {"key2": "new_value2", "key3": "value3"}}}},
+            {
+                "task": {
+                    "metadata": {"labels": {"key2": "new_value2", "key3": "value3"}}
+                }
+            },
             {"key1": "value1", "key2": "new_value2", "key3": "value3"},
         ),
         (
@@ -1410,7 +1526,9 @@ def test_store_schedule(db: Session, scheduler: Scheduler):
         ),
     ],
 )
-def test_merge_schedule_and_schedule_object_labels(scheduler, labels, scheduled_object, expected):
+def test_merge_schedule_and_schedule_object_labels(
+    scheduler, labels, scheduled_object, expected
+):
     result = services.api.utils.helpers.merge_schedule_and_schedule_object_labels(
         labels,
         scheduled_object,
@@ -1426,10 +1544,18 @@ def test_merge_schedule_and_schedule_object_labels(scheduler, labels, scheduled_
             # if schedule.labels and task.labels are passed,
             # we expect to get merged values of the passed values
             {"key1": "value1", "key2": "value2"},
-            {"task": {"metadata": {"labels": {"key2": "new_value2", "key3": "value3"}}}},
+            {
+                "task": {
+                    "metadata": {"labels": {"key2": "new_value2", "key3": "value3"}}
+                }
+            },
             [
-                mlrun.common.schemas.schedule.LabelRecord(id="1", name="key1", value="db_value1"),
-                mlrun.common.schemas.schedule.LabelRecord(id="2", name="key4", value="db_value4"),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key1", value="db_value1"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
             ],
             {"task": {"metadata": {"labels": {"key1": "db_value1"}}}},
             {"key1": "value1", "key2": "new_value2", "key3": "value3"},
@@ -1439,7 +1565,11 @@ def test_merge_schedule_and_schedule_object_labels(scheduler, labels, scheduled_
             # we expect to get schedule.labels
             {"key1": "value1"},
             {"task": {"metadata": {"labels": {}}}},
-            [mlrun.common.schemas.schedule.LabelRecord(id="1", name="key1", value="db_value1")],
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key1", value="db_value1"
+                )
+            ],
             {"task": {"metadata": {"labels": {"key1": "db_value2"}}}},
             {"key1": "value1"},
         ),
@@ -1474,7 +1604,11 @@ def test_merge_schedule_and_schedule_object_labels(scheduler, labels, scheduled_
             # we expect values from db to be cleaned up
             {},
             {"task": {"metadata": {"labels": {}}}},
-            [mlrun.common.schemas.schedule.LabelRecord(id="1", name="key1", value="db_value1")],
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key1", value="db_value1"
+                )
+            ],
             {"task": {"metadata": {"labels": {}}}},
             {},
         ),
@@ -1485,8 +1619,12 @@ def test_merge_schedule_and_schedule_object_labels(scheduler, labels, scheduled_
             {},
             {"task": {"metadata": {"labels": None}}},
             [
-                mlrun.common.schemas.schedule.LabelRecord(id="1", name="key3", value="db_value3"),
-                mlrun.common.schemas.schedule.LabelRecord(id="2", name="key4", value="db_value4"),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key3", value="db_value3"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
             ],
             {"task": {"metadata": {"labels": {"key5": "db_value5"}}}},
             {"key3": "db_value3", "key4": "db_value4", "key5": "db_value5"},
@@ -1497,8 +1635,12 @@ def test_merge_schedule_and_schedule_object_labels(scheduler, labels, scheduled_
             None,
             {"task": {"metadata": {"labels": None}}},
             [
-                mlrun.common.schemas.schedule.LabelRecord(id="1", name="key3", value="db_value3"),
-                mlrun.common.schemas.schedule.LabelRecord(id="2", name="key4", value="db_value4"),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key3", value="db_value3"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
             ],
             {"task": {"metadata": {"labels": {}}}},
             {"key3": "db_value3", "key4": "db_value4"},
@@ -1509,8 +1651,12 @@ def test_merge_schedule_and_schedule_object_labels(scheduler, labels, scheduled_
             {"key1": "value1"},
             None,
             [
-                mlrun.common.schemas.schedule.LabelRecord(id="1", name="key3", value="db_value3"),
-                mlrun.common.schemas.schedule.LabelRecord(id="2", name="key4", value="db_value4"),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key3", value="db_value3"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
             ],
             {"task": {"metadata": {"labels": {}}}},
             {"key1": "value1"},
@@ -1530,10 +1676,12 @@ def test_merge_schedule_and_db_schedule_labels(
     db_schedule.labels = db_schedule_labels
     db_schedule.scheduled_object = db_scheduled_object
 
-    result_labels, result_scheduled_object = services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
-        labels,
-        scheduled_object,
-        db_schedule,
+    result_labels, result_scheduled_object = (
+        services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+            labels,
+            scheduled_object,
+            db_schedule,
+        )
     )
 
     assert result_labels == expected
@@ -1555,14 +1703,18 @@ def _assert_schedule_get_and_list_credentials_enrichment(
         include_credentials=True,
     )
 
-    secret_name = services.api.tests.unit.conftest.K8sSecretsMock.resolve_auth_secret_name(
-        expected_username, expected_access_key
+    secret_name = (
+        services.api.tests.unit.conftest.K8sSecretsMock.resolve_auth_secret_name(
+            expected_username, expected_access_key
+        )
     )
     secret_ref = mlrun.model.Credentials.secret_reference_prefix + secret_name
 
     assert schedule.labels[scheduler._db_record_auth_label] == secret_name
     assert schedule.credentials.access_key == secret_ref
-    schedules = scheduler.list_schedules(db, project, schedule_name, include_credentials=True)
+    schedules = scheduler.list_schedules(
+        db, project, schedule_name, include_credentials=True
+    )
     assert schedules.schedules[0].credentials.access_key == secret_ref
 
     jobs = scheduler._list_schedules_from_scheduler(project)
@@ -1587,18 +1739,24 @@ def _assert_schedule_secrets(
     expected_username: str,
     expected_access_key: str,
 ):
-    access_key_secret_key = services.api.crud.Secrets().generate_client_project_secret_key(
-        services.api.crud.SecretsClientType.schedules,
-        schedule_name,
-        scheduler._secret_access_key_subtype,
+    access_key_secret_key = (
+        services.api.crud.Secrets().generate_client_project_secret_key(
+            services.api.crud.SecretsClientType.schedules,
+            schedule_name,
+            scheduler._secret_access_key_subtype,
+        )
     )
-    username_secret_key = services.api.crud.Secrets().generate_client_project_secret_key(
-        services.api.crud.SecretsClientType.schedules,
-        schedule_name,
-        scheduler._secret_username_subtype,
+    username_secret_key = (
+        services.api.crud.Secrets().generate_client_project_secret_key(
+            services.api.crud.SecretsClientType.schedules,
+            schedule_name,
+            scheduler._secret_username_subtype,
+        )
     )
-    key_map_secret_key = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        services.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            services.api.crud.SecretsClientType.schedules
+        )
     )
     secret_value = services.api.crud.Secrets().get_project_secret(
         project,
@@ -1650,7 +1808,9 @@ def _assert_schedule(
     assert schedule.concurrency_limit == concurrency_limit
 
 
-def _create_do_nothing_schedule(db: Session, scheduler: Scheduler, project: str, name: str):
+def _create_do_nothing_schedule(
+    db: Session, scheduler: Scheduler, project: str, name: str
+):
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     scheduler.create_schedule(
         db,
@@ -1663,12 +1823,18 @@ def _create_do_nothing_schedule(db: Session, scheduler: Scheduler, project: str,
     )
 
 
-def _create_mlrun_function_and_matching_scheduled_object(db: Session, project: str, handler: str = "do_nothing"):
+def _create_mlrun_function_and_matching_scheduled_object(
+    db: Session, project: str, handler: str = "do_nothing"
+):
     function_name = "my-function"
     code_path = pathlib.Path(__file__).absolute().parent / "function.py"
-    function = mlrun.code_to_function(name=function_name, kind="local", filename=str(code_path))
+    function = mlrun.code_to_function(
+        name=function_name, kind="local", filename=str(code_path)
+    )
     function.spec.command = f"{str(code_path)}"
-    hash_key = get_db().store_function(db, function.to_dict(), function_name, project, versioned=True)
+    hash_key = get_db().store_function(
+        db, function.to_dict(), function_name, project, versioned=True
+    )
     scheduled_object = {
         "task": {
             "spec": {
@@ -1681,7 +1847,9 @@ def _create_mlrun_function_and_matching_scheduled_object(db: Session, project: s
     return scheduled_object
 
 
-def _get_start_and_end_time_for_scheduled_trigger(number_of_jobs: int, seconds_interval: int):
+def _get_start_and_end_time_for_scheduled_trigger(
+    number_of_jobs: int, seconds_interval: int
+):
     """
     The scheduler executes the job on round seconds (when microsecond == 0)
     Therefore if the start time will be a round second - let's say 12:08:06.000000 and the end time 12:08:07.000000

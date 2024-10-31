@@ -249,14 +249,18 @@ def test_resolve_pipeline_project():
             "expected_project": "project-from-annotation",
             "template": {
                 "metadata": {
-                    "annotations": {mlrun_pipelines.common.helpers.PROJECT_ANNOTATION: "project-from-annotation"}
+                    "annotations": {
+                        mlrun_pipelines.common.helpers.PROJECT_ANNOTATION: "project-from-annotation"
+                    }
                 }
             },
         },
     ]
     for case in cases:
         workflow_manifest = {"spec": {"templates": [case["template"]]}}
-        pipeline = {"pipeline_spec": {"workflow_manifest": json.dumps(workflow_manifest)}}
+        pipeline = {
+            "pipeline_spec": {"workflow_manifest": json.dumps(workflow_manifest)}
+        }
         project = services.api.crud.Pipelines().resolve_project_from_pipeline(
             mlrun_pipelines.models.PipelineRun(pipeline)
         )

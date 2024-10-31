@@ -60,19 +60,19 @@ async def list_api_gateways(
     async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
         api_gateways = await client.list_api_gateways(project)
 
-    allowed_api_gateways = (
-        await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
-            list(api_gateways.keys()) if api_gateways else [],
-            lambda _api_gateway: (
-                project,
-                _api_gateway,
-            ),
-            auth_info,
-        )
+    api_gateways = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+        list(api_gateways.keys()) if api_gateways else [],
+        lambda _api_gateway: (
+            project,
+            _api_gateway,
+        ),
+        auth_info,
     )
-    allowed_api_gateways = {api_gateway: api_gateways[api_gateway] for api_gateway in allowed_api_gateways}
-    return mlrun.common.schemas.APIGatewaysOutput(api_gateways=allowed_api_gateways)
+    api_gateways = {
+        api_gateway: api_gateways[api_gateway] for api_gateway in api_gateways
+    }
+    return mlrun.common.schemas.APIGatewaysOutput(api_gateways=api_gateways)
 
 
 @router.get(
@@ -129,7 +129,9 @@ async def store_api_gateway(
     async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
         create = False
         try:
-            existing_api_gateway = await client.get_api_gateway(project_name=project, name=name)
+            existing_api_gateway = await client.get_api_gateway(
+                project_name=project, name=name
+            )
             # check if any functions were removed from the api gateway
             unused_functions = [
                 func
@@ -156,7 +158,9 @@ async def store_api_gateway(
         except mlrun.errors.MLRunNotFoundError:
             create = True
 
-        await client.store_api_gateway(project_name=project, api_gateway=api_gateway, create=create)
+        await client.store_api_gateway(
+            project_name=project, api_gateway=api_gateway, create=create
+        )
         api_gateway = await client.get_api_gateway(
             name=name,
             project_name=project,
@@ -210,14 +214,20 @@ async def deploy_function(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
-    client_version: typing.Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.client_version),
-    client_python_version: typing.Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.python_version),
+    client_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
 ):
     data = None
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        services.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     logger.info("Deploying function", data=data, project=project, name=name)
     function = data.get("function")
@@ -241,10 +251,13 @@ async def deploy_function(
     # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
     # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
     # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get("spec", {}).get(
-        "track_models", False
-    ):
-        if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get(
+        "spec", {}
+    ).get("track_models", False):
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
             logger.info(
                 "Requesting to deploy serving function with track models, re-routing to chief",
                 name=name,
@@ -290,16 +303,22 @@ async def deploy_status(
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
-    fn = await run_in_threadpool(services.api.crud.Functions().get_function, db_session, name, project, tag)
+    fn = await run_in_threadpool(
+        services.api.crud.Functions().get_function, db_session, name, project, tag
+    )
     if not fn:
-        services.api.api.utils.log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
+        services.api.api.utils.log_and_raise(
+            HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag
+        )
 
     if fn.get("kind") not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         services.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
         )
-    api_gateways_urls = await _get_api_gateways_urls_for_function(auth_info, project, name, tag)
+    api_gateways_urls = await _get_api_gateways_urls_for_function(
+        auth_info, project, name, tag
+    )
     return await run_in_threadpool(
         _handle_nuclio_deploy_status,
         db_session,
@@ -314,7 +333,9 @@ async def deploy_status(
     )
 
 
-def process_model_monitoring_secret(db_session, project_name: str, secret_key: str, store: bool = True):
+def process_model_monitoring_secret(
+    db_session, project_name: str, secret_key: str, store: bool = True
+):
     # The expected result of this method is an access-key placed in an internal project-secret.
     # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
     # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
@@ -332,7 +353,9 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
         allow_secrets_from_k8s=True,
     )
     user_provided_key = secret_value is not None
-    internal_key_name = Secrets().generate_client_project_secret_key(SecretsClientType.model_monitoring, secret_key)
+    internal_key_name = Secrets().generate_client_project_secret_key(
+        SecretsClientType.model_monitoring, secret_key
+    )
 
     if not user_provided_key:
         secret_value = Secrets().get_project_secret(
@@ -366,10 +389,16 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
                 project_owner=project_owner.username,
             )
     if store:
-        secrets = mlrun.common.schemas.SecretsData(provider=provider, secrets={internal_key_name: secret_value})
-        Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
+        secrets = mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={internal_key_name: secret_value}
+        )
+        Secrets().store_project_secrets(
+            project_name, secrets, allow_internal_secrets=True
+        )
         if user_provided_key:
-            logger.info("Deleting user-provided access-key - replaced with an internal secret")
+            logger.info(
+                "Deleting user-provided access-key - replaced with an internal secret"
+            )
             Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value
@@ -395,7 +424,9 @@ def create_model_monitoring_stream(
             endpoint=mlrun.mlconf.v3io_api,
         )
 
-        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api, access_key=access_key)
+        v3io_client = v3io.dataplane.Client(
+            endpoint=mlrun.mlconf.v3io_api, access_key=access_key
+        )
 
         response = v3io_client.stream.create(
             container=container,
@@ -468,11 +499,16 @@ def _deploy_function(
     return fn
 
 
-def _deploy_nuclio_runtime(auth_info, builder_env, client_python_version, client_version, db_session, fn):
+def _deploy_nuclio_runtime(
+    auth_info, builder_env, client_python_version, client_version, db_session, fn
+):
     monitoring_application = (
-        fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY) == mm_constants.ModelMonitoringAppLabel.VAL
+        fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+        == mm_constants.ModelMonitoringAppLabel.VAL
     )
-    serving_to_monitor = fn.kind == mlrun.runtimes.RuntimeKinds.serving and fn.spec.track_models
+    serving_to_monitor = (
+        fn.kind == mlrun.runtimes.RuntimeKinds.serving and fn.spec.track_models
+    )
     if monitoring_application or serving_to_monitor:
         if not mlrun.mlconf.is_ce_mode():
             model_monitoring_access_key = process_model_monitoring_secret(
@@ -483,11 +519,13 @@ def _deploy_nuclio_runtime(auth_info, builder_env, client_python_version, client
         else:
             model_monitoring_access_key = None
 
-        monitoring_deployment = services.api.crud.model_monitoring.deployment.MonitoringDeployment(
-            project=fn.metadata.project,
-            auth_info=auth_info,
-            db_session=db_session,
-            model_monitoring_access_key=model_monitoring_access_key,
+        monitoring_deployment = (
+            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=fn.metadata.project,
+                auth_info=auth_info,
+                db_session=db_session,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
         )
         try:
             monitoring_deployment.check_if_credentials_are_set()
@@ -495,13 +533,17 @@ def _deploy_nuclio_runtime(auth_info, builder_env, client_python_version, client
             if monitoring_application:
                 err_txt = f"Can not deploy model monitoring application due to: {exc}"
             else:
-                err_txt = f"Can not deploy serving function with track models due to: {exc}"
+                err_txt = (
+                    f"Can not deploy serving function with track models due to: {exc}"
+                )
             services.api.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
                 reason=err_txt,
             )
         if monitoring_application:
-            fn = monitoring_deployment.apply_and_create_stream_trigger(function=fn, function_name=fn.metadata.name)
+            fn = monitoring_deployment.apply_and_create_stream_trigger(
+                function=fn, function_name=fn.metadata.name
+            )
 
         if serving_to_monitor:
             if not client_version:
@@ -512,7 +554,8 @@ def _deploy_nuclio_runtime(auth_info, builder_env, client_python_version, client
                     f"client version must be specified and  >= {MINIMUM_CLIENT_VERSION_FOR_MM}",
                 )
             elif fn.spec.image.startswith("mlrun/") and (
-                semver.Version.parse(client_version) < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
+                semver.Version.parse(client_version)
+                < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
                 and "unstable" not in client_version
             ):
                 services.api.api.utils.log_and_raise(
@@ -564,8 +607,16 @@ def _handle_nuclio_deploy_status(
     if state in ["error", "unhealthy"]:
         logger.error(f"Nuclio deploy error, {text}", name=name)
 
-    internal_invocation_urls = status.get("internalInvocationUrls") if status.get("internalInvocationUrls") else []
-    external_invocation_urls = status.get("externalInvocationUrls") if status.get("externalInvocationUrls") else []
+    internal_invocation_urls = (
+        status.get("internalInvocationUrls")
+        if status.get("internalInvocationUrls")
+        else []
+    )
+    external_invocation_urls = (
+        status.get("externalInvocationUrls")
+        if status.get("externalInvocationUrls")
+        else []
+    )
 
     # add api gateway's URLs
     if api_gateway_urls:
@@ -589,8 +640,12 @@ def _handle_nuclio_deploy_status(
         new_nuclio_name=nuclio_name,
     ):
         mlrun.utils.update_in(fn, "status.nuclio_name", nuclio_name)
-        mlrun.utils.update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
-        mlrun.utils.update_in(fn, "status.external_invocation_urls", external_invocation_urls)
+        mlrun.utils.update_in(
+            fn, "status.internal_invocation_urls", internal_invocation_urls
+        )
+        mlrun.utils.update_in(
+            fn, "status.external_invocation_urls", external_invocation_urls
+        )
         mlrun.utils.update_in(fn, "status.state", state)
         mlrun.utils.update_in(fn, "status.address", address)
         mlrun.utils.update_in(fn, "status.container_image", container_image)
@@ -624,7 +679,9 @@ def _handle_nuclio_deploy_status(
     )
 
 
-async def _get_api_gateways_urls_for_function(auth_info, project, name, tag) -> list[str]:
+async def _get_api_gateways_urls_for_function(
+    auth_info, project, name, tag
+) -> list[str]:
     function_uri = generate_object_uri(project, name, tag)
     async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
         api_gateways = await client.list_api_gateways(project)
@@ -656,14 +713,18 @@ def _is_nuclio_deploy_status_changed(
         previous_status.get("nuclio_name", "") != new_nuclio_name
         or previous_status.get("state") != new_state
         or previous_status.get("container_image", "") != new_container_image
-        or previous_status.get("internal_invocation_urls", []) != new_internal_invocation_urls
-        or previous_status.get("external_invocation_urls", []) != new_external_invocation_urls
+        or previous_status.get("internal_invocation_urls", [])
+        != new_internal_invocation_urls
+        or previous_status.get("external_invocation_urls", [])
+        != new_external_invocation_urls
         or previous_status.get("address", "") != address
     )
     return has_changed
 
 
-async def _delete_functions_external_invocation_url(project: str, url: str, function_names: list[str]) -> None:
+async def _delete_functions_external_invocation_url(
+    project: str, url: str, function_names: list[str]
+) -> None:
     tasks = [
         asyncio.create_task(
             run_in_threadpool(
@@ -679,7 +740,9 @@ async def _delete_functions_external_invocation_url(project: str, url: str, func
     await asyncio.gather(*tasks)
 
 
-async def _add_functions_external_invocation_url(project: str, url: str, function_names: list[str]) -> None:
+async def _add_functions_external_invocation_url(
+    project: str, url: str, function_names: list[str]
+) -> None:
     tasks = [
         asyncio.create_task(
             run_in_threadpool(

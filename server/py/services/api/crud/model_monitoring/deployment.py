@@ -50,10 +50,13 @@ from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
-_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = mlrun.model_monitoring.controller.__file__
+_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
+    mlrun.model_monitoring.controller.__file__
+)
 _MONITORING_WRITER_FUNCTION_PATH = mlrun.model_monitoring.writer.__file__
 _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
-    Path(mlrun.model_monitoring.applications.__file__).parent / "histogram_data_drift.py"
+    Path(mlrun.model_monitoring.applications.__file__).parent
+    / "histogram_data_drift.py"
 )
 
 
@@ -119,8 +122,12 @@ class MonitoringDeployment:
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period, overwrite=rebuild_images
         )
-        self.deploy_model_monitoring_writer_application(writer_image=image, overwrite=rebuild_images)
-        self.deploy_model_monitoring_stream_processing(stream_image=image, overwrite=rebuild_images)
+        self.deploy_model_monitoring_writer_application(
+            writer_image=image, overwrite=rebuild_images
+        )
+        self.deploy_model_monitoring_stream_processing(
+            stream_image=image, overwrite=rebuild_images
+        )
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image, overwrite=rebuild_images)
 
@@ -149,8 +156,10 @@ class MonitoringDeployment:
                 project=self.project,
             )
             # Get parquet target value for model monitoring stream function
-            parquet_target = services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
-                db_session=self.db_session, project=self.project
+            parquet_target = (
+                services.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
+                    db_session=self.db_session, project=self.project
+                )
             )
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
@@ -244,7 +253,9 @@ class MonitoringDeployment:
                 f"Deploying {mm_constants.MonitoringFunctionNames.WRITER} function",
                 project=self.project,
             )
-            fn = self._initial_model_monitoring_writer_function(writer_image=writer_image)
+            fn = self._initial_model_monitoring_writer_function(
+                writer_image=writer_image
+            )
             fn, ready = services.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
@@ -317,7 +328,9 @@ class MonitoringDeployment:
                 reason="Unexpected stream path schema",
             )
         if not mlrun.mlconf.is_ce_mode():
-            function = self._apply_access_key_and_mount_function(function=function, function_name=function_name)
+            function = self._apply_access_key_and_mount_function(
+                function=function, function_name=function_name
+            )
 
         function.spec.disable_default_http_trigger = True
 
@@ -339,12 +352,14 @@ class MonitoringDeployment:
         """
 
         # Initialize Stream Processor object
-        stream_processor = mlrun.model_monitoring.stream_processing.EventStreamProcessor(
-            project=self.project,
-            parquet_batching_max_events=self._parquet_batching_max_events,
-            parquet_batching_timeout_secs=self._max_parquet_save_interval,
-            parquet_target=parquet_target,
-            model_monitoring_access_key=self.model_monitoring_access_key,
+        stream_processor = (
+            mlrun.model_monitoring.stream_processing.EventStreamProcessor(
+                project=self.project,
+                parquet_batching_max_events=self._parquet_batching_max_events,
+                parquet_batching_timeout_secs=self._max_parquet_save_interval,
+                parquet_target=parquet_target,
+                model_monitoring_access_key=self.model_monitoring_access_key,
+            )
         )
 
         # Create a new serving function for the streaming process
@@ -360,14 +375,20 @@ class MonitoringDeployment:
                 labels={"type": mm_constants.MonitoringFunctionNames.STREAM},
             ),
         )
-        function.set_db_connection(services.api.api.utils.get_run_db_instance(self.db_session))
+        function.set_db_connection(
+            services.api.api.utils.get_run_db_instance(self.db_session)
+        )
 
-        secret_provider = services.api.crud.secrets.get_project_secret_provider(project=self.project)
+        secret_provider = services.api.crud.secrets.get_project_secret_provider(
+            project=self.project
+        )
 
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project, secret_provider=secret_provider
         )
-        store_object = mlrun.model_monitoring.get_store_object(project=self.project, secret_provider=secret_provider)
+        store_object = mlrun.model_monitoring.get_store_object(
+            project=self.project, secret_provider=secret_provider
+        )
 
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
@@ -406,7 +427,9 @@ class MonitoringDeployment:
             image=image,
             handler="handler",
         )
-        function.set_db_connection(services.api.api.utils.get_run_db_instance(self.db_session))
+        function.set_db_connection(
+            services.api.api.utils.get_run_db_instance(self.db_session)
+        )
 
         # Set the project to the job function
         function.metadata.project = self.project
@@ -417,13 +440,17 @@ class MonitoringDeployment:
         )
         function.spec.max_replicas = 1
         # Enrich runtime with the required configurations
-        services.api.api.utils.apply_enrichment_and_validation_on_function(function, self.auth_info)
+        services.api.api.utils.apply_enrichment_and_validation_on_function(
+            function, self.auth_info
+        )
 
         return function
 
     def _apply_access_key_and_mount_function(
         self,
-        function: typing.Union[mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime],
+        function: typing.Union[
+            mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime
+        ],
         function_name: str = None,
     ) -> typing.Union[mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime]:
         """Applying model monitoring access key on the provided function when using V3IO path. In addition, this method
@@ -435,11 +462,16 @@ class MonitoringDeployment:
         :return: function runtime object with access key and access to system files.
         """
 
-        if function_name in mm_constants.MonitoringFunctionNames.list() and not mlrun.mlconf.is_ce_mode():
+        if (
+            function_name in mm_constants.MonitoringFunctionNames.list()
+            and not mlrun.mlconf.is_ce_mode()
+        ):
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
                 mm_constants.ProjectSecretKeys.ACCESS_KEY,
-                services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(self.project),
+                services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+                    self.project
+                ),
                 services.api.crud.secrets.Secrets().generate_client_project_secret_key(
                     services.api.crud.secrets.SecretsClientType.model_monitoring,
                     mm_constants.ProjectSecretKeys.ACCESS_KEY,
@@ -450,7 +482,9 @@ class MonitoringDeployment:
             function.apply(mlrun.v3io_cred())
 
             # Ensure that the auth env vars are set
-            services.api.api.utils.ensure_function_has_auth_set(function, self.auth_info)
+            services.api.api.utils.ensure_function_has_auth_set(
+                function, self.auth_info
+            )
         return function
 
     def _initial_model_monitoring_writer_function(self, writer_image: str):
@@ -473,14 +507,18 @@ class MonitoringDeployment:
                 image=writer_image,
             ),
         )
-        function.set_db_connection(services.api.api.utils.get_run_db_instance(self.db_session))
+        function.set_db_connection(
+            services.api.api.utils.get_run_db_instance(self.db_session)
+        )
 
         # Create writer monitoring serving graph
         graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
         graph.to(
             ModelMonitoringWriter(
                 project=self.project,
-                secret_provider=services.api.crud.secrets.get_project_secret_provider(project=self.project),
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=self.project
+                ),
             )
         )  # writer
 
@@ -513,11 +551,13 @@ class MonitoringDeployment:
         )
         try:
             # validate that the function has not yet been deployed
-            state, _, _, _, _, _ = mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                name=function_name,
-                project=self.project,
-                tag="",
-                auth_info=self.auth_info,
+            state, _, _, _, _, _ = (
+                mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
+                    name=function_name,
+                    project=self.project,
+                    tag="",
+                    auth_info=self.auth_info,
+                )
             )
             logger.info(
                 f"Detected {function_name} function already deployed",
@@ -528,7 +568,9 @@ class MonitoringDeployment:
         except mlrun.errors.MLRunNotFoundError:
             pass
 
-    def deploy_histogram_data_drift_app(self, image: str, overwrite: bool = False) -> None:
+    def deploy_histogram_data_drift_app(
+        self, image: str, overwrite: bool = False
+    ) -> None:
         """
         Deploy the histogram data drift application.
 
@@ -552,9 +594,13 @@ class MonitoringDeployment:
             )
 
             if not mlrun.mlconf.is_ce_mode():
-                logger.info("Setting the access key for the histogram data drift function")
+                logger.info(
+                    "Setting the access key for the histogram data drift function"
+                )
                 func.metadata.credentials.access_key = self.model_monitoring_access_key
-                services.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
+                services.api.api.utils.ensure_function_has_auth_set(
+                    func, self.auth_info
+                )
                 logger.info("Ensured the histogram data drift function auth")
 
             func.set_label(
@@ -578,9 +624,11 @@ class MonitoringDeployment:
         - metrics: a basic key value that represents a numeric metric.
         - predictions: latency of each prediction."""
 
-        tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project,
-            tsdb_connection_string=connection_string,
+        tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
+            mlrun.model_monitoring.get_tsdb_connector(
+                project=self.project,
+                tsdb_connection_string=connection_string,
+            )
         )
 
         tsdb_connector.create_tables()
@@ -588,9 +636,11 @@ class MonitoringDeployment:
     def _create_sql_tables(self, connection_string: str):
         """Create the SQL tables using the SQL connector"""
 
-        store_connector: mlrun.model_monitoring.db.StoreBase = mlrun.model_monitoring.get_store_object(
-            project=self.project,
-            store_connection_string=connection_string,
+        store_connector: mlrun.model_monitoring.db.StoreBase = (
+            mlrun.model_monitoring.get_store_object(
+                project=self.project,
+                store_connection_string=connection_string,
+            )
         )
 
         store_connector.create_tables()
@@ -681,7 +731,12 @@ class MonitoringDeployment:
         if delete_user_applications:
             if not user_application_list:
                 application_to_delete.extend(
-                    list({app["metadata"]["name"] for app in self.list_model_monitoring_functions()})
+                    list(
+                        {
+                            app["metadata"]["name"]
+                            for app in self.list_model_monitoring_functions()
+                        }
+                    )
                 )
             else:
                 for name in user_application_list:
@@ -692,7 +747,9 @@ class MonitoringDeployment:
                             project=self.project,
                         )
                         if (
-                            fn["metadata"]["labels"].get(mm_constants.ModelMonitoringAppLabel.KEY)
+                            fn["metadata"]["labels"].get(
+                                mm_constants.ModelMonitoringAppLabel.KEY
+                            )
                             == mm_constants.ModelMonitoringAppLabel.VAL
                         ):
                             # checks if the given function is a model monitoring application
@@ -710,9 +767,12 @@ class MonitoringDeployment:
 
         if (
             delete_histogram_data_drift_app
-            and mm_constants.HistogramDataDriftApplicationConstants.NAME not in application_to_delete
+            and mm_constants.HistogramDataDriftApplicationConstants.NAME
+            not in application_to_delete
         ):
-            application_to_delete.append(mm_constants.HistogramDataDriftApplicationConstants.NAME)
+            application_to_delete.append(
+                mm_constants.HistogramDataDriftApplicationConstants.NAME
+            )
         return application_to_delete
 
     @staticmethod
@@ -813,7 +873,11 @@ class MonitoringDeployment:
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
                 try:
-                    function_pod = services.api.utils.singletons.k8s.get_k8s_helper().list_pods(selector=label_selector)
+                    function_pod = (
+                        services.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+                            selector=label_selector
+                        )
+                    )
                 except Exception as exc:
                     raise mlrun.errors.MLRunStreamConnectionFailureError(
                         f"Failed to list pods for function {function_name}"
@@ -830,7 +894,9 @@ class MonitoringDeployment:
                     time.sleep(5)
 
             stream_paths.append(
-                services.api.crud.model_monitoring.get_stream_path(project=project, function_name=function_name)
+                services.api.crud.model_monitoring.get_stream_path(
+                    project=project, function_name=function_name
+                )
             )
 
         if not stream_paths:
@@ -845,19 +911,27 @@ class MonitoringDeployment:
             v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
 
             for stream_path in stream_paths:
-                _, container, stream_path = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                    stream_path
+                _, container, stream_path = (
+                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                        stream_path
+                    )
                 )
 
                 try:
                     # if the stream path is in the users directory, we need to use pipelines access key to delete it
-                    logger.debug("Deleting v3io stream", project=project, stream_path=stream_path)
+                    logger.debug(
+                        "Deleting v3io stream", project=project, stream_path=stream_path
+                    )
                     v3io_client.stream.delete(
                         container,
                         stream_path,
-                        access_key=mlrun.mlconf.get_v3io_access_key() if container.startswith("users") else access_key,
+                        access_key=mlrun.mlconf.get_v3io_access_key()
+                        if container.startswith("users")
+                        else access_key,
                     )
-                    logger.debug("Deleted v3io stream", project=project, stream_path=stream_path)
+                    logger.debug(
+                        "Deleted v3io stream", project=project, stream_path=stream_path
+                    )
                 except Exception as exc:
                     # Raise an error that will be caught by the caller and skip the deletion of the stream
                     raise mlrun.errors.MLRunStreamConnectionFailureError(
@@ -886,7 +960,9 @@ class MonitoringDeployment:
                 logger.debug("Deleted kafka topics", topics=topics)
             except Exception as exc:
                 # Raise an error that will be caught by the caller and skip the deletion of the stream
-                raise mlrun.errors.MLRunStreamConnectionFailureError("Failed to delete kafka topics") from exc
+                raise mlrun.errors.MLRunStreamConnectionFailureError(
+                    "Failed to delete kafka topics"
+                ) from exc
         else:
             logger.warning(
                 "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
@@ -974,7 +1050,9 @@ class MonitoringDeployment:
         if not replace_creds:
             try:
                 self.check_if_credentials_are_set()
-                if self._is_the_same_cred(endpoint_store_connection, stream_path, tsdb_connection):
+                if self._is_the_same_cred(
+                    endpoint_store_connection, stream_path, tsdb_connection
+                ):
                     logger.debug(
                         "The same credentials are already set for the project - aborting with no error",
                         project=self.project,
@@ -991,32 +1069,40 @@ class MonitoringDeployment:
         secrets_dict = {}
         old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
         if access_key:
-            secrets_dict[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY] = (
-                access_key or old_secrets_dict.get(mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY)
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
+            ] = access_key or old_secrets_dict.get(
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
             )
 
         # endpoint_store_connection
         if not endpoint_store_connection:
             endpoint_store_connection = (
-                old_secrets_dict.get(mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION)
+                old_secrets_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                )
                 or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
                 or _default_secrets_v3io
             )
         if endpoint_store_connection:
             if not endpoint_store_connection.startswith(
-                tuple(mlrun.common.schemas.model_monitoring.ModelEndpointTargetSchemas.list())
+                tuple(
+                    mlrun.common.schemas.model_monitoring.ModelEndpointTargetSchemas.list()
+                )
             ):
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
                     "please provide a full URL (e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>)"
                 )
-            if mlrun.mlconf.is_ce_mode() and endpoint_store_connection.startswith("v3io"):
+            if mlrun.mlconf.is_ce_mode() and endpoint_store_connection.startswith(
+                "v3io"
+            ):
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "In CE mode, only MySQL/SQLite connections are supported for endpoint store"
                 )
-            secrets_dict[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION] = (
-                endpoint_store_connection
-            )
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ] = endpoint_store_connection
         else:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "You must provide a valid endpoint store connection while using set_model_monitoring_credentials "
@@ -1026,23 +1112,34 @@ class MonitoringDeployment:
         # stream_path
         if not stream_path:
             stream_path = (
-                old_secrets_dict.get(mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH)
+                old_secrets_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                )
                 or mlrun.mlconf.model_endpoint_monitoring.stream_connection
                 or _default_secrets_v3io
             )
         if stream_path:
-            if stream_path == mm_constants.V3IO_MODEL_MONITORING_DB and mlrun.mlconf.is_ce_mode():
+            if (
+                stream_path == mm_constants.V3IO_MODEL_MONITORING_DB
+                and mlrun.mlconf.is_ce_mode()
+            ):
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "In CE mode, only kafka stream are supported for stream path"
                 )
             elif stream_path.startswith("kafka://") and "?topic" in stream_path:
-                raise mlrun.errors.MLRunInvalidMMStoreTypeError("Custom kafka topic is not allowed")
-            elif not stream_path.startswith("kafka://") and (stream_path != mm_constants.V3IO_MODEL_MONITORING_DB):
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                    "Custom kafka topic is not allowed"
+                )
+            elif not stream_path.startswith("kafka://") and (
+                stream_path != mm_constants.V3IO_MODEL_MONITORING_DB
+            ):
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "Currently only Kafka connection is supported for non-v3io stream,"
                     "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
                 )
-            secrets_dict[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH] = stream_path
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+            ] = stream_path
         else:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "You must provide a valid stream path connection while using set_model_monitoring_credentials "
@@ -1051,21 +1148,31 @@ class MonitoringDeployment:
 
         if not tsdb_connection:
             tsdb_connection = (
-                old_secrets_dict.get(mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION)
+                old_secrets_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+                )
                 or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
                 or _default_secrets_v3io
             )
         if tsdb_connection:
-            if tsdb_connection != mm_constants.V3IO_MODEL_MONITORING_DB and not tsdb_connection.startswith("taosws://"):
+            if (
+                tsdb_connection != mm_constants.V3IO_MODEL_MONITORING_DB
+                and not tsdb_connection.startswith("taosws://")
+            ):
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
                     "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"
                 )
-            elif tsdb_connection == mm_constants.V3IO_MODEL_MONITORING_DB and mlrun.mlconf.is_ce_mode():
+            elif (
+                tsdb_connection == mm_constants.V3IO_MODEL_MONITORING_DB
+                and mlrun.mlconf.is_ce_mode()
+            ):
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "In CE mode, only TDEngine websocket connection is supported for TSDB"
                 )
-            secrets_dict[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION] = tsdb_connection
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            ] = tsdb_connection
         else:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "You must provide a valid tsdb connection while using set_model_monitoring_credentials "
@@ -1073,7 +1180,9 @@ class MonitoringDeployment:
             )
 
         # Check the cred are valid
-        for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets():
+        for key in (
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
+        ):
             try:
                 secrets_dict[key]
             except KeyError:
@@ -1083,7 +1192,9 @@ class MonitoringDeployment:
         # Create tsdb & sql tables that will be used for storing the model monitoring data
         # Create the stream output
         self._create_tsdb_tables(
-            connection_string=secrets_dict.get(mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION)
+            connection_string=secrets_dict.get(
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            )
         )
         self._create_sql_tables(
             connection_string=secrets_dict.get(
@@ -1092,7 +1203,9 @@ class MonitoringDeployment:
         )
 
         self._create_stream_output(
-            stream_path=secrets_dict.get(mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH)
+            stream_path=secrets_dict.get(
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+            )
         )
 
         services.api.crud.Secrets().store_project_secrets(
@@ -1103,7 +1216,9 @@ class MonitoringDeployment:
             ),
         )
 
-    def _is_the_same_cred(self, endpoint_store_connection: str, stream_path: str, tsdb_connection: str) -> bool:
+    def _is_the_same_cred(
+        self, endpoint_store_connection: str, stream_path: str, tsdb_connection: str
+    ) -> bool:
         credentials_dict = {
             key: services.api.crud.Secrets().get_project_secret(
                 project=self.project,
@@ -1114,19 +1229,25 @@ class MonitoringDeployment:
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
 
-        old_store = credentials_dict[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION]
+        old_store = credentials_dict[
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+        ]
         if endpoint_store_connection and old_store != endpoint_store_connection:
             logger.debug(
                 "User provided different endpoint store connection",
             )
             return False
-        old_stream = credentials_dict[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH]
+        old_stream = credentials_dict[
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+        ]
         if stream_path and old_stream != stream_path:
             logger.debug(
                 "User provided different stream path",
             )
             return False
-        old_tsdb = credentials_dict[mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION]
+        old_tsdb = credentials_dict[
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+        ]
         if tsdb_connection and old_tsdb != tsdb_connection:
             logger.debug(
                 "User provided different tsdb connection",
@@ -1135,7 +1256,9 @@ class MonitoringDeployment:
         return True
 
     def _create_stream_output(self, stream_path: str = None, access_key: str = None):
-        stream_path = services.api.crud.model_monitoring.get_stream_path(project=self.project, stream_uri=stream_path)
+        stream_path = services.api.crud.model_monitoring.get_stream_path(
+            project=self.project, stream_uri=stream_path
+        )
         if not mlrun.mlconf.is_ce_mode():
             access_key = access_key or self.model_monitoring_access_key
         else:
@@ -1178,6 +1301,8 @@ def get_endpoint_features(
     # Create feature object and add it to a general features list
     features = []
     for name in feature_names:
-        f = mlrun.common.schemas.Features.new(name, safe_feature_stats.get(name), safe_current_stats.get(name))
+        f = mlrun.common.schemas.Features.new(
+            name, safe_feature_stats.get(name), safe_current_stats.get(name)
+        )
         features.append(f)
     return features

@@ -51,6 +51,8 @@ def test_vault_create_project_secrets(db: Session, client: TestClient):
     }
     headers = {mlrun.common.schemas.HeaderNames.secret_store_token: user_token}
 
-    response = client.get(f"projects/{project_name}/secrets", headers=headers, params=params)
+    response = client.get(
+        f"projects/{project_name}/secrets", headers=headers, params=params
+    )
     secrets = response.json()["secrets"]
     assert secrets == data["secrets"]

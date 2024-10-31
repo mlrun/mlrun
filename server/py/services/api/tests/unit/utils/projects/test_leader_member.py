@@ -82,7 +82,9 @@ def test_projects_sync_follower_project_adoption(
     _assert_no_projects_in_followers([leader_follower, second_nop_follower])
 
     projects_leader._sync_projects()
-    _assert_project_in_followers([leader_follower, nop_follower, second_nop_follower], project)
+    _assert_project_in_followers(
+        [leader_follower, nop_follower, second_nop_follower], project
+    )
 
 
 def test_projects_sync_mid_deletion(
@@ -106,7 +108,9 @@ def test_projects_sync_mid_deletion(
         spec=mlrun.common.schemas.ProjectSpec(description=project_description),
     )
     projects_leader.create_project(db, project)
-    _assert_project_in_followers([leader_follower, nop_follower, second_nop_follower], project)
+    _assert_project_in_followers(
+        [leader_follower, nop_follower, second_nop_follower], project
+    )
     original_leader_follower_delete_project = leader_follower.delete_project
 
     def mock_sync_projects_mid_deletion(*args, **kwargs):
@@ -116,10 +120,14 @@ def test_projects_sync_mid_deletion(
     leader_follower.delete_project = mock_sync_projects_mid_deletion
     projects_leader.delete_project(db, project_name)
 
-    _assert_no_projects_in_followers([leader_follower, nop_follower, second_nop_follower])
+    _assert_no_projects_in_followers(
+        [leader_follower, nop_follower, second_nop_follower]
+    )
 
     projects_leader._sync_projects()
-    _assert_no_projects_in_followers([leader_follower, nop_follower, second_nop_follower])
+    _assert_no_projects_in_followers(
+        [leader_follower, nop_follower, second_nop_follower]
+    )
 
 
 def test_projects_sync_leader_project_syncing(
@@ -152,7 +160,9 @@ def test_projects_sync_leader_project_syncing(
     _assert_no_projects_in_followers([nop_follower, second_nop_follower])
 
     projects_leader._sync_projects()
-    _assert_project_in_followers([leader_follower, nop_follower, second_nop_follower], project)
+    _assert_project_in_followers(
+        [leader_follower, nop_follower, second_nop_follower], project
+    )
     _assert_project_not_in_followers(
         [nop_follower, second_nop_follower],
         invalid_project_name,
@@ -169,14 +179,20 @@ def test_projects_sync_multiple_follower_project_adoption(
     second_follower_project_name = "project-name-2"
     second_follower_project_description = "some description 2"
     second_follower_project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=second_follower_project_name),
-        spec=mlrun.common.schemas.ProjectSpec(description=second_follower_project_description),
+        metadata=mlrun.common.schemas.ProjectMetadata(
+            name=second_follower_project_name
+        ),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description=second_follower_project_description
+        ),
     )
     both_followers_project_name = "project-name"
     both_followers_project_description = "some description"
     both_followers_project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=both_followers_project_name),
-        spec=mlrun.common.schemas.ProjectSpec(description=both_followers_project_description),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description=both_followers_project_description
+        ),
     )
     nop_follower.create_project(
         None,
@@ -190,15 +206,25 @@ def test_projects_sync_multiple_follower_project_adoption(
         None,
         second_follower_project,
     )
-    leader_follower.create_project = unittest.mock.Mock(wraps=leader_follower.create_project)
-    _assert_project_in_followers([nop_follower, second_nop_follower], both_followers_project, enriched=False)
-    _assert_project_in_followers([second_nop_follower], second_follower_project, enriched=False)
+    leader_follower.create_project = unittest.mock.Mock(
+        wraps=leader_follower.create_project
+    )
+    _assert_project_in_followers(
+        [nop_follower, second_nop_follower], both_followers_project, enriched=False
+    )
+    _assert_project_in_followers(
+        [second_nop_follower], second_follower_project, enriched=False
+    )
     _assert_no_projects_in_followers([leader_follower])
 
     projects_leader._sync_projects()
-    _assert_project_in_followers([leader_follower, nop_follower, second_nop_follower], both_followers_project)
+    _assert_project_in_followers(
+        [leader_follower, nop_follower, second_nop_follower], both_followers_project
+    )
 
-    _assert_project_in_followers([leader_follower, nop_follower, second_nop_follower], second_follower_project)
+    _assert_project_in_followers(
+        [leader_follower, nop_follower, second_nop_follower], second_follower_project
+    )
 
     # assert not tried to create project in leader twice
     assert leader_follower.create_project.call_count == 2
@@ -374,7 +400,9 @@ def test_store_project_update(
     # removing description from the projects and changing desired state
     updated_project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(desired_state=mlrun.common.schemas.ProjectState.archived),
+        spec=mlrun.common.schemas.ProjectSpec(
+            desired_state=mlrun.common.schemas.ProjectState.archived
+        ),
     )
 
     projects_leader.store_project(
@@ -399,7 +427,9 @@ def test_patch_project(
         None,
         project,
     )
-    _assert_project_in_followers([leader_follower, nop_follower], project, enriched=False)
+    _assert_project_in_followers(
+        [leader_follower, nop_follower], project, enriched=False
+    )
 
     # Adding description to the project and changing state
     project_description = "some description"
@@ -571,10 +601,24 @@ def _assert_no_projects_in_followers(followers):
         assert follower._projects == {}
 
 
-def _assert_project_in_followers(followers, project: mlrun.common.schemas.Project, enriched=True):
+def _assert_project_in_followers(
+    followers, project: mlrun.common.schemas.Project, enriched=True
+):
     for follower in followers:
-        assert follower._projects[project.metadata.name].metadata.name == project.metadata.name
-        assert follower._projects[project.metadata.name].spec.description == project.spec.description
-        assert follower._projects[project.metadata.name].spec.desired_state == project.spec.desired_state
+        assert (
+            follower._projects[project.metadata.name].metadata.name
+            == project.metadata.name
+        )
+        assert (
+            follower._projects[project.metadata.name].spec.description
+            == project.spec.description
+        )
+        assert (
+            follower._projects[project.metadata.name].spec.desired_state
+            == project.spec.desired_state
+        )
         if enriched:
-            assert follower._projects[project.metadata.name].status.state == project.spec.desired_state
+            assert (
+                follower._projects[project.metadata.name].status.state
+                == project.spec.desired_state
+            )

@@ -33,8 +33,12 @@ async def overwrite_object_tags_with_tag(
     project: str,
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
     tag_objects: mlrun.common.schemas.TagObjects = fastapi.Body(...),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        services.api.api.deps.get_db_session
+    ),
 ):
     await fastapi.concurrency.run_in_threadpool(
         services.api.utils.singletons.project_member.get_project_member().ensure_project,
@@ -68,8 +72,12 @@ async def append_tag_to_objects(
     project: str,
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
     tag_objects: mlrun.common.schemas.TagObjects = fastapi.Body(...),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        services.api.api.deps.get_db_session
+    ),
 ):
     await fastapi.concurrency.run_in_threadpool(
         services.api.utils.singletons.project_member.get_project_member().ensure_project,
@@ -101,8 +109,12 @@ async def delete_tag_from_objects(
     project: str,
     tag: str,
     tag_objects: mlrun.common.schemas.TagObjects,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        services.api.api.deps.get_db_session
+    ),
 ):
     await fastapi.concurrency.run_in_threadpool(
         services.api.utils.singletons.project_member.get_project_member().ensure_project,

@@ -61,7 +61,9 @@ class Artifacts(
 
         # TODO: remove this in 1.8.0
         if mlrun.utils.helpers.is_legacy_artifact(artifact):
-            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(artifact).to_dict()
+            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact
+            ).to_dict()
 
         return services.api.utils.singletons.db.get_db().store_artifact(
             db_session,
@@ -199,7 +201,9 @@ class Artifacts(
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_artifact_tags(db_session, project, category)
+        return services.api.utils.singletons.db.get_db().list_artifact_tags(
+            db_session, project, category
+        )
 
     def delete_artifact(
         self,
@@ -267,7 +271,9 @@ class Artifacts(
             if "target_path" in artifact["spec"]:
                 path = artifact["spec"].get("target_path")
                 try:
-                    file_stat = services.api.crud.Files().get_filestat(auth_info, path=path)
+                    file_stat = services.api.crud.Files().get_filestat(
+                        auth_info, path=path
+                    )
                     artifact["spec"]["size"] = file_stat["size"]
                 except Exception as err:
                     logger.debug(
@@ -276,7 +282,9 @@ class Artifacts(
                         err=err_to_str(err),
                     )
         if "spec" in artifact and "inline" in artifact["spec"]:
-            mlrun.utils.helpers.validate_inline_artifact_body_size(artifact["spec"]["inline"])
+            mlrun.utils.helpers.validate_inline_artifact_body_size(
+                artifact["spec"]["inline"]
+            )
 
     def _delete_artifact_data(
         self,
@@ -317,12 +325,16 @@ class Artifacts(
                 raise mlrun.errors.MLRunNotImplementedServerError(
                     f"Deleting artifact data kind: {artifact_kind} is currently not supported"
                 )
-            if artifact_kind == "dataset" and not mlrun.utils.helpers.is_parquet_file(path):
+            if artifact_kind == "dataset" and not mlrun.utils.helpers.is_parquet_file(
+                path
+            ):
                 raise mlrun.errors.MLRunNotImplementedServerError(
                     "Deleting artifact data of kind 'dataset' is currently supported for a single file only"
                 )
 
-            services.api.crud.Files().delete_artifact_data(auth_info, project, path, secrets=secrets)
+            services.api.crud.Files().delete_artifact_data(
+                auth_info, project, path, secrets=secrets
+            )
         except Exception as exc:
             logger.debug(
                 "Failed delete artifact data",
@@ -332,5 +344,8 @@ class Artifacts(
                 err=err_to_str(exc),
             )
 
-            if deletion_strategy == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force:
+            if (
+                deletion_strategy
+                == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
+            ):
                 raise

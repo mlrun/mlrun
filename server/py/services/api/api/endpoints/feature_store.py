@@ -230,9 +230,13 @@ async def list_feature_sets(
     entities: list[str] = Query(None, alias="entity"),
     features: list[str] = Query(None, alias="feature"),
     labels: list[str] = Query(None, alias="label"),
-    partition_by: mlrun.common.schemas.FeatureStorePartitionByField = Query(None, alias="partition-by"),
+    partition_by: mlrun.common.schemas.FeatureStorePartitionByField = Query(
+        None, alias="partition-by"
+    ),
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
-    partition_sort_by: mlrun.common.schemas.SortField = Query(None, alias="partition-sort-by"),
+    partition_sort_by: mlrun.common.schemas.SortField = Query(
+        None, alias="partition-sort-by"
+    ),
     partition_order: mlrun.common.schemas.OrderType = Query(
         mlrun.common.schemas.OrderType.desc, alias="partition-order"
     ),
@@ -299,16 +303,22 @@ async def list_feature_sets_tags(
     )
     feature_set_name_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
     auth_verifier = services.api.utils.auth.verifier.AuthVerifier()
-    allowed_feature_set_names = await auth_verifier.filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
-        list(feature_set_name_to_tag.keys()),
-        lambda feature_set_name: (
-            project,
-            feature_set_name,
-        ),
-        auth_info,
+    allowed_feature_set_names = (
+        await auth_verifier.filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
+            list(feature_set_name_to_tag.keys()),
+            lambda feature_set_name: (
+                project,
+                feature_set_name,
+            ),
+            auth_info,
+        )
     )
-    tags = {tag_tuple[2] for tag_tuple in tag_tuples if tag_tuple[1] in allowed_feature_set_names}
+    tags = {
+        tag_tuple[2]
+        for tag_tuple in tag_tuples
+        if tag_tuple[1] in allowed_feature_set_names
+    }
     return mlrun.common.schemas.FeatureSetsTagsOutput(tags=list(tags))
 
 
@@ -331,7 +341,10 @@ def _has_v3io_path(data_source, data_targets, feature_set):
     if source:
         paths.append(source.path)
 
-    return any(path and (path.startswith("v3io://") or path.startswith("v3ios://")) for path in paths)
+    return any(
+        path and (path.startswith("v3io://") or path.startswith("v3ios://"))
+        for path in paths
+    )
 
 
 @router.post(
@@ -405,7 +418,10 @@ async def ingest_feature_set(
         services.api.api.utils.get_run_db_instance(db_session),
     )
     if ingest_parameters.targets:
-        data_targets = [DataTargetBase.from_dict(data_target.dict()) for data_target in ingest_parameters.targets]
+        data_targets = [
+            DataTargetBase.from_dict(data_target.dict())
+            for data_target in ingest_parameters.targets
+        ]
 
     run_config = RunConfig(
         owner=username,
@@ -440,7 +456,9 @@ async def ingest_feature_set(
     )
     # ingest may modify the feature-set contents, so returning the updated feature-set.
     result_feature_set = mlrun.common.schemas.FeatureSet(**feature_set.to_dict())
-    return mlrun.common.schemas.FeatureSetIngestOutput(feature_set=result_feature_set, run_object=run_params.to_dict())
+    return mlrun.common.schemas.FeatureSetIngestOutput(
+        feature_set=result_feature_set, run_object=run_params.to_dict()
+    )
 
 
 # TODO: Remove in 1.9.0
@@ -549,7 +567,9 @@ async def create_feature_vector(
         mlrun.common.schemas.AuthorizationAction.create,
         auth_info,
     )
-    await _verify_feature_vector_features_permissions(auth_info, project, feature_vector.dict())
+    await _verify_feature_vector_features_permissions(
+        auth_info, project, feature_vector.dict()
+    )
     feature_vector_uid = await run_in_threadpool(
         services.api.crud.FeatureStore().create_feature_vector,
         db_session,
@@ -595,7 +615,9 @@ async def get_feature_vector(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    await _verify_feature_vector_features_permissions(auth_info, project, feature_vector.dict())
+    await _verify_feature_vector_features_permissions(
+        auth_info, project, feature_vector.dict()
+    )
     return feature_vector
 
 
@@ -609,9 +631,13 @@ async def list_feature_vectors(
     state: str = None,
     tag: str = None,
     labels: list[str] = Query(None, alias="label"),
-    partition_by: mlrun.common.schemas.FeatureStorePartitionByField = Query(None, alias="partition-by"),
+    partition_by: mlrun.common.schemas.FeatureStorePartitionByField = Query(
+        None, alias="partition-by"
+    ),
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
-    partition_sort_by: mlrun.common.schemas.SortField = Query(None, alias="partition-sort-by"),
+    partition_sort_by: mlrun.common.schemas.SortField = Query(
+        None, alias="partition-sort-by"
+    ),
     partition_order: mlrun.common.schemas.OrderType = Query(
         mlrun.common.schemas.OrderType.desc, alias="partition-order"
     ),
@@ -646,7 +672,10 @@ async def list_feature_vectors(
         auth_info,
     )
     await asyncio.gather(
-        *[_verify_feature_vector_features_permissions(auth_info, project, fv.dict()) for fv in feature_vectors]
+        *[
+            _verify_feature_vector_features_permissions(auth_info, project, fv.dict())
+            for fv in feature_vectors
+        ]
     )
     return mlrun.common.schemas.FeatureVectorsOutput(feature_vectors=feature_vectors)
 
@@ -675,18 +704,26 @@ async def list_feature_vectors_tags(
         db_session,
         project,
     )
-    feature_vector_name_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
+    feature_vector_name_to_tag = {
+        tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples
+    }
     auth_verifier = services.api.utils.auth.verifier.AuthVerifier()
-    allowed_feature_vector_names = await auth_verifier.filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
-        list(feature_vector_name_to_tag.keys()),
-        lambda feature_vector_name: (
-            project,
-            feature_vector_name,
-        ),
-        auth_info,
+    allowed_feature_vector_names = (
+        await auth_verifier.filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.feature_vector,
+            list(feature_vector_name_to_tag.keys()),
+            lambda feature_vector_name: (
+                project,
+                feature_vector_name,
+            ),
+            auth_info,
+        )
     )
-    tags = {tag_tuple[2] for tag_tuple in tag_tuples if tag_tuple[1] in allowed_feature_vector_names}
+    tags = {
+        tag_tuple[2]
+        for tag_tuple in tag_tuples
+        if tag_tuple[1] in allowed_feature_vector_names
+    }
     return mlrun.common.schemas.FeatureVectorsTagsOutput(tags=list(tags))
 
 
@@ -716,7 +753,9 @@ async def store_feature_vector(
         mlrun.common.schemas.AuthorizationAction.update,
         auth_info,
     )
-    await _verify_feature_vector_features_permissions(auth_info, project, feature_vector.dict())
+    await _verify_feature_vector_features_permissions(
+        auth_info, project, feature_vector.dict()
+    )
     tag, uid = parse_reference(reference)
     uid = await run_in_threadpool(
         services.api.crud.FeatureStore().store_feature_vector,
@@ -759,7 +798,9 @@ async def patch_feature_vector(
         mlrun.common.schemas.AuthorizationAction.update,
         auth_info,
     )
-    await _verify_feature_vector_features_permissions(auth_info, project, feature_vector_patch)
+    await _verify_feature_vector_features_permissions(
+        auth_info, project, feature_vector_patch
+    )
     tag, uid = parse_reference(reference)
     await run_in_threadpool(
         services.api.crud.FeatureStore().patch_feature_vector,
@@ -815,7 +856,9 @@ async def _verify_feature_vector_features_permissions(
     feature_set_project_to_name_set_map = {}
     for feature in features:
         feature_set_uri, _, _ = mlrun.feature_store.common.parse_feature_string(feature)
-        _project, name, _, _ = mlrun.feature_store.common.parse_feature_set_uri(feature_set_uri, project)
+        _project, name, _, _ = mlrun.feature_store.common.parse_feature_set_uri(
+            feature_set_uri, project
+        )
         feature_set_project_to_name_set_map.setdefault(_project, set()).add(name)
     feature_set_project_name_tuples = []
     for _project, names in feature_set_project_to_name_set_map.items():

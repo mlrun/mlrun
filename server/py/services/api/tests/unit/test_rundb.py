@@ -132,9 +132,15 @@ def test_artifacts(db: RunDBInterface):
     }
     db.store_artifact(k1, new_artifact, tree=t1)
     db_artifact = db.read_artifact(k1, tree=t1)
-    assert new_artifact["metadata"]["description"] == db_artifact["metadata"]["description"], "get artifact"
+    assert (
+        new_artifact["metadata"]["description"]
+        == db_artifact["metadata"]["description"]
+    ), "get artifact"
     db_artifact = db.read_artifact(k1)
-    assert new_artifact["metadata"]["description"] == db_artifact["metadata"]["description"], "get latest artifact"
+    assert (
+        new_artifact["metadata"]["description"]
+        == db_artifact["metadata"]["description"]
+    ), "get latest artifact"
 
     prj = "p1"
     art2 = {

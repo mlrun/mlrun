@@ -171,7 +171,9 @@ class DatasetArtifact(Artifact):
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
-            raise ValueError(f"Unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}")
+            raise ValueError(
+                f"Unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
+            )
 
         if format == "pq":
             format = "parquet"
@@ -190,7 +192,9 @@ class DatasetArtifact(Artifact):
                 # If df is a Dask DataFrame, and it's small in-memory, convert to Pandas
                 if (df.memory_usage(deep=True).sum().compute() / 1e9) < max_ddf_size:
                     df = df.compute()
-            self.update_preview_fields_from_df(self, df, stats, preview, ignore_preview_limits)
+            self.update_preview_fields_from_df(
+                self, df, stats, preview, ignore_preview_limits
+            )
 
         self._df = df
         self._kw = kwargs
@@ -213,12 +217,16 @@ class DatasetArtifact(Artifact):
                 (
                     self.metadata.hash,
                     self.spec.target_path,
-                ) = self.resolve_file_target_hash_path(self.spec.src_path, artifact_path=artifact_path)
+                ) = self.resolve_file_target_hash_path(
+                    self.spec.src_path, artifact_path=artifact_path
+                )
             else:
                 (
                     self.metadata.hash,
                     self.spec.target_path,
-                ) = self.resolve_dataframe_target_hash_path(self._df, artifact_path=artifact_path)
+                ) = self.resolve_dataframe_target_hash_path(
+                    self._df, artifact_path=artifact_path
+                )
 
         suffix = pathlib.Path(self.spec.target_path).suffix
         format = self.spec.format
@@ -241,7 +249,9 @@ class DatasetArtifact(Artifact):
         else:
             body = self.get_body()
             if body:
-                self._upload_body(body=body, target=self.target_path, artifact_path=artifact_path)
+                self._upload_body(
+                    body=body, target=self.target_path, artifact_path=artifact_path
+                )
             else:
                 # don't fail if no df or body
                 self.spec.size, self.metadata.hash = None, None
@@ -253,7 +263,9 @@ class DatasetArtifact(Artifact):
             )
         dataframe_hash = mlrun.utils.helpers.calculate_dataframe_hash(dataframe)
         suffix = self._resolve_suffix()
-        artifact_path = artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
+        artifact_path = (
+            artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
+        )
         target_path = f"{artifact_path}{dataframe_hash}{suffix}"
         return dataframe_hash, target_path
 
@@ -278,7 +290,9 @@ class DatasetArtifact(Artifact):
         return fmt in DatasetArtifact.SUPPORTED_FORMATS
 
     @staticmethod
-    def update_preview_fields_from_df(artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False):
+    def update_preview_fields_from_df(
+        artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False
+    ):
         preview_rows_length = preview_rows_length or default_preview_rows_length
         if hasattr(df, "dask"):
             artifact.spec.length = df.shape[0].compute()
@@ -305,7 +319,9 @@ class DatasetArtifact(Artifact):
         # set artifact stats if stats is explicitly set to true, or if stats is None and the dataframe is small
         if stats or (
             stats is None
-            and (artifact.spec.length < max_csv and len(df.columns) < max_preview_columns)
+            and (
+                artifact.spec.length < max_csv and len(df.columns) < max_preview_columns
+            )
             or ignore_preview_limits
         ):
             artifact.status.stats = get_df_stats(df)
@@ -423,7 +439,9 @@ def update_dataset_meta(
         raise ValueError(f"store artifact ({artifact}) is not dataset kind")
 
     if from_df is not None:
-        DatasetArtifact.update_preview_fields_from_df(artifact_spec, from_df, stats, ignore_preview_limits)
+        DatasetArtifact.update_preview_fields_from_df(
+            artifact_spec, from_df, stats, ignore_preview_limits
+        )
 
     if header:
         artifact_spec.spec.header = header
@@ -455,7 +473,9 @@ def update_dataset_meta(
     )
 
 
-def upload_dataframe(df, target_path, format, src_path=None, **kw) -> tuple[Optional[int], Optional[str]]:
+def upload_dataframe(
+    df, target_path, format, src_path=None, **kw
+) -> tuple[Optional[int], Optional[str]]:
     if src_path and os.path.isfile(src_path):
         mlrun.datastore.store_manager.object(url=target_path).upload(src_path)
         return (

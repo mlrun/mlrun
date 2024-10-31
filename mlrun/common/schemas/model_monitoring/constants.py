@@ -258,7 +258,9 @@ class FunctionURI:
 
     @classmethod
     def from_string(cls, function_uri):
-        project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(
+            function_uri
+        )
         return cls(
             project=project,
             function=uri,
@@ -293,7 +295,9 @@ class EndpointUID:
     uid: str = field(init=False)
 
     def __post_init__(self):
-        function_ref = f"{self.function}_{self.function_tag or self.function_hash_key or 'N/A'}"
+        function_ref = (
+            f"{self.function}_{self.function_tag or self.function_hash_key or 'N/A'}"
+        )
         versioned_model = f"{self.model}_{self.model_version or 'N/A'}"
         unique_string = f"{self.project}_{function_ref}_{versioned_model}"
         self.uid = hashlib.sha1(unique_string.encode("utf-8")).hexdigest()

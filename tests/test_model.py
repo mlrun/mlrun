@@ -61,7 +61,9 @@ def test_enum_yaml_dump():
         ),
     ],
 )
-def test_runobject_to_json_with_exclude_params(exclude_params, expected_result, is_empty):
+def test_runobject_to_json_with_exclude_params(
+    exclude_params, expected_result, is_empty
+):
     run_object_to_test = mlrun.model.RunObject()
     notification = mlrun.model.Notification(
         kind="webhook",
@@ -76,10 +78,17 @@ def test_runobject_to_json_with_exclude_params(exclude_params, expected_result, 
     run_object_to_test.spec.notifications = [] if is_empty else [notification]
 
     # Call the to_json function with the exclude_notifications_params parameter
-    json_result = run_object_to_test.to_json(exclude_notifications_params=exclude_params)
+    json_result = run_object_to_test.to_json(
+        exclude_notifications_params=exclude_params
+    )
 
     # Check if the JSON result matches the expected result
-    assert deepdiff.DeepDiff(json.loads(json_result), json.loads(expected_result), ignore_order=True) == {}
+    assert (
+        deepdiff.DeepDiff(
+            json.loads(json_result), json.loads(expected_result), ignore_order=True
+        )
+        == {}
+    )
 
     # Ensure the 'params' attribute of the notification is set back to the object
     if not is_empty:

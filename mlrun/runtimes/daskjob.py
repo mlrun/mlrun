@@ -140,7 +140,9 @@ class DaskSpec(KubeResourceSpec):
         self._scheduler_resources = self.enrich_resources_with_default_pod_resources(
             "scheduler_resources", scheduler_resources
         )
-        self._worker_resources = self.enrich_resources_with_default_pod_resources("worker_resources", worker_resources)
+        self._worker_resources = self.enrich_resources_with_default_pod_resources(
+            "worker_resources", worker_resources
+        )
 
         self.state_thresholds = None  # not supported in dask
 
@@ -150,7 +152,9 @@ class DaskSpec(KubeResourceSpec):
 
     @scheduler_resources.setter
     def scheduler_resources(self, resources):
-        self._scheduler_resources = self.enrich_resources_with_default_pod_resources("scheduler_resources", resources)
+        self._scheduler_resources = self.enrich_resources_with_default_pod_resources(
+            "scheduler_resources", resources
+        )
 
     @property
     def worker_resources(self) -> dict:
@@ -158,7 +162,9 @@ class DaskSpec(KubeResourceSpec):
 
     @worker_resources.setter
     def worker_resources(self, resources):
-        self._worker_resources = self.enrich_resources_with_default_pod_resources("worker_resources", resources)
+        self._worker_resources = self.enrich_resources_with_default_pod_resources(
+            "worker_resources", resources
+        )
 
 
 class DaskStatus(FunctionStatus):
@@ -254,9 +260,17 @@ class DaskCluster(KubejobRuntime):
                 background_task = db.get_project_background_task(
                     background_task.metadata.project, background_task.metadata.name
                 )
-                if background_task.status.state in mlrun.common.schemas.BackgroundTaskState.terminal_states():
-                    if background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed:
-                        raise mlrun.errors.MLRunRuntimeError("Failed bringing up dask cluster")
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+                ):
+                    if (
+                        background_task.status.state
+                        == mlrun.common.schemas.BackgroundTaskState.failed
+                    ):
+                        raise mlrun.errors.MLRunRuntimeError(
+                            "Failed bringing up dask cluster"
+                        )
                     else:
                         function = db.get_function(
                             self.metadata.name,
@@ -317,7 +331,9 @@ class DaskCluster(KubejobRuntime):
             try:
                 client = Client(addr)
             except OSError as exc:
-                logger.warning(f"Remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}")
+                logger.warning(
+                    f"Remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
+                )
 
                 status = self.get_status()
                 if status != "running":
@@ -325,7 +341,9 @@ class DaskCluster(KubejobRuntime):
                 addr, dash = self._remote_addresses()
                 client = Client(addr)
 
-            logger.info(f"Using remote dask scheduler ({self.status.cluster_name}) at: {addr}")
+            logger.info(
+                f"Using remote dask scheduler ({self.status.cluster_name}) at: {addr}"
+            )
             if dash:
                 ipython_display(
                     f'<a href="http://{dash}/status" target="_blank" >dashboard link: {dash}</a>',
@@ -398,7 +416,9 @@ class DaskCluster(KubejobRuntime):
         set scheduler pod resources limits
         by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
         """
-        self.spec._verify_and_set_limits("scheduler_resources", mem, cpu, gpus, gpu_type, patch=patch)
+        self.spec._verify_and_set_limits(
+            "scheduler_resources", mem, cpu, gpus, gpu_type, patch=patch
+        )
 
     def with_worker_limits(
         self,
@@ -412,21 +432,27 @@ class DaskCluster(KubejobRuntime):
         set worker pod resources limits
         by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
         """
-        self.spec._verify_and_set_limits("worker_resources", mem, cpu, gpus, gpu_type, patch=patch)
+        self.spec._verify_and_set_limits(
+            "worker_resources", mem, cpu, gpus, gpu_type, patch=patch
+        )
 
     def with_requests(self, mem=None, cpu=None, patch: bool = False):
         raise NotImplementedError(
             "Use with_scheduler_requests/with_worker_requests to set resource requests",
         )
 
-    def with_scheduler_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+    def with_scheduler_requests(
+        self, mem: str = None, cpu: str = None, patch: bool = False
+    ):
         """
         set scheduler pod resources requests
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
         """
         self.spec._verify_and_set_requests("scheduler_resources", mem, cpu, patch=patch)
 
-    def with_worker_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+    def with_worker_requests(
+        self, mem: str = None, cpu: str = None, patch: bool = False
+    ):
         """
         set worker pod resources requests
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
@@ -444,7 +470,9 @@ class DaskCluster(KubejobRuntime):
 
     def run(
         self,
-        runspec: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]] = None,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",

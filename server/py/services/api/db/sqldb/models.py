@@ -53,7 +53,9 @@ def post_table_definitions(base_cls):
     global _classes
     _tagged = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Tag")]
     _labeled = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Label")]
-    _with_notifications = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Notification")]
+    _with_notifications = [
+        cls for cls in base_cls.__subclasses__() if hasattr(cls, "Notification")
+    ]
     _classes = [cls for cls in base_cls.__subclasses__()]
 
 
@@ -79,7 +81,9 @@ def make_label(table):
 def make_tag(table):
     class Tag(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_tags"
-        __table_args__ = (UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),)
+        __table_args__ = (
+            UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
+        )
 
         id = Column(Integer, primary_key=True)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -94,7 +98,9 @@ def make_tag(table):
 def make_tag_v2(table):
     class Tag(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_tags"
-        __table_args__ = (UniqueConstraint("project", "name", "obj_name", name=f"_{table}_tags_uc"),)
+        __table_args__ = (
+            UniqueConstraint("project", "name", "obj_name", name=f"_{table}_tags_uc"),
+        )
 
         id = Column(Integer, primary_key=True)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -141,16 +147,24 @@ def make_artifact_tag(table):
 def make_notification(table):
     class Notification(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_notifications"
-        __table_args__ = (UniqueConstraint("name", "parent_id", name=f"_{table}_notifications_uc"),)
+        __table_args__ = (
+            UniqueConstraint("name", "parent_id", name=f"_{table}_notifications_uc"),
+        )
 
         id = Column(Integer, primary_key=True)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         kind = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        message = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        severity = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        message = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
         when = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        condition = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        condition = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
         secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
         parent_id = Column(Integer, ForeignKey(f"{table}.id"))
@@ -180,7 +194,9 @@ with warnings.catch_warnings():
     #  2. upgrade to 1.7.x which will remove the old table
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
-        __table_args__ = (UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),)
+        __table_args__ = (
+            UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
+        )
 
         Label = make_label(__tablename__)
         Tag = make_tag(__tablename__)
@@ -254,7 +270,9 @@ with warnings.catch_warnings():
 
     class Function(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "functions"
-        __table_args__ = (UniqueConstraint("name", "project", "uid", name="_functions_uc"),)
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_functions_uc"),
+        )
 
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)
@@ -299,7 +317,9 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
         project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()), default="no-name")
+        name = Column(
+            String(255, collation=SQLTypesUtil.collation()), default="no-name"
+        )
         iteration = Column(Integer)
         state = Column(String(255, collation=SQLTypesUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
@@ -321,11 +341,15 @@ with warnings.catch_warnings():
 
     class BackgroundTask(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "background_tasks"
-        __table_args__ = (UniqueConstraint("name", "project", name="_background_tasks_uc"),)
+        __table_args__ = (
+            UniqueConstraint("name", "project", name="_background_tasks_uc"),
+        )
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        project = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
         created = Column(
             SQLTypesUtil.timestamp(),
             default=datetime.now(timezone.utc),
@@ -348,7 +372,9 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         kind = Column(String(255, collation=SQLTypesUtil.collation()))
         desired_state = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -464,7 +490,9 @@ with warnings.catch_warnings():
 
     class FeatureSet(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "feature_sets"
-        __table_args__ = (UniqueConstraint("name", "project", "uid", name="_feature_set_uc"),)
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_feature_set_uc"),
+        )
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -506,7 +534,9 @@ with warnings.catch_warnings():
 
     class FeatureVector(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "feature_vectors"
-        __table_args__ = (UniqueConstraint("name", "project", "uid", name="_feature_vectors_uc"),)
+        __table_args__ = (
+            UniqueConstraint("name", "project", "uid", name="_feature_vectors_uc"),
+        )
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -590,7 +620,9 @@ with warnings.catch_warnings():
 
     class DatastoreProfile(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "datastore_profiles"
-        __table_args__ = (UniqueConstraint("name", "project", name="_datastore_profiles_uc"),)
+        __table_args__ = (
+            UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
+        )
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -661,13 +693,17 @@ with warnings.catch_warnings():
 
     class AlertConfig(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_configs"
-        __table_args__ = (UniqueConstraint("project", "name", name="_alert_configs_uc"),)
+        __table_args__ = (
+            UniqueConstraint("project", "name", name="_alert_configs_uc"),
+        )
 
         Notification = make_notification(__tablename__)
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        project = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
 
         notifications = relationship(Notification, cascade="all, delete-orphan")
         alerts = relationship(AlertState, cascade="all, delete-orphan")
@@ -712,7 +748,9 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
         updated = Column(SQLTypesUtil.datetime())
         summary = Column(JSON)
 
@@ -723,7 +761,9 @@ with warnings.catch_warnings():
         __tablename__ = "time_window_trackers"
 
         key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
-        timestamp = Column(SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc))
+        timestamp = Column(
+            SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
+        )
         max_window_size_seconds = Column(Integer)
 
         def get_identifier_string(self) -> str:

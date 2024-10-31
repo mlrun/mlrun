@@ -38,14 +38,20 @@ class Provider(
         super().__init__()
         self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
         self._api_url = mlrun.mlconf.httpdb.authorization.opa.address
-        self._permission_query_path = mlrun.mlconf.httpdb.authorization.opa.permission_query_path
+        self._permission_query_path = (
+            mlrun.mlconf.httpdb.authorization.opa.permission_query_path
+        )
         self._permission_filter_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_filter_path
             # a little hack to make this work until the provisioners of mlrun start configuring the filter path
             # TODO: remove me
-            or mlrun.mlconf.httpdb.authorization.opa.permission_query_path.replace("allow", "filter_allowed")
+            or mlrun.mlconf.httpdb.authorization.opa.permission_query_path.replace(
+                "allow", "filter_allowed"
+            )
         )
-        self._request_timeout = int(mlrun.mlconf.httpdb.authorization.opa.request_timeout)
+        self._request_timeout = int(
+            mlrun.mlconf.httpdb.authorization.opa.request_timeout
+        )
         self._log_level = int(mlrun.mlconf.httpdb.authorization.opa.log_level)
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._allowed_project_owners_cache_ttl_seconds = humanfriendly.parse_timespan(
@@ -80,20 +86,26 @@ class Provider(
             )
             create_allowed, update_allowed = results
             return create_allowed and update_allowed
-        if services.api.utils.helpers.is_request_from_leader(auth_info.projects_role, leader_name=self._leader_name):
+        if services.api.utils.helpers.is_request_from_leader(
+            auth_info.projects_role, leader_name=self._leader_name
+        ):
             return True
         if self._check_allowed_project_owners_cache(resource, auth_info):
             return True
         body = self._generate_permission_request_body(resource, action, auth_info)
         if self._log_level > 5:
             logger.debug("Sending request to OPA", body=body)
-        async with self._send_request_to_api("POST", self._permission_query_path, json=body) as response:
+        async with self._send_request_to_api(
+            "POST", self._permission_query_path, json=body
+        ) as response:
             response_body = await response.json()
         if self._log_level > 5:
             logger.debug("Received response from OPA", body=response_body)
         allowed = response_body["result"]
         if not allowed and raise_on_forbidden:
-            raise mlrun.errors.MLRunAccessDeniedError(f"Not allowed to {action} resource {resource}")
+            raise mlrun.errors.MLRunAccessDeniedError(
+                f"Not allowed to {action} resource {resource}"
+            )
         return allowed
 
     async def filter_by_permissions(
@@ -106,7 +118,9 @@ class Provider(
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.common.schemas.AuthorizationAction.store:
             raise NotImplementedError("Store action is not supported in filtering")
-        if services.api.utils.helpers.is_request_from_leader(auth_info.projects_role, leader_name=self._leader_name):
+        if services.api.utils.helpers.is_request_from_leader(
+            auth_info.projects_role, leader_name=self._leader_name
+        ):
             return resources
         opa_resources = []
         for resource in resources:
@@ -122,7 +136,9 @@ class Provider(
         body = self._generate_filter_request_body(opa_resources, action, auth_info)
         if self._log_level > 5:
             logger.debug("Sending filter request to OPA", body=body)
-        async with self._send_request_to_api("POST", self._permission_filter_path, json=body) as response:
+        async with self._send_request_to_api(
+            "POST", self._permission_filter_path, json=body
+        ) as response:
             response_body = await response.json()
         if self._log_level > 5:
             logger.debug("Received filter response from OPA", body=response_body)
@@ -133,23 +149,35 @@ class Provider(
                 allowed_resources.append(resources[index])
         return allowed_resources
 
-    def add_allowed_project_for_owner(self, project_name: str, auth_info: mlrun.common.schemas.AuthInfo):
-        if not auth_info.user_id or not project_name or not self._allowed_project_owners_cache_ttl_seconds:
+    def add_allowed_project_for_owner(
+        self, project_name: str, auth_info: mlrun.common.schemas.AuthInfo
+    ):
+        if (
+            not auth_info.user_id
+            or not project_name
+            or not self._allowed_project_owners_cache_ttl_seconds
+        ):
             # Simply won't be cached, no need to explode
             return
         allowed_projects = {}
         if auth_info.user_id in self._allowed_project_owners_cache:
             allowed_projects = self._allowed_project_owners_cache[auth_info.user_id]
-        ttl = datetime.datetime.now() + datetime.timedelta(seconds=self._allowed_project_owners_cache_ttl_seconds)
+        ttl = datetime.datetime.now() + datetime.timedelta(
+            seconds=self._allowed_project_owners_cache_ttl_seconds
+        )
         allowed_projects[project_name] = ttl
         self._allowed_project_owners_cache[auth_info.user_id] = allowed_projects
 
-    def _check_allowed_project_owners_cache(self, resource: str, auth_info: mlrun.common.schemas.AuthInfo):
+    def _check_allowed_project_owners_cache(
+        self, resource: str, auth_info: mlrun.common.schemas.AuthInfo
+    ):
         # Cache shouldn't be big, simply clean it on get instead of scheduling it
         self._clean_expired_records_from_cache()
         if auth_info.user_id not in self._allowed_project_owners_cache:
             return False
-        allowed_projects = list(self._allowed_project_owners_cache[auth_info.user_id].keys())
+        allowed_projects = list(
+            self._allowed_project_owners_cache[auth_info.user_id].keys()
+        )
         for allowed_project in allowed_projects:
             if f"/projects/{allowed_project}/" in resource:
                 return True
@@ -179,7 +207,9 @@ class Provider(
         await self._ensure_session()
         response = None
         try:
-            response = await self._session.request(method, url, verify_ssl=False, **kwargs)
+            response = await self._session.request(
+                method, url, verify_ssl=False, **kwargs
+            )
             if not response.ok:
                 await self._on_request_api_failure(method, path, response, **kwargs)
             yield response

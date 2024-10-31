@@ -47,41 +47,63 @@ class Client(
         self._api_url = mlrun.mlconf.resolve_chief_api_url()
         self._api_url = self._api_url.rstrip("/")
 
-    async def get_internal_background_task(self, name: str, request: fastapi.Request = None) -> fastapi.Response:
+    async def get_internal_background_task(
+        self, name: str, request: fastapi.Request = None
+    ) -> fastapi.Response:
         """
         internal background tasks are managed by the chief only
         """
-        return await self._proxy_request_to_chief("GET", f"background-tasks/{name}", request)
+        return await self._proxy_request_to_chief(
+            "GET", f"background-tasks/{name}", request
+        )
 
-    async def get_internal_background_tasks(self, request: fastapi.Request = None) -> fastapi.Response:
+    async def get_internal_background_tasks(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
         """
         internal background tasks are managed by the chief only
         """
         return await self._proxy_request_to_chief("GET", "background-tasks", request)
 
-    async def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
+    async def trigger_migrations(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
         """
         only chief can execute migrations
         """
-        return await self._proxy_request_to_chief("POST", "operations/migrations", request)
+        return await self._proxy_request_to_chief(
+            "POST", "operations/migrations", request
+        )
 
-    async def create_schedule(self, project: str, request: fastapi.Request, json: dict) -> fastapi.Response:
+    async def create_schedule(
+        self, project: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return await self._proxy_request_to_chief("POST", f"projects/{project}/schedules", request, json)
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/schedules", request, json
+        )
 
-    async def update_schedule(self, project: str, name: str, request: fastapi.Request, json: dict) -> fastapi.Response:
+    async def update_schedule(
+        self, project: str, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return await self._proxy_request_to_chief("PUT", f"projects/{project}/schedules/{name}", request, json)
+        return await self._proxy_request_to_chief(
+            "PUT", f"projects/{project}/schedules/{name}", request, json
+        )
 
-    async def delete_schedule(self, project: str, name: str, request: fastapi.Request) -> fastapi.Response:
+    async def delete_schedule(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return await self._proxy_request_to_chief("DELETE", f"projects/{project}/schedules/{name}", request)
+        return await self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/schedules/{name}", request
+        )
 
     async def submit_workflow(
         self,
@@ -93,21 +115,33 @@ class Client(
         """
         Workflow schedules are running only on chief
         """
-        return await self._proxy_request_to_chief("POST", f"projects/{project}/workflows/{name}/submit", request, json)
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/workflows/{name}/submit", request, json
+        )
 
-    async def delete_schedules(self, project: str, request: fastapi.Request) -> fastapi.Response:
+    async def delete_schedules(
+        self, project: str, request: fastapi.Request
+    ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return await self._proxy_request_to_chief("DELETE", f"projects/{project}/schedules", request)
+        return await self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/schedules", request
+        )
 
-    async def invoke_schedule(self, project: str, name: str, request: fastapi.Request) -> fastapi.Response:
+    async def invoke_schedule(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return await self._proxy_request_to_chief("POST", f"projects/{project}/schedules/{name}/invoke", request)
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/schedules/{name}/invoke", request
+        )
 
-    async def submit_job(self, request: fastapi.Request, json: dict) -> fastapi.Response:
+    async def submit_job(
+        self, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
         """
         submit job can be responsible for creating schedules and schedules are running only on chief,
         so when the job contains a schedule, we re-route the request to chief
@@ -120,12 +154,16 @@ class Client(
             timeout=int(mlrun.mlconf.submit_timeout),
         )
 
-    async def build_function(self, request: fastapi.Request, json: dict) -> fastapi.Response:
+    async def build_function(
+        self, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
         """
         if serving function and track_models is enabled, it means that schedules will be created as part of
         building the function, then we re-route the request to chief
         """
-        return await self._proxy_request_to_chief("POST", "build/function", request, json)
+        return await self._proxy_request_to_chief(
+            "POST", "build/function", request, json
+        )
 
     async def delete_project(
         self, name, request: fastapi.Request, api_version: typing.Optional[str] = None
@@ -153,21 +191,33 @@ class Client(
             raise_on_failure=raise_on_failure,
         ) as chief_response:
             if return_fastapi_response:
-                return await self._convert_requests_response_to_fastapi_response(chief_response)
+                return await self._convert_requests_response_to_fastapi_response(
+                    chief_response
+                )
 
-            return mlrun.common.schemas.ClusterizationSpec(**(await chief_response.json()))
+            return mlrun.common.schemas.ClusterizationSpec(
+                **(await chief_response.json())
+            )
 
-    async def store_alert_template(self, name: str, request: fastapi.Request, json: dict) -> fastapi.Response:
+    async def store_alert_template(
+        self, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
         """
         Alert templates are running only on chief
         """
-        return await self._proxy_request_to_chief("PUT", f"alert_templates/{name}", request, json)
+        return await self._proxy_request_to_chief(
+            "PUT", f"alert_templates/{name}", request, json
+        )
 
-    async def delete_alert_template(self, name: str, request: fastapi.Request) -> fastapi.Response:
+    async def delete_alert_template(
+        self, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
         """
         Alert templates are running only on chief
         """
-        return await self._proxy_request_to_chief("DELETE", f"alert_templates/{name}", request)
+        return await self._proxy_request_to_chief(
+            "DELETE", f"alert_templates/{name}", request
+        )
 
     async def store_alert(
         self, project: str, name: str, request: fastapi.Request, json: dict
@@ -175,25 +225,39 @@ class Client(
         """
         Alerts are running only on chief
         """
-        return await self._proxy_request_to_chief("PUT", f"projects/{project}/alerts/{name}", request, json)
+        return await self._proxy_request_to_chief(
+            "PUT", f"projects/{project}/alerts/{name}", request, json
+        )
 
-    async def delete_alert(self, project: str, name: str, request: fastapi.Request) -> fastapi.Response:
+    async def delete_alert(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
         """
         Alerts are running only on chief
         """
-        return await self._proxy_request_to_chief("DELETE", f"projects/{project}/alerts/{name}", request)
+        return await self._proxy_request_to_chief(
+            "DELETE", f"projects/{project}/alerts/{name}", request
+        )
 
-    async def reset_alert(self, project: str, name: str, request: fastapi.Request) -> fastapi.Response:
+    async def reset_alert(
+        self, project: str, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
         """
         Alerts are running only on chief
         """
-        return await self._proxy_request_to_chief("POST", f"projects/{project}/alerts/{name}/reset", request)
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/alerts/{name}/reset", request
+        )
 
-    async def set_event(self, project: str, name: str, request: fastapi.Request, json: dict) -> fastapi.Response:
+    async def set_event(
+        self, project: str, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
         """
         Events are running only on chief
         """
-        return await self._proxy_request_to_chief("POST", f"projects/{project}/events/{name}", request, json)
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/events/{name}", request, json
+        )
 
     async def set_schedule_notifications(
         self, project: str, schedule_name: str, request: fastapi.Request, json: dict
@@ -218,7 +282,9 @@ class Client(
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(request, json, **kwargs)
+        request_kwargs = self._resolve_request_kwargs_from_request(
+            request, json, **kwargs
+        )
 
         async with self._send_request_to_api(
             method=method,
@@ -227,10 +293,14 @@ class Client(
             raise_on_failure=raise_on_failure,
             **request_kwargs,
         ) as chief_response:
-            return await self._convert_requests_response_to_fastapi_response(chief_response)
+            return await self._convert_requests_response_to_fastapi_response(
+                chief_response
+            )
 
     @staticmethod
-    def _resolve_request_kwargs_from_request(request: fastapi.Request = None, json: dict = None, **kwargs) -> dict:
+    def _resolve_request_kwargs_from_request(
+        request: fastapi.Request = None, json: dict = None, **kwargs
+    ) -> dict:
         request_kwargs = {}
         if request:
             json = json if json else {}
@@ -238,7 +308,9 @@ class Client(
             request_kwargs.update({"headers": dict(request.headers)})
             request_kwargs.update({"params": dict(request.query_params)})
             request_kwargs.update({"cookies": request.cookies})
-            request_kwargs["headers"].setdefault("x-request-id", request.state.request_id)
+            request_kwargs["headers"].setdefault(
+                "x-request-id", request.state.request_id
+            )
 
         # mask clients host with worker's host
         origin_host = request_kwargs.get("headers", {}).pop("host", None)
@@ -261,8 +333,12 @@ class Client(
             # e.g.: instead of having "x":"y" being escaped to "\"x\":\"y\"", it will be escaped to "%22x%22:%22y%22"
             elif cookie_name == "session" and mlrun.mlconf.is_running_on_iguazio():
                 # unquote first, to avoid double quoting ourselves, in case the cookie is already quoted
-                unquoted_session = urllib.parse.unquote(request_kwargs["cookies"][cookie_name])
-                request_kwargs["cookies"][cookie_name] = urllib.parse.quote(unquoted_session)
+                unquoted_session = urllib.parse.unquote(
+                    request_kwargs["cookies"][cookie_name]
+                )
+                request_kwargs["cookies"][cookie_name] = urllib.parse.quote(
+                    unquoted_session
+                )
 
         request_kwargs.update(**kwargs)
         return request_kwargs
@@ -276,7 +352,9 @@ class Client(
         return fastapi.responses.Response(
             content=await chief_response.text(),
             status_code=chief_response.status,
-            headers=dict(chief_response.headers),  # chief_response.headers is of type CaseInsensitiveDict
+            headers=dict(
+                chief_response.headers
+            ),  # chief_response.headers is of type CaseInsensitiveDict
             media_type="application/json",
         )
 
@@ -293,13 +371,19 @@ class Client(
         await self._ensure_session()
         url = f"{self._api_url}/api/{version}/{path}"
         if kwargs.get("timeout") is None:
-            kwargs["timeout"] = mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
+            kwargs["timeout"] = (
+                mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
+            )
         logger.debug("Sending request to chief", method=method, url=url, **kwargs)
         response = None
         try:
-            response = await self._session.request(method, url, verify_ssl=False, **kwargs)
+            response = await self._session.request(
+                method, url, verify_ssl=False, **kwargs
+            )
             if not response.ok:
-                await self._on_request_api_failure(method, path, response, raise_on_failure, **kwargs)
+                await self._on_request_api_failure(
+                    method, path, response, raise_on_failure, **kwargs
+                )
             else:
                 logger.debug(
                     "Request to chief succeeded",
@@ -328,7 +412,9 @@ class Client(
             # by returning `True`, we tell the client the response is "legit" and so, it returns it to its callee.
             self._session.retry_options.evaluate_response_callback = lambda _: True
 
-    async def _on_request_api_failure(self, method, path, response, raise_on_failure, **kwargs):
+    async def _on_request_api_failure(
+        self, method, path, response, raise_on_failure, **kwargs
+    ):
         log_kwargs = copy.deepcopy(kwargs)
         log_kwargs.update({"method": method, "path": path})
         log_kwargs.update(
@@ -346,7 +432,9 @@ class Client(
             except Exception:
                 pass
             else:
-                log_kwargs.update({"error": error, "error_stack_trace": error_stack_trace})
+                log_kwargs.update(
+                    {"error": error, "error_stack_trace": error_stack_trace}
+                )
         logger.warning("Request to chief failed", **log_kwargs)
         if raise_on_failure:
             mlrun.errors.raise_for_status(response)

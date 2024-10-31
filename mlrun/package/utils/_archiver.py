@@ -104,7 +104,9 @@ class _ZipArchiver(_Archiver):
 
         # Create the directory path, add timestamp to avoid collisions:
         directory_path = output_path / archive_path.stem
-        directory_path = directory_path.with_name(f"{directory_path.name}-{mlrun.utils.now_date().isoformat()}")
+        directory_path = directory_path.with_name(
+            f"{directory_path.name}-{mlrun.utils.now_date().isoformat()}"
+        )
         os.makedirs(directory_path)
 
         # Extract:
@@ -138,7 +140,9 @@ class _TarArchiver(_Archiver):
         output_path = Path(output_path)
 
         # Construct the archive file path:
-        archive_file_extension = "tar" if cls._MODE_STRING == "" else f"tar.{cls._MODE_STRING}"
+        archive_file_extension = (
+            "tar" if cls._MODE_STRING == "" else f"tar.{cls._MODE_STRING}"
+        )
         archive_path = output_path / f"{directory_path.stem}.{archive_file_extension}"
 
         # Archive:

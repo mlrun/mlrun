@@ -37,6 +37,8 @@ def test_clone_git_refs(ref, ref_type):
 
     with unittest.mock.patch("git.Repo.clone_from") as clone_from:
         _, repo_obj = mlrun.utils.clones.clone_git(url, context)
-        clone_from.assert_called_once_with(f"https://{repo}", context, single_branch=True, b=branch)
+        clone_from.assert_called_once_with(
+            f"https://{repo}", context, single_branch=True, b=branch
+        )
         if tag:
             repo_obj.git.checkout.assert_called_once_with(tag)

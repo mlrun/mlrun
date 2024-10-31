@@ -46,14 +46,18 @@ class ServerSideLauncher(launcher.BaseLauncher):
     ):
         super().__init__(**kwargs)
         if local:
-            raise mlrun.errors.MLRunPreconditionFailedError("Launch of local run inside the server is not allowed")
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Launch of local run inside the server is not allowed"
+            )
 
         self._auth_info = auth_info
 
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -63,7 +67,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
-        schedule: Optional[Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]] = None,
+        schedule: Optional[
+            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+        ] = None,
         hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
@@ -152,7 +158,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         else:
             # single run
             try:
-                runtime_handler = services.api.runtime_handlers.get_runtime_handler(runtime.kind)
+                runtime_handler = services.api.runtime_handlers.get_runtime_handler(
+                    runtime.kind
+                )
                 runtime_handler.run(runtime, run, execution)
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
@@ -248,7 +256,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
         # be able to communicate with the api
-        services.api.api.utils.ensure_function_has_auth_set(runtime, self._auth_info, allow_empty_access_key=not full)
+        services.api.api.utils.ensure_function_has_auth_set(
+            runtime, self._auth_info, allow_empty_access_key=not full
+        )
 
         if full:
             self._enrich_full_spec(runtime)
@@ -257,14 +267,18 @@ class ServerSideLauncher(launcher.BaseLauncher):
         services.api.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 
         # ensure the runtime has a project before we enrich it with the project's spec
-        runtime.metadata.project = project_name or runtime.metadata.project or mlrun.mlconf.default_project
+        runtime.metadata.project = (
+            project_name or runtime.metadata.project or mlrun.mlconf.default_project
+        )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db
         # in normal use cases if no project is found we will get an error
         if project:
             project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
             # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
-            mlrun.projects.pipelines.enrich_function_object(project, runtime, copy_function=False, try_auto_mount=False)
+            mlrun.projects.pipelines.enrich_function_object(
+                project, runtime, copy_function=False, try_auto_mount=False
+            )
 
         if (
             not runtime.spec.image
@@ -272,7 +286,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
             and not runtime.skip_image_enrichment()
         ):
-            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                runtime.kind
+            ]
 
     def _enrich_full_spec(
         self,
@@ -287,7 +303,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         # if existing in a project-secret.
         services.api.api.utils.process_function_service_account(runtime)
 
-        services.api.api.utils.ensure_function_security_context(runtime, self._auth_info)
+        services.api.api.utils.ensure_function_security_context(
+            runtime, self._auth_info
+        )
 
     def _save_notifications(self, runobj):
         if not self._run_has_valid_notifications(runobj):
@@ -303,12 +321,16 @@ class ServerSideLauncher(launcher.BaseLauncher):
             runobj.metadata.project,
         )
 
-    def _store_function(self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject):
+    def _store_function(
+        self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
+    ):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()
-            hash_key = db.store_function(struct, runtime.metadata.name, runtime.metadata.project, versioned=True)
+            hash_key = db.store_function(
+                struct, runtime.metadata.name, runtime.metadata.project, versioned=True
+            )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _validate_runtime(
@@ -316,13 +338,23 @@ class ServerSideLauncher(launcher.BaseLauncher):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
     ):
-        if mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind) and not mlrun.mlconf.httpdb.jobs.allow_local_run:
-            raise mlrun.errors.MLRunInvalidArgumentError("Local runtimes can not be run through API (not locally)")
+        if (
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
+            and not mlrun.mlconf.httpdb.jobs.allow_local_run
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Local runtimes can not be run through API (not locally)"
+            )
 
         self._validate_state_thresholds(run.spec.state_thresholds)
 
-        if mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind) and not runtime.spec.image:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"This runtime kind ({runtime.kind}) must have a valid image")
+        if (
+            mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind)
+            and not runtime.spec.image
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"This runtime kind ({runtime.kind}) must have a valid image"
+            )
 
         super()._validate_runtime(runtime, run)
 

@@ -55,7 +55,11 @@ class PyTorchMLRunInterface:
         :param context: MLRun context to use. If None, the context will be taken from 'mlrun.get_or_create_ctx()'.
         """
         # Set the context:
-        self._context = context if context is not None else mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        self._context = (
+            context
+            if context is not None
+            else mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        )
 
         # Store the model:
         self._model = model
@@ -167,7 +171,9 @@ class PyTorchMLRunInterface:
         for epoch in range(self._epochs):
             # Beginning of a epoch callbacks:
             self._callbacks_handler.on_epoch_begin(epoch=epoch)
-            print(f"Epoch {str(epoch + 1).rjust(len(str(self._epochs)))}/{self._epochs}:")
+            print(
+                f"Epoch {str(epoch + 1).rjust(len(str(self._epochs)))}/{self._epochs}:"
+            )
 
             # Train:
             self._callbacks_handler.on_train_begin()
@@ -190,10 +196,14 @@ class PyTorchMLRunInterface:
                             rank_value=metric_value,
                             name=f"average_{self._get_metric_name(metric=metric_function)}",
                         )
-                        for metric_value, metric_function in zip(metric_values, self._metric_functions)
+                        for metric_value, metric_function in zip(
+                            metric_values, self._metric_functions
+                        )
                     ]
                 self._print_results(loss_value=loss_value, metric_values=metric_values)
-                if not self._callbacks_handler.on_validation_end(loss_value=loss_value, metric_values=metric_values):
+                if not self._callbacks_handler.on_validation_end(
+                    loss_value=loss_value, metric_values=metric_values
+                ):
                     break
 
             # End of an epoch callbacks:
@@ -267,12 +277,16 @@ class PyTorchMLRunInterface:
                     rank_value=metric_value,
                     name=f"average_{self._get_metric_name(metric=metric_function)}",
                 )
-                for metric_value, metric_function in zip(metric_values, self._metric_functions)
+                for metric_value, metric_function in zip(
+                    metric_values, self._metric_functions
+                )
             ]
 
         # End the validation:
         self._print_results(loss_value=loss_value, metric_values=metric_values)
-        self._callbacks_handler.on_validation_end(loss_value=loss_value, metric_values=metric_values)
+        self._callbacks_handler.on_validation_end(
+            loss_value=loss_value, metric_values=metric_values
+        )
 
         # End of a epoch callbacks:
         self._callbacks_handler.on_epoch_end(epoch=1)
@@ -308,17 +322,27 @@ class PyTorchMLRunInterface:
                                             'context' and 'auto_log' parameters are already given here.
         """
         # Set the dictionaries defaults:
-        mlrun_callback_kwargs = {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
-        tensorboard_callback_kwargs = {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
+        mlrun_callback_kwargs = (
+            {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
+        )
+        tensorboard_callback_kwargs = (
+            {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
+        )
 
         # Add the loggers:
         if add_mlrun_logger:
             # Add the MLRun logging callback:
-            self._callbacks.append(MLRunLoggingCallback(context=self._context, auto_log=True, **mlrun_callback_kwargs))
+            self._callbacks.append(
+                MLRunLoggingCallback(
+                    context=self._context, auto_log=True, **mlrun_callback_kwargs
+                )
+            )
         if add_tensorboard_logger:
             # Add the Tensorboard logging callback:
             self._callbacks.append(
-                TensorboardLoggingCallback(context=self._context, auto_log=True, **tensorboard_callback_kwargs)
+                TensorboardLoggingCallback(
+                    context=self._context, auto_log=True, **tensorboard_callback_kwargs
+                )
             )
 
     def predict(
@@ -472,13 +496,19 @@ class PyTorchMLRunInterface:
                     f"The scheduler step frequency parameter can be passed as a float with value between "
                     f"0.0 to 1.0, but the value given was: '{scheduler_step_frequency}'"
                 )
-            scheduler_step_frequency = int(training_iterations * scheduler_step_frequency)
+            scheduler_step_frequency = int(
+                training_iterations * scheduler_step_frequency
+            )
         # # Callbacks:
         if callbacks is None:
             callbacks = []
         # # Use horovod:
         if use_horovod is None:
-            use_horovod = self._context.labels.get("kind", "") == "mpijob" if self._context is not None else False
+            use_horovod = (
+                self._context.labels.get("kind", "") == "mpijob"
+                if self._context is not None
+                else False
+            )
 
         # Store the configurations:
         self._training_set = training_set
@@ -504,18 +534,24 @@ class PyTorchMLRunInterface:
             self._model = self._model.cuda()
 
         # Loss:
-        if self._loss_function is not None and not self._is_module_in_cuda(module=self._loss_function):
+        if self._loss_function is not None and not self._is_module_in_cuda(
+            module=self._loss_function
+        ):
             self._loss_function = self._loss_function.cuda()
 
         # Optimizer:
         if self._optimizer is not None:
             for key in self._optimizer.state.keys():
-                self._optimizer.state[key] = self._tensor_to_cuda(tensor=self._optimizer.state[key])
+                self._optimizer.state[key] = self._tensor_to_cuda(
+                    tensor=self._optimizer.state[key]
+                )
 
         # Scheduler:
         if self._scheduler is not None:
             for key in self._scheduler.__dict__.keys():
-                self._scheduler.__dict__[key] = self._tensor_to_cuda(tensor=self._scheduler.__dict__[key])
+                self._scheduler.__dict__[key] = self._tensor_to_cuda(
+                    tensor=self._scheduler.__dict__[key]
+                )
 
     def _setup(self):
         """
@@ -540,7 +576,9 @@ class PyTorchMLRunInterface:
                 # Set the torch environment to use a specific GPU according to the horovod worker's local rank:
                 torch.cuda.set_device(self._hvd.local_rank())
                 # Log horovod worker device:
-                print(f"Horovod worker #{self._hvd.rank()} is using GPU:{self._hvd.local_rank()}")
+                print(
+                    f"Horovod worker #{self._hvd.rank()} is using GPU:{self._hvd.local_rank()}"
+                )
                 # Register the required multiprocessing arguments:
                 mp_data_loader_kwargs["num_workers"] = 1
                 mp_data_loader_kwargs["pin_memory"] = True
@@ -553,7 +591,11 @@ class PyTorchMLRunInterface:
         # Initialize a callbacks handler:
         if self._use_horovod:
             self._callbacks_handler = CallbacksHandler(
-                callbacks=[callback for callback in self._callbacks if callback.on_horovod_check(rank=self._hvd.rank())]
+                callbacks=[
+                    callback
+                    for callback in self._callbacks
+                    if callback.on_horovod_check(rank=self._hvd.rank())
+                ]
             )
         else:
             self._callbacks_handler = CallbacksHandler(callbacks=self._callbacks)
@@ -636,7 +678,9 @@ class PyTorchMLRunInterface:
                 x, y_true = self._tensor_to_cuda(tensor=(x, y_true))
 
             # Beginning of a batch callbacks:
-            self._callbacks_handler.on_train_batch_begin(batch=batch, x=x, y_true=y_true)
+            self._callbacks_handler.on_train_batch_begin(
+                batch=batch, x=x, y_true=y_true
+            )
 
             # Zero the parameters gradients:
             self._optimizer.zero_grad()
@@ -674,13 +718,18 @@ class PyTorchMLRunInterface:
             self._callbacks_handler.on_optimizer_step_end()
 
             # Step scheduler:
-            if self._scheduler is not None and (batch + 1) % self._scheduler_step_frequency == 0:
+            if (
+                self._scheduler is not None
+                and (batch + 1) % self._scheduler_step_frequency == 0
+            ):
                 self._callbacks_handler.on_scheduler_step_begin()
                 self._scheduler.step()
                 self._callbacks_handler.on_scheduler_step_end()
 
             # End of batch callbacks:
-            if not self._callbacks_handler.on_train_batch_end(batch=batch, x=x, y_pred=y_pred, y_true=y_true):
+            if not self._callbacks_handler.on_train_batch_end(
+                batch=batch, x=x, y_pred=y_pred, y_true=y_true
+            ):
                 break
 
     def _validate(
@@ -718,7 +767,9 @@ class PyTorchMLRunInterface:
                     x, y_true = self._tensor_to_cuda(tensor=(x, y_true))
 
                 # Beginning of a batch callbacks:
-                self._callbacks_handler.on_validation_batch_begin(batch=batch, x=x, y_true=y_true)
+                self._callbacks_handler.on_validation_batch_begin(
+                    batch=batch, x=x, y_true=y_true
+                )
 
                 # Infer the input:
                 self._callbacks_handler.on_inference_begin(x=x)
@@ -733,7 +784,9 @@ class PyTorchMLRunInterface:
                 # Measure accuracies:
                 self._callbacks_handler.on_validation_metrics_begin()
                 metric_values = self._metrics(y_pred=y_pred, y_true=y_true)
-                self._callbacks_handler.on_validation_metrics_end(metric_values=metric_values)
+                self._callbacks_handler.on_validation_metrics_end(
+                    metric_values=metric_values
+                )
 
                 # Update the progress bar with the recent values:
                 self._update_progress_bar(
@@ -757,7 +810,11 @@ class PyTorchMLRunInterface:
 
         # Calculate the final average of the loss and accuracy values:
         loss_value = sum(losses) / len(losses)
-        metric_values = [(sum(metric) / len(metric)) for metric in metrics] if len(metrics) > 0 else []
+        metric_values = (
+            [(sum(metric) / len(metric)) for metric in metrics]
+            if len(metrics) > 0
+            else []
+        )
         return loss_value, metric_values
 
     def _print_results(self, loss_value: Tensor, metric_values: list[float]):
@@ -770,7 +827,10 @@ class PyTorchMLRunInterface:
         table = [[self._get_metric_name(metric=self._loss_function), float(loss_value)]]
         for metric_function, metric_value in zip(self._metric_functions, metric_values):
             table.append([self._get_metric_name(metric=metric_function), metric_value])
-        print("\nSummary:\n" + tabulate(table, headers=["Metrics", "Values"], tablefmt="pretty"))
+        print(
+            "\nSummary:\n"
+            + tabulate(table, headers=["Metrics", "Values"], tablefmt="pretty")
+        )
 
     def _metrics(self, y_pred: Tensor, y_true: Tensor) -> list[float]:
         """
@@ -909,7 +969,9 @@ class PyTorchMLRunInterface:
                 tensor[key] = PyTorchMLRunInterface._tensor_to_cuda(tensor=tensor[key])
         elif isinstance(tensor, list):
             for index in range(len(tensor)):
-                tensor[index] = PyTorchMLRunInterface._tensor_to_cuda(tensor=tensor[index])
+                tensor[index] = PyTorchMLRunInterface._tensor_to_cuda(
+                    tensor=tensor[index]
+                )
         elif isinstance(tensor, tuple):
             cuda_tensor = ()
             for value in tensor:
@@ -953,7 +1015,10 @@ class PyTorchMLRunInterface:
             " |{bar}| {n_fmt}/{total_fmt} "
             "[{elapsed}<{remaining}, {rate_fmt}{postfix}]",
             desc=description,
-            postfix={PyTorchMLRunInterface._get_metric_name(metric=metric): "?" for metric in metrics},
+            postfix={
+                PyTorchMLRunInterface._get_metric_name(metric=metric): "?"
+                for metric in metrics
+            },
             unit="Batch",
             total=iterations,
             ascii=False,

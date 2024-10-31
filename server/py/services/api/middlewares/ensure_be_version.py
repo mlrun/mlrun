@@ -34,7 +34,9 @@ class EnsureBackendVersionMiddleware:
         self.app = app
         self._backend_version = backend_version
 
-    async def __call__(self, scope: "Scope", receive: "ASGIReceiveCallable", send: "ASGISendCallable") -> None:
+    async def __call__(
+        self, scope: "Scope", receive: "ASGIReceiveCallable", send: "ASGISendCallable"
+    ) -> None:
         """
         This middleware ensures response header includes backend version
         """

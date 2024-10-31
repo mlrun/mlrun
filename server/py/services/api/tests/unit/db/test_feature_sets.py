@@ -65,7 +65,9 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
     project = "proj-test"
 
     feature_set = mlrun.common.schemas.FeatureSet(**feature_set)
-    db.store_feature_set(db_session, project, name, feature_set, tag="latest", versioned=True)
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
     db.get_feature_set(db_session, project, name)
 
     feature_set_res = db.list_feature_sets(db_session, project)
@@ -95,7 +97,9 @@ def test_update_feature_set_labels(db: DBInterface, db_session: Session):
     project = "proj-test"
 
     feature_set = mlrun.common.schemas.FeatureSet(**feature_set)
-    db.store_feature_set(db_session, project, name, feature_set, tag="latest", versioned=True)
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
 
     feature_set = db.get_feature_set(db_session, project, name)
     assert feature_set.metadata.labels != {}
@@ -103,7 +107,9 @@ def test_update_feature_set_labels(db: DBInterface, db_session: Session):
 
     # remove labels from feature set and store it
     feature_set.metadata.labels = {}
-    db.store_feature_set(db_session, project, name, feature_set, tag="latest", versioned=True)
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
     updated_feature_set = db.get_feature_set(db_session, project, name)
     assert updated_feature_set.metadata.labels == {}
 
@@ -111,8 +117,14 @@ def test_update_feature_set_labels(db: DBInterface, db_session: Session):
     updated_feature_set_dict = updated_feature_set.dict()
 
     # uid and update time change due to rehashing and the store operation
-    assert old_feature_set_dict["metadata"]["uid"] != updated_feature_set_dict["metadata"]["uid"]
-    assert old_feature_set_dict["metadata"]["updated"] != updated_feature_set_dict["metadata"]["updated"]
+    assert (
+        old_feature_set_dict["metadata"]["uid"]
+        != updated_feature_set_dict["metadata"]["uid"]
+    )
+    assert (
+        old_feature_set_dict["metadata"]["updated"]
+        != updated_feature_set_dict["metadata"]["updated"]
+    )
     old_feature_set_dict["metadata"].pop("uid")
     old_feature_set_dict["metadata"].pop("updated")
     updated_feature_set_dict["metadata"].pop("uid")
@@ -124,7 +136,9 @@ def test_update_feature_set_labels(db: DBInterface, db_session: Session):
     # should update the 1st feature set since they have the same uid
     feature_set = db.get_feature_set(db_session, project, name)
     feature_set.metadata.labels = {"owner": "saarc", "group": "dev"}
-    db.store_feature_set(db_session, project, name, feature_set, tag="latest", versioned=True)
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
 
     feature_sets = db.list_feature_sets(db_session, project)
     assert len(feature_sets.feature_sets) == 2
@@ -140,7 +154,9 @@ def test_update_feature_set_by_uid(db: DBInterface, db_session: Session):
     project = "proj-test"
 
     feature_set = mlrun.common.schemas.FeatureSet(**feature_set)
-    db.store_feature_set(db_session, project, name, feature_set, tag="latest", versioned=True)
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
 
     feature_set = db.get_feature_set(db_session, project, name)
 
@@ -154,7 +170,9 @@ def test_update_feature_set_by_uid(db: DBInterface, db_session: Session):
         tag=tag,
         uid=feature_set.metadata.uid,
     )
-    updated_feature_set = db.get_feature_set(db_session, project, name, tag=tag, uid=feature_set.metadata.uid)
+    updated_feature_set = db.get_feature_set(
+        db_session, project, name, tag=tag, uid=feature_set.metadata.uid
+    )
     assert updated_feature_set.metadata.tag == tag
 
     features = [

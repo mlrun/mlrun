@@ -34,7 +34,9 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         kwargs: dict,
     ):
         db = services.api.utils.singletons.db.get_db()
-        return db.store_paginated_query_cache_record(session, user, method.__name__, current_page, page_size, kwargs)
+        return db.store_paginated_query_cache_record(
+            session, user, method.__name__, current_page, page_size, kwargs
+        )
 
     @staticmethod
     def get_pagination_cache_record(session: sqlalchemy.orm.Session, key: str):
@@ -48,10 +50,14 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         user: str = None,
         function: str = None,
         last_accessed_before: datetime = None,
-        order_by: typing.Optional[mlrun.common.schemas.OrderType] = mlrun.common.schemas.OrderType.desc,
+        order_by: typing.Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
     ):
         db = services.api.utils.singletons.db.get_db()
-        return db.list_paginated_query_cache_record(session, key, user, function, last_accessed_before, order_by)
+        return db.list_paginated_query_cache_record(
+            session, key, user, function, last_accessed_before, order_by
+        )
 
     @staticmethod
     def delete_pagination_cache_record(session: sqlalchemy.orm.Session, key: str):
@@ -77,7 +83,8 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         db = services.api.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(
             session,
-            last_accessed_before=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=cache_ttl),
+            last_accessed_before=datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(seconds=cache_ttl),
             as_query=True,
         ).delete()
 

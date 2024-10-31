@@ -91,7 +91,9 @@ def get_test_dataframes():
         # Multi-level:
         pd.MultiIndex.from_product(_multi_index),
         # Multi-level with names:
-        pd.MultiIndex.from_product(_multi_index, names=["index_5", "index_10", "index_20"]),
+        pd.MultiIndex.from_product(
+            _multi_index, names=["index_5", "index_10", "index_20"]
+        ),
     ]
 
     # Initialize the dataframes:
@@ -101,18 +103,28 @@ def get_test_dataframes():
             df = pd.DataFrame(data=data, columns=columns, index=index)
             dataframes.append(df)
             # Add same name of columns and indexes scenarios if index has a name:
-            if index is not None and all(index_name is not None for index_name in df.index.names):
+            if index is not None and all(
+                index_name is not None for index_name in df.index.names
+            ):
                 same_name_df = df.copy()
                 if isinstance(df.index, pd.MultiIndex):
                     if isinstance(df.columns, pd.MultiIndex):
-                        same_name_df.index.set_names(names=df.columns.names[: len(df.index.names)], inplace=True)
+                        same_name_df.index.set_names(
+                            names=df.columns.names[: len(df.index.names)], inplace=True
+                        )
                     else:  # Single index
-                        same_name_df.index.set_names(names=df.columns[: len(df.index.names)], inplace=True)
+                        same_name_df.index.set_names(
+                            names=df.columns[: len(df.index.names)], inplace=True
+                        )
                 else:  # Single index
                     if isinstance(df.columns, pd.MultiIndex):
-                        same_name_df.index.set_names(names=str(df.columns.names[0]), inplace=True)
+                        same_name_df.index.set_names(
+                            names=str(df.columns.names[0]), inplace=True
+                        )
                     else:  # Single index
-                        same_name_df.index.set_names(names=str(df.columns[0]), inplace=True)
+                        same_name_df.index.set_names(
+                            names=str(df.columns[0]), inplace=True
+                        )
                 dataframes.append(same_name_df)
 
     return dataframes

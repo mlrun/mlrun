@@ -134,9 +134,13 @@ async def get_run(
     iter: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    format_: mlrun.common.formatters.RunFormat = Query(mlrun.common.formatters.RunFormat.full, alias="format"),
+    format_: mlrun.common.formatters.RunFormat = Query(
+        mlrun.common.formatters.RunFormat.full, alias="format"
+    ),
 ):
-    data = await run_in_threadpool(services.api.crud.Runs().get_run, db_session, uid, iter, project, format_)
+    data = await run_in_threadpool(
+        services.api.crud.Runs().get_run, db_session, uid, iter, project, format_
+    )
     await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
         project,
@@ -184,7 +188,8 @@ async def delete_run(
 @router.get(
     "/runs",
     deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, " "use /projects/{project}/runs/ instead",
+    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
+    "use /projects/{project}/runs/ instead",
 )
 @router.get("/projects/{project}/runs")
 async def list_runs(
@@ -200,9 +205,13 @@ async def list_runs(
     start_time_to: str = None,
     last_update_time_from: str = None,
     last_update_time_to: str = None,
-    partition_by: mlrun.common.schemas.RunPartitionByField = Query(None, alias="partition-by"),
+    partition_by: mlrun.common.schemas.RunPartitionByField = Query(
+        None, alias="partition-by"
+    ),
     rows_per_partition: int = Query(1, alias="rows-per-partition", gt=0),
-    partition_sort_by: mlrun.common.schemas.SortField = Query(None, alias="partition-sort-by"),
+    partition_sort_by: mlrun.common.schemas.SortField = Query(
+        None, alias="partition-sort-by"
+    ),
     partition_order: mlrun.common.schemas.OrderType = Query(
         mlrun.common.schemas.OrderType.desc, alias="partition-order"
     ),
@@ -299,7 +308,9 @@ async def delete_runs(
     else:
         start_time_from = None
         if days_ago:
-            start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days_ago)
+            start_time_from = datetime.datetime.now(
+                datetime.timezone.utc
+            ) - datetime.timedelta(days=days_ago)
         runs = await run_in_threadpool(
             services.api.crud.Runs().list_runs,
             db_session,
@@ -402,7 +413,9 @@ async def abort_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    run = await run_in_threadpool(services.api.crud.Runs().get_run, db_session, uid, iter, project)
+    run = await run_in_threadpool(
+        services.api.crud.Runs().get_run, db_session, uid, iter, project
+    )
 
     current_run_state = run.get("status", {}).get("state")
     if current_run_state in [
@@ -420,7 +433,10 @@ async def abort_run(
                     project,
                 )
 
-                if background_task.status.state in mlrun.common.schemas.BackgroundTaskState.running:
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.running
+                ):
                     logger.debug(
                         "Abort background task is still running, returning it",
                         background_task_id=background_task_id,
@@ -430,11 +446,19 @@ async def abort_run(
                     return background_task
 
                 # if the background task completed, give some grace time before triggering another one
-                elif background_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded:
+                elif (
+                    background_task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.succeeded
+                ):
                     grace_timedelta = datetime.timedelta(
-                        seconds=int(mlrun.mlconf.background_tasks.default_timeouts.operations.abort_grace_period)
+                        seconds=int(
+                            mlrun.mlconf.background_tasks.default_timeouts.operations.abort_grace_period
+                        )
                     )
-                    if datetime.datetime.utcnow() - background_task.metadata.updated < grace_timedelta:
+                    if (
+                        datetime.datetime.utcnow() - background_task.metadata.updated
+                        < grace_timedelta
+                    ):
                         logger.debug(
                             "Abort background task completed, but grace time didn't pass yet, returning it",
                             background_task_id=background_task_id,

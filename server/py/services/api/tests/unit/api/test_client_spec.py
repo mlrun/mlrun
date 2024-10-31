@@ -30,7 +30,9 @@ import services.api.api.endpoints.client_spec
 import services.api.crud.client_spec
 
 
-def test_client_spec(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient) -> None:
+def test_client_spec(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
     k8s_api = kubernetes.client.ApiClient()
     overridden_ui_projects_prefix = "some-prefix"
     mlrun.mlconf.ui.projects_prefix = overridden_ui_projects_prefix
@@ -38,7 +40,9 @@ def test_client_spec(db: sqlalchemy.orm.Session, client: fastapi.testclient.Test
     mlrun.mlconf.nuclio_version = nuclio_version
     mlrun.mlconf.function_defaults.preemption_mode = "constrain"
     node_selector = {"label-1": "val1"}
-    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(json.dumps(node_selector).encode("utf-8"))
+    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+        json.dumps(node_selector).encode("utf-8")
+    )
     ce_mode = "some-ce-mode"
     ce_release = "y.y.y"
     mlrun.mlconf.ce.mode = ce_mode
@@ -51,7 +55,9 @@ def test_client_spec(db: sqlalchemy.orm.Session, client: fastapi.testclient.Test
     mlrun.mlconf.feature_store.data_prefixes.default = feature_store_data_prefix_default
     mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
     mlrun.mlconf.feature_store.data_prefixes.dsnosql = feature_store_data_prefix_dsnosql
-    mlrun.mlconf.feature_store.data_prefixes.redisnosql = feature_store_data_prefix_redisnosql
+    mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
+        feature_store_data_prefix_redisnosql
+    )
 
     mlrun.mlconf.function.spec.security_context.enrichment_mode = (
         mlrun.common.schemas.SecurityContextEnrichmentModes.override
@@ -66,7 +72,9 @@ def test_client_spec(db: sqlalchemy.orm.Session, client: fastapi.testclient.Test
         )
     ]
     serialized_tolerations = k8s_api.sanitize_for_serialization(tolerations)
-    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(json.dumps(serialized_tolerations).encode("utf-8"))
+    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+        json.dumps(serialized_tolerations).encode("utf-8")
+    )
     mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode = "enabled"
     services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
     response = client.get("client-spec")
@@ -98,21 +106,37 @@ def test_client_spec(db: sqlalchemy.orm.Session, client: fastapi.testclient.Test
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
-    assert response_body["default_function_pod_resources"] == mlrun.mlconf.default_function_pod_resources.to_dict()
-
-    assert response_body["default_preemption_mode"] == mlrun.mlconf.function_defaults.preemption_mode
-    assert response_body["preemptible_nodes_node_selector"] == mlrun.mlconf.preemptible_nodes.node_selector.decode(
-        "utf-8"
+    assert (
+        response_body["default_function_pod_resources"]
+        == mlrun.mlconf.default_function_pod_resources.to_dict()
     )
-    assert response_body["preemptible_nodes_tolerations"] == mlrun.mlconf.preemptible_nodes.tolerations.decode("utf-8")
+
+    assert (
+        response_body["default_preemption_mode"]
+        == mlrun.mlconf.function_defaults.preemption_mode
+    )
+    assert response_body[
+        "preemptible_nodes_node_selector"
+    ] == mlrun.mlconf.preemptible_nodes.node_selector.decode("utf-8")
+    assert response_body[
+        "preemptible_nodes_tolerations"
+    ] == mlrun.mlconf.preemptible_nodes.tolerations.decode("utf-8")
 
     assert response_body["logs"] == mlrun.mlconf.httpdb.logs.to_dict()
     assert response_body["logs"]["pipelines"]["pull_state"]["mode"] == "enabled"
 
-    assert response_body["feature_store_data_prefixes"]["default"] == (feature_store_data_prefix_default)
-    assert response_body["feature_store_data_prefixes"]["nosql"] == (feature_store_data_prefix_nosql)
-    assert response_body["feature_store_data_prefixes"]["redisnosql"] == (feature_store_data_prefix_redisnosql)
-    assert response_body["feature_store_data_prefixes"]["dsnosql"] == (feature_store_data_prefix_dsnosql)
+    assert response_body["feature_store_data_prefixes"]["default"] == (
+        feature_store_data_prefix_default
+    )
+    assert response_body["feature_store_data_prefixes"]["nosql"] == (
+        feature_store_data_prefix_nosql
+    )
+    assert response_body["feature_store_data_prefixes"]["redisnosql"] == (
+        feature_store_data_prefix_redisnosql
+    )
+    assert response_body["feature_store_data_prefixes"]["dsnosql"] == (
+        feature_store_data_prefix_dsnosql
+    )
     assert response_body["ce"]["mode"] == ce_mode
     assert response_body["ce"]["release"] == ce_release
     assert response_body["function"]["spec"]["security_context"]["enrichment_mode"] == (
@@ -146,7 +170,9 @@ def test_client_spec_response_based_on_client_version(
     # clear cache for next scenario
     services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
     # test response when the server has a version
-    with unittest.mock.patch.object(mlrun.utils.version.Version, "get", return_value={"version": "1.3.0-rc23"}):
+    with unittest.mock.patch.object(
+        mlrun.utils.version.Version, "get", return_value={"version": "1.3.0-rc23"}
+    ):
         response = client.get(
             "client-spec",
             headers={
@@ -210,7 +236,9 @@ def test_client_spec_response_based_on_client_version(
         assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc23"
 
 
-def test_get_client_spec_cached(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+def test_get_client_spec_cached(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
     client_spec = services.api.crud.client_spec.ClientSpec().get_client_spec()
     with unittest.mock.patch.object(
         services.api.crud.client_spec.ClientSpec,
@@ -225,7 +253,9 @@ def test_get_client_spec_cached(db: sqlalchemy.orm.Session, client: fastapi.test
         assert mocked_get_client.call_count == 1
 
         # different client version -> cache miss
-        invalidated_cached_response = client.get("client-spec", headers={"x-mlrun-client-version": "1.2.3"})
+        invalidated_cached_response = client.get(
+            "client-spec", headers={"x-mlrun-client-version": "1.2.3"}
+        )
         assert invalidated_cached_response.status_code == http.HTTPStatus.OK.value
         assert mocked_get_client.call_count == 2
 

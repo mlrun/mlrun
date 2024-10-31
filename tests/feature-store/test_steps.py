@@ -64,7 +64,9 @@ def test_set_event_meta(rundb_mock):
 def test_set_event_random_id(rundb_mock):
     function = mlrun.new_function("test2", kind="serving")
     flow = function.set_topology("flow")
-    flow.to(SetEventMetadata(random_id=True)).to(name="e", handler="extract_meta", full_event=True).respond()
+    flow.to(SetEventMetadata(random_id=True)).to(
+        name="e", handler="extract_meta", full_event=True
+    ).respond()
 
     server = function.to_mock_server()
     resp = server.test(body={"data": "123"}, event_id="XYZ")
@@ -377,7 +379,9 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
 @pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
 @pytest.mark.parametrize("set_index_before", [True, False, 0])
 @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
-def test_pandas_step_data_extractor(rundb_mock, entities, set_index_before, timestamp_col):
+def test_pandas_step_data_extractor(
+    rundb_mock, entities, set_index_before, timestamp_col
+):
     data, _ = get_data()
     data_to_ingest = data.copy()
     if set_index_before or len(entities) == 1:
@@ -516,7 +520,9 @@ def test_mapvalues_combined_mapping_validator(rundb_mock):
     # Pre-processing grpah steps
     data_set_pandas.graph.to(
         MapValues(
-            mapping={"age": {"ranges": {"one": [0, 30], "two": ["a", "inf"]}, 4: "kid"}},
+            mapping={
+                "age": {"ranges": {"one": [0, 30], "two": ["a", "inf"]}, 4: "kid"}
+            },
             with_original_features=True,
         )
     )

@@ -102,14 +102,20 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls):
-        sj = mlrun.new_function(kind="remote-spark", name="remote-spark-default-image-deploy-temp")
+        sj = mlrun.new_function(
+            kind="remote-spark", name="remote-spark-default-image-deploy-temp"
+        )
         sj.spec.build.image = cls.default_image
         sj.with_spark_service(spark_service="dummy-spark")
         sj.deploy()
         mlrun.get_run_db().delete_function(name=sj.metadata.name)
 
     def is_deployed(self):
-        if not self.spec.build.source and not self.spec.build.commands and not self.spec.build.extra:
+        if (
+            not self.spec.build.source
+            and not self.spec.build.commands
+            and not self.spec.build.extra
+        ):
             return True
         return super().is_deployed()
 
@@ -130,7 +136,9 @@ class RemoteSparkRuntime(KubejobRuntime):
         """Attach spark service to function"""
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:
-            self.spec.env.append({"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"})
+            self.spec.env.append(
+                {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
+            )
             if with_v3io_mount:
                 self.apply(mount_v3io())
             self.apply(
@@ -140,17 +148,25 @@ class RemoteSparkRuntime(KubejobRuntime):
                 )
             )
 
-    def with_security_context(self, security_context: kubernetes.client.V1SecurityContext):
+    def with_security_context(
+        self, security_context: kubernetes.client.V1SecurityContext
+    ):
         """
         With security context is not supported for spark runtime.
         Driver / Executor processes run with uid / gid 1000 as long as security context is not defined.
         If in the future we want to support setting security context it will work only from spark version 3.2 onwards.
         """
-        raise mlrun.errors.MLRunInvalidArgumentTypeError("with_security_context is not supported with remote spark")
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "with_security_context is not supported with remote spark"
+        )
 
     @property
     def _resolve_default_base_image(self):
-        if self.spec.provider == RemoteSparkProviders.iguazio and config.spark_app_image and config.spark_app_image_tag:
+        if (
+            self.spec.provider == RemoteSparkProviders.iguazio
+            and config.spark_app_image
+            and config.spark_app_image_tag
+        ):
             app_image = re.sub("spark-app", "shell", config.spark_app_image)
             # this is temporary until we get the image name from external config
             return app_image + ":" + config.spark_app_image_tag

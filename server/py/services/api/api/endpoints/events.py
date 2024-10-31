@@ -61,14 +61,21 @@ async def post_event(
         )
         return
 
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         data = await request.json()
         chief_client = services.api.utils.clients.chief.Client()
-        return await chief_client.set_event(project=project, name=name, request=request, json=data)
+        return await chief_client.set_event(
+            project=project, name=name, request=request, json=data
+        )
 
     logger.debug("Got event", project=project, name=name, id=event_data.entity.ids[0])
 
     if not services.api.crud.Events().is_valid_event(project, event_data):
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST.value)
 
-    await run_in_threadpool(services.api.crud.Events().process_event, db_session, event_data, name, project)
+    await run_in_threadpool(
+        services.api.crud.Events().process_event, db_session, event_data, name, project
+    )

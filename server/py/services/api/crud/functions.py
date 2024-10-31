@@ -42,7 +42,9 @@ class Functions(
     ) -> str:
         project = project or mlrun.mlconf.default_project
         if auth_info:
-            function_obj = mlrun.new_function(name=name, project=project, runtime=function, tag=tag)
+            function_obj = mlrun.new_function(
+                name=name, project=project, runtime=function, tag=tag
+            )
             # not raising exception if no access key was provided as the store of the function can be part of
             # intermediate steps or temporary objects which might not be executed at any phase and therefore we don't
             # want to enrich if user didn't requested.
@@ -71,7 +73,9 @@ class Functions(
         format_: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().get_function(db_session, name, project, tag, hash_key, format_)
+        return services.api.utils.singletons.db.get_db().get_function(
+            db_session, name, project, tag, hash_key, format_
+        )
 
     def delete_function(
         self,
@@ -79,7 +83,9 @@ class Functions(
         project: str,
         name: str,
     ):
-        return services.api.utils.singletons.db.get_db().delete_function(db_session, project, name)
+        return services.api.utils.singletons.db.get_db().delete_function(
+            db_session, project, name
+        )
 
     def list_functions(
         self,
@@ -119,14 +125,20 @@ class Functions(
     ):
         resource = services.api.runtime_handlers.runtime_resources_map.get(kind)
         if "status" not in resource:
-            raise mlrun.errors.MLRunBadRequestError(reason="Runtime error: 'status' not supported by this runtime")
+            raise mlrun.errors.MLRunBadRequestError(
+                reason="Runtime error: 'status' not supported by this runtime"
+            )
 
         return resource["status"](selector)
 
     def start_function(self, function, client_version=None, client_python_version=None):
-        resource = services.api.runtime_handlers.runtime_resources_map.get(function.kind)
+        resource = services.api.runtime_handlers.runtime_resources_map.get(
+            function.kind
+        )
         if "start" not in resource:
-            raise mlrun.errors.MLRunBadRequestError(reason="Runtime error: 'start' not supported by this runtime")
+            raise mlrun.errors.MLRunBadRequestError(
+                reason="Runtime error: 'start' not supported by this runtime"
+            )
 
         resource["start"](
             function,
@@ -158,7 +170,9 @@ class Functions(
         project: str,
         invocation_url: str,
     ):
-        _, function_name, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        _, function_name, tag, hash_key = (
+            mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        )
         services.api.utils.singletons.db.get_db().update_function_external_invocation_url(
             session=db_session,
             name=function_name,
@@ -176,7 +190,9 @@ class Functions(
         project: str,
         invocation_url: str,
     ):
-        _, function_name, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        _, function_name, tag, hash_key = (
+            mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        )
         services.api.utils.singletons.db.get_db().update_function_external_invocation_url(
             session=db_session,
             name=function_name,

@@ -52,7 +52,10 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         source_credentials = self._get_source_credentials(source_name)
         if not source_credentials:
             return
-        secrets_to_delete = [self._generate_credentials_secret_key(source_name, key) for key in source_credentials]
+        secrets_to_delete = [
+            self._generate_credentials_secret_key(source_name, key)
+            for key in source_credentials
+        ]
         Secrets().delete_project_secrets(
             self._internal_project_name,
             mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -89,11 +92,15 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         else:
             catalog = self._catalogs[source_name]
 
-        result_catalog = mlrun.common.schemas.hub.HubCatalog(catalog=[], channel=source.spec.channel)
+        result_catalog = mlrun.common.schemas.hub.HubCatalog(
+            catalog=[], channel=source.spec.channel
+        )
         for item in catalog.catalog:
             # Because tag and version are optionals,
             # we filter the catalog by one of them with priority to tag
-            if (tag is None or item.metadata.tag == tag) and (version is None or item.metadata.version == version):
+            if (tag is None or item.metadata.tag == tag) and (
+                version is None or item.metadata.version == version
+            ):
                 result_catalog.catalog.append(item)
 
         return result_catalog
@@ -125,14 +132,19 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         num_items = len(items)
 
         if not num_items:
-            raise mlrun.errors.MLRunNotFoundError(f"Item not found. source={item_name}, version={version}")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Item not found. source={item_name}, version={version}"
+            )
         if num_items > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Query resulted in more than 1 catalog items. " + f"source={item_name}, version={version}, tag={tag}"
+                "Query resulted in more than 1 catalog items. "
+                + f"source={item_name}, version={version}, tag={tag}"
             )
         return items[0]
 
-    def get_item_object_using_source_credentials(self, source: mlrun.common.schemas.hub.HubSource, url):
+    def get_item_object_using_source_credentials(
+        self, source: mlrun.common.schemas.hub.HubSource, url
+    ):
         credentials = self._get_source_credentials(source.metadata.name)
 
         if not url.startswith(source.spec.path):
@@ -179,7 +191,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         tag: Optional[str] = None,
         version: Optional[str] = None,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
-        hub_sources = services.api.utils.singletons.db.get_db().list_hub_sources(db_session)
+        hub_sources = services.api.utils.singletons.db.get_db().list_hub_sources(
+            db_session
+        )
         return self.filter_hub_sources(hub_sources, item_name, tag, version)
 
     def filter_hub_sources(
@@ -202,7 +216,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         """
         if not item_name:
             if tag or version:
-                raise mlrun.errors.MLRunBadRequestError("Tag or version are supported only if item name is provided")
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Tag or version are supported only if item name is provided"
+                )
             return sources
 
         filtered_sources = []
@@ -221,12 +237,16 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _in_k8s():
         k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
-        return k8s_helper is not None and k8s_helper.is_running_inside_kubernetes_cluster()
+        return (
+            k8s_helper is not None and k8s_helper.is_running_inside_kubernetes_cluster()
+        )
 
     @staticmethod
     def _generate_credentials_secret_key(source, key=""):
         full_key = source + secret_name_separator + key
-        return Secrets().generate_client_project_secret_key(SecretsClientType.hub, full_key)
+        return Secrets().generate_client_project_secret_key(
+            SecretsClientType.hub, full_key
+        )
 
     def _store_source_credentials(self, source_name, credentials: dict):
         if not self._in_k8s():
@@ -235,7 +255,8 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             )
 
         adjusted_credentials = {
-            self._generate_credentials_secret_key(source_name, key): value for key, value in credentials.items()
+            self._generate_credentials_secret_key(source_name, key): value
+            for key, value in credentials.items()
         }
         Secrets().store_project_secrets(
             self._internal_project_name,
@@ -304,7 +325,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                                 bottom level keys include spec as a dict and all the rest is considered as metadata.
         :return: catalog object
         """
-        catalog = mlrun.common.schemas.hub.HubCatalog(catalog=[], channel=source.spec.channel)
+        catalog = mlrun.common.schemas.hub.HubCatalog(
+            catalog=[], channel=source.spec.channel
+        )
         # Loop over objects, then over object versions.
         for object_name, object_dict in catalog_dict.items():
             for version_tag, version_dict in object_dict.items():
@@ -314,10 +337,20 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                 # We want to align all item names to be normalized.
                 # This is necessary since the item names are originally collected from the yaml files
                 # which may can contain underscores.
-                object_details_dict.update({"name": mlrun.utils.helpers.normalize_name(object_name, verbose=False)})
-                metadata = mlrun.common.schemas.hub.HubItemMetadata(tag=version_tag, **object_details_dict)
+                object_details_dict.update(
+                    {
+                        "name": mlrun.utils.helpers.normalize_name(
+                            object_name, verbose=False
+                        )
+                    }
+                )
+                metadata = mlrun.common.schemas.hub.HubItemMetadata(
+                    tag=version_tag, **object_details_dict
+                )
                 item_uri = source.get_full_uri(metadata.get_relative_path())
-                spec = mlrun.common.schemas.hub.HubItemSpec(item_uri=item_uri, assets=assets, **spec_dict)
+                spec = mlrun.common.schemas.hub.HubItemSpec(
+                    item_uri=item_uri, assets=assets, **spec_dict
+                )
                 item = mlrun.common.schemas.hub.HubItem(
                     metadata=metadata,
                     spec=spec,

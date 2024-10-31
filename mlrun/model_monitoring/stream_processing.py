@@ -72,7 +72,9 @@ class EventStreamProcessor:
         self.storage_options = None
         self.tsdb_configurations = {}
         if not mlrun.mlconf.is_ce_mode():
-            self._initialize_v3io_configurations(model_monitoring_access_key=model_monitoring_access_key)
+            self._initialize_v3io_configurations(
+                model_monitoring_access_key=model_monitoring_access_key
+            )
         elif self.parquet_path.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
@@ -91,9 +93,13 @@ class EventStreamProcessor:
 
         self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
         self.model_monitoring_access_key = (
-            model_monitoring_access_key or os.environ.get(ProjectSecretKeys.ACCESS_KEY) or self.v3io_access_key
+            model_monitoring_access_key
+            or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
+            or self.v3io_access_key
         )
-        self.storage_options = dict(v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api)
+        self.storage_options = dict(
+            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
+        )
 
         # KV path
         kv_path = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -103,15 +109,21 @@ class EventStreamProcessor:
             _,
             self.kv_container,
             self.kv_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(kv_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            kv_path
+        )
 
         # TSDB path and configurations
-        tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(project=self.project, kind=FileTargetKind.EVENTS)
+        tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project, kind=FileTargetKind.EVENTS
+        )
         (
             _,
             self.tsdb_container,
             self.tsdb_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(tsdb_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            tsdb_path
+        )
 
         self.tsdb_path = f"{self.tsdb_container}/{self.tsdb_path}"
         self.tsdb_batching_max_events = tsdb_batching_max_events
@@ -204,7 +216,9 @@ class EventStreamProcessor:
             )
 
             # flatten the events
-            graph.add_step("storey.FlatMap", "flatten_events", _fn="(event)", after="filter_none")
+            graph.add_step(
+                "storey.FlatMap", "flatten_events", _fn="(event)", after="filter_none"
+            )
 
         apply_storey_filter_and_flatmap()
 
@@ -340,7 +354,9 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         # Compute prediction per second
-        event[EventLiveStats.PREDICTIONS_PER_SECOND] = float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
+        event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
+            float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
+        )
         # Filter relevant keys
         e = {
             k: event[k]
@@ -368,7 +384,9 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
             ]
         }
 
-        e[EventFieldType.METRICS] = json.dumps({EventKeyMetrics.GENERIC: generic_metrics})
+        e[EventFieldType.METRICS] = json.dumps(
+            {EventKeyMetrics.GENERIC: generic_metrics}
+        )
 
         # Write labels as json string as required by the DB format
         e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
@@ -498,7 +516,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Validate event fields
         model_class = event.get("model_class") or event.get("class")
         timestamp = event.get("when")
-        request_id = event.get("request", {}).get("id") or event.get("resp", {}).get("id")
+        request_id = event.get("request", {}).get("id") or event.get("resp", {}).get(
+            "id"
+        )
         latency = event.get("microsec")
         features = event.get("request", {}).get("inputs")
         predictions = event.get("resp", {}).get("outputs")
@@ -516,7 +536,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             self.first_request[endpoint_id] = timestamp
 
         # Validate that the request time of the current event is later than the previous request time
-        self._validate_last_request_timestamp(endpoint_id=endpoint_id, timestamp=timestamp)
+        self._validate_last_request_timestamp(
+            endpoint_id=endpoint_id, timestamp=timestamp
+        )
 
         # Set time for the last reqeust of the current endpoint
         self.last_request[endpoint_id] = timestamp
@@ -556,14 +578,24 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.
         if not isinstance(features, list):
-            raise mlrun.errors.MLRunInvalidArgumentError("Model's inputs must be a list")
-        features = features if not any(not isinstance(feat, list) for feat in features) else [features]
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Model's inputs must be a list"
+            )
+        features = (
+            features
+            if not any(not isinstance(feat, list) for feat in features)
+            else [features]
+        )
         if not isinstance(predictions, list):
             predictions = [[predictions]]
         elif isinstance(predictions, list) and len(predictions) == len(features):
             pass  # predictions are already in the right format
         else:
-            predictions = predictions if not any(not isinstance(pred, list) for pred in predictions) else [predictions]
+            predictions = (
+                predictions
+                if not any(not isinstance(pred, list) for pred in predictions)
+                else [predictions]
+            )
 
         events = []
         for i, (feature, prediction) in enumerate(zip(features, predictions)):
@@ -592,7 +624,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.ERROR_COUNT: self.error_count[endpoint_id],
                     EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
                     EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),
-                    EventFieldType.ENTITIES: event.get("request", {}).get(EventFieldType.ENTITIES, {}),
+                    EventFieldType.ENTITIES: event.get("request", {}).get(
+                        EventFieldType.ENTITIES, {}
+                    ),
                 }
             )
 
@@ -611,7 +645,10 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         :raise MLRunPreconditionFailedError: If the request time of the current is later than the previous request time.
         """
 
-        if endpoint_id in self.last_request and self.last_request[endpoint_id] > timestamp:
+        if (
+            endpoint_id in self.last_request
+            and self.last_request[endpoint_id] > timestamp
+        ):
             logger.error(
                 f"current event request time {timestamp} is earlier than the last request time "
                 f"{self.last_request[endpoint_id]} - write to TSDB will be rejected"
@@ -662,7 +699,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 def is_not_none(field: typing.Any, dict_path: list[str]):
     if field is not None:
         return True
-    logger.error(f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]")
+    logger.error(
+        f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
+    )
     return False
 
 
@@ -702,13 +741,17 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
     def _infer_feature_names_from_data(self, event):
         for endpoint_id in self.feature_names:
-            if len(self.feature_names[endpoint_id]) >= len(event[EventFieldType.FEATURES]):
+            if len(self.feature_names[endpoint_id]) >= len(
+                event[EventFieldType.FEATURES]
+            ):
                 return self.feature_names[endpoint_id]
         return None
 
     def _infer_label_columns_from_data(self, event):
         for endpoint_id in self.label_columns:
-            if len(self.label_columns[endpoint_id]) >= len(event[EventFieldType.PREDICTION]):
+            if len(self.label_columns[endpoint_id]) >= len(
+                event[EventFieldType.PREDICTION]
+            ):
                 return self.label_columns[endpoint_id]
         return None
 
@@ -745,13 +788,17 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     "Feature names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
-                feature_names = [f"f{i}" for i, _ in enumerate(event[EventFieldType.FEATURES])]
+                feature_names = [
+                    f"f{i}" for i, _ in enumerate(event[EventFieldType.FEATURES])
+                ]
 
                 # Update the endpoint record with the generated features
                 update_endpoint_record(
                     project=self.project,
                     endpoint_id=endpoint_id,
-                    attributes={EventFieldType.FEATURE_NAMES: json.dumps(feature_names)},
+                    attributes={
+                        EventFieldType.FEATURE_NAMES: json.dumps(feature_names)
+                    },
                 )
 
                 update_monitoring_feature_set(
@@ -769,7 +816,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     "label column names are not initialized, they will be automatically generated",
                     endpoint_id=endpoint_id,
                 )
-                label_columns = [f"p{i}" for i, _ in enumerate(event[EventFieldType.PREDICTION])]
+                label_columns = [
+                    f"p{i}" for i, _ in enumerate(event[EventFieldType.PREDICTION])
+                ]
 
                 update_endpoint_record(
                     project=self.project,
@@ -785,8 +834,12 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             self.label_columns[endpoint_id] = label_columns
             self.feature_names[endpoint_id] = feature_names
 
-            logger.info("Label columns", endpoint_id=endpoint_id, label_columns=label_columns)
-            logger.info("Feature names", endpoint_id=endpoint_id, feature_names=feature_names)
+            logger.info(
+                "Label columns", endpoint_id=endpoint_id, label_columns=label_columns
+            )
+            logger.info(
+                "Feature names", endpoint_id=endpoint_id, feature_names=feature_names
+            )
 
             # Update the endpoint type within the endpoint types dictionary
             endpoint_type = int(endpoint_record.get(EventFieldType.ENDPOINT_TYPE))
@@ -916,7 +969,9 @@ def update_endpoint_record(
         project=project,
     )
 
-    model_endpoint_store.update_model_endpoint(endpoint_id=endpoint_id, attributes=attributes)
+    model_endpoint_store.update_model_endpoint(
+        endpoint_id=endpoint_id, attributes=attributes
+    )
 
 
 def update_monitoring_feature_set(
@@ -925,9 +980,13 @@ def update_monitoring_feature_set(
     feature_values: list[typing.Any],
 ):
     monitoring_feature_set = fstore.get_feature_set(
-        endpoint_record[mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI]
+        endpoint_record[
+            mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
+        ]
     )
     for name, val in zip(feature_names, feature_values):
-        monitoring_feature_set.add_feature(fstore.Feature(name=name, value_type=type(val)))
+        monitoring_feature_set.add_feature(
+            fstore.Feature(name=name, value_type=type(val))
+        )
 
     monitoring_feature_set.save()

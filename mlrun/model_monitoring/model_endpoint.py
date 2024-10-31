@@ -73,7 +73,9 @@ class ModelEndpoint(mlrun.model.ModelObj):
     def __init__(self):
         self._status: ModelEndpointStatus = ModelEndpointStatus()
         self._spec: ModelEndpointSpec = ModelEndpointSpec()
-        self._metadata: mlrun.model.VersionedObjMetadata = mlrun.model.VersionedObjMetadata()
+        self._metadata: mlrun.model.VersionedObjMetadata = (
+            mlrun.model.VersionedObjMetadata()
+        )
 
     @property
     def status(self) -> ModelEndpointStatus:
@@ -97,7 +99,9 @@ class ModelEndpoint(mlrun.model.ModelObj):
 
     @metadata.setter
     def metadata(self, metadata):
-        self._metadata = self._verify_dict(metadata, "metadata", mlrun.model.VersionedObjMetadata)
+        self._metadata = self._verify_dict(
+            metadata, "metadata", mlrun.model.VersionedObjMetadata
+        )
 
     @classmethod
     def from_flat_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
@@ -108,5 +112,7 @@ class ModelEndpoint(mlrun.model.ModelObj):
         new_obj._status = ModelEndpointStatus().from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )
-        new_obj._spec = ModelEndpointSpec().from_dict(struct=struct, fields=fields, deprecated_fields=deprecated_fields)
+        new_obj._spec = ModelEndpointSpec().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
         return new_obj

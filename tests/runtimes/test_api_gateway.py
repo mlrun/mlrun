@@ -37,14 +37,18 @@ def test_get_invoke_url(host, path, expected_url):
     # testing server side api gateway
     api_gateway = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(name="test"),
-        spec=mlrun.common.schemas.APIGatewaySpec(name="test", host=host, path=path, upstreams=[]),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name="test", host=host, path=path, upstreams=[]
+        ),
     )
     assert api_gateway.get_invoke_url() == expected_url
 
     # testing client side api gateway
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(name="test"),
-        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(project="test", host=host, path=path, functions=["test"]),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            project="test", host=host, path=path, functions=["test"]
+        ),
     )
     assert api_gateway.invoke_url == "https://" + expected_url
 

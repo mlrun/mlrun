@@ -22,7 +22,9 @@ class TestDemo(TestMLRunSystem):
     def custom_setup(self):
         # specifically for each workflow, this combines the artifact path above with a
         # unique path made from the workflow uid.
-        self._workflow_artifact_path = os.path.join(mlrun.mlconf.artifact_path, "pipeline/{{workflow.uid}}")
+        self._workflow_artifact_path = os.path.join(
+            mlrun.mlconf.artifact_path, "pipeline/{{workflow.uid}}"
+        )
         self._demo_project = self.create_demo_project()
 
         self._logger.debug(
@@ -44,7 +46,9 @@ class TestDemo(TestMLRunSystem):
             watch=True,
         )
 
-        runs = self._run_db.list_runs(project=self.project_name, labels=f"workflow={run_id}")
+        runs = self._run_db.list_runs(
+            project=self.project_name, labels=f"workflow={run_id}"
+        )
 
         self._logger.debug("Completed Runs", runs=runs)
 

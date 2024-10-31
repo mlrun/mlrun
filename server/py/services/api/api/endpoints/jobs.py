@@ -38,11 +38,15 @@ router = fastapi.APIRouter(prefix="/projects/{project}/jobs")
 )
 async def create_model_monitoring_controller(
     project: str,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(deps.get_db_session),
     default_controller_image: str = "mlrun/mlrun",
     base_period: int = 10,
-    client_version: typing.Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.client_version),
+    client_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ):
     """
     Deprecated.

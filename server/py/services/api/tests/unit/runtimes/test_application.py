@@ -39,7 +39,9 @@ class TestApplicationRuntime(TestRuntimeBase):
         # enables extending classes to run the same tests with different class
         return "application"
 
-    def test_compile_function_config_skipped_spec(self, db: Session, client: TestClient):
+    def test_compile_function_config_skipped_spec(
+        self, db: Session, client: TestClient
+    ):
         """
         Test that compiling function configuration with requirements and base image are skipped
         """
@@ -51,7 +53,9 @@ class TestApplicationRuntime(TestRuntimeBase):
             _,
             _,
             config,
-        ) = services.api.crud.runtimes.nuclio.function._compile_function_config(function)
+        ) = services.api.crud.runtimes.nuclio.function._compile_function_config(
+            function
+        )
         assert not mlrun.utils.get_in(
             config,
             "spec.build.commands",
@@ -61,19 +65,28 @@ class TestApplicationRuntime(TestRuntimeBase):
             "spec.build.baseImage",
         )
 
-    def test_create_function_validate_min_nuclio_version(self, db: Session, client: TestClient):
+    def test_create_function_validate_min_nuclio_version(
+        self, db: Session, client: TestClient
+    ):
         """Verify that the nuclio min version is validated by the ApplicationRuntime constructor"""
         mlrun.mlconf.nuclio_version = "1.12.14"
         with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError) as exc:
             self._generate_runtime(self.runtime_kind)
-        assert str(exc.value) == "'Application Runtime' function requires Nuclio v1.13.1 or higher"
+        assert (
+            str(exc.value)
+            == "'Application Runtime' function requires Nuclio v1.13.1 or higher"
+        )
 
     def _execute_run(self, runtime, **kwargs):
         # deploy_nuclio_function doesn't accept watch, so we need to remove it
         kwargs.pop("watch", None)
-        services.api.crud.runtimes.nuclio.function.deploy_nuclio_function(runtime, **kwargs)
+        services.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+            runtime, **kwargs
+        )
 
-    def _generate_runtime(self, kind=None) -> typing.Union[mlrun.runtimes.ApplicationRuntime]:
+    def _generate_runtime(
+        self, kind=None
+    ) -> typing.Union[mlrun.runtimes.ApplicationRuntime]:
         runtime = mlrun.new_function(
             name=self.name,
             project=self.project,

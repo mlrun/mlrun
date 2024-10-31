@@ -25,13 +25,17 @@ from services.api.db.sqldb.models import Function
 
 def test_store_function_default_to_latest(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
-    function_hash_key = db.store_function(db_session, function_1.to_dict(), function_1.metadata.name)
+    function_hash_key = db.store_function(
+        db_session, function_1.to_dict(), function_1.metadata.name
+    )
     assert function_hash_key is not None
     function_queried_without_tag = db.get_function(db_session, function_1.metadata.name)
     function_queried_without_tag_hash = function_queried_without_tag["metadata"]["hash"]
     assert function_hash_key == function_queried_without_tag_hash
     assert function_queried_without_tag["metadata"]["tag"] == "latest"
-    function_queried_with_tag = db.get_function(db_session, function_1.metadata.name, tag="latest")
+    function_queried_with_tag = db.get_function(
+        db_session, function_1.metadata.name, tag="latest"
+    )
     function_queried_without_tag_hash = function_queried_with_tag["metadata"]["hash"]
     assert function_queried_with_tag is not None
     assert function_queried_with_tag["metadata"]["tag"] == "latest"
@@ -40,14 +44,22 @@ def test_store_function_default_to_latest(db: DBInterface, db_session: Session):
 
 def test_store_function_versioned(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
-    function_hash_key = db.store_function(db_session, function_1.to_dict(), function_1.metadata.name, versioned=True)
-    function_queried_without_hash_key = db.get_function(db_session, function_1.metadata.name)
+    function_hash_key = db.store_function(
+        db_session, function_1.to_dict(), function_1.metadata.name, versioned=True
+    )
+    function_queried_without_hash_key = db.get_function(
+        db_session, function_1.metadata.name
+    )
     assert function_queried_without_hash_key is not None
     assert function_queried_without_hash_key["metadata"]["tag"] == "latest"
 
     # Verifying versioned function is queryable by hash_key
-    function_queried_with_hash_key = db.get_function(db_session, function_1.metadata.name, hash_key=function_hash_key)
-    function_queried_with_hash_key_hash = function_queried_with_hash_key["metadata"]["hash"]
+    function_queried_with_hash_key = db.get_function(
+        db_session, function_1.metadata.name, hash_key=function_hash_key
+    )
+    function_queried_with_hash_key_hash = function_queried_with_hash_key["metadata"][
+        "hash"
+    ]
     assert function_queried_with_hash_key is not None
     assert function_queried_with_hash_key["metadata"]["tag"] == ""
     assert function_queried_with_hash_key_hash == function_hash_key
@@ -70,14 +82,18 @@ def test_store_function_versioned(db: DBInterface, db_session: Session):
 
 def test_store_function_not_versioned(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
-    function_hash_key = db.store_function(db_session, function_1.to_dict(), function_1.metadata.name, versioned=False)
+    function_hash_key = db.store_function(
+        db_session, function_1.to_dict(), function_1.metadata.name, versioned=False
+    )
     function_result_1 = db.get_function(db_session, function_1.metadata.name)
     assert function_result_1 is not None
     assert function_result_1["metadata"]["tag"] == "latest"
 
     # not versioned so not queryable by hash key
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.get_function(db_session, function_1.metadata.name, hash_key=function_hash_key)
+        db.get_function(
+            db_session, function_1.metadata.name, hash_key=function_hash_key
+        )
 
     function_2 = {"test": "new_version"}
     db.store_function(db_session, function_2, function_1.metadata.name, versioned=False)
@@ -89,12 +105,18 @@ def test_store_function_not_versioned(db: DBInterface, db_session: Session):
 
 def test_get_function_by_hash_key(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
-    function_hash_key = db.store_function(db_session, function_1.to_dict(), function_1.metadata.name, versioned=True)
-    function_queried_without_hash_key = db.get_function(db_session, function_1.metadata.name)
+    function_hash_key = db.store_function(
+        db_session, function_1.to_dict(), function_1.metadata.name, versioned=True
+    )
+    function_queried_without_hash_key = db.get_function(
+        db_session, function_1.metadata.name
+    )
     assert function_queried_without_hash_key is not None
 
     # Verifying function is queryable by hash_key
-    function_queried_with_hash_key = db.get_function(db_session, function_1.metadata.name, hash_key=function_hash_key)
+    function_queried_with_hash_key = db.get_function(
+        db_session, function_1.metadata.name, hash_key=function_hash_key
+    )
     assert function_queried_with_hash_key is not None
 
     # function queried by hash shouldn't have tag
@@ -102,7 +124,9 @@ def test_get_function_by_hash_key(db: DBInterface, db_session: Session):
     assert function_queried_with_hash_key["metadata"]["tag"] == ""
 
 
-def test_get_function_when_using_not_normalize_name(db: DBInterface, db_session: Session):
+def test_get_function_when_using_not_normalize_name(
+    db: DBInterface, db_session: Session
+):
     # add a function with a non-normalized name to the database
     function_name = "function_name"
     project_name = "project"
@@ -113,12 +137,16 @@ def test_get_function_when_using_not_normalize_name(db: DBInterface, db_session:
     assert response["metadata"]["name"] == function_name
 
 
-def _generate_and_insert_function_record(db_session: Session, function_name: str, project_name: str):
+def _generate_and_insert_function_record(
+    db_session: Session, function_name: str, project_name: str
+):
     function = {
         "metadata": {"name": function_name, "project": project_name},
         "spec": {"asd": "test"},
     }
-    fn = Function(name=function_name, project=project_name, struct=function, uid="1", id="1")
+    fn = Function(
+        name=function_name, project=project_name, struct=function, uid="1", id="1"
+    )
     tag = Function.Tag(project=project_name, name="latest", obj_name=fn.name)
     tag.obj_id, tag.uid = fn.id, fn.uid
     db_session.add(fn)
@@ -128,21 +156,29 @@ def _generate_and_insert_function_record(db_session: Session, function_name: str
 
 def test_get_function_by_tag(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
-    function_hash_key = db.store_function(db_session, function_1.to_dict(), function_1.metadata.name, versioned=True)
-    function_queried_by_hash_key = db.get_function(db_session, function_1.metadata.name, hash_key=function_hash_key)
+    function_hash_key = db.store_function(
+        db_session, function_1.to_dict(), function_1.metadata.name, versioned=True
+    )
+    function_queried_by_hash_key = db.get_function(
+        db_session, function_1.metadata.name, hash_key=function_hash_key
+    )
     function_not_queried_by_tag_hash = function_queried_by_hash_key["metadata"]["hash"]
     assert function_hash_key == function_not_queried_by_tag_hash
 
 
 def test_get_function_not_found(db: DBInterface, db_session: Session):
     function_1 = _generate_function()
-    db.store_function(db_session, function_1.to_dict(), function_1.metadata.name, versioned=True)
+    db.store_function(
+        db_session, function_1.to_dict(), function_1.metadata.name, versioned=True
+    )
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.get_function(db_session, function_1.metadata.name, tag="inexistent_tag")
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.get_function(db_session, function_1.metadata.name, hash_key="inexistent_hash_key")
+        db.get_function(
+            db_session, function_1.metadata.name, hash_key="inexistent_hash_key"
+        )
 
 
 def test_list_functions_no_tags(db: DBInterface, db_session: Session):
@@ -153,8 +189,12 @@ def test_list_functions_no_tags(db: DBInterface, db_session: Session):
     # It is impossible to create a function without tag - only to create with a tag, and then tag another function with
     # the same tag
     tag = "some_tag"
-    function_1_hash_key = db.store_function(db_session, function_1, function_name_1, tag=tag, versioned=True)
-    function_2_hash_key = db.store_function(db_session, function_2, function_name_1, tag=tag, versioned=True)
+    function_1_hash_key = db.store_function(
+        db_session, function_1, function_name_1, tag=tag, versioned=True
+    )
+    function_2_hash_key = db.store_function(
+        db_session, function_2, function_name_1, tag=tag, versioned=True
+    )
     assert function_1_hash_key != function_2_hash_key
     functions = db.list_functions(db_session, function_name_1)
     assert len(functions) == 2
@@ -190,7 +230,9 @@ def test_list_functions_with_non_existent_tag(db: DBInterface, db_session: Sessi
     assert len(functions) == 0
 
 
-def test_list_functions_filtering_unversioned_untagged(db: DBInterface, db_session: Session):
+def test_list_functions_filtering_unversioned_untagged(
+    db: DBInterface, db_session: Session
+):
     function_1 = _generate_function()
     function_2 = _generate_function()
     tag = "some_tag"
@@ -264,14 +306,20 @@ def test_delete_function(db: DBInterface, db_session: Session):
     tags = ["some_tag", "some_tag2", "some_tag3"]
     function_hash_key = None
     for tag in tags:
-        function_hash_key = db.store_function(db_session, function, function_name, project, tag=tag, versioned=True)
+        function_hash_key = db.store_function(
+            db_session, function, function_name, project, tag=tag, versioned=True
+        )
 
     # if not exploding then function exists
     for tag in tags:
         db.get_function(db_session, function_name, project, tag=tag)
     db.get_function(db_session, function_name, project, hash_key=function_hash_key)
     assert len(tags) == len(db.list_functions(db_session, function_name, project))
-    number_of_tags = db_session.query(Function.Tag).filter_by(project=project, obj_name=function_name).count()
+    number_of_tags = (
+        db_session.query(Function.Tag)
+        .filter_by(project=project, obj_name=function_name)
+        .count()
+    )
     number_of_labels = db_session.query(Function.Label).count()
 
     assert len(tags) == number_of_tags
@@ -287,7 +335,11 @@ def test_delete_function(db: DBInterface, db_session: Session):
     assert 0 == len(db.list_functions(db_session, function_name, project))
 
     # verifying tags and labels (different table) records were removed
-    number_of_tags = db_session.query(Function.Tag).filter_by(project=project, obj_name=function_name).count()
+    number_of_tags = (
+        db_session.query(Function.Tag)
+        .filter_by(project=project, obj_name=function_name)
+        .count()
+    )
     number_of_labels = db_session.query(Function.Label).count()
 
     assert number_of_tags == 0
@@ -295,7 +347,9 @@ def test_delete_function(db: DBInterface, db_session: Session):
 
 
 @pytest.mark.parametrize("use_hash_key", [True, False])
-def test_list_functions_multiple_tags(db: DBInterface, db_session: Session, use_hash_key: bool):
+def test_list_functions_multiple_tags(
+    db: DBInterface, db_session: Session, use_hash_key: bool
+):
     function_1 = _generate_function()
 
     tags = ["some_tag", "some_tag2", "some_tag3"]
@@ -344,8 +398,12 @@ def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
         versioned=True,
     )
 
-    functions = db.list_functions(db_session, function_1.metadata.name, tag=tag_name, hash_key=function_1_hash_key)
-    assert len(functions) == 1 and functions[0]["metadata"]["hash"] == function_1_hash_key
+    functions = db.list_functions(
+        db_session, function_1.metadata.name, tag=tag_name, hash_key=function_1_hash_key
+    )
+    assert (
+        len(functions) == 1 and functions[0]["metadata"]["hash"] == function_1_hash_key
+    )
 
 
 def test_list_functions_with_time_filters(db: DBInterface, db_session: Session):
@@ -354,7 +412,9 @@ def test_list_functions_with_time_filters(db: DBInterface, db_session: Session):
     function_3 = _generate_function("function-name-3")
 
     for function in [function_1, function_2, function_3]:
-        db.store_function(db_session, function.to_dict(), function.metadata.name, versioned=True)
+        db.store_function(
+            db_session, function.to_dict(), function.metadata.name, versioned=True
+        )
         time.sleep(1)
 
     # Verifying that the time filters are working:
@@ -364,7 +424,8 @@ def test_list_functions_with_time_filters(db: DBInterface, db_session: Session):
 
     # extract the updated time of the functions
     function_times = [
-        function["metadata"]["updated"] for function in sorted(all_functions, key=lambda x: x["metadata"]["updated"])
+        function["metadata"]["updated"]
+        for function in sorted(all_functions, key=lambda x: x["metadata"]["updated"])
     ]
 
     # Since only
@@ -376,7 +437,9 @@ def test_list_functions_with_time_filters(db: DBInterface, db_session: Session):
     assert len(functions) == 2
 
     # Since and Until
-    functions = db.list_functions(db_session, since=function_times[0], until=function_times[0])
+    functions = db.list_functions(
+        db_session, since=function_times[0], until=function_times[0]
+    )
     assert len(functions) == 1
 
     # Since and Until with no results
@@ -460,7 +523,9 @@ def test_delete_functions(db: DBInterface, db_session: Session):
         "status": {"bla": "blabla"},
     }
     for name in names:
-        db.store_function(db_session, function, name, project="project1", tag="latest", versioned=True)
+        db.store_function(
+            db_session, function, name, project="project1", tag="latest", versioned=True
+        )
         db.store_function(
             db_session,
             function,
@@ -469,7 +534,9 @@ def test_delete_functions(db: DBInterface, db_session: Session):
             tag="latest_2",
             versioned=True,
         )
-        db.store_function(db_session, function, name, project="project2", tag="latest", versioned=True)
+        db.store_function(
+            db_session, function, name, project="project2", tag="latest", versioned=True
+        )
         db.store_function(
             db_session,
             function,

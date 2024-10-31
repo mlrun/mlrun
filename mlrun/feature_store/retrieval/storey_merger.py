@@ -36,10 +36,14 @@ class StoreyFeatureMerger(BaseMerger):
         fixed_window_type,
     ):
         graph = self.vector.spec.graph.copy()
-        start_states, default_final_state, responders = graph.check_and_process_graph(allow_empty=True)
+        start_states, default_final_state, responders = graph.check_and_process_graph(
+            allow_empty=True
+        )
         next = graph
 
-        join_graph = self._get_graph(feature_set_objects, feature_set_fields, entity_keys)
+        join_graph = self._get_graph(
+            feature_set_objects, feature_set_fields, entity_keys
+        )
 
         all_columns = []
         save_column = []
@@ -53,7 +57,9 @@ class StoreyFeatureMerger(BaseMerger):
             column_names = [name for name, alias in columns]
             aliases = {name: alias for name, alias in columns if alias}
             all_columns += [aliases.get(name, name) for name in column_names]
-            saved_columns_for_relation = list(self.vector.get_feature_set_relations(feature_set).keys())
+            saved_columns_for_relation = list(
+                self.vector.get_feature_set_relations(feature_set).keys()
+            )
 
             for col in saved_columns_for_relation:
                 if col not in column_names:
@@ -66,7 +72,13 @@ class StoreyFeatureMerger(BaseMerger):
             if not entity_keys:
                 # if entity_keys not provided by the user we will set it to be the entity of the first feature set
                 entity_keys = entity_list
-            end_aliases.update({k: v for k, v in zip(entity_list, step.left_keys) if k != v and v in save_column})
+            end_aliases.update(
+                {
+                    k: v
+                    for k, v in zip(entity_list, step.left_keys)
+                    if k != v and v in save_column
+                }
+            )
             mapping = {k: v for k, v in zip(step.left_keys, entity_list) if k != v}
             if mapping:
                 next = next.to(
@@ -105,18 +117,26 @@ class StoreyFeatureMerger(BaseMerger):
         elif not responders and default_final_state:  # graph has clear state sequence
             graph[default_final_state].respond()
         elif not responders:
-            raise mlrun.errors.MLRunInvalidArgumentError("the graph doesnt have an explicit final step to respond on")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "the graph doesnt have an explicit final step to respond on"
+            )
         return graph, all_columns, entity_keys
 
-    def init_online_vector_service(self, entity_keys, fixed_window_type, update_stats=False):
+    def init_online_vector_service(
+        self, entity_keys, fixed_window_type, update_stats=False
+    ):
         try:
             from storey import SyncEmitSource
         except ImportError as exc:
             raise ImportError(f"storey not installed, use pip install storey, {exc}")
 
-        feature_set_objects, feature_set_fields = self.vector.parse_features(offline=False, update_stats=update_stats)
+        feature_set_objects, feature_set_fields = self.vector.parse_features(
+            offline=False, update_stats=update_stats
+        )
         if not feature_set_fields:
-            raise mlrun.errors.MLRunRuntimeError(f"No features found for feature vector '{self.vector.metadata.name}'")
+            raise mlrun.errors.MLRunRuntimeError(
+                f"No features found for feature vector '{self.vector.metadata.name}'"
+            )
         (
             graph,
             requested_columns,

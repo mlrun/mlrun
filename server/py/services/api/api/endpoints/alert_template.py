@@ -43,10 +43,15 @@ async def store_alert_template(
         auth_info,
     )
 
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         chief_client = services.api.utils.clients.chief.Client()
         data = await request.json()
-        return await chief_client.store_alert_template(name=name, request=request, json=data)
+        return await chief_client.store_alert_template(
+            name=name, request=request, json=data
+        )
 
     logger.debug("Storing alert template", name=name)
 
@@ -73,7 +78,9 @@ async def get_alert_template(
         auth_info,
     )
 
-    return await run_in_threadpool(services.api.crud.AlertTemplates().get_alert_template, db_session, name)
+    return await run_in_threadpool(
+        services.api.crud.AlertTemplates().get_alert_template, db_session, name
+    )
 
 
 @router.get("", response_model=list[mlrun.common.schemas.AlertTemplate])
@@ -87,7 +94,9 @@ async def list_alert_templates(
         auth_info,
     )
 
-    return await run_in_threadpool(services.api.crud.AlertTemplates().list_alert_templates, db_session)
+    return await run_in_threadpool(
+        services.api.crud.AlertTemplates().list_alert_templates, db_session
+    )
 
 
 @router.delete(
@@ -106,13 +115,18 @@ async def delete_alert_template(
         auth_info,
     )
 
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         chief_client = services.api.utils.clients.chief.Client()
         return await chief_client.delete_alert_template(name=name, request=request)
 
     logger.debug("Deleting alert template", name=name)
 
-    await run_in_threadpool(services.api.crud.AlertTemplates().delete_alert_template, db_session, name)
+    await run_in_threadpool(
+        services.api.crud.AlertTemplates().delete_alert_template, db_session, name
+    )
 
 
 def _get_authorization_resource():

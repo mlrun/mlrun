@@ -28,7 +28,9 @@ import services.api.utils.db.mysql
 from mlrun.utils import logger
 
 
-def test_offline_state(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient) -> None:
+def test_offline_state(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.offline
     response = client.get("healthz")
     assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
@@ -75,7 +77,9 @@ def test_api_states(
     response = client.get("projects")
     expected_message = mlrun.common.schemas.APIStates.description(state)
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
-    assert expected_message in response.text, f"Expected message: {expected_message}, actual: {response.text}"
+    assert (
+        expected_message in response.text
+    ), f"Expected message: {expected_message}, actual: {response.text}"
 
 
 @pytest.mark.parametrize("schema_migration", [True, False])
@@ -104,7 +108,9 @@ def test_init_data_migration_required_recognition(
         is_latest_data_version_mock,
     )
     db_backup_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(services.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock)
+    monkeypatch.setattr(
+        services.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock
+    )
     perform_schema_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
         services.api.initial_data,
@@ -122,14 +128,18 @@ def test_init_data_migration_required_recognition(
     # thus it will just put some initial data and move to online state
 
     alembic_util_mock.return_value.is_migration_from_scratch.return_value = from_scratch
-    alembic_util_mock.return_value.is_schema_migration_needed.return_value = schema_migration
+    alembic_util_mock.return_value.is_schema_migration_needed.return_value = (
+        schema_migration
+    )
     is_latest_data_version_mock.return_value = not data_migration
 
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
     services.api.initial_data.init_data()
 
     expected_state = (
-        mlrun.common.schemas.APIStates.online if from_scratch else mlrun.common.schemas.APIStates.waiting_for_migrations
+        mlrun.common.schemas.APIStates.online
+        if from_scratch
+        else mlrun.common.schemas.APIStates.waiting_for_migrations
     )
 
     # remain online if nothing is needed

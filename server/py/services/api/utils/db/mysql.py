@@ -56,7 +56,9 @@ class MySQLUtil:
         connection = self._create_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mlrun';")
+                cursor.execute(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mlrun';"
+                )
                 if cursor.fetchone()[0] > 0:
                     return True
             return False

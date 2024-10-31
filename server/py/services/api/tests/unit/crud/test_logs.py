@@ -27,7 +27,9 @@ from services.api.tests.unit.utils.clients.test_log_collector import GetLogSizeR
 
 class TestLogs:
     @staticmethod
-    def test_legacy_log_mechanism(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+    def test_legacy_log_mechanism(
+        db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
         project = "project-name"
         uid = "m33"
         data1, data2 = b"ab", b"cd"
@@ -58,10 +60,14 @@ class TestLogs:
         ],
     )
     @pytest.mark.asyncio
-    async def test_get_log_size(self, db: sqlalchemy.orm.Session, return_value, expected_error):
+    async def test_get_log_size(
+        self, db: sqlalchemy.orm.Session, return_value, expected_error
+    ):
         mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
         log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
-        log_collector._call = unittest.mock.AsyncMock(return_value=GetLogSizeResponse(True, None, return_value))
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=GetLogSizeResponse(True, None, return_value)
+        )
 
         project = "project-name"
         uid = "m33"

@@ -37,7 +37,9 @@ def upgrade():
     op.create_table(
         "project_summaries",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("project", sa.String(length=255, collation="utf8mb3_bin"), nullable=False),
+        sa.Column(
+            "project", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
+        ),
         sa.Column("summary", sa.JSON(), nullable=True),
         sa.Column("updated", mysql.DATETIME(timezone=True, fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("id"),

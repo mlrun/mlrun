@@ -32,7 +32,9 @@ class AzureBlobStore(DataStore):
     using_bucket = True
     max_concurrency = 100
     max_blocksize = 1024 * 1024 * 4
-    max_single_put_size = 1024 * 1024 * 8  # for service_client property only, does not affect filesystem
+    max_single_put_size = (
+        1024 * 1024 * 8
+    )  # for service_client property only, does not affect filesystem
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
@@ -52,11 +54,14 @@ class AzureBlobStore(DataStore):
                 or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_KEY"),
                 connection_string=self._get_secret_or_env("connection_string")
                 or self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING"),
-                tenant_id=self._get_secret_or_env("tenant_id") or self._get_secret_or_env("AZURE_STORAGE_TENANT_ID"),
-                client_id=self._get_secret_or_env("client_id") or self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID"),
+                tenant_id=self._get_secret_or_env("tenant_id")
+                or self._get_secret_or_env("AZURE_STORAGE_TENANT_ID"),
+                client_id=self._get_secret_or_env("client_id")
+                or self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID"),
                 client_secret=self._get_secret_or_env("client_secret")
                 or self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET"),
-                sas_token=self._get_secret_or_env("sas_token") or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
+                sas_token=self._get_secret_or_env("sas_token")
+                or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
                 credential=self._get_secret_or_env("credential"),
             )
             self._storage_options = self._sanitize_storage_options(res)
@@ -111,7 +116,12 @@ class AzureBlobStore(DataStore):
         credential = storage_options.get("credential")
 
         credential_from_client_id = None
-        if credential is None and account_key is None and sas_token is None and client_id is not None:
+        if (
+            credential is None
+            and account_key is None
+            and sas_token is None
+            and client_id is not None
+        ):
             credential_from_client_id = ClientSecretCredential(
                 tenant_id=storage_options.get("tenant_id"),
                 client_id=client_id,
@@ -142,7 +152,9 @@ class AzureBlobStore(DataStore):
                     "Must provide either a connection_string or account_name with credentials"
                 )
         except Exception as e:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"unable to connect to account for {e}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"unable to connect to account for {e}"
+            )
 
     def _convert_key_to_remote_path(self, key):
         key = key.strip("/")
@@ -173,7 +185,9 @@ class AzureBlobStore(DataStore):
 
     def put(self, key, data, append=False):
         if append:
-            raise mlrun.errors.MLRunInvalidArgumentError("Append mode not supported for Azure blob datastore")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Append mode not supported for Azure blob datastore"
+            )
         remote_path = self._convert_key_to_remote_path(key)
         data, mode = self._prepare_put_data(data, append)
         with self.filesystem.open(remote_path, mode) as f:
@@ -198,7 +212,9 @@ class AzureBlobStore(DataStore):
         remote_path = f"{remote_path}/**"
         files = self.filesystem.glob(remote_path)
         key_length = len(key)
-        files = [f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1]
+        files = [
+            f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
+        ]
         return files
 
     def rm(self, path, recursive=False, maxdepth=None):
@@ -250,9 +266,13 @@ class AzureBlobStore(DataStore):
                 "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
             )
             if "client_id" in st:
-                res[f"spark.hadoop.fs.azure.account.oauth2.client.id.{host}"] = st["client_id"]
+                res[f"spark.hadoop.fs.azure.account.oauth2.client.id.{host}"] = st[
+                    "client_id"
+                ]
             if "client_secret" in st:
-                res[f"spark.hadoop.fs.azure.account.oauth2.client.secret.{host}"] = st["client_secret"]
+                res[f"spark.hadoop.fs.azure.account.oauth2.client.secret.{host}"] = st[
+                    "client_secret"
+                ]
             if "tenant_id" in st:
                 tenant_id = st["tenant_id"]
                 res[f"spark.hadoop.fs.azure.account.oauth2.client.endpoint.{host}"] = (

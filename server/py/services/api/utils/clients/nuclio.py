@@ -38,7 +38,9 @@ class Client(
         self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.mlconf.nuclio_dashboard_url
 
-    def create_project(self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project):
+    def create_project(
+        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
+    ):
         logger.debug("Creating project in Nuclio", project=project)
         body = self._generate_request_body(project)
         self._post_project_to_nuclio(body)
@@ -76,13 +78,17 @@ class Client(
         response = self._get_project_from_nuclio(name)
         response_body = response.json()
         if project.get("metadata", {}).get("labels") is not None:
-            response_body.setdefault("metadata", {}).setdefault("labels", {}).update(project["metadata"]["labels"])
-        if project.get("metadata", {}).get("annotations") is not None:
-            response_body.setdefault("metadata", {}).setdefault("annotations", {}).update(
-                project["metadata"]["annotations"]
+            response_body.setdefault("metadata", {}).setdefault("labels", {}).update(
+                project["metadata"]["labels"]
             )
+        if project.get("metadata", {}).get("annotations") is not None:
+            response_body.setdefault("metadata", {}).setdefault(
+                "annotations", {}
+            ).update(project["metadata"]["annotations"])
         if project.get("spec", {}).get("description") is not None:
-            response_body.setdefault("spec", {})["description"] = project["spec"]["description"]
+            response_body.setdefault("spec", {})["description"] = project["spec"][
+                "description"
+            ]
         self._put_project_to_nuclio(response_body)
 
     def delete_project(
@@ -92,9 +98,13 @@ class Client(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        logger.debug("Deleting project in Nuclio", name=name, deletion_strategy=deletion_strategy)
+        logger.debug(
+            "Deleting project in Nuclio", name=name, deletion_strategy=deletion_strategy
+        )
         body = self._generate_request_body(
-            mlrun.common.schemas.Project(metadata=mlrun.common.schemas.ProjectMetadata(name=name))
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name)
+            )
         )
         headers = {
             "x-nuclio-delete-project-strategy": deletion_strategy.to_nuclio_deletion_strategy(),
@@ -137,13 +147,21 @@ class Client(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner:
-            raise NotImplementedError("Listing nuclio projects by owner is currently not supported")
+            raise NotImplementedError(
+                "Listing nuclio projects by owner is currently not supported"
+            )
         if labels:
-            raise NotImplementedError("Filtering nuclio projects by labels is currently not supported")
+            raise NotImplementedError(
+                "Filtering nuclio projects by labels is currently not supported"
+            )
         if state:
-            raise NotImplementedError("Filtering nuclio projects by state is currently not supported")
+            raise NotImplementedError(
+                "Filtering nuclio projects by state is currently not supported"
+            )
         if names:
-            raise NotImplementedError("Filtering nuclio projects by names is currently not supported")
+            raise NotImplementedError(
+                "Filtering nuclio projects by names is currently not supported"
+            )
         response = self._send_request_to_api("GET", "projects", auth_info=auth_info)
         response_body = response.json()
         return mlrun.common.schemas.ProjectsOutput(
@@ -170,7 +188,9 @@ class Client(
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
-    def get_project_summary(self, session: sqlalchemy.orm.Session, name: str) -> mlrun.common.schemas.ProjectSummary:
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.common.schemas.ProjectSummary:
         raise NotImplementedError("Get project summary is not supported")
 
     def get_dashboard_version(self) -> str:
@@ -178,13 +198,21 @@ class Client(
         response_body = response.json()
         return response_body["dashboard"]["label"]
 
-    def _get_project_from_nuclio(self, name, auth_info: mlrun.common.schemas.AuthInfo = None):
+    def _get_project_from_nuclio(
+        self, name, auth_info: mlrun.common.schemas.AuthInfo = None
+    ):
         return self._send_request_to_api("GET", f"projects/{name}", auth_info=auth_info)
 
-    def _post_project_to_nuclio(self, body, auth_info: mlrun.common.schemas.AuthInfo = None):
-        return self._send_request_to_api("POST", "projects", auth_info=auth_info, json=body)
+    def _post_project_to_nuclio(
+        self, body, auth_info: mlrun.common.schemas.AuthInfo = None
+    ):
+        return self._send_request_to_api(
+            "POST", "projects", auth_info=auth_info, json=body
+        )
 
-    def _put_project_to_nuclio(self, body, auth_info: mlrun.common.schemas.AuthInfo = None):
+    def _put_project_to_nuclio(
+        self, body, auth_info: mlrun.common.schemas.AuthInfo = None
+    ):
         self._send_request_to_api("PUT", "projects", auth_info=auth_info, json=body)
 
     def _send_request_to_api(
@@ -228,7 +256,9 @@ class Client(
                 except Exception:
                     pass
                 else:
-                    log_kwargs.update({"error": error, "error_stack_trace": error_stack_trace})
+                    log_kwargs.update(
+                        {"error": error, "error_stack_trace": error_stack_trace}
+                    )
             logger.warning("Request to nuclio failed", **log_kwargs)
             mlrun.errors.raise_for_status(response)
         return response
@@ -254,5 +284,7 @@ class Client(
                 labels=nuclio_project["metadata"].get("labels"),
                 annotations=nuclio_project["metadata"].get("annotations"),
             ),
-            spec=mlrun.common.schemas.ProjectSpec(description=nuclio_project["spec"].get("description")),
+            spec=mlrun.common.schemas.ProjectSpec(
+                description=nuclio_project["spec"].get("description")
+            ),
         )

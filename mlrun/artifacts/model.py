@@ -273,9 +273,13 @@ class ModelArtifact(Artifact):
             if not isinstance(label_columns, list):
                 label_columns = [label_columns]
             subset = df.drop(columns=label_columns)
-        inferer.infer_schema(subset, self.spec.inputs, {}, options=InferOptions.Features)
+        inferer.infer_schema(
+            subset, self.spec.inputs, {}, options=InferOptions.Features
+        )
         if label_columns:
-            inferer.infer_schema(df[label_columns], self.spec.outputs, {}, options=InferOptions.Features)
+            inferer.infer_schema(
+                df[label_columns], self.spec.outputs, {}, options=InferOptions.Features
+            )
         if with_stats:
             self.spec.feature_stats = inferer.get_stats(
                 df[numeric_columns], options=InferOptions.Histogram, num_bins=num_bins
@@ -309,27 +313,41 @@ class ModelArtifact(Artifact):
         # using `resolve_<body/file>_target_hash_path`
         target_model_path = None
         if self.spec.target_path:
-            target_model_path = path.join(self.spec.target_path, path.basename(self.spec.model_file))
+            target_model_path = path.join(
+                self.spec.target_path, path.basename(self.spec.model_file)
+            )
 
-        target_model_path = self._upload_body_or_file(artifact_path, target_model_path=target_model_path)
-        upload_extra_data(artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path)
+        target_model_path = self._upload_body_or_file(
+            artifact_path, target_model_path=target_model_path
+        )
+        upload_extra_data(
+            artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
+        )
 
         spec_body = _sanitize_and_serialize_model_spec_yaml(self)
         spec_target_path = None
 
         if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
             # resolving target_path for the model spec
-            _, spec_target_path = self.resolve_body_target_hash_path(body=spec_body, artifact_path=artifact_path)
+            _, spec_target_path = self.resolve_body_target_hash_path(
+                body=spec_body, artifact_path=artifact_path
+            )
 
             # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True, then target_path
             # will point to the artifact path which is where the model and all its extra data are stored
-            self.spec.target_path = artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
+            self.spec.target_path = (
+                artifact_path + "/"
+                if not artifact_path.endswith("/")
+                else artifact_path
+            )
             # unlike in extra_data, which stores for each key the path to the file, in target_path we store the
             # target path dir, and because we generated the target path of the model from the artifact hash,
             # the model_file doesn't represent the actual target file name of the model, so we need to update it
             self.spec.model_target_file = path.basename(target_model_path)
 
-        spec_target_path = spec_target_path or path.join(self.spec.target_path, model_spec_filename)
+        spec_target_path = spec_target_path or path.join(
+            self.spec.target_path, model_spec_filename
+        )
         mlrun.datastore.store_manager.object(url=spec_target_path).put(spec_body)
 
     def _upload_body_or_file(
@@ -343,8 +361,12 @@ class ModelArtifact(Artifact):
                 (
                     self.metadata.hash,
                     target_model_path,
-                ) = self.resolve_body_target_hash_path(body=body, artifact_path=artifact_path)
-            self._upload_body(body, target=target_model_path, artifact_path=artifact_path)
+                ) = self.resolve_body_target_hash_path(
+                    body=body, artifact_path=artifact_path
+                )
+            self._upload_body(
+                body, target=target_model_path, artifact_path=artifact_path
+            )
 
         else:
             src_model_path = _get_src_path(self, self.spec.model_file)
@@ -355,7 +377,9 @@ class ModelArtifact(Artifact):
                 (
                     self.metadata.hash,
                     target_model_path,
-                ) = self.resolve_file_target_hash_path(source_path=src_model_path, artifact_path=artifact_path)
+                ) = self.resolve_file_target_hash_path(
+                    source_path=src_model_path, artifact_path=artifact_path
+                )
 
             self._upload_file(
                 src_model_path,
@@ -412,7 +436,9 @@ def get_model(model_dir, suffix=""):
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
         # in case model_target_file is specified, use it, because that means that the actual model target path
         # in the store is different from the local model_file it was generated from
-        model_file = _get_file_path(target, model_spec.model_target_file or model_spec.model_file)
+        model_file = _get_file_path(
+            target, model_spec.model_target_file or model_spec.model_file
+        )
         extra_dataitems = _get_extra(target, model_spec.extra_data)
 
     elif model_dir.lower().endswith(".yaml"):
@@ -430,7 +456,9 @@ def get_model(model_dir, suffix=""):
             model_file = _get_file_path(model_dir, model_spec.model_file, isdir=True)
             extra_dataitems = _get_extra(model_dir, model_spec.extra_data, is_dir=True)
         else:
-            extra_dataitems = _get_extra(model_dir, {v: v for v in model_dir_list}, is_dir=True)
+            extra_dataitems = _get_extra(
+                model_dir, {v: v for v in model_dir_list}, is_dir=True
+            )
             for file in model_dir_list:
                 if file.endswith(suffix):
                     model_file = path.join(model_dir, file)
@@ -564,7 +592,9 @@ def _get_file_path(base_path: str, name: str, isdir: bool = False) -> str:
 def _get_extra(target: str, extra_data: dict, is_dir: bool = False) -> dict:
     extra_dataitems = {}
     for k, v in extra_data.items():
-        extra_dataitems[k] = mlrun.datastore.store_manager.object(url=_get_file_path(target, v, isdir=is_dir), key=k)
+        extra_dataitems[k] = mlrun.datastore.store_manager.object(
+            url=_get_file_path(target, v, isdir=is_dir), key=k
+        )
     return extra_dataitems
 
 
@@ -583,7 +613,9 @@ def _sanitize_model_spec(model: ModelArtifact) -> dict:
     # Remove future packaging links
     if model_dict["spec"].get("extra_data"):
         model_dict["spec"]["extra_data"] = {
-            key: item for key, item in model_dict["spec"]["extra_data"].items() if item is not ...
+            key: item
+            for key, item in model_dict["spec"]["extra_data"].items()
+            if item is not ...
         }
     return model_dict
 

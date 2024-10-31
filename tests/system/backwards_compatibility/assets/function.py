@@ -29,7 +29,9 @@ def log_dataset(context: mlrun.MLClientCtx, dataset_name: str):
     context.log_dataset(dataset_name, df=df, stats=True, format="parquet")
 
 
-def api_backward_compatibility_tests_succeeding_function(context: mlrun.MLClientCtx, dataset_src: DataItem):
+def api_backward_compatibility_tests_succeeding_function(
+    context: mlrun.MLClientCtx, dataset_src: DataItem
+):
     # Dataset loading
     df = dataset_src.as_df()
 
@@ -53,7 +55,9 @@ def api_backward_compatibility_tests_succeeding_function(context: mlrun.MLClient
 
     plotly = PlotlyArtifact(figure=fig, key="plotly")
     logged_plotly = context.log_artifact(plotly)
-    context.logger.info("Logged plotly artifact", plotly_artifact=logged_plotly.base_dict())
+    context.logger.info(
+        "Logged plotly artifact", plotly_artifact=logged_plotly.base_dict()
+    )
 
     # Model logging
     logged_model = context.log_model(

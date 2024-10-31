@@ -21,9 +21,14 @@ import services.api.utils.clients.chief
 router = fastapi.APIRouter()
 
 
-@router.get("/clusterization-spec", response_model=mlrun.common.schemas.ClusterizationSpec)
+@router.get(
+    "/clusterization-spec", response_model=mlrun.common.schemas.ClusterizationSpec
+)
 async def clusterization_spec():
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         chief_client = services.api.utils.clients.chief.Client()
         return await chief_client.get_clusterization_spec()
 

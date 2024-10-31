@@ -22,7 +22,9 @@ from mlrun.utils import logger
 
 
 class AlembicUtil:
-    def __init__(self, alembic_config_path: pathlib.Path, data_version_is_latest: bool = True):
+    def __init__(
+        self, alembic_config_path: pathlib.Path, data_version_is_latest: bool = True
+    ):
         self._alembic_config_path = str(alembic_config_path)
         self._alembic_config = alembic.config.Config(self._alembic_config_path)
         self._alembic_output = ""

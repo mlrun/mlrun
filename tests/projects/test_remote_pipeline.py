@@ -32,7 +32,10 @@ from mlrun.common.schemas import SecurityContextEnrichmentModes
 @pytest.fixture()
 def workflow_path():
     workflow_path = (
-        pathlib.Path(sys.modules[TestRemotePipeline.__module__].__file__).absolute().parent / "workpipe.yaml"
+        pathlib.Path(sys.modules[TestRemotePipeline.__module__].__file__)
+        .absolute()
+        .parent
+        / "workpipe.yaml"
     )
     yield workflow_path
 
@@ -72,11 +75,15 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
         return func1, func2, func3, func4
 
-    def test_kfp_pipeline_enriched_with_priority_class_name(self, rundb_mock, workflow_path):
+    def test_kfp_pipeline_enriched_with_priority_class_name(
+        self, rundb_mock, workflow_path
+    ):
         self.pipeline_path = "remote_pipeline.py"
         mlrun.projects.pipeline_context.clear(with_project=True)
 
-        mlrun.mlconf.valid_function_priority_class_names = "default-high,default-medium,default-low"
+        mlrun.mlconf.valid_function_priority_class_names = (
+            "default-high,default-medium,default-low"
+        )
         self._create_project("remotepipe")
         func1, func2, func3, func4 = self._get_functions()
 
@@ -125,7 +132,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         k8s_api = kubernetes.client.ApiClient()
 
         node_selector = {"label-1": "val1"}
-        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(json.dumps(node_selector).encode("utf-8"))
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
 
         preemptible_tolerations = [
             kubernetes.client.V1Toleration(
@@ -134,7 +143,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                 operator="Exists",
             )
         ]
-        serialized_tolerations = k8s_api.sanitize_for_serialization(preemptible_tolerations)
+        serialized_tolerations = k8s_api.sanitize_for_serialization(
+            preemptible_tolerations
+        )
         mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
             json.dumps(serialized_tolerations).encode("utf-8")
         )
@@ -174,7 +185,10 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                     if step.get("name") == "func1-func1":
                         # expects constrain
                         assert step.get("affinity") == self._get_preemptible_affinity()
-                        assert step.get("tolerations") == self._get_preemptible_tolerations()
+                        assert (
+                            step.get("tolerations")
+                            == self._get_preemptible_tolerations()
+                        )
                     elif step.get("name") == "func2-func1":
                         # expects prevent
                         assert step.get("affinity") is None
@@ -182,12 +196,20 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                     elif step.get("name") == "deploy-func3":
                         # expects constrain
                         assert step.get("affinity") == self._get_preemptible_affinity()
-                        assert step.get("tolerations") == self._get_preemptible_tolerations()
+                        assert (
+                            step.get("tolerations")
+                            == self._get_preemptible_tolerations()
+                        )
                     elif step.get("name") == "deploy-func4":
                         # expects allow
-                        assert step.get("tolerations") == self._get_preemptible_tolerations()
+                        assert (
+                            step.get("tolerations")
+                            == self._get_preemptible_tolerations()
+                        )
                     else:
-                        raise mlrun.errors.MLRunRuntimeError("You missed a container to test")
+                        raise mlrun.errors.MLRunRuntimeError(
+                            "You missed a container to test"
+                        )
 
     @pytest.mark.parametrize(
         "enrichment_mode,kfp_pod_user_unix_id,enrichment_group_id_override,expected_security_context,expect_error",
@@ -249,9 +271,13 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
 
         mlrun.mlconf.function.spec.security_context.enrichment_mode = enrichment_mode
-        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id = kfp_pod_user_unix_id
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id = (
+            kfp_pod_user_unix_id
+        )
         if enrichment_group_id_override:
-            mlrun.mlconf.function.spec.security_context.enrichment_group_id = enrichment_group_id_override
+            mlrun.mlconf.function.spec.security_context.enrichment_group_id = (
+                enrichment_group_id_override
+            )
         self.project.save()
 
         if expect_error:
@@ -302,7 +328,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
             }
         }
 
-    def test_kfp_pipeline_overwrites_enriched_attributes(self, rundb_mock, workflow_path):
+    def test_kfp_pipeline_overwrites_enriched_attributes(
+        self, rundb_mock, workflow_path
+    ):
         mlrun.projects.pipeline_context.clear(with_project=True)
         k8s_api = kubernetes.client.ApiClient()
         self.pipeline_path = "remote_pipeline_with_overridden_resources.py"
@@ -313,7 +341,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         mlrun.mlconf.default_function_pod_resources = default_function_pod_resources
 
         node_selector = {"label-1": "val1"}
-        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(json.dumps(node_selector).encode("utf-8"))
+        mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
 
         self._create_project("remotepipe")
         func1 = mlrun.new_function(
@@ -372,4 +402,6 @@ def test_workflow_name(workflow_name):
     project_name = "test"
     # When creating a schedule workflow we adding the project name to the workflow name.
     before_renaming = f"{project_name}-{workflow_name}"
-    assert workflow_name == mlrun.utils.normalize_workflow_name(before_renaming, project_name)
+    assert workflow_name == mlrun.utils.normalize_workflow_name(
+        before_renaming, project_name
+    )

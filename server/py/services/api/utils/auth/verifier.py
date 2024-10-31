@@ -49,9 +49,13 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     ) -> list:
         def _generate_opa_resource(resource):
             project_name, resource_name = project_and_resource_name_extractor(resource)
-            return self._generate_resource_string_from_project_resource(resource_type, project_name, resource_name)
+            return self._generate_resource_string_from_project_resource(
+                resource_type, project_name, resource_name
+            )
 
-        return await self.filter_by_permissions(resources, _generate_opa_resource, action, auth_info)
+        return await self.filter_by_permissions(
+            resources, _generate_opa_resource, action, auth_info
+        )
 
     async def filter_projects_by_permissions(
         self,
@@ -106,7 +110,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         raise_on_forbidden: bool = True,
     ) -> bool:
         return await self.query_permissions(
-            self._generate_resource_string_from_project_resource(resource_type, project_name, resource_name),
+            self._generate_resource_string_from_project_resource(
+                resource_type, project_name, resource_name
+            ),
             action,
             auth_info,
             raise_on_forbidden,
@@ -163,7 +169,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: mlrun.common.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        return await self._auth_provider.query_permissions(resource, action, auth_info, raise_on_forbidden)
+        return await self._auth_provider.query_permissions(
+            resource, action, auth_info, raise_on_forbidden
+        )
 
     async def filter_by_permissions(
         self,
@@ -179,10 +187,14 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info,
         )
 
-    def add_allowed_project_for_owner(self, project_name: str, auth_info: mlrun.common.schemas.AuthInfo):
+    def add_allowed_project_for_owner(
+        self, project_name: str, auth_info: mlrun.common.schemas.AuthInfo
+    ):
         self._auth_provider.add_allowed_project_for_owner(project_name, auth_info)
 
-    async def authenticate_request(self, request: fastapi.Request) -> mlrun.common.schemas.AuthInfo:
+    async def authenticate_request(
+        self, request: fastapi.Request
+    ) -> mlrun.common.schemas.AuthInfo:
         auth_info = mlrun.common.schemas.AuthInfo()
         header = request.headers.get("Authorization", "")
         if self._basic_auth_configured():
@@ -193,7 +205,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                 username != mlrun.mlconf.httpdb.authentication.basic.username
                 or password != mlrun.mlconf.httpdb.authentication.basic.password
             ):
-                raise mlrun.errors.MLRunUnauthorizedError("Username or password did not match")
+                raise mlrun.errors.MLRunUnauthorizedError(
+                    "Username or password did not match"
+                )
             auth_info.username = username
             auth_info.password = password
         elif self._bearer_auth_configured():
@@ -213,9 +227,13 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         if not auth_info.username and "x-remote-user" in request.headers:
             auth_info.username = request.headers["x-remote-user"]
 
-        projects_role_header = request.headers.get(mlrun.common.schemas.HeaderNames.projects_role)
+        projects_role_header = request.headers.get(
+            mlrun.common.schemas.HeaderNames.projects_role
+        )
         auth_info.projects_role = (
-            mlrun.common.schemas.ProjectsRole(projects_role_header) if projects_role_header else None
+            mlrun.common.schemas.ProjectsRole(projects_role_header)
+            if projects_role_header
+            else None
         )
         # In Iguazio 3.0 we're running with auth mode none cause auth is done by the ingress, in that auth mode sessions
         # needed for data operations were passed through this header, keep reading it to be backwards compatible
@@ -230,15 +248,23 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
     def get_or_create_access_key(self, session: str, planes: list[str] = None) -> str:
         if not self._iguazio_auth_configured():
-            raise NotImplementedError("Access key is currently supported only for Iguazio authentication mode")
-        return services.api.utils.clients.iguazio.Client().get_or_create_access_key(session, planes)
+            raise NotImplementedError(
+                "Access key is currently supported only for Iguazio authentication mode"
+            )
+        return services.api.utils.clients.iguazio.Client().get_or_create_access_key(
+            session, planes
+        )
 
     def is_jobs_auth_required(self):
         return self._iguazio_auth_configured()
 
     @staticmethod
     def _generate_resource_string_from_project_name(project_name: str):
-        return mlrun.common.schemas.AuthorizationResourceTypes.project.to_resource_string(project_name, "")
+        return (
+            mlrun.common.schemas.AuthorizationResourceTypes.project.to_resource_string(
+                project_name, ""
+            )
+        )
 
     @staticmethod
     def _generate_resource_string_from_project_resource(
@@ -255,12 +281,16 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _basic_auth_configured():
         return mlrun.mlconf.httpdb.authentication.mode == "basic" and (
-            mlrun.mlconf.httpdb.authentication.basic.username or mlrun.mlconf.httpdb.authentication.basic.password
+            mlrun.mlconf.httpdb.authentication.basic.username
+            or mlrun.mlconf.httpdb.authentication.basic.password
         )
 
     @staticmethod
     def _bearer_auth_configured():
-        return mlrun.mlconf.httpdb.authentication.mode == "bearer" and mlrun.mlconf.httpdb.authentication.bearer.token
+        return (
+            mlrun.mlconf.httpdb.authentication.mode == "bearer"
+            and mlrun.mlconf.httpdb.authentication.bearer.token
+        )
 
     @staticmethod
     def _iguazio_auth_configured():

@@ -39,7 +39,9 @@ async def store_datastore_profile(
     project_name: str,
     info: mlrun.common.schemas.DatastoreProfile,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await run_in_threadpool(
         services.api.utils.singletons.project_member.get_project_member().get_project,
@@ -105,7 +107,9 @@ async def store_datastore_profile(
 async def list_datastore_profiles(
     project_name: str,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await run_in_threadpool(
         services.api.utils.singletons.project_member.get_project_member().get_project,
@@ -141,7 +145,9 @@ async def get_datastore_profile(
     project_name: str,
     profile: str,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await run_in_threadpool(
         services.api.utils.singletons.project_member.get_project_member().get_project,
@@ -171,7 +177,9 @@ async def delete_datastore_profile(
     project_name: str,
     profile: str,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await run_in_threadpool(
         services.api.utils.singletons.project_member.get_project_member().get_project,

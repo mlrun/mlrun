@@ -161,9 +161,15 @@ class TestAzureBlob:
 
         if auth_method.startswith("env"):
             if use_datastore_profile:
-                raise ValueError(f"Auth method {auth_method} does not support profiles.")
+                raise ValueError(
+                    f"Auth method {auth_method} does not support profiles."
+                )
             for env_var in test_params:
-                env_value = "fake_secret" if fake_secrets and env_var in SECRETS_KEYS else config["env"].get(env_var)
+                env_value = (
+                    "fake_secret"
+                    if fake_secrets and env_var in SECRETS_KEYS
+                    else config["env"].get(env_var)
+                )
                 if not env_value:
                     pytest.skip(f"Auth method {auth_method} not configured.")
                 os.environ[env_var] = env_value
@@ -171,23 +177,35 @@ class TestAzureBlob:
             logger.info(f"Testing auth method {auth_method}")
         elif auth_method.startswith("fsspec"):
             for var in test_params:
-                value = "fake_secret" if fake_secrets and var in SECRETS_KEYS else config["env"].get(var)
+                value = (
+                    "fake_secret"
+                    if fake_secrets and var in SECRETS_KEYS
+                    else config["env"].get(var)
+                )
                 if not value:
                     pytest.skip(f"Auth method {auth_method} not configured.")
                 self.storage_options[var] = value
             logger.info(f"Testing auth method {auth_method}")
             if use_datastore_profile:
-                self.profile = DatastoreProfileAzureBlob(name=self.profile_name, **self.storage_options)
+                self.profile = DatastoreProfileAzureBlob(
+                    name=self.profile_name, **self.storage_options
+                )
                 register_temporary_client_datastore_profile(self.profile)
         else:
             raise ValueError("auth_method not known")
         if not fake_secrets:
             self.create_fs(storage_options=self.storage_options)
 
-    @pytest.mark.parametrize("auth_method ,use_datastore_profile", generated_pytest_parameters)
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
     def test_azure_blob(self, use_datastore_profile, auth_method):
-        self.setup_before_test(use_datastore_profile=use_datastore_profile, auth_method=auth_method)
-        data_item = mlrun.run.get_dataitem(self.object_url, secrets=self.storage_options)
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile, auth_method=auth_method
+        )
+        data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
         data_item.put(self.test_string)
 
         # Validate append is properly blocked (currently not supported for Azure blobs)
@@ -207,9 +225,13 @@ class TestAzureBlob:
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
 
-    @pytest.mark.parametrize("auth_method ,use_datastore_profile", generated_pytest_parameters)
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
     def test_list_dir_rm(self, use_datastore_profile, auth_method):
-        self.setup_before_test(use_datastore_profile=use_datastore_profile, auth_method=auth_method)
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile, auth_method=auth_method
+        )
         file_dataitem = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         file_dataitem.put(self.test_string)
 
@@ -225,10 +247,14 @@ class TestAzureBlob:
         assert self.object_file.split("/")[-1] not in dir_dataitem.listdir()
         file_dataitem.delete()  # should not raise an error
 
-    @pytest.mark.parametrize("auth_method ,use_datastore_profile", generated_pytest_parameters)
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
     def test_blob_upload(self, use_datastore_profile, auth_method):
         # The upload is done by a different connector than fsspec, so it requires checking every authentication method.
-        self.setup_before_test(use_datastore_profile=use_datastore_profile, auth_method=auth_method)
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile, auth_method=auth_method
+        )
         upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         upload_data_item.upload(self.test_file)
 
@@ -244,7 +270,9 @@ class TestAzureBlob:
             use_datastore_profile=False,
             auth_method="env_conn_str",
         )
-        data_item = mlrun.run.get_dataitem(self.object_url, secrets=self.storage_options)
+        data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
         data_item.put(data)
         result = data_item.get()
         assert result == b"test"
@@ -267,7 +295,9 @@ class TestAzureBlob:
 
         first_start_time = time.monotonic()
 
-        with tempfile.NamedTemporaryFile(suffix=".txt", delete=True, mode="wb") as temp_file:
+        with tempfile.NamedTemporaryFile(
+            suffix=".txt", delete=True, mode="wb"
+        ) as temp_file:
             num_chunks = file_size // chunk_size
             remainder = file_size % chunk_size
             for _ in range(num_chunks):
@@ -285,8 +315,12 @@ class TestAzureBlob:
             )
             start_time = time.monotonic()
             data_item.upload(temp_file.name)
-            logger.info(f"azure test_large_upload - finished to upload in {time.monotonic() - start_time} seconds")
-            with tempfile.NamedTemporaryFile(suffix=".txt", delete=True, mode="wb") as temp_file_download:
+            logger.info(
+                f"azure test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
+            )
+            with tempfile.NamedTemporaryFile(
+                suffix=".txt", delete=True, mode="wb"
+            ) as temp_file_download:
                 start_time = time.monotonic()
                 data_item.download(temp_file_download.name)
                 logger.info(
@@ -309,7 +343,9 @@ class TestAzureBlob:
                             )
                         chunk_number += 1
 
-    @pytest.mark.parametrize("auth_method ,use_datastore_profile", generated_pytest_parameters)
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
     @pytest.mark.parametrize(
         "file_format, pd_reader, dd_reader, reader_args",
         [
@@ -327,13 +363,17 @@ class TestAzureBlob:
         use_datastore_profile,
         auth_method,
     ):
-        self.setup_before_test(use_datastore_profile=use_datastore_profile, auth_method=auth_method)
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile, auth_method=auth_method
+        )
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
 
         source = pd_reader(local_file_path, **reader_args)
-        upload_data_item = mlrun.run.get_dataitem(dataframe_url, secrets=self.storage_options)
+        upload_data_item = mlrun.run.get_dataitem(
+            dataframe_url, secrets=self.storage_options
+        )
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
@@ -351,7 +391,9 @@ class TestAzureBlob:
             ("csv", pd.read_csv, dd.read_csv, True),
         ],
     )
-    def test_as_df_directory(self, file_format, pd_reader, dd_reader, reset_index, use_datastore_profile):
+    def test_as_df_directory(
+        self, file_format, pd_reader, dd_reader, reset_index, use_datastore_profile
+    ):
         self.setup_before_test(
             use_datastore_profile=use_datastore_profile,
             auth_method="fsspec_conn_str" if use_datastore_profile else "env_conn_str",
@@ -362,8 +404,12 @@ class TestAzureBlob:
         df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
         # upload
-        dt1 = mlrun.run.get_dataitem(f"{dataframes_url}/df1.{file_format}", secrets=self.storage_options)
-        dt2 = mlrun.run.get_dataitem(f"{dataframes_url}/df2.{file_format}", secrets=self.storage_options)
+        dt1 = mlrun.run.get_dataitem(
+            f"{dataframes_url}/df1.{file_format}", secrets=self.storage_options
+        )
+        dt2 = mlrun.run.get_dataitem(
+            f"{dataframes_url}/df2.{file_format}", secrets=self.storage_options
+        )
         dt1.upload(src_path=df1_path)
         dt2.upload(src_path=df2_path)
         dt_dir = mlrun.run.get_dataitem(dataframes_url, secrets=self.storage_options)
@@ -382,7 +428,9 @@ class TestAzureBlob:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
-    @pytest.mark.parametrize("auth_method ,use_datastore_profile", generated_pytest_parameters)
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
     def test_wrong_credential_rm(self, auth_method, use_datastore_profile):
         self.setup_before_test(
             use_datastore_profile=use_datastore_profile,

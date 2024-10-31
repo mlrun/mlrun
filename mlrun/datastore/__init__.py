@@ -69,7 +69,9 @@ from .utils import get_kafka_brokers_from_dict, parse_kafka_url
 store_manager = StoreManager()
 
 if hasattr(fsspec, "register_implementation"):
-    fsspec.register_implementation("dbfs", DatabricksFileSystemDisableCache, clobber=True)
+    fsspec.register_implementation(
+        "dbfs", DatabricksFileSystemDisableCache, clobber=True
+    )
 else:
     from fsspec.registry import known_implementations
 

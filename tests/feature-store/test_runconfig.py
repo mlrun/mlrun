@@ -25,7 +25,9 @@ def test_none_config():
     fn = RunConfig().to_function("serving", "x/y")
     assert fn.kind == "serving"
     assert fn.spec.image == "x/y"
-    assert fn.spec.build.functionSourceCode, "serving source is empty (should have footer)"
+    assert (
+        fn.spec.build.functionSourceCode
+    ), "serving source is empty (should have footer)"
 
     fn = RunConfig(image="a/b").to_function("job", "x/y")
     assert fn.kind == "job"
@@ -34,21 +36,33 @@ def test_none_config():
 
 
 def test_from_code():
-    run_function = RunConfig(function_path, requirements=["x"]).to_function("serving", "x/y")
-    code_function = mlrun.code_to_function(filename=function_path, kind="serving", requirements=["x"])
+    run_function = RunConfig(function_path, requirements=["x"]).to_function(
+        "serving", "x/y"
+    )
+    code_function = mlrun.code_to_function(
+        filename=function_path, kind="serving", requirements=["x"]
+    )
 
     assert run_function.kind == "serving"
-    assert run_function.spec.build.functionSourceCode == code_function.spec.build.functionSourceCode
+    assert (
+        run_function.spec.build.functionSourceCode
+        == code_function.spec.build.functionSourceCode
+    )
     assert run_function.spec.build.commands == code_function.spec.build.commands
 
 
 def test_from_func():
-    code_function = mlrun.code_to_function(filename=function_path, kind="job", image="a/b")
+    code_function = mlrun.code_to_function(
+        filename=function_path, kind="job", image="a/b"
+    )
     run_function = RunConfig(code_function).to_function("serving", "x/y")
 
     assert run_function.kind == "job"
     assert run_function.spec.image == "a/b"
-    assert run_function.spec.build.functionSourceCode == code_function.spec.build.functionSourceCode
+    assert (
+        run_function.spec.build.functionSourceCode
+        == code_function.spec.build.functionSourceCode
+    )
 
 
 def test_from_func_run_config_image():
@@ -57,7 +71,10 @@ def test_from_func_run_config_image():
     run_function = run_config.to_function(default_kind="serving", default_image="x/y")
     assert run_function.kind == "job"
     assert run_function.spec.image == "a/b"
-    assert run_function.spec.build.functionSourceCode == code_function.spec.build.functionSourceCode
+    assert (
+        run_function.spec.build.functionSourceCode
+        == code_function.spec.build.functionSourceCode
+    )
 
 
 def test_from_reference_run_config_image():

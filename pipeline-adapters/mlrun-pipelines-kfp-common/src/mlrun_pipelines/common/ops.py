@@ -181,7 +181,8 @@ def mlrun_op(
 
     if rundb:
         warnings.warn(
-            "rundb parameter is deprecated and will be removed in 1.9.0. " "use 'MLRUN_DBPATH' env instead.",
+            "rundb parameter is deprecated and will be removed in 1.9.0. "
+            "use 'MLRUN_DBPATH' env instead.",
             DeprecationWarning,
         )
 
@@ -231,9 +232,15 @@ def mlrun_op(
         handler = handler or runobj.spec.handler_name
         params = params or runobj.spec.parameters
         hyperparams = hyperparams or runobj.spec.hyperparams
-        param_file = param_file or runobj.spec.param_file or runobj.spec.hyper_param_options.param_file
+        param_file = (
+            param_file
+            or runobj.spec.param_file
+            or runobj.spec.hyper_param_options.param_file
+        )
         hyper_param_options = hyper_param_options or runobj.spec.hyper_param_options
-        selector = selector or runobj.spec.selector or runobj.spec.hyper_param_options.selector
+        selector = (
+            selector or runobj.spec.selector or runobj.spec.hyper_param_options.selector
+        )
         inputs = inputs or runobj.spec.inputs
         returns = returns or runobj.spec.returns
         outputs = outputs or runobj.spec.outputs
@@ -293,7 +300,9 @@ def mlrun_op(
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:
         cmd += ["-o", str(output)]
-        file_outputs[output.replace(".", "_")] = f"/tmp/{output}"  # not using path.join to avoid windows "\"
+        file_outputs[output.replace(".", "_")] = (
+            f"/tmp/{output}"  # not using path.join to avoid windows "\"
+        )
     if project:
         cmd += ["--project", project]
     if handler:
@@ -330,7 +339,9 @@ def mlrun_op(
         else:
             raise ValueError("local image registry env not found")
 
-    image = mlrun.utils.enrich_image_url(image, mlrun.get_version(), str(version.Version().get_python_version()))
+    image = mlrun.utils.enrich_image_url(
+        image, mlrun.get_version(), str(version.Version().get_python_version())
+    )
 
     return generate_pipeline_node(
         project,
@@ -451,7 +462,9 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     from mlrun_pipelines.ops import generate_kfp_dag_and_resolve_project
 
     override_project = project if project and project != "*" else None
-    dag, project, message = generate_kfp_dag_and_resolve_project(kfp_run, override_project)
+    dag, project, message = generate_kfp_dag_and_resolve_project(
+        kfp_run, override_project
+    )
     run_id = kfp_run.id
     logger.debug("Formatting summary from KFP run", run_id=run_id, project=project)
 
@@ -559,7 +572,9 @@ def write_kfpmeta(struct):
 
     results = struct["status"].get("results", {})
     metrics = {
-        "metrics": [{"name": k, "numberValue": v} for k, v in results.items() if is_num(v)],
+        "metrics": [
+            {"name": k, "numberValue": v} for k, v in results.items() if is_num(v)
+        ],
     }
     with open(os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"), "w") as f:
         json.dump(metrics, f)
@@ -585,7 +600,9 @@ def write_kfpmeta(struct):
             # NOTE: if key has "../x", it would fail on path traversal
             path = os.path.join(KFP_ARTIFACTS_DIR, key)
             if not mlrun.utils.helpers.is_safe_path(KFP_ARTIFACTS_DIR, path):
-                logger.warning("Path traversal is not allowed ignoring", path=path, key=key)
+                logger.warning(
+                    "Path traversal is not allowed ignoring", path=path, key=key
+                )
                 continue
             path = os.path.abspath(path)
             logger.info("Writing artifact output", path=path, val=val)
@@ -619,9 +636,9 @@ def get_kfp_outputs(artifacts, labels, project):
         if target.startswith("v3io:///"):
             target = target.replace("v3io:///", "http://v3io-webapi:8081/")
 
-        user = labels.get(mlrun.common.constants.MLRunInternalLabels.v3io_user, "") or os.environ.get(
-            "V3IO_USERNAME", ""
-        )
+        user = labels.get(
+            mlrun.common.constants.MLRunInternalLabels.v3io_user, ""
+        ) or os.environ.get("V3IO_USERNAME", "")
         if target.startswith("/User/"):
             user = user or "admin"
             target = "http://v3io-webapi:8081/users/" + user + target[5:]
@@ -671,7 +688,9 @@ def _enrich_node_selector(function):
     if project:
         project_node_selector = project.spec.default_function_node_selector
 
-    function_node_selector = mlrun.runtimes.utils.resolve_node_selectors(project_node_selector, function_node_selector)
+    function_node_selector = mlrun.runtimes.utils.resolve_node_selectors(
+        project_node_selector, function_node_selector
+    )
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
 
 
@@ -681,7 +700,9 @@ def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
 ) -> bytes:
-    if content_type.endswith("zip"):  # The kfp workflow can also be delivered as a zip package containing
+    if content_type.endswith(
+        "zip"
+    ):  # The kfp workflow can also be delivered as a zip package containing
         # the workflow pipeline yaml as well as script and resource files.
         modified_zip_bytes = _enrich_kfp_workflow_credentials_in_subprocess(
             byte_buffer=byte_buffer,
@@ -772,7 +793,9 @@ def _enrich_kfp_workflow_yaml_credentials(
     """
     workflow_dict = yaml.safe_load(yaml_bytes)
     # Determine the KFP version by checking the 'apiVersion' field
-    api_version = workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
+    api_version = (
+        workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
+    )
 
     if "argoproj.io" in api_version:  # KFP Argo Workflow
         spec = workflow_dict.get("spec")
@@ -802,7 +825,9 @@ def _enrich_kfp_workflow_yaml_credentials(
         result = yaml.safe_dump(workflow_dict).encode()
         return result
     else:
-        raise ValueError(f"Unknown or unsupported KFP version '{api_version}'. No changes made.")
+        raise ValueError(
+            f"Unknown or unsupported KFP version '{api_version}'. No changes made."
+        )
 
 
 def _replace_secret_envs_in_argocd_template(
@@ -894,7 +919,9 @@ def _create_secret_env_var_for_pipeline(
         value_from=V1EnvVarSource(
             secret_key_ref=V1SecretKeySelector(
                 name=secret_name,
-                key=mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
+                key=mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                    "access_key"
+                ),
             )
         ),
     )

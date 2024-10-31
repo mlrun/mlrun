@@ -32,7 +32,9 @@ def handler(context):
     context.log_result("my-args", sys.argv)
 
 
-def handler_with_future_links(context, p1: int) -> tuple[mlrun.artifacts.ModelArtifact, int]:
+def handler_with_future_links(
+    context, p1: int
+) -> tuple[mlrun.artifacts.ModelArtifact, int]:
     context.log_artifact("some_file", body=b"abc is 123", local_path="my_file.txt")
     my_model = context.log_model(
         "my_model",

@@ -78,7 +78,9 @@ def collect_custom_packagers():
     ],
 )
 @pytest.mark.parametrize("is_mandatory", [True, False])
-def test_custom_packagers(rundb_mock, packager: str, expected_result: bool, is_mandatory: bool):
+def test_custom_packagers(
+    rundb_mock, packager: str, expected_result: bool, is_mandatory: bool
+):
     """
     Test the custom packagers collection from a project during the `look_for_context` method.
 
@@ -94,7 +96,9 @@ def test_custom_packagers(rundb_mock, packager: str, expected_result: bool, is_m
         is_mandatory=is_mandatory,
     )
     project.save_to_db()
-    mlrun_function = project.set_function(func=__file__, name="test_custom_packagers", image="mlrun/mlrun")
+    mlrun_function = project.set_function(
+        func=__file__, name="test_custom_packagers", image="mlrun/mlrun"
+    )
     if expected_result or not is_mandatory:
         mlrun_function.run(handler="collect_custom_packagers", local=True)
         return

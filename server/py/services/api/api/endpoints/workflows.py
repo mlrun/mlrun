@@ -51,10 +51,16 @@ async def submit_workflow(
     name: str,
     request: fastapi.Request,
     workflow_request: mlrun.common.schemas.WorkflowRequest = mlrun.common.schemas.WorkflowRequest(),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
-    client_version: Optional[str] = fastapi.Header(None, alias=mlrun.common.schemas.HeaderNames.client_version),
-    client_python_version: Optional[str] = fastapi.Header(None, alias=mlrun.common.schemas.HeaderNames.python_version),
+    client_version: Optional[str] = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: Optional[str] = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
 ):
     """
     Submitting a workflow of existing project.
@@ -127,7 +133,10 @@ async def submit_workflow(
             auth_info=auth_info,
         )
 
-        if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
             chief_client = services.api.utils.clients.chief.Client()
             return await chief_client.submit_workflow(
                 project=project.metadata.name,
@@ -151,11 +160,15 @@ async def submit_workflow(
     workflow_runner: mlrun.run.KubejobRuntime = await run_in_threadpool(
         services.api.crud.WorkflowRunners().create_runner,
         run_name=updated_request.run_name
-        or mlrun.mlconf.workflows.default_workflow_runner_name.format(workflow_spec.name),
+        or mlrun.mlconf.workflows.default_workflow_runner_name.format(
+            workflow_spec.name
+        ),
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
-        image=workflow_spec.image or project.spec.default_image or mlrun.mlconf.default_base_image,
+        image=workflow_spec.image
+        or project.spec.default_image
+        or mlrun.mlconf.default_base_image,
     )
 
     logger.debug(
@@ -175,17 +188,19 @@ async def submit_workflow(
     workflow_runner.metadata.labels.update(
         {
             mlrun_constants.MLRunInternalLabels.job_type: "workflow-runner",
-            mlrun_constants.MLRunInternalLabels.workflow: sanitize_label_value(workflow_request.spec.name),
+            mlrun_constants.MLRunInternalLabels.workflow: sanitize_label_value(
+                workflow_request.spec.name
+            ),
         }
     )
     if client_version is not None:
-        workflow_runner.metadata.labels[mlrun_constants.MLRunInternalLabels.client_version] = sanitize_label_value(
-            client_version
-        )
+        workflow_runner.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.client_version
+        ] = sanitize_label_value(client_version)
     if client_python_version is not None:
-        workflow_runner.metadata.labels[mlrun_constants.MLRunInternalLabels.client_python_version] = (
-            sanitize_label_value(client_python_version)
-        )
+        workflow_runner.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.client_python_version
+        ] = sanitize_label_value(client_python_version)
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(
@@ -248,7 +263,9 @@ def _is_requested_schedule(
     return bool(project_workflow.get("schedule")) if project_workflow else False
 
 
-def _get_workflow_by_name(project: mlrun.common.schemas.ProjectOut, name: str) -> typing.Optional[dict]:
+def _get_workflow_by_name(
+    project: mlrun.common.schemas.ProjectOut, name: str
+) -> typing.Optional[dict]:
     """
     Getting workflow from project by name.
 
@@ -296,11 +313,15 @@ def _fill_workflow_missing_fields_from_project(
         # For `workflow_runner_node_selector`, empty values are crucial for removing selectors,
         # so we preserve it if present.
         if spec.workflow_runner_node_selector:
-            workflow["workflow_runner_node_selector"] = copy.deepcopy(spec.workflow_runner_node_selector)
+            workflow["workflow_runner_node_selector"] = copy.deepcopy(
+                spec.workflow_runner_node_selector
+            )
 
     if "name" not in workflow:
         log_and_raise(
-            reason=f"Workflow {workflow_name} not found in project" if not workflow else "Workflow spec is invalid",
+            reason=f"Workflow {workflow_name} not found in project"
+            if not workflow
+            else "Workflow spec is invalid",
         )
 
     workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)
@@ -338,7 +359,9 @@ async def get_workflow_id(
     project: str,
     name: str,
     uid: str,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
     engine: str = "kfp",
 ) -> mlrun.common.schemas.GetWorkflowResponse:

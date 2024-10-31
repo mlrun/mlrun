@@ -37,7 +37,9 @@ def upgrade():
         "background_tasks",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=255, collation="utf8_bin"), nullable=False),
-        sa.Column("project", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "project", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.Column("created", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("updated", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("state", sa.String(length=255, collation="utf8_bin"), nullable=True),

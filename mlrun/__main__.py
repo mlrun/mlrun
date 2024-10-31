@@ -102,11 +102,17 @@ def main():
 )
 @click.option("--uid", help="unique run ID")
 @click.option("--name", help="run name")
-@click.option("--workflow", help="sets the run labels to match the given workflow name/id")
+@click.option(
+    "--workflow", help="sets the run labels to match the given workflow name/id"
+)
 @click.option("--project", help="project name/id")
 @click.option("--db", default="", help="save run results to path or DB url")
-@click.option("--runtime", "-r", default="", help="function spec dict, for pipeline usage")
-@click.option("--kfp", is_flag=True, help="running inside Kubeflow Piplines, do not use")
+@click.option(
+    "--runtime", "-r", default="", help="function spec dict, for pipeline usage"
+)
+@click.option(
+    "--kfp", is_flag=True, help="running inside Kubeflow Piplines, do not use"
+)
 @click.option(
     "--hyperparam",
     "-x",
@@ -114,7 +120,9 @@ def main():
     multiple=True,
     help="hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]",
 )
-@click.option("--param-file", default="", help="path to csv table of execution (hyper) params")
+@click.option(
+    "--param-file", default="", help="path to csv table of execution (hyper) params"
+)
 @click.option(
     "--selector",
     default="",
@@ -137,7 +145,9 @@ def main():
     help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
 )
 @click.option("--task", default="", help="path/url to task yaml")
-@click.option("--handler", default="", help="invoke function handler inside the code file")
+@click.option(
+    "--handler", default="", help="invoke function handler inside the code file"
+)
 @click.option("--mode", help="special run mode ('pass' for using the command as is)")
 @click.option("--schedule", help="cron schedule")
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
@@ -146,7 +156,9 @@ def main():
 @click.option("--kind", default="", help="serverless runtime kind")
 @click.option("--source", default="", help="source code archive/git")
 @click.option("--local", is_flag=True, help="run the task locally (ignore runtime)")
-@click.option("--auto-mount", is_flag=True, help="add volume mount to job using auto mount option")
+@click.option(
+    "--auto-mount", is_flag=True, help="add volume mount to job using auto mount option"
+)
 @click.option("--workdir", default="", help="run working directory")
 @click.option("--origin-file", default="", help="for internal use")
 @click.option("--label", multiple=True, help="run labels (key=val)")
@@ -157,7 +169,9 @@ def main():
     is_flag=True,
     help="whether to add the `mlrun/scrape-metrics` label to this run's resources",
 )
-@click.option("--env-file", default="", help="path to .env file to load config/variables from")
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 @click.option(
     "--auto-build",
     is_flag=True,
@@ -246,7 +260,9 @@ def run(
 
     if workflow:
         runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow
-        runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.runner_pod] = socket.gethostname()
+        runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.runner_pod] = (
+            socket.gethostname()
+        )
 
     if db:
         mlconf.dbpath = db
@@ -299,14 +315,23 @@ def run(
         code = get_in(runtime, "spec.build.functionSourceCode", code)
     if from_env and code:
         code = b64decode(code).decode("utf-8")
-        origin_file = pathlib.Path(get_in(runtime, "spec.build.origin_filename", origin_file))
+        origin_file = pathlib.Path(
+            get_in(runtime, "spec.build.origin_filename", origin_file)
+        )
         if kfp:
             print(f"Code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"
 
         # * is a placeholder for the url file when we want to use url args and let mlrun resolve the url file
-        if suffix != ".py" and mode != "pass" and url_file != "{codefile}" and url_file != "*":
-            print(f"command/url ({url}) must specify a .py file when not in 'pass' mode")
+        if (
+            suffix != ".py"
+            and mode != "pass"
+            and url_file != "{codefile}"
+            and url_file != "*"
+        ):
+            print(
+                f"command/url ({url}) must specify a .py file when not in 'pass' mode"
+            )
             exit(1)
         if mode == "pass":
             if "{codefile}" in url:
@@ -356,11 +381,15 @@ def run(
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
     set_item(runobj.spec, inputs, RunKeys.inputs, list2dict(inputs))
-    set_item(runobj.spec, returns, RunKeys.returns, [py_eval(value) for value in returns])
+    set_item(
+        runobj.spec, returns, RunKeys.returns, [py_eval(value) for value in returns]
+    )
     set_item(runobj.spec, in_path, RunKeys.input_path)
     set_item(runobj.spec, out_path, RunKeys.output_path)
     set_item(runobj.spec, outputs, RunKeys.outputs, list(outputs))
-    set_item(runobj.spec, secrets, RunKeys.secrets, line2keylist(secrets, "kind", "source"))
+    set_item(
+        runobj.spec, secrets, RunKeys.secrets, line2keylist(secrets, "kind", "source")
+    )
     set_item(runobj.spec, verbose, "verbose")
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")
     update_in(runtime, "metadata.name", name, replace=False)
@@ -411,7 +440,9 @@ def run(
 @click.option("--project", help="project name")
 @click.option("--tag", default="", help="function tag")
 @click.option("--image", "-i", help="target image path")
-@click.option("--source", "-s", default="", help="location/url of the source files dir/tar")
+@click.option(
+    "--source", "-s", default="", help="location/url of the source files dir/tar"
+)
 @click.option("--base-image", "-b", help="base docker image")
 @click.option(
     "--command",
@@ -425,17 +456,27 @@ def run(
 @click.option("--silent", is_flag=True, help="do not show build logs")
 @click.option("--with-mlrun", is_flag=True, help="add MLRun package")
 @click.option("--db", default="", help="save run results to DB url")
-@click.option("--runtime", "-r", default="", help="function spec dict, for pipeline usage")
-@click.option("--kfp", is_flag=True, help="running inside Kubeflow Pipelines, do not use")
+@click.option(
+    "--runtime", "-r", default="", help="function spec dict, for pipeline usage"
+)
+@click.option(
+    "--kfp", is_flag=True, help="running inside Kubeflow Pipelines, do not use"
+)
 @click.option("--skip", is_flag=True, help="skip if already deployed")
-@click.option("--env-file", default="", help="path to .env file to load config/variables from")
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 @click.option(
     "--ensure-project",
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
-@click.option("--state-file-path", default="/tmp/state", help="path to file with state data")
-@click.option("--image-file-path", default="/tmp/image", help="path to file with image data")
+@click.option(
+    "--state-file-path", default="/tmp/state", help="path to file with state data"
+)
+@click.option(
+    "--image-file-path", default="/tmp/image", help="path to file with image data"
+)
 @click.option(
     "--full-image-file-path",
     default="/tmp/fullimage",
@@ -542,7 +583,9 @@ def build(
     if hasattr(func, "deploy"):
         logger.info("Remote deployment started")
         try:
-            func.deploy(with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip)
+            func.deploy(
+                with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
+            )
         except Exception as err:
             print(f"Deploy error, {err_to_str(err)}")
             exit(1)
@@ -580,7 +623,9 @@ def build(
 @click.option("--tag", default="", help="version tag")
 @click.option("--env", "-e", multiple=True, help="environment variables")
 @click.option("--verbose", is_flag=True, help="verbose log")
-@click.option("--env-file", default="", help="path to .env file to load config/variables from")
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 @click.option(
     "--ensure-project",
     is_flag=True,
@@ -689,7 +734,9 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     if db:
         mlconf.dbpath = db
     if not project:
-        logger.warning("Project parameter was not specified. Defaulting to 'default' project")
+        logger.warning(
+            "Project parameter was not specified. Defaulting to 'default' project"
+        )
     if kind.startswith("po"):
         logger.warning("Unsupported, use 'get runtimes' instead")
         return
@@ -698,14 +745,18 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         run_db = get_run_db(db or mlconf.dbpath)
         # the name field is used as function kind, set to None if empty
         name = name if name else None
-        runtimes = run_db.list_runtime_resources(label_selector=selector, kind=name, project=project)
+        runtimes = run_db.list_runtime_resources(
+            label_selector=selector, kind=name, project=project
+        )
         for runtime in runtimes:
             print(dict_to_yaml(runtime.dict()))
             print()
 
     elif kind.startswith("run"):
         if tag:
-            print("Unsupported argument '--tag' for listing runs. Perhaps you should use '--selector' instead")
+            print(
+                "Unsupported argument '--tag' for listing runs. Perhaps you should use '--selector' instead"
+            )
             return
 
         run_db = get_run_db()
@@ -715,7 +766,9 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             return
 
         runs = run_db.list_runs(uid=uid, project=project, labels=selector)
-        df = runs.to_df()[["name", "uid", "iter", "start", "state", "parameters", "results"]]
+        df = runs.to_df()[
+            ["name", "uid", "iter", "start", "state", "parameters", "results"]
+        ]
         # df['uid'] = df['uid'].apply(lambda x: f'..{x[-6:]}')
         df["start"] = df["start"].apply(time_str)
         df["parameters"] = df["parameters"].apply(dict_to_str)
@@ -724,8 +777,12 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 
     elif kind.startswith("art"):
         run_db = get_run_db()
-        artifacts = run_db.list_artifacts(name, project=project, tag=tag, labels=selector)
-        df = artifacts.to_df()[["key", "iter", "kind", "path", "hash", "updated", "uri", "tree"]]
+        artifacts = run_db.list_artifacts(
+            name, project=project, tag=tag, labels=selector
+        )
+        df = artifacts.to_df()[
+            ["key", "iter", "kind", "path", "hash", "updated", "uri", "tree"]
+        ]
         df["tree"] = df["tree"].apply(lambda x: f"..{x[-8:]}")
         df["hash"] = df["hash"].apply(lambda x: f"..{x[-6:]}")
         df["updated"] = df["updated"].apply(time_str)
@@ -761,7 +818,9 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             pipelines = run_db.list_pipelines(project=project, page_size=200)
             pipe_runs = pipelines.runs
             while pipelines.next_page_token is not None:
-                pipelines = run_db.list_pipelines(project=project, page_token=pipelines.next_page_token)
+                pipelines = run_db.list_pipelines(
+                    project=project, page_token=pipelines.next_page_token
+                )
                 pipe_runs.extend(pipelines.runs)
         else:
             pipelines = run_db.list_pipelines(project=project)
@@ -781,7 +840,9 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         print(tabulate(lines, headers=headers))
 
     else:
-        print("Currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported")
+        print(
+            "Currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
+        )
 
 
 @main.command()
@@ -792,7 +853,9 @@ def version():
 
 @main.command()
 @click.argument("uid", type=str)
-@click.option("--project", "-p", help="project name (defaults to mlrun.mlconf.default_project)")
+@click.option(
+    "--project", "-p", help="project name (defaults to mlrun.mlconf.default_project)"
+)
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
 @click.option("--watch", "-w", is_flag=True, help="Deprecated. not in use")
@@ -844,12 +907,20 @@ def logs(uid, project, offset, db, watch):
 @click.option("--namespace", help="k8s namespace")
 @click.option("--db", help="api and db service path/url")
 @click.option("--init-git", is_flag=True, help="for new projects init git context")
-@click.option("--clone", "-c", is_flag=True, help="force override/clone into the context dir")
+@click.option(
+    "--clone", "-c", is_flag=True, help="force override/clone into the context dir"
+)
 @click.option("--sync", is_flag=True, help="sync functions into db")
-@click.option("--watch", "-w", is_flag=True, help="wait for pipeline completion (with -r flag)")
-@click.option("--dirty", "-d", is_flag=True, help="allow run with uncommitted git changes")
+@click.option(
+    "--watch", "-w", is_flag=True, help="wait for pipeline completion (with -r flag)"
+)
+@click.option(
+    "--dirty", "-d", is_flag=True, help="allow run with uncommitted git changes"
+)
 @click.option("--git-repo", help="git repo (org/repo) for git comments")
-@click.option("--git-issue", type=int, default=None, help="git issue number for git comments")
+@click.option(
+    "--git-issue", type=int, default=None, help="git issue number for git comments"
+)
 @click.option("--handler", default=None, help="workflow function handler name")
 @click.option("--engine", default=None, help="workflow engine (kfp/local)")
 @click.option("--local", is_flag=True, help="try to run workflow functions locally")
@@ -859,7 +930,9 @@ def logs(uid, project, offset, db, watch):
     default=None,
     help="timeout in seconds to wait for pipeline completion (used when watch=True)",
 )
-@click.option("--env-file", default="", help="path to .env file to load config/variables from")
+@click.option(
+    "--env-file", default="", help="path to .env file to load config/variables from"
+)
 @click.option(
     "--save/--no-save",
     default=True,
@@ -971,7 +1044,11 @@ def project(
             args = fill_params(arguments)
 
         print(f"Running workflow {run} file: {workflow_path}")
-        gitops = git_issue or environ.get("GITHUB_EVENT_PATH") or environ.get("CI_MERGE_REQUEST_IID")
+        gitops = (
+            git_issue
+            or environ.get("GITHUB_EVENT_PATH")
+            or environ.get("CI_MERGE_REQUEST_IID")
+        )
         if gitops:
             proj.notifiers.add_notification(
                 "git",
@@ -1012,7 +1089,9 @@ def project(
 def validate_runtime_kind(ctx, param, value):
     possible_kinds = RuntimeKinds.runtime_with_handlers()
     if value is not None and value not in possible_kinds:
-        raise click.BadParameter(f"kind must be one of {possible_kinds}", ctx=ctx, param=param)
+        raise click.BadParameter(
+            f"kind must be one of {possible_kinds}", ctx=ctx, param=param
+        )
     return value
 
 
@@ -1021,7 +1100,9 @@ def validate_runtime_kind(ctx, param, value):
 @click.argument("object_id", metavar="id", type=str, default=None, required=False)
 @click.option("--api", help="api service url")
 @click.option("--label-selector", "-ls", default="", help="label selector")
-@click.option("--force", "-f", is_flag=True, help="clean resources in non-terminal states as well")
+@click.option(
+    "--force", "-f", is_flag=True, help="clean resources in non-terminal states as well"
+)
 @click.option(
     "--grace-period",
     "-gp",
@@ -1088,7 +1169,9 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
 )
 def watch_stream(url, shard_ids, seek, interval, is_json):
     """watch on a stream and print data every interval"""
-    mlrun.platforms.watch_stream(url, shard_ids, seek, interval=interval, is_json=is_json)
+    mlrun.platforms.watch_stream(
+        url, shard_ids, seek, interval=interval, is_json=is_json
+    )
 
 
 @main.command(name="config")
@@ -1110,7 +1193,9 @@ def watch_stream(url, shard_ids, seek, interval, is_json):
     multiple=True,
     help="additional env vars, e.g. -e AWS_ACCESS_KEY_ID=<key-id>",
 )
-def show_or_set_config(command, env_file, api, artifact_path, username, access_key, env_vars):
+def show_or_set_config(
+    command, env_file, api, artifact_path, username, access_key, env_vars
+):
     """get or set mlrun config
 
     \b
@@ -1150,7 +1235,9 @@ def show_or_set_config(command, env_file, api, artifact_path, username, access_k
         # update the env settings in the default or specified .env file
         filename = path.expanduser(env_file or mlrun.config.default_env_file)
         if not path.isfile(filename):
-            print(f".env file {filename} not found, creating new and setting configuration")
+            print(
+                f".env file {filename} not found, creating new and setting configuration"
+            )
         else:
             print(f"Updating configuration in .env file {filename}")
         env_dict = {
@@ -1290,17 +1377,25 @@ def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
         add_notification_to_project(notification, project)
 
 
-def add_notification_to_project(notification: str, project: mlrun.projects.MlrunProject):
+def add_notification_to_project(
+    notification: str, project: mlrun.projects.MlrunProject
+):
     for notification_type, notification_params in notification.items():
-        project.notifiers.add_notification(notification_type=notification_type, params=notification_params)
+        project.notifiers.add_notification(
+            notification_type=notification_type, params=notification_params
+        )
 
 
-def send_workflow_error_notification(run_id: str, mlproject: mlrun.projects.MlrunProject, error: Exception):
+def send_workflow_error_notification(
+    run_id: str, mlproject: mlrun.projects.MlrunProject, error: Exception
+):
     message = (
         f":x: Failed to run scheduled workflow {run_id} in Project {mlproject.name} !\n"
         f"error: ```{err_to_str(error)}```"
     )
-    mlproject.notifiers.push(message=message, severity=mlrun.common.schemas.NotificationSeverity.ERROR)
+    mlproject.notifiers.push(
+        message=message, severity=mlrun.common.schemas.NotificationSeverity.ERROR
+    )
 
 
 if __name__ == "__main__":

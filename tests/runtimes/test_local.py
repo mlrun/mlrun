@@ -27,7 +27,11 @@ def test_run_exec_basic():
 # ML-3710
 @pytest.mark.parametrize("return_code", [0, 1])
 def test_run_exec_verbose_stderr(return_code):
-    script_path = str(pathlib.Path(__file__).parent / "assets" / f"verbose_stderr_return_code_{return_code}.py")
+    script_path = str(
+        pathlib.Path(__file__).parent
+        / "assets"
+        / f"verbose_stderr_return_code_{return_code}.py"
+    )
     out, err = run_exec(["python"], [script_path])
     assert out == "some output\n"
     expected_err_length = 100000 if return_code else 0

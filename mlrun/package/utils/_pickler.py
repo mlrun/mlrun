@@ -33,7 +33,9 @@ class Pickler:
     """
 
     @staticmethod
-    def pickle(obj: Any, pickle_module_name: str, output_path: str = None) -> tuple[str, dict[str, Union[str, None]]]:
+    def pickle(
+        obj: Any, pickle_module_name: str, output_path: str = None
+    ) -> tuple[str, dict[str, Union[str, None]]]:
         """
         Pickle an object using the given module. The pickled object will be saved to file to the given output path.
 
@@ -47,13 +49,19 @@ class Pickler:
         # Get the pickle module:
         pickle_module = importlib.import_module(pickle_module_name)
         Pickler._validate_pickle_module(pickle_module=pickle_module)
-        pickle_module_version = Pickler._get_module_version(module_name=pickle_module_name)
+        pickle_module_version = Pickler._get_module_version(
+            module_name=pickle_module_name
+        )
 
         # Get the object's module (module name can be extracted usually from the object's class):
         object_module_name = (
-            obj.__module__.split(".")[0] if hasattr(obj, "__module__") else type(obj).__module__.split(".")[0]
+            obj.__module__.split(".")[0]
+            if hasattr(obj, "__module__")
+            else type(obj).__module__.split(".")[0]
         )
-        object_module_version = Pickler._get_module_version(module_name=object_module_name)
+        object_module_version = Pickler._get_module_version(
+            module_name=object_module_name
+        )
 
         # Get the python version:
         python_version = Pickler._get_python_version()
@@ -122,7 +130,9 @@ class Pickler:
 
         # Check the pickle module against the pickled object (only if the version is given):
         if pickle_module_version is not None:
-            current_pickle_module_version = Pickler._get_module_version(module_name=pickle_module_name)
+            current_pickle_module_version = Pickler._get_module_version(
+                module_name=pickle_module_name
+            )
             if pickle_module_version != current_pickle_module_version:
                 logger.warn(
                     f"MLRun is trying to load an object that was pickled using "
@@ -134,7 +144,9 @@ class Pickler:
 
         # Check the object module against the pickled object (only if the version is given):
         if object_module_version is not None and object_module_name is not None:
-            current_object_module_version = Pickler._get_module_version(module_name=object_module_name)
+            current_object_module_version = Pickler._get_module_version(
+                module_name=object_module_name
+            )
             if object_module_version != current_object_module_version:
                 logger.warn(
                     f"MLRun is trying to load an object from module {object_module_name} version "
@@ -191,7 +203,9 @@ class Pickler:
         with warnings.catch_warnings():
             # If a module's package is not found, a `PkgResourcesDeprecationWarning` warning will be raised and then
             # `DistributionNotFound` exception will be raised, so we ignore them both:
-            warnings.filterwarnings("ignore", category=pkg_resources.PkgResourcesDeprecationWarning)
+            warnings.filterwarnings(
+                "ignore", category=pkg_resources.PkgResourcesDeprecationWarning
+            )
             try:
                 return pkg_resources.get_distribution(module_name).version
             except pkg_resources.DistributionNotFound:

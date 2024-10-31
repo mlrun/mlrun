@@ -53,10 +53,15 @@ async def store_alert(
         auth_info,
     )
 
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         chief_client = services.api.utils.clients.chief.Client()
         data = await request.json()
-        return await chief_client.store_alert(project=project, name=name, request=request, json=data)
+        return await chief_client.store_alert(
+            project=project, name=name, request=request, json=data
+        )
 
     logger.debug("Storing alert", project=project, name=name)
 
@@ -94,7 +99,9 @@ async def get_alert(
         auth_info,
     )
 
-    return await run_in_threadpool(services.api.crud.Alerts().get_enriched_alert, db_session, project, name)
+    return await run_in_threadpool(
+        services.api.crud.Alerts().get_enriched_alert, db_session, project, name
+    )
 
 
 @router.get("", response_model=list[mlrun.common.schemas.AlertConfig])
@@ -115,7 +122,9 @@ async def list_alerts(
         auth_info,
     )
 
-    alerts = await run_in_threadpool(services.api.crud.Alerts().list_alerts, db_session, project)
+    alerts = await run_in_threadpool(
+        services.api.crud.Alerts().list_alerts, db_session, project
+    )
 
     alerts = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.alert,
@@ -156,13 +165,20 @@ async def delete_alert(
         auth_info,
     )
 
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         chief_client = services.api.utils.clients.chief.Client()
-        return await chief_client.delete_alert(project=project, name=name, request=request)
+        return await chief_client.delete_alert(
+            project=project, name=name, request=request
+        )
 
     logger.debug("Deleting alert", project=project, name=name)
 
-    await run_in_threadpool(services.api.crud.Alerts().delete_alert, db_session, project, name)
+    await run_in_threadpool(
+        services.api.crud.Alerts().delete_alert, db_session, project, name
+    )
 
 
 @router.post("/{name}/reset")
@@ -187,10 +203,17 @@ async def reset_alert(
         auth_info,
     )
 
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         chief_client = services.api.utils.clients.chief.Client()
-        return await chief_client.reset_alert(project=project, name=name, request=request)
+        return await chief_client.reset_alert(
+            project=project, name=name, request=request
+        )
 
     logger.debug("Resetting alert", project=project, name=name)
 
-    return await run_in_threadpool(services.api.crud.Alerts().reset_alert, db_session, project, name)
+    return await run_in_threadpool(
+        services.api.crud.Alerts().reset_alert, db_session, project, name
+    )

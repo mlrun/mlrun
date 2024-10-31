@@ -37,7 +37,9 @@ def upgrade():
         "datastore_profiles",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=255, collation="utf8_bin"), nullable=True),
-        sa.Column("project", sa.String(length=255, collation="utf8_bin"), nullable=True),
+        sa.Column(
+            "project", sa.String(length=255, collation="utf8_bin"), nullable=True
+        ),
         sa.Column("type", sa.String(length=255, collation="utf8_bin"), nullable=True),
         sa.Column("body", sa.String(length=1024, collation="utf8_bin"), nullable=True),
         sa.PrimaryKeyConstraint("id"),

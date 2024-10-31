@@ -156,7 +156,9 @@ def test_is_matching(
         # `typing.ForwardRef` usage:
         (typing.ForwardRef("SomeClass"), set()),
         (
-            typing.ForwardRef("SomeClass", module="tests.package.utils.test_type_hint_utils"),
+            typing.ForwardRef(
+                "SomeClass", module="tests.package.utils.test_type_hint_utils"
+            ),
             {SomeClass},
         ),
         (

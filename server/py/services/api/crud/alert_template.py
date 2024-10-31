@@ -30,14 +30,18 @@ class AlertTemplates(
         name: str,
         alert_data: mlrun.common.schemas.AlertTemplate,
     ):
-        alert_template = services.api.utils.singletons.db.get_db().get_alert_template(session, name)
+        alert_template = services.api.utils.singletons.db.get_db().get_alert_template(
+            session, name
+        )
 
         self._validate_alert_template(alert_data, name)
 
         if alert_template is not None:
             alert_data.id = alert_template.id
 
-        return services.api.utils.singletons.db.get_db().store_alert_template(session, alert_data)
+        return services.api.utils.singletons.db.get_db().store_alert_template(
+            session, alert_data
+        )
 
     def list_alert_templates(
         self,
@@ -50,7 +54,9 @@ class AlertTemplates(
         session: sqlalchemy.orm.Session,
         name: str,
     ) -> mlrun.common.schemas.AlertTemplate:
-        alert_template = services.api.utils.singletons.db.get_db().get_alert_template(session, name)
+        alert_template = services.api.utils.singletons.db.get_db().get_alert_template(
+            session, name
+        )
         if alert_template is None:
             raise mlrun.errors.MLRunNotFoundError(f"Alert template {name} not found")
 
@@ -61,7 +67,9 @@ class AlertTemplates(
         session: sqlalchemy.orm.Session,
         name: str,
     ):
-        template = services.api.utils.singletons.db.get_db().get_alert_template(session, name)
+        template = services.api.utils.singletons.db.get_db().get_alert_template(
+            session, name
+        )
 
         if template is None:
             return
@@ -78,7 +86,9 @@ class AlertTemplates(
         if (
             alert_template.criteria is not None
             and alert_template.criteria.period is not None
-            and services.api.utils.helpers.string_to_timedelta(alert_template.criteria.period, raise_on_error=False)
+            and services.api.utils.helpers.string_to_timedelta(
+                alert_template.criteria.period, raise_on_error=False
+            )
             is None
         ):
             raise mlrun.errors.MLRunBadRequestError(

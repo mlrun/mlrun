@@ -34,12 +34,20 @@ def main():
     parser = argparse.ArgumentParser(description="Create or update the version file")
 
     subparsers = parser.add_subparsers(dest="command")
-    ensure_parser = subparsers.add_parser("ensure", help="ensure the version file is up to date")
-    ensure_parser.add_argument("--mlrun-version", type=str, required=False, default="unstable")
+    ensure_parser = subparsers.add_parser(
+        "ensure", help="ensure the version file is up to date"
+    )
+    ensure_parser.add_argument(
+        "--mlrun-version", type=str, required=False, default="unstable"
+    )
 
-    subparsers.add_parser("is-feature-branch", help="check if the branch is a feature branch")
+    subparsers.add_parser(
+        "is-feature-branch", help="check if the branch is a feature branch"
+    )
 
-    is_stable_parser = subparsers.add_parser("is-stable", help="check if the version is stable")
+    is_stable_parser = subparsers.add_parser(
+        "is-stable", help="check if the version is stable"
+    )
     is_stable_parser.add_argument("version", type=str)
 
     subparsers.add_parser("current-version", help="get the current version")
@@ -75,7 +83,9 @@ def main():
 
     elif args.command == "ensure":
         repo_root = pathlib.Path(__file__).parents[2]
-        version_file_path = str((repo_root / "mlrun/utils/version/version.json").absolute())
+        version_file_path = str(
+            (repo_root / "mlrun/utils/version/version.json").absolute()
+        )
         logger.debug(f"{args.mlrun_version = }")
         create_or_update_version_file(args.mlrun_version, version_file_path)
 
@@ -90,8 +100,14 @@ def main():
 def get_current_version(
     base_version: packaging.version.Version,
 ) -> str:
-    current_branch = _run_command("git", args=["rev-parse", "--abbrev-ref", "HEAD"]).strip()
-    feature_name = resolve_feature_name(current_branch) if current_branch.startswith("feature/") else ""
+    current_branch = _run_command(
+        "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
+    ).strip()
+    feature_name = (
+        resolve_feature_name(current_branch)
+        if current_branch.startswith("feature/")
+        else ""
+    )
 
     # get last 200 commits, to avoid going over all commits
     commits = _run_command("git", args=["log", "-200", "--pretty=format:'%H'"]).strip()
@@ -118,7 +134,9 @@ def get_current_version(
             # then, keep that tag version as the most recent version
             # if no base-version tag was made (e.g.: when starting new version (e.g. 1.5.0)
             # but no tag/release was made yet)
-            if packaging.version.parse(semver_tag.base_version) < packaging.version.parse(base_version.base_version):
+            if packaging.version.parse(
+                semver_tag.base_version
+            ) < packaging.version.parse(base_version.base_version):
                 if most_recent_version:
                     if semver_tag > most_recent_version:
                         most_recent_version = semver_tag
@@ -135,7 +153,12 @@ def get_current_version(
 
             # we found the feature branch tag, continue because
             # there is no point finding other tags unrelated to feature branch now
-            if found_tag and found_tag.local and feature_name and feature_name in found_tag.local:
+            if (
+                found_tag
+                and found_tag.local
+                and feature_name
+                and feature_name in found_tag.local
+            ):
                 continue
 
             # we might not have found tag or what we found is old one?
@@ -170,7 +193,10 @@ def resolve_next_version(
     base_version: packaging.version.Version,
     feature_name: typing.Optional[str] = None,
 ):
-    if base_version.major > current_version.major or base_version.minor > current_version.minor:
+    if (
+        base_version.major > current_version.major
+        or base_version.minor > current_version.minor
+    ):
         # the current version is lower, can be because base version was not tagged yet
         # make current version align with base version
         suffix = ""
@@ -235,13 +261,19 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
     # get feature branch name from git branch
     git_branch = ""
     try:
-        git_branch = _run_command("git", args=["rev-parse", "--abbrev-ref", "HEAD"]).strip()
+        git_branch = _run_command(
+            "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
+        ).strip()
         logger.debug(f"Found git branch: {git_branch}")
     except Exception as exc:
         logger.warning("Failed to get git branch", exc_info=exc)
 
     # Enrich the version with the feature name (unless version is unstable)
-    if "unstable" not in mlrun_version and git_branch and git_branch.startswith("feature/"):
+    if (
+        "unstable" not in mlrun_version
+        and git_branch
+        and git_branch.startswith("feature/")
+    ):
         feature_name = resolve_feature_name(git_branch)
         if not mlrun_version.endswith(feature_name):
             mlrun_version = f"{mlrun_version}+{feature_name}"
@@ -269,7 +301,9 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
         "git_commit": git_commit,
     }
 
-    logger.info(f"Writing version info to file: {str(version_info)}, {version_file_path = }")
+    logger.info(
+        f"Writing version info to file: {str(version_info)}, {version_file_path = }"
+    )
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 
@@ -284,7 +318,9 @@ def resolve_feature_name(branch_name):
 
 
 def read_unstable_version_prefix():
-    with open(pathlib.Path(__file__).absolute().parent / "unstable_version_prefix") as fp:
+    with open(
+        pathlib.Path(__file__).absolute().parent / "unstable_version_prefix"
+    ) as fp:
         return packaging.version.Version(fp.read().strip())
 
 
@@ -307,8 +343,14 @@ def is_feature_branch() -> bool:
 
 
 def get_feature_branch_feature_name() -> typing.Optional[str]:
-    current_branch = _run_command("git", args=["rev-parse", "--abbrev-ref", "HEAD"]).strip()
-    return resolve_feature_name(current_branch) if current_branch.startswith("feature/") else ""
+    current_branch = _run_command(
+        "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
+    ).strip()
+    return (
+        resolve_feature_name(current_branch)
+        if current_branch.startswith("feature/")
+        else ""
+    )
 
 
 def _run_command(command, args=None):

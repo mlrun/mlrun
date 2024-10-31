@@ -87,7 +87,9 @@ def _create_enriched_mlrun_workflow(
     except mlrun.errors.MLRunInvalidArgumentError:
         raise
     except Exception as err:
-        logger.debug("Something in the enrichment of kfp pods failed", error=err_to_str(err))
+        logger.debug(
+            "Something in the enrichment of kfp pods failed", error=err_to_str(err)
+        )
     return workflow
 
 

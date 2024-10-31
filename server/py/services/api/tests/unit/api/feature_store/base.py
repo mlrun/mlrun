@@ -20,7 +20,9 @@ from fastapi.testclient import TestClient
 import mlrun.common.schemas
 
 
-def _list_and_assert_objects(client: TestClient, entity_name, project, query, expected_number_of_entities):
+def _list_and_assert_objects(
+    client: TestClient, entity_name, project, query, expected_number_of_entities
+):
     entity_url_name = entity_name.replace("_", "-")
     url = f"projects/{project}/{entity_url_name}"
     if query:
@@ -73,7 +75,9 @@ def _patch_object(
         headers=headers,
     )
     assert response.status_code == HTTPStatus.OK.value
-    response = client.get(f"projects/{project_name}/{object_url_path}/{name}/references/{reference}")
+    response = client.get(
+        f"projects/{project_name}/{object_url_path}/{name}/references/{reference}"
+    )
     return response.json()
 
 
@@ -101,7 +105,9 @@ def _assert_diff_as_expected_except_for_specific_metadata(
     assert diff == expected_diff
 
 
-def _test_partition_by_for_feature_store_objects(client: TestClient, object_name, project_name, count):
+def _test_partition_by_for_feature_store_objects(
+    client: TestClient, object_name, project_name, count
+):
     # Basic list, establishing baseline -
     # Each object should have 3 versions, tagged "older", "newer" and "newest"
     _list_and_assert_objects(client, object_name, project_name, None, count * 3)
@@ -155,8 +161,12 @@ def _test_partition_by_for_feature_store_objects(client: TestClient, object_name
 
     # Some negative testing - no sort by field
     object_url_name = object_name.replace("_", "-")
-    response = client.get(f"projects/{project_name}/{object_url_name}?partition-by=name")
+    response = client.get(
+        f"projects/{project_name}/{object_url_name}?partition-by=name"
+    )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid partition-by field - will be failed by fastapi due to schema validation.
-    response = client.get(f"projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=name")
+    response = client.get(
+        f"projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=name"
+    )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value

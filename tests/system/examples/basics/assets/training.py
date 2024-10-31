@@ -46,7 +46,9 @@ def my_job(context, p1=1, p2="x"):
         local_path="model.txt",
         labels={"framework": "xgboost"},
     )
-    context.log_artifact("html_result", body=b"<b> Some HTML <b>", local_path="result.html")
+    context.log_artifact(
+        "html_result", body=b"<b> Some HTML <b>", local_path="result.html"
+    )
 
     # create a chart output (will show in the pipelines UI)
     # create a plotly output (will show in the pipelines UI)

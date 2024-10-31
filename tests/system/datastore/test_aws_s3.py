@@ -107,7 +107,9 @@ class TestAwsS3(TestMLRunSystem):
         register_temporary_client_datastore_profile(profile)
 
     def custom_teardown(self):
-        s3_fs = fsspec.filesystem("s3", key=self._access_key_id, secret=self._secret_access_key)
+        s3_fs = fsspec.filesystem(
+            "s3", key=self._access_key_id, secret=self._secret_access_key
+        )
         full_path = self.s3["s3"]["test_dir_path"]
         if s3_fs.exists(full_path):
             files = s3_fs.ls(full_path)
@@ -119,7 +121,9 @@ class TestAwsS3(TestMLRunSystem):
     @pytest.mark.parametrize("target_path", ["parquets_url", "parquet_url"])
     def test_ingest_with_parquet_source(self, url_type, target_path):
         #  create source
-        s3_fs = fsspec.filesystem("s3", key=self._access_key_id, secret=self._secret_access_key)
+        s3_fs = fsspec.filesystem(
+            "s3", key=self._access_key_id, secret=self._secret_access_key
+        )
         param = self.s3[url_type]
         logger.info(f"Using URL {param['object_sub_dir_url']}")
         data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
@@ -145,19 +149,27 @@ class TestAwsS3(TestMLRunSystem):
         )
         fset.ingest(source=parquet_source)
         target_path = fset.get_target_path()
-        result = ParquetSource(path=target_path).to_dataframe(columns=("Column1", "Column2"))
+        result = ParquetSource(path=target_path).to_dataframe(
+            columns=("Column1", "Column2")
+        )
         result.reset_index(inplace=True, drop=False)
 
-        assert_frame_equal(df.sort_index(axis=1), result.sort_index(axis=1), check_like=True)
+        assert_frame_equal(
+            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+        )
 
-        s3_path = f"{self._bucket_name}/{target_path[target_path.index(self.object_dir):]}"
+        s3_path = (
+            f"{self._bucket_name}/{target_path[target_path.index(self.object_dir):]}"
+        )
         # Check for ML-6587 regression
         assert s3_fs.exists(s3_path)
         fset.purge_targets()
         assert not s3_fs.exists(s3_path)
 
     def test_ingest_ds_default_target(self):
-        s3_fs = fsspec.filesystem("s3", key=self._access_key_id, secret=self._secret_access_key)
+        s3_fs = fsspec.filesystem(
+            "s3", key=self._access_key_id, secret=self._secret_access_key
+        )
         param = self.s3["ds_with_bucket"]
         logger.info(f"Using URL {param['parquets_url']}")
         data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
@@ -179,7 +191,9 @@ class TestAwsS3(TestMLRunSystem):
 
         fset.ingest(source=parquet_source, targets=[target])
 
-        expected_default_ds_data_prefix = get_default_prefix_for_target("dsnosql").format(
+        expected_default_ds_data_prefix = get_default_prefix_for_target(
+            "dsnosql"
+        ).format(
             ds_profile_name="s3ds_profile_with_bucket",
             project=fset.metadata.project,
             kind=target.kind,
@@ -188,10 +202,14 @@ class TestAwsS3(TestMLRunSystem):
 
         assert fset.get_target_path().startswith(expected_default_ds_data_prefix)
 
-        result = ParquetSource(path=fset.get_target_path()).to_dataframe(columns=("Column1", "Column2"))
+        result = ParquetSource(path=fset.get_target_path()).to_dataframe(
+            columns=("Column1", "Column2")
+        )
         result.reset_index(inplace=True, drop=False)
 
-        assert_frame_equal(df.sort_index(axis=1), result.sort_index(axis=1), check_like=True)
+        assert_frame_equal(
+            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+        )
 
         # check our user protection against direct target.purge call in the
         # case of default target + ds (it could delete the whole bucket).

@@ -51,7 +51,9 @@ class Secrets(
     def __init__(self):
         if mlconf.secret_stores.test_mode_mock_secrets:
             logger.warning("***** USING SECRETS IN TEST MODE *****")
-            logger.warning("***** Secrets are kept in-memory. Only use this mode for testing *****")
+            logger.warning(
+                "***** Secrets are kept in-memory. Only use this mode for testing *****"
+            )
             self.secrets_provider = mlrun.common.secrets.InMemorySecretProvider()
         else:
             self.secrets_provider = services.api.utils.singletons.k8s.get_k8s_helper()
@@ -64,20 +66,30 @@ class Secrets(
     def secrets_provider(self, provider: mlrun.common.secrets.SecretProviderInterface):
         self._secrets_provider = provider
 
-    def generate_client_project_secret_key(self, client_type: SecretsClientType, name: str, subtype=None):
+    def generate_client_project_secret_key(
+        self, client_type: SecretsClientType, name: str, subtype=None
+    ):
         key_name = f"{self.internal_secrets_key_prefix}{client_type.value}.{name}"
         if subtype:
             key_name = f"{key_name}.{subtype}"
         return key_name
 
-    def generate_client_key_map_project_secret_key(self, client_type: SecretsClientType):
+    def generate_client_key_map_project_secret_key(
+        self, client_type: SecretsClientType
+    ):
         return f"{self.key_map_secrets_key_prefix}{client_type.value}"
 
     @staticmethod
-    def validate_project_secret_key_regex(key: str, raise_on_failure: bool = True) -> bool:
-        return mlrun.utils.helpers.verify_field_regex("secret.key", key, mlrun.utils.regex.secret_key, raise_on_failure)
+    def validate_project_secret_key_regex(
+        key: str, raise_on_failure: bool = True
+    ) -> bool:
+        return mlrun.utils.helpers.verify_field_regex(
+            "secret.key", key, mlrun.utils.regex.secret_key, raise_on_failure
+        )
 
-    def validate_internal_project_secret_key_allowed(self, key: str, allow_internal_secrets: bool = False):
+    def validate_internal_project_secret_key_allowed(
+        self, key: str, allow_internal_secrets: bool = False
+    ):
         if self.is_internal_project_secret_key(key) and not allow_internal_secrets:
             raise mlrun.errors.MLRunAccessDeniedError(
                 f"Not allowed to create/update internal secrets (key starts with "
@@ -119,7 +131,9 @@ class Secrets(
                 (
                     secret_name,
                     action,
-                ) = self.secrets_provider.store_project_secrets(project, secrets_to_store)
+                ) = self.secrets_provider.store_project_secrets(
+                    project, secrets_to_store
+                )
                 secret_keys = [secret_name for secret_name in secrets_to_store.keys()]
 
                 if action:
@@ -133,17 +147,23 @@ class Secrets(
                     events_client.emit(event)
 
             else:
-                raise mlrun.errors.MLRunInternalServerError("K8s provider cannot be initialized")
+                raise mlrun.errors.MLRunInternalServerError(
+                    "K8s provider cannot be initialized"
+                )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Provider requested is not supported. provider = {secrets.provider}"
             )
 
-    def read_auth_secret(self, secret_name, raise_on_not_found=False) -> mlrun.common.schemas.AuthSecretData:
+    def read_auth_secret(
+        self, secret_name, raise_on_not_found=False
+    ) -> mlrun.common.schemas.AuthSecretData:
         (
             username,
             access_key,
-        ) = self.secrets_provider.read_auth_secret(secret_name, raise_on_not_found=raise_on_not_found)
+        ) = self.secrets_provider.read_auth_secret(
+            secret_name, raise_on_not_found=raise_on_not_found
+        )
         return mlrun.common.schemas.AuthSecretData(
             provider=mlrun.common.schemas.SecretProviderName.kubernetes,
             username=username,
@@ -159,7 +179,9 @@ class Secrets(
                 f"Storing auth secret is not implemented for provider {secret.provider}"
             )
         if not self.secrets_provider:
-            raise mlrun.errors.MLRunInternalServerError("K8s provider cannot be initialized")
+            raise mlrun.errors.MLRunInternalServerError(
+                "K8s provider cannot be initialized"
+            )
 
         # ignore the returned action as we don't need to emit an event for auth secrets (they are internal)
         (
@@ -179,7 +201,9 @@ class Secrets(
                 f"Storing auth secret is not implemented for provider {provider}"
             )
         if not self.secrets_provider:
-            raise mlrun.errors.MLRunInternalServerError("K8s provider cannot be initialized")
+            raise mlrun.errors.MLRunInternalServerError(
+                "K8s provider cannot be initialized"
+            )
         self.secrets_provider.delete_auth_secret(secret_name)
 
     def delete_project_secrets(
@@ -200,13 +224,17 @@ class Secrets(
             else:
                 # When secrets are not provided the default behavior will be to delete them all, but if internal secrets
                 # are not allowed, we don't want to delete them, so we list the non internal keys
-                secrets = self.list_project_secret_keys(project, provider, allow_internal_secrets=False).secret_keys
+                secrets = self.list_project_secret_keys(
+                    project, provider, allow_internal_secrets=False
+                ).secret_keys
                 if not secrets:
                     # nothing to remove - return
                     return
 
         if provider == mlrun.common.schemas.SecretProviderName.vault:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Delete secret is not implemented for provider {provider}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Delete secret is not implemented for provider {provider}"
+            )
         elif provider == mlrun.common.schemas.SecretProviderName.kubernetes:
             if self.secrets_provider:
                 (
@@ -225,9 +253,13 @@ class Secrets(
                     events_client.emit(event)
 
             else:
-                raise mlrun.errors.MLRunInternalServerError("K8s provider cannot be initialized")
+                raise mlrun.errors.MLRunInternalServerError(
+                    "K8s provider cannot be initialized"
+                )
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Provider requested is not supported. provider = {provider}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Provider requested is not supported. provider = {provider}"
+            )
 
     def list_project_secret_keys(
         self,
@@ -247,14 +279,22 @@ class Secrets(
             secret_keys = list(secret_values.keys())
         elif provider == mlrun.common.schemas.SecretProviderName.kubernetes:
             if token:
-                raise mlrun.errors.MLRunInvalidArgumentError("Cannot specify token when requesting k8s secret keys")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Cannot specify token when requesting k8s secret keys"
+                )
 
             if self.secrets_provider:
-                secret_keys = self.secrets_provider.get_project_secret_keys(project) or []
+                secret_keys = (
+                    self.secrets_provider.get_project_secret_keys(project) or []
+                )
             else:
-                raise mlrun.errors.MLRunInternalServerError("K8s provider cannot be initialized")
+                raise mlrun.errors.MLRunInternalServerError(
+                    "K8s provider cannot be initialized"
+                )
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Provider requested is not supported. provider = {provider}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Provider requested is not supported. provider = {provider}"
+            )
         if not allow_internal_secrets:
             secret_keys = list(
                 filter(
@@ -263,7 +303,9 @@ class Secrets(
                 )
             )
 
-        return mlrun.common.schemas.SecretKeysData(provider=provider, secret_keys=secret_keys)
+        return mlrun.common.schemas.SecretKeysData(
+            provider=provider, secret_keys=secret_keys
+        )
 
     def list_project_secrets(
         self,
@@ -284,14 +326,22 @@ class Secrets(
             secrets_data = vault.get_secrets(secrets, project=project)
         elif provider == mlrun.common.schemas.SecretProviderName.kubernetes:
             if not allow_secrets_from_k8s:
-                raise mlrun.errors.MLRunAccessDeniedError("Not allowed to list secrets data from kubernetes provider")
-            secrets_data = self.secrets_provider.get_project_secret_data(project, secrets)
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "Not allowed to list secrets data from kubernetes provider"
+                )
+            secrets_data = self.secrets_provider.get_project_secret_data(
+                project, secrets
+            )
 
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Provider requested is not supported. provider = {provider}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Provider requested is not supported. provider = {provider}"
+            )
         if not allow_internal_secrets:
             secrets_data = {
-                key: value for key, value in secrets_data.items() if not self.is_internal_project_secret_key(key)
+                key: value
+                for key, value in secrets_data.items()
+                if not self.is_internal_project_secret_key(key)
             }
         return mlrun.common.schemas.SecretsData(provider=provider, secrets=secrets_data)
 
@@ -314,7 +364,9 @@ class Secrets(
             allow_internal_secrets,
             key_map_secret_key,
         )
-        self.delete_project_secrets(project, provider, [secret_key_to_remove], allow_internal_secrets)
+        self.delete_project_secrets(
+            project, provider, [secret_key_to_remove], allow_internal_secrets
+        )
         if from_key_map:
             # clean key from key map
             key_map = self._get_project_secret_key_map(project, key_map_secret_key)
@@ -330,7 +382,9 @@ class Secrets(
                     allow_storing_key_maps=True,
                 )
             else:
-                self.delete_project_secrets(project, provider, [key_map_secret_key], allow_internal_secrets=True)
+                self.delete_project_secrets(
+                    project, provider, [key_map_secret_key], allow_internal_secrets=True
+                )
 
     def get_project_secret(
         self,
@@ -408,13 +462,22 @@ class Secrets(
                 # key map is there to allow using invalid secret keys
                 if not key_map_secret_key:
                     self.validate_project_secret_key_regex(secret_key)
-                self.validate_internal_project_secret_key_allowed(secret_key, allow_internal_secrets)
-                if self._is_key_map_project_secret_key(secret_key) and not allow_storing_key_maps:
+                self.validate_internal_project_secret_key_allowed(
+                    secret_key, allow_internal_secrets
+                )
+                if (
+                    self._is_key_map_project_secret_key(secret_key)
+                    and not allow_storing_key_maps
+                ):
                     raise mlrun.errors.MLRunAccessDeniedError(
-                        f"Not allowed to create/update key map (key starts with " f"{self.key_map_secrets_key_prefix})"
+                        f"Not allowed to create/update key map (key starts with "
+                        f"{self.key_map_secrets_key_prefix})"
                     )
             if key_map_secret_key:
-                if secrets.provider != mlrun.common.schemas.SecretProviderName.kubernetes:
+                if (
+                    secrets.provider
+                    != mlrun.common.schemas.SecretProviderName.kubernetes
+                ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Storing secret using key map is not implemented for provider {secrets.provider}"
                     )
@@ -434,7 +497,10 @@ class Secrets(
                     if self._is_project_secret_stored_in_key_map(secret_key)
                 ]
                 if secrets_to_store_in_key_map:
-                    key_map = self._get_project_secret_key_map(project, key_map_secret_key) or {}
+                    key_map = (
+                        self._get_project_secret_key_map(project, key_map_secret_key)
+                        or {}
+                    )
                     key_map.update(
                         {
                             secret_key: self._generate_uuid()

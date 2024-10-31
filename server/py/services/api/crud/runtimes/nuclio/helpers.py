@@ -31,7 +31,9 @@ def resolve_function_http_trigger(function_spec):
         return trigger_config
 
 
-def resolve_nuclio_runtime_python_image(mlrun_client_version: str = None, python_version: str = None):
+def resolve_nuclio_runtime_python_image(
+    mlrun_client_version: str = None, python_version: str = None
+):
     if not python_version or not mlrun_client_version:
         return mlrun.mlconf.default_nuclio_runtime
 
@@ -45,7 +47,9 @@ def resolve_nuclio_runtime_python_image(mlrun_client_version: str = None, python
         return mlrun.mlconf.default_nuclio_runtime
 
     # if mlrun version is older than 1.3.0 we need to use the previous default runtime which is python 3.7
-    if semver.VersionInfo.parse(mlrun_client_version) < semver.VersionInfo.parse("1.3.0-X"):
+    if semver.VersionInfo.parse(mlrun_client_version) < semver.VersionInfo.parse(
+        "1.3.0-X"
+    ):
         return "python:3.7"
 
     # if mlrun version is 1.3.0 or newer and python version is 3.7 we need to use python 3.7 image
@@ -64,14 +68,19 @@ def resolve_function_ingresses(function_spec):
         return []
 
     ingresses = []
-    for _, ingress_config in http_trigger.get("attributes", {}).get("ingresses", {}).items():
+    for _, ingress_config in (
+        http_trigger.get("attributes", {}).get("ingresses", {}).items()
+    ):
         ingresses.append(ingress_config)
     return ingresses
 
 
 def enrich_function_with_ingress(config, mode, service_type):
     # do not enrich with an ingress
-    if mode == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.never:
+    if (
+        mode
+        == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.never
+    ):
         return
 
     ingresses = resolve_function_ingresses(config["spec"])
@@ -108,9 +117,15 @@ def enrich_function_with_ingress(config, mode, service_type):
         http_trigger["attributes"]["serviceType"] = service_type
         config["spec"].setdefault("triggers", {})[http_trigger["name"]] = http_trigger
 
-    if mode == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.always:
+    if (
+        mode
+        == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.always
+    ):
         enrich()
-    elif mode == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.on_cluster_ip:
+    elif (
+        mode
+        == mlrun.common.runtimes.constants.NuclioIngressAddTemplatedIngressModes.on_cluster_ip
+    ):
         # service type is not cluster ip, bail out
         if service_type and service_type.lower() != "clusterip":
             return
@@ -130,13 +145,20 @@ def resolve_function_image_pull_secret(function):
         return function.spec.image_pull_secret or function.spec.build.secret
 
     if function.spec.image_pull_secret is None:
-        function.spec.image_pull_secret = mlrun.mlconf.function.spec.image_pull_secret.default
-    elif function.spec.image_pull_secret != mlrun.mlconf.function.spec.image_pull_secret.default:
+        function.spec.image_pull_secret = (
+            mlrun.mlconf.function.spec.image_pull_secret.default
+        )
+    elif (
+        function.spec.image_pull_secret
+        != mlrun.mlconf.function.spec.image_pull_secret.default
+    ):
         return function.spec.image_pull_secret
 
     if function.spec.build.secret is None:
         function.spec.build.secret = mlrun.mlconf.httpdb.builder.docker_registry_secret
-    elif function.spec.build.secret != mlrun.mlconf.httpdb.builder.docker_registry_secret:
+    elif (
+        function.spec.build.secret != mlrun.mlconf.httpdb.builder.docker_registry_secret
+    ):
         return function.spec.build.secret
 
     return function.spec.image_pull_secret or function.spec.build.secret
@@ -198,8 +220,15 @@ def compile_nuclio_archive_config(
     auth_info=None,
 ):
     secrets = {}
-    if project and services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
-        secrets = services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(project)
+    if (
+        project
+        and services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
+    ):
+        secrets = (
+            services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(
+                project
+            )
+        )
 
     def get_secret(key):
         return builder_env.get(key) or secrets.get(key, "")
@@ -216,7 +245,9 @@ def compile_nuclio_archive_config(
             code_entry_type = "archive"
 
     if code_entry_type == "":
-        raise mlrun.errors.MLRunInvalidArgumentError("Couldn't resolve code entry type from source")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Couldn't resolve code entry type from source"
+        )
 
     code_entry_attributes = {}
 
@@ -257,7 +288,9 @@ def compile_nuclio_archive_config(
         if source.startswith("git://"):
             source = source.replace("git://", "https://")
 
-        source, reference, branch = mlrun.utils.resolve_git_reference_from_source(source)
+        source, reference, branch = mlrun.utils.resolve_git_reference_from_source(
+            source
+        )
         if not branch and not reference:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "git branch or refs must be specified in the source e.g.: "

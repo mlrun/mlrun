@@ -112,10 +112,14 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
 
         expected_requests = generate_resources(mem=2, cpu=3)
-        runtime.with_requests(mem=expected_requests["memory"], cpu=expected_requests["cpu"])
+        runtime.with_requests(
+            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
 
         self.execute_function(runtime)
-        self._assert_pod_creation_config(expected_limits=expected_limits, expected_requests=expected_requests)
+        self._assert_pod_creation_config(
+            expected_limits=expected_limits, expected_requests=expected_requests
+        )
 
     def test_run_without_specifying_resources(self, db: Session, client: TestClient):
         self.assert_run_without_specifying_resources()
@@ -142,7 +146,9 @@ class TestKubejobRuntime(TestRuntimeBase):
             "label-1": "val1",
             "label-2": "val2",
         }
-        mlrun.mlconf.default_function_node_selector = base64.b64encode(json.dumps(node_selector).encode("utf-8"))
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
         runtime.with_node_selection(node_selector=node_selector)
         self.execute_function(runtime)
         self._assert_pod_creation_config(expected_node_selector=node_selector)
@@ -172,13 +178,19 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_affinity=affinity,
         )
 
-    def test_preemption_mode_without_preemptible_configuration(self, db: Session, k8s_secrets_mock):
+    def test_preemption_mode_without_preemptible_configuration(
+        self, db: Session, k8s_secrets_mock
+    ):
         self.assert_run_with_preemption_mode_without_preemptible_configuration()
 
-    def test_preemption_mode_with_preemptible_node_selector_without_tolerations(self, db: Session, k8s_secrets_mock):
+    def test_preemption_mode_with_preemptible_node_selector_without_tolerations(
+        self, db: Session, k8s_secrets_mock
+    ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations()
 
-    def test_preemption_mode_with_preemptible_node_selector_and_tolerations(self, db: Session, k8s_secrets_mock):
+    def test_preemption_mode_with_preemptible_node_selector_and_tolerations(
+        self, db: Session, k8s_secrets_mock
+    ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations()
 
     def test_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings(
@@ -194,7 +206,9 @@ class TestKubejobRuntime(TestRuntimeBase):
     def test_with_preemption_mode_none_transitions(self, db: Session, k8s_secrets_mock):
         self.assert_run_with_preemption_mode_none_transitions()
 
-    def assert_node_selection(self, node_name=None, node_selector=None, affinity=None, tolerations=None):
+    def assert_node_selection(
+        self, node_name=None, node_selector=None, affinity=None, tolerations=None
+    ):
         pod = self._get_pod_creation_args()
         # doesn't need a special case because the default it to be set with default node selector
         assert pod.spec.node_selector == (node_selector or {})
@@ -228,7 +242,9 @@ class TestKubejobRuntime(TestRuntimeBase):
         mlrun.mlconf.valid_function_priority_class_names = medium_priority_class_name
         runtime.with_priority_class(medium_priority_class_name)
         self.execute_function(runtime)
-        self._assert_pod_creation_config(expected_priority_class_name=medium_priority_class_name)
+        self._assert_pod_creation_config(
+            expected_priority_class_name=medium_priority_class_name
+        )
 
         default_priority_class_name = "default-priority"
         mlrun.mlconf.default_function_priority_class_name = default_priority_class_name
@@ -238,7 +254,9 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime = self._generate_runtime()
 
         self.execute_function(runtime)
-        self._assert_pod_creation_config(expected_priority_class_name=default_priority_class_name)
+        self._assert_pod_creation_config(
+            expected_priority_class_name=default_priority_class_name
+        )
 
         runtime = self._generate_runtime()
 
@@ -305,7 +323,9 @@ class TestKubejobRuntime(TestRuntimeBase):
         user_node_selector,
         expected_merged_selector,
     ):
-        mlrun.mlconf.default_function_node_selector = base64.b64encode(json.dumps(common_node_selector).encode("utf-8"))
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(common_node_selector).encode("utf-8")
+        )
 
         runtime = self._generate_runtime()
         if user_node_selector:
@@ -316,7 +336,9 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime._get_db().store_project(self.project, project)
 
         self.execute_function(runtime)
-        self._assert_pod_creation_config(expected_node_selector=expected_merged_selector)
+        self._assert_pod_creation_config(
+            expected_node_selector=expected_merged_selector
+        )
 
     def test_set_annotation(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
@@ -360,10 +382,15 @@ class TestKubejobRuntime(TestRuntimeBase):
         self.assert_security_context(other_security_context)
 
         # when enrichment mode is not 'disabled' security context is internally managed
-        mlrun.mlconf.function.spec.security_context.enrichment_mode = SecurityContextEnrichmentModes.override.value
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            SecurityContextEnrichmentModes.override.value
+        )
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
             runtime.with_security_context(other_security_context)
-        assert "Security context is handled internally when enrichment mode is not disabled" in str(exc.value)
+        assert (
+            "Security context is handled internally when enrichment mode is not disabled"
+            in str(exc.value)
+        )
 
     def test_run_with_mounts(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
@@ -410,8 +437,10 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         # We don't expect the internal secret to be visible - the user cannot mount it to the function
         # even if specifically asking for it in with_secrets()
-        expected_env_from_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
-            self.project, include_internal=False
+        expected_env_from_secrets = (
+            k8s_secrets_mock.get_expected_env_variables_from_secrets(
+                self.project, include_internal=False
+            )
         )
 
         self._assert_pod_creation_config(
@@ -429,7 +458,9 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_env_from_secrets=expected_env_from_secrets,
         )
 
-    def test_run_with_global_secrets(self, db: Session, k8s_secrets_mock: K8sSecretsMock):
+    def test_run_with_global_secrets(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
         project_secret_keys = ["secret1", "secret2", "secret3", "mlrun.internal_secret"]
         project_secrets = {key: "some-secret-value" for key in project_secret_keys}
         # secret1 is included both in the global secrets and the project secrets, it should have the value from the
@@ -446,15 +477,19 @@ class TestKubejobRuntime(TestRuntimeBase):
         k8s_secrets_mock.store_project_secrets(self.project, project_secrets)
         k8s_secrets_mock.store_secret(global_secret_name, global_secrets)
 
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = global_secret_name
+        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
+            global_secret_name
+        )
         runtime = self._generate_runtime()
 
         self.execute_function(runtime)
 
         mlconf.secret_stores.kubernetes.global_function_env_secret_name = None
 
-        expected_env_from_secrets = k8s_secrets_mock.get_expected_env_variables_from_secrets(
-            self.project, include_internal=False, global_secret=global_secret_name
+        expected_env_from_secrets = (
+            k8s_secrets_mock.get_expected_env_variables_from_secrets(
+                self.project, include_internal=False, global_secret=global_secret_name
+            )
         )
 
         self._assert_pod_creation_config(
@@ -544,7 +579,9 @@ def my_func(context):
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
             runtime.with_code(from_file=self.code_filename, body=expected_code)
-        assert "must provide either body or from_file argument. not both" in str(excinfo.value)
+        assert "must provide either body or from_file argument. not both" in str(
+            excinfo.value
+        )
 
     def test_run_with_code_empty(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -583,8 +620,13 @@ def my_func(context):
         runtime = self._generate_runtime()
         policy = "IfNotPresent"
         secret = "some_secret"
-        runtime.set_image_pull_configuration(image_pull_policy=policy, image_pull_secret_name=secret)
-        assert runtime.spec.image_pull_policy == policy and runtime.spec.image_pull_secret == secret
+        runtime.set_image_pull_configuration(
+            image_pull_policy=policy, image_pull_secret_name=secret
+        )
+        assert (
+            runtime.spec.image_pull_policy == policy
+            and runtime.spec.image_pull_secret == secret
+        )
 
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
@@ -646,7 +688,9 @@ def my_func(context):
             )
             == {}
         )
-        runtime.with_commands(["pip install tensorflow", "pip install pandas"], overwrite=True)
+        runtime.with_commands(
+            ["pip install tensorflow", "pip install pandas"], overwrite=True
+        )
         expected_commands = ["pip install tensorflow", "pip install pandas"]
         assert (
             deepdiff.DeepDiff(
@@ -659,7 +703,9 @@ def my_func(context):
 
     def test_build_config(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
-        runtime.build_config(base_image="mlrun/mlrun", commands=["python -m pip install pandas"])
+        runtime.build_config(
+            base_image="mlrun/mlrun", commands=["python -m pip install pandas"]
+        )
         expected_commands = ["python -m pip install pandas"]
         assert (
             deepdiff.DeepDiff(
@@ -686,7 +732,9 @@ def my_func(context):
             == {}
         )
 
-        runtime.build_config(commands=["python -m pip install scikit-learn"], overwrite=True)
+        runtime.build_config(
+            commands=["python -m pip install scikit-learn"], overwrite=True
+        )
         expected_commands = ["python -m pip install scikit-learn"]
         assert (
             deepdiff.DeepDiff(
@@ -731,7 +779,9 @@ def my_func(context):
             == {}
         )
 
-    def test_build_config_commands_and_requirements_order(self, db: Session, client: TestClient):
+    def test_build_config_commands_and_requirements_order(
+        self, db: Session, client: TestClient
+    ):
         runtime = self._generate_runtime()
         runtime.build_config(commands=["apt-get update"], requirements=["scikit-learn"])
         expected_commands = ["apt-get update"]
@@ -782,19 +832,24 @@ def my_func(context):
         expected_to_upgrade,
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
-        with unittest.mock.patch("services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()):
+        with unittest.mock.patch(
+            "services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
             runtime.spec.build.commands = copy.deepcopy(commands)
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
             if expected_to_upgrade:
                 expected_str = ""
                 if commands:
                     expected_str += "\nRUN "
                     expected_str += "\nRUN ".join(commands)
                 expected_str += (
-                    f"\nRUN python -m pip install " f"--upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    f"\nRUN python -m pip install "
+                    f"--upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
                 )
 
                 # assert that mlrun was added to the requirements file
@@ -803,13 +858,20 @@ def my_func(context):
                         "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
                         "\nRUN python -m pip install -r /empty/requirements.txt"
                     )
-                    kaniko_pod_requirements = services.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
+                    kaniko_pod_requirements = (
+                        services.api.utils.builder.make_kaniko_pod.call_args[1][
+                            "requirements"
+                        ]
+                    )
                     assert kaniko_pod_requirements == [
                         "mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"
                     ]
                 assert expected_str in dockerfile
             else:
-                assert f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}" not in dockerfile
+                assert (
+                    f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    not in dockerfile
+                )
 
     @pytest.mark.parametrize(
         "with_mlrun, requirements, with_requirements_file, expected_requirements",
@@ -889,21 +951,31 @@ def my_func(context):
         expected_requirements,
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
-        with unittest.mock.patch("services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()):
+        with unittest.mock.patch(
+            "services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
 
-            requirements_file = "" if not with_requirements_file else self.requirements_file
-            runtime.with_requirements(requirements=requirements, requirements_file=requirements_file)
+            requirements_file = (
+                "" if not with_requirements_file else self.requirements_file
+            )
+            runtime.with_requirements(
+                requirements=requirements, requirements_file=requirements_file
+            )
 
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
 
             install_requirements_commands = (
                 "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
                 "\nRUN python -m pip install -r /empty/requirements.txt"
             )
-            kaniko_pod_requirements = services.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
+            kaniko_pod_requirements = (
+                services.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
+            )
             if with_mlrun:
                 expected_str = f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
                 expected_str += install_requirements_commands
@@ -911,7 +983,10 @@ def my_func(context):
                 assert expected_str in dockerfile
 
             else:
-                assert f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}" not in dockerfile
+                assert (
+                    f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    not in dockerfile
+                )
 
                 # assert that install requirements commands are in the dockerfile
                 if with_requirements_file or requirements:
@@ -947,7 +1022,9 @@ def my_func(context):
         k8s_secrets_mock,
     ):
         runtime = self._generate_runtime()
-        runtime.with_source_archive(source, workdir, pull_at_runtime=pull_at_runtime, target_dir=target_dir)
+        runtime.with_source_archive(
+            source, workdir, pull_at_runtime=pull_at_runtime, target_dir=target_dir
+        )
 
         # mock the build
         runtime.spec.image = "some/image"
@@ -963,7 +1040,8 @@ def my_func(context):
         assert (
             f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False "
             "set 'source' to a remote URL to clone/copy the source to the base image, "
-            "or set 'pull_at_runtime' to True to pull the source at runtime." in str(e.value)
+            "or set 'pull_at_runtime' to True to pull the source at runtime."
+            in str(e.value)
         )
 
     @pytest.mark.parametrize(
@@ -1016,7 +1094,10 @@ def my_func(context):
         runtime = self._generate_runtime()
         self.execute_function(runtime)
         run = get_db().list_runs(db, project=self.project)[0]
-        assert run["spec"]["state_thresholds"] == mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
+        assert (
+            run["spec"]["state_thresholds"]
+            == mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
+        )
 
     def test_set_state_thresholds_success(self, db: Session, k8s_secrets_mock):
         state_thresholds = {
@@ -1048,7 +1129,9 @@ def my_func(context):
         expected_state_thresholds["image_pull_backoff"] = (
             mlconf.function.spec.state_thresholds.default.image_pull_backoff
         )
-        expected_state_thresholds["pending_scheduled"] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        expected_state_thresholds["pending_scheduled"] = (
+            mlconf.function.spec.state_thresholds.default.pending_scheduled
+        )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
         patch_state_thresholds = {
@@ -1062,7 +1145,9 @@ def my_func(context):
         run = get_db().list_runs(db, project=self.project)[0]
         expected_state_thresholds = patch_state_thresholds
         expected_state_thresholds["executing"] = override_state_thresholds["executing"]
-        expected_state_thresholds["pending_scheduled"] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        expected_state_thresholds["pending_scheduled"] = (
+            mlconf.function.spec.state_thresholds.default.pending_scheduled
+        )
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
     @staticmethod

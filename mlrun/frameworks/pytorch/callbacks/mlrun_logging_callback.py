@@ -55,7 +55,9 @@ class MLRunLoggingCallback(LoggingCallback):
         log_model_tag: str = "",
         log_model_labels: dict[str, PyTorchTypes.TrackableType] = None,
         log_model_parameters: dict[str, PyTorchTypes.TrackableType] = None,
-        log_model_extra_data: dict[str, Union[PyTorchTypes.TrackableType, Artifact]] = None,
+        log_model_extra_data: dict[
+            str, Union[PyTorchTypes.TrackableType, Artifact]
+        ] = None,
         dynamic_hyperparameters: dict[
             str,
             tuple[
@@ -63,7 +65,9 @@ class MLRunLoggingCallback(LoggingCallback):
                 Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
             ],
         ] = None,
-        static_hyperparameters: dict[str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]] = None,
+        static_hyperparameters: dict[
+            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
+        ] = None,
         auto_log: bool = False,
     ):
         """

@@ -148,13 +148,17 @@ def set_environment(
         mlconf.mock_nuclio_deployment = mock_functions
 
     if not mlconf.artifact_path and not artifact_path:
-        raise ValueError("default artifact_path was not configured, please specify a valid artifact_path")
+        raise ValueError(
+            "default artifact_path was not configured, please specify a valid artifact_path"
+        )
 
     if artifact_path:
         if artifact_path.startswith("./"):
             artifact_path = path.abspath(artifact_path)
         elif not artifact_path.startswith("/") and "://" not in artifact_path:
-            raise ValueError("artifact_path must refer to an absolute path" " or a valid url")
+            raise ValueError(
+                "artifact_path must refer to an absolute path" " or a valid url"
+            )
         mlconf.artifact_path = artifact_path
 
     return mlconf.default_project, mlconf.artifact_path
@@ -172,7 +176,9 @@ def get_sample_path(subpath=""):
     """
     return the url of a sample dataset or model
     """
-    samples_path = environ.get("SAMPLE_DATA_SOURCE_URL_PREFIX", mlconf.default_samples_path)
+    samples_path = environ.get(
+        "SAMPLE_DATA_SOURCE_URL_PREFIX", mlconf.default_samples_path
+    )
     if subpath:
         samples_path = path.join(samples_path, subpath.lstrip("/"))
     return samples_path

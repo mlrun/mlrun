@@ -36,7 +36,9 @@ class TestMpiV1Runtime(TestRuntimeBase):
 
     def test_run_v1_sanity(self, db: Session, client: TestClient, k8s_secrets_mock):
         mlconf.httpdb.builder.docker_registry = "localhost:5000"
-        with unittest.mock.patch("services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()):
+        with unittest.mock.patch(
+            "services.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ):
             self._mock_list_pods()
             self._mock_create_namespaced_custom_object()
             self._mock_get_namespaced_custom_object()

@@ -80,7 +80,11 @@ class DatasetPlan(MLPlan):
             )
 
         # Store the configurations:
-        self._purpose = self.Purposes(purpose) if not isinstance(purpose, self.Purposes) else purpose
+        self._purpose = (
+            self.Purposes(purpose)
+            if not isinstance(purpose, self.Purposes)
+            else purpose
+        )
         self._name = name if name is not None else self._DEFAULT_NAMES[self._purpose]
         self._preview = preview
         self._stats = stats
@@ -105,7 +109,10 @@ class DatasetPlan(MLPlan):
             return stage == MLPlanStages.PRE_FIT
 
         # For validation and test sets:
-        if self._purpose == self.Purposes.VALIDATION or self._purpose == self.Purposes.TEST:
+        if (
+            self._purpose == self.Purposes.VALIDATION
+            or self._purpose == self.Purposes.TEST
+        ):
             return stage == MLPlanStages.PRE_PREDICT
 
         # For other:
@@ -130,7 +137,9 @@ class DatasetPlan(MLPlan):
         :raise MLRunInvalidArgumentError: If no dataset parameters were passed.
         """
         # Merge x and y into a single dataset:
-        dataset, y_columns = MLUtils.concatenate_x_y(x=x, y=y, target_columns_names=target_columns_names)
+        dataset, y_columns = MLUtils.concatenate_x_y(
+            x=x, y=y, target_columns_names=target_columns_names
+        )
 
         # Create the dataset artifact:
         dataset_artifact = DatasetArtifact(

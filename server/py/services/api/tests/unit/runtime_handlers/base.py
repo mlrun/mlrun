@@ -42,16 +42,22 @@ logger = create_test_logger(name="test-runtime-handlers")
 class TestRuntimeHandlerBase:
     def setup_method(self, method):
         self._logger = logger
-        self._logger.info(f"Setting up test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Setting up test {self.__class__.__name__}::{method.__name__}"
+        )
 
         self.project = "test-project"
         self.run_uid = "test_run_uid"
         self.kind = "job"
 
-        mlrun.mlconf.mpijob_crd_version = mlrun.common.runtimes.constants.MPIJobCRDVersions.v1
+        mlrun.mlconf.mpijob_crd_version = (
+            mlrun.common.runtimes.constants.MPIJobCRDVersions.v1
+        )
         self.custom_setup()
 
-        self._logger.info(f"Finished setting up test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
+        )
 
     @pytest.fixture(autouse=True)
     def _store_run_fixture(self, db: Session):
@@ -84,7 +90,9 @@ class TestRuntimeHandlerBase:
         }
         if start_time:
             self.run["status"]["start_time"] = start_time.isoformat()
-        services.api.crud.Runs().store_run(db, self.run, self.run["metadata"]["uid"], project=self.project)
+        services.api.crud.Runs().store_run(
+            db, self.run, self.run["metadata"]["uid"], project=self.project
+        )
 
     @pytest.fixture(autouse=True)
     def setup_method_fixture(self, db: Session, client: fastapi.testclient.TestClient):
@@ -93,16 +101,22 @@ class TestRuntimeHandlerBase:
         # in order to be able to mock k8s stuff
         get_k8s_helper().v1api = unittest.mock.Mock()
         get_k8s_helper().crdapi = unittest.mock.Mock()
-        get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(return_value=True)
+        get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
         # enable inheriting classes to do the same
         self.custom_setup_after_fixtures()
 
     def teardown_method(self, method):
-        self._logger.info(f"Tearing down test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
 
         self.custom_teardown()
 
-        self._logger.info(f"Finished tearing down test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
 
     def custom_setup(self):
         pass
@@ -135,7 +149,9 @@ class TestRuntimeHandlerBase:
             container_statuses=[container_status],
             start_time=datetime.now(timezone.utc),
         )
-        metadata = client.V1ObjectMeta(name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace())
+        metadata = client.V1ObjectMeta(
+            name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()
+        )
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
@@ -148,13 +164,17 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _generate_config_map(name, labels, data=None):
-        metadata = client.V1ObjectMeta(name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace())
+        metadata = client.V1ObjectMeta(
+            name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()
+        )
         if data is None:
             data = {"key": "value"}
         return client.V1ConfigMap(metadata=metadata, data=data)
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):
-        run_label_selector = runtime_handler._get_run_label_selector(self.project, self.run_uid)
+        run_label_selector = runtime_handler._get_run_label_selector(
+            self.project, self.run_uid
+        )
         return f"mlrun/class,{run_label_selector}"
 
     def _assert_runtime_handler_list_resources(
@@ -163,7 +183,9 @@ class TestRuntimeHandlerBase:
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
-        group_by: Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ):
         runtime_handler = get_runtime_handler(runtime_kind)
         if group_by is None:
@@ -178,7 +200,9 @@ class TestRuntimeHandlerBase:
                     f"{mlrun_constants.MLRunInternalLabels.project}={self.project}",
                 ]
             )
-            assertion_func = TestRuntimeHandlerBase._assert_list_resources_grouped_by_job_response
+            assertion_func = (
+                TestRuntimeHandlerBase._assert_list_resources_grouped_by_job_response
+            )
         elif group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             project = self.project
             label_selector = ",".join(
@@ -329,7 +353,9 @@ class TestRuntimeHandlerBase:
                     == {}
                 )
         if not found:
-            pytest.fail(f"Expected {expected_resource_type} was not found in response resources")
+            pytest.fail(
+                f"Expected {expected_resource_type} was not found in response resources"
+            )
 
     def _assert_list_resources_response(
         self,
@@ -351,25 +377,35 @@ class TestRuntimeHandlerBase:
         for index, pod in enumerate(expected_pods):
             pod_dict = pod.to_dict()
             assert resources.pod_resources[index].name == pod_dict["metadata"]["name"]
-            assert resources.pod_resources[index].labels == pod_dict["metadata"]["labels"]
+            assert (
+                resources.pod_resources[index].labels == pod_dict["metadata"]["labels"]
+            )
             assert resources.pod_resources[index].status == pod_dict["status"]
         if expected_services:
             assert len(resources.service_resources) == len(expected_services)
             for index, service in enumerate(expected_services):
                 assert resources.service_resources[index].name == service.metadata.name
-                assert resources.service_resources[index].labels == service.metadata.labels
+                assert (
+                    resources.service_resources[index].labels == service.metadata.labels
+                )
 
     @staticmethod
     def _mock_list_namespaced_pods(list_pods_call_responses: list[list[client.V1Pod]]):
         calls = []
         for list_pods_call_response in list_pods_call_responses:
-            pods = client.V1PodList(items=list_pods_call_response, metadata=client.V1ListMeta())
+            pods = client.V1PodList(
+                items=list_pods_call_response, metadata=client.V1ListMeta()
+            )
             calls.append(pods)
-        get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(side_effect=calls)
+        get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
+            side_effect=calls
+        )
         return calls
 
     @staticmethod
-    def _assert_delete_namespaced_pods(expected_pod_names: list[str], expected_pod_namespace: str = None):
+    def _assert_delete_namespaced_pods(
+        expected_pod_names: list[str], expected_pod_namespace: str = None
+    ):
         calls = [
             unittest.mock.call(
                 expected_pod_name,
@@ -385,7 +421,9 @@ class TestRuntimeHandlerBase:
             get_k8s_helper().v1api.delete_namespaced_pod.assert_has_calls(calls)
 
     @staticmethod
-    def _assert_delete_namespaced_services(expected_service_names: list[str], expected_service_namespace: str = None):
+    def _assert_delete_namespaced_services(
+        expected_service_names: list[str], expected_service_namespace: str = None
+    ):
         calls = [
             unittest.mock.call(
                 expected_service_name,
@@ -418,9 +456,13 @@ class TestRuntimeHandlerBase:
             for expected_custom_object_name in expected_custom_object_names
         ]
         if not expected_custom_object_names:
-            assert get_k8s_helper().crdapi.delete_namespaced_custom_object.call_count == 0
+            assert (
+                get_k8s_helper().crdapi.delete_namespaced_custom_object.call_count == 0
+            )
         else:
-            get_k8s_helper().crdapi.delete_namespaced_custom_object.assert_has_calls(calls)
+            get_k8s_helper().crdapi.delete_namespaced_custom_object.assert_has_calls(
+                calls
+            )
 
     @staticmethod
     def _mock_delete_namespaced_pods():
@@ -437,27 +479,37 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _mock_read_namespaced_pod_log():
         log = "Some log string"
-        get_k8s_helper().v1api.read_namespaced_pod_log = unittest.mock.Mock(return_value=log)
+        get_k8s_helper().v1api.read_namespaced_pod_log = unittest.mock.Mock(
+            return_value=log
+        )
         return log
 
     @staticmethod
     def _mock_list_namespaced_crds(crd_dicts_call_responses: list[list[dict]]):
         calls = []
         for crd_dicts_call_response in crd_dicts_call_responses:
-            calls.append({"items": crd_dicts_call_response, "metadata": {"continue": None}})
-        get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(side_effect=calls)
+            calls.append(
+                {"items": crd_dicts_call_response, "metadata": {"continue": None}}
+            )
+        get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
+            side_effect=calls
+        )
         return calls
 
     @staticmethod
     def _mock_list_namespaced_config_map(config_maps):
         config_maps_list = client.V1ConfigMapList(items=config_maps)
-        get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(return_value=config_maps_list)
+        get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            return_value=config_maps_list
+        )
         return config_maps
 
     @staticmethod
     def _mock_list_services(services):
         services_list = client.V1ServiceList(items=services)
-        get_k8s_helper().v1api.list_namespaced_service = unittest.mock.Mock(return_value=services_list)
+        get_k8s_helper().v1api.list_namespaced_service = unittest.mock.Mock(
+            return_value=services_list
+        )
         return services
 
     @staticmethod
@@ -467,11 +519,16 @@ class TestRuntimeHandlerBase:
         expected_label_selector: str = None,
         paginated: bool = True,
     ):
-        assert get_k8s_helper().v1api.list_namespaced_pod.call_count == expected_number_of_calls, (
+        assert (
+            get_k8s_helper().v1api.list_namespaced_pod.call_count
+            == expected_number_of_calls
+        ), (
             f"Unexpected number of calls to list_namespaced_pod "
             f"{get_k8s_helper().v1api.list_namespaced_pod.call_count}, expected {expected_number_of_calls}"
         )
-        expected_label_selector = expected_label_selector or runtime_handler._get_default_label_selector()
+        expected_label_selector = (
+            expected_label_selector or runtime_handler._get_default_label_selector()
+        )
         kwargs = {}
         if paginated:
             kwargs = {
@@ -486,9 +543,14 @@ class TestRuntimeHandlerBase:
         )
 
     @staticmethod
-    def _assert_list_namespaced_crds_calls(runtime_handler, expected_number_of_calls: int, paginated: bool = True):
+    def _assert_list_namespaced_crds_calls(
+        runtime_handler, expected_number_of_calls: int, paginated: bool = True
+    ):
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
-        assert get_k8s_helper().crdapi.list_namespaced_custom_object.call_count == expected_number_of_calls
+        assert (
+            get_k8s_helper().crdapi.list_namespaced_custom_object.call_count
+            == expected_number_of_calls
+        )
         kwargs = {}
         if paginated:
             kwargs = {
@@ -518,7 +580,9 @@ class TestRuntimeHandlerBase:
                 name=logger_pod_name,
                 namespace=get_k8s_helper().resolve_namespace(),
             )
-        _, logs = await services.api.crud.Logs().get_logs(db, project, uid, source=LogSources.PERSISTENCY)
+        _, logs = await services.api.crud.Logs().get_logs(
+            db, project, uid, source=LogSources.PERSISTENCY
+        )
         async for log_line in logs:
             assert log_line == expected_log.encode()
 
@@ -534,7 +598,9 @@ class TestRuntimeHandlerBase:
         expected_status_attrs = expected_status_attrs or {}
 
         if requested_logs is not None:
-            runs = get_db().list_runs(db, uid=uid, project=project, requested_logs=requested_logs)
+            runs = get_db().list_runs(
+                db, uid=uid, project=project, requested_logs=requested_logs
+            )
             assert len(runs) == 1
             run = runs[0]
         else:

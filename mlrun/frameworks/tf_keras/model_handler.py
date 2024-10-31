@@ -209,7 +209,9 @@ class TFKerasModelHandler(DLModelHandler):
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     @without_mlrun_interface(interface=TFKerasMLRunInterface)
-    def save(self, output_path: str = None, **kwargs) -> Union[dict[str, Artifact], None]:
+    def save(
+        self, output_path: str = None, **kwargs
+    ) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
         logged and returned as artifacts.
@@ -243,7 +245,9 @@ class TFKerasModelHandler(DLModelHandler):
                 self._model.save(self._model_name)
             # Zip it:
             self._model_file = f"{self._model_name}.zip"
-            shutil.make_archive(base_name=self._model_name, format="zip", base_dir=self._model_name)
+            shutil.make_archive(
+                base_name=self._model_name, format="zip", base_dir=self._model_name
+            )
 
         # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Save as a json architecture and h5 weights files:
         else:
@@ -259,11 +263,13 @@ class TFKerasModelHandler(DLModelHandler):
         # Update the paths and log artifacts if context is available:
         if self._weights_file is not None:
             if self._context is not None:
-                artifacts[self._get_weights_file_artifact_name()] = self._context.log_artifact(
-                    self._weights_file,
-                    local_path=self._weights_file,
-                    artifact_path=output_path,
-                    db_key=False,
+                artifacts[self._get_weights_file_artifact_name()] = (
+                    self._context.log_artifact(
+                        self._weights_file,
+                        local_path=self._weights_file,
+                        artifact_path=output_path,
+                        db_key=False,
+                    )
                 )
 
         return artifacts if self._context is not None else None
@@ -281,24 +287,32 @@ class TFKerasModelHandler(DLModelHandler):
         """
         # TODO: Add support for checkpoint loading after creating MLRun's checkpoint callback.
         if checkpoint is not None:
-            raise NotImplementedError("Loading a model using checkpoint is not yet implemented.")
+            raise NotImplementedError(
+                "Loading a model using checkpoint is not yet implemented."
+            )
 
         super().load()
 
         # ModelFormats.H5 - Load from a h5 file:
         if self._model_format == TFKerasModelHandler.ModelFormats.H5:
-            self._model = keras.models.load_model(self._model_file, custom_objects=self._custom_objects)
+            self._model = keras.models.load_model(
+                self._model_file, custom_objects=self._custom_objects
+            )
 
         # ModelFormats.SAVED_MODEL - Load from a SavedModel directory:
         elif self._model_format == TFKerasModelHandler.ModelFormats.SAVED_MODEL:
-            self._model = keras.models.load_model(self._model_file, custom_objects=self._custom_objects)
+            self._model = keras.models.load_model(
+                self._model_file, custom_objects=self._custom_objects
+            )
 
         # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Load from a json architecture file and a h5 weights file:
         else:
             # Load the model architecture (json):
             with open(self._model_file) as json_file:
                 model_architecture = json_file.read()
-            self._model = keras.models.model_from_json(model_architecture, custom_objects=self._custom_objects)
+            self._model = keras.models.model_from_json(
+                model_architecture, custom_objects=self._custom_objects
+            )
             # Load the model weights (h5):
             self._model.load_weights(self._weights_file)
 
@@ -306,7 +320,9 @@ class TFKerasModelHandler(DLModelHandler):
         self,
         model_name: str = None,
         optimize: bool = True,
-        input_signature: Union[list[tf.TensorSpec], list[np.ndarray], tf.TensorSpec, np.ndarray] = None,
+        input_signature: Union[
+            list[tf.TensorSpec], list[np.ndarray], tf.TensorSpec, np.ndarray
+        ] = None,
         output_path: str = None,
         log: bool = None,
     ):
@@ -350,7 +366,9 @@ class TFKerasModelHandler(DLModelHandler):
                 input_signature = [
                     tf.TensorSpec(
                         shape=input_feature.dims,
-                        dtype=TFKerasUtils.convert_value_type_to_tf_dtype(value_type=input_feature.value_type),
+                        dtype=TFKerasUtils.convert_value_type_to_tf_dtype(
+                            value_type=input_feature.value_type
+                        ),
                     )
                     for input_feature in self._inputs
                 ]
@@ -376,7 +394,9 @@ class TFKerasModelHandler(DLModelHandler):
         )
 
         # Create a handler for the ONNX model:
-        onnx_handler = ONNXModelHandler(model_name=model_name, model=model_proto, context=self._context)
+        onnx_handler = ONNXModelHandler(
+            model_name=model_name, model=model_proto, context=self._context
+        )
 
         # Pass on the inputs and outputs properties:
         if self._inputs is not None:
@@ -428,7 +448,9 @@ class TFKerasModelHandler(DLModelHandler):
             )
 
         # Read the outputs:
-        output_signature = [output_layer.type_spec for output_layer in self._model.outputs]
+        output_signature = [
+            output_layer.type_spec for output_layer in self._model.outputs
+        ]
 
         # Set the outputs:
         self.set_outputs(from_sample=output_signature)
@@ -440,7 +462,9 @@ class TFKerasModelHandler(DLModelHandler):
         """
         # Read the settings:
         self._model_format = self._model_artifact.labels[self._LabelKeys.MODEL_FORMAT]
-        self._save_traces = self._model_artifact.labels.get(self._LabelKeys.SAVE_TRACES, None)
+        self._save_traces = self._model_artifact.labels.get(
+            self._LabelKeys.SAVE_TRACES, None
+        )
 
         # Read additional files according to the model format used:
         # # ModelFormats.SAVED_MODEL - Unzip the SavedModel archive:
@@ -449,11 +473,18 @@ class TFKerasModelHandler(DLModelHandler):
             with zipfile.ZipFile(self._model_file, "r") as zip_file:
                 zip_file.extractall(os.path.dirname(self._model_file))
             # Set the model file to the unzipped directory:
-            self._model_file = os.path.join(os.path.dirname(self._model_file), self._model_name)
+            self._model_file = os.path.join(
+                os.path.dirname(self._model_file), self._model_name
+            )
         # # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Get the weights file:
-        elif self._model_format == TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS:
+        elif (
+            self._model_format
+            == TFKerasModelHandler.ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS
+        ):
             # Get the weights file:
-            self._weights_file = self._extra_data[self._get_weights_file_artifact_name()].local()
+            self._weights_file = self._extra_data[
+                self._get_weights_file_artifact_name()
+            ].local()
 
         # Continue collecting from abstract class:
         super()._collect_files_from_store_object()
@@ -482,7 +513,9 @@ class TFKerasModelHandler(DLModelHandler):
                 with zipfile.ZipFile(self._model_file, "r") as zip_file:
                     zip_file.extractall(os.path.dirname(self._model_file))
                 # Set the model file to the unzipped directory:
-                self._model_file = os.path.join(os.path.dirname(self._model_file), self._model_name)
+                self._model_file = os.path.join(
+                    os.path.dirname(self._model_file), self._model_name
+                )
             else:
                 # Look for the SavedModel directory:
                 self._model_file = os.path.join(self._model_path, self._model_name)
@@ -525,12 +558,16 @@ class TFKerasModelHandler(DLModelHandler):
         elif isinstance(sample, tf.TensorSpec):
             return Feature(
                 name=sample.name,
-                value_type=TFKerasUtils.convert_tf_dtype_to_value_type(tf_dtype=sample.dtype),
+                value_type=TFKerasUtils.convert_tf_dtype_to_value_type(
+                    tf_dtype=sample.dtype
+                ),
                 dims=list(sample.shape),
             )
         elif isinstance(sample, tf.Tensor):
             return Feature(
-                value_type=TFKerasUtils.convert_tf_dtype_to_value_type(tf_dtype=sample.dtype),
+                value_type=TFKerasUtils.convert_tf_dtype_to_value_type(
+                    tf_dtype=sample.dtype
+                ),
                 dims=list(sample.shape),
             )
 

@@ -91,7 +91,9 @@ def _to_pandas(spark_df):
                 # Rename columns to avoid duplicated column names.
                 tmp_column_names = [f"col_{i}" for i in range(len(spark_df.columns))]
                 self_destruct = spark_df.sql_ctx._conf.arrowPySparkSelfDestructEnabled()
-                batches = spark_df.toDF(*tmp_column_names)._collect_as_arrow(split_batches=self_destruct)
+                batches = spark_df.toDF(*tmp_column_names)._collect_as_arrow(
+                    split_batches=self_destruct
+                )
                 if len(batches) > 0:
                     table = pyarrow.Table.from_batches(batches)
                     # Ensure only the table has a reference to the batches, so that
@@ -118,9 +120,13 @@ def _to_pandas(spark_df):
                     pdf.columns = spark_df.columns
                     for field in spark_df.schema:
                         if isinstance(field.dataType, TimestampType):
-                            pdf[field.name] = _check_series_localize_timestamps(pdf[field.name], timezone)
+                            pdf[field.name] = _check_series_localize_timestamps(
+                                pdf[field.name], timezone
+                            )
                         elif isinstance(field.dataType, MapType):
-                            pdf[field.name] = _convert_map_items_to_dict(pdf[field.name])
+                            pdf[field.name] = _convert_map_items_to_dict(
+                                pdf[field.name]
+                            )
                     return pdf
                 else:
                     return pd.DataFrame.from_records([], columns=spark_df.columns)
@@ -156,7 +162,9 @@ def _to_pandas(spark_df):
         # to integer type e.g., np.int16, we will hit exception. So we use the inferred
         # float type, not the corrected type from the schema in this case.
         if pandas_type is not None and not (
-            isinstance(field.dataType, IntegralType) and field.nullable and pandas_col.isnull().any()
+            isinstance(field.dataType, IntegralType)
+            and field.nullable
+            and pandas_col.isnull().any()
         ):
             dtype[field_idx] = pandas_type
         # Ensure we fall back to nullable numpy types, even when whole column is null:
@@ -196,7 +204,9 @@ def _to_pandas(spark_df):
         for field in spark_df.schema:
             # TODO: handle nested timestamps, such as ArrayType(TimestampType())?
             if isinstance(field.dataType, TimestampType):
-                pdf[field.name] = _check_series_convert_timestamps_local_tz(pdf[field.name], timezone)
+                pdf[field.name] = _check_series_convert_timestamps_local_tz(
+                    pdf[field.name], timezone
+                )
         return pdf
 
 

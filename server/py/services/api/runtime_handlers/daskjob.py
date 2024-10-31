@@ -54,12 +54,16 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         run: mlrun.run.RunObject,
         execution: mlrun.execution.MLClientCtx,
     ):
-        raise NotImplementedError("Execution of dask jobs is done locally by the dask client")
+        raise NotImplementedError(
+            "Execution of dask jobs is done locally by the dask client"
+        )
 
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.
     # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
-    def monitor_runs(self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None) -> list[dict]:
+    def monitor_runs(
+        self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
+    ) -> list[dict]:
         return []
 
     @staticmethod
@@ -95,7 +99,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         ],
         namespace: str,
         label_selector: str = None,
-        group_by: Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ) -> Union[
         mlrun.common.schemas.RuntimeResources,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -113,9 +119,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         service_resources = []
         for service in _services.items:
             service_resources.append(
-                mlrun.common.schemas.RuntimeResource(name=service.metadata.name, labels=service.metadata.labels)
+                mlrun.common.schemas.RuntimeResource(
+                    name=service.metadata.name, labels=service.metadata.labels
+                )
             )
-        return self._enrich_service_resources_in_response(response, service_resources, group_by)
+        return self._enrich_service_resources_in_response(
+            response, service_resources, group_by
+        )
 
     def _build_output_from_runtime_resources(
         self,
@@ -125,7 +135,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         runtime_resources_list: list[mlrun.common.schemas.RuntimeResources],
-        group_by: Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
@@ -134,11 +146,15 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         for runtime_resources in runtime_resources_list:
             if runtime_resources.service_resources:
                 service_resources += runtime_resources.service_resources
-        return self._enrich_service_resources_in_response(response, service_resources, group_by)
+        return self._enrich_service_resources_in_response(
+            response, service_resources, group_by
+        )
 
     def _validate_if_enrich_is_needed_by_group_by(
         self,
-        group_by: Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ) -> bool:
         # Dask runtime resources are per function (and not per job) therefore, when grouping by job we're simply
         # omitting the dask runtime resources
@@ -147,7 +163,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         elif group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             return True
         elif group_by is not None:
-            raise NotImplementedError(f"Provided group by field is not supported. group_by={group_by}")
+            raise NotImplementedError(
+                f"Provided group by field is not supported. group_by={group_by}"
+            )
         return True
 
     def _enrich_service_resources_in_response(
@@ -158,7 +176,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         service_resources: list[mlrun.common.schemas.RuntimeResource],
-        group_by: Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ):
         if group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             for service_resource in service_resources:
@@ -186,10 +206,14 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         service_names = []
         for pod_dict in deleted_resources:
             dask_component = (
-                pod_dict["metadata"].get("labels", {}).get(mlrun_constants.MLRunInternalLabels.dask_component)
+                pod_dict["metadata"]
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.dask_component)
             )
             cluster_name = (
-                pod_dict["metadata"].get("labels", {}).get(mlrun_constants.MLRunInternalLabels.dask_cluster_name)
+                pod_dict["metadata"]
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.dask_cluster_name)
             )
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
@@ -277,7 +301,9 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
     return cluster
 
 
-def enrich_dask_cluster(function, secrets, client_version: str = None, client_python_version: str = None):
+def enrich_dask_cluster(
+    function, secrets, client_version: str = None, client_python_version: str = None
+):
     from dask.distributed import Client, default_client  # noqa: F401
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
     from kubernetes import client
@@ -285,14 +311,18 @@ def enrich_dask_cluster(function, secrets, client_version: str = None, client_py
     runtime_handler: services.api.runtime_handlers.daskjob.DaskRuntimeHandler = (
         services.api.runtime_handlers.DaskRuntimeHandler()
     )
-    runtime_handler.add_secrets_to_spec_before_running(runtime=function, project_name=function.metadata.project)
+    runtime_handler.add_secrets_to_spec_before_running(
+        runtime=function, project_name=function.metadata.project
+    )
 
     spec = function.spec
     meta = function.metadata
     spec.remote = True
 
     image = (
-        function.full_image_path(client_version=client_version, client_python_version=client_python_version)
+        function.full_image_path(
+            client_version=client_version, client_python_version=client_python_version
+        )
         # TODO: we might never enter here, since running a function requires defining an image
         or "daskdev/dask:latest"
     )
@@ -337,9 +367,9 @@ def enrich_dask_cluster(function, secrets, client_version: str = None, client_py
     # this assumes that the dask client version matches the dask cluster version
     is_legacy_dask = False
     try:
-        is_legacy_dask = client_version and semver.VersionInfo.parse(client_version) < semver.VersionInfo.parse(
-            "1.6.0-X"
-        )
+        is_legacy_dask = client_version and semver.VersionInfo.parse(
+            client_version
+        ) < semver.VersionInfo.parse("1.6.0-X")
     except ValueError:
         pass
 
@@ -364,7 +394,9 @@ def enrich_dask_cluster(function, secrets, client_version: str = None, client_py
     scheduler_container = client.V1Container(
         resources=spec.scheduler_resources, args=scheduler_args, **container_kwargs
     )
-    worker_container = client.V1Container(resources=spec.worker_resources, args=worker_args, **container_kwargs)
+    worker_container = client.V1Container(
+        resources=spec.worker_resources, args=worker_args, **container_kwargs
+    )
 
     # We query the project to enrich the worker and scheduler pod spec with the project's default node selector.
     # Since the dask runtime is a local run, and does not run in a dedicated k8s pod, node selectors for that run
@@ -383,15 +415,19 @@ def enrich_dask_cluster(function, secrets, client_version: str = None, client_py
         project.spec.default_function_node_selector,
         function.spec.node_selector,
     )
-    scheduler_pod_spec = services.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, scheduler_container, node_selector=node_selector
+    scheduler_pod_spec = (
+        services.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
+            spec, scheduler_container, node_selector=node_selector
+        )
     )
     worker_pod_spec = services.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec, worker_container, node_selector=node_selector
     )
     for pod_spec in [scheduler_pod_spec, worker_pod_spec]:
         if spec.image_pull_secret:
-            pod_spec.image_pull_secrets = [client.V1LocalObjectReference(name=spec.image_pull_secret)]
+            pod_spec.image_pull_secrets = [
+                client.V1LocalObjectReference(name=spec.image_pull_secret)
+            ]
 
     scheduler_pod = client.V1Pod(
         metadata=client.V1ObjectMeta(namespace=namespace, labels=pod_labels),
@@ -414,7 +450,8 @@ def _validate_dask_related_libraries_installed():
         from kubernetes import client  # noqa: F401
     except ImportError as exc:
         print(
-            "missing dask or dask_kubernetes, please run " '"pip install dask distributed dask_kubernetes", %s',
+            "missing dask or dask_kubernetes, please run "
+            '"pip install dask distributed dask_kubernetes", %s',
             exc,
         )
         raise exc
@@ -426,13 +463,17 @@ def get_obj_status(selector=None, namespace=None):
 
     k8s = services.api.utils.singletons.k8s.get_k8s_helper()
     namespace = namespace or config.namespace
-    selector = ",".join([f"{mlrun_constants.MLRunInternalLabels.dask_component}=scheduler"] + selector)
+    selector = ",".join(
+        [f"{mlrun_constants.MLRunInternalLabels.dask_component}=scheduler"] + selector
+    )
     pods = k8s.list_pods(namespace, selector=selector)
     status = ""
     for pod in pods:
         status = pod.status.phase.lower()
         if status == "running":
-            cluster = pod.metadata.labels.get(mlrun_constants.MLRunInternalLabels.dask_cluster_name)
+            cluster = pod.metadata.labels.get(
+                mlrun_constants.MLRunInternalLabels.dask_cluster_name
+            )
             logger.info(
                 "Found running dask function",
                 pod_name=pod.metadata.name,

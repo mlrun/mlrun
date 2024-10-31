@@ -61,7 +61,9 @@ async def list_pipelines(
             auth_info,
         )
     total_size, next_page_token, runs = None, None, []
-    if services.api.utils.singletons.k8s.get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if services.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
         # "*"), so we can't really get back only the names here
         computed_format = (
@@ -91,7 +93,10 @@ async def list_pipelines(
         auth_info,
     )
     if format_ == mlrun.common.formatters.PipelineFormat.name_only:
-        allowed_runs = [mlrun.common.formatters.PipelineFormat.format_obj(run, format_) for run in allowed_runs]
+        allowed_runs = [
+            mlrun.common.formatters.PipelineFormat.format_obj(run, format_)
+            for run in allowed_runs
+        ]
     return mlrun.common.schemas.PipelinesOutput(
         runs=allowed_runs,
         total_size=total_size or 0,
@@ -190,7 +195,9 @@ async def _create_pipeline(
     run_name: str,
     project: typing.Optional[str] = None,
 ):
-    run_name = run_name or experiment_name + " " + datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+    run_name = run_name or experiment_name + " " + datetime.now().strftime(
+        "%Y-%m-%d %H-%M-%S"
+    )
 
     data = await request.body()
     if not data:
@@ -221,7 +228,9 @@ async def _create_pipeline(
         )
 
     arguments = {}
-    arguments_data = request.headers.get(mlrun.common.schemas.HeaderNames.pipeline_arguments)
+    arguments_data = request.headers.get(
+        mlrun.common.schemas.HeaderNames.pipeline_arguments
+    )
     if arguments_data:
         arguments = ast.literal_eval(arguments_data)
 
@@ -240,7 +249,9 @@ async def _create_pipeline(
     }
 
 
-def _try_resolve_project_from_body(content_type: str, data: bytes) -> typing.Optional[str]:
+def _try_resolve_project_from_body(
+    content_type: str, data: bytes
+) -> typing.Optional[str]:
     if "/yaml" not in content_type:
         logger.warning(
             "Could not resolve project from body, unsupported content type",
@@ -248,4 +259,6 @@ def _try_resolve_project_from_body(content_type: str, data: bytes) -> typing.Opt
         )
         return None
     workflow_manifest = yaml.load(data, Loader=yaml.FullLoader)
-    return services.api.crud.Pipelines().resolve_project_from_workflow_manifest(PipelineManifest(workflow_manifest))
+    return services.api.crud.Pipelines().resolve_project_from_workflow_manifest(
+        PipelineManifest(workflow_manifest)
+    )

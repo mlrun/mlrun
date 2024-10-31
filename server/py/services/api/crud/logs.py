@@ -97,10 +97,16 @@ class Logs(
         run_uid: str,
     ):
         logger.debug("Getting log size for run", project=project, run_uid=run_uid)
-        if mlrun.mlconf.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.sidecar:
+        if (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.sidecar
+        ):
             return await self._get_log_size_from_log_collector(project, run_uid)
 
-        elif mlrun.mlconf.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.best_effort:
+        elif (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.best_effort
+        ):
             try:
                 return await self._get_log_size_from_log_collector(project, run_uid)
             except Exception as exc:
@@ -111,11 +117,16 @@ class Logs(
                     )
                 return self._get_log_size_legacy(project, run_uid)
 
-        elif mlrun.mlconf.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.legacy:
+        elif (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.legacy
+        ):
             return self._get_log_size_legacy(project, run_uid)
 
         else:
-            raise ValueError(f"Invalid log collector mode {mlrun.mlconf.log_collector.mode}")
+            raise ValueError(
+                f"Invalid log collector mode {mlrun.mlconf.log_collector.mode}"
+            )
 
     async def get_logs(
         self,
@@ -143,7 +154,8 @@ class Logs(
         run_state = run.get("status", {}).get("state", "")
         log_stream = None
         if (
-            mlrun.mlconf.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.best_effort
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.best_effort
             and source == LogSources.AUTO
         ):
             try:
@@ -169,7 +181,8 @@ class Logs(
                     run,
                 )
         elif (
-            mlrun.mlconf.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.sidecar
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.sidecar
             and source == LogSources.AUTO
         ):
             log_stream = self._get_logs_from_logs_collector(
@@ -179,7 +192,8 @@ class Logs(
                 offset,
             )
         elif (
-            mlrun.mlconf.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.legacy
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.legacy
             or source != LogSources.AUTO
         ):
             log_stream = self._get_logs_legacy_method_generator_wrapper(
@@ -228,7 +242,9 @@ class Logs(
         if not run:
             run = get_db().read_run(db_session, uid, project)
         if not run:
-            services.api.api.utils.log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
+            services.api.api.utils.log_and_raise(
+                HTTPStatus.NOT_FOUND.value, project=project, uid=uid
+            )
         if log_file_exists and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
             with log_file.open("rb") as fp:
                 fp.seek(offset)
@@ -237,7 +253,11 @@ class Logs(
             k8s = services.api.utils.singletons.k8s.get_k8s_helper()
             if k8s and k8s.is_running_inside_kubernetes_cluster():
                 run_kind = run.get("metadata", {}).get("labels", {}).get("kind")
-                pods = services.api.utils.singletons.k8s.get_k8s_helper().get_logger_pods(project, uid, run_kind)
+                pods = (
+                    services.api.utils.singletons.k8s.get_k8s_helper().get_logger_pods(
+                        project, uid, run_kind
+                    )
+                )
                 if pods:
                     if len(pods) > 1:
                         # This shouldn't happen, but if it does, we log it here. No need to fail.
@@ -250,7 +270,9 @@ class Logs(
                         )
                     pod, pod_phase = list(pods.items())[0]
                     if pod_phase != PodPhases.pending:
-                        resp = services.api.utils.singletons.k8s.get_k8s_helper().logs(pod)
+                        resp = services.api.utils.singletons.k8s.get_k8s_helper().logs(
+                            pod
+                        )
                         if resp:
                             if size == -1:
                                 log_contents = resp.encode()[offset:]
@@ -284,12 +306,16 @@ class Logs(
     async def _get_run_for_log(db_session: Session, project: str, uid: str) -> dict:
         run = await run_in_threadpool(get_db().read_run, db_session, uid, project)
         if not run:
-            services.api.api.utils.log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
+            services.api.api.utils.log_and_raise(
+                HTTPStatus.NOT_FOUND.value, project=project, uid=uid
+            )
         return run
 
     @staticmethod
     async def _get_log_size_from_log_collector(project: str, run_uid: str) -> int:
-        log_collector_client = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector_client = (
+            services.api.utils.clients.log_collector.LogCollectorClient()
+        )
         log_file_size = await log_collector_client.get_log_size(
             project=project,
             run_uid=run_uid,
@@ -331,7 +357,11 @@ class Logs(
 
     def _list_project_logs_uids(self, project: str) -> list[str]:
         logs_path = services.api.api.utils.project_logs_path(project)
-        return [file for file in os.listdir(str(logs_path)) if os.path.isfile(os.path.join(str(logs_path), file))]
+        return [
+            file
+            for file in os.listdir(str(logs_path))
+            if os.path.isfile(os.path.join(str(logs_path), file))
+        ]
 
     @staticmethod
     async def _stop_logs(
@@ -340,7 +370,9 @@ class Logs(
     ) -> None:
         resource = "project" if not run_uids else "run"
         try:
-            log_collector_client = services.api.utils.clients.log_collector.LogCollectorClient()
+            log_collector_client = (
+                services.api.utils.clients.log_collector.LogCollectorClient()
+            )
             await log_collector_client.stop_logs(
                 project=project_name,
                 run_uids=run_uids,
@@ -362,7 +394,9 @@ class Logs(
     async def _delete_logs(self, project: str, run_uids: list[str] = None):
         resource = "project" if not run_uids else "run"
         try:
-            log_collector_client = services.api.utils.clients.log_collector.LogCollectorClient()
+            log_collector_client = (
+                services.api.utils.clients.log_collector.LogCollectorClient()
+            )
             await log_collector_client.delete_logs(
                 project=project,
                 run_uids=run_uids,
@@ -389,4 +423,6 @@ class Logs(
                     project,
                 )
 
-        logger.debug(f"Successfully deleted {resource} logs", project=project, runs=run_uids)
+        logger.debug(
+            f"Successfully deleted {resource} logs", project=project, runs=run_uids
+        )

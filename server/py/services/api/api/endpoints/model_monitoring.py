@@ -52,10 +52,13 @@ class _CommonParams:
             )
 
 
-async def _verify_authorization(project: str, auth_info: mlrun.common.schemas.AuthInfo, client_version: str) -> None:
+async def _verify_authorization(
+    project: str, auth_info: mlrun.common.schemas.AuthInfo, client_version: str
+) -> None:
     """Verify project authorization"""
     if (
-        semver.Version.parse(client_version) < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
+        semver.Version.parse(client_version)
+        < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
         and "unstable" not in client_version
     ):
         services.api.api.utils.log_and_raise(
@@ -77,9 +80,13 @@ async def _common_parameters(
         str,
         Path(pattern=mlrun.common.schemas.model_monitoring.constants.PROJECT_PATTERN),
     ],
-    auth_info: Annotated[mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)],
+    auth_info: Annotated[
+        mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
+    ],
     db_session: Annotated[Session, Depends(deps.get_db_session)],
-    client_version: Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.client_version),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ) -> _CommonParams:
     """
     Verify authorization and return common parameters.
@@ -90,7 +97,9 @@ async def _common_parameters(
     :param client_version:  The client version.
     :returns:          A `_CommonParameters` object that contains the input data.
     """
-    await _verify_authorization(project=project, auth_info=auth_info, client_version=client_version)
+    await _verify_authorization(
+        project=project, auth_info=auth_info, client_version=client_version
+    )
     return _CommonParams(
         project=project,
         auth_info=auth_info,
@@ -207,7 +216,9 @@ def deploy_histogram_data_drift_app(
 @router.delete(
     "/disable-model-monitoring",
     responses={
-        http.HTTPStatus.ACCEPTED.value: {"model": mlrun.common.schemas.BackgroundTaskList},
+        http.HTTPStatus.ACCEPTED.value: {
+            "model": mlrun.common.schemas.BackgroundTaskList
+        },
     },
 )
 async def disable_model_monitoring(
@@ -264,7 +275,9 @@ async def disable_model_monitoring(
 @router.delete(
     "/functions",
     responses={
-        http.HTTPStatus.ACCEPTED.value: {"model": mlrun.common.schemas.BackgroundTaskList},
+        http.HTTPStatus.ACCEPTED.value: {
+            "model": mlrun.common.schemas.BackgroundTaskList
+        },
     },
 )
 async def delete_model_monitoring_function(

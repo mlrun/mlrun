@@ -69,7 +69,9 @@ class MetricsLibrary(ABC):
 
         # Get the metrics passed via context:
         if context is not None and cls.CONTEXT_PARAMETER in context.parameters:
-            parsed_metrics += cls._parse(metrics=context.parameters.get(cls.CONTEXT_PARAMETER, None))
+            parsed_metrics += cls._parse(
+                metrics=context.parameters.get(cls.CONTEXT_PARAMETER, None)
+            )
 
         # Get the user's set metrics:
         if metrics is not None:
@@ -113,7 +115,9 @@ class MetricsLibrary(ABC):
         )
 
     @classmethod
-    def _from_list(cls, metrics_list: list[Union[Metric, SKLearnTypes.MetricEntryType]]) -> list[Metric]:
+    def _from_list(
+        cls, metrics_list: list[Union[Metric, SKLearnTypes.MetricEntryType]]
+    ) -> list[Metric]:
         """
         Collect the given metrics configurations from a list. The metrics names will be chosen by the following rules:
 
@@ -131,12 +135,16 @@ class MetricsLibrary(ABC):
         :return: A list of metrics objects.
         """
         return [
-            metric if isinstance(metric, Metric) else cls._to_metric_class(metric_entry=metric)
+            metric
+            if isinstance(metric, Metric)
+            else cls._to_metric_class(metric_entry=metric)
             for metric in metrics_list
         ]
 
     @classmethod
-    def _from_dict(cls, metrics_dictionary: dict[str, SKLearnTypes.MetricEntryType]) -> list[Metric]:
+    def _from_dict(
+        cls, metrics_dictionary: dict[str, SKLearnTypes.MetricEntryType]
+    ) -> list[Metric]:
         """
         Collect the given metrics configurations from a dictionary.
 
@@ -155,7 +163,9 @@ class MetricsLibrary(ABC):
         ]
 
     @classmethod
-    def _default(cls, model: SKLearnTypes.ModelType, y: SKLearnTypes.DatasetType = None) -> list[Metric]:
+    def _default(
+        cls, model: SKLearnTypes.ModelType, y: SKLearnTypes.DatasetType = None
+    ) -> list[Metric]:
         """
         Get the default metrics list according to the algorithm functionality.
 
@@ -173,7 +183,10 @@ class MetricsLibrary(ABC):
         # Add classification metrics:
         if algorithm_functionality.is_classification():
             metrics += [Metric(name="accuracy", metric=sklearn.metrics.accuracy_score)]
-            if algorithm_functionality.is_binary_classification() and algorithm_functionality.is_single_output():
+            if (
+                algorithm_functionality.is_binary_classification()
+                and algorithm_functionality.is_single_output()
+            ):
                 metrics += [
                     Metric(metric=sklearn.metrics.f1_score),
                     Metric(metric=sklearn.metrics.precision_score),

@@ -80,20 +80,29 @@ class FunctionReference(ModelObj):
 
         kind = self.kind or default_kind
         if self.url:
-            if self.url.endswith(".yaml") or self.url.startswith("db://") or self.url.startswith("hub://"):
+            if (
+                self.url.endswith(".yaml")
+                or self.url.startswith("db://")
+                or self.url.startswith("hub://")
+            ):
                 func = mlrun.import_function(self.url)
                 func.spec.image = self.image or func.spec.image or default_image
             elif self.url.endswith(".ipynb"):
-                func = mlrun.code_to_function(self.name, filename=self.url, image=self.image, kind=kind)
+                func = mlrun.code_to_function(
+                    self.name, filename=self.url, image=self.image, kind=kind
+                )
                 func.spec.image = func.spec.image or default_image
             elif self.url.endswith(".py"):
                 # todo: support code text as input (for UI)
                 image = self.image or default_image
                 if not image:
                     raise ValueError(
-                        "image must be provided with py code files, " "use function object for more control/settings"
+                        "image must be provided with py code files, "
+                        "use function object for more control/settings"
                     )
-                func = mlrun.code_to_function(self.name, filename=self.url, image=image, kind=kind)
+                func = mlrun.code_to_function(
+                    self.name, filename=self.url, image=image, kind=kind
+                )
             else:
                 raise ValueError(f"unsupported function url {self.url} or no spec")
             if self.spec:
@@ -101,8 +110,12 @@ class FunctionReference(ModelObj):
         elif self.code is not None:
             code = self.code
             if kind == mlrun.runtimes.RuntimeKinds.serving:
-                code = code + mlrun_footer.format(mlrun.runtimes.nuclio.serving.serving_subkind)
-            func = mlrun.new_function(self.name, kind=kind, image=self.image or default_image)
+                code = code + mlrun_footer.format(
+                    mlrun.runtimes.nuclio.serving.serving_subkind
+                )
+            func = mlrun.new_function(
+                self.name, kind=kind, image=self.image or default_image
+            )
             data = b64encode(code.encode("utf-8")).decode("utf-8")
             func.spec.build.functionSourceCode = data
             if kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():

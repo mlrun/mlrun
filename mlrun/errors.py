@@ -41,7 +41,9 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
         self,
         *args,
-        response: typing.Optional[typing.Union[requests.Response, aiohttp.ClientResponse]] = None,
+        response: typing.Optional[
+            typing.Union[requests.Response, aiohttp.ClientResponse]
+        ] = None,
         status_code: typing.Optional[int] = None,
         **kwargs,
     ):
@@ -57,7 +59,9 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
                 kwargs["request"] = response.request_info
 
             # consolidate the response object to be a requests.Response object-like
-            setattr(response, "status_code", status_code if status_code else response.status)
+            setattr(
+                response, "status_code", status_code if status_code else response.status
+            )
 
         requests.HTTPError.__init__(self, *args, response=response, **kwargs)
 
@@ -72,7 +76,9 @@ class MLRunHTTPStatusError(MLRunHTTPError):
     error_status_code = None
 
     def __init__(self, *args, response: requests.Response = None, **kwargs):
-        super().__init__(*args, response=response, status_code=self.error_status_code, **kwargs)
+        super().__init__(
+            *args, response=response, status_code=self.error_status_code, **kwargs
+        )
 
 
 def raise_for_status(
@@ -90,7 +96,11 @@ def raise_for_status(
         response.raise_for_status()
     except (requests.HTTPError, aiohttp.ClientResponseError) as exc:
         error_message = err_to_str(exc) if not message else message
-        status_code = response.status_code if hasattr(response, "status_code") else response.status
+        status_code = (
+            response.status_code
+            if hasattr(response, "status_code")
+            else response.status
+        )
         try:
             raise STATUS_ERRORS[status_code](error_message, response=response) from exc
         except KeyError:
@@ -235,7 +245,9 @@ class MLRunFatalFailureError(Exception):
     Allowing to pass to original exception that will be raised from the loop (instead of this exception)
     """
 
-    def __init__(self, *args, original_exception: typing.Optional[Exception] = None, **kwargs) -> None:
+    def __init__(
+        self, *args, original_exception: typing.Optional[Exception] = None, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.original_exception = original_exception
 

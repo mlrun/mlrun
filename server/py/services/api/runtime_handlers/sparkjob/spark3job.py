@@ -109,10 +109,14 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         )
 
         if runtime.spec.image_pull_policy:
-            verify_and_update_in(job, "spec.imagePullPolicy", runtime.spec.image_pull_policy, str)
+            verify_and_update_in(
+                job, "spec.imagePullPolicy", runtime.spec.image_pull_policy, str
+            )
 
         if runtime.spec.restart_policy:
-            verify_and_update_in(job, "spec.restartPolicy.type", runtime.spec.restart_policy["type"], str)
+            verify_and_update_in(
+                job, "spec.restartPolicy.type", runtime.spec.restart_policy["type"], str
+            )
             verify_and_update_in(
                 job,
                 "spec.restartPolicy.onFailureRetries",
@@ -159,7 +163,9 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
 
         if not runtime.spec.image:
             if runtime.spec.use_default_image:
-                runtime.spec.image = runtime._get_default_deployed_mlrun_image_name(runtime._is_using_gpu())
+                runtime.spec.image = runtime._get_default_deployed_mlrun_image_name(
+                    runtime._is_using_gpu()
+                )
             elif runtime._default_image:
                 runtime.spec.image = runtime._default_image
 
@@ -167,7 +173,9 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             job,
             "spec.image",
             runtime.full_image_path(
-                client_version=run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.client_version),
+                client_version=run.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.client_version
+                ),
                 client_python_version=run.metadata.labels.get(
                     mlrun_constants.MLRunInternalLabels.client_python_version
                 ),
@@ -176,7 +184,9 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
 
         update_in(job, "spec.volumes", runtime.spec.volumes)
 
-        self.add_secrets_to_spec_before_running(runtime, project_name=run.metadata.project)
+        self.add_secrets_to_spec_before_running(
+            runtime, project_name=run.metadata.project
+        )
 
         command, args, extra_env = self._get_cmd_args(runtime, run)
         code = None
@@ -196,7 +206,10 @@ with ctx:
 
         spark_conf = runtime.spec.spark_conf
         if spark_conf:
-            if spark_conf.get("spark.eventLog.enabled") and "spark.eventLog.dir" not in spark_conf:
+            if (
+                spark_conf.get("spark.eventLog.enabled")
+                and "spark.eventLog.dir" not in spark_conf
+            ):
                 spark_conf["spark.eventLog.dir"] = "/tmp"
 
             job["spec"]["sparkConf"] = {}
@@ -227,10 +240,12 @@ with ctx:
             )
             if "cpu" in runtime.spec.executor_resources["requests"]:
                 if executor_cpu_limit is not None:
-                    executor_cpu_request = runtime.spec.executor_resources["requests"]["cpu"]
-                    if self._parse_cpu_resource_string(executor_cpu_request) > self._parse_cpu_resource_string(
-                        executor_cpu_limit
-                    ):
+                    executor_cpu_request = runtime.spec.executor_resources["requests"][
+                        "cpu"
+                    ]
+                    if self._parse_cpu_resource_string(
+                        executor_cpu_request
+                    ) > self._parse_cpu_resource_string(executor_cpu_limit):
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             f"Executor CPU request ({executor_cpu_request}) is higher than limit "
                             f"({executor_cpu_limit})"
@@ -238,7 +253,9 @@ with ctx:
                 verify_and_update_in(
                     job,
                     "spec.executor.coreRequest",
-                    str(runtime.spec.executor_resources["requests"]["cpu"]),  # Backwards compatibility
+                    str(
+                        runtime.spec.executor_resources["requests"]["cpu"]
+                    ),  # Backwards compatibility
                     str,
                 )
             if "memory" in runtime.spec.executor_resources["requests"]:
@@ -273,12 +290,15 @@ with ctx:
         if "requests" in runtime.spec.driver_resources:
             if "cpu" in runtime.spec.driver_resources["requests"]:
                 if driver_cpu_limit is not None:
-                    driver_cpu_request = runtime.spec.driver_resources["requests"]["cpu"]
-                    if self._parse_cpu_resource_string(driver_cpu_request) > self._parse_cpu_resource_string(
-                        driver_cpu_limit
-                    ):
+                    driver_cpu_request = runtime.spec.driver_resources["requests"][
+                        "cpu"
+                    ]
+                    if self._parse_cpu_resource_string(
+                        driver_cpu_request
+                    ) > self._parse_cpu_resource_string(driver_cpu_limit):
                         raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"Driver CPU request ({driver_cpu_request}) is higher than limit " f"({driver_cpu_limit})"
+                            f"Driver CPU request ({driver_cpu_request}) is higher than limit "
+                            f"({driver_cpu_limit})"
                         )
                 verify_and_update_in(
                     job,
@@ -337,13 +357,17 @@ with ctx:
             k8s_config_map.metadata = meta
             k8s_config_map.metadata.name += "-script"
             k8s_config_map.data = {runtime.code_script: code}
-            config_map = k8s.v1api.create_namespaced_config_map(namespace, k8s_config_map)
+            config_map = k8s.v1api.create_namespaced_config_map(
+                namespace, k8s_config_map
+            )
             config_map_name = config_map.metadata.name
 
             vol_src = k8s_client.V1ConfigMapVolumeSource(name=config_map_name)
             volume_name = "script"
             vol = k8s_client.V1Volume(name=volume_name, config_map=vol_src)
-            vol_mount = k8s_client.V1VolumeMount(mount_path=runtime.code_path, name=volume_name)
+            vol_mount = k8s_client.V1VolumeMount(
+                mount_path=runtime.code_path, name=volume_name
+            )
             update_in(job, "spec.volumes", [vol], append=True)
             update_in(job, "spec.driver.volumeMounts", [vol_mount], append=True)
             update_in(job, "spec.executor.volumeMounts", [vol_mount], append=True)
@@ -365,8 +389,12 @@ with ctx:
             logger.info(f"SparkJob {name} created")
             return resp
         except ApiException as exc:
-            crd = f"{Spark3Runtime.group}/{Spark3Runtime.version}/{Spark3Runtime.plural}"
-            logger.error(f"Exception when creating SparkJob ({crd}): {mlrun.errors.err_to_str(exc)}")
+            crd = (
+                f"{Spark3Runtime.group}/{Spark3Runtime.version}/{Spark3Runtime.plural}"
+            )
+            logger.error(
+                f"Exception when creating SparkJob ({crd}): {mlrun.errors.err_to_str(exc)}"
+            )
             raise mlrun.runtimes.RunError("Exception when creating SparkJob") from exc
 
     @staticmethod
@@ -404,9 +432,13 @@ with ctx:
 
         # validating existence of required fields
         if "requests" not in runtime.spec.executor_resources:
-            raise mlrun.errors.MLRunInvalidArgumentError("Sparkjob must contain executor requests")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob must contain executor requests"
+            )
         if "requests" not in runtime.spec.driver_resources:
-            raise mlrun.errors.MLRunInvalidArgumentError("Sparkjob must contain driver requests")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob must contain driver requests"
+            )
 
     @staticmethod
     def _parse_cpu_resource_string(cpu):
@@ -415,31 +447,49 @@ with ctx:
         else:
             return float(cpu)
 
-    def _resolve_crd_object_status_info(self, crd_object: dict) -> tuple[bool, Optional[datetime], Optional[str]]:
+    def _resolve_crd_object_status_info(
+        self, crd_object: dict
+    ) -> tuple[bool, Optional[datetime], Optional[str]]:
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
         if not state:
             return False, None, None
         in_terminal_state = state in SparkApplicationStates.terminal_states()
-        desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(state)
+        desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(
+            state
+        )
         completion_time = None
         if in_terminal_state:
             if crd_object.get("status", {}).get("terminationTime"):
                 completion_time = datetime.fromisoformat(
-                    crd_object.get("status", {}).get("terminationTime").replace("Z", "+00:00")
+                    crd_object.get("status", {})
+                    .get("terminationTime")
+                    .replace("Z", "+00:00")
                 )
             else:
-                last_submission_attempt_time = crd_object.get("status", {}).get("lastSubmissionAttemptTime")
+                last_submission_attempt_time = crd_object.get("status", {}).get(
+                    "lastSubmissionAttemptTime"
+                )
                 if last_submission_attempt_time:
-                    last_submission_attempt_time = last_submission_attempt_time.replace("Z", "+00:00")
-                    completion_time = datetime.fromisoformat(last_submission_attempt_time)
+                    last_submission_attempt_time = last_submission_attempt_time.replace(
+                        "Z", "+00:00"
+                    )
+                    completion_time = datetime.fromisoformat(
+                        last_submission_attempt_time
+                    )
         return in_terminal_state, completion_time, desired_run_state
 
     def _resolve_container_error_status(self, crd_object: dict) -> tuple[str, str]:
-        error_message = crd_object.get("status", {}).get("applicationState", {}).get("errorMessage", "")
+        error_message = (
+            crd_object.get("status", {})
+            .get("applicationState", {})
+            .get("errorMessage", "")
+        )
         return "", error_message
 
     def _is_terminal_state(self, runtime_resource: dict) -> bool:
-        state = runtime_resource.get("status", {}).get("applicationState", {}).get("state")
+        state = (
+            runtime_resource.get("status", {}).get("applicationState", {}).get("state")
+        )
         return state in SparkApplicationStates.terminal_states()
 
     def _update_ui_url(
@@ -460,11 +510,17 @@ with ctx:
             )
             return
 
-        app_state = crd_object.get("status", {}).get("applicationState", {}).get("state")
+        app_state = (
+            crd_object.get("status", {}).get("applicationState", {}).get("state")
+        )
         state = SparkApplicationStates.spark_application_state_to_run_state(app_state)
         ui_url = None
         if state == RunStates.running:
-            ui_url = crd_object.get("status", {}).get("driverInfo", {}).get("webUIIngressAddress")
+            ui_url = (
+                crd_object.get("status", {})
+                .get("driverInfo", {})
+                .get("webUIIngressAddress")
+            )
 
         db_ui_url = run.get("status", {}).get("ui_url")
         if db_ui_url == ui_url:
@@ -514,7 +570,11 @@ with ctx:
         """
         uids = []
         for crd_dict in deleted_resources:
-            uid = crd_dict["metadata"].get("labels", {}).get(mlrun_constants.MLRunInternalLabels.uid, None)
+            uid = (
+                crd_dict["metadata"]
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.uid, None)
+            )
             uids.append(uid)
 
         config_maps = services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map(
@@ -522,7 +582,9 @@ with ctx:
         )
         for config_map in config_maps.items:
             try:
-                uid = config_map.metadata.labels.get(mlrun_constants.MLRunInternalLabels.uid, None)
+                uid = config_map.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.uid, None
+                )
                 if force or uid in uids:
                     services.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
                         config_map.metadata.name,
@@ -598,7 +660,9 @@ with ctx:
         if runtime.spec.driver_tolerations:
             update_in(job, "spec.driver.tolerations", runtime.spec.driver_tolerations)
         if runtime.spec.executor_tolerations:
-            update_in(job, "spec.executor.tolerations", runtime.spec.executor_tolerations)
+            update_in(
+                job, "spec.executor.tolerations", runtime.spec.executor_tolerations
+            )
 
         if runtime.spec.driver_affinity:
             update_in(job, "spec.driver.affinity", runtime.spec.driver_affinity)
@@ -606,7 +670,10 @@ with ctx:
             update_in(job, "spec.executor.affinity", runtime.spec.executor_affinity)
 
         if runtime.spec.monitoring:
-            if "enabled" in runtime.spec.monitoring and runtime.spec.monitoring["enabled"]:
+            if (
+                "enabled" in runtime.spec.monitoring
+                and runtime.spec.monitoring["enabled"]
+            ):
                 update_in(job, "spec.monitoring.exposeDriverMetrics", True)
                 update_in(job, "spec.monitoring.exposeExecutorMetrics", True)
                 if "exporter_jar" in runtime.spec.monitoring:
@@ -655,9 +722,13 @@ with ctx:
         # If not provided or empty, the `node_selector` from the run object, which is enriched from the runtime object
         # when the run is launched, will be used instead.
         # The same logic applies to `executor_node_selector`.
-        driver_node_selector = runtime.spec.driver_node_selector or run.spec.node_selector
+        driver_node_selector = (
+            runtime.spec.driver_node_selector or run.spec.node_selector
+        )
 
-        executor_node_selector = runtime.spec.executor_node_selector or run.spec.node_selector
+        executor_node_selector = (
+            runtime.spec.executor_node_selector or run.spec.node_selector
+        )
 
         if driver_node_selector:
             update_in(job, "spec.driver.nodeSelector", driver_node_selector)

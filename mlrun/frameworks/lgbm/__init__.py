@@ -109,7 +109,9 @@ def _apply_mlrun_on_model(
     **kwargs,
 ):
     # Create a model handler:
-    model_handler_kwargs = kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
+    model_handler_kwargs = (
+        kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
+    )
     handler = LGBMModelHandler(
         model_name=model_name,
         model_path=model_path,

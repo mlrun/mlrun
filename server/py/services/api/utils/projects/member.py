@@ -170,11 +170,16 @@ class Member(abc.ABC):
         self,
         project_name: str,
     ):
-        if mlrun.mlconf.log_collector.mode != mlrun.common.schemas.LogsCollectorMode.legacy:
+        if (
+            mlrun.mlconf.log_collector.mode
+            != mlrun.common.schemas.LogsCollectorMode.legacy
+        ):
             await services.api.crud.Logs().stop_logs_for_project(project_name)
             await services.api.crud.Logs().delete_project_logs(project_name)
 
     def _validate_project(self, project: mlrun.common.schemas.Project):
         mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
         mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
-        mlrun.k8s_utils.validate_node_selectors(project.spec.default_function_node_selector)
+        mlrun.k8s_utils.validate_node_selectors(
+            project.spec.default_function_node_selector
+        )

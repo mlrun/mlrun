@@ -100,8 +100,12 @@ ArtifactIdentifier = DeprecationHelper(mlrun.common.schemas.ArtifactIdentifier)
 ArtifactsFormat = DeprecationHelper(mlrun.common.formatters.ArtifactFormat)
 AuthInfo = DeprecationHelper(mlrun.common.schemas.AuthInfo)
 AuthorizationAction = DeprecationHelper(mlrun.common.schemas.AuthorizationAction)
-AuthorizationResourceTypes = DeprecationHelper(mlrun.common.schemas.AuthorizationResourceTypes)
-AuthorizationVerificationInput = DeprecationHelper(mlrun.common.schemas.AuthorizationVerificationInput)
+AuthorizationResourceTypes = DeprecationHelper(
+    mlrun.common.schemas.AuthorizationResourceTypes
+)
+AuthorizationVerificationInput = DeprecationHelper(
+    mlrun.common.schemas.AuthorizationVerificationInput
+)
 Credentials = DeprecationHelper(mlrun.common.schemas.Credentials)
 ProjectsRole = DeprecationHelper(mlrun.common.schemas.ProjectsRole)
 
@@ -118,7 +122,9 @@ WaitForChiefToReachOnlineStateFeatureFlag = DeprecationHelper(
 APIStates = DeprecationHelper(mlrun.common.schemas.APIStates)
 ClusterizationRole = DeprecationHelper(mlrun.common.schemas.ClusterizationRole)
 DeletionStrategy = DeprecationHelper(mlrun.common.schemas.DeletionStrategy)
-FeatureStorePartitionByField = DeprecationHelper(mlrun.common.schemas.FeatureStorePartitionByField)
+FeatureStorePartitionByField = DeprecationHelper(
+    mlrun.common.schemas.FeatureStorePartitionByField
+)
 HeaderNames = DeprecationHelper(mlrun.common.schemas.HeaderNames)
 LogsCollectorMode = DeprecationHelper(mlrun.common.schemas.LogsCollectorMode)
 OrderType = DeprecationHelper(mlrun.common.schemas.OrderType)
@@ -145,16 +151,28 @@ FeaturesOutput = DeprecationHelper(mlrun.common.schemas.FeaturesOutput)
 FeatureVector = DeprecationHelper(mlrun.common.schemas.FeatureVector)
 FeatureVectorRecord = DeprecationHelper(mlrun.common.schemas.FeatureVectorRecord)
 FeatureVectorsOutput = DeprecationHelper(mlrun.common.schemas.FeatureVectorsOutput)
-FeatureVectorsTagsOutput = DeprecationHelper(mlrun.common.schemas.FeatureVectorsTagsOutput)
-AuthenticationFeatureFlag = DeprecationHelper(mlrun.common.schemas.AuthenticationFeatureFlag)
+FeatureVectorsTagsOutput = DeprecationHelper(
+    mlrun.common.schemas.FeatureVectorsTagsOutput
+)
+AuthenticationFeatureFlag = DeprecationHelper(
+    mlrun.common.schemas.AuthenticationFeatureFlag
+)
 FeatureFlags = DeprecationHelper(mlrun.common.schemas.FeatureFlags)
 FrontendSpec = DeprecationHelper(mlrun.common.schemas.FrontendSpec)
-NuclioStreamsFeatureFlag = DeprecationHelper(mlrun.common.schemas.NuclioStreamsFeatureFlag)
-PreemptionNodesFeatureFlag = DeprecationHelper(mlrun.common.schemas.PreemptionNodesFeatureFlag)
-ProjectMembershipFeatureFlag = DeprecationHelper(mlrun.common.schemas.ProjectMembershipFeatureFlag)
+NuclioStreamsFeatureFlag = DeprecationHelper(
+    mlrun.common.schemas.NuclioStreamsFeatureFlag
+)
+PreemptionNodesFeatureFlag = DeprecationHelper(
+    mlrun.common.schemas.PreemptionNodesFeatureFlag
+)
+ProjectMembershipFeatureFlag = DeprecationHelper(
+    mlrun.common.schemas.ProjectMembershipFeatureFlag
+)
 FunctionState = DeprecationHelper(mlrun.common.schemas.FunctionState)
 PreemptionModes = DeprecationHelper(mlrun.common.schemas.PreemptionModes)
-SecurityContextEnrichmentModes = DeprecationHelper(mlrun.common.schemas.SecurityContextEnrichmentModes)
+SecurityContextEnrichmentModes = DeprecationHelper(
+    mlrun.common.schemas.SecurityContextEnrichmentModes
+)
 HTTPSessionRetryMode = DeprecationHelper(mlrun.common.schemas.HTTPSessionRetryMode)
 NodeSelectorOperator = DeprecationHelper(mlrun.common.schemas.NodeSelectorOperator)
 Resources = DeprecationHelper(mlrun.common.schemas.Resources)
@@ -166,22 +184,38 @@ HubObjectMetadata = DeprecationHelper(mlrun.common.schemas.HubObjectMetadata)
 HubSource = DeprecationHelper(mlrun.common.schemas.HubSource)
 HubSourceSpec = DeprecationHelper(mlrun.common.schemas.HubSourceSpec)
 last_source_index = DeprecationHelper(mlrun.common.schemas.last_source_index)
-MostCommonObjectTypesReport = DeprecationHelper(mlrun.common.schemas.MostCommonObjectTypesReport)
+MostCommonObjectTypesReport = DeprecationHelper(
+    mlrun.common.schemas.MostCommonObjectTypesReport
+)
 ObjectTypeReport = DeprecationHelper(mlrun.common.schemas.ObjectTypeReport)
 Features = DeprecationHelper(mlrun.common.schemas.Features)
 FeatureValues = DeprecationHelper(mlrun.common.schemas.FeatureValues)
-GrafanaColumn = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn)
-GrafanaDataPoint = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaDataPoint)
-GrafanaNumberColumn = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn)
-GrafanaStringColumn = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaStringColumn)
-GrafanaTable = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaTable)
-GrafanaTimeSeriesTarget = DeprecationHelper(mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget)
+GrafanaColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn
+)
+GrafanaDataPoint = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaDataPoint
+)
+GrafanaNumberColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn
+)
+GrafanaStringColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaStringColumn
+)
+GrafanaTable = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaTable
+)
+GrafanaTimeSeriesTarget = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget
+)
 ModelEndpoint = DeprecationHelper(mlrun.common.schemas.ModelEndpoint)
 ModelEndpointList = DeprecationHelper(mlrun.common.schemas.ModelEndpointList)
 ModelEndpointMetadata = DeprecationHelper(mlrun.common.schemas.ModelEndpointMetadata)
 ModelEndpointSpec = DeprecationHelper(mlrun.common.schemas.ModelEndpointSpec)
 ModelEndpointStatus = DeprecationHelper(mlrun.common.schemas.ModelEndpointStatus)
-ModelMonitoringStoreKinds = DeprecationHelper(mlrun.common.schemas.ModelMonitoringStoreKinds)
+ModelMonitoringStoreKinds = DeprecationHelper(
+    mlrun.common.schemas.ModelMonitoringStoreKinds
+)
 NotificationSeverity = DeprecationHelper(mlrun.common.schemas.NotificationSeverity)
 NotificationStatus = DeprecationHelper(mlrun.common.schemas.NotificationStatus)
 ObjectKind = DeprecationHelper(mlrun.common.schemas.ObjectKind)
@@ -203,10 +237,16 @@ ProjectState = DeprecationHelper(mlrun.common.schemas.ProjectState)
 ProjectStatus = DeprecationHelper(mlrun.common.schemas.ProjectStatus)
 ProjectSummariesOutput = DeprecationHelper(mlrun.common.schemas.ProjectSummariesOutput)
 ProjectSummary = DeprecationHelper(mlrun.common.schemas.ProjectSummary)
-GroupedByJobRuntimeResourcesOutput = DeprecationHelper(mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput)
-GroupedByProjectRuntimeResourcesOutput = DeprecationHelper(mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput)
+GroupedByJobRuntimeResourcesOutput = DeprecationHelper(
+    mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput
+)
+GroupedByProjectRuntimeResourcesOutput = DeprecationHelper(
+    mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+)
 KindRuntimeResources = DeprecationHelper(mlrun.common.schemas.KindRuntimeResources)
-ListRuntimeResourcesGroupByField = DeprecationHelper(mlrun.common.schemas.ListRuntimeResourcesGroupByField)
+ListRuntimeResourcesGroupByField = DeprecationHelper(
+    mlrun.common.schemas.ListRuntimeResourcesGroupByField
+)
 RuntimeResource = DeprecationHelper(mlrun.common.schemas.RuntimeResource)
 RuntimeResources = DeprecationHelper(mlrun.common.schemas.RuntimeResources)
 RuntimeResourcesOutput = DeprecationHelper(mlrun.common.schemas.RuntimeResourcesOutput)
@@ -221,6 +261,8 @@ AuthSecretData = DeprecationHelper(mlrun.common.schemas.AuthSecretData)
 SecretKeysData = DeprecationHelper(mlrun.common.schemas.SecretKeysData)
 SecretProviderName = DeprecationHelper(mlrun.common.schemas.SecretProviderName)
 SecretsData = DeprecationHelper(mlrun.common.schemas.SecretsData)
-UserSecretCreationRequest = DeprecationHelper(mlrun.common.schemas.UserSecretCreationRequest)
+UserSecretCreationRequest = DeprecationHelper(
+    mlrun.common.schemas.UserSecretCreationRequest
+)
 Tag = DeprecationHelper(mlrun.common.schemas.Tag)
 TagObjects = DeprecationHelper(mlrun.common.schemas.TagObjects)

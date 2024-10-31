@@ -42,12 +42,16 @@ async def list_runtime_resources(
     label_selector: typing.Optional[str] = fastapi.Query(None, alias="label-selector"),
     kind: typing.Optional[str] = None,
     object_id: typing.Optional[str] = fastapi.Query(None, alias="object-id"),
-    group_by: typing.Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = fastapi.Query(
-        None, alias="group-by"
+    group_by: typing.Optional[
+        mlrun.common.schemas.ListRuntimeResourcesGroupByField
+    ] = fastapi.Query(None, alias="group-by"),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
     ),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
 ):
-    return await _list_runtime_resources(project, auth_info, label_selector, group_by, kind, object_id)
+    return await _list_runtime_resources(
+        project, auth_info, label_selector, group_by, kind, object_id
+    )
 
 
 @router.delete(
@@ -60,9 +64,15 @@ async def delete_runtime_resources(
     kind: typing.Optional[str] = None,
     object_id: typing.Optional[str] = fastapi.Query(None, alias="object-id"),
     force: bool = False,
-    grace_period: int = fastapi.Query(mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    grace_period: int = fastapi.Query(
+        mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        services.api.api.deps.get_db_session
+    ),
 ):
     return await _delete_runtime_resources(
         db_session,
@@ -86,7 +96,9 @@ async def _delete_runtime_resources(
     force: bool = False,
     grace_period: typing.Optional[int] = None,
     return_body: bool = True,
-) -> typing.Union[mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput, fastapi.Response]:
+) -> typing.Union[
+    mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput, fastapi.Response
+]:
     (
         allowed_projects,
         grouped_by_project_runtime_resources_output,
@@ -107,13 +119,19 @@ async def _delete_runtime_resources(
         # if the user is not allowed to delete at least one of the projects, we return 403 as to:
         # 1. not leak information about the existence of not allowed projects
         # 2. not allow the user to do a partial delete action (delete some projects' resources and not others)
-        raise mlrun.errors.MLRunAccessDeniedError("Access denied to one or more runtime resources")
+        raise mlrun.errors.MLRunAccessDeniedError(
+            "Access denied to one or more runtime resources"
+        )
 
     # if nothing allowed, simply return empty response
     if allowed_projects:
-        permissions_label_selector = _generate_label_selector_for_allowed_projects(allowed_projects)
+        permissions_label_selector = _generate_label_selector_for_allowed_projects(
+            allowed_projects
+        )
         if label_selector:
-            computed_label_selector = ",".join([label_selector, permissions_label_selector])
+            computed_label_selector = ",".join(
+                [label_selector, permissions_label_selector]
+            )
         else:
             computed_label_selector = permissions_label_selector
         await run_in_threadpool(
@@ -153,7 +171,9 @@ async def _list_runtime_resources(
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo,
     label_selector: typing.Optional[str] = None,
-    group_by: typing.Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
+    group_by: typing.Optional[
+        mlrun.common.schemas.ListRuntimeResourcesGroupByField
+    ] = None,
     kind_filter: typing.Optional[str] = None,
     object_id: typing.Optional[str] = None,
 ) -> typing.Union[
@@ -166,7 +186,9 @@ async def _list_runtime_resources(
         grouped_by_project_runtime_resources_output,
         _,
         _,
-    ) = await _get_runtime_resources_allowed_projects(project, auth_info, label_selector, kind_filter, object_id)
+    ) = await _get_runtime_resources_allowed_projects(
+        project, auth_info, label_selector, kind_filter, object_id
+    )
     return services.api.crud.RuntimeResources().filter_and_format_grouped_by_project_runtime_resources_output(
         grouped_by_project_runtime_resources_output,
         allowed_projects,
@@ -193,7 +215,9 @@ async def _get_runtime_resources_allowed_projects(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
-    grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+    grouped_by_project_runtime_resources_output: (
+        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+    )
     grouped_by_project_runtime_resources_output = await run_in_threadpool(
         services.api.crud.RuntimeResources().list_runtime_resources,
         project,

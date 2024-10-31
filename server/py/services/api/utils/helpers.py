@@ -38,9 +38,17 @@ def ensure_running_on_chief(function):
     """
 
     def _ensure_running_on_chief():
-        if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
-            if mlrun.mlconf.httpdb.clusterization.ensure_function_running_on_chief_mode == "enabled":
-                message = f"{function.__name__} is supposed to run only on chief, re-route."
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            if (
+                mlrun.mlconf.httpdb.clusterization.ensure_function_running_on_chief_mode
+                == "enabled"
+            ):
+                message = (
+                    f"{function.__name__} is supposed to run only on chief, re-route."
+                )
                 raise mlrun.errors.MLRunConflictError(message)
             else:
                 logger.warning(
@@ -95,19 +103,25 @@ def extract_image_tag(image_reference):
         if is_semver:
             version = semver.Version.parse(tag)
             # If the version is a prerelease, and it has a hyphen, it means it's a feature branch build
-            has_py_package = not version.prerelease or version.prerelease.find("-") == -1
+            has_py_package = (
+                not version.prerelease or version.prerelease.find("-") == -1
+            )
 
     return tag, has_py_package
 
 
-def is_request_from_leader(projects_role: Optional[mlrun.common.schemas.ProjectsRole], leader_name: str = None):
+def is_request_from_leader(
+    projects_role: Optional[mlrun.common.schemas.ProjectsRole], leader_name: str = None
+):
     leader_name = leader_name or mlrun.mlconf.httpdb.projects.leader
     if projects_role and projects_role.value == leader_name:
         return True
     return False
 
 
-def string_to_timedelta(date_str: str, offset: int = 0, raise_on_error: bool = True) -> Optional[datetime.timedelta]:
+def string_to_timedelta(
+    date_str: str, offset: int = 0, raise_on_error: bool = True
+) -> Optional[datetime.timedelta]:
     date_str = date_str.strip().lower()
     try:
         seconds = parse_timespan(date_str) + offset
@@ -153,10 +167,14 @@ def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
     return decorator
 
 
-def set_scheduled_object_labels(scheduled_object: Union[Optional[dict], Callable], labels: Optional[dict]) -> None:
+def set_scheduled_object_labels(
+    scheduled_object: Union[Optional[dict], Callable], labels: Optional[dict]
+) -> None:
     if not isinstance(scheduled_object, dict):
         return
-    scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = labels
+    scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
+        labels
+    )
 
 
 def merge_schedule_and_db_schedule_labels(
@@ -181,7 +199,9 @@ def merge_schedule_and_db_schedule_labels(
         # convert list[LabelRecord] to dict
         db_schedule_labels = {label.name: label.value for label in db_schedule.labels}
         # merge schedule's labels and scheduled object's labels for object from db
-        db_labels = merge_schedule_and_schedule_object_labels(db_schedule_labels, db_schedule.scheduled_object)
+        db_labels = merge_schedule_and_schedule_object_labels(
+            db_schedule_labels, db_schedule.scheduled_object
+        )
 
     # merge schedule's labels and scheduled object's labels for passed values
     labels = merge_schedule_and_schedule_object_labels(labels, scheduled_object)
@@ -219,7 +239,9 @@ def merge_schedule_and_schedule_object_labels(
         return labels
 
     # Extract the scheduled object labels
-    scheduled_object_labels = scheduled_object.get("task", {}).get("metadata", {}).get("labels", {})
+    scheduled_object_labels = (
+        scheduled_object.get("task", {}).get("metadata", {}).get("labels", {})
+    )
 
     # If labels are empty, no need to update scheduled_object_labels,
     if not labels:
@@ -228,7 +250,9 @@ def merge_schedule_and_schedule_object_labels(
     scheduled_object_labels = scheduled_object_labels or {}
 
     # Merge labels, giving precedence to scheduled_object_labels
-    updated_labels = mlrun.utils.merge_dicts_with_precedence(labels, scheduled_object_labels)
+    updated_labels = mlrun.utils.merge_dicts_with_precedence(
+        labels, scheduled_object_labels
+    )
 
     # Update the original scheduled_object with the merged labels
     set_scheduled_object_labels(scheduled_object, updated_labels)

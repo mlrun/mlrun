@@ -25,9 +25,13 @@ from ..ml_functions import MLFunctions
 
 class XGBoostFunctions(MLFunctions):
     @staticmethod
-    def train(context: mlrun.MLClientCtx, algorithm_functionality: str, model_name: str = None):
+    def train(
+        context: mlrun.MLClientCtx, algorithm_functionality: str, model_name: str = None
+    ):
         algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
-        model = XGBoostFunctions.get_model(algorithm_functionality=algorithm_functionality)
+        model = XGBoostFunctions.get_model(
+            algorithm_functionality=algorithm_functionality
+        )
         x_train, x_test, y_train, y_test = XGBoostFunctions.get_dataset(
             algorithm_functionality=algorithm_functionality, for_training=True
         )
@@ -36,9 +40,13 @@ class XGBoostFunctions(MLFunctions):
         model.fit(x_train, y_train)
 
     @staticmethod
-    def evaluate(context: mlrun.MLClientCtx, algorithm_functionality: str, model_path: str):
+    def evaluate(
+        context: mlrun.MLClientCtx, algorithm_functionality: str, model_path: str
+    ):
         algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
-        x, y = XGBoostFunctions.get_dataset(algorithm_functionality=algorithm_functionality, for_training=False)
+        x, y = XGBoostFunctions.get_dataset(
+            algorithm_functionality=algorithm_functionality, for_training=False
+        )
         model_handler = apply_mlrun(model_path=model_path, y_test=y)
         model = model_handler.model
         model.predict(x)

@@ -99,9 +99,9 @@ def test_list_runtimes_resources_group_by_job(
             ].dict()
         },
         project_3: {
-            project_3_mpijob_name: grouped_by_project_runtime_resources_output[project_3][
-                mlrun.runtimes.RuntimeKinds.mpijob
-            ].dict()
+            project_3_mpijob_name: grouped_by_project_runtime_resources_output[
+                project_3
+            ][mlrun.runtimes.RuntimeKinds.mpijob].dict()
         },
     }
     assert (
@@ -142,7 +142,9 @@ def test_list_runtimes_resources_no_group_by(
                 pod_resources=grouped_by_project_runtime_resources_output[project_1][
                     mlrun.runtimes.RuntimeKinds.job
                 ].pod_resources
-                + grouped_by_project_runtime_resources_output[project_2][mlrun.runtimes.RuntimeKinds.job].pod_resources,
+                + grouped_by_project_runtime_resources_output[project_2][
+                    mlrun.runtimes.RuntimeKinds.job
+                ].pod_resources,
             ),
         ).dict(),
         mlrun.common.schemas.KindRuntimeResources(
@@ -152,9 +154,9 @@ def test_list_runtimes_resources_no_group_by(
                 pod_resources=grouped_by_project_runtime_resources_output[project_2][
                     mlrun.runtimes.RuntimeKinds.dask
                 ].pod_resources,
-                service_resources=grouped_by_project_runtime_resources_output[project_2][
-                    mlrun.runtimes.RuntimeKinds.dask
-                ].service_resources,
+                service_resources=grouped_by_project_runtime_resources_output[
+                    project_2
+                ][mlrun.runtimes.RuntimeKinds.dask].service_resources,
             ),
         ).dict(),
         mlrun.common.schemas.KindRuntimeResources(
@@ -195,7 +197,9 @@ def test_list_runtime_resources_no_resources(
     assert body == {}
     response = client.get(
         "projects/*/runtime-resources",
-        params={"group-by": mlrun.common.schemas.ListRuntimeResourcesGroupByField.project},
+        params={
+            "group-by": mlrun.common.schemas.ListRuntimeResourcesGroupByField.project
+        },
     )
     body = response.json()
     assert body == {}
@@ -246,7 +250,9 @@ def test_list_runtime_resources_filter_by_kind(
                 pod_resources=grouped_by_project_runtime_resources_output[project_1][
                     mlrun.runtimes.RuntimeKinds.job
                 ].pod_resources
-                + grouped_by_project_runtime_resources_output[project_2][mlrun.runtimes.RuntimeKinds.job].pod_resources,
+                + grouped_by_project_runtime_resources_output[project_2][
+                    mlrun.runtimes.RuntimeKinds.job
+                ].pod_resources,
             ),
         ).dict()
         expected_body = [expected_runtime_resources]
@@ -273,7 +279,9 @@ def test_delete_runtime_resources_nothing_allowed(
         project_3_mpijob_name,
         grouped_by_project_runtime_resources_output,
     ) = _generate_grouped_by_project_runtime_resources_output()
-    _mock_list_resources(monkeypatch, return_value=grouped_by_project_runtime_resources_output)
+    _mock_list_resources(
+        monkeypatch, return_value=grouped_by_project_runtime_resources_output
+    )
     _mock_filter_project_resources_by_permissions(monkeypatch, return_value=[])
     _assert_forbidden_responses_in_delete_endpoints(client)
 
@@ -301,8 +309,12 @@ def test_delete_runtime_resources_opa_filtering(
     ) = _generate_grouped_by_project_runtime_resources_output()
 
     allowed_projects = [project_1, project_2]
-    _mock_list_resources(monkeypatch, return_value=grouped_by_project_runtime_resources_output)
-    _mock_filter_project_resources_by_permissions(monkeypatch, return_value=allowed_projects)
+    _mock_list_resources(
+        monkeypatch, return_value=grouped_by_project_runtime_resources_output
+    )
+    _mock_filter_project_resources_by_permissions(
+        monkeypatch, return_value=allowed_projects
+    )
     _mock_runtime_handlers_delete_resources(
         monkeypatch,
         mlrun.runtimes.RuntimeKinds.runtime_with_handlers(),
@@ -327,8 +339,12 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
     ) = _generate_grouped_by_project_runtime_resources_with_legacy_builder_output()
 
     allowed_projects = []
-    _mock_list_resources(monkeypatch, return_value=grouped_by_project_runtime_resources_output)
-    _mock_filter_project_resources_by_permissions(monkeypatch, return_value=allowed_projects)
+    _mock_list_resources(
+        monkeypatch, return_value=grouped_by_project_runtime_resources_output
+    )
+    _mock_filter_project_resources_by_permissions(
+        monkeypatch, return_value=allowed_projects
+    )
 
     # no projects are allowed, but there is a non project runtime resource (the legacy builder pod)
     # therefore delete resources will be called, but without filter on project in the label selector
@@ -360,13 +376,19 @@ def test_delete_runtime_resources_with_kind(
     ) = _generate_grouped_by_project_runtime_resources_output()
 
     kind = mlrun.runtimes.RuntimeKinds.job
-    grouped_by_project_runtime_resources_output = _filter_kind_from_grouped_by_project_runtime_resources_output(
-        kind, grouped_by_project_runtime_resources_output
+    grouped_by_project_runtime_resources_output = (
+        _filter_kind_from_grouped_by_project_runtime_resources_output(
+            kind, grouped_by_project_runtime_resources_output
+        )
     )
 
     allowed_projects = [project_1, project_3]
-    _mock_list_resources(monkeypatch, return_value=grouped_by_project_runtime_resources_output)
-    _mock_filter_project_resources_by_permissions(monkeypatch, return_value=allowed_projects)
+    _mock_list_resources(
+        monkeypatch, return_value=grouped_by_project_runtime_resources_output
+    )
+    _mock_filter_project_resources_by_permissions(
+        monkeypatch, return_value=allowed_projects
+    )
     _mock_runtime_handlers_delete_resources(monkeypatch, [kind], allowed_projects)
     response = client.delete(
         "projects/*/runtime-resources",
@@ -404,7 +426,11 @@ def test_delete_runtime_resources_with_object_id(
     mock_list_runtimes_output = _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_output(
         [project_1], kind, grouped_by_project_runtime_resources_output, structured=True
     )
-    object_id = grouped_by_project_runtime_resources_output[project_1][kind].pod_resources[0].name
+    object_id = (
+        grouped_by_project_runtime_resources_output[project_1][kind]
+        .pod_resources[0]
+        .name
+    )
     _mock_list_resources(monkeypatch, return_value=mock_list_runtimes_output)
 
     # allow all
@@ -450,7 +476,9 @@ def _mock_runtime_handlers_delete_resources(
 
     for kind in kinds:
         runtime_handler = services.api.runtime_handlers.get_runtime_handler(kind)
-        monkeypatch.setattr(runtime_handler, "delete_resources", _assert_delete_resources_label_selector)
+        monkeypatch.setattr(
+            runtime_handler, "delete_resources", _assert_delete_resources_label_selector
+        )
 
 
 def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestClient):
@@ -619,11 +647,15 @@ def _mock_opa_filter_and_assert_list_response(
     _mock_filter_project_resources_by_permissions(monkeypatch, opa_filter_response)
     response = client.get(
         "projects/*/runtime-resources",
-        params={"group-by": mlrun.common.schemas.ListRuntimeResourcesGroupByField.project},
+        params={
+            "group-by": mlrun.common.schemas.ListRuntimeResourcesGroupByField.project
+        },
     )
     body = response.json()
-    expected_body = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        opa_filter_response, grouped_by_project_runtime_resources_output
+    expected_body = (
+        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+            opa_filter_response, grouped_by_project_runtime_resources_output
+        )
     )
     assert (
         deepdiff.DeepDiff(
@@ -641,10 +673,14 @@ def _filter_allowed_projects_and_kind_from_grouped_by_project_runtime_resources_
     grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     structured: bool = False,
 ):
-    filtered_output = _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-        allowed_projects, grouped_by_project_runtime_resources_output, structured
+    filtered_output = (
+        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
+            allowed_projects, grouped_by_project_runtime_resources_output, structured
+        )
     )
-    return _filter_kind_from_grouped_by_project_runtime_resources_output(filter_kind, filtered_output)
+    return _filter_kind_from_grouped_by_project_runtime_resources_output(
+        filter_kind, filtered_output
+    )
 
 
 def _filter_kind_from_grouped_by_project_runtime_resources_output(
@@ -658,9 +694,9 @@ def _filter_kind_from_grouped_by_project_runtime_resources_output(
     ) in grouped_by_project_runtime_resources_output.items():
         for kind, runtime_resources in kind_runtime_resources_map.items():
             if kind == filter_kind:
-                filtered_output.setdefault(project, {})[kind] = grouped_by_project_runtime_resources_output[project][
-                    kind
-                ]
+                filtered_output.setdefault(project, {})[kind] = (
+                    grouped_by_project_runtime_resources_output[project][kind]
+                )
     return filtered_output
 
 
@@ -677,7 +713,11 @@ def _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
                 kind,
                 kind_runtime_resources,
             ) in grouped_by_project_runtime_resources_output[project].items():
-                filtered_output[project][kind] = kind_runtime_resources if structured else kind_runtime_resources.dict()
+                filtered_output[project][kind] = (
+                    kind_runtime_resources
+                    if structured
+                    else kind_runtime_resources.dict()
+                )
     return filtered_output
 
 

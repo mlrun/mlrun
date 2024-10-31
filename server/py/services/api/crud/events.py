@@ -64,12 +64,16 @@ class Events(
         project = project or mlrun.mlconf.default_project
 
         if validate_event and not self.is_valid_event(project, event_data):
-            raise mlrun.errors.MLRunBadRequestError(f"Invalid event specified {event_name}")
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid event specified {event_name}"
+            )
 
         event_data.timestamp = datetime.datetime.now(datetime.timezone.utc)
 
         if not self.cache_initialized:
-            services.api.crud.Alerts().process_event_no_cache(session, event_name, event_data)
+            services.api.crud.Alerts().process_event_no_cache(
+                session, event_name, event_data
+            )
             return
 
         try:

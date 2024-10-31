@@ -171,7 +171,9 @@ def test_ast_none():
         ),
     ],
 )
-def test_ast_func_info_with_kwargs_and_args(func_code, expected_has_varargs, expected_has_kwargs):
+def test_ast_func_info_with_kwargs_and_args(
+    func_code, expected_has_varargs, expected_has_kwargs
+):
     fn: ast.FunctionDef = ast.parse(dedent(func_code)).body[0]
     func_info = funcdoc.ast_func_info(fn)
     assert func_info["has_varargs"] == expected_has_varargs
@@ -205,7 +207,9 @@ def test_ast_compound():
     for i, param in enumerate(info["params"]):
         if i in (4, 8):
             continue
-        assert param["type"] == param_types[i], f"param at index {i} has a bad type value. param: {param}"
+        assert (
+            param["type"] == param_types[i]
+        ), f"param at index {i} has a bad type value. param: {param}"
 
 
 underscore_code = """

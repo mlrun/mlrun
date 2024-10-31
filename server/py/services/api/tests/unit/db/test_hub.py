@@ -19,7 +19,9 @@ import services.api.initial_data
 from services.api.db.base import DBInterface
 
 
-def test_data_migration_rename_marketplace_kind_to_hub(db: DBInterface, db_session: Session):
+def test_data_migration_rename_marketplace_kind_to_hub(
+    db: DBInterface, db_session: Session
+):
     # create hub sources
     for i in range(3):
         source_name = f"source-{i}"

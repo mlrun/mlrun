@@ -44,7 +44,9 @@ def run_labels(run) -> dict:
 
 
 def run_state(run):
-    return get_in(run, "status.state", mlrun.common.runtimes.constants.RunStates.created)
+    return get_in(
+        run, "status.state", mlrun.common.runtimes.constants.RunStates.created
+    )
 
 
 def update_labels(obj, labels: dict):
@@ -60,7 +62,9 @@ def update_labels(obj, labels: dict):
 
 def to_dict(obj):
     if isinstance(obj, Base):
-        return {attr: to_dict(getattr(obj, attr)) for attr in dir(obj) if is_field(attr)}
+        return {
+            attr: to_dict(getattr(obj, attr)) for attr in dir(obj) if is_field(attr)
+        }
 
     if isinstance(obj, (list, tuple)):
         cls = type(obj)

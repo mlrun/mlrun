@@ -98,7 +98,9 @@ class MLRunLogger(Logger):
             for dynamic_parameter, values in self._dynamic_hyperparameters.items():
                 self._context.log_result(dynamic_parameter, values[-1])
             for metric, results in self._training_summaries.items():
-                self._context.log_result(f"{self._Loops.TRAINING}_{metric}", results[-1])
+                self._context.log_result(
+                    f"{self._Loops.TRAINING}_{metric}", results[-1]
+                )
         for metric, results in self._validation_summaries.items():
             self._context.log_result(
                 f"{self._Loops.EVALUATION}_{metric}"
@@ -173,7 +175,9 @@ class MLRunLogger(Logger):
                 artifact = self._generate_summary_results_artifact(
                     name=metric_name,
                     training_results=self._training_summaries[metric_name],
-                    validation_results=self._validation_summaries.get(metric_name, None),
+                    validation_results=self._validation_summaries.get(
+                        metric_name, None
+                    ),
                 )
                 # Log the artifact:
                 self._context.log_artifact(
@@ -232,7 +236,10 @@ class MLRunLogger(Logger):
         # If in training mode, return both training and validation metrics:
         if self._mode == LoggingMode.TRAINING:
             return {
-                **{f"{self._Loops.TRAINING}_{name}": values[-1] for name, values in self._training_summaries.items()},
+                **{
+                    f"{self._Loops.TRAINING}_{name}": values[-1]
+                    for name, values in self._training_summaries.items()
+                },
                 **{
                     f"{self._Loops.VALIDATION}_{name}": values[-1]
                     for name, values in self._validation_summaries.items()
@@ -240,10 +247,15 @@ class MLRunLogger(Logger):
             }
 
         # Return the evaluation metrics:
-        return {f"{self._Loops.EVALUATION}_{name}": values[-1] for name, values in self._validation_summaries.items()}
+        return {
+            f"{self._Loops.EVALUATION}_{name}": values[-1]
+            for name, values in self._validation_summaries.items()
+        }
 
     @staticmethod
-    def _generate_metric_results_artifact(loop: str, name: str, epochs_results: list[list[float]]) -> PlotlyArtifact:
+    def _generate_metric_results_artifact(
+        loop: str, name: str, epochs_results: list[list[float]]
+    ) -> PlotlyArtifact:
         """
         Generate a plotly artifact for the results of the metric provided.
 
@@ -270,10 +282,14 @@ class MLRunLogger(Logger):
         results = list(itertools.chain(*epochs_results))
 
         # Prepare the epochs list:
-        epochs_indices = [i * len(epoch_results) for i, epoch_results in enumerate(epochs_results)][1:]
+        epochs_indices = [
+            i * len(epoch_results) for i, epoch_results in enumerate(epochs_results)
+        ][1:]
 
         # Draw:
-        metric_figure.add_trace(go.Scatter(x=list(np.arange(len(results))), y=results, mode="lines"))
+        metric_figure.add_trace(
+            go.Scatter(x=list(np.arange(len(results))), y=results, mode="lines")
+        )
         for epoch_index in epochs_indices:
             metric_figure.add_vline(x=epoch_index, line_dash="dash", line_color="grey")
 
@@ -334,7 +350,9 @@ class MLRunLogger(Logger):
         return artifact
 
     @staticmethod
-    def _generate_dynamic_hyperparameter_values_artifact(name: str, values: list[float]) -> PlotlyArtifact:
+    def _generate_dynamic_hyperparameter_values_artifact(
+        name: str, values: list[float]
+    ) -> PlotlyArtifact:
         """
         Generate a plotly artifact for the values of the hyperparameter provided.
 
@@ -357,9 +375,13 @@ class MLRunLogger(Logger):
         )
 
         # Draw the values:
-        hyperparameter_figure.add_trace(go.Scatter(x=list(np.arange(len(values))), y=values, mode="lines+markers"))
+        hyperparameter_figure.add_trace(
+            go.Scatter(x=list(np.arange(len(values))), y=values, mode="lines+markers")
+        )
 
         # Create the plotly artifact:
-        artifact = PlotlyArtifact(key=f"{artifact_name}.html", figure=hyperparameter_figure)
+        artifact = PlotlyArtifact(
+            key=f"{artifact_name}.html", figure=hyperparameter_figure
+        )
 
         return artifact

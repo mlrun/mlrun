@@ -108,6 +108,8 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
     def _create_object_ref_graph(self, obj: object, max_depth: int = 3) -> str:
         graph_output = io.StringIO()
-        self._objgraph.show_backrefs(obj, refcounts=True, max_depth=max_depth, output=graph_output)
+        self._objgraph.show_backrefs(
+            obj, refcounts=True, max_depth=max_depth, output=graph_output
+        )
 
         return graph_output.getvalue()

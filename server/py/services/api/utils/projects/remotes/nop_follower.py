@@ -28,7 +28,9 @@ class Member(project_follower.Member):
         super().__init__()
         self._projects: dict[str, mlrun.common.schemas.Project] = {}
 
-    def create_project(self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project):
+    def create_project(
+        self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
+    ):
         if project.metadata.name in self._projects:
             raise mlrun.errors.MLRunConflictError("Project already exists")
         # deep copy so we won't accidentally get changes from tests
@@ -65,7 +67,9 @@ class Member(project_follower.Member):
         if name in self._projects:
             del self._projects[name]
 
-    def get_project(self, session: sqlalchemy.orm.Session, name: str) -> mlrun.common.schemas.Project:
+    def get_project(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.common.schemas.Project:
         if name not in self._projects:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
         # deep copy so we won't accidentally get changes from tests
@@ -81,12 +85,18 @@ class Member(project_follower.Member):
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner or labels or state:
-            raise NotImplementedError("Filtering by owner, labels or state is not supported")
+            raise NotImplementedError(
+                "Filtering by owner, labels or state is not supported"
+            )
         projects = list(self._projects.values())
         # deep copy so we won't accidentally get changes from tests
         projects = [project.copy(deep=True) for project in projects]
         if names:
-            projects = [project for project_name, project in self._projects.items() if project_name in names]
+            projects = [
+                project
+                for project_name, project in self._projects.items()
+                if project_name in names
+            ]
 
         return mlrun.common.schemas.ProjectsOutput(
             projects=[
@@ -109,5 +119,7 @@ class Member(project_follower.Member):
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
-    def get_project_summary(self, session: sqlalchemy.orm.Session, name: str) -> mlrun.common.schemas.ProjectSummary:
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.common.schemas.ProjectSummary:
         raise NotImplementedError("Get project summary is not supported")

@@ -51,12 +51,16 @@ class DBBackupUtil:
         if self._backup_rotation:
             self._rotate_backup()
 
-    def load_database_from_backup(self, backup_file_name: str, new_backup_file_name: str = None) -> None:
+    def load_database_from_backup(
+        self, backup_file_name: str, new_backup_file_name: str = None
+    ) -> None:
         new_backup_file_name = new_backup_file_name or self._generate_backup_file_name()
 
         backup_path = self._get_backup_file_path(backup_file_name)
         if not backup_path or not os.path.isfile(backup_path):
-            raise RuntimeError(f"Cannot load backup from {backup_file_name}, file doesn't exist")
+            raise RuntimeError(
+                f"Cannot load backup from {backup_file_name}, file doesn't exist"
+            )
 
         # backup the current DB
         self.backup_database(new_backup_file_name)
@@ -131,7 +135,9 @@ class DBBackupUtil:
         backup_files = []
         for file_name in dir_content:
             try:
-                date_metadata = datetime.datetime.strptime(file_name, self._backup_file_format)
+                date_metadata = datetime.datetime.strptime(
+                    file_name, self._backup_file_format
+                )
             except ValueError:
                 continue
 
@@ -141,18 +147,26 @@ class DBBackupUtil:
             return
 
         backup_files = sorted(backup_files, key=lambda file_data: file_data[1])
-        files_to_delete = [file_data[0] for file_data in backup_files[: -self._backup_rotation_limit]]
+        files_to_delete = [
+            file_data[0] for file_data in backup_files[: -self._backup_rotation_limit]
+        ]
         logger.debug("Rotating old backup files", files_to_delete=files_to_delete)
         for file_name in files_to_delete:
             try:
                 os.remove(db_dir_path / file_name)
             except FileNotFoundError:
-                logger.debug("Backup file doesn't exist, skipping...", file_name=file_name)
+                logger.debug(
+                    "Backup file doesn't exist, skipping...", file_name=file_name
+                )
 
     def _generate_backup_file_name(self) -> str:
-        return datetime.datetime.now(tz=datetime.timezone.utc).strftime(self._backup_file_format)
+        return datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+            self._backup_file_format
+        )
 
-    def _get_backup_file_path(self, backup_file_name: str) -> typing.Optional[pathlib.Path]:
+    def _get_backup_file_path(
+        self, backup_file_name: str
+    ) -> typing.Optional[pathlib.Path]:
         if ":memory:" in mlconf.httpdb.dsn:
             return
 
@@ -203,7 +217,9 @@ class DBBackupUtil:
                 stderr=stderr,
                 exit_status=return_code,
             )
-            raise RuntimeError(f"Got non-zero return code ({return_code}) on running shell command: {command}")
+            raise RuntimeError(
+                f"Got non-zero return code ({return_code}) on running shell command: {command}"
+            )
 
         logger.debug(
             "Ran command successfully",

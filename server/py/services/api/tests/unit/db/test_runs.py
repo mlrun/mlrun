@@ -78,7 +78,10 @@ def test_runs_with_notifications(db: DBInterface, db_session: Session):
     for run in runs:
         run_notifications = run["spec"]["notifications"]
         assert len(run_notifications) == 1
-        assert run_notifications[0]["name"] == f"test-notification-{run['metadata']['uid']}"
+        assert (
+            run_notifications[0]["name"]
+            == f"test-notification-{run['metadata']['uid']}"
+        )
 
     db.delete_run_notifications(db_session, run_uid=run_uids[0], project=project_name)
     runs = db.list_runs(db_session, project=project_name, with_notifications=True)
@@ -94,7 +97,9 @@ def test_runs_with_notifications(db: DBInterface, db_session: Session):
     db.verify_project_has_no_related_resources(db_session, project_name)
 
 
-def test_list_runs_with_notifications_identical_run_names(db: DBInterface, db_session: Session):
+def test_list_runs_with_notifications_identical_run_names(
+    db: DBInterface, db_session: Session
+):
     project_name = "project"
 
     _create_new_run(db, db_session, project=project_name, name="test-run", uid="uid1")
@@ -158,12 +163,16 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
     runs = db.list_runs(db_session, project=project_name, iter=True)
     assert len(runs) == 3
 
-    distinct_runs = db.list_distinct_runs_uids(db_session, project=project_name, only_uids=False)
+    distinct_runs = db.list_distinct_runs_uids(
+        db_session, project=project_name, only_uids=False
+    )
     assert len(distinct_runs) == 1
     assert isinstance(distinct_runs[0], dict)
     assert distinct_runs[0]["metadata"]["uid"] == uid
 
-    only_uids = db.list_distinct_runs_uids(db_session, project=project_name, only_uids=True)
+    only_uids = db.list_distinct_runs_uids(
+        db_session, project=project_name, only_uids=True
+    )
     assert len(only_uids) == 1
     assert isinstance(only_uids[0], str)
     assert only_uids[0] == uid
@@ -236,7 +245,10 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     # use to internal function to get the record itself to be able to assert the column itself
     runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
     assert len(runs) == 1
-    assert db._add_utc_timezone(runs[0].start_time).isoformat() == runs[0].struct["status"]["start_time"]
+    assert (
+        db._add_utc_timezone(runs[0].start_time).isoformat()
+        == runs[0].struct["status"]["start_time"]
+    )
 
     # Second store - should allow to override the start time
     run["status"]["start_time"] = datetime.now(timezone.utc).isoformat()
@@ -245,7 +257,10 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     # get the start time and verify
     runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
     assert len(runs) == 1
-    assert db._add_utc_timezone(runs[0].start_time).isoformat() == runs[0].struct["status"]["start_time"]
+    assert (
+        db._add_utc_timezone(runs[0].start_time).isoformat()
+        == runs[0].struct["status"]["start_time"]
+    )
     assert runs[0].struct["status"]["start_time"] == run["status"]["start_time"]
 
 
@@ -281,7 +296,9 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
         _ensure_run_after_align_runs_migration(db, run, time_before_creation)
 
 
-def test_data_migration_align_runs_table_with_empty_run_body(db: DBInterface, db_session: Session):
+def test_data_migration_align_runs_table_with_empty_run_body(
+    db: DBInterface, db_session: Session
+):
     time_before_creation = datetime.now(tz=timezone.utc)
     # First store - fills the start_time
     project, name, uid, iteration, run = _create_new_run(
@@ -318,21 +335,31 @@ def test_store_run_success(db: DBInterface, db_session: Session):
     assert run.iteration == iteration
     assert run.state == mlrun.common.runtimes.constants.RunStates.created
     assert run.state == run.struct["status"]["state"]
-    assert db._add_utc_timezone(run.start_time).isoformat() == run.struct["status"]["start_time"]
+    assert (
+        db._add_utc_timezone(run.start_time).isoformat()
+        == run.struct["status"]["start_time"]
+    )
 
-    assert db._add_utc_timezone(run.updated).isoformat() == run.struct["status"]["last_update"]
+    assert (
+        db._add_utc_timezone(run.updated).isoformat()
+        == run.struct["status"]["last_update"]
+    )
 
 
 def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
-    runs_before = db.list_runs(db_session, project=project, uid=uid, return_as_run_structs=False)
+    runs_before = db.list_runs(
+        db_session, project=project, uid=uid, return_as_run_structs=False
+    )
     assert runs_before[0].requested_logs is False
     run_updated_time = runs_before[0].updated
 
     db.update_runs_requested_logs(db_session, [uid], True)
 
-    runs_after = db.list_runs(db_session, project=project, uid=uid, return_as_run_structs=False)
+    runs_after = db.list_runs(
+        db_session, project=project, uid=uid, return_as_run_structs=False
+    )
     assert runs_after[0].requested_logs is True
     assert runs_after[0].updated > run_updated_time
 
@@ -340,7 +367,9 @@ def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
 def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
-    with unittest.mock.patch("services.api.db.sqldb.helpers.update_labels", return_value=None) as update_labels_mock:
+    with unittest.mock.patch(
+        "services.api.db.sqldb.helpers.update_labels", return_value=None
+    ) as update_labels_mock:
         db.update_run(
             db_session,
             {"metadata.some-new-field": "value", "spec.another-new-field": "value"},
@@ -454,13 +483,20 @@ def _change_run_record_to_before_align_runs_migration(run, time_before_creation)
     run.updated = None
 
 
-def _ensure_run_after_align_runs_migration(db: DBInterface, run, time_before_creation=None):
+def _ensure_run_after_align_runs_migration(
+    db: DBInterface, run, time_before_creation=None
+):
     run_dict = run.struct
 
     # ensure start time aligned
-    assert services.api.db.sqldb.helpers.run_start_time(run_dict) == db._add_utc_timezone(run.start_time)
+    assert services.api.db.sqldb.helpers.run_start_time(
+        run_dict
+    ) == db._add_utc_timezone(run.start_time)
     if time_before_creation is not None:
-        assert services.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
+        assert (
+            services.api.db.sqldb.helpers.run_start_time(run_dict)
+            > time_before_creation
+        )
 
     # ensure name column filled
     assert run_dict["metadata"]["name"] == run.name
@@ -469,7 +505,10 @@ def _ensure_run_after_align_runs_migration(db: DBInterface, run, time_before_cre
     assert run_dict["status"]["state"] == run.state
 
     # ensure updated column filled
-    assert run_dict["status"]["last_update"] == db._add_utc_timezone(run.updated).isoformat()
+    assert (
+        run_dict["status"]["last_update"]
+        == db._add_utc_timezone(run.updated).isoformat()
+    )
 
 
 def _create_new_run(

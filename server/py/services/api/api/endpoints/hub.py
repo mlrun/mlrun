@@ -40,7 +40,9 @@ router = APIRouter(prefix="/hub/sources")
 async def create_source(
     source: mlrun.common.schemas.hub.IndexedHubSource,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
@@ -48,7 +50,9 @@ async def create_source(
         auth_info,
     )
 
-    await run_in_threadpool(services.api.utils.singletons.db.get_db().create_hub_source, db_session, source)
+    await run_in_threadpool(
+        services.api.utils.singletons.db.get_db().create_hub_source, db_session, source
+    )
     # Handle credentials if they exist
     await run_in_threadpool(services.api.crud.Hub().add_source, source.source)
     return await run_in_threadpool(
@@ -67,7 +71,9 @@ async def list_sources(
     tag: Optional[str] = Query(None),
     version: Optional[str] = Query(None),
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
@@ -91,7 +97,9 @@ async def list_sources(
 async def delete_source(
     source_name: str,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
@@ -114,7 +122,9 @@ async def delete_source(
 async def get_source(
     source_name: str,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     hub_source = await run_in_threadpool(
         services.api.utils.singletons.db.get_db().get_hub_source,
@@ -138,7 +148,9 @@ async def store_source(
     source_name: str,
     source: mlrun.common.schemas.hub.IndexedHubSource,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.hub_source,
@@ -172,7 +184,9 @@ async def get_catalog(
     tag: Optional[str] = Query(None),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     ordered_source = await run_in_threadpool(
         services.api.utils.singletons.db.get_db().get_hub_source,
@@ -205,7 +219,9 @@ async def get_item(
     tag: Optional[str] = Query("latest"),
     force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     ordered_source = await run_in_threadpool(
         services.api.utils.singletons.db.get_db().get_hub_source,
@@ -235,7 +251,9 @@ async def get_object(
     source_name: str,
     url: str,
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     ordered_source = await run_in_threadpool(
         services.api.utils.singletons.db.get_db().get_hub_source,
@@ -270,7 +288,9 @@ async def get_asset(
     tag: Optional[str] = Query("latest"),
     version: Optional[str] = Query(None),
     db_session: Session = Depends(services.api.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     """
     Retrieve asset from a specific item in specific hub source.

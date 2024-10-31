@@ -72,7 +72,9 @@ def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pip
             mount = os.environ.get("MLRUN_PVC_MOUNT")
             items = mount.split(":")
             if len(items) != 2:
-                raise MLRunInvalidArgumentError("MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>")
+                raise MLRunInvalidArgumentError(
+                    "MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>"
+                )
             pvc_name = items[0]
             volume_mount_path = items[1]
 
@@ -245,7 +247,9 @@ def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
     :param mount_path:   path to mount inside the container
     :param volume_name:  unique volume name
     """
-    raise NotImplementedError("Support for hostPath mounting is not yet available on the KFP 2 engine")
+    raise NotImplementedError(
+        "Support for hostPath mounting is not yet available on the KFP 2 engine"
+    )
 
 
 def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):

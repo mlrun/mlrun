@@ -41,7 +41,9 @@ class TestTDEngineSchema:
     @staticmethod
     @pytest.fixture
     def super_table() -> TDEngineSchema:
-        return TDEngineSchema(super_table=_SUPER_TABLE_TEST, columns=_COLUMNS_TEST, tags=_TAG_TEST)
+        return TDEngineSchema(
+            super_table=_SUPER_TABLE_TEST, columns=_COLUMNS_TEST, tags=_TAG_TEST
+        )
 
     @staticmethod
     @pytest.fixture
@@ -62,7 +64,9 @@ class TestTDEngineSchema:
             f"TAGS (tag1 INT, tag2 BINARY(64));"
         )
 
-    @pytest.mark.parametrize(("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)])
+    @pytest.mark.parametrize(
+        ("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)]
+    )
     def test_create_sub_table(
         self,
         super_table: TDEngineSchema,
@@ -81,7 +85,9 @@ class TestTDEngineSchema:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                 super_table._create_subtable_sql(subtable=subtable, values=values)
 
-    @pytest.mark.parametrize(("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)])
+    @pytest.mark.parametrize(
+        ("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)]
+    )
     def test_delete_subtable(
         self,
         super_table: TDEngineSchema,
@@ -114,7 +120,9 @@ class TestTDEngineSchema:
             == f"DROP TABLE if EXISTS {_MODEL_MONITORING_DATABASE}.subtable_1;"
         )
 
-    @pytest.mark.parametrize(("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)])
+    @pytest.mark.parametrize(
+        ("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)]
+    )
     def test_get_subtables(
         self,
         super_table: TDEngineSchema,
@@ -273,12 +281,17 @@ class TestTDEngineSchema:
                 if agg_funcs:
                     if columns_to_filter:
                         preform_agg_funcs_columns = (
-                            columns_to_filter if preform_agg_funcs_columns is None else preform_agg_funcs_columns
+                            columns_to_filter
+                            if preform_agg_funcs_columns is None
+                            else preform_agg_funcs_columns
                         )
                         columns_to_select = ", ".join(
                             [
                                 f"{a}({col})"
-                                if col.upper() in map(str.upper, preform_agg_funcs_columns)  # Case-insensitive check
+                                if col.upper()
+                                in map(
+                                    str.upper, preform_agg_funcs_columns
+                                )  # Case-insensitive check
                                 else f"{col}"
                                 for a in agg_funcs
                                 for col in columns_to_filter
@@ -401,7 +414,10 @@ class TestTDEngineSchema:
                 agg_funcs=agg_funcs,
                 sliding_window_step=sliding_window_step,
             )
-            assert "columns_to_filter must be provided when using aggregate functions" in str(err.value)
+            assert (
+                "columns_to_filter must be provided when using aggregate functions"
+                in str(err.value)
+            )
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
             # Provide interval without aggregation functions
@@ -429,8 +445,12 @@ class TestTDEngineSchema:
                 agg_funcs=agg_funcs,
                 sliding_window_step=sliding_window_step,
             )
-            assert "interval must be provided when using sliding window" in str(err.value)
-        columns_to_select = ", ".join([f"{a}({col})" for a in agg_funcs for col in columns_to_filter])
+            assert "interval must be provided when using sliding window" in str(
+                err.value
+            )
+        columns_to_select = ", ".join(
+            [f"{a}({col})" for a in agg_funcs for col in columns_to_filter]
+        )
         expected_query = (
             f""
             f"SELECT _wstart, _wend, {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "

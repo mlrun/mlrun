@@ -32,12 +32,16 @@ from services.api.api import deps
 router = APIRouter(prefix="/v2/projects/{project}")
 
 
-def _dedup_feature_set(feature_set_digest, feature_set_digest_id_to_index, feature_set_digests_v2):
+def _dedup_feature_set(
+    feature_set_digest, feature_set_digest_id_to_index, feature_set_digests_v2
+):
     # dedup feature set list
     # we can rely on the object ID because SQLAlchemy already avoids duplication at the object
     # level, and the conversion from "model" to "schema" retains this property
     feature_set_digest_obj_id = id(feature_set_digest)
-    feature_set_index = feature_set_digest_id_to_index.get(feature_set_digest_obj_id, None)
+    feature_set_index = feature_set_digest_id_to_index.get(
+        feature_set_digest_obj_id, None
+    )
     if feature_set_index is None:
         feature_set_index = len(feature_set_digest_id_to_index)
         feature_set_digest_id_to_index[feature_set_digest_obj_id] = feature_set_index

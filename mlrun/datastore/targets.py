@@ -86,7 +86,9 @@ def generate_target_run_id():
 
 
 def write_spark_dataframe_with_options(spark_options, df, mode, write_format=None):
-    non_hadoop_spark_options = spark_session_update_hadoop_options(df.sql_ctx.sparkSession, spark_options)
+    non_hadoop_spark_options = spark_session_update_hadoop_options(
+        df.sql_ctx.sparkSession, spark_options
+    )
     if write_format:
         df.write.format(write_format).mode(mode).save(**non_hadoop_spark_options)
     else:
@@ -128,7 +130,9 @@ def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind)
 
 
-def validate_target_paths_for_engine(targets, engine, source: Union[DataSource, pd.DataFrame]):
+def validate_target_paths_for_engine(
+    targets, engine, source: Union[DataSource, pd.DataFrame]
+):
     """Validating that target paths are suitable for the required engine.
     validate for single file targets only (parquet and csv).
 
@@ -154,7 +158,8 @@ def validate_target_paths_for_engine(targets, engine, source: Union[DataSource, 
     """
     for base_target in targets:
         if hasattr(base_target, "kind") and (
-            base_target.kind == TargetTypes.parquet or base_target.kind == TargetTypes.csv
+            base_target.kind == TargetTypes.parquet
+            or base_target.kind == TargetTypes.csv
         ):
             target = get_target_driver(base_target)
             is_single_file = target.is_single_file()
@@ -164,7 +169,9 @@ def validate_target_paths_for_engine(targets, engine, source: Union[DataSource, 
                 )
             elif engine == "pandas":
                 # check if source is DataSource (not DataFrame) and if contains chunk size
-                if isinstance(source, DataSource) and source.attributes.get("chunksize"):
+                if isinstance(source, DataSource) and source.attributes.get(
+                    "chunksize"
+                ):
                     if is_single_file:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             "pandas CSV/Parquet targets must be a directory "
@@ -186,7 +193,11 @@ def validate_target_paths_for_engine(targets, engine, source: Union[DataSource, 
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"CSV target for storey engine must be a single file, got path:'{target.path}'"
                     )
-                elif target.kind == TargetTypes.parquet and target.partitioned and is_single_file:
+                elif (
+                    target.kind == TargetTypes.parquet
+                    and target.partitioned
+                    and is_single_file
+                ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"partitioned Parquet target for storey engine must be a directory, got path:'{target.path}'"
                     )
@@ -199,11 +210,17 @@ def validate_target_list(targets):
         return
     targets_by_kind_name = [kind for kind in targets if isinstance(kind, str)]
     no_name_target_types_count = Counter(
-        [target.kind for target in targets if hasattr(target, "name") and hasattr(target, "kind") and not target.name]
+        [
+            target.kind
+            for target in targets
+            if hasattr(target, "name") and hasattr(target, "kind") and not target.name
+        ]
         + targets_by_kind_name
     )
     target_types_requiring_name = [
-        target_type for target_type, target_type_count in no_name_target_types_count.items() if target_type_count > 1
+        target_type
+        for target_type, target_type_count in no_name_target_types_count.items()
+        if target_type_count > 1
     ]
     if target_types_requiring_name:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -211,10 +228,14 @@ def validate_target_list(targets):
             f"specify name for {target_types_requiring_name} target)"
         )
 
-    target_names_count = Counter([target.name for target in targets if hasattr(target, "name") and target.name])
+    target_names_count = Counter(
+        [target.name for target in targets if hasattr(target, "name") and target.name]
+    )
 
     targets_with_same_name = [
-        target_name for target_name, target_name_count in target_names_count.items() if target_name_count > 1
+        target_name
+        for target_name, target_name_count in target_names_count.items()
+        if target_name_count > 1
     ]
 
     if targets_with_same_name:
@@ -224,11 +245,17 @@ def validate_target_list(targets):
         )
 
     no_path_target_types_count = Counter(
-        [target.kind for target in targets if hasattr(target, "path") and hasattr(target, "kind") and not target.path]
+        [
+            target.kind
+            for target in targets
+            if hasattr(target, "path") and hasattr(target, "kind") and not target.path
+        ]
         + targets_by_kind_name
     )
     target_types_requiring_path = [
-        target_type for target_type, target_type_count in no_path_target_types_count.items() if target_type_count > 1
+        target_type
+        for target_type, target_type_count in no_path_target_types_count.items()
+        if target_type_count > 1
     ]
     if target_types_requiring_path:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -236,10 +263,14 @@ def validate_target_list(targets):
             f"path for {target_types_requiring_path} target)"
         )
 
-    target_paths_count = Counter([target.path for target in targets if hasattr(target, "path") and target.path])
+    target_paths_count = Counter(
+        [target.path for target in targets if hasattr(target, "path") and target.path]
+    )
 
     targets_with_same_path = [
-        target_path for target_path, target_path_count in target_paths_count.items() if target_path_count > 1
+        target_path
+        for target_path, target_path_count in target_paths_count.items()
+        if target_path_count > 1
     ]
 
     if targets_with_same_path:
@@ -308,7 +339,11 @@ online_lookup_order = [TargetTypes.nosql]
 def get_offline_target(featureset, name=None):
     """return an optimal offline feature set target"""
     # todo: take status, start_time and lookup order into account
-    offline_targets = [target for target in featureset.status.targets if kind_to_driver[target.kind].is_offline]
+    offline_targets = [
+        target
+        for target in featureset.status.targets
+        if kind_to_driver[target.kind].is_offline
+    ]
     target = None
     if name:
         target = next((t for t in offline_targets if t.name == name), None)
@@ -425,7 +460,9 @@ class BaseStoreTarget(DataTargetBase):
 
     def _get_store_and_path(self):
         credentials_prefix_secrets = (
-            {"CREDENTIALS_PREFIX": self.credentials_prefix} if self.credentials_prefix else None
+            {"CREDENTIALS_PREFIX": self.credentials_prefix}
+            if self.credentials_prefix
+            else None
         )
         store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(
             self.get_target_path(),
@@ -478,7 +515,9 @@ class BaseStoreTarget(DataTargetBase):
             options.update(kwargs)
             df = self.prepare_spark_df(df, key_column, timestamp_key, options)
             write_format = options.pop("format", None)
-            write_spark_dataframe_with_options(options, df, "overwrite", write_format=write_format)
+            write_spark_dataframe_with_options(
+                options, df, "overwrite", write_format=write_format
+            )
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
             store, path_in_store, target_path = self._get_store_and_path()
@@ -496,7 +535,9 @@ class BaseStoreTarget(DataTargetBase):
                         storage_options=storage_options,
                     )
                 else:
-                    raise NotImplementedError("Format for writing dask dataframe should be CSV or Parquet!")
+                    raise NotImplementedError(
+                        "Format for writing dask dataframe should be CSV or Parquet!"
+                    )
             except Exception as exc:
                 raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
@@ -516,11 +557,15 @@ class BaseStoreTarget(DataTargetBase):
             partition_cols = None  # single parquet file
             if not mlrun.utils.helpers.is_parquet_file(target_path):  # directory
                 partition_cols = []
-                if timestamp_key and (self.partitioned or self.time_partitioning_granularity):
+                if timestamp_key and (
+                    self.partitioned or self.time_partitioning_granularity
+                ):
                     target_df = df.copy(deep=False)
                     time_partitioning_granularity = self.time_partitioning_granularity
                     if not time_partitioning_granularity and self.partitioned:
-                        time_partitioning_granularity = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                        time_partitioning_granularity = (
+                            mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                        )
                     for unit, fmt in [
                         ("year", "%Y"),
                         ("month", "%m"),
@@ -529,7 +574,9 @@ class BaseStoreTarget(DataTargetBase):
                         ("minute", "%M"),
                     ]:
                         partition_cols.append(unit)
-                        target_df[unit] = pd.DatetimeIndex(target_df[timestamp_key]).format(date_format=fmt)
+                        target_df[unit] = pd.DatetimeIndex(
+                            target_df[timestamp_key]
+                        ).format(date_format=fmt)
                         if unit == time_partitioning_granularity:
                             break
                 # Partitioning will be performed on timestamp_key and then on self.partition_cols
@@ -603,7 +650,11 @@ class BaseStoreTarget(DataTargetBase):
     def get_target_path(self):
         path_object = self._target_path_object
         project_name = self._resource.metadata.project if self._resource else None
-        return path_object.get_absolute_path(project_name=project_name) if path_object else None
+        return (
+            path_object.get_absolute_path(project_name=project_name)
+            if path_object
+            else None
+        )
 
     def get_target_templated_path(self):
         path_object = self._target_path_object
@@ -648,7 +699,9 @@ class BaseStoreTarget(DataTargetBase):
 
     def update_resource_status(self, status="", producer=None, size=None):
         """update the data target status"""
-        self._target = self._target or DataTarget(self.kind, self.name, self.get_target_templated_path())
+        self._target = self._target or DataTarget(
+            self.kind, self.name, self.get_target_templated_path()
+        )
         target = self._target
         target.attributes = self.attributes
         target.run_id = self.run_id
@@ -680,7 +733,9 @@ class BaseStoreTarget(DataTargetBase):
         featureset_status=None,
     ):
         if not self.support_storey:
-            raise mlrun.errors.MLRunRuntimeError(f"{type(self).__name__} does not support storey engine")
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support storey engine"
+            )
         raise NotImplementedError()
 
     def purge(self):
@@ -711,7 +766,9 @@ class BaseStoreTarget(DataTargetBase):
         """return the target data as dataframe"""
         if not self.support_pandas:
             raise NotImplementedError()
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
@@ -724,7 +781,9 @@ class BaseStoreTarget(DataTargetBase):
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         # options used in spark.read.load(**options)
         if not self.support_spark:
-            raise mlrun.errors.MLRunRuntimeError(f"{type(self).__name__} does not support spark engine")
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support spark engine"
+            )
         raise NotImplementedError()
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
@@ -807,7 +866,8 @@ class ParquetTarget(BaseStoreTarget):
 
         if (
             time_partitioning_granularity is not None
-            and time_partitioning_granularity not in mlrun.utils.helpers.LEGAL_TIME_UNITS
+            and time_partitioning_granularity
+            not in mlrun.utils.helpers.LEGAL_TIME_UNITS
         ):
             raise errors.MLRunInvalidArgumentError(
                 f"time_partitioning_granularity parameter must be one of "
@@ -863,7 +923,9 @@ class ParquetTarget(BaseStoreTarget):
                 self.partition_cols,
             ]
         ):
-            time_partitioning_granularity = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            time_partitioning_granularity = (
+                mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            )
         if time_partitioning_granularity is not None:
             partition_cols = partition_cols or []
             for time_unit in mlrun.utils.helpers.LEGAL_TIME_UNITS:
@@ -872,7 +934,9 @@ class ParquetTarget(BaseStoreTarget):
                     break
 
         target_path = self.get_target_path()
-        if not self.partitioned and not mlrun.utils.helpers.is_parquet_file(target_path):
+        if not self.partitioned and not mlrun.utils.helpers.is_parquet_file(
+            target_path
+        ):
             partition_cols = []
 
         tuple_key_columns = []
@@ -909,8 +973,14 @@ class ParquetTarget(BaseStoreTarget):
         partition_cols = []
         if timestamp_key:
             time_partitioning_granularity = self.time_partitioning_granularity
-            if not time_partitioning_granularity and self.partitioned and not self.partition_cols:
-                time_partitioning_granularity = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            if (
+                not time_partitioning_granularity
+                and self.partitioned
+                and not self.partition_cols
+            ):
+                time_partitioning_granularity = (
+                    mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                )
             if time_partitioning_granularity:
                 for unit in mlrun.utils.helpers.LEGAL_TIME_UNITS:
                     partition_cols.append(unit)
@@ -963,7 +1033,11 @@ class ParquetTarget(BaseStoreTarget):
                     drop_cols.append(col)
                     if col == self.time_partitioning_granularity:
                         break
-            elif self.partitioned and not self.partition_cols and not self.key_bucketing_number:
+            elif (
+                self.partitioned
+                and not self.partition_cols
+                and not self.key_bucketing_number
+            ):
                 drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
             if drop_cols:
                 # if these columns aren't present for some reason, that's no reason to fail
@@ -975,7 +1049,11 @@ class ParquetTarget(BaseStoreTarget):
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         # If partitioning by time, add the necessary columns
-        if timestamp_key and isinstance(spark_options, dict) and "partitionBy" in spark_options:
+        if (
+            timestamp_key
+            and isinstance(spark_options, dict)
+            and "partitionBy" in spark_options
+        ):
             from pyspark.sql.functions import (
                 dayofmonth,
                 hour,
@@ -1026,7 +1104,9 @@ class CSVTarget(BaseStoreTarget):
         featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
-        column_list = self._get_column_list(features=features, timestamp_key=timestamp_key, key_columns=key_columns)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
         target_path = self.get_target_path()
         graph.add_step(
             name=self.name or "CSVTarget",
@@ -1059,7 +1139,9 @@ class CSVTarget(BaseStoreTarget):
             if col_type == "timestamp":
                 # df.write.csv saves timestamps with millisecond precision, but we want microsecond precision
                 # for compatibility with storey.
-                df = df.withColumn(col_name, funcs.date_format(col_name, "yyyy-MM-dd HH:mm:ss.SSSSSS"))
+                df = df.withColumn(
+                    col_name, funcs.date_format(col_name, "yyyy-MM-dd HH:mm:ss.SSSSSS")
+                )
         return df
 
     def as_df(
@@ -1073,7 +1155,9 @@ class CSVTarget(BaseStoreTarget):
         additional_filters=None,
         **kwargs,
     ):
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         df = super().as_df(
             columns=columns,
             df_module=df_module,
@@ -1180,7 +1264,8 @@ class SnowflakeTarget(BaseStoreTarget):
         ]
         if missing:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Can't purge Snowflake target, " f"some attributes are missing: {', '.join(missing)}"
+                f"Can't purge Snowflake target, "
+                f"some attributes are missing: {', '.join(missing)}"
             )
         account = self.attributes["url"].replace(".snowflakecomputing.com", "")
 
@@ -1207,7 +1292,9 @@ class SnowflakeTarget(BaseStoreTarget):
         additional_filters=None,
         **kwargs,
     ):
-        raise mlrun.errors.MLRunRuntimeError(f"{type(self).__name__} does not support pandas engine")
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} does not support pandas engine"
+        )
 
     @property
     def source_spark_attributes(self) -> dict:
@@ -1265,8 +1352,14 @@ class NoSqlBaseTarget(BaseStoreTarget):
             with_type=True,
         )
         if not self.columns:
-            aggregate_features = [key for key, feature in features.items() if feature.aggregate] if features else []
-            column_list = [col for col in column_list if col[0] not in aggregate_features]
+            aggregate_features = (
+                [key for key, feature in features.items() if feature.aggregate]
+                if features
+                else []
+            )
+            column_list = [
+                col for col in column_list if col[0] not in aggregate_features
+            ]
 
         return table, column_list
 
@@ -1279,13 +1372,17 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def get_dask_options(self):
         return {"format": "csv"}
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
             df = self.prepare_spark_df(df)
             write_format = options.pop("format", None)
-            write_spark_dataframe_with_options(options, df, "overwrite", write_format=write_format)
+            write_spark_dataframe_with_options(
+                options, df, "overwrite", write_format=write_format
+            )
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
@@ -1302,7 +1399,9 @@ class NoSqlBaseTarget(BaseStoreTarget):
             _, path_with_container = parse_path(target_path)
             container, path = split_path(path_with_container)
 
-            frames_client = get_frames_client(token=access_key, address=config.v3io_framesd, container=container)
+            frames_client = get_frames_client(
+                token=access_key, address=config.v3io_framesd, container=container
+            )
 
             frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
 
@@ -1330,7 +1429,9 @@ class NoSqlTarget(NoSqlBaseTarget):
         store, path_in_store, target_path = self._get_store_and_path()
         storage_options = store.get_storage_options()
         store_access_key = storage_options.get("v3io_access_key")
-        env_access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
+        env_access_key = self._secrets.get(
+            "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+        )
         if store_access_key and env_access_key and store_access_key != env_access_key:
             logger.warning(
                 "The Spark v3io connector does not support access_key parameterization."
@@ -1369,7 +1470,9 @@ class NoSqlTarget(NoSqlBaseTarget):
             if len(key_columns) > 2:
                 return df.withColumn(
                     "_spark_object_name",
-                    spark_udf.hash_and_concat_v3io_udf(*[col(c) for c in key_columns[1:]]),
+                    spark_udf.hash_and_concat_v3io_udf(
+                        *[col(c) for c in key_columns[1:]]
+                    ),
                 )
         finally:
             sys.path.remove(spark_udf_directory)
@@ -1390,15 +1493,25 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             if not datastore_profile:
                 raise ValueError(f"Failed to load datastore profile '{endpoint}'")
             if datastore_profile.type != "redis":
-                raise ValueError(f"Trying to use profile of type '{datastore_profile.type}' as redis datastore")
+                raise ValueError(
+                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
+                )
             endpoint = datastore_profile.url_with_credentials()
         else:
             parsed_endpoint = urlparse(endpoint)
             if parsed_endpoint.username or parsed_endpoint.password:
-                raise mlrun.errors.MLRunInvalidArgumentError("Provide Redis username and password only via secrets")
-            credentials_prefix = credentials_prefix or mlrun.get_secret_or_env(key="CREDENTIALS_PREFIX")
-            user = mlrun.get_secret_or_env("REDIS_USER", default="", prefix=credentials_prefix)
-            password = mlrun.get_secret_or_env("REDIS_PASSWORD", default="", prefix=credentials_prefix)
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Provide Redis username and password only via secrets"
+                )
+            credentials_prefix = credentials_prefix or mlrun.get_secret_or_env(
+                key="CREDENTIALS_PREFIX"
+            )
+            user = mlrun.get_secret_or_env(
+                "REDIS_USER", default="", prefix=credentials_prefix
+            )
+            password = mlrun.get_secret_or_env(
+                "REDIS_PASSWORD", default="", prefix=credentials_prefix
+            )
             host = parsed_endpoint.hostname
             port = parsed_endpoint.port if parsed_endpoint.port else "6379"
             scheme = parsed_endpoint.scheme
@@ -1412,7 +1525,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri = self.get_server_endpoint(self.get_target_path(), self.credentials_prefix)
+        endpoint, uri = self.get_server_endpoint(
+            self.get_target_path(), self.credentials_prefix
+        )
 
         return Table(
             uri,
@@ -1421,7 +1536,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        endpoint, uri = self.get_server_endpoint(self.get_target_path(), self.credentials_prefix)
+        endpoint, uri = self.get_server_endpoint(
+            self.get_target_path(), self.credentials_prefix
+        )
         parsed_endpoint = urlparse(endpoint)
         store, path_in_store, path = self._get_store_and_path()
         return {
@@ -1496,7 +1613,9 @@ class StreamTarget(BaseStoreTarget):
     ):
         key_columns = list(key_columns.keys())
 
-        column_list = self._get_column_list(features=features, timestamp_key=timestamp_key, key_columns=key_columns)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
         stream_path = self.get_target_path()
         if not stream_path:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
@@ -1580,7 +1699,9 @@ class KafkaTarget(BaseStoreTarget):
         featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
-        column_list = self._get_column_list(features=features, timestamp_key=timestamp_key, key_columns=key_columns)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
         path = self.get_target_path()
 
         if not path:
@@ -1624,7 +1745,9 @@ class TSDBTarget(BaseStoreTarget):
                 "feature set timestamp_key must be specified for TSDBTarget writer"
             )
 
-        column_list = self._get_column_list(features=features, timestamp_key=None, key_columns=key_columns)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=None, key_columns=key_columns
+        )
 
         graph.add_step(
             name=self.name or "TSDBTarget",
@@ -1638,7 +1761,9 @@ class TSDBTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
         access_key = self._secrets.get("V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY"))
 
         new_index = []
@@ -1662,7 +1787,9 @@ class TSDBTarget(BaseStoreTarget):
             container=container,
         )
 
-        frames_client.write("tsdb", path, df, index_cols=new_index if new_index else None, **kwargs)
+        frames_client.write(
+            "tsdb", path, df, index_cols=new_index if new_index else None, **kwargs
+        )
 
 
 class CustomTarget(BaseStoreTarget):
@@ -1751,7 +1878,9 @@ class DFTarget(BaseStoreTarget):
         additional_filters=None,
         **kwargs,
     ):
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return select_columns_from_df(
             filter_df_start_end_time(
                 self._df,
@@ -1897,12 +2026,16 @@ class SQLTarget(BaseStoreTarget):
         featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
-        column_list = self._get_column_list(features=features, timestamp_key=timestamp_key, key_columns=key_columns)
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
         table = self._resource.uri
         self._create_sql_table()
         for step in graph.steps.values():
             if step.class_name == "storey.AggregateByKey":
-                raise mlrun.errors.MLRunRuntimeError("SQLTarget does not support aggregation step")
+                raise mlrun.errors.MLRunRuntimeError(
+                    "SQLTarget does not support aggregation step"
+                )
         graph.add_step(
             name=self.name or "SqlTarget",
             after=after,
@@ -1932,7 +2065,9 @@ class SQLTarget(BaseStoreTarget):
         except (ModuleNotFoundError, ImportError) as exc:
             self._raise_sqlalchemy_import_error(exc)
 
-        mlrun.utils.helpers.additional_filters_warning(additional_filters, self.__class__)
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
@@ -1956,7 +2091,9 @@ class SQLTarget(BaseStoreTarget):
                 df.set_index(self._primary_key_column, inplace=True)
         return df
 
-    def write_dataframe(self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs):
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
         try:
             import sqlalchemy
 
@@ -2036,7 +2173,9 @@ class SQLTarget(BaseStoreTarget):
                 for col, col_type in self.schema.items():
                     col_type_sql = type_to_sql_type.get(col_type)
                     if col_type_sql is None:
-                        raise TypeError(f"'{col_type}' unsupported type for column '{col}'")
+                        raise TypeError(
+                            f"'{col_type}' unsupported type for column '{col}'"
+                        )
                     columns.append(
                         sqlalchemy.Column(
                             col,
@@ -2081,9 +2220,16 @@ def _get_target_path(driver, resource, run_id_mode=False, netloc=None, scheme=""
     kind = driver.kind
     suffix = driver.suffix
     if not suffix:
-        if kind == ParquetTarget.kind and resource.kind == mlrun.common.schemas.ObjectKind.feature_vector:
+        if (
+            kind == ParquetTarget.kind
+            and resource.kind == mlrun.common.schemas.ObjectKind.feature_vector
+        ):
             suffix = ".parquet"
-    kind_prefix = "sets" if resource.kind == mlrun.common.schemas.ObjectKind.feature_set else "vectors"
+    kind_prefix = (
+        "sets"
+        if resource.kind == mlrun.common.schemas.ObjectKind.feature_set
+        else "vectors"
+    )
     name = resource.metadata.name
     project = resource.metadata.project or mlrun.mlconf.default_project
 

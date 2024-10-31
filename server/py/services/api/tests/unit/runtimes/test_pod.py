@@ -105,7 +105,9 @@ class TestKubeResource(TestRuntimeBase):
             {
                 "attribute_name": "affinity",
                 "expect_failure": False,
-                "attribute": self.api.sanitize_for_serialization(self._generate_affinity()),
+                "attribute": self.api.sanitize_for_serialization(
+                    self._generate_affinity()
+                ),
                 "expected_attribute": self._generate_affinity(),
             },
             {
@@ -123,7 +125,9 @@ class TestKubeResource(TestRuntimeBase):
             kube_resource = mlrun.runtimes.pod.KubeResource()
             if expect_failure:
                 with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-                    self._set_with_node_selection(kube_resource, attribute_name, attribute)
+                    self._set_with_node_selection(
+                        kube_resource, attribute_name, attribute
+                    )
             else:
                 self._set_with_node_selection(kube_resource, attribute_name, attribute)
                 assert (
@@ -148,17 +152,23 @@ class TestKubeResource(TestRuntimeBase):
             kube_resource = mlrun.runtimes.pod.KubeResource()
             if case.get("expected_failure"):
                 with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                    kube_resource.with_limits(case.get("memory"), case.get("cpu"), case.get("gpus"))
+                    kube_resource.with_limits(
+                        case.get("memory"), case.get("cpu"), case.get("gpus")
+                    )
                 if not case.get("gpus"):
                     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                         kube_resource.with_requests(case.get("memory"), case.get("cpu"))
             else:
-                kube_resource.with_limits(case.get("memory"), case.get("cpu"), case.get("gpus"))
+                kube_resource.with_limits(
+                    case.get("memory"), case.get("cpu"), case.get("gpus")
+                )
                 if not case.get("gpus"):
                     kube_resource.with_requests(case.get("memory"), case.get("cpu"))
 
     @staticmethod
-    def _set_with_node_selection(resource: mlrun.runtimes.pod.KubeResource, attr_name: str, attr):
+    def _set_with_node_selection(
+        resource: mlrun.runtimes.pod.KubeResource, attr_name: str, attr
+    ):
         if attr_name == "tolerations":
             resource.with_node_selection(tolerations=attr)
         if attr_name == "affinity":

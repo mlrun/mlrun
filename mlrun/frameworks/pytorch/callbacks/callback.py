@@ -139,7 +139,9 @@ class Callback(ABC):
         """
         pass
 
-    def on_validation_end(self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]) -> bool:
+    def on_validation_end(
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]
+    ) -> bool:
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called.
 
@@ -161,7 +163,9 @@ class Callback(ABC):
         """
         pass
 
-    def on_train_batch_end(self, batch: int, x: Tensor, y_pred: Tensor, y_true: Tensor) -> bool:
+    def on_train_batch_end(
+        self, batch: int, x: Tensor, y_pred: Tensor, y_true: Tensor
+    ) -> bool:
         """
         Before the training of the given batch ends, this method will be called.
 
@@ -184,7 +188,9 @@ class Callback(ABC):
         """
         pass
 
-    def on_validation_batch_end(self, batch: int, x: Tensor, y_pred: Tensor, y_true: Tensor) -> bool:
+    def on_validation_batch_end(
+        self, batch: int, x: Tensor, y_pred: Tensor, y_true: Tensor
+    ) -> bool:
         """
         Before the validation of the given batch ends, this method will be called.
 
@@ -265,7 +271,9 @@ class Callback(ABC):
         """
         pass
 
-    def on_validation_metrics_end(self, metric_values: list[PyTorchTypes.MetricValueType]):
+    def on_validation_metrics_end(
+        self, metric_values: list[PyTorchTypes.MetricValueType]
+    ):
         """
         After the validating calculation of the metrics, this method will be called.
 

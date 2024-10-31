@@ -60,7 +60,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
 
     def __init__(
         self,
-        statistics_functions: list[Callable[[DLTypes.WeightType], Union[float, DLTypes.WeightType]]],
+        statistics_functions: list[
+            Callable[[DLTypes.WeightType], Union[float, DLTypes.WeightType]]
+        ],
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
@@ -175,15 +177,17 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         """
         for weight_name, weight_parameter in self._weights.items():
             for statistic_function in self._statistics_functions:
-                self._weights_statistics[statistic_function.__name__][weight_name].append(
-                    float(statistic_function(weight_parameter))
-                )
+                self._weights_statistics[statistic_function.__name__][
+                    weight_name
+                ].append(float(statistic_function(weight_parameter)))
 
     def write_initial_summary_text(self):
         """
         Write the initial run summary text to tensorboard.
         """
-        self._write_text_to_tensorboard(tag="MLRun", text=self._generate_run_start_text(), step=0)
+        self._write_text_to_tensorboard(
+            tag="MLRun", text=self._generate_run_start_text(), step=0
+        )
 
     def write_epoch_summary_text(self):
         """
@@ -203,7 +207,11 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         self._write_text_to_tensorboard(
             tag="MLRun",
             text=self._generate_run_end_text(),
-            step=(self._validation_iterations if self._training_iterations == 0 else self._training_iterations),
+            step=(
+                self._validation_iterations
+                if self._training_iterations == 0
+                else self._training_iterations
+            ),
         )
 
     def write_training_results(self, ignore_update_frequency: bool = False) -> bool:
@@ -217,7 +225,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         :return: True if the information was written to tensorboard and false if not.
         """
         # Check if the logger should write to tensorboard according to the update frequency:
-        if not ignore_update_frequency and not self._write_to_tensorboard(is_training=True):
+        if not ignore_update_frequency and not self._write_to_tensorboard(
+            is_training=True
+        ):
             return False
 
         # Check if everything is already logged:
@@ -225,7 +235,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
             return True
 
         # Get the index to log from:
-        index_to_log_from = self._training_iterations - self._last_logged_training_iteration
+        index_to_log_from = (
+            self._training_iterations - self._last_logged_training_iteration
+        )
 
         # Write the training results collected:
         for parameter, epochs in self._training_results.items():
@@ -252,7 +264,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         :return: True if the information was written to tensorboard and false if not.
         """
         # Check if the logger should write to tensorboard according to the update frequency:
-        if not ignore_update_frequency and not self._write_to_tensorboard(is_training=False):
+        if not ignore_update_frequency and not self._write_to_tensorboard(
+            is_training=False
+        ):
             return False
 
         # Check if everything is already logged:
@@ -260,7 +274,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
             return True
 
         # Get the index to log from:
-        index_to_log_from = self._validation_iterations - self._last_logged_validation_iteration
+        index_to_log_from = (
+            self._validation_iterations - self._last_logged_validation_iteration
+        )
 
         # Write the validation results collected:
         for parameter, epochs in self._validation_results.items():
@@ -382,7 +398,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         pass
 
     @abstractmethod
-    def _write_weight_histogram_to_tensorboard(self, name: str, weight: DLTypes.WeightType, step: int):
+    def _write_weight_histogram_to_tensorboard(
+        self, name: str, weight: DLTypes.WeightType, step: int
+    ):
         """
         Write the current state of the weights as histograms to tensorboard.
 
@@ -393,7 +411,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         pass
 
     @abstractmethod
-    def _write_weight_image_to_tensorboard(self, name: str, weight: DLTypes.WeightType, step: int):
+    def _write_weight_image_to_tensorboard(
+        self, name: str, weight: DLTypes.WeightType, step: int
+    ):
         """
         Log the current state of the weights as images to tensorboard.
 
@@ -413,7 +433,12 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         if self._run_name is None:
             default_run_name = True
             self._run_name = (
-                (str(datetime.now()).replace(" ", "_").replace(":", "-").replace(".", "-"))
+                (
+                    str(datetime.now())
+                    .replace(" ", "_")
+                    .replace(":", "-")
+                    .replace(".", "-")
+                )
                 if self._context is None
                 else f"{self._context.name}-{self._context.uid}"
             )
@@ -421,8 +446,10 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         # If the tensorboard directory is not provided, set it to the default:
         if self._tensorboard_directory is None:
             # Use the default tensorboard logs directory:
-            self._tensorboard_directory = mlrun.mlconf.default_tensorboard_logs_path.replace(
-                "{{project}}", self._context.project
+            self._tensorboard_directory = (
+                mlrun.mlconf.default_tensorboard_logs_path.replace(
+                    "{{project}}", self._context.project
+                )
             )
             # Try to create the directory, if not succeeded (writing error) change to the artifacts path:
             try:
@@ -439,7 +466,8 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
                 [
                     run_directory
                     for run_directory in sorted(os.listdir(self._tensorboard_directory))
-                    if self._run_name == run_directory or self._run_name == run_directory.rsplit("_", 1)[0]
+                    if self._run_name == run_directory
+                    or self._run_name == run_directory.rsplit("_", 1)[0]
                 ]
             )
             # Check if need to index the name:
@@ -482,7 +510,8 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
             [
                 self._output_path,
                 self._run_name,
-                list(self._static_hyperparameters.keys()) + list(self._dynamic_hyperparameters.keys()),
+                list(self._static_hyperparameters.keys())
+                + list(self._dynamic_hyperparameters.keys()),
             ],
         ):
             text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
@@ -490,7 +519,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         # Add the context state:
         if self._context is not None:
             text += f"\n####Context initial state: ({self._generate_context_link(context=self._context)})"
-            for property_name, property_value in self._extract_properties_from_context(context=self._context).items():
+            for property_name, property_value in self._extract_properties_from_context(
+                context=self._context
+            ).items():
                 text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
 
         return text
@@ -504,7 +535,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         """
         text = f"####Epoch {self._epochs} summary:"
         if self._context is not None:
-            for property_name, property_value in self._extract_properties_from_context(context=self._context).items():
+            for property_name, property_value in self._extract_properties_from_context(
+                context=self._context
+            ).items():
                 if property_name not in [
                     "project",
                     "uid",
@@ -538,11 +571,15 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         # Add the context final state:
         if self._context is not None:
             text += f"\n####Context final state: ({self._generate_context_link(context=self._context)})"
-            for property_name, property_value in self._extract_properties_from_context(context=self._context).items():
+            for property_name, property_value in self._extract_properties_from_context(
+                context=self._context
+            ).items():
                 text += f"\n  * **{property_name.capitalize()}**: {self._markdown_print(value=property_value, tabs=2)}"
         return text
 
-    def _extract_epoch_results(self, epoch: int = -1) -> dict[str, dict[str, DLTypes.TrackableType]]:
+    def _extract_epoch_results(
+        self, epoch: int = -1
+    ) -> dict[str, dict[str, DLTypes.TrackableType]]:
         """
         Extract the given epoch results from all the collected values and results.
 
@@ -552,13 +589,22 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         """
         return {
             "Static hyperparameters": self._static_hyperparameters,
-            "Dynamic hyperparameters": {name: value[epoch] for name, value in self._dynamic_hyperparameters.items()},
-            "Training results": {name: value[epoch] for name, value in self._training_summaries.items()},
-            "Validation results": {name: value[epoch] for name, value in self._validation_summaries.items()},
+            "Dynamic hyperparameters": {
+                name: value[epoch]
+                for name, value in self._dynamic_hyperparameters.items()
+            },
+            "Training results": {
+                name: value[epoch] for name, value in self._training_summaries.items()
+            },
+            "Validation results": {
+                name: value[epoch] for name, value in self._validation_summaries.items()
+            },
         }
 
     @staticmethod
-    def _generate_context_link(context: mlrun.MLClientCtx, link_text: str = "view in MLRun") -> str:
+    def _generate_context_link(
+        context: mlrun.MLClientCtx, link_text: str = "view in MLRun"
+    ) -> str:
         """
         Generate a hyperlink from the provided context to view in the MLRun web.
 
@@ -609,7 +655,9 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
             if len(value) == 0:
                 return ""
             text = yaml.safe_dump(value)
-            text = "  \n".join(["  " * tabs + "- " + line for line in text.splitlines()])
+            text = "  \n".join(
+                ["  " * tabs + "- " + line for line in text.splitlines()]
+            )
             text = "  \n" + text
             return text
         return str(value)

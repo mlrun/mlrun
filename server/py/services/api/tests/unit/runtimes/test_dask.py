@@ -91,7 +91,9 @@ class TestDaskRuntime(TestRuntimeBase):
         mlconf.default_project = self.project
         mlconf.artifact_path = self.artifact_path
 
-        dask_cluster = mlrun.new_function(self.name, project=self.project, kind="dask", image=self.image_name)
+        dask_cluster = mlrun.new_function(
+            self.name, project=self.project, kind="dask", image=self.image_name
+        )
 
         dask_cluster.apply(auto_mount())
 
@@ -119,10 +121,14 @@ class TestDaskRuntime(TestRuntimeBase):
     ):
         worker_pod = self._get_pod_creation_args()
         worker_container_spec = worker_pod.spec.containers[0]
-        self._assert_container_resources(worker_container_spec, expected_worker_limits, expected_worker_requests)
+        self._assert_container_resources(
+            worker_container_spec, expected_worker_limits, expected_worker_requests
+        )
         expected_worker_memory_limit = expected_worker_limits.get("memory")
         if expected_worker_memory_limit:
-            assert {"--memory-limit", expected_worker_memory_limit}.issubset(set(worker_container_spec.args))
+            assert {"--memory-limit", expected_worker_memory_limit}.issubset(
+                set(worker_container_spec.args)
+            )
         else:
             assert "--memory-limit" not in worker_container_spec.args
 
@@ -163,7 +169,9 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
         )
-        self._assert_v3io_mount_or_creds_configured(self.v3io_user, self.v3io_access_key, masked=False)
+        self._assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key, masked=False
+        )
         self._assert_scheduler_pod_args()
 
     def test_dask_runtime_with_resources_patch(self, db: Session, client: TestClient):
@@ -189,7 +197,9 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
         )
-        self._assert_v3io_mount_or_creds_configured(self.v3io_user, self.v3io_access_key, masked=False)
+        self._assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key, masked=False
+        )
         self._assert_pods_resources(
             expected_worker_requests={
                 "memory": "3G",
@@ -206,12 +216,20 @@ class TestDaskRuntime(TestRuntimeBase):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
 
         expected_requests = generate_resources(mem="2G", cpu=3)
-        runtime.with_scheduler_requests(mem=expected_requests["memory"], cpu=expected_requests["cpu"])
-        runtime.with_worker_requests(mem=expected_requests["memory"], cpu=expected_requests["cpu"])
+        runtime.with_scheduler_requests(
+            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
+        runtime.with_worker_requests(
+            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
         gpu_type = "nvidia.com/gpu"
         expected_gpus = 2
-        expected_scheduler_limits = generate_resources(mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type)
-        expected_worker_limits = generate_resources(mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type)
+        expected_scheduler_limits = generate_resources(
+            mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type
+        )
+        expected_worker_limits = generate_resources(
+            mem="4G", cpu=5, gpus=expected_gpus, gpu_type=gpu_type
+        )
         runtime.with_scheduler_limits(
             mem=expected_scheduler_limits["memory"],
             cpu=expected_scheduler_limits["cpu"],
@@ -233,7 +251,9 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
         )
-        self._assert_v3io_mount_or_creds_configured(self.v3io_user, self.v3io_access_key, masked=False)
+        self._assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key, masked=False
+        )
         self._assert_pods_resources(
             expected_requests,
             expected_worker_limits,
@@ -241,7 +261,9 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_scheduler_limits,
         )
 
-    def test_dask_runtime_without_specifying_resources(self, db: Session, client: TestClient):
+    def test_dask_runtime_without_specifying_resources(
+        self, db: Session, client: TestClient
+    ):
         for test_case in [
             {
                 # when are not defaults defined
@@ -273,11 +295,17 @@ class TestDaskRuntime(TestRuntimeBase):
                 },
             },
         ]:
-            mlrun.mlconf.default_function_pod_resources = test_case.get("default_function_pod_resources")
+            mlrun.mlconf.default_function_pod_resources = test_case.get(
+                "default_function_pod_resources"
+            )
 
             runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
-            expected_worker_resources = test_case.setdefault("expected_worker_resources", {})
-            expected_scheduler_resources = test_case.setdefault("expected_scheduler_resources", {})
+            expected_worker_resources = test_case.setdefault(
+                "expected_worker_resources", {}
+            )
+            expected_scheduler_resources = test_case.setdefault(
+                "expected_scheduler_resources", {}
+            )
 
             expected_worker_requests = expected_worker_resources.get("requests")
             expected_worker_limits = expected_worker_resources.get("limits")
@@ -355,7 +383,9 @@ class TestDaskRuntime(TestRuntimeBase):
             "label-a": "val1",
             "label-2": "val2",
         }
-        mlrun.mlconf.default_function_node_selector = base64.b64encode(json.dumps(node_selector).encode("utf-8"))
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(node_selector).encode("utf-8")
+        )
         runtime = self._generate_runtime()
         _ = runtime.client
 
@@ -472,8 +502,10 @@ class TestDaskRuntime(TestRuntimeBase):
         secrets = []
         client_version = "1.6.0"
         client_python_version = "3.9"
-        scheduler_pod, worker_pod, function, namespace = services.api.runtime_handlers.daskjob.enrich_dask_cluster(
-            function, secrets, client_version, client_python_version
+        scheduler_pod, worker_pod, function, namespace = (
+            services.api.runtime_handlers.daskjob.enrich_dask_cluster(
+                function, secrets, client_version, client_python_version
+            )
         )
 
         assert scheduler_pod.metadata.namespace == namespace

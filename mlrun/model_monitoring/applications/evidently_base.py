@@ -27,15 +27,19 @@ SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.32")
 
 
 def _check_evidently_version(*, cur: semver.Version, ref: semver.Version) -> None:
-    if ref.is_compatible(cur) or (cur.major == ref.major == 0 and cur.minor == ref.minor and cur.patch > ref.patch):
+    if ref.is_compatible(cur) or (
+        cur.major == ref.major == 0 and cur.minor == ref.minor and cur.patch > ref.patch
+    ):
         return
     if cur.major == ref.major == 0 and cur.minor > ref.minor:
         warnings.warn(
-            f"Evidently version {cur} is not compatible with the tested " f"version {ref}, use at your own risk."
+            f"Evidently version {cur} is not compatible with the tested "
+            f"version {ref}, use at your own risk."
         )
     else:
         raise MLRunIncompatibleVersionError(
-            f"Evidently version {cur} is not supported, please change to " f"{ref} (or another compatible version)."
+            f"Evidently version {cur} is not supported, please change to "
+            f"{ref} (or another compatible version)."
         )
 
 
@@ -59,8 +63,12 @@ if _HAS_EVIDENTLY:
     from evidently.utils.dashboard import TemplateParams, file_html_template
 
 
-class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplicationBase, ABC):
-    def __init__(self, evidently_workspace_path: str, evidently_project_id: "STR_UUID") -> None:
+class EvidentlyModelMonitoringApplicationBase(
+    mm_base.ModelMonitoringApplicationBase, ABC
+):
+    def __init__(
+        self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
+    ) -> None:
         """
         A class for integrating Evidently for mlrun model monitoring within a monitoring application.
         Note: evidently is not installed by default in the mlrun/mlrun image.
@@ -76,7 +84,9 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
             raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
         self.evidently_workspace = Workspace.create(evidently_workspace_path)
         self.evidently_project_id = evidently_project_id
-        self.evidently_project = self.evidently_workspace.get_project(evidently_project_id)
+        self.evidently_project = self.evidently_workspace.get_project(
+            evidently_project_id
+        )
 
     @staticmethod
     def log_evidently_object(
@@ -92,7 +102,9 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
         :param artifact_name:       (str) The name for the logged artifact.
         """
         evidently_object_html = evidently_object.get_html()
-        monitoring_context.log_artifact(artifact_name, body=evidently_object_html.encode("utf-8"), format="html")
+        monitoring_context.log_artifact(
+            artifact_name, body=evidently_object_html.encode("utf-8"), format="html"
+        )
 
     def log_project_dashboard(
         self,
@@ -110,7 +122,9 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
         :param artifact_name:       (str) The name for the logged artifact.
         """
 
-        dashboard_info = self.evidently_project.build_dashboard_info(timestamp_start, timestamp_end)
+        dashboard_info = self.evidently_project.build_dashboard_info(
+            timestamp_start, timestamp_end
+        )
         template_params = TemplateParams(
             dashboard_id="pd_" + str(uuid.uuid4()).replace("-", ""),
             dashboard_info=dashboard_info,
@@ -118,4 +132,6 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
         )
 
         dashboard_html = file_html_template(params=template_params)
-        monitoring_context.log_artifact(artifact_name, body=dashboard_html.encode("utf-8"), format="html")
+        monitoring_context.log_artifact(
+            artifact_name, body=dashboard_html.encode("utf-8"), format="html"
+        )

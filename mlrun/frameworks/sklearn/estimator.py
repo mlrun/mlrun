@@ -117,7 +117,9 @@ class Estimator:
                                  if not. Default: False.
         """
         # Calculate the metrics results:
-        self._calculate_results(y_true=y_true, y_pred=y_pred, is_probabilities=is_probabilities)
+        self._calculate_results(
+            y_true=y_true, y_pred=y_pred, is_probabilities=is_probabilities
+        )
 
         # Log if a context is available:
         if self._context is not None:
@@ -151,7 +153,10 @@ class Estimator:
 
         # Add evaluation prefix if in Evaluation mode:
         if self._mode == LoggingMode.EVALUATION:
-            self._not_logged_results = {f"evaluation_{key}": value for key, value in self._not_logged_results.items()}
+            self._not_logged_results = {
+                f"evaluation_{key}": value
+                for key, value in self._not_logged_results.items()
+            }
 
     def _log_results(self):
         """

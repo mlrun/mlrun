@@ -34,7 +34,9 @@ async def do_nothing():
     pass
 
 
-def test_list_schedules(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient) -> None:
+def test_list_schedules(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
     project_names = [
         mlrun.mlconf.default_project,
         "another-project",
@@ -80,15 +82,33 @@ def test_list_schedules(db: sqlalchemy.orm.Session, client: fastapi.testclient.T
             labels_2,
         )
 
-        _get_and_assert_single_schedule(client, {"labels": "label1"}, schedule_name, project)
-        _get_and_assert_single_schedule(client, {"label": "label1"}, schedule_name, project)
-        _get_and_assert_single_schedule(client, {"labels": "label2"}, schedule_name_2, project)
-        _get_and_assert_single_schedule(client, {"label": ["label2"]}, schedule_name_2, project)
-        _get_and_assert_single_schedule(client, {"label": ["label2", "label3"]}, schedule_name_2, project)
-        _get_and_assert_single_schedule(client, {"labels": "label1=value1"}, schedule_name, project)
-        _get_and_assert_single_schedule(client, {"labels": "label2=value2"}, schedule_name_2, project)
-        _get_and_assert_single_schedule(client, {"label": "label2=value2"}, schedule_name_2, project)
-        _get_and_assert_single_schedule(client, {"label": ["label2=value2"]}, schedule_name_2, project)
+        _get_and_assert_single_schedule(
+            client, {"labels": "label1"}, schedule_name, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"label": "label1"}, schedule_name, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"labels": "label2"}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"label": ["label2"]}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"label": ["label2", "label3"]}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"labels": "label1=value1"}, schedule_name, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"labels": "label2=value2"}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"label": "label2=value2"}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"label": ["label2=value2"]}, schedule_name_2, project
+        )
         _get_and_assert_single_schedule(
             client,
             {"labels": ["label2=value2", "label3=value3"]},
@@ -150,9 +170,13 @@ async def test_redirection_from_worker_to_chief_create_schedule(
     _format_expected_body(expected_body, project_name=project)
 
     if create_project:
-        await services.api.tests.unit.api.utils.create_project_async(async_client, project)
+        await services.api.tests.unit.api.utils.create_project_async(
+            async_client, project
+        )
     if expected_response_from_chief:
-        aioresponses_mock.post(chief_mocked_url, status=expected_status, payload=expected_body)
+        aioresponses_mock.post(
+            chief_mocked_url, status=expected_status, payload=expected_body
+        )
     response = await async_client.post(endpoint, data=body)
     assert response.status_code == expected_status
     assert response.json() == expected_body
@@ -181,14 +205,18 @@ async def test_redirection_from_worker_to_chief_create_schedule(
             "PUT",
             services.api.tests.unit.api.utils.compile_schedule(),
             http.HTTPStatus.NOT_FOUND.value,
-            {"detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"},
+            {
+                "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
+            },
         ],
         # updating schedule failed for unknown reason
         [
             "PUT",
             services.api.tests.unit.api.utils.compile_schedule(),
             http.HTTPStatus.NOT_FOUND.value,
-            {"detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"},
+            {
+                "detail": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
+            },
         ],
         # project exists, expecting to create
         [
@@ -216,7 +244,9 @@ async def test_redirection_from_worker_to_chief_schedule(
     )
 
     # template the expected body
-    _format_expected_body(expected_body, project_name=project_name, schedule_name=schedule_name)
+    _format_expected_body(
+        expected_body, project_name=project_name, schedule_name=schedule_name
+    )
 
     # what the chief will return
     aioresponses_mock.add(

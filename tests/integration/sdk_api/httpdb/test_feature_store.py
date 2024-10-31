@@ -124,26 +124,40 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert response1.status_code == HTTPStatus.OK.value
         assert response2.status_code == HTTPStatus.OK.value
 
-        response = await async_client.get(f"v1/projects/{project_name}/features?name=bid")
+        response = await async_client.get(
+            f"v1/projects/{project_name}/features?name=bid"
+        )
         assert response.status_code == HTTPStatus.OK.value
         results = response.json()
         assert len(results["features"]) == 1
 
-        response = await async_client.get(f"v2/projects/{project_name}/features?name=bid")
+        response = await async_client.get(
+            f"v2/projects/{project_name}/features?name=bid"
+        )
         assert response.status_code == HTTPStatus.OK.value
         results = response.json()
         assert len(results["features"]) == 1
         assert len(results["feature_set_digests"]) == 1
-        assert results["features"][0]["feature_set_index"] == results["feature_set_digests"][0]["feature_set_index"]
+        assert (
+            results["features"][0]["feature_set_index"]
+            == results["feature_set_digests"][0]["feature_set_index"]
+        )
 
-        response = await async_client.get(f"v1/projects/{project_name}/entities?name=ticker")
+        response = await async_client.get(
+            f"v1/projects/{project_name}/entities?name=ticker"
+        )
         assert response.status_code == HTTPStatus.OK.value
         results = response.json()
         assert len(results["entities"]) == 1
 
-        response = await async_client.get(f"v2/projects/{project_name}/entities?name=ticker")
+        response = await async_client.get(
+            f"v2/projects/{project_name}/entities?name=ticker"
+        )
         assert response.status_code == HTTPStatus.OK.value
         results = response.json()
         assert len(results["entities"]) == 1
         assert len(results["feature_set_digests"]) == 1
-        assert results["entities"][0]["feature_set_index"] == results["feature_set_digests"][0]["feature_set_index"]
+        assert (
+            results["entities"][0]["feature_set_index"]
+            == results["feature_set_digests"][0]["feature_set_index"]
+        )

@@ -52,8 +52,12 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         new_source = mlrun.common.schemas.IndexedHubSource(
             source=mlrun.common.schemas.HubSource(
-                metadata=mlrun.common.schemas.HubObjectMetadata(name="source-1", description="a private source"),
-                spec=mlrun.common.schemas.HubSourceSpec(path="/local/path/to/source", channel="development"),
+                metadata=mlrun.common.schemas.HubObjectMetadata(
+                    name="source-1", description="a private source"
+                ),
+                spec=mlrun.common.schemas.HubSourceSpec(
+                    path="/local/path/to/source", channel="development"
+                ),
             )
         )
         db.create_hub_source(new_source)
@@ -63,8 +67,12 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         new_source_2 = mlrun.common.schemas.IndexedHubSource(
             index=1,
             source=mlrun.common.schemas.HubSource(
-                metadata=mlrun.common.schemas.HubObjectMetadata(name="source-2", description="2nd private source"),
-                spec=mlrun.common.schemas.HubSourceSpec(path="/local/path/to/source", channel="prod"),
+                metadata=mlrun.common.schemas.HubObjectMetadata(
+                    name="source-2", description="2nd private source"
+                ),
+                spec=mlrun.common.schemas.HubSourceSpec(
+                    path="/local/path/to/source", channel="prod"
+                ),
             ),
         )
 

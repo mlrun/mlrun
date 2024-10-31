@@ -130,7 +130,9 @@ def make_dockerfile(
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
     if requirements_path:
-        dock += f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
+        dock += (
+            f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
+        )
         dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
@@ -204,13 +206,17 @@ def make_kaniko_pod(
     if verbose:
         args += ["--verbosity", "debug"]
 
-    args = _add_kaniko_args_with_all_build_args(args, builder_env, project_secrets, extra_args)
+    args = _add_kaniko_args_with_all_build_args(
+        args, builder_env, project_secrets, extra_args
+    )
 
     # While requests mainly affect scheduling, setting a limit may prevent Kaniko
     # from finishing successfully (destructive), since we're not allowing to override the default
     # specifically for the Kaniko pod, we're setting only the requests
     # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
-    default_requests = config.get_default_function_pod_requirement_resources("requests", with_gpu=False)
+    default_requests = config.get_default_function_pod_requirement_resources(
+        "requests", with_gpu=False
+    )
     resources = {
         "requests": mlrun.runtimes.utils.generate_resources(
             mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
@@ -239,7 +245,10 @@ def make_kaniko_pod(
         ]
         kpod.mount_secret(
             config.httpdb.builder.pip_ca_secret_name,
-            str(pathlib.Path(context) / pathlib.Path(config.httpdb.builder.pip_ca_path).name),
+            str(
+                pathlib.Path(context)
+                / pathlib.Path(config.httpdb.builder.pip_ca_path).name
+            ),
             items=items,
             # using sub_path so file will be mounted inside kaniko pod as regular file and not symlink (if it's symlink
             # it's then not working inside the job image itself)
@@ -262,9 +271,13 @@ def make_kaniko_pod(
         if requirements:
             # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
             requirements_file_content = "{}\n".format("\n".join(requirements))
-            env["REQUIREMENTS"] = b64encode(requirements_file_content.encode("utf-8")).decode("utf-8")
+            env["REQUIREMENTS"] = b64encode(
+                requirements_file_content.encode("utf-8")
+            ).decode("utf-8")
             # dump requirement content and decode to the requirement.txt destination
-            commands.append("echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}")
+            commands.append(
+                "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
+            )
 
         kpod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
@@ -309,7 +322,9 @@ def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
     # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
     # due to credentials conflict / lack of permission on given credentials
     kpod.env = kpod.env = [
-        env_var for env_var in kpod.env if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+        env_var
+        for env_var in kpod.env
+        if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
     ]
 
     if assume_instance_role:
@@ -323,10 +338,16 @@ def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
         aws_credentials_file_env_value = "/tmp/aws/credentials"
 
         # set the credentials file location in the init container
-        init_container_env[aws_credentials_file_env_key] = aws_credentials_file_env_value
+        init_container_env[aws_credentials_file_env_key] = (
+            aws_credentials_file_env_value
+        )
 
         # set the kaniko container AWS credentials location to the mount's path
-        kpod.env.append(client.V1EnvVar(name=aws_credentials_file_env_key, value=aws_credentials_file_env_value))
+        kpod.env.append(
+            client.V1EnvVar(
+                name=aws_credentials_file_env_key, value=aws_credentials_file_env_value
+            )
+        )
         # mount the AWS credentials secret
         kpod.mount_secret(
             config.httpdb.builder.docker_registry_secret,
@@ -374,7 +395,9 @@ def build_image(
     if runtime and runtime._get_db():
         project_obj = runtime._get_db().get_project(runtime.metadata.project)
         if project_obj:
-            project_default_function_node_selector = project_obj.spec.default_function_node_selector
+            project_default_function_node_selector = (
+                project_obj.spec.default_function_node_selector
+            )
 
     extra_args = extra_args or {}
     builder_env = builder_env or {}
@@ -400,7 +423,9 @@ def build_image(
     if source:
         is_v3io_source = source.startswith("v3io://") or source.startswith("v3ios://")
 
-    access_key = builder_env.get("V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key)
+    access_key = builder_env.get(
+        "V3IO_ACCESS_KEY", auth_info.data_session or auth_info.access_key
+    )
     username = builder_env.get("V3IO_USERNAME", auth_info.username)
 
     builder_env_list, project_secrets = _generate_builder_env(project, builder_env)
@@ -459,12 +484,18 @@ def build_image(
         user_unix_id = runtime.spec.security_context.run_as_user
         enriched_group_id = runtime.spec.security_context.run_as_group
 
-    source_code_target_dir = runtime.spec.build.source_code_target_dir or runtime.spec.clone_target_dir
-    if source_to_copy and (not source_code_target_dir or not os.path.isabs(source_code_target_dir)):
+    source_code_target_dir = (
+        runtime.spec.build.source_code_target_dir or runtime.spec.clone_target_dir
+    )
+    if source_to_copy and (
+        not source_code_target_dir or not os.path.isabs(source_code_target_dir)
+    ):
         relative_workdir = source_code_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.build.source_code_target_dir = path.join("/home/mlrun_code", relative_workdir)
+        runtime.spec.build.source_code_target_dir = path.join(
+            "/home/mlrun_code", relative_workdir
+        )
 
     dock = make_dockerfile(
         base_image,
@@ -520,11 +551,15 @@ def build_image(
         return k8s.run_job(kpod)
     else:
         pod, ns = k8s.create_pod(kpod)
-        mlrun.utils.logger.info("Build started", pod=pod, namespace=ns, project=project, image=image_target)
+        mlrun.utils.logger.info(
+            "Build started", pod=pod, namespace=ns, project=project, image=image_target
+        )
         return f"build:{pod}"
 
 
-def get_kaniko_spec_attributes_from_runtime(project, runtime_spec, project_default_fucntion_node_selector):
+def get_kaniko_spec_attributes_from_runtime(
+    project, runtime_spec, project_default_fucntion_node_selector
+):
     """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
 
     def service_account_handler(attr_value):
@@ -563,7 +598,9 @@ def get_kaniko_spec_attributes_from_runtime(project, runtime_spec, project_defau
     }
 
 
-def resolve_mlrun_install_command_version(mlrun_version_specifier=None, client_version=None, commands=None):
+def resolve_mlrun_install_command_version(
+    mlrun_version_specifier=None, client_version=None, commands=None
+):
     commands = commands or []
     install_mlrun_regex = re.compile(r".*pip install .*mlrun.*")
     for command in commands:
@@ -572,20 +609,25 @@ def resolve_mlrun_install_command_version(mlrun_version_specifier=None, client_v
 
     unstable_versions = ["unstable", "0.0.0+unstable"]
     unstable_mlrun_version_specifier = (
-        f"{config.package_path}[complete] @ git+" f"https://github.com/mlrun/mlrun@development"
+        f"{config.package_path}[complete] @ git+"
+        f"https://github.com/mlrun/mlrun@development"
     )
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:
             mlrun_version_specifier = config.httpdb.builder.mlrun_version_specifier
         elif client_version:
             if client_version not in unstable_versions:
-                mlrun_version_specifier = f"{config.package_path}[complete]=={client_version}"
+                mlrun_version_specifier = (
+                    f"{config.package_path}[complete]=={client_version}"
+                )
             else:
                 mlrun_version_specifier = unstable_mlrun_version_specifier
         elif config.version in unstable_versions:
             mlrun_version_specifier = unstable_mlrun_version_specifier
         else:
-            mlrun_version_specifier = f"{config.package_path}[complete]=={config.version}"
+            mlrun_version_specifier = (
+                f"{config.package_path}[complete]=={config.version}"
+            )
     return mlrun_version_specifier
 
 
@@ -623,7 +665,9 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    base_image: str = build.base_image or runtime.spec.image or config.default_base_image
+    base_image: str = (
+        build.base_image or runtime.spec.image or config.default_base_image
+    )
 
     mlrun_image = False
     # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
@@ -633,12 +677,20 @@ def build_runtime(
 
     if force_build:
         mlrun.utils.logger.info("Forcefully building image")
-    elif not build.source and not build.commands and not build.requirements and not build.extra and not with_mlrun:
+    elif (
+        not build.source
+        and not build.commands
+        and not build.requirements
+        and not build.extra
+        and not with_mlrun
+    ):
         if not runtime.spec.image:
             if build.base_image:
                 runtime.spec.image = build.base_image
             elif runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-                runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+                runtime.spec.image = (
+                    mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
+                )
         if not runtime.spec.image:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
@@ -663,7 +715,9 @@ def build_runtime(
         )
     name = mlrun.utils.normalize_name(f"mlrun-build-{runtime.metadata.name}")
 
-    enriched_base_image = runtime.full_image_path(base_image, client_version, client_python_version)
+    enriched_base_image = runtime.full_image_path(
+        base_image, client_version, client_python_version
+    )
 
     if mlrun_image and build.requirements:
         add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier)
@@ -729,7 +783,9 @@ def build_runtime(
 def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier=None):
     # Add mlrun to the requirements even though it is already installed because
     # we want pip to include mlrun constraints when installing other packages
-    image_tag, has_py_package = services.api.utils.helpers.extract_image_tag(enriched_base_image)
+    image_tag, has_py_package = services.api.utils.helpers.extract_image_tag(
+        enriched_base_image
+    )
     if has_py_package or mlrun_version_specifier:
         installed_mlrun_version_command = resolve_mlrun_install_command_version(
             mlrun_version_specifier, client_version=image_tag
@@ -759,7 +815,9 @@ def resolve_and_enrich_image_target(
     client_python_version: str = None,
 ) -> str:
     image_target = resolve_image_target(image_target, registry)
-    image_target = mlrun.utils.enrich_image_url(image_target, client_version, client_python_version)
+    image_target = mlrun.utils.enrich_image_url(
+        image_target, client_version, client_python_version
+    )
     return image_target
 
 
@@ -768,9 +826,13 @@ def resolve_image_target(image_target: str, registry: str = None) -> str:
         return "/".join([registry, image_target])
 
     # if dest starts with a dot, we add the configured registry to the start of the dest
-    if image_target.startswith(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
+    if image_target.startswith(
+        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+    ):
         # remove prefix from image name
-        image_target = image_target[len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :]
+        image_target = image_target[
+            len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :
+        ]
 
         registry, repository = mlrun.utils.get_parsed_docker_registry()
         if not registry:
@@ -788,7 +850,9 @@ def resolve_image_target(image_target: str, registry: str = None) -> str:
     return image_target
 
 
-def _generate_builder_env(project: str, builder_env: dict) -> (list[client.V1EnvVar], list[client.V1EnvVar]):
+def _generate_builder_env(
+    project: str, builder_env: dict
+) -> (list[client.V1EnvVar], list[client.V1EnvVar]):
     k8s = services.api.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
@@ -797,7 +861,9 @@ def _generate_builder_env(project: str, builder_env: dict) -> (list[client.V1Env
     project_secrets = []
     for key in existing_secret_keys:
         if key not in builder_env:
-            value_from = client.V1EnvVarSource(secret_key_ref=client.V1SecretKeySelector(name=secret_name, key=key))
+            value_from = client.V1EnvVarSource(
+                secret_key_ref=client.V1SecretKeySelector(name=secret_name, key=key)
+            )
             project_secrets.append(client.V1EnvVar(name=key, value_from=value_from))
     env = []
     for key, value in builder_env.items():
@@ -805,7 +871,9 @@ def _generate_builder_env(project: str, builder_env: dict) -> (list[client.V1Env
     return env, project_secrets
 
 
-def _add_kaniko_args_with_all_build_args(args, builder_env, project_secrets, extra_args):
+def _add_kaniko_args_with_all_build_args(
+    args, builder_env, project_secrets, extra_args
+):
     builder_env = builder_env or []
     project_secrets = project_secrets or []
 
@@ -873,7 +941,9 @@ def _resolve_build_requirements(
         if upgrade_pip_command:
             commands.append(upgrade_pip_command)
 
-        mlrun_version = resolve_mlrun_install_command_version(mlrun_version_specifier, client_version, commands)
+        mlrun_version = resolve_mlrun_install_command_version(
+            mlrun_version_specifier, client_version, commands
+        )
 
         # mlrun must be installed with other python requirements in the same pip command to avoid version conflicts
         if mlrun_version:
@@ -922,7 +992,9 @@ def _parse_extra_args(extra_args: str) -> dict:
 
         # sanity, args should be validated by now
         else:
-            raise ValueError("Invalid argument sequence. Value must be followed by a flag preceding it.")
+            raise ValueError(
+                "Invalid argument sequence. Value must be followed by a flag preceding it."
+            )
     return args
 
 
@@ -938,13 +1010,21 @@ def _validate_extra_args(extra_args: str):
         return
 
     if not extra_args.startswith("--"):
-        raise ValueError("Invalid argument sequence. Value must be followed by a flag preceding it.")
+        raise ValueError(
+            "Invalid argument sequence. Value must be followed by a flag preceding it."
+        )
     args = _parse_extra_args(extra_args)
     for arg, values in args.items():
         if arg == "--build-arg":
             if not values:
-                raise ValueError("Invalid '--build-arg' usage. It must be followed by a non-flag argument.")
-            invalid_build_arg_values = [val for val in values if not re.match(r"^[a-zA-Z0-9_]+=[a-zA-Z0-9_]+$", val)]
+                raise ValueError(
+                    "Invalid '--build-arg' usage. It must be followed by a non-flag argument."
+                )
+            invalid_build_arg_values = [
+                val
+                for val in values
+                if not re.match(r"^[a-zA-Z0-9_]+=[a-zA-Z0-9_]+$", val)
+            ]
             if invalid_build_arg_values:
                 raise ValueError(
                     f"Invalid arguments format: '{','.join(invalid_build_arg_values)}'."
@@ -966,7 +1046,10 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
     extra_args = _parse_extra_args(extra_args)
     # Create a set to store the keys from the --build-arg flags in args
     build_arg_keys = {
-        key: value for arg in args if arg == "--build-arg" for key, value in [args[args.index(arg) + 1].split("=")]
+        key: value
+        for arg in args
+        if arg == "--build-arg"
+        for key, value in [args[args.index(arg) + 1].split("=")]
     }
 
     # Create a new list to store the merged args and extra_args
@@ -982,7 +1065,9 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
                     build_arg_keys[key] = val
                 else:
                     if build_arg_keys[key] != val:
-                        raise ValueError(f"Duplicate --build-arg '{key}' with different values")
+                        raise ValueError(
+                            f"Duplicate --build-arg '{key}' with different values"
+                        )
         elif flag not in args:
             if not values:
                 merged_args.append(flag)
@@ -998,7 +1083,11 @@ def _resolve_function_image_name(function, image: typing.Optional[str] = None) -
     name = function.metadata.name
     tag = function.metadata.tag or "latest"
     if image:
-        image_name_prefix = mlrun.runtimes.utils.resolve_function_target_image_name_prefix(project, name)
+        image_name_prefix = (
+            mlrun.runtimes.utils.resolve_function_target_image_name_prefix(
+                project, name
+            )
+        )
         registries_to_enforce_prefix = mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
         for registry in registries_to_enforce_prefix:
             if image.startswith(registry):
@@ -1023,12 +1112,16 @@ def _generate_function_image_name(project: str, name: str, tag: str) -> str:
     )
 
 
-def _resolve_function_image_secret(resolved_target_image: str, secret: typing.Optional[str] = None) -> str:
+def _resolve_function_image_secret(
+    resolved_target_image: str, secret: typing.Optional[str] = None
+) -> str:
     if not secret:
         parsed_registry, _ = mlrun.utils.get_parsed_docker_registry()
 
         # populate default secret if target image prefix equals to either the implicit or explicit default registry
-        if (parsed_registry and resolved_target_image.startswith(parsed_registry)) or resolved_target_image.startswith(
+        if (
+            parsed_registry and resolved_target_image.startswith(parsed_registry)
+        ) or resolved_target_image.startswith(
             mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
         ):
             secret = config.httpdb.builder.docker_registry_secret

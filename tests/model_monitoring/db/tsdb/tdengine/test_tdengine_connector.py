@@ -43,7 +43,9 @@ def is_tdengine_defined() -> bool:
 def connector() -> Iterator[TDEngineConnector]:
     connection = taosws.connect()
     drop_database(connection)
-    conn = TDEngineConnector(project, connection_string=connection_string, database=database)
+    conn = TDEngineConnector(
+        project, connection_string=connection_string, database=database
+    )
     try:
         yield conn
     finally:

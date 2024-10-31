@@ -26,7 +26,9 @@ handler = "hello_world"
 
 def test_launch_local():
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=True)
-    runtime = mlrun.code_to_function(name="test", kind="job", filename=str(func_path), handler=handler)
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
     result = launcher.launch(runtime)
     assert result.status.state == "completed"
     assert result.status.results.get("return") == "hello world"
@@ -34,7 +36,9 @@ def test_launch_local():
 
 def test_override_handler():
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=True)
-    runtime = mlrun.code_to_function(name="test", kind="job", filename=str(func_path), handler=handler)
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
     result = launcher.launch(runtime, handler="handler_v2")
     assert result.status.state == "completed"
     assert result.status.results.get("return") == "hello world v2"
@@ -42,7 +46,9 @@ def test_override_handler():
 
 def test_launch_remote_job_locally():
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
-    runtime = mlrun.code_to_function(name="test", kind="job", filename=str(func_path), handler=handler)
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
     with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
         launcher.launch(runtime)
     assert "Remote function cannot be executed locally" in str(exc.value)
@@ -50,7 +56,9 @@ def test_launch_remote_job_locally():
 
 def test_create_local_function_for_execution():
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
-    runtime = mlrun.code_to_function(name="test", kind="job", filename=str(func_path), handler=handler)
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
     run = mlrun.run.RunObject()
     runtime = launcher._create_local_function_for_execution(
         runtime=runtime,
@@ -65,7 +73,9 @@ def test_create_local_function_for_execution():
 
 def test_create_local_function_for_execution_with_enrichment():
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
-    runtime = mlrun.code_to_function(name="test", kind="job", filename=str(func_path), handler=handler)
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
     runtime.spec.allow_empty_resources = True
     run = mlrun.run.RunObject()
     runtime = launcher._create_local_function_for_execution(
@@ -89,7 +99,9 @@ def test_create_local_function_for_execution_with_enrichment():
 
 def test_validate_inputs():
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
-    runtime = mlrun.code_to_function(name="test", kind="job", filename=str(func_path), handler=handler)
+    runtime = mlrun.code_to_function(
+        name="test", kind="job", filename=str(func_path), handler=handler
+    )
     run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": 1}))
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as exc:
         launcher._validate_runtime(runtime, run)
@@ -98,8 +110,12 @@ def test_validate_inputs():
 
 def test_validate_runtime_success():
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
-    runtime = mlrun.code_to_function(name="test", kind="local", filename=str(func_path), handler=handler)
-    run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path"))
+    runtime = mlrun.code_to_function(
+        name="test", kind="local", filename=str(func_path), handler=handler
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path")
+    )
     launcher._validate_runtime(runtime, run)
 
 

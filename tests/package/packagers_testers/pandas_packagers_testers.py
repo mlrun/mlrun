@@ -151,11 +151,19 @@ class PandasDataFramePackagerTester(PackagerTester):
                                     "read_kwargs": {
                                         "unflatten_kwargs": {
                                             "columns": [
-                                                column if not isinstance(column, tuple) else list(column)
-                                                for column in _DATAFRAME_SAMPLES[i].columns
+                                                column
+                                                if not isinstance(column, tuple)
+                                                else list(column)
+                                                for column in _DATAFRAME_SAMPLES[
+                                                    i
+                                                ].columns
                                             ],
-                                            "columns_levels": list(_DATAFRAME_SAMPLES[i].columns.names),
-                                            "index_levels": list(_DATAFRAME_SAMPLES[i].index.names),
+                                            "columns_levels": list(
+                                                _DATAFRAME_SAMPLES[i].columns.names
+                                            ),
+                                            "index_levels": list(
+                                                _DATAFRAME_SAMPLES[i].index.names
+                                            ),
                                         }
                                     }
                                     if file_format
@@ -187,7 +195,9 @@ _SERIES_SAMPLES = [
     pd.DataFrame(
         data=np.random.randint(0, 256, (10, 4)),
         columns=["a", "b", "c", "d"],
-        index=pd.MultiIndex.from_product([[1, 2, 3, 4, 5], ["A", "B"]], names=["number", "letter"]),
+        index=pd.MultiIndex.from_product(
+            [[1, 2, 3, 4, 5], ["A", "B"]], names=["number", "letter"]
+        ),
     )["a"],
 ]
 
@@ -257,10 +267,14 @@ class PandasSeriesPackagerTester(PackagerTester):
                                         # Because we cast to dataframe before writing to file, 0 will be written for
                                         # unnamed series samples:
                                         "columns": [
-                                            _SERIES_SAMPLES[i].name if _SERIES_SAMPLES[i].name is not None else 0
+                                            _SERIES_SAMPLES[i].name
+                                            if _SERIES_SAMPLES[i].name is not None
+                                            else 0
                                         ],
                                         "columns_levels": [None],
-                                        "index_levels": list(_SERIES_SAMPLES[i].index.names),
+                                        "index_levels": list(
+                                            _SERIES_SAMPLES[i].index.names
+                                        ),
                                     }
                                 }
                                 if i not in [1, 4, 5]

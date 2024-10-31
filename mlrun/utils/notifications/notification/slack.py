@@ -37,7 +37,9 @@ class SlackNotification(NotificationBase):
 
     @classmethod
     def validate_params(cls, params):
-        webhook = params.get("webhook", None) or mlrun.get_secret_or_env("SLACK_WEBHOOK")
+        webhook = params.get("webhook", None) or mlrun.get_secret_or_env(
+            "SLACK_WEBHOOK"
+        )
         if not webhook:
             raise ValueError("Parameter 'webhook' is required for SlackNotification")
 
@@ -52,10 +54,14 @@ class SlackNotification(NotificationBase):
         alert: mlrun.common.schemas.AlertConfig = None,
         event_data: mlrun.common.schemas.Event = None,
     ):
-        webhook = self.params.get("webhook", None) or mlrun.get_secret_or_env("SLACK_WEBHOOK")
+        webhook = self.params.get("webhook", None) or mlrun.get_secret_or_env(
+            "SLACK_WEBHOOK"
+        )
 
         if not webhook:
-            mlrun.utils.helpers.logger.debug("No slack webhook is set, skipping notification")
+            mlrun.utils.helpers.logger.debug(
+                "No slack webhook is set, skipping notification"
+            )
             return
 
         data = self._generate_slack_data(message, severity, runs, alert, event_data)
@@ -78,7 +84,9 @@ class SlackNotification(NotificationBase):
             "blocks": self._generate_slack_header_blocks(severity, message),
         }
         if self.name:
-            data["blocks"].append({"type": "section", "text": self._get_slack_row(self.name)})
+            data["blocks"].append(
+                {"type": "section", "text": self._get_slack_row(self.name)}
+            )
 
         if alert:
             fields = self._get_alert_fields(alert, event_data)
@@ -116,7 +124,9 @@ class SlackNotification(NotificationBase):
             else:
                 header_text = block_text[:150]
                 section_text = block_text[150:]
-        blocks = [{"type": "header", "text": {"type": "plain_text", "text": header_text}}]
+        blocks = [
+            {"type": "header", "text": {"type": "plain_text", "text": header_text}}
+        ]
         if section_text:
             blocks.append(
                 {
@@ -139,7 +149,9 @@ class SlackNotification(NotificationBase):
 
         if alert.summary:
             line.append(
-                self._get_slack_row(f"*Summary:*\n{mlrun.utils.helpers.format_alert_summary(alert, event_data)}")
+                self._get_slack_row(
+                    f"*Summary:*\n{mlrun.utils.helpers.format_alert_summary(alert, event_data)}"
+                )
             )
 
         if event_data.value_dict:
@@ -176,7 +188,9 @@ class SlackNotification(NotificationBase):
             error_status = run["status"].get("error", "") or state
             result = f"*{error_status}*"
         else:
-            result = mlrun.utils.helpers.dict_to_str(run["status"].get("results", {}), ", ")
+            result = mlrun.utils.helpers.dict_to_str(
+                run["status"].get("results", {}), ", "
+            )
         return self._get_slack_row(result or state)
 
     @staticmethod

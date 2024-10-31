@@ -79,36 +79,49 @@ class SparkFeatureMerger(BaseMerger):
                 rename_right_keys[key] = f"ft__{key}"
         # get columns for projection
         projection = [
-            col(col_name).alias(rename_right_keys.get(col_name, col_name)) for col_name in featureset_df.columns
+            col(col_name).alias(rename_right_keys.get(col_name, col_name))
+            for col_name in featureset_df.columns
         ]
 
         aliased_featureset_df = featureset_df.select(projection)
-        right_timestamp = rename_right_keys.get(featureset_timstamp, featureset_timstamp)
+        right_timestamp = rename_right_keys.get(
+            featureset_timstamp, featureset_timstamp
+        )
 
         # set join conditions
-        join_cond = entity_with_id[entity_timestamp_column] >= aliased_featureset_df[right_timestamp]
+        join_cond = (
+            entity_with_id[entity_timestamp_column]
+            >= aliased_featureset_df[right_timestamp]
+        )
 
         # join based on entities
         for key_l, key_r in zip(left_keys, right_keys):
             join_cond = join_cond & (
-                entity_with_id[key_l] == aliased_featureset_df[rename_right_keys.get(key_r, key_r)]
+                entity_with_id[key_l]
+                == aliased_featureset_df[rename_right_keys.get(key_r, key_r)]
             )
 
-        conditional_join = entity_with_id.join(aliased_featureset_df, join_cond, "leftOuter")
+        conditional_join = entity_with_id.join(
+            aliased_featureset_df, join_cond, "leftOuter"
+        )
 
         window = Window.partitionBy("_row_nr").orderBy(
             col(right_timestamp).desc(),
         )
-        filter_most_recent_feature_timestamp = conditional_join.withColumn("_rank", row_number().over(window)).filter(
-            col("_rank") == 1
-        )
+        filter_most_recent_feature_timestamp = conditional_join.withColumn(
+            "_rank", row_number().over(window)
+        ).filter(col("_rank") == 1)
 
         for key in right_keys + [featureset_timstamp]:
             if key in entity_df.columns + [entity_timestamp_column]:
-                filter_most_recent_feature_timestamp = filter_most_recent_feature_timestamp.drop(
-                    aliased_featureset_df[f"ft__{key}"]
+                filter_most_recent_feature_timestamp = (
+                    filter_most_recent_feature_timestamp.drop(
+                        aliased_featureset_df[f"ft__{key}"]
+                    )
                 )
-        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(col(entity_timestamp_column))
+        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(
+            col(entity_timestamp_column)
+        )
 
     def _join(
         self,
@@ -137,7 +150,10 @@ class SparkFeatureMerger(BaseMerger):
                 be prefixed with featureset_df name.
         """
         if left_keys != right_keys:
-            join_cond = [entity_df[key_l] == featureset_df[key_r] for key_l, key_r in zip(left_keys, right_keys)]
+            join_cond = [
+                entity_df[key_l] == featureset_df[key_r]
+                for key_l, key_r in zip(left_keys, right_keys)
+            ]
         else:
             join_cond = left_keys
 
@@ -173,7 +189,9 @@ class SparkFeatureMerger(BaseMerger):
         if self.spark is None:
             # create spark context
             self.spark = (
-                SparkSession.builder.appName(f"vector-merger-{self.vector.metadata.name}")
+                SparkSession.builder.appName(
+                    f"vector-merger-{self.vector.metadata.name}"
+                )
                 .config("spark.driver.memory", "2g")
                 .getOrCreate()
             )
@@ -191,7 +209,9 @@ class SparkFeatureMerger(BaseMerger):
         source_kwargs = {}
         if feature_set.spec.passthrough:
             if not feature_set.spec.source:
-                raise mlrun.errors.MLRunNotFoundError(f"passthrough feature set {feature_set_name} with no source")
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"passthrough feature set {feature_set_name} with no source"
+                )
             source_kind = feature_set.spec.source.kind
             source_path = feature_set.spec.source.path
             source_kwargs.update(feature_set.spec.source.attributes)
@@ -212,7 +232,9 @@ class SparkFeatureMerger(BaseMerger):
         if source_driver != ParquetSource:
             additional_filters_warning(additional_filters, source_driver)
             additional_filters = None
-        additional_filters_dict = {"additional_filters": additional_filters} if additional_filters else {}
+        additional_filters_dict = (
+            {"additional_filters": additional_filters} if additional_filters else {}
+        )
         source = source_driver(
             name=self.vector.metadata.name,
             path=source_path,
@@ -224,7 +246,10 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         columns = column_names + [ent.name for ent in feature_set.spec.entities]
-        if feature_set.spec.timestamp_key and feature_set.spec.timestamp_key not in columns:
+        if (
+            feature_set.spec.timestamp_key
+            and feature_set.spec.timestamp_key not in columns
+        ):
             columns.append(feature_set.spec.timestamp_key)
 
         return source.to_spark_df(
@@ -243,7 +268,10 @@ class SparkFeatureMerger(BaseMerger):
         from pyspark.sql.functions import col
 
         return df.select(
-            [col(name).alias(rename_col_dict.get(name, name)) for name in columns or rename_col_dict.keys()]
+            [
+                col(name).alias(rename_col_dict.get(name, name))
+                for name in columns or rename_col_dict.keys()
+            ]
         )
 
     def _drop_columns_from_result(self):
@@ -255,7 +283,9 @@ class SparkFeatureMerger(BaseMerger):
     def _order_by(self, order_by_active):
         from pyspark.sql.functions import col
 
-        self._result_df = self._result_df.orderBy(*[col(col_name).asc_nulls_last() for col_name in order_by_active])
+        self._result_df = self._result_df.orderBy(
+            *[col(col_name).asc_nulls_last() for col_name in order_by_active]
+        )
 
     def _convert_entity_rows_to_engine_df(self, entity_rows):
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):

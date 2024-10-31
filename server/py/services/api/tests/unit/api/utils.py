@@ -61,10 +61,14 @@ def compile_schedule(schedule_name: str = None, to_json: bool = True):
     return mlrun.utils.dict_to_json(schedule.dict())
 
 
-async def create_project_async(async_client: httpx.AsyncClient, project_name: str = PROJECT):
+async def create_project_async(
+    async_client: httpx.AsyncClient, project_name: str = PROJECT
+):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(description="banana", source="source", goals="some goals"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="banana", source="source", goals="some goals"
+        ),
     )
     resp = await async_client.post(
         "projects",

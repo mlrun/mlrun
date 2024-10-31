@@ -92,7 +92,11 @@ class MLPlotPlan(MLPlan, ABC):
         """
         Print the logged artifacts names and their URIs.
         """
-        print(json.dumps({name: artifact.uri for name, artifact in self._artifacts.items()}))
+        print(
+            json.dumps(
+                {name: artifact.uri for name, artifact in self._artifacts.items()}
+            )
+        )
 
     def _gui_display(self):
         """
@@ -132,6 +136,10 @@ class MLPlotPlan(MLPlan, ABC):
                     else model.predict_proba(x)
                 )
             else:
-                y_pred = model.original_predict(x) if hasattr(model, "original_predict") else model.predict(x)
+                y_pred = (
+                    model.original_predict(x)
+                    if hasattr(model, "original_predict")
+                    else model.predict(x)
+                )
 
         return y_pred

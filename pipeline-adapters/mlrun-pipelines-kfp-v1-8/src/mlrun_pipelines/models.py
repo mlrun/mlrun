@@ -60,11 +60,15 @@ class PipelineStep(FlexibleMapper):
         return self._external_data["node"]["displayName"]
 
     def get_annotation(self, annotation_name: str):
-        return self._external_data["node_template"]["metadata"]["annotations"].get(annotation_name)
+        return self._external_data["node_template"]["metadata"]["annotations"].get(
+            annotation_name
+        )
 
 
 class PipelineManifest(FlexibleMapper):
-    def __init__(self, workflow_manifest: Union[str, dict] = "{}", pipeline_manifest: str = "{}"):
+    def __init__(
+        self, workflow_manifest: Union[str, dict] = "{}", pipeline_manifest: str = "{}"
+    ):
         try:
             main_manifest = json.loads(workflow_manifest)
         except TypeError:
@@ -89,7 +93,9 @@ class PipelineManifest(FlexibleMapper):
                 for template in self._external_data["spec"]["templates"]
                 if template["name"] == node["templateName"]
             )
-            step_type = node_template["metadata"]["annotations"].get("mlrun/pipeline-step-type")
+            step_type = node_template["metadata"]["annotations"].get(
+                "mlrun/pipeline-step-type"
+            )
             yield PipelineStep(step_type, node_name, node, node_template)
 
 

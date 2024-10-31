@@ -45,7 +45,9 @@ class Metric:
         :param need_probabilities:   Whether this metric expects 'y_pred' to be from the 'predict_proba' method or from
                                      'predict'.
         """
-        self._metric = self._from_string(metric=metric) if isinstance(metric, str) else metric
+        self._metric = (
+            self._from_string(metric=metric) if isinstance(metric, str) else metric
+        )
         self._arguments = {} if additional_arguments is None else additional_arguments
         self._need_probabilities = need_probabilities
         self._name = name if name is not None else self._get_default_name()
@@ -73,7 +75,9 @@ class Metric:
                     "Calculating a metric requires the model's predictions / probabilities (y_pred) or the model "
                     "itself and an input (x) to run 'predict' / 'predict_proba'."
                 )
-            y_pred = model.predict_proba(x) if self._need_probabilities else model.predict(x)
+            y_pred = (
+                model.predict_proba(x) if self._need_probabilities else model.predict(x)
+            )
 
         # Calculate the result and return:
         self._result = self._metric(y_true, y_pred, **self._arguments)

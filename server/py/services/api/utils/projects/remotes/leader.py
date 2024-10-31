@@ -65,7 +65,9 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def format_as_leader_project(self, project: mlrun.common.schemas.Project) -> mlrun.common.schemas.IguazioProject:
+    def format_as_leader_project(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
         pass
 
     @abc.abstractmethod

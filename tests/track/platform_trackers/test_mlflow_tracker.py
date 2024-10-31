@@ -76,7 +76,9 @@ def lgb_run():
     iris = datasets.load_iris()
     x = iris.data
     y = iris.target
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.2, random_state=42
+    )
 
     # enable auto logging
     mlflow.lightgbm.autolog()
@@ -119,7 +121,9 @@ def xgb_run():
     iris = datasets.load_iris()
     x = iris.data
     y = iris.target
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.2, random_state=42
+    )
 
     # enable auto logging
     mlflow.xgboost.autolog()
@@ -180,7 +184,9 @@ def test_track_run_with_experiment_name(rundb_mock, handler):
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
         # Create a project for this tester:
-        project = mlrun.get_or_create_project(name="default", context=test_directory, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name="default", context=test_directory, allow_cross_project=True
+        )
 
         # Create a MLRun function using the tester source file (all the functions must be located in it):
         func = project.set_function(
@@ -197,7 +203,9 @@ def test_track_run_with_experiment_name(rundb_mock, handler):
             artifact_path=test_directory,
         )
 
-        _validate_run(run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id"))
+        _validate_run(
+            run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id")
+        )
     # unset mlflow experiment name to default
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
@@ -213,14 +221,18 @@ def test_track_run_with_control_run(rundb_mock, handler):
     # Enable general tracking
     mlrun.mlconf.external_platform_tracking.enabled = True
     # Set the mlflow experiment name
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(f"{handler}_with_control_run")
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+        f"{handler}_with_control_run"
+    )
     # Tell mlrun to create a mlflow run in advance, and by so knowing it's run id
     mlrun.mlconf.external_platform_tracking.mlflow.control_run = True
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
         # Create a project for this tester:
-        project = mlrun.get_or_create_project(name="default", context=test_directory, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name="default", context=test_directory, allow_cross_project=True
+        )
 
         # Create a MLRun function using the tester source file (all the functions must be located in it):
         func = project.set_function(
@@ -237,7 +249,9 @@ def test_track_run_with_control_run(rundb_mock, handler):
             artifact_path=test_directory,
         )
 
-        _validate_run(run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id"))
+        _validate_run(
+            run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id")
+        )
     # unset mlflow experiment name to default
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
@@ -259,7 +273,9 @@ def test_track_run_with_match_experiment_to_runtime(rundb_mock, handler):
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
         # Create a project for this tester:
-        project = mlrun.get_or_create_project(name="default", context=test_directory, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name="default", context=test_directory, allow_cross_project=True
+        )
 
         # Create a MLRun function using the tester source file (all the functions must be located in it):
         func = project.set_function(
@@ -276,7 +292,9 @@ def test_track_run_with_match_experiment_to_runtime(rundb_mock, handler):
             artifact_path=test_directory,
         )
 
-        _validate_run(run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id"))
+        _validate_run(
+            run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id")
+        )
         # unset mlflow experiment name to default
         mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
@@ -296,9 +314,15 @@ def test_track_run_no_handler(rundb_mock, run_name):
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
         # Create a project for this tester:
-        project = mlrun.get_or_create_project(name="default", context=test_directory, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name="default", context=test_directory, allow_cross_project=True
+        )
         # Get the script path from assets:
-        script_path = str(pathlib.Path(__file__).parent.parent / "assets" / f"{run_name}_no_handler.py")
+        script_path = str(
+            pathlib.Path(__file__).parent.parent
+            / "assets"
+            / f"{run_name}_no_handler.py"
+        )
         # Create a MLRun function using the tester source file (all the functions must be located in it):
         func = project.set_function(
             script_path,
@@ -329,7 +353,9 @@ def _mock_wrap_run_result(monkeypatch):
     def _wrap_run_result(*args, **kwargs):
         return mlrun.run.RunObject.from_dict(args[2])
 
-    monkeypatch.setattr(mlrun.launcher.local.ClientLocalLauncher, "_wrap_run_result", _wrap_run_result)
+    monkeypatch.setattr(
+        mlrun.launcher.local.ClientLocalLauncher, "_wrap_run_result", _wrap_run_result
+    )
 
 
 @pytest.mark.parametrize("handler", ["interrupted_run"])
@@ -351,7 +377,9 @@ def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
         # Create a project for this tester:
-        project = mlrun.get_or_create_project(name="default", context=test_directory, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name="default", context=test_directory, allow_cross_project=True
+        )
 
         # Create a MLRun function using the tester source file (all the functions must be located in it):
         func = project.set_function(
@@ -369,7 +397,9 @@ def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
             watch=False,
         )
 
-        _validate_run(run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id"))
+        _validate_run(
+            run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id")
+        )
     # unset mlflow experiment name to default
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
@@ -382,7 +412,9 @@ def test_import_run(rundb_mock, handler):
     to mlrun, and then we use the validate function to compare between original run and imported
     """
     # Set the mlflow experiment name
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(f"{handler.__name__}_import_run")
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+        f"{handler.__name__}_import_run"
+    )
     with tempfile.TemporaryDirectory() as test_directory:
         # Tell mlflow where to save logged data
         mlflow.set_tracking_uri(test_directory)
@@ -394,7 +426,9 @@ def test_import_run(rundb_mock, handler):
         mlrun.mlconf.artifact_path = f"{test_directory}/artifact"
 
         # Create a project for this tester:
-        project = mlrun.get_or_create_project(name="default", context=test_directory, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name="default", context=test_directory, allow_cross_project=True
+        )
 
         # Create a MLRun function using the tester source file (all the functions must be located in it):
         project.set_function(
@@ -425,7 +459,9 @@ def test_import_model(rundb_mock, handler):
     to mlrun, and then we validate
     """
     # Set the mlflow experiment name
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(f"{handler.__name__}_import_model")
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+        f"{handler.__name__}_import_model"
+    )
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
@@ -433,7 +469,9 @@ def test_import_model(rundb_mock, handler):
         handler()
 
         # Create a project for this tester:
-        project = mlrun.get_or_create_project(name="default", context=test_directory, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name="default", context=test_directory, allow_cross_project=True
+        )
 
         # Access model's uri through mlflow's last run
         mlflow_run = mlflow.last_active_run()
@@ -461,7 +499,9 @@ def test_import_artifact(rundb_mock, handler):
     to mlrun, and then we use validate by comparing to original artifacts
     """
     # Set the mlflow experiment name
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(f"{handler.__name__}_import_artifact")
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+        f"{handler.__name__}_import_artifact"
+    )
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
@@ -469,7 +509,9 @@ def test_import_artifact(rundb_mock, handler):
         handler()
 
         # Create a project for this tester:
-        project = mlrun.get_or_create_project(name="default1", context=test_directory, allow_cross_project=True)
+        project = mlrun.get_or_create_project(
+            name="default1", context=test_directory, allow_cross_project=True
+        )
 
         # Get a list of all artifacts logged by mlflow during last run
         mlflow_run = mlflow.last_active_run()

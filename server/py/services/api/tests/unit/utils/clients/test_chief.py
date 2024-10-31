@@ -67,23 +67,32 @@ async def test_get_background_task_from_chief_success(
     # using jsonable_encoder because datetime isn't json serializable object
     # https://fastapi.tiangolo.com/tutorial/encoder/
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    aioresponses_mock.get(f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body)
+    aioresponses_mock.get(
+        f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body
+    )
     response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     assert background_task.metadata.created == background_schema.metadata.created
 
     background_schema.status.state = mlrun.common.schemas.BackgroundTaskState.succeeded
     background_schema.metadata.updated = datetime.datetime.utcnow()
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    aioresponses_mock.get(f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body)
+    aioresponses_mock.get(
+        f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body
+    )
     response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
+    assert (
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
+    )
     assert background_task.metadata.created == background_schema.metadata.created
     assert background_task.metadata.updated == background_schema.metadata.updated
     assert background_task.metadata.updated > background_task.metadata.created
@@ -154,7 +163,9 @@ async def test_trigger_migration_succeeded(
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     assert background_task.metadata.created == background_schema.metadata.created
 
     background_schema.status.state = mlrun.common.schemas.BackgroundTaskState.succeeded
@@ -169,7 +180,10 @@ async def test_trigger_migration_succeeded(
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
+    assert (
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
+    )
     assert background_task.metadata.created == background_schema.metadata.created
     assert background_task.metadata.updated == background_schema.metadata.updated
     assert background_task.metadata.updated > background_task.metadata.created
@@ -196,7 +210,9 @@ async def test_trigger_migrations_from_chief_failures(
     )
     response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
-    assert "Migrations were already triggered and failed" in response.body.decode("utf-8")
+    assert "Migrations were already triggered and failed" in response.body.decode(
+        "utf-8"
+    )
 
 
 @pytest.mark.asyncio
@@ -220,19 +236,25 @@ async def test_trigger_migrations_chief_restarted_while_executing_migrations(
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
     assert background_task.metadata.created == background_schema.metadata.created
 
     # in internal background tasks, failed state is only when the background task doesn't exists in memory,
     # which means the api was restarted
     background_schema.status.state = mlrun.common.schemas.BackgroundTaskState.failed
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    aioresponses_mock.get(f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body)
+    aioresponses_mock.get(
+        f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body
+    )
     response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
     assert background_task.metadata.created == background_schema.metadata.created
 
 
@@ -270,12 +292,16 @@ def _generate_background_task(
     ],
 )
 @pytest.mark.asyncio
-async def test_do_not_escape_cookie(chief_client, session_cookie, expected_cookie_header):
+async def test_do_not_escape_cookie(
+    chief_client, session_cookie, expected_cookie_header
+):
     async def handler(request):
         assert (
             request.headers["cookie"] == f"session={expected_cookie_header}"
         ), "Cookie header escaping is malfunctioning"
-        assert request.cookies["session"] == expected_cookie_header, "Cookie session escaping is malfunctioning"
+        assert (
+            request.cookies["session"] == expected_cookie_header
+        ), "Cookie session escaping is malfunctioning"
         assert request.headers["x-request-id"] == "test-request-id"
         return aiohttp.web.Response(status=200)
 

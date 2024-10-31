@@ -50,12 +50,16 @@ class S3Store(DataStore):
 
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
-            client = boto3.client("sts", aws_access_key_id=access_key_id, aws_secret_access_key=secret_key)
+            client = boto3.client(
+                "sts", aws_access_key_id=access_key_id, aws_secret_access_key=secret_key
+            )
             self._temp_credentials = client.assume_role(
                 RoleArn=assume_role_arn, RoleSessionName="assumeRoleSession"
             ).get("Credentials")
             if not self._temp_credentials:
-                raise mlrun.errors.MLRunInvalidArgumentError(f"cannot assume role {assume_role_arn}")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"cannot assume role {assume_role_arn}"
+                )
 
             self.s3 = boto3.resource(
                 "s3",
@@ -88,14 +92,18 @@ class S3Store(DataStore):
             )
         else:
             # from env variables
-            self.s3 = boto3.resource("s3", region_name=region, endpoint_url=endpoint_url)
+            self.s3 = boto3.resource(
+                "s3", region_name=region, endpoint_url=endpoint_url
+            )
             if not token_file:
                 # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
                 # due to no credentials found. These commands disable signing and allow anonymous mode (same as
                 # anon in the storage_options when working with fsspec).
                 from botocore.handlers import disable_signing
 
-                self.s3.meta.client.meta.events.register("choose-signer.s3.*", disable_signing)
+                self.s3.meta.client.meta.events.register(
+                    "choose-signer.s3.*", disable_signing
+                )
 
     def get_spark_options(self):
         res = {}
@@ -215,6 +223,8 @@ def parse_s3_bucket_and_key(s3_path):
         bucket = path_parts.pop(0)
         key = "/".join(path_parts)
     except Exception as exc:
-        raise mlrun.errors.MLRunInvalidArgumentError("failed to parse s3 bucket and key") from exc
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "failed to parse s3 bucket and key"
+        ) from exc
 
     return bucket, key

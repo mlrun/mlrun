@@ -109,7 +109,9 @@ class HTTPSessionWithRetry(requests.Session):
     def request(self, method, url, **kwargs):
         retry_count = 0
         kwargs.setdefault("headers", {})
-        kwargs["headers"]["User-Agent"] = f"{requests.utils.default_user_agent()} mlrun/{config.version}"
+        kwargs["headers"]["User-Agent"] = (
+            f"{requests.utils.default_user_agent()} mlrun/{config.version}"
+        )
         while True:
             try:
                 response = super().request(method, url, **kwargs)
@@ -141,7 +143,8 @@ class HTTPSessionWithRetry(requests.Session):
             self._log_exception(
                 "warning",
                 exc,
-                f"{method} {url} request failed, http retries disabled," f" raising exception: {err_to_str(exc)}",
+                f"{method} {url} request failed, http retries disabled,"
+                f" raising exception: {err_to_str(exc)}",
                 retry_count,
             )
             return False
@@ -161,7 +164,8 @@ class HTTPSessionWithRetry(requests.Session):
             self._log_exception(
                 "warning",
                 exc,
-                f"{method} {url} request failed, max retries reached," f" raising exception: {err_to_str(exc)}",
+                f"{method} {url} request failed, max retries reached,"
+                f" raising exception: {err_to_str(exc)}",
                 retry_count,
             )
             return False
@@ -179,13 +183,16 @@ class HTTPSessionWithRetry(requests.Session):
             )
 
         # only retryable exceptions
-        exception_is_retryable = exception_is_retryable(exc, self.HTTP_RETRYABLE_EXCEPTIONS)
+        exception_is_retryable = exception_is_retryable(
+            exc, self.HTTP_RETRYABLE_EXCEPTIONS
+        )
 
         if not exception_is_retryable:
             self._log_exception(
                 "warning",
                 exc,
-                f"{method} {url} request failed on non-retryable exception," f" raising exception: {err_to_str(exc)}",
+                f"{method} {url} request failed on non-retryable exception,"
+                f" raising exception: {err_to_str(exc)}",
                 retry_count,
             )
             return False

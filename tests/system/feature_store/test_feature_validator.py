@@ -76,7 +76,9 @@ class TestFeatureValidator(TestMLRunSystem):
 
         for entity in entities:
             try:
-                myset.add_entity(entity["name"], entity["vtype"], entity.get("desc", None))
+                myset.add_entity(
+                    entity["name"], entity["vtype"], entity.get("desc", None)
+                )
                 myset.save()
             except Exception as exc:
                 assert entity.get("result", False) is False, (

@@ -28,7 +28,9 @@ from mlrun.utils import logger
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
-NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER = "X-Nuclio-Delete-Function-With-API-Gateways"
+NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER = (
+    "X-Nuclio-Delete-Function-With-API-Gateways"
+)
 NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE = "/api/functions/{function}"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 
@@ -48,7 +50,9 @@ class Client:
     async def __aexit__(self, exc_type, exc, tb):
         await self._close_session()
 
-    async def list_api_gateways(self, project_name=None) -> dict[str, mlrun.common.schemas.APIGateway]:
+    async def list_api_gateways(
+        self, project_name=None
+    ) -> dict[str, mlrun.common.schemas.APIGateway]:
         headers = {}
 
         if project_name:
@@ -86,7 +90,9 @@ class Client:
             path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=name),
             headers=headers,
         )
-        return mlrun.common.schemas.APIGateway.parse_obj(api_gateway).replace_nuclio_names_with_mlrun_names()
+        return mlrun.common.schemas.APIGateway.parse_obj(
+            api_gateway
+        ).replace_nuclio_names_with_mlrun_names()
 
     async def store_api_gateway(
         self,
@@ -106,7 +112,9 @@ class Client:
         body = api_gateway.dict(exclude_none=True)
         method = "POST" if create else "PUT"
         path = (
-            NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=api_gateway.spec.name)
+            NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(
+                api_gateway=api_gateway.spec.name
+            )
             if method == "PUT"
             else NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway="")
         )
@@ -149,8 +157,12 @@ class Client:
         )
 
     def _set_iguazio_labels(self, nuclio_object, project_name):
-        nuclio_object.metadata.labels[mlrun_constants.MLRunInternalLabels.nuclio_project_name] = project_name
-        nuclio_object.metadata.labels[mlrun_constants.MLRunInternalLabels.created] = "true"
+        nuclio_object.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name
+        ] = project_name
+        nuclio_object.metadata.labels[mlrun_constants.MLRunInternalLabels.created] = (
+            "true"
+        )
 
     async def _ensure_async_session(self):
         if not self._session:
@@ -166,7 +178,9 @@ class Client:
             await self._session.close()
             self._session = None
 
-    async def _send_request_to_api(self, method, path="/", error_message: str = "", **kwargs):
+    async def _send_request_to_api(
+        self, method, path="/", error_message: str = "", **kwargs
+    ):
         await self._ensure_async_session()
         response = await self._session.request(
             method=method,
@@ -196,7 +210,9 @@ class Client:
                 return
             return await response.json()
 
-    def _handle_error_response(self, method, url, path, response, response_body, error_message, kwargs):
+    def _handle_error_response(
+        self, method, url, path, response, response_body, error_message, kwargs
+    ):
         log_kwargs = copy.deepcopy(kwargs)
         log_kwargs.pop("json", None)
         log_kwargs.update({"method": method, "url": url, "path": path})
@@ -208,9 +224,13 @@ class Client:
             pass
         else:
             if error:
-                error_message = f"{error_message}: {str(error)}" if error_message else str(error)
+                error_message = (
+                    f"{error_message}: {str(error)}" if error_message else str(error)
+                )
             if error:
-                log_kwargs.update({"error": error, "errorStackTrace": error_stack_trace})
+                log_kwargs.update(
+                    {"error": error, "errorStackTrace": error_stack_trace}
+                )
 
         self._logger.warning("Request to nuclio failed. Reason:", **log_kwargs)
 

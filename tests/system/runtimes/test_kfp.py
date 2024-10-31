@@ -42,7 +42,9 @@ class TestKFP(tests.system.base.TestMLRunSystem):
 
         @dsl.pipeline(name="job test", description="demonstrating mlrun usage")
         def job_pipeline(p1=9):
-            kfp_with_v3io_mount.as_step(handler="handler", params={"p1": p1}, outputs=["mymodel"])
+            kfp_with_v3io_mount.as_step(
+                handler="handler", params={"p1": p1}, outputs=["mymodel"]
+            )
 
         out = mlconf.artifact_path or os.path.abspath("./data")
         artifact_path = os.path.join(out, "{{run.uid}}")
@@ -78,7 +80,9 @@ class TestKFP(tests.system.base.TestMLRunSystem):
                 outputs=["mymodel"],
             )
 
-            assert str(p1) == "{{pipelineparam:op=;name=p1}}", f"p1 was expected to be a pipeline param but is {p1}"
+            assert (
+                str(p1) == "{{pipelineparam:op=;name=p1}}"
+            ), f"p1 was expected to be a pipeline param but is {p1}"
 
         arguments = {"p1": 8}
         run_id = self.project.run(
@@ -138,7 +142,9 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         )
 
         # double check that the pipeline completed successfully
-        mlrun.wait_for_pipeline_completion(run_id, project=self.project_name, expected_statuses=[RunStatuses.failed])
+        mlrun.wait_for_pipeline_completion(
+            run_id, project=self.project_name, expected_statuses=[RunStatuses.failed]
+        )
         db = mlrun.get_run_db()
         run = db.get_pipeline(run_id, self.project_name)
 

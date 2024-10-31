@@ -64,7 +64,9 @@ class WebhookNotification(NotificationBase):
             request_body["project"] = alert.project
             request_body["severity"] = alert.severity
             if alert.summary:
-                request_body["summary"] = mlrun.utils.helpers.format_alert_summary(alert, event_data)
+                request_body["summary"] = mlrun.utils.helpers.format_alert_summary(
+                    alert, event_data
+                )
 
             if event_data:
                 request_body["value"] = event_data.value_dict
@@ -84,7 +86,9 @@ class WebhookNotification(NotificationBase):
         verify_ssl = verify_ssl and None if url.startswith("https") else None
 
         async with aiohttp.ClientSession() as session:
-            response = await getattr(session, method)(url, headers=headers, json=request_body, ssl=verify_ssl)
+            response = await getattr(session, method)(
+                url, headers=headers, json=request_body, ssl=verify_ssl
+            )
             response.raise_for_status()
 
     @staticmethod
@@ -116,7 +120,7 @@ class WebhookNotification(NotificationBase):
                 if "{{ runs }}" or "{{runs}}" in value:
                     if not str_parsed_runs:
                         str_parsed_runs = parse_runs()
-                    override_body[key] = value.replace("{{ runs }}", str_parsed_runs).replace(
-                        "{{runs}}", str_parsed_runs
-                    )
+                    override_body[key] = value.replace(
+                        "{{ runs }}", str_parsed_runs
+                    ).replace("{{runs}}", str_parsed_runs)
         return override_body

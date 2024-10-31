@@ -107,10 +107,14 @@ def generate_image_builder_pipeline_node(
             )
         )
 
-    is_v3io = function.spec.build.source and function.spec.build.source.startswith("v3io")
+    is_v3io = function.spec.build.source and function.spec.build.source.startswith(
+        "v3io"
+    )
     if "V3IO_ACCESS_KEY" in os.environ and is_v3io:
         cop.container.add_env_variable(
-            k8s_client.V1EnvVar(name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY"))
+            k8s_client.V1EnvVar(
+                name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
+            )
         )
 
     add_default_env(k8s_client, cop)
@@ -136,7 +140,9 @@ def generate_pipeline_node(
         command=command,
         file_outputs=file_outputs,
         output_artifact_paths={
-            "mlpipeline-ui-metadata": os.path.join(KFPMETA_DIR, "mlpipeline-ui-metadata.json"),
+            "mlpipeline-ui-metadata": os.path.join(
+                KFPMETA_DIR, "mlpipeline-ui-metadata.json"
+            ),
             "mlpipeline-metrics": os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"),
         },
     )
@@ -146,10 +152,14 @@ def generate_pipeline_node(
     add_annotations(cop, PipelineRunType.run, function, func_url, project_name)
     add_labels(cop, function, scrape_metrics)
     if code_env:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env))
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
+        )
     if registry:
         cop.container.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry)
+            k8s_client.V1EnvVar(
+                name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
+            )
         )
 
     add_default_env(k8s_client, cop)
@@ -162,20 +172,28 @@ def add_default_env(k8s_client, cop):
         k8s_client.V1EnvVar(
             "MLRUN_NAMESPACE",
             value_from=k8s_client.V1EnvVarSource(
-                field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.namespace")
+                field_ref=k8s_client.V1ObjectFieldSelector(
+                    field_path="metadata.namespace"
+                )
             ),
         )
     )
 
     if config.httpdb.api_url:
-        cop.container.add_env_variable(k8s_client.V1EnvVar(name="MLRUN_DBPATH", value=config.httpdb.api_url))
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(name="MLRUN_DBPATH", value=config.httpdb.api_url)
+        )
 
     if config.mpijob_crd_version:
         cop.container.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version)
+            k8s_client.V1EnvVar(
+                name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version
+            )
         )
 
-    auth_env_var = mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    auth_env_var = (
+        mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    )
     if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
@@ -195,10 +213,16 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
 
 def add_labels(cop, function, scrape_metrics=False):
     cop.add_pod_label(mlrun_constants.MLRunInternalLabels.mlrun_class, function.kind)
-    cop.add_pod_label(mlrun_constants.MLRunInternalLabels.function, function.metadata.name)
+    cop.add_pod_label(
+        mlrun_constants.MLRunInternalLabels.function, function.metadata.name
+    )
     cop.add_pod_label(mlrun_constants.MLRunInternalLabels.name, cop.human_name)
-    cop.add_pod_label(mlrun_constants.MLRunInternalLabels.project, function.metadata.project)
-    cop.add_pod_label(mlrun_constants.MLRunInternalLabels.tag, function.metadata.tag or "latest")
+    cop.add_pod_label(
+        mlrun_constants.MLRunInternalLabels.project, function.metadata.project
+    )
+    cop.add_pod_label(
+        mlrun_constants.MLRunInternalLabels.tag, function.metadata.tag or "latest"
+    )
     cop.add_pod_label(
         mlrun_constants.MLRunInternalLabels.scrape_metrics,
         "True" if scrape_metrics else "False",
@@ -219,9 +243,13 @@ def add_default_function_resources(
     return container_op
 
 
-def add_function_node_selection_attributes(function, container_op: dsl.ContainerOp) -> dsl.ContainerOp:
+def add_function_node_selection_attributes(
+    function, container_op: dsl.ContainerOp
+) -> dsl.ContainerOp:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(function)
+        enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(
+            function
+        )
         if enriched_node_selector:
             container_op.node_selector = enriched_node_selector
 
@@ -241,18 +269,26 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
 
     templates = {}
     for template in workflow["spec"]["templates"]:
-        project = project or get_in(template, ["metadata", "annotations", PROJECT_ANNOTATION], "")
+        project = project or get_in(
+            template, ["metadata", "annotations", PROJECT_ANNOTATION], ""
+        )
         name = template["name"]
         templates[name] = {
-            "run_type": get_in(template, ["metadata", "annotations", RUN_ANNOTATION], ""),
-            "function": get_in(template, ["metadata", "annotations", FUNCTION_ANNOTATION], ""),
+            "run_type": get_in(
+                template, ["metadata", "annotations", RUN_ANNOTATION], ""
+            ),
+            "function": get_in(
+                template, ["metadata", "annotations", FUNCTION_ANNOTATION], ""
+            ),
         }
 
     nodes = workflow["status"].get("nodes", {})
     dag = {}
     for node in nodes.values():
         name = node["displayName"]
-        record = {k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]}
+        record = {
+            k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
+        }
 
         # snake case
         # align kfp fields to mlrun snake case convention

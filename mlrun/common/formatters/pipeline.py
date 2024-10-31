@@ -41,7 +41,9 @@ class PipelineFormat(ObjectFormat, mlrun.common.types.StrEnum):
             return run.get("name")
 
         def _summary(run: mlrun_pipelines.models.PipelineRun) -> dict:
-            return mlrun_pipelines.common.ops.format_summary_from_kfp_run(run, run["project"])
+            return mlrun_pipelines.common.ops.format_summary_from_kfp_run(
+                run, run["project"]
+            )
 
         return {
             PipelineFormat.full: _full,

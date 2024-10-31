@@ -56,8 +56,12 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         model: CommonTypes.ModelType = None,
         model_path: CommonTypes.PathType = None,
         model_name: str = None,
-        modules_map: Union[dict[str, Union[None, str, list[str]]], CommonTypes.PathType] = None,
-        custom_objects_map: Union[dict[str, Union[str, list[str]]], CommonTypes.PathType] = None,
+        modules_map: Union[
+            dict[str, Union[None, str, list[str]]], CommonTypes.PathType
+        ] = None,
+        custom_objects_map: Union[
+            dict[str, Union[str, list[str]]], CommonTypes.PathType
+        ] = None,
         custom_objects_directory: CommonTypes.PathType = None,
         context: MLClientCtx = None,
         **kwargs,
@@ -256,7 +260,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         """
         return self._parameters
 
-    def get_artifacts(self, committed_only: bool = False) -> dict[str, CommonTypes.ExtraDataType]:
+    def get_artifacts(
+        self, committed_only: bool = False
+    ) -> dict[str, CommonTypes.ExtraDataType]:
         """
         Get the registered artifacts of this model's artifact. By default all the artifacts (logged and to be logged -
         committed only) will be returned. To get only the artifacts registered in the current run whom are committed and
@@ -320,7 +326,11 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             )
 
         # Set the inputs:
-        self._inputs = features if features is not None else self._read_io_samples(samples=from_sample)
+        self._inputs = (
+            features
+            if features is not None
+            else self._read_io_samples(samples=from_sample)
+        )
 
     def set_outputs(
         self,
@@ -345,7 +355,11 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             )
 
         # Set the outputs:
-        self._outputs = features if features is not None else self._read_io_samples(samples=from_sample)
+        self._outputs = (
+            features
+            if features is not None
+            else self._read_io_samples(samples=from_sample)
+        )
 
     def set_labels(
         self,
@@ -427,7 +441,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             for label in to_remove:
                 self._extra_data.pop(label)
 
-    def register_artifacts(self, artifacts: Union[Artifact, list[Artifact], dict[str, Artifact]]):
+    def register_artifacts(
+        self, artifacts: Union[Artifact, list[Artifact], dict[str, Artifact]]
+    ):
         """
         Register the given artifacts, so they will be logged as extra data with the model of this handler. Notice: The
         artifacts will be logged only when either 'log' or 'update' are called.
@@ -448,7 +464,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         self._registered_artifacts = {**self._registered_artifacts, **artifacts}
 
     @abstractmethod
-    def save(self, output_path: CommonTypes.PathType = None, **kwargs) -> Union[dict[str, Artifact], None]:
+    def save(
+        self, output_path: CommonTypes.PathType = None, **kwargs
+    ) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
 
@@ -552,7 +570,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         modules_artifacts = self._log_modules() if self._modules_map is not None else {}
 
         # Log the custom objects:
-        custom_objects_artifacts = self._log_custom_objects() if self._custom_objects_map is not None else {}
+        custom_objects_artifacts = (
+            self._log_custom_objects() if self._custom_objects_map is not None else {}
+        )
 
         # Read inputs and outputs ports:
         if inputs is not None:
@@ -593,7 +613,11 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             labels=self._labels,
             parameters=self._parameters,
             metrics=self._metrics,
-            extra_data={k: v for k, v in self._extra_data.items() if not isinstance(v, mlrun.DataItem)},
+            extra_data={
+                k: v
+                for k, v in self._extra_data.items()
+                if not isinstance(v, mlrun.DataItem)
+            },
             algorithm=kwargs.get("algorithm", None),
             training_set=kwargs.get("sample_set", None),
             label_column=kwargs.get("target_columns", None),
@@ -666,7 +690,11 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
         # Get the model artifact. If the model was logged during this run, use the cached artifact, otherwise use the
         # user's given model path:
-        model_artifact = self._context.get_cached_artifact(self._model_name) if self._is_logged else self._model_path
+        model_artifact = (
+            self._context.get_cached_artifact(self._model_name)
+            if self._is_logged
+            else self._model_path
+        )
 
         # Update the model artifact:
         self._model_artifact = mlrun.artifacts.update_model(
@@ -676,13 +704,19 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             inputs=self._inputs,
             outputs=self._outputs,
             metrics=metrics,
-            extra_data={k: v for k, v in self._extra_data.items() if not isinstance(v, mlrun.DataItem)},
+            extra_data={
+                k: v
+                for k, v in self._extra_data.items()
+                if not isinstance(v, mlrun.DataItem)
+            },
             feature_vector=kwargs.get("feature_vector", None),
             feature_weights=kwargs.get("feature_weights", None),
             store_object=not self._is_logged,  # If the model was not logged, store the updated model in the database.
         )
         if self._is_logged:
-            self._context.update_artifact(self._model_artifact)  # Update the cached model to the database.
+            self._context.update_artifact(
+                self._model_artifact
+            )  # Update the cached model to the database.
 
     def _collect_files_from_store_object(self):
         """
@@ -699,13 +733,17 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
         # Read the modules:
         if self._get_modules_map_artifact_name() in self._extra_data:
-            self._modules_map = self._extra_data[self._get_modules_map_artifact_name()].local()
+            self._modules_map = self._extra_data[
+                self._get_modules_map_artifact_name()
+            ].local()
         else:
             self._modules_map = None
 
         # Read the custom objects:
         if self._get_custom_objects_map_artifact_name() in self._extra_data:
-            self._custom_objects_map = self._extra_data[self._get_custom_objects_map_artifact_name()].local()
+            self._custom_objects_map = self._extra_data[
+                self._get_custom_objects_map_artifact_name()
+            ].local()
             self._custom_objects_directory = self._extra_data[
                 self._get_custom_objects_directory_artifact_name()
             ].local()
@@ -761,7 +799,11 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
         :return: The given model name if its not None or the default ONNX model name.
         """
-        return self._DEFAULT_ONNX_MODEL_NAME.format(self._model_name) if model_name is None else model_name
+        return (
+            self._DEFAULT_ONNX_MODEL_NAME.format(self._model_name)
+            if model_name is None
+            else model_name
+        )
 
     def _collect_files(self):
         """
@@ -778,7 +820,11 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         # Collect by the path's type:
         if mlrun.datastore.is_store_uri(self._model_path):
             # Check if the model object was already downloaded:
-            if self._model_file is None and self._model_artifact is None and self._extra_data == {}:
+            if (
+                self._model_file is None
+                and self._model_artifact is None
+                and self._extra_data == {}
+            ):
                 # Get the artifact and model file along with its extra data:
                 (
                     self._model_file,
@@ -821,7 +867,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
                 **self._import_module(
                     module_path=module_path,
                     objects_names=(
-                        objects_names if isinstance(objects_names, list) or objects_names is None else [objects_names]
+                        objects_names
+                        if isinstance(objects_names, list) or objects_names is None
+                        else [objects_names]
                     ),
                 ),
             }
@@ -858,9 +906,13 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             self._custom_objects = {
                 **self._custom_objects,
                 **self._import_custom_object(
-                    py_file_path=os.path.abspath(os.path.join(self._custom_objects_directory, py_file)),
+                    py_file_path=os.path.abspath(
+                        os.path.join(self._custom_objects_directory, py_file)
+                    ),
                     objects_names=(
-                        custom_objects_names if isinstance(custom_objects_names, list) else [custom_objects_names]
+                        custom_objects_names
+                        if isinstance(custom_objects_names, list)
+                        else [custom_objects_names]
                     ),
                 ),
             }
@@ -980,7 +1032,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         # Supported types:
         if isinstance(sample, np.ndarray):
             return Feature(
-                value_type=CommonUtils.convert_np_dtype_to_value_type(np_dtype=sample.dtype),
+                value_type=CommonUtils.convert_np_dtype_to_value_type(
+                    np_dtype=sample.dtype
+                ),
                 dims=list(sample.shape),
             )
 
@@ -1075,7 +1129,10 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         # Validate that if the map is a path, it is a path to a json file:
         if custom_objects_map is not None:
             if isinstance(custom_objects_map, str):
-                if not (custom_objects_map.endswith(".json") and os.path.exists(custom_objects_map)):
+                if not (
+                    custom_objects_map.endswith(".json")
+                    and os.path.exists(custom_objects_map)
+                ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"The 'custom_objects_map' is either not found or not a path to a json file. "
                         f"received: '{custom_objects_map}'"
@@ -1085,7 +1142,10 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         if custom_objects_directory is not None:
             if not (
                 os.path.isdir(custom_objects_directory)
-                or (custom_objects_directory.endswith(".zip") and os.path.exists(custom_objects_directory))
+                or (
+                    custom_objects_directory.endswith(".zip")
+                    and os.path.exists(custom_objects_directory)
+                )
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"The 'custom_objects_directory' is either not found or not a directory / zip file, "
@@ -1093,7 +1153,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
                 )
 
     @staticmethod
-    def _import_module(module_path: str, objects_names: Union[list[str], None]) -> dict[str, Any]:
+    def _import_module(
+        module_path: str, objects_names: Union[list[str], None]
+    ) -> dict[str, Any]:
         """
         Import the given objects by their names from the given module path by the following rules:
 
@@ -1125,7 +1187,10 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             module_imports[module_path] = module
         else:
             # Import multiple objects (from X import Y, Z, ...):
-            module_imports = {object_name: getattr(module, object_name) for object_name in objects_names}
+            module_imports = {
+                object_name: getattr(module, object_name)
+                for object_name in objects_names
+            }
 
         # Update the globals dictionary with the module imports:
         globals().update(module_imports)
@@ -1133,7 +1198,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         return module_imports
 
     @staticmethod
-    def _import_custom_object(py_file_path: str, objects_names: list[str]) -> dict[str, Any]:
+    def _import_custom_object(
+        py_file_path: str, objects_names: list[str]
+    ) -> dict[str, Any]:
         """
         Import the given objects by their names from the given python file as: from 'py_file_path' import 'object_name'.
         If an object specified is already imported, a reference would simply be returned.
@@ -1154,7 +1221,9 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
                 objects_imports[object_name] = sys.modules[object_name]
             else:
                 # Import the custom object:
-                spec = importlib.util.spec_from_file_location(name=object_name, location=py_file_path)
+                spec = importlib.util.spec_from_file_location(
+                    name=object_name, location=py_file_path
+                )
                 module = importlib.util.module_from_spec(spec=spec)
                 spec.loader.exec_module(module)
                 # Get the imported class and store it:
@@ -1209,7 +1278,9 @@ def without_mlrun_interface(interface: type[MLRunInterface]):
             # If the interface is applied, remove it:
             restoration_information = None
             if is_applied:
-                restoration_information = interface.remove_interface(obj=model_handler.model)
+                restoration_information = interface.remove_interface(
+                    obj=model_handler.model
+                )
             # Call the method:
             returned_value = model_handler_method(self=model_handler, *args, **kwargs)
             # If the interface was applied, add it:

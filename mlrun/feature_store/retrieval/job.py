@@ -67,7 +67,9 @@ def run_merge_job(
     if not run_config.handler:
         function.with_code(body=default_code)
     else:
-        raise mlrun.errors.MLRunInvalidArgumentError("get_offline_features does not support run_config with a handler")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "get_offline_features does not support run_config with a handler"
+        )
 
     function.metadata.project = vector.metadata.project
     function.metadata.name = function.metadata.name or name
@@ -91,8 +93,12 @@ def run_merge_job(
                 cpu = "1" if set_cpu else None
                 setter_function(mem=mem, cpu=cpu, patch=True)
 
-        set_default_resources(function.spec.driver_resources, function.with_driver_requests)
-        set_default_resources(function.spec.executor_resources, function.with_executor_requests)
+        set_default_resources(
+            function.spec.driver_resources, function.with_driver_requests
+        )
+        set_default_resources(
+            function.spec.executor_resources, function.with_executor_requests
+        )
     if start_time and not isinstance(start_time, str):
         start_time = start_time.isoformat()
     if end_time and not isinstance(end_time, str):
@@ -117,9 +123,9 @@ def run_merge_job(
         inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
     )
     task.spec.secret_sources = run_config.secret_sources
-    task.set_label(mlrun_constants.MLRunInternalLabels.job_type, "feature-merge").set_label(
-        mlrun_constants.MLRunInternalLabels.feature_vector, vector.uri
-    )
+    task.set_label(
+        mlrun_constants.MLRunInternalLabels.job_type, "feature-merge"
+    ).set_label(mlrun_constants.MLRunInternalLabels.feature_vector, vector.uri)
     task.metadata.uid = uuid.uuid4().hex
     vector.status.run_uri = task.metadata.uid
     vector.save()
@@ -150,7 +156,9 @@ class RemoteVectorResponse:
 
     def _is_ready(self):
         if self.status != "completed":
-            raise mlrun.errors.MLRunTaskNotReadyError("feature vector dataset is not ready")
+            raise mlrun.errors.MLRunTaskNotReadyError(
+                "feature vector dataset is not ready"
+            )
         self.vector.reload()
 
     def to_dataframe(self, columns=None, df_module=None, **kwargs):

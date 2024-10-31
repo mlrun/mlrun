@@ -74,7 +74,9 @@ def test_runtimes_inheritance(method, base_classes):
     }
     if base_classes:
         # filter classes_map entries by base_classes
-        classes_map = dict(filter(lambda pair: pair[0] in base_classes, classes_map.items()))
+        classes_map = dict(
+            filter(lambda pair: pair[0] in base_classes, classes_map.items())
+        )
 
     invalid_classes = {}
     for base_class, inheriting_classes in classes_map.items():
@@ -85,15 +87,22 @@ def test_runtimes_inheritance(method, base_classes):
                     break
                 if class_ in checked_classes:
                     continue
-                class_kwargs = list(inspect.signature(getattr(class_, method)).parameters.keys())
-                base_class_kwargs = list(inspect.signature(getattr(base_class, method)).parameters.keys())
+                class_kwargs = list(
+                    inspect.signature(getattr(class_, method)).parameters.keys()
+                )
+                base_class_kwargs = list(
+                    inspect.signature(getattr(base_class, method)).parameters.keys()
+                )
                 if not set(base_class_kwargs).issubset(class_kwargs):
                     invalid_classes[inheriting_class] = list(
-                        set(base_class_kwargs) - set(base_class_kwargs).intersection(class_kwargs)
+                        set(base_class_kwargs)
+                        - set(base_class_kwargs).intersection(class_kwargs)
                     )
                 checked_classes.add(inheriting_class)
     if invalid_classes:
-        pytest.fail(f"Found classes that are not accepting all of their parent classes kwargs: {invalid_classes}")
+        pytest.fail(
+            f"Found classes that are not accepting all of their parent classes kwargs: {invalid_classes}"
+        )
 
 
 def test_resource_enrichment_in_resource_spec_initialization():
@@ -149,7 +158,9 @@ def test_resource_enrichment_in_resource_spec_initialization():
 
     spec_requests = {"cpu": "1", "memory": "500M"}
     spec_limits = {"memory": "2G"}
-    spec = mlrun.runtimes.pod.KubeResourceSpec(resources={"requests": spec_requests, "limits": spec_limits})
+    spec = mlrun.runtimes.pod.KubeResourceSpec(
+        resources={"requests": spec_requests, "limits": spec_limits}
+    )
     assert (
         DeepDiff(
             spec.resources,
@@ -162,7 +173,9 @@ def test_resource_enrichment_in_resource_spec_initialization():
     # setting resource not in the k8s resources patterns
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         spec_requests = {"cpu": "1wrong"}
-        mlrun.runtimes.pod.KubeResourceSpec(resources={"requests": spec_requests, "limits": spec_limits})
+        mlrun.runtimes.pod.KubeResourceSpec(
+            resources={"requests": spec_requests, "limits": spec_limits}
+        )
 
     # setting partial requests and limits with equal gpus
     mlrun.mlconf.default_function_pod_resources = {
@@ -176,7 +189,9 @@ def test_resource_enrichment_in_resource_spec_initialization():
     spec_requests = {"nvidia.com/gpu": "2"}
     spec_limits = {"nvidia.com/gpu": "2"}
 
-    spec = mlrun.runtimes.pod.KubeResourceSpec(resources={"requests": spec_requests, "limits": spec_limits})
+    spec = mlrun.runtimes.pod.KubeResourceSpec(
+        resources={"requests": spec_requests, "limits": spec_limits}
+    )
 
     assert (
         DeepDiff(
@@ -189,7 +204,9 @@ def test_resource_enrichment_in_resource_spec_initialization():
 
 
 def test_to_dict():
-    volume_mount = kubernetes.client.V1VolumeMount(mount_path="some-path", name="volume-name")
+    volume_mount = kubernetes.client.V1VolumeMount(
+        mount_path="some-path", name="volume-name"
+    )
     function = mlrun.new_function(kind=mlrun.runtimes.RuntimeKinds.job)
     # For sanitization
     function.spec.volume_mounts = [volume_mount]
@@ -215,9 +232,13 @@ def test_to_dict():
 
 
 def test_volume_mounts_addition():
-    volume_mount = kubernetes.client.V1VolumeMount(mount_path="some-path", name="volume-name")
+    volume_mount = kubernetes.client.V1VolumeMount(
+        mount_path="some-path", name="volume-name"
+    )
     dict_volume_mount = volume_mount.to_dict()
-    sanitized_dict_volume_mount = kubernetes.client.ApiClient().sanitize_for_serialization(volume_mount)
+    sanitized_dict_volume_mount = (
+        kubernetes.client.ApiClient().sanitize_for_serialization(volume_mount)
+    )
     function = mlrun.new_function(kind=mlrun.runtimes.RuntimeKinds.job)
     function.spec.volume_mounts = [
         volume_mount,
@@ -229,7 +250,9 @@ def test_volume_mounts_addition():
 
 def test_build_config_with_multiple_commands():
     image = "mlrun/mlrun"
-    fn = mlrun.new_function("some-function", "some-project", "some-tag", image=image, kind="job")
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", image=image, kind="job"
+    )
     fn.build_config(commands=["pip install pandas", "pip install numpy"])
     assert len(fn.spec.build.commands) == 2
 

@@ -42,7 +42,9 @@ class RedisStore(DataStore):
         self.secure = parsed_endpoint.scheme == "rediss"
 
         if parsed_endpoint.username or parsed_endpoint.password:
-            raise mlrun.errors.MLRunInvalidArgumentError("Provide Redis username and password only via secrets")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Provide Redis username and password only via secrets"
+            )
         credentials_prefix = self._get_secret_or_env("CREDENTIALS_PREFIX")
         user = self._get_secret_or_env("REDIS_USER", "", credentials_prefix)
         password = self._get_secret_or_env("REDIS_PASSWORD", "", credentials_prefix)
@@ -61,9 +63,13 @@ class RedisStore(DataStore):
     def redis(self):
         if self._redis is None:
             try:
-                self._redis = redis.cluster.RedisCluster.from_url(self._redis_url, decode_responses=True)
+                self._redis = redis.cluster.RedisCluster.from_url(
+                    self._redis_url, decode_responses=True
+                )
             except redis.cluster.RedisClusterException:
-                self._redis = redis.Redis.from_url(self._redis_url, decode_responses=True)
+                self._redis = redis.Redis.from_url(
+                    self._redis_url, decode_responses=True
+                )
 
         return self._redis
 
@@ -105,7 +111,9 @@ class RedisStore(DataStore):
     def get(self, key, size=None, offset=0):
         key = RedisStore.build_redis_key(key)
         if offset < 0:
-            raise mlrun.errors.MLRunInvalidArgumentError("offset argument should be >= 0")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "offset argument should be >= 0"
+            )
         start_offset = offset
         if size is None:
             end_offset = -1

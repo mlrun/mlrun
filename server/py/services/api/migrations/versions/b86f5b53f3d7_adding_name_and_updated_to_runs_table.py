@@ -46,7 +46,9 @@ def upgrade():
             default="no-name",
         ),
     )
-    op.add_column("runs", sa.Column("updated", sa.TIMESTAMP(), default=datetime.datetime.utcnow))
+    op.add_column(
+        "runs", sa.Column("updated", sa.TIMESTAMP(), default=datetime.datetime.utcnow)
+    )
     # ### end Alembic commands ###
 
 

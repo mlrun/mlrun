@@ -114,7 +114,9 @@ def get_artifact_target(item: dict, project=None):
     kind = item.get("kind")
 
     if kind in {"dataset", "model", "artifact"} and db_key:
-        target = f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
+        target = (
+            f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
+        )
         target += f":{tag}" if tag else ":latest"
         if tree:
             target += f"@{tree}"
@@ -218,7 +220,9 @@ def verify_field_regex(
         return False
 
 
-def validate_builder_source(source: str, pull_at_runtime: bool = False, workdir: str = None):
+def validate_builder_source(
+    source: str, pull_at_runtime: bool = False, workdir: str = None
+):
     if pull_at_runtime or not source:
         return
 
@@ -245,7 +249,9 @@ def validate_builder_source(source: str, pull_at_runtime: bool = False, workdir:
         )
 
 
-def validate_tag_name(tag_name: str, field_name: str, raise_on_failure: bool = True) -> bool:
+def validate_tag_name(
+    tag_name: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
     """
     This function is used to validate a tag name for invalid characters using field regex.
     if raise_on_failure is set True, throws an MLRunInvalidArgumentError if the tag is invalid,
@@ -260,7 +266,9 @@ def validate_tag_name(tag_name: str, field_name: str, raise_on_failure: bool = T
     )
 
 
-def validate_artifact_key_name(artifact_key: str, field_name: str, raise_on_failure: bool = True) -> bool:
+def validate_artifact_key_name(
+    artifact_key: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
     field_type = "key" if field_name == "artifact.key" else "db_key"
     return mlrun.utils.helpers.verify_field_regex(
         field_name,
@@ -283,7 +291,9 @@ def validate_inline_artifact_body_size(body: typing.Union[str, bytes, None]) -> 
         )
 
 
-def validate_v3io_stream_consumer_group(value: str, raise_on_failure: bool = True) -> bool:
+def validate_v3io_stream_consumer_group(
+    value: str, raise_on_failure: bool = True
+) -> bool:
     return mlrun.utils.helpers.verify_field_regex(
         "consumerGroup",
         value,
@@ -336,7 +346,9 @@ def verify_field_of_type(field_name: str, field_value, expected_type: type):
 
 # Verifying that a field input is of type list and all elements inside are of the expected element type.
 # If not the method raises a detailed MLRunInvalidArgumentError
-def verify_field_list_of_type(field_name: str, field_value, expected_element_type: type):
+def verify_field_list_of_type(
+    field_name: str, field_value, expected_element_type: type
+):
     verify_field_of_type(field_name, field_value, list)
     for element in field_value:
         verify_field_of_type(field_name, element, expected_element_type)
@@ -447,12 +459,16 @@ def get_in(obj, keys, default=None):
     return obj
 
 
-def verify_and_update_in(obj, key, value, expected_type: type, append=False, replace=True):
+def verify_and_update_in(
+    obj, key, value, expected_type: type, append=False, replace=True
+):
     verify_field_of_type(key, value, expected_type)
     update_in(obj, key, value, append, replace)
 
 
-def verify_list_and_update_in(obj, key, value, expected_element_type: type, append=False, replace=True):
+def verify_list_and_update_in(
+    obj, key, value, expected_element_type: type, append=False, replace=True
+):
     verify_field_list_of_type(key, value, expected_element_type)
     update_in(obj, key, value, append, replace)
 
@@ -665,14 +681,18 @@ def parse_artifact_uri(uri, default_project=""):
     uri_pattern = mlrun.utils.regex.artifact_uri_pattern
     match = re.match(uri_pattern, uri)
     if not match:
-        raise ValueError("Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]")
+        raise ValueError(
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]"
+        )
     group_dict = match.groupdict()
     iteration = group_dict["iteration"]
     if iteration is not None:
         try:
             iteration = int(iteration)
         except ValueError:
-            raise ValueError(f"illegal store path '{uri}', iteration must be integer value")
+            raise ValueError(
+                f"illegal store path '{uri}', iteration must be integer value"
+            )
     else:
         iteration = 0
     return (
@@ -738,7 +758,9 @@ def extend_hub_uri_if_needed(uri) -> tuple[str, bool]:
         # Searching item in all sources
         sources = db.list_hub_sources(item_name=name, tag=tag)
         if not sources:
-            raise mlrun.errors.MLRunNotFoundError(f"Item={name}, tag={tag} not found in any hub source")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Item={name}, tag={tag} not found in any hub source"
+            )
         # precedence to user source
         indexed_source = sources[0]
     else:
@@ -791,16 +813,24 @@ def gen_html_table(header, rows=None):
 
 
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
-    return version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
+    return (
+        version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
+    )
 
 
-def enrich_image_url(image_url: str, client_version: str = None, client_python_version: str = None) -> str:
+def enrich_image_url(
+    image_url: str, client_version: str = None, client_python_version: str = None
+) -> str:
     client_version = _convert_python_package_version_to_image_tag(client_version)
-    server_version = _convert_python_package_version_to_image_tag(mlrun.utils.version.Version().get()["version"])
+    server_version = _convert_python_package_version_to_image_tag(
+        mlrun.utils.version.Version().get()["version"]
+    )
     image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version
-    tag += resolve_image_tag_suffix(mlrun_version=mlrun_version, python_version=client_python_version)
+    tag += resolve_image_tag_suffix(
+        mlrun_version=mlrun_version, python_version=client_python_version
+    )
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
@@ -808,7 +838,9 @@ def enrich_image_url(image_url: str, client_version: str = None, client_python_v
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"
 
-    registry = config.images_registry if is_mlrun_image else config.vendor_images_registry
+    registry = (
+        config.images_registry if is_mlrun_image else config.vendor_images_registry
+    )
 
     enrich_registry = False
     # enrich registry only if images_to_enrich_registry provided
@@ -826,7 +858,9 @@ def enrich_image_url(image_url: str, client_version: str = None, client_python_v
     return image_url
 
 
-def resolve_image_tag_suffix(mlrun_version: str = None, python_version: str = None) -> str:
+def resolve_image_tag_suffix(
+    mlrun_version: str = None, python_version: str = None
+) -> str:
     """
     resolves what suffix should be appended to the image tag
     :param mlrun_version: the mlrun version
@@ -849,9 +883,9 @@ def resolve_image_tag_suffix(mlrun_version: str = None, python_version: str = No
     # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
     # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
     # using semver (x.y.z-X) to include rc versions as well
-    if semver.VersionInfo.parse("1.5.0-X") > semver.VersionInfo.parse(mlrun_version) >= semver.VersionInfo.parse(
-        "1.3.0-X"
-    ) and python_version.startswith("3.7"):
+    if semver.VersionInfo.parse("1.5.0-X") > semver.VersionInfo.parse(
+        mlrun_version
+    ) >= semver.VersionInfo.parse("1.3.0-X") and python_version.startswith("3.7"):
         return "-py37"
     return ""
 
@@ -916,7 +950,9 @@ def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
 
-def retry_until_successful(backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs):
+def retry_until_successful(
+    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+):
     """
     Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)
@@ -934,7 +970,9 @@ def retry_until_successful(backoff: int, timeout: int, logger, verbose: bool, _f
     return Retryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
 
 
-async def retry_until_successful_async(backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs):
+async def retry_until_successful_async(
+    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+):
     """
     Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)
@@ -949,7 +987,9 @@ async def retry_until_successful_async(backoff: int, timeout: int, logger, verbo
     :param kwargs: functions kwargs
     :return: function result
     """
-    return await AsyncRetryer(backoff, timeout, logger, verbose, _function, *args, **kwargs).run()
+    return await AsyncRetryer(
+        backoff, timeout, logger, verbose, _function, *args, **kwargs
+    ).run()
 
 
 def get_ui_url(project, uid=None):
@@ -989,11 +1029,17 @@ def get_kfp_project_filter(project_name: str) -> str:
     runs belonging to the desired project.
     """
     is_substring_op = 9
-    project_name_filter = {"predicates": [{"key": "name", "op": is_substring_op, "string_value": project_name}]}
+    project_name_filter = {
+        "predicates": [
+            {"key": "name", "op": is_substring_op, "string_value": project_name}
+        ]
+    }
     return json.dumps(project_name_filter)
 
 
-def are_strings_in_exception_chain_messages(exception: Exception, strings_list: list[str]) -> bool:
+def are_strings_in_exception_chain_messages(
+    exception: Exception, strings_list: list[str]
+) -> bool:
     while exception is not None:
         if any([string in str(exception) for string in strings_list]):
             return True
@@ -1065,7 +1111,9 @@ def get_caller_globals():
 
 def _module_to_namespace(namespace):
     if isinstance(namespace, ModuleType):
-        members = inspect.getmembers(namespace, lambda o: inspect.isfunction(o) or isinstance(o, type))
+        members = inspect.getmembers(
+            namespace, lambda o: inspect.isfunction(o) or isinstance(o, type)
+        )
         return {key: mod for key, mod in members}
     return namespace
 
@@ -1121,7 +1169,9 @@ def get_function(function, namespaces, reload_modules: bool = False):
     try:
         function_object = create_function(function, reload_modules)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state/function init failed, handler '{function}' not found") from exc
+        raise ImportError(
+            f"state/function init failed, handler '{function}' not found"
+        ) from exc
     return function_object
 
 
@@ -1156,10 +1206,14 @@ def get_handler_extended(
     try:
         instance = class_object(**class_args)
     except TypeError as exc:
-        raise TypeError(f"failed to init class {class_path}\n args={class_args}") from exc
+        raise TypeError(
+            f"failed to init class {class_path}\n args={class_args}"
+        ) from exc
 
     if not hasattr(instance, handler_path):
-        raise ValueError(f"handler ({handler_path}) specified but doesnt exist in class {class_path}")
+        raise ValueError(
+            f"handler ({handler_path}) specified but doesnt exist in class {class_path}"
+        )
     return getattr(instance, handler_path)
 
 
@@ -1231,10 +1285,13 @@ def template_artifact_path(artifact_path, project, run_uid=None):
 def _fill_project_path_template(artifact_path, project):
     # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
     # {{run.project}} so we're supporting it too for backwards compatibility
-    if artifact_path and ("{{run.project}}" in artifact_path or "{{project}}" in artifact_path):
+    if artifact_path and (
+        "{{run.project}}" in artifact_path or "{{project}}" in artifact_path
+    ):
         if not project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "project name must be specified with this" + f" artifact_path template {artifact_path}"
+                "project name must be specified with this"
+                + f" artifact_path template {artifact_path}"
             )
         artifact_path = artifact_path.replace("{{run.project}}", project)
         artifact_path = artifact_path.replace("{{project}}", project)
@@ -1272,7 +1329,8 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
             timestamp = timestamp + Timedelta(time_str)
         elif time_str:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"illegal time string expression now{time_str}, " 'use "now +/- <timestring>" for relative times'
+                f"illegal time string expression now{time_str}, "
+                'use "now +/- <timestring>" for relative times'
             )
 
         if len(split) > 1:
@@ -1284,7 +1342,9 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
 
 def is_link_artifact(artifact):
     if isinstance(artifact, dict):
-        return artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
+        return (
+            artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
+        )
     else:
         return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
 
@@ -1306,21 +1366,31 @@ def format_run(run: PipelineRun, with_project=False) -> dict:
         fields.append("project")
 
     # create a run object that contains all fields,
-    run = {key: str(value) if value is not None else value for key, value in run.items() if key in fields}
+    run = {
+        key: str(value) if value is not None else value
+        for key, value in run.items()
+        if key in fields
+    }
 
     # if the time_keys values is from 1970, this indicates that the field has not yet been specified yet,
     # and we want to return a None value instead
     time_keys = ["scheduled_at", "finished_at", "created_at"]
 
     for key, value in run.items():
-        if key in time_keys and isinstance(value, (str, datetime)) and parser.parse(str(value)).year == 1970:
+        if (
+            key in time_keys
+            and isinstance(value, (str, datetime))
+            and parser.parse(str(value)).year == 1970
+        ):
             run[key] = None
 
     # pipelines are yet to populate the status or workflow has failed
     # as observed https://jira.iguazeng.com/browse/ML-5195
     # set to unknown to ensure a status is returned
     if run.get("status", None) is None:
-        run["status"] = inflection.titleize(mlrun.common.runtimes.constants.RunStates.unknown)
+        run["status"] = inflection.titleize(
+            mlrun.common.runtimes.constants.RunStates.unknown
+        )
 
     return run
 
@@ -1336,7 +1406,9 @@ def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
                 return block_obj.get(key, default)
 
         if raise_on_missing:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"artifact '{artifact}' is missing metadata/spec/status")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"artifact '{artifact}' is missing metadata/spec/status"
+            )
         return default
 
 
@@ -1375,7 +1447,9 @@ def create_ipython_display():
         import IPython
 
         display_id = uuid.uuid4().hex
-        content = IPython.display.HTML(f'<div id="{display_id}">Temporary Display Content</div>')
+        content = IPython.display.HTML(
+            f'<div id="{display_id}">Temporary Display Content</div>'
+        )
         IPython.display.display(content, display_id=display_id)
         return display_id
 
@@ -1498,13 +1572,16 @@ def line_terminator_kwargs():
     # pandas 1.5.0 renames line_terminator to lineterminator
     line_terminator_parameter = (
         "lineterminator"
-        if packaging.version.Version(pandas.__version__) >= packaging.version.Version("1.5.0")
+        if packaging.version.Version(pandas.__version__)
+        >= packaging.version.Version("1.5.0")
         else "line_terminator"
     )
     return {line_terminator_parameter: "\n"}
 
 
-def iterate_list_by_chunks(iterable_list: typing.Iterable, chunk_size: int) -> typing.Iterable:
+def iterate_list_by_chunks(
+    iterable_list: typing.Iterable, chunk_size: int
+) -> typing.Iterable:
     """
     Iterate over a list and yield chunks of the list in the given chunk size
     e.g.: for list of [a,b,c,d,e,f] and chunk_size of 2, will yield [a,b], [c,d], [e,f]
@@ -1552,7 +1629,9 @@ def get_local_file_schema() -> list:
 
 def is_safe_path(base, filepath, is_symlink=False):
     # Avoid path traversal attacks by ensuring that the path is safe
-    resolved_filepath = os.path.abspath(filepath) if not is_symlink else os.path.realpath(filepath)
+    resolved_filepath = (
+        os.path.abspath(filepath) if not is_symlink else os.path.realpath(filepath)
+    )
     return base == os.path.commonpath((base, resolved_filepath))
 
 
@@ -1571,7 +1650,9 @@ def get_serving_spec():
     if data is None:
         data = os.environ.get("SERVING_SPEC_ENV", "")
         if not data:
-            raise mlrun.errors.MLRunInvalidArgumentError("Failed to find serving spec in env var or config file")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Failed to find serving spec in env var or config file"
+            )
     spec = json.loads(data)
     return spec
 
@@ -1579,7 +1660,8 @@ def get_serving_spec():
 def additional_filters_warning(additional_filters, class_name):
     if additional_filters and any(additional_filters):
         mlrun.utils.logger.warn(
-            f"additional_filters parameter is not supported in {class_name}," f" parameter has been ignored."
+            f"additional_filters parameter is not supported in {class_name},"
+            f" parameter has been ignored."
         )
 
 
@@ -1614,7 +1696,9 @@ def validate_component_version_compatibility(
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
     :param mlrun_client_version: Client version to validate when component_name is "mlrun-client".
     """
-    parsed_min_versions = [semver.VersionInfo.parse(min_version) for min_version in min_versions]
+    parsed_min_versions = [
+        semver.VersionInfo.parse(min_version) for min_version in min_versions
+    ]
     parsed_current_version = None
     component_current_version = None
     # For mlrun client we don't assume compatability if we fail to parse the client version
@@ -1632,11 +1716,14 @@ def validate_component_version_compatibility(
                 )
         if component_name == "nuclio":
             component_current_version = mlrun.mlconf.nuclio_version
-            parsed_current_version = semver.VersionInfo.parse(mlrun.mlconf.nuclio_version)
+            parsed_current_version = semver.VersionInfo.parse(
+                mlrun.mlconf.nuclio_version
+            )
         if component_name == "mlrun-client":
             # dev version, assume compatible
             if mlrun_client_version and (
-                mlrun_client_version.startswith("0.0.0+") or "unstable" in mlrun_client_version
+                mlrun_client_version.startswith("0.0.0+")
+                or "unstable" in mlrun_client_version
             ):
                 return True
 
@@ -1673,7 +1760,9 @@ def validate_component_version_compatibility(
     return False
 
 
-def format_alert_summary(alert: mlrun.common.schemas.AlertConfig, event_data: mlrun.common.schemas.Event) -> str:
+def format_alert_summary(
+    alert: mlrun.common.schemas.AlertConfig, event_data: mlrun.common.schemas.Event
+) -> str:
     result = alert.summary.replace("{{project}}", alert.project)
     result = result.replace("{{name}}", alert.name)
     result = result.replace("{{entity}}", event_data.entity.ids[0])
@@ -1681,7 +1770,9 @@ def format_alert_summary(alert: mlrun.common.schemas.AlertConfig, event_data: ml
 
 
 def is_parquet_file(file_path, format_=None):
-    return (file_path and file_path.endswith((".parquet", ".pq"))) or (format_ == "parquet")
+    return (file_path and file_path.endswith((".parquet", ".pq"))) or (
+        format_ == "parquet"
+    )
 
 
 def validate_single_def_handler(function_kind: str, code: str):

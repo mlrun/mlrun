@@ -73,7 +73,9 @@ def api_config_test():
 
     # same for the launcher container
     launcher_factory = mlrun.launcher.factory.LauncherFactory()
-    launcher_factory._launcher_container.override(services.api.launcher.ServerSideLauncherContainer)
+    launcher_factory._launcher_container.override(
+        services.api.launcher.ServerSideLauncherContainer
+    )
 
     yield
 
@@ -171,7 +173,9 @@ def kfp_client_mock(monkeypatch) -> mlrun_pipelines.utils.kfp.Client:
         return_value=True
     )
     kfp_client_mock = unittest.mock.Mock()
-    monkeypatch.setattr(mlrun_pipelines.utils.kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
+    monkeypatch.setattr(
+        mlrun_pipelines.utils.kfp, "Client", lambda *args, **kwargs: kfp_client_mock
+    )
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
     return kfp_client_mock
 
@@ -223,7 +227,9 @@ def mocked_k8s_helper():
 
 def _mocked_k8s_helper():
     # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
-    services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(return_value=[])
+    services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
+        unittest.mock.Mock(return_value=[])
+    )
     services.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
     services.api.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
     services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
@@ -238,13 +244,13 @@ def _mocked_k8s_helper():
     pods_list = unittest.mock.Mock()
     pods_list.items = []
     pods_list.metadata._continue = None
-    services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
-        return_value=pods_list
+    services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod = (
+        unittest.mock.Mock(return_value=pods_list)
     )
     service_list = unittest.mock.Mock()
     service_list.items = []
-    services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service = unittest.mock.Mock(
-        return_value=service_list
+    services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service = (
+        unittest.mock.Mock(return_value=service_list)
     )
     custom_object_list = {"items": []}
     services.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
@@ -252,8 +258,8 @@ def _mocked_k8s_helper():
     )
     secret_data = unittest.mock.Mock()
     secret_data.data = {}
-    services.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_secret = unittest.mock.Mock(
-        return_value=secret_data
+    services.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_secret = (
+        unittest.mock.Mock(return_value=secret_data)
     )
 
 
@@ -284,15 +290,27 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
         if global_secret:
             for key in self.secrets_map.get(global_secret, {}):
-                env_variable_name = SecretsStore.k8s_env_variable_name_for_secret(key) if encode_key_names else key
+                env_variable_name = (
+                    SecretsStore.k8s_env_variable_name_for_secret(key)
+                    if encode_key_names
+                    else key
+                )
                 expected_env_from_secrets[env_variable_name] = {global_secret: key}
 
-        secret_name = services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(project)
+        secret_name = (
+            services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+                project
+            )
+        )
         for key in self.project_secrets_map.get(project, {}):
             if key.startswith("mlrun.") and not include_internal:
                 continue
 
-            env_variable_name = SecretsStore.k8s_env_variable_name_for_secret(key) if encode_key_names else key
+            env_variable_name = (
+                SecretsStore.k8s_env_variable_name_for_secret(key)
+                if encode_key_names
+                else key
+            )
             expected_env_from_secrets[env_variable_name] = {secret_name: key}
 
         return expected_env_from_secrets
@@ -317,7 +335,9 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
             == {}
         )
 
-    def set_service_account_keys(self, project, default_service_account, allowed_service_accounts):
+    def set_service_account_keys(
+        self, project, default_service_account, allowed_service_accounts
+    ):
         secrets = {}
         if default_service_account:
             secrets[
@@ -360,11 +380,15 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
-    k8s_secrets_mock.mock_functions(services.api.utils.singletons.k8s.get_k8s_helper(), monkeypatch)
+    k8s_secrets_mock.mock_functions(
+        services.api.utils.singletons.k8s.get_k8s_helper(), monkeypatch
+    )
     yield k8s_secrets_mock
 
 
-class MockedProjectFollowerIguazioClient(project_leader.Member, metaclass=mlrun.utils.singleton.AbstractSingleton):
+class MockedProjectFollowerIguazioClient(
+    project_leader.Member, metaclass=mlrun.utils.singleton.AbstractSingleton
+):
     def __init__(self):
         self._db_session = None
         self._unversioned_client = None
@@ -423,7 +447,9 @@ class MockedProjectFollowerIguazioClient(project_leader.Member, metaclass=mlrun.
     ) -> mlrun.common.schemas.Project:
         pass
 
-    def format_as_leader_project(self, project: mlrun.common.schemas.Project) -> mlrun.common.schemas.IguazioProject:
+    def format_as_leader_project(
+        self, project: mlrun.common.schemas.Project
+    ) -> mlrun.common.schemas.IguazioProject:
         pass
 
     def get_project_owner(
@@ -435,7 +461,9 @@ class MockedProjectFollowerIguazioClient(project_leader.Member, metaclass=mlrun.
 
 
 @pytest.fixture()
-def mock_project_follower_iguazio_client(db: sqlalchemy.orm.Session, unversioned_client: TestClient):
+def mock_project_follower_iguazio_client(
+    db: sqlalchemy.orm.Session, unversioned_client: TestClient
+):
     """
     This fixture mocks the project leader iguazio client.
     """

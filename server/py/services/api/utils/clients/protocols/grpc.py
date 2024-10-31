@@ -39,7 +39,9 @@ class BaseGRPCClient:
             return
 
         if not self._address:
-            raise mlrun.errors.MLRunInvalidArgumentError("No address was provided, Unable to initialize client")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "No address was provided, Unable to initialize client"
+            )
 
         self._channel = grpc.aio.insecure_channel(self._address)
         if self.stub_class:

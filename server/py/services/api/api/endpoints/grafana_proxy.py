@@ -76,8 +76,12 @@ async def grafana_proxy_model_endpoints_search(
     if not mlrun.mlconf.is_ce_mode():
         services.api.crud.model_monitoring.helpers.get_access_key(auth_info)
     body = await request.json()
-    query_parameters = services.api.crud.model_monitoring.grafana.parse_search_parameters(body)
-    services.api.crud.model_monitoring.grafana.validate_query_parameters(query_parameters, SUPPORTED_SEARCH_FUNCTIONS)
+    query_parameters = (
+        services.api.crud.model_monitoring.grafana.parse_search_parameters(body)
+    )
+    services.api.crud.model_monitoring.grafana.validate_query_parameters(
+        query_parameters, SUPPORTED_SEARCH_FUNCTIONS
+    )
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.
@@ -87,7 +91,9 @@ async def grafana_proxy_model_endpoints_search(
     if asyncio.iscoroutinefunction(function):
         result = await function(db_session, auth_info, query_parameters)
     else:
-        result = await run_in_threadpool(function, db_session, auth_info, query_parameters)
+        result = await run_in_threadpool(
+            function, db_session, auth_info, query_parameters
+        )
     return result
 
 
@@ -118,9 +124,17 @@ async def grafana_proxy_model_endpoints_query(
     """
 
     body = await request.json()
-    query_parameters = services.api.crud.model_monitoring.grafana.parse_query_parameters(body)
-    services.api.crud.model_monitoring.grafana.validate_query_parameters(query_parameters, SUPPORTED_QUERY_FUNCTIONS)
-    query_parameters = services.api.crud.model_monitoring.grafana.drop_grafana_escape_chars(query_parameters)
+    query_parameters = (
+        services.api.crud.model_monitoring.grafana.parse_query_parameters(body)
+    )
+    services.api.crud.model_monitoring.grafana.validate_query_parameters(
+        query_parameters, SUPPORTED_QUERY_FUNCTIONS
+    )
+    query_parameters = (
+        services.api.crud.model_monitoring.grafana.drop_grafana_escape_chars(
+            query_parameters
+        )
+    )
 
     # At this point everything is validated and we can access everything that is needed without performing all previous
     # checks again.

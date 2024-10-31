@@ -88,8 +88,12 @@ class TestServingRuntime(TestNuclioRuntime):
             }
 
         # Since we're in a test, the RunDB is of type SQLRunDB, not HTTPDB as it would usually be.
-        SQLRunDB.deploy_nuclio_function = unittest.mock.Mock(side_effect=_remote_db_mock_function)
-        SQLRunDB.get_nuclio_deploy_status = unittest.mock.Mock(return_value=("text", "last_log"))
+        SQLRunDB.deploy_nuclio_function = unittest.mock.Mock(
+            side_effect=_remote_db_mock_function
+        )
+        SQLRunDB.get_nuclio_deploy_status = unittest.mock.Mock(
+            return_value=("text", "last_log")
+        )
 
     def _create_serving_function(self):
         function = self._generate_runtime(self.runtime_kind)
@@ -97,7 +101,9 @@ class TestServingRuntime(TestNuclioRuntime):
 
         graph.add_step(name="s1", class_name="Chain", secret="inline_secret1")
         graph.add_step(name="s3", class_name="Chain", after="$prev", secret="AWS_KEY")
-        graph.add_step(name="s2", class_name="Chain", after="s1", before="s3", secret="ENV_SECRET1")
+        graph.add_step(
+            name="s2", class_name="Chain", after="s1", before="s3", secret="ENV_SECRET1"
+        )
 
         function.with_secrets("inline", self.inline_secrets)
         function.with_secrets("env", "ENV_SECRET1")
@@ -112,13 +118,17 @@ class TestServingRuntime(TestNuclioRuntime):
         )
         return function
 
-    def _assert_deploy_spec_has_secrets_config(self, use_config_map, expected_secret_sources):
+    def _assert_deploy_spec_has_secrets_config(
+        self, use_config_map, expected_secret_sources
+    ):
         call_args_list = nuclio.deploy.deploy_config.call_args_list
         for single_call_args in call_args_list:
             args, _ = single_call_args
             deploy_spec = args[0]["spec"]
 
-            azure_secret_path = mlconf.secret_stores.azure_vault.secret_path.replace("~", "/root")
+            azure_secret_path = mlconf.secret_stores.azure_vault.secret_path.replace(
+                "~", "/root"
+            )
 
             func_name = None
             for env in deploy_spec["env"]:
@@ -158,7 +168,8 @@ class TestServingRuntime(TestNuclioRuntime):
                     {
                         "volume": {
                             "configMap": {
-                                "name": f"{self.project}-{self.name}" + (f"-{func_name}" if func_name else "")
+                                "name": f"{self.project}-{self.name}"
+                                + (f"-{func_name}" if func_name else "")
                             },
                             "name": "serving-conf",
                         },
@@ -170,7 +181,12 @@ class TestServingRuntime(TestNuclioRuntime):
                     }
                 )
 
-            assert deepdiff.DeepDiff(deploy_spec["volumes"], expected_volumes, ignore_order=True) == {}
+            assert (
+                deepdiff.DeepDiff(
+                    deploy_spec["volumes"], expected_volumes, ignore_order=True
+                )
+                == {}
+            )
 
             expected_env = {
                 # TODO: Vault: uncomment when vault returns to be relevant
@@ -255,7 +271,9 @@ class TestServingRuntime(TestNuclioRuntime):
         # for secret_key in self.vault_secrets:
         #     assert server.context.get_secret(secret_key) == self.vault_secret_value
         for secret_key in self.inline_secrets:
-            assert server.context.get_secret(secret_key) == self.inline_secrets[secret_key]
+            assert (
+                server.context.get_secret(secret_key) == self.inline_secrets[secret_key]
+            )
         assert server.context.get_secret("ENV_SECRET1") == os.environ["ENV_SECRET1"]
 
         resp = server.test(body=[])
@@ -274,7 +292,9 @@ class TestServingRuntime(TestNuclioRuntime):
         function = self._generate_runtime(self.runtime_kind)
         graph = function.set_topology("flow", exist_ok=True, engine="sync")
 
-        graph.add_step(name="extend", class_name="storey.Extend", _fn='({"tag": "something"})')
+        graph.add_step(
+            name="extend", class_name="storey.Extend", _fn='({"tag": "something"})'
+        )
 
         server = function.to_mock_server()
         with pytest.raises(RuntimeError):
@@ -282,7 +302,9 @@ class TestServingRuntime(TestNuclioRuntime):
 
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
         orig_function = get_k8s_helper()._get_project_secrets_raw_data
-        get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
+            return_value={}
+        )
         services.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
 
         function = self._create_serving_function()
@@ -325,7 +347,9 @@ class TestServingRuntime(TestNuclioRuntime):
             secret="AWS_KEY",
         )
         child_function_path = str(self.assets_path / "serving_child_functions.py")
-        function.add_child_function("child-function", child_function_path, self.image_name)
+        function.add_child_function(
+            "child-function", child_function_path, self.image_name
+        )
 
         function.deploy(verbose=True)
         # Child function is deployed before main function
@@ -354,13 +378,17 @@ class TestServingRuntime(TestNuclioRuntime):
 
     def test_empty_function(self):
         # test simple function (no source)
-        function = new_function("serving", kind="serving", project=self.project, image="mlrun/mlrun")
+        function = new_function(
+            "serving", kind="serving", project=self.project, image="mlrun/mlrun"
+        )
         function.set_topology("flow")
         (
             _,
             _,
             config,
-        ) = services.api.crud.runtimes.nuclio.function._compile_function_config(function)
+        ) = services.api.crud.runtimes.nuclio.function._compile_function_config(
+            function
+        )
         # verify the code is filled with the mlrun serving wrapper
         assert config["spec"]["build"]["functionSourceCode"]
 
@@ -376,12 +404,16 @@ class TestServingRuntime(TestNuclioRuntime):
 
         # mock secrets for the source (so it will not fail)
         orig_function = get_k8s_helper()._get_project_secrets_raw_data
-        get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
+            return_value={}
+        )
         (
             _,
             _,
             config,
-        ) = services.api.crud.runtimes.nuclio.function._compile_function_config(function, builder_env={})
+        ) = services.api.crud.runtimes.nuclio.function._compile_function_config(
+            function, builder_env={}
+        )
         get_k8s_helper()._get_project_secrets_raw_data = orig_function
 
         # verify the handler points to mlrun serving wrapper handler

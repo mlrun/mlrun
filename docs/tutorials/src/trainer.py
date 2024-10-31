@@ -21,7 +21,9 @@ def train(
     y = df[label_column]
 
     # Train/Test split the dataset
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.2, random_state=42
+    )
 
     # Pick an ideal ML model
     model = ensemble.GradientBoostingClassifier(

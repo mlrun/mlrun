@@ -25,7 +25,9 @@ class ClientSpec(
     def get_client_spec(
         self, client_version: str = None, client_python_version: str = None
     ) -> mlrun.common.schemas.ClientSpec:
-        mpijob_crd_version = services.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
+        mpijob_crd_version = (
+            services.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
+        )
 
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
@@ -38,7 +40,9 @@ class ClientSpec(
             spark_app_image=config.spark_app_image,
             spark_app_image_tag=config.spark_app_image_tag,
             spark_history_server_path=config.spark_history_server_path,
-            kfp_image=self._resolve_image_by_client_versions(config.kfp_image, client_version, client_python_version),
+            kfp_image=self._resolve_image_by_client_versions(
+                config.kfp_image, client_version, client_python_version
+            ),
             kfp_url=config.kfp_url,
             dask_kfp_image=self._resolve_image_by_client_versions(
                 config.dask_kfp_image, client_version, client_python_version
@@ -62,24 +66,48 @@ class ClientSpec(
             ),
             # These have a default value, therefore we want to send them only if their value is not the default one
             # (otherwise clients don't know when to use server value and when to use client value)
-            ui_projects_prefix=self._get_config_value_if_not_default("ui.projects_prefix"),
+            ui_projects_prefix=self._get_config_value_if_not_default(
+                "ui.projects_prefix"
+            ),
             scrape_metrics=self._get_config_value_if_not_default("scrape_metrics"),
-            default_function_node_selector=self._get_config_value_if_not_default("default_function_node_selector"),
+            default_function_node_selector=self._get_config_value_if_not_default(
+                "default_function_node_selector"
+            ),
             igz_version=self._get_config_value_if_not_default("igz_version"),
-            auto_mount_type=self._get_config_value_if_not_default("storage.auto_mount_type"),
-            auto_mount_params=self._get_config_value_if_not_default("storage.auto_mount_params"),
-            default_tensorboard_logs_path=self._get_config_value_if_not_default("default_tensorboard_logs_path"),
-            default_function_pod_resources=self._get_config_value_if_not_default("default_function_pod_resources"),
-            preemptible_nodes_node_selector=self._get_config_value_if_not_default("preemptible_nodes.node_selector"),
-            preemptible_nodes_tolerations=self._get_config_value_if_not_default("preemptible_nodes.tolerations"),
-            default_preemption_mode=self._get_config_value_if_not_default("function_defaults.preemption_mode"),
+            auto_mount_type=self._get_config_value_if_not_default(
+                "storage.auto_mount_type"
+            ),
+            auto_mount_params=self._get_config_value_if_not_default(
+                "storage.auto_mount_params"
+            ),
+            default_tensorboard_logs_path=self._get_config_value_if_not_default(
+                "default_tensorboard_logs_path"
+            ),
+            default_function_pod_resources=self._get_config_value_if_not_default(
+                "default_function_pod_resources"
+            ),
+            preemptible_nodes_node_selector=self._get_config_value_if_not_default(
+                "preemptible_nodes.node_selector"
+            ),
+            preemptible_nodes_tolerations=self._get_config_value_if_not_default(
+                "preemptible_nodes.tolerations"
+            ),
+            default_preemption_mode=self._get_config_value_if_not_default(
+                "function_defaults.preemption_mode"
+            ),
             force_run_local=self._get_config_value_if_not_default("force_run_local"),
             function=self._get_config_value_if_not_default("function"),
             ce=config.ce.to_dict(),
             logs=self._get_config_value_if_not_default("httpdb.logs"),
-            feature_store_data_prefixes=self._get_config_value_if_not_default("feature_store.data_prefixes"),
-            feature_store_default_targets=self._get_config_value_if_not_default("feature_store.default_targets"),
-            external_platform_tracking=self._get_config_value_if_not_default("external_platform_tracking"),
+            feature_store_data_prefixes=self._get_config_value_if_not_default(
+                "feature_store.data_prefixes"
+            ),
+            feature_store_default_targets=self._get_config_value_if_not_default(
+                "feature_store.default_targets"
+            ),
+            external_platform_tracking=self._get_config_value_if_not_default(
+                "external_platform_tracking"
+            ),
             model_endpoint_monitoring_endpoint_store_connection=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.endpoint_store_connection"
             ),
@@ -94,7 +122,9 @@ class ClientSpec(
         )
 
     @staticmethod
-    def _resolve_image_by_client_versions(image: str, client_version: str = None, client_python_version=None):
+    def _resolve_image_by_client_versions(
+        image: str, client_version: str = None, client_python_version=None
+    ):
         """
         This method main purpose is to provide enriched images for deployment processes which are being executed on
         client side, such as building a workflow. The whole enrichment and construction of a workflow is being done on
@@ -107,7 +137,9 @@ class ClientSpec(
         :return: enriched image url
         """
         try:
-            return mlrun.utils.helpers.enrich_image_url(image, client_version, client_python_version)
+            return mlrun.utils.helpers.enrich_image_url(
+                image, client_version, client_python_version
+            )
         # if for some reason the user provided un-parsable versions, fall back to resolve version only by server
         except ValueError:
             return mlrun.utils.helpers.enrich_image_url(image)
@@ -119,7 +151,9 @@ class ClientSpec(
         current_default_config_value = default_config
         for config_key_part in config_key_parts:
             current_config_value = getattr(current_config_value, config_key_part)
-            current_default_config_value = current_default_config_value.get(config_key_part, "")
+            current_default_config_value = current_default_config_value.get(
+                config_key_part, ""
+            )
         # when accessing attribute in Config, if the object is of type Mapping it returns the object in type Config
         if isinstance(current_config_value, Config):
             current_config_value = current_config_value.to_dict()

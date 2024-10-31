@@ -78,7 +78,9 @@ class SecretsStore:
             if not isinstance(source, dict):
                 raise ValueError("Azure vault secrets must be of type dict")
             if "name" not in source:
-                raise ValueError("'name' must be provided in the source to define an Azure vault")
+                raise ValueError(
+                    "'name' must be provided in the source to define an Azure vault"
+                )
 
             azure_vault = AzureVaultStore(source["name"])
             for key, value in azure_vault.get_secrets(source["secrets"]).items():
@@ -137,7 +139,10 @@ class SecretsStore:
     def get_k8s_secrets(self):
         for source in self._hidden_sources:
             if source["kind"] == "kubernetes":
-                return {secret: self.k8s_env_variable_name_for_secret(secret) for secret in source["source"]}
+                return {
+                    secret: self.k8s_env_variable_name_for_secret(secret)
+                    for secret in source["source"]
+                }
         return None
 
 
@@ -168,7 +173,9 @@ def get_secret_or_env(
             return value
 
 
-        secret = get_secret_or_env("KEY1", secret_provider=my_secret_provider, default="TOO-MANY-SECRETS")
+        secret = get_secret_or_env(
+            "KEY1", secret_provider=my_secret_provider, default="TOO-MANY-SECRETS"
+        )
 
     :param key: Secret key to look for
     :param secret_provider: Dictionary, callable or `SecretsStore` to extract the secret value from. If using a
@@ -189,4 +196,9 @@ def get_secret_or_env(
         if value:
             return value
 
-    return value or getenv(key) or getenv(SecretsStore.k8s_env_variable_name_for_secret(key)) or default
+    return (
+        value
+        or getenv(key)
+        or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
+        or default
+    )

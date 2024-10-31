@@ -106,10 +106,14 @@ class WorkflowRunners(
         )
         workflow_spec = workflow_request.spec
         if workflow_spec.workflow_runner_node_selector:
-            runner.spec.node_selector.update(workflow_spec.workflow_runner_node_selector)
+            runner.spec.node_selector.update(
+                workflow_spec.workflow_runner_node_selector
+            )
 
         # this includes filling the spec.function which is required for submit run
-        runner._store_function(runspec=run_spec, meta=run_spec.metadata, db=runner._get_db())
+        runner._store_function(
+            runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
+        )
 
         schedule = workflow_spec.schedule
         scheduled_object = {
@@ -150,7 +154,9 @@ class WorkflowRunners(
             for notification in workflow_request.notifications or []
         ]
 
-        source, save, is_context = self._validate_source(project, workflow_request.source)
+        source, save, is_context = self._validate_source(
+            project, workflow_request.source
+        )
         workflow_spec = workflow_request.spec
         run_object = RunObject(
             spec=RunSpec(
@@ -184,7 +190,9 @@ class WorkflowRunners(
                 ),
                 notifications=notifications,
             ),
-            metadata=RunMetadata(uid=meta_uid, name=workflow_spec.name, project=project.metadata.name),
+            metadata=RunMetadata(
+                uid=meta_uid, name=workflow_spec.name, project=project.metadata.name
+            ),
         )
 
         if is_context:
@@ -221,7 +229,9 @@ class WorkflowRunners(
         else:
             labels[mlrun_constants.MLRunInternalLabels.job_type] = "workflow-runner"
             labels[mlrun_constants.MLRunInternalLabels.workflow] = runner.metadata.name
-        mlrun.runtimes.utils.enrich_run_labels(labels, [mlrun.common.runtimes.constants.RunLabels.owner])
+        mlrun.runtimes.utils.enrich_run_labels(
+            labels, [mlrun.common.runtimes.constants.RunLabels.owner]
+        )
 
         run_spec = self._prepare_run_object_for_single_run(
             project=project,
@@ -238,7 +248,9 @@ class WorkflowRunners(
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
         if workflow_request:
-            workflow_spec_node_selector = workflow_request.spec.workflow_runner_node_selector
+            workflow_spec_node_selector = (
+                workflow_request.spec.workflow_runner_node_selector
+            )
             if workflow_spec_node_selector:
                 runner.spec.node_selector.update(workflow_spec_node_selector)
 
@@ -268,7 +280,9 @@ class WorkflowRunners(
         :return: The id of the workflow.
         """
         # Reading run:
-        run = services.api.crud.Runs().get_run(db_session=db_session, uid=uid, iter=0, project=project)
+        run = services.api.crud.Runs().get_run(
+            db_session=db_session, uid=uid, iter=0, project=project
+        )
         run_object = RunObject.from_dict(run)
         state = run_object.status.state
         workflow_id = None
@@ -276,18 +290,29 @@ class WorkflowRunners(
             workflow_id = run_object.status.results.get("workflow_id", None)
 
         if workflow_id is None:
-            if run_object.metadata.is_workflow_runner() and run_object.status.is_failed():
+            if (
+                run_object.metadata.is_workflow_runner()
+                and run_object.status.is_failed()
+            ):
                 state = run_object.status.state
                 state_text = run_object.status.error
-                workflow_name = run_object.spec.parameters.get("workflow_name", "<unknown>")
+                workflow_name = run_object.spec.parameters.get(
+                    "workflow_name", "<unknown>"
+                )
                 raise mlrun.errors.MLRunPreconditionFailedError(
                     f"Failed to run workflow {workflow_name}, state: {state}, state_text: {state_text}"
                 )
 
-            elif engine == "local" and state.casefold() == mlrun_pipelines.common.models.RunStatuses.running.casefold():
+            elif (
+                engine == "local"
+                and state.casefold()
+                == mlrun_pipelines.common.models.RunStatuses.running.casefold()
+            ):
                 workflow_id = run_object.metadata.uid
             else:
-                raise mlrun.errors.MLRunNotFoundError(f"Workflow id of run {project}:{uid} not found")
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Workflow id of run {project}:{uid} not found"
+                )
 
         return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)
 
@@ -399,12 +424,16 @@ class WorkflowRunners(
 
             if source.startswith("./") or source == ".":
                 build = project.spec.build
-                source_code_target_dir = build.get("source_code_target_dir") if build else ""
+                source_code_target_dir = (
+                    build.get("source_code_target_dir") if build else ""
+                )
 
                 # When the source is relative, it is relative to the project's source_code_target_dir
                 # If the project's source_code_target_dir is not set, the source is relative to the cwd
                 if source_code_target_dir:
-                    source = os.path.normpath(os.path.join(source_code_target_dir, source))
+                    source = os.path.normpath(
+                        os.path.join(source_code_target_dir, source)
+                    )
                 return source, save, True
 
         if "://" not in source:

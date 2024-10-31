@@ -64,14 +64,18 @@ def test_build_status_pod_not_found(
         "status": {"build_pod": "some-pod-name"},
     }
     response = client.post(
-        FUNCTIONS_API.format(project=function["metadata"]["project"], name=function["metadata"]["name"]),
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"], name=function["metadata"]["name"]
+        ),
         json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
     with unittest.mock.patch.object(
         services.api.utils.singletons.k8s.get_k8s_helper().v1api,
         "read_namespaced_pod_status",
-        side_effect=kubernetes.client.rest.ApiException(status=HTTPStatus.NOT_FOUND.value),
+        side_effect=kubernetes.client.rest.ApiException(
+            status=HTTPStatus.NOT_FOUND.value
+        ),
     ):
         response = client.get(
             "build/status",
@@ -85,7 +89,9 @@ def test_build_status_pod_not_found(
 
 
 @pytest.mark.asyncio
-async def test_list_functions_with_pagination(db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient):
+async def test_list_functions_with_pagination(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
     """
     Test list functions with pagination.
     Create 25 functions, request the first page, then use token to request 2nd and 3rd pages.
@@ -167,7 +173,9 @@ def _assert_pagination_info(
 
 
 @pytest.mark.asyncio
-async def test_list_functions_with_hash_key_versioned(db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient):
+async def test_list_functions_with_hash_key_versioned(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
     await services.api.tests.unit.api.utils.create_project_async(async_client, PROJECT)
 
     function_tag = "function-tag"
@@ -205,7 +213,8 @@ async def test_list_functions_with_hash_key_versioned(db: sqlalchemy.orm.Session
 
     # Store another function with the same project and name but different tag and hash key
     post_function2_response = await async_client.post(
-        f"projects/{function_project}/functions/" f"{function_name}?tag={another_tag}&versioned={True}",
+        f"projects/{function_project}/functions/"
+        f"{function_name}?tag={another_tag}&versioned={True}",
         json=function2,
     )
     assert post_function2_response.status_code == HTTPStatus.OK.value
@@ -232,7 +241,9 @@ async def test_list_functions_with_hash_key_versioned(db: sqlalchemy.orm.Session
     [("v1/", HTTPStatus.NO_CONTENT.value), ("v2/", HTTPStatus.ACCEPTED.value)],
 )
 @unittest.mock.patch.object(services.api.utils.clients.async_nuclio, "Client")
-@unittest.mock.patch.object(services.api.utils.clients.async_nuclio.Client, "delete_function")
+@unittest.mock.patch.object(
+    services.api.utils.clients.async_nuclio.Client, "delete_function"
+)
 def test_delete_function(
     patched_nuclio_client,
     patched_delete_nuclio_function,
@@ -247,7 +258,9 @@ def test_delete_function(
     patched_delete_nuclio_function.return_value.return_value = None
     endpoint_prefix = "v1/"
     # create project and function
-    services.api.tests.unit.api.utils.create_project(unversioned_client, PROJECT, endpoint_prefix=endpoint_prefix)
+    services.api.tests.unit.api.utils.create_project(
+        unversioned_client, PROJECT, endpoint_prefix=endpoint_prefix
+    )
 
     function_tag = "function-tag"
     function_name = "function-name"
@@ -264,7 +277,9 @@ def test_delete_function(
     }
 
     function_endpoint = f"projects/{PROJECT}/functions/{function_name}"
-    function = unversioned_client.post(f"{endpoint_prefix}{function_endpoint}", data=mlrun.utils.dict_to_json(function))
+    function = unversioned_client.post(
+        f"{endpoint_prefix}{function_endpoint}", data=mlrun.utils.dict_to_json(function)
+    )
     assert function.status_code == HTTPStatus.OK.value
     hash_key = function.json()["hash_key"]
 
@@ -297,22 +312,34 @@ def test_delete_function(
         assert response.status_code == HTTPStatus.CREATED.value
 
         response = unversioned_client.get(f"{endpoint_prefix}{endpoint}")
-        assert response.status_code == HTTPStatus.OK.value and response.json()["schedules"][0]["name"] == function_name
+        assert (
+            response.status_code == HTTPStatus.OK.value
+            and response.json()["schedules"][0]["name"] == function_name
+        )
 
     # delete the function and assert that it has been removed, as has its schedule if created
-    response = unversioned_client.delete(f"{function_deletion_endpoint_prefix}{function_endpoint}")
+    response = unversioned_client.delete(
+        f"{function_deletion_endpoint_prefix}{function_endpoint}"
+    )
     assert response.status_code == expected_status
 
-    response = unversioned_client.get(f"{endpoint_prefix}{function_endpoint}", params={"hash_key": hash_key})
+    response = unversioned_client.get(
+        f"{endpoint_prefix}{function_endpoint}", params={"hash_key": hash_key}
+    )
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
     if post_schedule:
         response = unversioned_client.get(f"{endpoint_prefix}{endpoint}")
-        assert response.status_code == HTTPStatus.OK.value and not response.json()["schedules"]
+        assert (
+            response.status_code == HTTPStatus.OK.value
+            and not response.json()["schedules"]
+        )
 
 
 @pytest.mark.asyncio
-async def test_multiple_store_function_race_condition(db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient):
+async def test_multiple_store_function_race_condition(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
     """
     This is testing the case that the retry_on_conflict decorator is coming to solve, see its docstring for more details
     """
@@ -323,8 +350,8 @@ async def test_multiple_store_function_race_condition(db: sqlalchemy.orm.Session
         [1, 2],
         None,
     ).mock_function
-    services.api.utils.singletons.db.get_db()._get_class_instance_by_uid = unittest.mock.Mock(
-        side_effect=get_function_mock
+    services.api.utils.singletons.db.get_db()._get_class_instance_by_uid = (
+        unittest.mock.Mock(side_effect=get_function_mock)
     )
     function = {
         "kind": "job",
@@ -362,7 +389,11 @@ async def test_multiple_store_function_race_condition(db: sqlalchemy.orm.Session
     assert response2.status_code == HTTPStatus.OK.value
     # 2 times for two store function requests + at least 1 time on retry for one of them
     # but no more than 5 times, as retry should not be that excessive
-    assert 3 <= services.api.utils.singletons.db.get_db()._get_class_instance_by_uid.call_count < 5
+    assert (
+        3
+        <= services.api.utils.singletons.db.get_db()._get_class_instance_by_uid.call_count
+        < 5
+    )
 
 
 def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_models(
@@ -379,7 +410,9 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     function = _generate_function(function_name)
 
     handler_mock = services.api.utils.clients.chief.Client()
-    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(return_value=fastapi.Response())
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
+        return_value=fastapi.Response()
+    )
     monkeypatch.setattr(
         services.api.utils.clients.chief,
         "Client",
@@ -472,7 +505,9 @@ def test_tracking_on_serving(
 
     # Mock the client and unnecessary functions for this test
     handler_mock = services.api.utils.clients.chief.Client()
-    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(return_value=fastapi.Response())
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
+        return_value=fastapi.Response()
+    )
 
     services.api.crud.Secrets().store_project_secrets(
         project=PROJECT,
@@ -530,7 +565,9 @@ def _function_to_monkeypatch(monkeypatch, package: ModuleType, list_of_functions
         )
 
 
-def test_build_function_with_mlrun_bool(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+def test_build_function_with_mlrun_bool(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
 
     function_dict = {
@@ -548,7 +585,9 @@ def test_build_function_with_mlrun_bool(db: sqlalchemy.orm.Session, client: fast
             "with_mlrun": with_mlrun,
         }
         function = mlrun.new_function(runtime=function_dict)
-        services.api.utils.functions.build_function = unittest.mock.Mock(return_value=(function, True))
+        services.api.utils.functions.build_function = unittest.mock.Mock(
+            return_value=(function, True)
+        )
         response = client.post(
             "build/function",
             json=request_body,
@@ -624,7 +663,9 @@ def test_build_function_force_build(
 
     # Mock the functions responsible for the image building
     with (
-        unittest.mock.patch("services.api.utils.builder.make_dockerfile", return_value=""),
+        unittest.mock.patch(
+            "services.api.utils.builder.make_dockerfile", return_value=""
+        ),
         unittest.mock.patch(
             "services.api.utils.builder.make_kaniko_pod",
             return_value=services.api.utils.singletons.k8s.BasePod(),
@@ -637,7 +678,9 @@ def test_build_function_force_build(
             "services.api.utils.builder._resolve_build_requirements",
             return_value=([], [], "/empty/requirements.txt"),
         ),
-        unittest.mock.patch("services.api.utils.singletons.k8s.get_k8s_helper") as mock_get_k8s_helper,
+        unittest.mock.patch(
+            "services.api.utils.singletons.k8s.get_k8s_helper"
+        ) as mock_get_k8s_helper,
     ):
         mock_get_k8s_helper.return_value.create_pod.return_value = (
             "pod-name",
@@ -657,7 +700,10 @@ def test_build_function_force_build(
 
         assert services.api.utils.builder.make_kaniko_pod.call_count == expected
         assert services.api.utils.builder.make_dockerfile.call_count == expected
-        assert services.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count == expected
+        assert (
+            services.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
+            == expected
+        )
 
 
 def test_build_function_masks_access_key(
@@ -805,7 +851,9 @@ def test_build_clone_target_dir_backwards_compatability(
     assert response.json()["data"]["spec"]["clone_target_dir"] == clone_target_dir
 
 
-def test_start_function_succeeded(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch):
+def test_start_function_succeeded(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+):
     name = "dask"
     project = "test-dask"
     dask_cluster = mlrun.new_function(name, project=project, kind="dask")
@@ -828,15 +876,24 @@ def test_start_function_succeeded(db: sqlalchemy.orm.Session, client: fastapi.te
     )
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
 
-    response = client.get(f"projects/{project}/background-tasks/{background_task.metadata.name}")
+    response = client.get(
+        f"projects/{project}/background-tasks/{background_task.metadata.name}"
+    )
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
+    assert (
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
+    )
 
 
-def test_start_function_fails(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch):
+def test_start_function_fails(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+):
     def failing_func():
         raise mlrun.errors.MLRunRuntimeError()
 
@@ -863,14 +920,22 @@ def test_start_function_fails(db: sqlalchemy.orm.Session, client: fastapi.testcl
     )
     assert response.status_code == http.HTTPStatus.OK
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
-    response = client.get(f"projects/{project}/background-tasks/{background_task.metadata.name}")
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
+    )
+    response = client.get(
+        f"projects/{project}/background-tasks/{background_task.metadata.name}"
+    )
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    assert (
+        background_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+    )
 
 
-def test_start_function(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch):
+def test_start_function(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+):
     def failing_func():
         raise mlrun.errors.MLRunRuntimeError()
 
@@ -926,8 +991,13 @@ def test_start_function(db: sqlalchemy.orm.Session, client: fastapi.testclient.T
         )
         assert response.status_code == http.HTTPStatus.OK
         background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-        assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.running
-        response = client.get(f"projects/{project}/background-tasks/{background_task.metadata.name}")
+        assert (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.running
+        )
+        response = client.get(
+            f"projects/{project}/background-tasks/{background_task.metadata.name}"
+        )
         assert response.status_code == http.HTTPStatus.OK.value
         background_task = mlrun.common.schemas.BackgroundTask(**response.json())
         assert background_task.status.state == expected_status_result
@@ -947,7 +1017,9 @@ def test_build_status_events_and_logs(
         "status": {"build_pod": "some-pod-name"},
     }
     response = client.post(
-        FUNCTIONS_API.format(project=function["metadata"]["project"], name=function["metadata"]["name"]),
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"], name=function["metadata"]["name"]
+        ),
         json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
@@ -1048,7 +1120,9 @@ def _generate_function(
     return fn
 
 
-def _generate_build_function_request(func, with_mlrun: bool = True, skip_deployed: bool = False, to_json: bool = True):
+def _generate_build_function_request(
+    func, with_mlrun: bool = True, skip_deployed: bool = False, to_json: bool = True
+):
     request = {
         "function": func.to_dict(),
         "with_mlrun": "yes" if with_mlrun else "false",

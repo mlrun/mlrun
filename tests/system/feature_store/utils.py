@@ -30,11 +30,17 @@ SNOWFLAKE_ENV_PARAMETERS = [
 
 
 def sort_df(df: pd.DataFrame, sort_columns: Union[str, list[str]]):
-    return df.reindex(sorted(df.columns), axis=1).sort_values(by=sort_columns).reset_index(drop=True)
+    return (
+        df.reindex(sorted(df.columns), axis=1)
+        .sort_values(by=sort_columns)
+        .reset_index(drop=True)
+    )
 
 
 def get_missing_snowflake_spark_parameters():
-    snowflake_missing_keys = [key for key in SNOWFLAKE_ENV_PARAMETERS if key not in os.environ]
+    snowflake_missing_keys = [
+        key for key in SNOWFLAKE_ENV_PARAMETERS if key not in os.environ
+    ]
     return snowflake_missing_keys
 
 

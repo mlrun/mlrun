@@ -38,7 +38,9 @@ def upgrade():
         "alert_configs",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=255, collation="utf8_bin"), nullable=False),
-        sa.Column("project", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "project", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.Column("object", sa.JSON(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project", "name", name="_alert_configs_uc"),
@@ -46,25 +48,37 @@ def upgrade():
     op.create_table(
         "alert_configs_notifications",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("project", sa.String(length=255, collation="utf8_bin"), nullable=True),
+        sa.Column(
+            "project", sa.String(length=255, collation="utf8_bin"), nullable=True
+        ),
         sa.Column("name", sa.String(length=255, collation="utf8_bin"), nullable=False),
         sa.Column("kind", sa.String(length=255, collation="utf8_bin"), nullable=False),
-        sa.Column("message", sa.String(length=255, collation="utf8_bin"), nullable=False),
-        sa.Column("severity", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "message", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
+        sa.Column(
+            "severity", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.Column("when", sa.String(length=255, collation="utf8_bin"), nullable=False),
-        sa.Column("condition", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "condition", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.Column("secret_params", sa.JSON(), nullable=True),
         sa.Column("params", sa.JSON(), nullable=True),
         sa.Column("parent_id", sa.Integer(), nullable=True),
         sa.Column("sent_time", mysql.TIMESTAMP(fsp=3), nullable=True),
-        sa.Column("status", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "status", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.Column("reason", sa.String(length=255, collation="utf8_bin"), nullable=True),
         sa.ForeignKeyConstraint(
             ["parent_id"],
             ["alert_configs.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("name", "parent_id", name="_alert_configs_notifications_uc"),
+        sa.UniqueConstraint(
+            "name", "parent_id", name="_alert_configs_notifications_uc"
+        ),
     )
     op.create_table(
         "alert_states",

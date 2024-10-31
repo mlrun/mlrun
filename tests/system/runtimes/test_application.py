@@ -82,7 +82,9 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         application_image = function.status.application_image
         container_image = function.status.container_image
 
-        function, _ = self._create_vizro_application(name="second-app", app_image=application_image)
+        function, _ = self._create_vizro_application(
+            name="second-app", app_image=application_image
+        )
         function.from_image(container_image)
 
         self._logger.debug("Deploying a second application")
@@ -107,7 +109,9 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         assert function.invoke("/", verify=False)
 
     def test_deploy_reverse_proxy_base_image(self):
-        tests.system.base.TestMLRunSystem._logger.debug("Deploying reverse proxy base image")
+        tests.system.base.TestMLRunSystem._logger.debug(
+            "Deploying reverse proxy base image"
+        )
         mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
         assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
 
@@ -117,10 +121,14 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying vizro application")
         function.deploy(with_mlrun=False)
 
-        assert function.status.container_image == mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
+        assert (
+            function.status.container_image
+            == mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
+        )
 
         assert (
-            function.metadata.annotations.get("kubectl.kubernetes.io/default-container") == function.status.sidecar_name
+            function.metadata.annotations.get("kubectl.kubernetes.io/default-container")
+            == function.status.sidecar_name
         )
 
     @pytest.mark.enterprise
@@ -173,7 +181,9 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function._get_state()
         assert len(function.status.external_invocation_urls) == 2
 
-    def _create_vizro_application(self, name="vizro-app", app_image=None, with_repo: bool = False):
+    def _create_vizro_application(
+        self, name="vizro-app", app_image=None, with_repo: bool = False
+    ):
         function = self.project.set_function(
             name=name,
             kind="application",

@@ -58,7 +58,9 @@ aggregates_step = "Aggregates"
 class FeatureAggregation(ModelObj):
     """feature aggregation requirements"""
 
-    def __init__(self, name=None, column=None, operations=None, windows=None, period=None):
+    def __init__(
+        self, name=None, column=None, operations=None, windows=None, period=None
+    ):
         self.name = name
         self.column = column
         self.operations = operations or []
@@ -147,13 +149,16 @@ class FeatureSetSpec(ModelObj):
                     entities[i] = Entity(entity)
                 elif isinstance(entity, Entity) and entity.name is None:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "You have to provide an " "Entity with valid name of string type"
+                        "You have to provide an "
+                        "Entity with valid name of string type"
                     )
                 elif isinstance(entity, dict) and (
-                    "name" not in entity or ("name" in entity and entity["name"] is None)
+                    "name" not in entity
+                    or ("name" in entity and entity["name"] is None)
                 ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "You have to provide an " "Entity with valid name of string type"
+                        "You have to provide an "
+                        "Entity with valid name of string type"
                     )
         self._entities = ObjectList.from_list(Entity, entities)
 
@@ -185,7 +190,9 @@ class FeatureSetSpec(ModelObj):
         engine_list = ["pandas", "spark", "storey"]
         engine = engine if engine else "storey"
         if engine not in engine_list:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"engine must be one of {','.join(engine_list)}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"engine must be one of {','.join(engine_list)}"
+            )
         self.graph.engine = "sync" if engine and engine in ["pandas", "spark"] else None
         self._engine = engine
 
@@ -197,7 +204,9 @@ class FeatureSetSpec(ModelObj):
     @graph.setter
     def graph(self, graph):
         self._graph = self._verify_dict(graph, "graph", RootFlowStep)
-        self._graph.engine = "sync" if self.engine and self.engine in ["pandas", "spark"] else None
+        self._graph.engine = (
+            "sync" if self.engine and self.engine in ["pandas", "spark"] else None
+        )
 
     @property
     def function(self) -> FunctionReference:
@@ -237,7 +246,9 @@ class FeatureSetSpec(ModelObj):
 
     def validate_no_processing_for_passthrough(self):
         if self.passthrough and self.require_processing():
-            raise mlrun.errors.MLRunInvalidArgumentError("passthrough feature set can not have graph transformations")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "passthrough feature set can not have graph transformations"
+            )
 
 
 class FeatureSetStatus(ModelObj):
@@ -287,7 +298,10 @@ class FeatureSetStatus(ModelObj):
     def update_last_written_for_target(self, target_path: str, last_written: datetime):
         for target in self._targets:
             actual_target_path = get_target_driver(target).get_target_path()
-            if actual_target_path == target_path or actual_target_path.rstrip("/") == target_path:
+            if (
+                actual_target_path == target_path
+                or actual_target_path.rstrip("/") == target_path
+            ):
                 target.last_written = last_written
 
 
@@ -324,7 +338,9 @@ class FeatureSet(ModelObj):
 
             import mlrun.feature_store as fstore
 
-            ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
+            ticks = fstore.FeatureSet(
+                "ticks", entities=["stock"], timestamp_key="timestamp"
+            )
             ticks.ingest(df)
 
         :param name:          name of the feature set
@@ -356,7 +372,9 @@ class FeatureSet(ModelObj):
         )
 
         if timestamp_key in self.spec.entities.keys():
-            raise mlrun.errors.MLRunInvalidArgumentError("timestamp key can not be entity")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "timestamp key can not be entity"
+            )
 
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
@@ -396,7 +414,9 @@ class FeatureSet(ModelObj):
     @property
     def fullname(self) -> str:
         """full name in the form ``{project}/{name}[:{tag}]``"""
-        fullname = f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
+        fullname = (
+            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
+        )
         if self._metadata.tag:
             fullname += ":" + self._metadata.tag
         return fullname
@@ -418,7 +438,9 @@ class FeatureSet(ModelObj):
             target = get_online_target(self, name)
 
         if target:
-            return target.get_path().get_absolute_path(project_name=self.metadata.project)
+            return target.get_path().get_absolute_path(
+                project_name=self.metadata.project
+            )
 
     def set_targets(
         self,
@@ -478,7 +500,9 @@ class FeatureSet(ModelObj):
                     f"target kind is not supported, use one of: {','.join(TargetTypes.all())}"
                 )
             if not hasattr(target, "kind"):
-                target = DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
+                target = DataTargetBase(
+                    target, name=str(target), partitioned=(target == "parquet")
+                )
             self.spec.targets.update(target)
 
     def validate_steps(self, namespace):
@@ -487,26 +511,40 @@ class FeatureSet(ModelObj):
         if not self.spec.graph:
             return
         for step in self.spec.graph.steps.values():
-            if step.class_name in queue_class_names or step.class_name is None or "." not in step.class_name:
+            if (
+                step.class_name in queue_class_names
+                or step.class_name is None
+                or "." not in step.class_name
+            ):
                 #  we are not checking none class names or queue class names.
                 continue
             class_object, class_name = step.get_step_class_object(namespace=namespace)
             if not hasattr(class_object, "validate_args"):
                 continue
-            class_args = step.get_full_class_args(namespace=namespace, class_object=class_object)
+            class_args = step.get_full_class_args(
+                namespace=namespace, class_object=class_object
+            )
             if class_name.startswith("storey"):
-                class_object.validate_args(**(class_args if class_args is not None else {}))
+                class_object.validate_args(
+                    **(class_args if class_args is not None else {})
+                )
             else:
-                class_object.validate_args(self, **(class_args if class_args is not None else {}))
+                class_object.validate_args(
+                    self, **(class_args if class_args is not None else {})
+                )
 
     def purge_targets(self, target_names: list[str] = None, silent: bool = False):
         """Delete data of specific targets
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status"""
 
-        verify_feature_set_permissions(self, mlrun.common.schemas.AuthorizationAction.delete)
+        verify_feature_set_permissions(
+            self, mlrun.common.schemas.AuthorizationAction.delete
+        )
 
-        purge_targets = self._reload_and_get_status_targets(target_names=target_names, silent=silent)
+        purge_targets = self._reload_and_get_status_targets(
+            target_names=target_names, silent=silent
+        )
 
         if purge_targets:
             purge_target_names = list(purge_targets.keys())
@@ -534,11 +572,18 @@ class FeatureSet(ModelObj):
         status_targets = {}
         if not overwrite:
             # silent=True always because targets are not guaranteed to be found in status
-            status_targets = self._reload_and_get_status_targets(target_names=ingestion_target_names, silent=True) or {}
+            status_targets = (
+                self._reload_and_get_status_targets(
+                    target_names=ingestion_target_names, silent=True
+                )
+                or {}
+            )
 
         update_targets_run_id_for_ingest(overwrite, targets, status_targets)
 
-    def _reload_and_get_status_targets(self, target_names: list[str] = None, silent: bool = False):
+    def _reload_and_get_status_targets(
+        self, target_names: list[str] = None, silent: bool = False
+    ):
         try:
             self.reload(update_spec=False)
         except mlrun.errors.MLRunNotFoundError:
@@ -583,8 +628,12 @@ class FeatureSet(ModelObj):
 
             import mlrun.feature_store as fstore
 
-            ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
-            ticks.add_entity("country", mlrun.data_types.ValueType.STRING, description="stock country")
+            ticks = fstore.FeatureSet(
+                "ticks", entities=["stock"], timestamp_key="timestamp"
+            )
+            ticks.add_entity(
+                "country", mlrun.data_types.ValueType.STRING, description="stock country"
+            )
             ticks.add_entity("year", mlrun.data_types.ValueType.INT16)
             ticks.save()
 
@@ -604,7 +653,9 @@ class FeatureSet(ModelObj):
             import mlrun.feature_store as fstore
             from mlrun.features import Feature
 
-            ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
+            ticks = fstore.FeatureSet(
+                "ticks", entities=["stock"], timestamp_key="timestamp"
+            )
             ticks.add_feature(
                 Feature(
                     value_type=mlrun.data_types.ValueType.STRING,
@@ -654,7 +705,9 @@ class FeatureSet(ModelObj):
                     f"Aggregation with name {name} already exists but for different column {current_aggr['column']}. "
                     f"Please provide name for the aggregation"
                 )
-            current_aggr["operations"] = list(set(current_aggr["operations"] + new_aggregation["operations"]))
+            current_aggr["operations"] = list(
+                set(current_aggr["operations"] + new_aggregation["operations"])
+            )
 
             return
         self._aggregations[name] = new_aggregation
@@ -714,7 +767,9 @@ class FeatureSet(ModelObj):
 
         """
         if isinstance(operations, str):
-            raise mlrun.errors.MLRunInvalidArgumentError("Invalid parameters provided - operations must be a list.")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid parameters provided - operations must be a list."
+            )
 
         name = name or column
 
@@ -723,13 +778,17 @@ class FeatureSet(ModelObj):
         if isinstance(operations, str):
             operations = [operations]
 
-        aggregation = FeatureAggregation(name, column, operations, windows, period).to_dict()
+        aggregation = FeatureAggregation(
+            name, column, operations, windows, period
+        ).to_dict()
 
         def upsert_feature(name):
             if name in self.spec.features:
                 self.spec.features[name].aggregate = True
             else:
-                self.spec.features[name] = Feature(name=column, aggregate=True, value_type="float")
+                self.spec.features[name] = Feature(
+                    name=column, aggregate=True, value_type="float"
+                )
 
         step_name = step_name or aggregates_step
         graph = self.spec.graph
@@ -781,7 +840,9 @@ class FeatureSet(ModelObj):
                     **class_args,
                 )
             else:
-                raise ValueError("Aggregations are only implemented for storey and spark engines.")
+                raise ValueError(
+                    "Aggregations are only implemented for storey and spark engines."
+                )
 
         for operation in operations:
             for window in windows:
@@ -814,7 +875,9 @@ class FeatureSet(ModelObj):
             import mlrun.feature_store as fstore
 
             ...
-            ticks = fstore.FeatureSet("ticks", entities=["stock"], timestamp_key="timestamp")
+            ticks = fstore.FeatureSet(
+                "ticks", entities=["stock"], timestamp_key="timestamp"
+            )
             ticks.add_aggregation(
                 name="priceN",
                 column="price",
@@ -882,7 +945,9 @@ class FeatureSet(ModelObj):
 
         if self.spec.passthrough:
             if not self.spec.source:
-                raise mlrun.errors.MLRunNotFoundError("passthrough feature set {self.metadata.name} with no source")
+                raise mlrun.errors.MLRunNotFoundError(
+                    "passthrough feature set {self.metadata.name} with no source"
+                )
             df = self.spec.source.to_dataframe(
                 columns=columns,
                 start_time=start_time,
@@ -898,7 +963,9 @@ class FeatureSet(ModelObj):
 
         target = get_offline_target(self, name=target_name)
         if not target:
-            raise mlrun.errors.MLRunNotFoundError("there are no offline targets for this feature set")
+            raise mlrun.errors.MLRunNotFoundError(
+                "there are no offline targets for this feature set"
+            )
         result = target.as_df(
             columns=columns,
             df_module=df_module,
@@ -917,12 +984,16 @@ class FeatureSet(ModelObj):
         self.metadata.project = self.metadata.project or mlconf.default_project
         tag = tag or self.metadata.tag or "latest"
         as_dict = self.to_dict()
-        as_dict["spec"]["features"] = as_dict["spec"].get("features", [])  # bypass DB bug
+        as_dict["spec"]["features"] = as_dict["spec"].get(
+            "features", []
+        )  # bypass DB bug
         db.store_feature_set(as_dict, tag=tag, versioned=versioned)
 
     def reload(self, update_spec=True):
         """reload/sync the feature vector status and spec from the DB"""
-        feature_set = self._get_run_db().get_feature_set(self.metadata.name, self.metadata.project, self.metadata.tag)
+        feature_set = self._get_run_db().get_feature_set(
+            self.metadata.name, self.metadata.project, self.metadata.tag
+        )
         if isinstance(feature_set, dict):
             feature_set = FeatureSet.from_dict(feature_set)
 
@@ -1028,7 +1099,9 @@ class FeatureSet(ModelObj):
         :param verbose:        verbose log
         :param sample_size:    num of rows to sample from the dataset (for large datasets)
         """
-        return mlrun.feature_store.api._preview(self, source, entity_columns, namespace, options, verbose, sample_size)
+        return mlrun.feature_store.api._preview(
+            self, source, entity_columns, namespace, options, verbose, sample_size
+        )
 
     def deploy_ingestion_service(
         self,
@@ -1063,7 +1136,9 @@ class FeatureSet(ModelObj):
                 differ from the function passed in via the run_config parameter).
         """
 
-        return mlrun.feature_store.api._deploy_ingestion_service_v2(self, source, targets, name, run_config, verbose)
+        return mlrun.feature_store.api._deploy_ingestion_service_v2(
+            self, source, targets, name, run_config, verbose
+        )
 
     def extract_relation_keys(
         self,
@@ -1081,9 +1156,9 @@ class FeatureSet(ModelObj):
         """
         right_feature_set_entity_list = other_feature_set.spec.entities
 
-        if all(ent in self.spec.entities for ent in right_feature_set_entity_list) and len(
-            right_feature_set_entity_list
-        ) == len(self.spec.entities):
+        if all(
+            ent in self.spec.entities for ent in right_feature_set_entity_list
+        ) and len(right_feature_set_entity_list) == len(self.spec.entities):
             # entities wise
             return list(self.spec.entities.keys())
         elif all(ent in self.spec.entities for ent in right_feature_set_entity_list):
@@ -1114,7 +1189,9 @@ class FeatureSet(ModelObj):
         :param df_columns:  The columns of the data frame you want to merge to the left of this feature set
         :return:            True if it can be left-joined and False otherwise
         """
-        return df_columns and all(ent in df_columns for ent in self.spec.entities.keys())
+        return df_columns and all(
+            ent in df_columns for ent in self.spec.entities.keys()
+        )
 
 
 class SparkAggregateByKey(StepToDict):
@@ -1166,8 +1243,9 @@ class SparkAggregateByKey(StepToDict):
     @staticmethod
     def _verify_operation(op):
         if op not in SparkAggregateByKey._supported_operations:
-            error_string = f"operation {op} is unsupported. Supported operations: " + ", ".join(
-                SparkAggregateByKey._supported_operations
+            error_string = (
+                f"operation {op} is unsupported. Supported operations: "
+                + ", ".join(SparkAggregateByKey._supported_operations)
             )
             raise mlrun.errors.MLRunInvalidArgumentError(error_string)
 
@@ -1178,7 +1256,11 @@ class SparkAggregateByKey(StepToDict):
         for op in operations:
             self._verify_operation(op)
         windows = aggregate["windows"]
-        spark_period = self._duration_to_spark_format(aggregate["period"]) if "period" in aggregate else None
+        spark_period = (
+            self._duration_to_spark_format(aggregate["period"])
+            if "period" in aggregate
+            else None
+        )
         return name, column, operations, windows, spark_period
 
     @staticmethod
@@ -1225,7 +1307,9 @@ class SparkAggregateByKey(StepToDict):
                         agg_name = f"{name if name else column}_{operation}_{window}"
                         agg = agg.alias(agg_name)
                         aggs.append(agg)
-                    window_column = funcs.window(time_column, spark_window, spark_period)
+                    window_column = funcs.window(
+                        time_column, spark_window, spark_period
+                    )
                     df = input_df.groupBy(
                         *self.key_columns,
                         window_column.end.alias(time_column),
@@ -1269,7 +1353,9 @@ class SparkAggregateByKey(StepToDict):
 
                     window_rank_col = f"__mlrun_win_rank_{window_counter}"
                     rank_window = Window.partitionBy(rowid_col).orderBy(window_col)
-                    win_df = win_df.withColumn(window_rank_col, funcs.row_number().over(rank_window))
+                    win_df = win_df.withColumn(
+                        window_rank_col, funcs.row_number().over(rank_window)
+                    )
                     window_rank_cols.append(window_rank_col)
                     drop_columns.extend([window_col, window_rank_col])
 
@@ -1280,7 +1366,11 @@ class SparkAggregateByKey(StepToDict):
                         agg_name = f"{name if name else column}_{operation}_{window}"
                         win_df = win_df.withColumn(agg_name, agg.over(function_window))
 
-                    union_df = union_df.unionByName(win_df, allowMissingColumns=True) if union_df else win_df
+                    union_df = (
+                        union_df.unionByName(win_df, allowMissingColumns=True)
+                        if union_df
+                        else win_df
+                    )
 
             # We need to collapse the multiple window rows that were generated during the query processing. For that
             # purpose we'll pick just the 1st row for each window, and then group-by with ignorenulls. Basically since
@@ -1292,11 +1382,18 @@ class SparkAggregateByKey(StepToDict):
             # 4     null        null            10:10       2               ...
             # And we want to take rows 1 and 3 in this case. Then the group-by will merge them to a single line since
             # it ignores nulls, so it will take the values for window_1 from row 1 and for window_2 from row 3.
-            window_filter = " or ".join([f"{window_rank_col} == 1" for window_rank_col in window_rank_cols])
+            window_filter = " or ".join(
+                [f"{window_rank_col} == 1" for window_rank_col in window_rank_cols]
+            )
             first_value_aggs = [
                 funcs.first(column, ignorenulls=True).alias(column)
                 for column in union_df.columns
                 if column not in drop_columns
             ]
 
-            return union_df.filter(window_filter).groupBy(rowid_col).agg(*first_value_aggs).drop(rowid_col)
+            return (
+                union_df.filter(window_filter)
+                .groupBy(rowid_col)
+                .agg(*first_value_aggs)
+                .drop(rowid_col)
+            )

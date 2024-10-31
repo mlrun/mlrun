@@ -30,7 +30,9 @@ class StopOnTokens(StoppingCriteria):
         StoppingCriteria.__init__(self)
         self.stop_token_ids = stop_token_ids
 
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+    def __call__(
+        self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs
+    ) -> bool:
         # print(input_ids)
         for stop_id in self.stop_token_ids:
             if input_ids[0][-1] == stop_id:
@@ -53,7 +55,9 @@ def init_context(context):
     # Model will stop generating after #, ##, or ###
     # This speeds up inference and prevents garbage at the end
     stop_token_ids = tokenizer.convert_tokens_to_ids(["#", "##", "###"])
-    stopping_criteria = StoppingCriteriaList([StopOnTokens(stop_token_ids=stop_token_ids)])
+    stopping_criteria = StoppingCriteriaList(
+        [StopOnTokens(stop_token_ids=stop_token_ids)]
+    )
 
     # HF text generation pipeline
     pipe = pipeline(

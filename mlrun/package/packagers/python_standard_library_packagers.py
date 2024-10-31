@@ -94,7 +94,9 @@ class StrPackager(DefaultPackager):
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.PATH
 
-    def pack_path(self, obj: str, key: str, archive_format: str = DEFAULT_ARCHIVE_FORMAT) -> tuple[Artifact, dict]:
+    def pack_path(
+        self, obj: str, key: str, archive_format: str = DEFAULT_ARCHIVE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a path string value content (pack the file or directory in that path).
 
@@ -121,12 +123,16 @@ class StrPackager(DefaultPackager):
             # Archive the directory:
             output_path = tempfile.mkdtemp()
             archiver = ArchiveSupportedFormat.get_format_handler(fmt=archive_format)
-            archive_path = archiver.create_archive(directory_path=obj, output_path=output_path)
+            archive_path = archiver.create_archive(
+                directory_path=obj, output_path=output_path
+            )
             # Create the artifact:
             artifact = Artifact(key=key, src_path=archive_path)
             instructions = {"archive_format": archive_format, "is_directory": True}
         else:
-            raise MLRunInvalidArgumentError(f"The given path is not a file nor a directory: '{obj}'")
+            raise MLRunInvalidArgumentError(
+                f"The given path is not a file nor a directory: '{obj}'"
+            )
 
         return artifact, instructions
 
@@ -168,7 +174,9 @@ class StrPackager(DefaultPackager):
 
         # Extract the archive:
         archiver = ArchiveSupportedFormat.get_format_handler(fmt=archive_format)
-        directory_path = archiver.extract_archive(archive_path=path, output_path=os.path.dirname(path))
+        directory_path = archiver.extract_archive(
+            archive_path=path, output_path=os.path.dirname(path)
+        )
 
         # Mark the extracted content for future clear:
         self.add_future_clearing_path(path=directory_path)
@@ -213,7 +221,9 @@ class _BuiltinCollectionPackager(DefaultPackager):
 
         return artifact, instructions
 
-    def unpack_file(self, data_item: DataItem, file_format: str = None) -> Union[dict, list]:
+    def unpack_file(
+        self, data_item: DataItem, file_format: str = None
+    ) -> Union[dict, list]:
         """
         Unpack a builtin collection from file.
 
@@ -331,7 +341,9 @@ class TuplePackager(ListPackager):
         """
         return super().pack_result(obj=list(obj), key=key)
 
-    def pack_file(self, obj: tuple, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT) -> tuple[Artifact, dict]:
+    def pack_file(
+        self, obj: tuple, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a tuple as a file by the given format.
 
@@ -374,7 +386,9 @@ class SetPackager(ListPackager):
         """
         return super().pack_result(obj=list(obj), key=key)
 
-    def pack_file(self, obj: set, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT) -> tuple[Artifact, dict]:
+    def pack_file(
+        self, obj: set, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a set as a file by the given format.
 
@@ -430,7 +444,9 @@ class FrozensetPackager(SetPackager):
 
         :return: The unpacked frozenset.
         """
-        return frozenset(super().unpack_file(data_item=data_item, file_format=file_format))
+        return frozenset(
+            super().unpack_file(data_item=data_item, file_format=file_format)
+        )
 
 
 class BytesPackager(ListPackager):
@@ -451,7 +467,9 @@ class BytesPackager(ListPackager):
         """
         return {key: obj}
 
-    def pack_file(self, obj: bytes, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT) -> tuple[Artifact, dict]:
+    def pack_file(
+        self, obj: bytes, key: str, file_format: str = DEFAULT_STRUCT_FILE_FORMAT
+    ) -> tuple[Artifact, dict]:
         """
         Pack a bytes as a file by the given format.
 
@@ -518,7 +536,9 @@ class BytearrayPackager(BytesPackager):
 
         :return: The unpacked bytearray.
         """
-        return bytearray(super().unpack_file(data_item=data_item, file_format=file_format))
+        return bytearray(
+            super().unpack_file(data_item=data_item, file_format=file_format)
+        )
 
 
 # ----------------------------------------------------------------------------------------------------------------------

@@ -32,7 +32,9 @@ router = fastapi.APIRouter()
 async def store_project_secrets(
     project: str,
     secrets: mlrun.common.schemas.SecretsData,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
 ):
     # Doing a specific check for project existence, because we want to return 404 in the case of a project not
@@ -52,7 +54,9 @@ async def store_project_secrets(
         mlrun.common.schemas.AuthorizationAction.create,
         auth_info,
     )
-    await run_in_threadpool(services.api.crud.Secrets().store_project_secrets, project, secrets)
+    await run_in_threadpool(
+        services.api.crud.Secrets().store_project_secrets, project, secrets
+    )
 
     return fastapi.Response(status_code=HTTPStatus.CREATED.value)
 
@@ -62,7 +66,9 @@ async def delete_project_secrets(
     project: str,
     provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
     secrets: list[str] = fastapi.Query(None, alias="secret"),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -79,7 +85,9 @@ async def delete_project_secrets(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    await run_in_threadpool(services.api.crud.Secrets().delete_project_secrets, project, provider, secrets)
+    await run_in_threadpool(
+        services.api.crud.Secrets().delete_project_secrets, project, provider, secrets
+    )
 
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -91,8 +99,12 @@ async def delete_project_secrets(
 async def list_project_secret_keys(
     project: str,
     provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
-    token: str = fastapi.Header(None, alias=mlrun.common.schemas.HeaderNames.secret_store_token),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    token: str = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.secret_store_token
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
 ):
     await run_in_threadpool(
@@ -108,16 +120,24 @@ async def list_project_secret_keys(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return await run_in_threadpool(services.api.crud.Secrets().list_project_secret_keys, project, provider, token)
+    return await run_in_threadpool(
+        services.api.crud.Secrets().list_project_secret_keys, project, provider, token
+    )
 
 
-@router.get("/projects/{project}/secrets", response_model=mlrun.common.schemas.SecretsData)
+@router.get(
+    "/projects/{project}/secrets", response_model=mlrun.common.schemas.SecretsData
+)
 async def list_project_secrets(
     project: str,
     secrets: list[str] = fastapi.Query(None, alias="secret"),
     provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
-    token: str = fastapi.Header(None, alias=mlrun.common.schemas.HeaderNames.secret_store_token),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    token: str = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.secret_store_token
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
 ):
     await run_in_threadpool(

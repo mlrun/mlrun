@@ -135,7 +135,9 @@ def apply_mlrun(
         context = mlrun.get_or_create_ctx(SKLearnMLRunInterface.DEFAULT_CONTEXT_NAME)
 
     # Create a model handler:
-    model_handler_kwargs = kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
+    model_handler_kwargs = (
+        kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
+    )
     handler = SKLearnModelHandler(
         model_name=model_name,
         model_path=model_path,

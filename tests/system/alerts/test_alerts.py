@@ -54,7 +54,9 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # nuclio function for storing notifications, to validate that alert notifications were sent on the failed job
-        nuclio_function_url = notification_helpers.deploy_notification_nuclio(self.project, self.image)
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
 
         # create an alert with webhook notification
         alert_name = "failure-webhook"
@@ -79,10 +81,14 @@ class TestAlerts(TestMLRunSystem):
 
         # Validate that the notifications was sent on the failed job
         expected_notifications = ["notification failure"]
-        self._validate_notifications_on_nuclio(nuclio_function_url, expected_notifications)
+        self._validate_notifications_on_nuclio(
+            nuclio_function_url, expected_notifications
+        )
 
     @staticmethod
-    def _generate_events(endpoint_id: str, result_name: str) -> list[dict[str, typing.Any]]:
+    def _generate_events(
+        endpoint_id: str, result_name: str
+    ) -> list[dict[str, typing.Any]]:
         data_drift_example = {
             mm_constants.WriterEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.WriterEvent.APPLICATION_NAME: mm_constants.HistogramDataDriftApplicationConstants.NAME,
@@ -95,7 +101,9 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.data_drift.value,
                     mm_constants.ResultData.RESULT_VALUE: 0.5,
                     mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
-                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps({"threshold": 0.3}),
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
+                        {"threshold": 0.3}
+                    ),
                     mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
@@ -113,7 +121,9 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.concept_drift.value,
                     mm_constants.ResultData.RESULT_VALUE: 0.9,
                     mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.potential_detection.value,
-                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps({"threshold": 0.7}),
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
+                        {"threshold": 0.7}
+                    ),
                     mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
@@ -131,7 +141,9 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.mm_app_anomaly.value,
                     mm_constants.ResultData.RESULT_VALUE: 0.9,
                     mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
-                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps({"threshold": 0.4}),
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
+                        {"threshold": 0.4}
+                    ),
                     mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
@@ -149,7 +161,9 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.system_performance.value,
                     mm_constants.ResultData.RESULT_VALUE: 0.9,
                     mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
-                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps({"threshold": 0.4}),
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
+                        {"threshold": 0.4}
+                    ),
                     mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
@@ -162,7 +176,9 @@ class TestAlerts(TestMLRunSystem):
             system_performance_example,
         ]
 
-    def _generate_alerts(self, nuclio_function_url: str, result_endpoint_fqn) -> list[str]:
+    def _generate_alerts(
+        self, nuclio_function_url: str, result_endpoint_fqn
+    ) -> list[str]:
         """Generate alerts for the different result kind and return data from the expected notifications."""
         expected_notifications = []
         alerts_kind_to_test = [
@@ -173,7 +189,9 @@ class TestAlerts(TestMLRunSystem):
         ]
 
         for alert_kind in alerts_kind_to_test:
-            alert_name = mlrun.utils.helpers.normalize_name(f"drift-webhook-{alert_kind}")
+            alert_name = mlrun.utils.helpers.normalize_name(
+                f"drift-webhook-{alert_kind}"
+            )
             alert_summary = "Model is drifting"
             self._create_alert_config(
                 self.project_name,
@@ -182,7 +200,9 @@ class TestAlerts(TestMLRunSystem):
                 result_endpoint_fqn,
                 alert_summary,
                 alert_kind,
-                self._generate_drift_notifications(nuclio_function_url, alert_kind.value),
+                self._generate_drift_notifications(
+                    nuclio_function_url, alert_kind.value
+                ),
             )
             expected_notifications.extend(
                 [
@@ -205,7 +225,9 @@ class TestAlerts(TestMLRunSystem):
         )
         self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
         # deploy nuclio func for storing notifications, to validate an alert notifications were sent on drift detection
-        nuclio_function_url = notification_helpers.deploy_notification_nuclio(self.project, self.image)
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
         endpoint_id = "demo-endpoint"
 
         # generate alerts for the different result kind and return text from the expected notifications that will be
@@ -215,7 +237,9 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # waits for the writer function to be deployed
-        writer = self.project.get_function(key=mm_constants.MonitoringFunctionNames.WRITER)
+        writer = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.WRITER
+        )
         writer._wait_for_function_deployment(db=writer._get_db())
 
         mlrun.model_monitoring.api.get_or_create_model_endpoint(
@@ -231,14 +255,18 @@ class TestAlerts(TestMLRunSystem):
             stream_uri,
         )
 
-        result_name = mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
+        result_name = (
+            mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
+        )
 
         output_stream.push(self._generate_events(endpoint_id, result_name))
 
         # wait for the nuclio function to check for the stream inputs
         time.sleep(10)
 
-        self._validate_notifications_on_nuclio(nuclio_function_url, expected_notifications)
+        self._validate_notifications_on_nuclio(
+            nuclio_function_url, expected_notifications
+        )
 
     def test_job_failure_alert_sliding_window(self):
         """
@@ -262,7 +290,9 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # nuclio function for storing notifications, to validate that alert notifications were sent on the failed job
-        nuclio_function_url = notification_helpers.deploy_notification_nuclio(self.project, self.image)
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
 
         # create an alert with webhook notification that should trigger when the job fails twice in two minutes
         alert_name = "failure-webhook"
@@ -295,7 +325,9 @@ class TestAlerts(TestMLRunSystem):
 
         # validate that no notifications were sent yet, as the two failures did not occur within the same period
         expected_notifications = []
-        self._validate_notifications_on_nuclio(nuclio_function_url, expected_notifications)
+        self._validate_notifications_on_nuclio(
+            nuclio_function_url, expected_notifications
+        )
 
         # this failure should fall within the adjusted sliding window when combined with the second failure
         # should trigger the alert
@@ -304,7 +336,9 @@ class TestAlerts(TestMLRunSystem):
 
         # validate that the alert was triggered and the notification was sent
         expected_notifications = ["notification failure"]
-        self._validate_notifications_on_nuclio(nuclio_function_url, expected_notifications)
+        self._validate_notifications_on_nuclio(
+            nuclio_function_url, expected_notifications
+        )
 
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):
@@ -366,7 +400,9 @@ class TestAlerts(TestMLRunSystem):
             name=name,
             summary=summary,
             severity=alert_objects.AlertSeverity.LOW,
-            entities=alert_objects.EventEntities(kind=entity_kind, project=project, ids=[entity_id]),
+            entities=alert_objects.EventEntities(
+                kind=entity_kind, project=project, ids=[entity_id]
+            ),
             trigger=alert_objects.AlertTrigger(events=[event_name]),
             criteria=criteria,
             notifications=notifications,
@@ -377,6 +413,13 @@ class TestAlerts(TestMLRunSystem):
     @staticmethod
     def _validate_notifications_on_nuclio(nuclio_function_url, expected_notifications):
         sent_notifications = list(
-            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(nuclio_function_url)
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
         )
-        assert deepdiff.DeepDiff(sent_notifications, expected_notifications, ignore_order=True) == {}
+        assert (
+            deepdiff.DeepDiff(
+                sent_notifications, expected_notifications, ignore_order=True
+            )
+            == {}
+        )

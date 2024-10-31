@@ -36,7 +36,9 @@ class _MLRunSummaryWriter(SummaryWriter):
     per call).
     """
 
-    def add_hparams(self, hparam_dict, metric_dict, hparam_domain_discrete=None, run_name=None):
+    def add_hparams(
+        self, hparam_dict, metric_dict, hparam_domain_discrete=None, run_name=None
+    ):
         """
         Log the given hyperparameters to the same event file that is currently open.
 
@@ -61,7 +63,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
 
     def __init__(
         self,
-        statistics_functions: list[Callable[[Union[Parameter]], Union[float, Parameter]]],
+        statistics_functions: list[
+            Callable[[Union[Parameter]], Union[float, Parameter]]
+        ],
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
@@ -129,7 +133,10 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         method is called once for creating the hparams table.
         """
         # Check if needed to track hyperparameters:
-        if len(self._static_hyperparameters) == 0 and len(self._dynamic_hyperparameters) == 0:
+        if (
+            len(self._static_hyperparameters) == 0
+            and len(self._dynamic_hyperparameters) == 0
+        ):
             return
 
         # Prepare the hyperparameters values:
@@ -144,7 +151,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         for metric in self._validation_summaries:
             graph_parameters[f"{self._Sections.SUMMARY}/validation_{metric}"] = 0.0
         for parameter, epochs in self._dynamic_hyperparameters.items():
-            graph_parameters[f"{self._Sections.HYPERPARAMETERS}/{parameter}"] = epochs[-1]
+            graph_parameters[f"{self._Sections.HYPERPARAMETERS}/{parameter}"] = epochs[
+                -1
+            ]
 
         # Write the hyperparameters and summaries table:
         self._summary_writer.add_hparams(non_graph_parameters, graph_parameters)
@@ -184,7 +193,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
             global_step=step,
         )
 
-    def _write_weight_histogram_to_tensorboard(self, name: str, weight: Parameter, step: int):
+    def _write_weight_histogram_to_tensorboard(
+        self, name: str, weight: Parameter, step: int
+    ):
         """
         Write the current state of the weights as histograms to tensorboard.
 
@@ -198,7 +209,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
             global_step=step,
         )
 
-    def _write_weight_image_to_tensorboard(self, name: str, weight: Parameter, step: int):
+    def _write_weight_image_to_tensorboard(
+        self, name: str, weight: Parameter, step: int
+    ):
         """
         Log the current state of the weights as images to tensorboard.
 
@@ -237,7 +250,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         tensorboard_directory: str = None,
         run_name: str = None,
         weights: Union[bool, list[str]] = False,
-        statistics_functions: list[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]] = None,
+        statistics_functions: list[
+            Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
+        ] = None,
         dynamic_hyperparameters: dict[
             str,
             tuple[
@@ -245,7 +260,9 @@ class TensorboardLoggingCallback(LoggingCallback):
                 Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
             ],
         ] = None,
-        static_hyperparameters: dict[str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]] = None,
+        static_hyperparameters: dict[
+            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
+        ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
     ):
@@ -315,7 +332,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         del self._logger
         self._logger = _PyTorchTensorboardLogger(
             statistics_functions=(
-                statistics_functions if statistics_functions is not None else self.get_default_weight_statistics_list()
+                statistics_functions
+                if statistics_functions is not None
+                else self.get_default_weight_statistics_list()
             ),
             context=context,
             tensorboard_directory=tensorboard_directory,
@@ -345,7 +364,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         return self._logger.weight_statistics
 
     @staticmethod
-    def get_default_weight_statistics_list() -> list[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]:
+    def get_default_weight_statistics_list() -> (
+        list[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]
+    ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.
 
@@ -393,7 +414,9 @@ class TensorboardLoggingCallback(LoggingCallback):
             return
 
         # Log the weights:
-        for weight_name, weight_parameter in self._objects[self._ObjectKeys.MODEL].named_parameters():
+        for weight_name, weight_parameter in self._objects[
+            self._ObjectKeys.MODEL
+        ].named_parameters():
             collect = False
             if self._tracked_weights is True:  # Collect all weights
                 collect = True
@@ -403,7 +426,9 @@ class TensorboardLoggingCallback(LoggingCallback):
                         collect = True
                         break
             if collect:
-                self._logger.log_weight(weight_name=weight_name, weight_holder=weight_parameter)
+                self._logger.log_weight(
+                    weight_name=weight_name, weight_holder=weight_parameter
+                )
 
         # Log the weights statistics:
         self._logger.log_weights_statistics()
@@ -422,7 +447,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         # Log the model:
         self._logger.write_model_to_tensorboard(
             model=self._objects[self._ObjectKeys.MODEL],
-            input_sample=next(self._objects[self._ObjectKeys.TRAINING_SET].__iter__())[0],
+            input_sample=next(self._objects[self._ObjectKeys.TRAINING_SET].__iter__())[
+                0
+            ],
         )
 
         # Write the hyperparameters table:
@@ -445,7 +472,9 @@ class TensorboardLoggingCallback(LoggingCallback):
 
         super().on_run_end()
 
-    def on_validation_end(self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]):
+    def on_validation_end(
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]
+    ):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the
         validation results summaries.
@@ -514,7 +543,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         # Write the batch loss and metrics results to their graphs:
         self._logger.write_training_results()
 
-    def on_validation_batch_end(self, batch: int, x: Tensor, y_true: Tensor, y_pred: Tensor):
+    def on_validation_batch_end(
+        self, batch: int, x: Tensor, y_true: Tensor, y_pred: Tensor
+    ):
         """
         Before the validation of the given batch ends, this method will be called to log the batch's loss and metrics
         results to their per iteration plots.

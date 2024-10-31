@@ -47,7 +47,9 @@ from ..runtimes.pod import AutoMountType
 def get_workflow_engine(engine_kind, local=False):
     if pipeline_context.is_run_local(local):
         if engine_kind == mlrun.common.schemas.workflow.EngineType.KFP:
-            logger.warning("Running kubeflow pipeline locally, note some ops may not run locally!")
+            logger.warning(
+                "Running kubeflow pipeline locally, note some ops may not run locally!"
+            )
         elif engine_kind == mlrun.common.schemas.workflow.EngineType.REMOTE:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
@@ -98,9 +100,13 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
-            raise mlrun.errors.MLRunInvalidArgumentError("workflow must have code or path properties")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "workflow must have code or path properties"
+            )
         if self.code:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as workflow_fh:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False
+            ) as workflow_fh:
                 workflow_fh.write(self.code)
                 self._tmp_path = workflow_path = workflow_fh.name
         else:
@@ -152,7 +158,9 @@ class FunctionsDict:
         return self.project.spec._function_objects
 
     def enrich(self, function, key):
-        enriched_function = enrich_function_object(self.project, function, self._decorator)
+        enriched_function = enrich_function_object(
+            self.project, function, self._decorator
+        )
         self._functions[key] = enriched_function  # update the cache
         return self._functions[key]
 
@@ -182,7 +190,10 @@ class FunctionsDict:
         return self._functions.keys()
 
     def items(self):
-        return [(key, self.enrich(function, key)) for key, function in self._functions.items()]
+        return [
+            (key, self.enrich(function, key))
+            for key, function in self._functions.items()
+        ]
 
     def __len__(self):
         return len(self._functions)
@@ -240,14 +251,18 @@ class _PipelineContext:
         if self.project:
             return True
         if raise_exception:
-            raise ValueError("Pipeline context is not initialized, must be used inside a pipeline")
+            raise ValueError(
+                "Pipeline context is not initialized, must be used inside a pipeline"
+            )
         return False
 
 
 pipeline_context = _PipelineContext()
 
 
-def _set_function_attribute_on_kfp_pod(kfp_pod_template, function, pod_template_key, function_spec_key):
+def _set_function_attribute_on_kfp_pod(
+    kfp_pod_template, function, pod_template_key, function_spec_key
+):
     try:
         if kfp_pod_template.get("name").startswith(function.metadata.name):
             attribute_value = getattr(function.spec, function_spec_key, None)
@@ -280,15 +295,21 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
             f"See mlrun.config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
         )
 
-    kfp_pod_user_unix_id = int(mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id)
+    kfp_pod_user_unix_id = int(
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
+    )
     kfp_pod_template["SecurityContext"] = {
         "runAsUser": kfp_pod_user_unix_id,
-        "runAsGroup": mlrun.mlconf.get_security_context_enrichment_group_id(kfp_pod_user_unix_id),
+        "runAsGroup": mlrun.mlconf.get_security_context_enrichment_group_id(
+            kfp_pod_user_unix_id
+        ),
     }
 
 
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
-    project_instance, name, tag, hash_key = parse_versioned_object_uri(key, project.metadata.name)
+    project_instance, name, tag, hash_key = parse_versioned_object_uri(
+        key, project.metadata.name
+    )
     runtime = mlrun.get_run_db().get_function(name, project_instance, tag, hash_key)
     return mlrun.new_function(runtime=runtime)
 
@@ -314,7 +335,9 @@ def enrich_function_object(
     src = f.spec.build.source
     if src and src in [".", "./"]:
         if not project.spec.source and not project.spec.mountdir:
-            logger.warning("project.spec.source should be specified when function is using code from project context")
+            logger.warning(
+                "project.spec.source should be specified when function is using code from project context"
+            )
 
         if project.spec.mountdir:
             f.spec.workdir = project.spec.mountdir
@@ -322,7 +345,9 @@ def enrich_function_object(
         else:
             f.spec.build.source = project.spec.source
             f.spec.build.load_source_on_run = project.spec.load_source_on_run
-            f.spec.build.source_code_target_dir = project.spec.build.source_code_target_dir
+            f.spec.build.source_code_target_dir = (
+                project.spec.build.source_code_target_dir
+            )
             f.spec.workdir = project.spec.workdir or project.spec.subpath
             f.prepare_image_for_deploy()
 
@@ -336,7 +361,9 @@ def enrich_function_object(
             project.spec.default_function_node_selector,
         )
     if try_auto_mount:
-        if (decorator and AutoMountType.is_auto_modifier(decorator)) or project.spec.disable_auto_mount:
+        if (
+            decorator and AutoMountType.is_auto_modifier(decorator)
+        ) or project.spec.disable_auto_mount:
             f.spec.disable_auto_mount = True
         f.try_auto_mount_based_on_config()
 
@@ -372,7 +399,10 @@ class _PipelineRunStatus:
 
     @property
     def state(self):
-        if self._state not in mlrun_pipelines.common.models.RunStatuses.stable_statuses():
+        if (
+            self._state
+            not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+        ):
             self._state = self._engine.get_state(self.run_id, self.project)
         return self._state
 
@@ -407,7 +437,9 @@ class _PipelineRunner(abc.ABC):
     @classmethod
     @abc.abstractmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
-        raise NotImplementedError(f"Save operation not supported in {cls.engine} pipeline engine")
+        raise NotImplementedError(
+            f"Save operation not supported in {cls.engine} pipeline engine"
+        )
 
     @classmethod
     @abc.abstractmethod
@@ -454,7 +486,9 @@ class _PipelineRunner(abc.ABC):
         state = ""
         try:
             if timeout:
-                state = run.wait_for_completion(timeout=timeout, expected_statuses=expected_statuses)
+                state = run.wait_for_completion(
+                    timeout=timeout, expected_statuses=expected_statuses
+                )
         except RuntimeError as exc:
             # push runs table also when we have errors
             raise_error = exc
@@ -468,7 +502,9 @@ class _PipelineRunner(abc.ABC):
             if r["status"].get("state", "") == "error":
                 errors_counter += 1
 
-        text = _PipelineRunner._generate_workflow_finished_message(run.run_id, errors_counter, run._state)
+        text = _PipelineRunner._generate_workflow_finished_message(
+            run.run_id, errors_counter, run._state
+        )
 
         notifiers = notifiers or project.notifiers
         if notifiers:
@@ -544,7 +580,9 @@ class _KFPRunner(_PipelineRunner):
         notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
-        workflow_handler = _PipelineRunner._get_handler(workflow_handler, workflow_spec, project, secrets)
+        workflow_handler = _PipelineRunner._get_handler(
+            workflow_handler, workflow_spec, project, secrets
+        )
         if source:
             project.set_source(source=source)
 
@@ -579,7 +617,9 @@ class _KFPRunner(_PipelineRunner):
             try:
                 func.spec.discard_changes()
             except AttributeError:
-                logger.debug("Function does not require a field rollback", func_type=type(func))
+                logger.debug(
+                    "Function does not require a field rollback", func_type=type(func)
+                )
             except Exception as exc:
                 logger.warning(
                     "Failed to rollback spec fields for function",
@@ -649,7 +689,9 @@ class _LocalRunner(_PipelineRunner):
         notifications: list[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
-        workflow_handler = _PipelineRunner._get_handler(workflow_handler, workflow_spec, project, secrets)
+        workflow_handler = _PipelineRunner._get_handler(
+            workflow_handler, workflow_spec, project, secrets
+        )
 
         # fallback to old notification behavior
         for notification in notifications or []:
@@ -666,7 +708,9 @@ class _LocalRunner(_PipelineRunner):
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
 
-        project.notifiers.push_pipeline_start_message(project.metadata.name, pipeline_id=workflow_id)
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name, pipeline_id=workflow_id
+        )
         err = None
         try:
             workflow_handler(**workflow_spec.args)
@@ -680,7 +724,9 @@ class _LocalRunner(_PipelineRunner):
             )
             state = mlrun_pipelines.common.models.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
-        project.notifiers.push_pipeline_run_results(pipeline_context.runs_map.values(), state=state)
+        project.notifiers.push_pipeline_run_results(
+            pipeline_context.runs_map.values(), state=state
+        )
         pipeline_context.clear()
 
         # Setting the source back to the original in the project object
@@ -762,7 +808,9 @@ class _RemoteRunner(_PipelineRunner):
                 workflow_spec=workflow_spec,
                 artifact_path=artifact_path,
                 source=source,
-                run_name=config.workflows.default_workflow_runner_name.format(workflow_name),
+                run_name=config.workflows.default_workflow_runner_name.format(
+                    workflow_name
+                ),
                 namespace=namespace,
                 notifications=notifications,
             )
@@ -794,8 +842,12 @@ class _RemoteRunner(_PipelineRunner):
                     )
                 except mlrun.errors.MLRunHTTPStatusError as get_wf_exc:
                     # fail fast on specific errors
-                    if get_wf_exc.error_status_code in [http.HTTPStatus.PRECONDITION_FAILED]:
-                        raise mlrun.errors.MLRunFatalFailureError(original_exception=get_wf_exc)
+                    if get_wf_exc.error_status_code in [
+                        http.HTTPStatus.PRECONDITION_FAILED
+                    ]:
+                        raise mlrun.errors.MLRunFatalFailureError(
+                            original_exception=get_wf_exc
+                        )
 
                     # raise for a retry (on other errors)
                     raise
@@ -849,7 +901,9 @@ class _RemoteRunner(_PipelineRunner):
                     set(project.notifiers.notifications.keys())
                 )
             )
-            notifiers = mlrun.utils.notifications.CustomNotificationPusher(local_project_notifiers)
+            notifiers = mlrun.utils.notifications.CustomNotificationPusher(
+                local_project_notifiers
+            )
             return _KFPRunner.get_run_status(
                 project,
                 run,
@@ -882,7 +936,9 @@ class _RemoteRunner(_PipelineRunner):
             )
 
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported inner runner engine: {inner_engine.engine}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported inner runner engine: {inner_engine.engine}"
+            )
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
@@ -996,7 +1052,9 @@ def load_and_run(
         )
     except Exception as error:
         if schedule:
-            notification_pusher = mlrun.utils.notifications.CustomNotificationPusher(["slack"])
+            notification_pusher = mlrun.utils.notifications.CustomNotificationPusher(
+                ["slack"]
+            )
             url = get_ui_url(project_name, context.uid)
             link = f"<{url}|*view workflow job details*>"
             message = (
@@ -1063,4 +1121,6 @@ def load_and_run(
         pipeline_state, _, _ = project.get_run_status(run)
         context.log_result(key="workflow_state", value=pipeline_state, commit=True)
         if pipeline_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
-            raise RuntimeError(f"Workflow {workflow_log_message} failed, state={pipeline_state}")
+            raise RuntimeError(
+                f"Workflow {workflow_log_message} failed, state={pipeline_state}"
+            )

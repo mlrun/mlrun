@@ -146,7 +146,11 @@ def train(
                        None.
     """
     # Get the context if not given:
-    context = context if context is not None else mlrun.get_or_create_ctx(PyTorchMLRunInterface.DEFAULT_CONTEXT_NAME)
+    context = (
+        context
+        if context is not None
+        else mlrun.get_or_create_ctx(PyTorchMLRunInterface.DEFAULT_CONTEXT_NAME)
+    )
 
     # Create the model handler:
     handler = PyTorchModelHandler(
@@ -283,7 +287,11 @@ def evaluate(
              [1] = The evaluation metrics results list.
     """
     # Get the context if not given:
-    context = context if context is not None else mlrun.get_or_create_ctx(PyTorchMLRunInterface.DEFAULT_CONTEXT_NAME)
+    context = (
+        context
+        if context is not None
+        else mlrun.get_or_create_ctx(PyTorchMLRunInterface.DEFAULT_CONTEXT_NAME)
+    )
 
     # Create the model handler:
     handler = PyTorchModelHandler(
@@ -313,7 +321,9 @@ def evaluate(
             tensorboard_callback_kwargs=None,
         )
         # Add the logging callbacks with the provided parameters:
-        interface.add_auto_logging_callbacks(mlrun_callback_kwargs=mlrun_callback_kwargs, add_tensorboard_logger=False)
+        interface.add_auto_logging_callbacks(
+            mlrun_callback_kwargs=mlrun_callback_kwargs, add_tensorboard_logger=False
+        )
 
     # Evaluate:
     return (
@@ -360,8 +370,12 @@ def _parse_callbacks_kwargs(
                                       were not given. In case of an evaluation session, if the model path was not given.
     """
     # Set the kwargs dictionaries defaults:
-    mlrun_callback_kwargs = {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
-    tensorboard_callback_kwargs = {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
+    mlrun_callback_kwargs = (
+        {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
+    )
+    tensorboard_callback_kwargs = (
+        {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
+    )
 
     # Add the additional parameters to tensorboard's callback kwargs dictionary:
     tensorboard_callback_kwargs["tensorboard_directory"] = tensorboard_directory

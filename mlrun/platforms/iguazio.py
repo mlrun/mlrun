@@ -53,7 +53,9 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
 
     if remote.startswith("~/"):
         if not user:
-            raise mlrun.errors.MLRunInvalidArgumentError('user name/env must be specified when using "~" in path')
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                'user name/env must be specified when using "~" in path'
+            )
         if remote == "~/":
             remote = "users/" + user
         else:
@@ -67,7 +69,9 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
         secret = {"name": secret}
 
     vol = {
-        "flexVolume": client.V1FlexVolumeSource("v3io/fuse", options=opts, secret_ref=secret),
+        "flexVolume": client.V1FlexVolumeSource(
+            "v3io/fuse", options=opts, secret_ref=secret
+        ),
         "name": name,
     }
     return vol
@@ -115,7 +119,9 @@ class OutputStream:
                 retention_period_hours=retention_in_hours or 24,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
-            if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+            if not (
+                response.status_code == 400 and "ResourceInUse" in str(response.body)
+            ):
                 response.raise_for_status([409, 204])
 
     def push(self, data):
@@ -270,7 +276,9 @@ class V3ioStreamClient:
             resp = self.seek()
             if resp == 0:
                 return []
-        response = self._client.stream.get_records(self._container, self._stream_path, self._shard_id, self._location)
+        response = self._client.stream.get_records(
+            self._container, self._stream_path, self._shard_id, self._location
+        )
         response.raise_for_status()
         self._location = response.output.next_location
         return response.output.records
@@ -333,7 +341,9 @@ def add_or_refresh_credentials(
         return "", "", token
 
     if not username or not token:
-        raise ValueError("username and access key required to authenticate against iguazio system")
+        raise ValueError(
+            "username and access key required to authenticate against iguazio system"
+        )
     return username, token, ""
 
 
@@ -355,7 +365,9 @@ def parse_path(url, suffix="/"):
         elif scheme == "ds":
             prefix = "ds"
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError("url must start with v3io/v3ios/redis/rediss, got " + url)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "url must start with v3io/v3ios/redis/rediss, got " + url
+            )
         endpoint = f"{prefix}://{parsed_url.netloc}"
     else:
         # no netloc is mainly when using v3io (v3io:///) and expecting the url to be resolved automatically from env or
@@ -375,7 +387,9 @@ def sanitize_username(username: str):
 def min_iguazio_versions(*versions):
     def decorator(function):
         def wrapper(*args, **kwargs):
-            if mlrun.utils.helpers.validate_component_version_compatibility("iguazio", *versions):
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "iguazio", *versions
+            ):
                 return function(*args, **kwargs)
 
             message = (

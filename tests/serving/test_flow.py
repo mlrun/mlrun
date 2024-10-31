@@ -74,7 +74,9 @@ def test_basic_flow():
 
     graph = fn.set_topology("flow", exist_ok=True, engine="sync")
     graph.add_step(name="s2", class_name="Chain")
-    graph.add_step(name="s1", class_name="Chain", before="s2")  # should place s1 first and s2 after it
+    graph.add_step(
+        name="s1", class_name="Chain", before="s2"
+    )  # should place s1 first and s2 after it
     graph.add_step(name="s3", class_name="Chain", after="s2")
 
     server = fn.to_mock_server()
@@ -111,7 +113,9 @@ def test_handler(engine):
 def test_handler_with_context():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
-    graph.to(name="s1", handler=myfunc1).to(name="s2", handler=myfunc2).to(name="s3", handler=myfunc1)
+    graph.to(name="s1", handler=myfunc1).to(name="s2", handler=myfunc2).to(
+        name="s3", handler=myfunc1
+    )
     server = fn.to_mock_server()
     resp = server.test(body=5)
     # expect 5 * 2 * 2 * 2 = 40
@@ -214,7 +218,9 @@ def test_multi_function():
     # model is added to the specified router (by name)
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
-    graph.to("Echo", "e1").to("$queue", "q1", path="").to("*", "r1", function="f2").to("Echo", "e2", function="f2")
+    graph.to("Echo", "e1").to("$queue", "q1", path="").to("*", "r1", function="f2").to(
+        "Echo", "e2", function="f2"
+    )
     fn.add_model("m1", class_name="ModelTestingClass", model_path=".")
 
     # start from root function
@@ -244,7 +250,9 @@ def test_path_control(engine, test_type):
     handler, class_name = path_control_tests[test_type]
 
     # function input will be event["x"] and result will be written to event["y"]["z"]
-    flow.to(class_name, handler=handler, name="x2", input_path="x", result_path="y.z").respond()
+    flow.to(
+        class_name, handler=handler, name="x2", input_path="x", result_path="y.z"
+    ).respond()
 
     server = function.to_mock_server()
     resp = server.test(body={"x": 5})
@@ -256,9 +264,9 @@ def test_path_control(engine, test_type):
 def test_path_control_routers():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    graph.to(name="s1", class_name="Echo").to("*", name="r1", input_path="x", result_path="y").to(
-        name="s3", class_name="Echo"
-    ).respond()
+    graph.to(name="s1", class_name="Echo").to(
+        "*", name="r1", input_path="x", result_path="y"
+    ).to(name="s3", class_name="Echo").respond()
     function.add_model("m1", class_name="ModelClass", model_path=".")
     server = function.to_mock_server()
 
@@ -345,8 +353,12 @@ def test_module_load():
 def test_missing_functions():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
-    graph.to(name="s1", class_name="Echo").to(name="s2", class_name="Echo", function="child_func")
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=r"function child_func*"):
+    graph.to(name="s1", class_name="Echo").to(
+        name="s2", class_name="Echo", function="child_func"
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match=r"function child_func*"
+    ):
         function.deploy()
 
 

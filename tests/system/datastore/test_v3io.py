@@ -55,7 +55,9 @@ class TestV3ioDataStore(TestMLRunSystem):
             "csv": test_csv_path,
             "json": test_json_path,
         }
-        test_additional_parquet_path = os.path.join(assets_path, "additional_data.parquet")
+        test_additional_parquet_path = os.path.join(
+            assets_path, "additional_data.parquet"
+        )
         test_additional_csv_path = os.path.join(assets_path, "additional_data.csv")
         cls.additional_df_paths = {
             "parquet": test_additional_parquet_path,
@@ -63,7 +65,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         }
         with open(cls.test_file_path) as f:
             cls.test_string = f.read()
-        cls.profile = DatastoreProfileV3io(name=cls.profile_name, v3io_access_key=cls.token)
+        cls.profile = DatastoreProfileV3io(
+            name=cls.profile_name, v3io_access_key=cls.token
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -72,12 +76,16 @@ class TestV3ioDataStore(TestMLRunSystem):
             # a workaround for deleting test folder (DataItem does not support recursive delete)
             dir_data_item._store.rm(path=cls.test_dir, recursive=True)
         except Exception:
-            cls._logger.warning(f"failed to delete test directory {cls.test_dir_url} in test_v3io.py.")
+            cls._logger.warning(
+                f"failed to delete test directory {cls.test_dir_url} in test_v3io.py."
+            )
         super().teardown_class()
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
-        prefix_path = f"ds://{self.profile_name}" if use_datastore_profile else "v3io://"
+        prefix_path = (
+            f"ds://{self.profile_name}" if use_datastore_profile else "v3io://"
+        )
         mlrun.datastore.store_manager.reset_secrets()
         self.run_dir_url = f"{prefix_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
@@ -99,7 +107,9 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _skip_set_environment():
         return True
 
-    @pytest.mark.parametrize("file_size", [4 * 1024 * 1024, 20 * 1024 * 1024])  # 4MB and 20MB
+    @pytest.mark.parametrize(
+        "file_size", [4 * 1024 * 1024, 20 * 1024 * 1024]
+    )  # 4MB and 20MB
     def test_v3io_large_object_upload(self, tmp_path, file_size):
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
@@ -131,8 +141,12 @@ class TestV3ioDataStore(TestMLRunSystem):
         start_time = time.monotonic()
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
-        assert cmp_process.returncode == 0, f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
-        self._logger.debug(f"test_v3io_large_object_upload - finished cmp 1 in {time.monotonic() - start_time} seconds")
+        assert (
+            cmp_process.returncode == 0
+        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished cmp 1 in {time.monotonic() - start_time} seconds"
+        )
         # Do the test again, this time exercising the v3io datastore _upload() loop
         self._logger.debug("Exercising the v3io _upload() loop")
         os.remove(tempfile_2_path)
@@ -153,9 +167,15 @@ class TestV3ioDataStore(TestMLRunSystem):
         start_time = time.monotonic()
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
-        assert cmp_process.returncode == 0, f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
-        self._logger.debug(f"test_v3io_large_object_upload - finished cmp 2 in {time.monotonic() - start_time} seconds")
-        self._logger.debug(f"total time of test_v3io_large_object_upload {time.monotonic() - first_start_time}")
+        assert (
+            cmp_process.returncode == 0
+        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+        self._logger.debug(
+            f"test_v3io_large_object_upload - finished cmp 2 in {time.monotonic() - start_time} seconds"
+        )
+        self._logger.debug(
+            f"total time of test_v3io_large_object_upload {time.monotonic() - first_start_time}"
+        )
 
     def test_v3io_large_object_put(self):
         file_size = 20 * 1024 * 1024  # 20MB
@@ -185,17 +205,25 @@ class TestV3ioDataStore(TestMLRunSystem):
             f"test_v3io_large_object_put: second get finished in : {time.monotonic() - start_time} seconds"
         )
         assert returned_buffer == generated_buffer
-        self._logger.debug(f"test_v3io_large_object_put: total time: {time.monotonic() - first_start_time} seconds")
+        self._logger.debug(
+            f"test_v3io_large_object_put: total time: {time.monotonic() - first_start_time} seconds"
+        )
 
     @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])
-    def test_put_get_and_download(self, use_datastore_profile, use_secrets_as_parameters):
+    def test_put_get_and_download(
+        self, use_datastore_profile, use_secrets_as_parameters
+    ):
         secrets = {}
         if use_secrets_as_parameters:
             os.environ["V3IO_ACCESS_KEY"] = "wrong_token"
             # Verify that we are using the correct profile secret by deliberately setting
             # an incorrect token as the secret or env. We expect that the correct token,
             # which is saved in the datastore profile, will be utilized.
-            secrets = {"V3IO_ACCESS_KEY": "wrong_token"} if use_datastore_profile else {"V3IO_ACCESS_KEY": self.token}
+            secrets = (
+                {"V3IO_ACCESS_KEY": "wrong_token"}
+                if use_datastore_profile
+                else {"V3IO_ACCESS_KEY": self.token}
+            )
 
         data_item = mlrun.run.get_dataitem(self.object_url, secrets=secrets)
         data_item.put(self.test_string)
@@ -241,7 +269,9 @@ class TestV3ioDataStore(TestMLRunSystem):
     def test_list_dir(self):
         dir_base_item = mlrun.datastore.store_manager.object(self.run_dir_url)
         filename = f"test_file_{uuid.uuid4()}.txt"
-        file_item = mlrun.datastore.store_manager.object(f"{self.run_dir_url}/{filename}")
+        file_item = mlrun.datastore.store_manager.object(
+            f"{self.run_dir_url}/{filename}"
+        )
         file_item_deep = mlrun.datastore.store_manager.object(
             f"{self.run_dir_url}/test_dir/test_file_{uuid.uuid4()}.txt"
         )
@@ -261,7 +291,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.upload(self.test_file_path)
         data_item.stat()
         data_item.delete()
-        with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Request failed with status 404"):
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="Request failed with status 404"
+        ):
             data_item.stat()
 
     @pytest.mark.parametrize(
@@ -337,7 +369,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         credentials_dict = {"v3io_access_key": fake_token} if fake_token else {}
         os.environ.pop("V3IO_ACCESS_KEY")
         if use_datastore_profile:
-            self.profile = DatastoreProfileV3io(name=self.profile_name, **credentials_dict)
+            self.profile = DatastoreProfileV3io(
+                name=self.profile_name, **credentials_dict
+            )
             register_temporary_client_datastore_profile(self.profile)
         else:
             if fake_token:

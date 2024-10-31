@@ -61,9 +61,15 @@ def test_delete_artifact_data(
     full_secrets.update(env_secrets)
     k8s_secrets_mock.store_project_secrets(project, project_secrets)
 
-    with unittest.mock.patch("mlrun.datastore.store_manager.object") as store_manager_object_mock:
-        services.api.crud.Files().delete_artifact_data(auth_info, project, path, secrets=user_secrets)
-        store_manager_object_mock.assert_called_once_with(url=path, secrets=expected_secrets, project=project)
+    with unittest.mock.patch(
+        "mlrun.datastore.store_manager.object"
+    ) as store_manager_object_mock:
+        services.api.crud.Files().delete_artifact_data(
+            auth_info, project, path, secrets=user_secrets
+        )
+        store_manager_object_mock.assert_called_once_with(
+            url=path, secrets=expected_secrets, project=project
+        )
         store_manager_object_mock.reset_mock()
 
 
@@ -80,7 +86,10 @@ def test_delete_artifact_data_internal_secret(
         services.api.crud.Files().delete_artifact_data(
             mlrun.common.schemas.AuthInfo(), project, path, secrets=user_secrets
         )
-    assert str(exc.value) == "Not allowed to create/update internal secrets (key starts with mlrun.)"
+    assert (
+        str(exc.value)
+        == "Not allowed to create/update internal secrets (key starts with mlrun.)"
+    )
 
 
 def test_delete_artifact_data_local_path(
@@ -92,5 +101,7 @@ def test_delete_artifact_data_local_path(
     project = "proj1"
 
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError) as exc:
-        services.api.crud.Files().delete_artifact_data(mlrun.common.schemas.AuthInfo(), project, path)
+        services.api.crud.Files().delete_artifact_data(
+            mlrun.common.schemas.AuthInfo(), project, path
+        )
     assert str(exc.value) == "Unauthorized path"

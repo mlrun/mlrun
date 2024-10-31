@@ -78,8 +78,12 @@ _METRIC_SCHEMA: list[SchemaField] = [
 
 
 _KIND_TO_SCHEMA_PARAMS: dict[mm_schemas.WriterEventKind, SchemaParams] = {
-    mm_schemas.WriterEventKind.RESULT: SchemaParams(key=mm_schemas.WriterEvent.APPLICATION_NAME, fields=_RESULT_SCHEMA),
-    mm_schemas.WriterEventKind.METRIC: SchemaParams(key="metric_id", fields=_METRIC_SCHEMA),
+    mm_schemas.WriterEventKind.RESULT: SchemaParams(
+        key=mm_schemas.WriterEvent.APPLICATION_NAME, fields=_RESULT_SCHEMA
+    ),
+    mm_schemas.WriterEventKind.METRIC: SchemaParams(
+        key="metric_id", fields=_METRIC_SCHEMA
+    ),
 }
 
 _EXCLUDE_SCHEMA_FILTER_EXPRESSION = '__name!=".#schema"'
@@ -130,7 +134,9 @@ class KVStoreBase(StoreBase):
 
         self._infer_kv_schema()
 
-    def update_model_endpoint(self, endpoint_id: str, attributes: dict[str, typing.Any]):
+    def update_model_endpoint(
+        self, endpoint_id: str, attributes: dict[str, typing.Any]
+    ):
         """
         Update a model endpoint record with a given attributes.
 
@@ -214,7 +220,9 @@ class KVStoreBase(StoreBase):
             _,
             container,
             path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            path
+        )
         return path, container
 
     def list_model_endpoints(
@@ -270,7 +278,9 @@ class KVStoreBase(StoreBase):
                 endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
                 endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
 
-            if labels and not self._validate_labels(endpoint_dict=endpoint_dict, labels=labels):
+            if labels and not self._validate_labels(
+                endpoint_dict=endpoint_dict, labels=labels
+            ):
                 continue
 
             endpoint_list.append(endpoint_dict)
@@ -385,10 +395,14 @@ class KVStoreBase(StoreBase):
                 container=container,
                 table_path=table_path,
             )
-            self._generate_kv_schema(container=container, table_path=table_path, kind=kind)
+            self._generate_kv_schema(
+                container=container, table_path=table_path, kind=kind
+            )
         logger.info("Updated V3IO KV successfully", key=key)
 
-    def _generate_kv_schema(self, *, container: str, table_path: str, kind: mm_schemas.WriterEventKind) -> None:
+    def _generate_kv_schema(
+        self, *, container: str, table_path: str, kind: mm_schemas.WriterEventKind
+    ) -> None:
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         schema_params = _KIND_TO_SCHEMA_PARAMS[kind]
         res = self.client.kv.create_schema(
@@ -417,7 +431,9 @@ class KVStoreBase(StoreBase):
         """
         try:
             response = self.client.kv.get(
-                container=self._get_monitoring_schedules_container(project_name=self.project),
+                container=self._get_monitoring_schedules_container(
+                    project_name=self.project
+                ),
                 table_path=endpoint_id,
                 key=application_name,
             )
@@ -432,7 +448,9 @@ class KVStoreBase(StoreBase):
             logger.error("Error while getting last analyzed time", err=err)
             raise err
 
-    def update_last_analyzed(self, endpoint_id: str, application_name: str, last_analyzed: int):
+    def update_last_analyzed(
+        self, endpoint_id: str, application_name: str, last_analyzed: int
+    ):
         """
         Update the last analyzed time for the provided model endpoint and application.
 
@@ -442,7 +460,9 @@ class KVStoreBase(StoreBase):
                                  application and model endpoint.
         """
         self.client.kv.put(
-            container=self._get_monitoring_schedules_container(project_name=self.project),
+            container=self._get_monitoring_schedules_container(
+                project_name=self.project
+            ),
             table_path=endpoint_id,
             key=application_name,
             attributes={mm_schemas.SchedulingKeys.LAST_ANALYZED: last_analyzed},
@@ -455,20 +475,28 @@ class KVStoreBase(StoreBase):
              [1] = Filtered path to TSDB events without schema and container
         """
         # Full path for the time series DB events
-        full_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-            project=self.project,
-            kind=mm_schemas.ModelMonitoringStoreKinds.EVENTS,
+        full_path = (
+            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=self.project,
+                kind=mm_schemas.ModelMonitoringStoreKinds.EVENTS,
+            )
         )
 
         # Generate the main directory with the TSDB resources
-        tsdb_path = mlrun.common.model_monitoring.helpers.parse_model_endpoint_project_prefix(full_path, self.project)
+        tsdb_path = (
+            mlrun.common.model_monitoring.helpers.parse_model_endpoint_project_prefix(
+                full_path, self.project
+            )
+        )
 
         # Generate filtered path without schema and container as required by the frames object
         (
             _,
             _,
             filtered_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(full_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            full_path
+        )
         return tsdb_path, filtered_path
 
     def _infer_kv_schema(self):
@@ -523,7 +551,9 @@ class KVStoreBase(StoreBase):
         # Add function and model filters
         if function:
             function_uri = f"{project}/{function}" if function else None
-            filter_expression.append(f"{mm_schemas.EventFieldType.FUNCTION_URI}=='{function_uri}'")
+            filter_expression.append(
+                f"{mm_schemas.EventFieldType.FUNCTION_URI}=='{function_uri}'"
+            )
         if model:
             model = model if ":" in model else f"{model}:latest"
             filter_expression.append(f"{mm_schemas.EventFieldType.MODEL}=='{model}'")
@@ -559,7 +589,10 @@ class KVStoreBase(StoreBase):
 
         # Validate default value for `metrics`
         # For backwards compatibility reasons, we validate that the model endpoint includes the `metrics` key
-        if mm_schemas.EventFieldType.METRICS in endpoint and endpoint[mm_schemas.EventFieldType.METRICS] == "null":
+        if (
+            mm_schemas.EventFieldType.METRICS in endpoint
+            and endpoint[mm_schemas.EventFieldType.METRICS] == "null"
+        ):
             endpoint[mm_schemas.EventFieldType.METRICS] = json.dumps(
                 {
                     mm_schemas.EventKeyMetrics.GENERIC: {
@@ -571,7 +604,9 @@ class KVStoreBase(StoreBase):
         # Validate key `uid` instead of `endpoint_id`
         # For backwards compatibility reasons, we replace the `endpoint_id` with `uid` which is the updated key name
         if mm_schemas.EventFieldType.ENDPOINT_ID in endpoint:
-            endpoint[mm_schemas.EventFieldType.UID] = endpoint[mm_schemas.EventFieldType.ENDPOINT_ID]
+            endpoint[mm_schemas.EventFieldType.UID] = endpoint[
+                mm_schemas.EventFieldType.ENDPOINT_ID
+            ]
 
     @staticmethod
     def _encode_field(field: typing.Union[str, bytes]) -> bytes:

@@ -43,7 +43,9 @@ class StoreBase(ABC):
         pass
 
     @abstractmethod
-    def update_model_endpoint(self, endpoint_id: str, attributes: dict[str, typing.Any]):
+    def update_model_endpoint(
+        self, endpoint_id: str, attributes: dict[str, typing.Any]
+    ):
         """
         Update a model endpoint record with a given attributes.
 
@@ -190,7 +192,9 @@ class StoreBase(ABC):
         """
 
         # Convert endpoint labels into dictionary
-        endpoint_labels = json.loads(endpoint_dict.get(mm_schemas.EventFieldType.LABELS))
+        endpoint_labels = json.loads(
+            endpoint_dict.get(mm_schemas.EventFieldType.LABELS)
+        )
 
         for label in labels:
             # Case 1 - label is a key=value pair

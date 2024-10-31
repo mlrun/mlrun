@@ -82,7 +82,8 @@ def test_hub_source_apis(
     assert (
         len(json_response) == 1
         and json_response[0]["index"] == -1
-        and json_response[0]["source"]["metadata"]["name"] == config.hub.default_source.name
+        and json_response[0]["source"]["metadata"]["name"]
+        == config.hub.default_source.name
     )
 
     source_1 = _generate_source_dict(1, "source_1")
@@ -98,7 +99,12 @@ def test_hub_source_apis(
         "root['metadata']['created']",
         "root['spec']['object_type']",
     ]
-    assert deepdiff.DeepDiff(response.json()["source"], source_1["source"], exclude_paths=exclude_paths) == {}
+    assert (
+        deepdiff.DeepDiff(
+            response.json()["source"], source_1["source"], exclude_paths=exclude_paths
+        )
+        == {}
+    )
 
     # Insert in 1st place, pushing source_1 to be #2
     source_2 = _generate_source_dict(1, "source_2")
@@ -170,12 +176,19 @@ def test_hub_credentials_removed_from_db(
         "root['metadata']['created']",
         "root['spec']['object_type']",
     ]
-    assert deepdiff.DeepDiff(expected_response, object_dict["source"], exclude_paths=exclude_paths) == {}
+    assert (
+        deepdiff.DeepDiff(
+            expected_response, object_dict["source"], exclude_paths=exclude_paths
+        )
+        == {}
+    )
     expected_credentials = {
         services.api.crud.Hub()._generate_credentials_secret_key("source_1", key): value
         for key, value in credentials.items()
     }
-    k8s_secrets_mock.assert_project_secrets(config.hub.k8s_secrets_project_name, expected_credentials)
+    k8s_secrets_mock.assert_project_secrets(
+        config.hub.k8s_secrets_project_name, expected_credentials
+    )
 
 
 def test_hub_source_manager(
@@ -189,19 +202,27 @@ def test_hub_source_manager(
         source_dict = _generate_source_dict(i, f"source_{i}", credentials)
         expected_credentials.update(
             {
-                services.api.crud.Hub()._generate_credentials_secret_key(f"source_{i}", key): value
+                services.api.crud.Hub()._generate_credentials_secret_key(
+                    f"source_{i}", key
+                ): value
                 for key, value in credentials.items()
             }
         )
         source_object = mlrun.common.schemas.HubSource(**source_dict["source"])
         manager.add_source(source_object)
 
-    k8s_secrets_mock.assert_project_secrets(config.hub.k8s_secrets_project_name, expected_credentials)
+    k8s_secrets_mock.assert_project_secrets(
+        config.hub.k8s_secrets_project_name, expected_credentials
+    )
 
     manager.remove_source("source_1")
     for key in credentials:
-        expected_credentials.pop(services.api.crud.Hub()._generate_credentials_secret_key("source_1", key))
-    k8s_secrets_mock.assert_project_secrets(config.hub.k8s_secrets_project_name, expected_credentials)
+        expected_credentials.pop(
+            services.api.crud.Hub()._generate_credentials_secret_key("source_1", key)
+        )
+    k8s_secrets_mock.assert_project_secrets(
+        config.hub.k8s_secrets_project_name, expected_credentials
+    )
 
     # Test catalog retrieval, with various filters
     catalog = manager.get_source_catalog(source_object)
@@ -218,7 +239,10 @@ def test_hub_source_manager(
     catalog = manager.get_source_catalog(source_object, version="1.0.0")
     assert len(catalog.catalog) == 2
     for item in catalog.catalog:
-        assert item.metadata.name in ["prod-function", "prod-function-2"] and item.metadata.version == "1.0.0"
+        assert (
+            item.metadata.name in ["prod-function", "prod-function-2"]
+            and item.metadata.version == "1.0.0"
+        )
 
     item = manager.get_item(source_object, "prod-function", "1.0.0")
     assert item.metadata.name == "prod-function" and item.metadata.version == "1.0.0"
@@ -267,7 +291,9 @@ def test_hub_catalog_apis(
     item = random.choice(catalog["catalog"])
     url = item["spec"]["item_uri"] + "src/function.yaml"
 
-    function_yaml = client.get(f"hub/sources/{source_name}/item-object", params={"url": url})
+    function_yaml = client.get(
+        f"hub/sources/{source_name}/item-object", params={"url": url}
+    )
 
     function_dict = yaml.safe_load(function_yaml.content)
 
@@ -296,7 +322,9 @@ def test_hub_get_asset_from_default_source(
     for _ in range(10):
         item = random.choice(catalog["catalog"])
         asset_name, expected_content_type = random.choice(possible_assets)
-        response = client.get(f"hub/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_name}")
+        response = client.get(
+            f"hub/sources/{source_name}/items/{item['metadata']['name']}/assets/{asset_name}"
+        )
         assert response.status_code == http.HTTPStatus.OK.value
         assert response.headers["content-type"] == expected_content_type
 
@@ -311,11 +339,15 @@ def test_hub_get_asset(
 
     source_dict = _generate_source_dict(1, "source", credentials)
     expected_credentials = {
-        services.api.crud.Hub()._generate_credentials_secret_key("source", "secret"): credentials["secret"]
+        services.api.crud.Hub()._generate_credentials_secret_key(
+            "source", "secret"
+        ): credentials["secret"]
     }
     source_object = mlrun.common.schemas.HubSource(**source_dict["source"])
     manager.add_source(source_object)
-    k8s_secrets_mock.assert_project_secrets(config.hub.k8s_secrets_project_name, expected_credentials)
+    k8s_secrets_mock.assert_project_secrets(
+        config.hub.k8s_secrets_project_name, expected_credentials
+    )
     # getting asset:
     catalog = manager.get_source_catalog(source_object)
     item = catalog.catalog[0]
@@ -360,11 +392,15 @@ def test_list_sources_with_filters(
     assert len(sources) == 0
 
     # verifying filtering by item name and bad tag:
-    sources = client.get("hub/sources", params={"item-name": good_name, "tag": "bad-tag"}).json()
+    sources = client.get(
+        "hub/sources", params={"item-name": good_name, "tag": "bad-tag"}
+    ).json()
     assert len(sources) == 0
 
     # verifying filtering by item name and good tag:
-    sources = client.get("hub/sources", params={"item-name": good_name, "tag": "latest"}).json()
+    sources = client.get(
+        "hub/sources", params={"item-name": good_name, "tag": "latest"}
+    ).json()
     assert len(sources) == 1
 
     # verifying filtering by item name and bad version:
@@ -375,7 +411,9 @@ def test_list_sources_with_filters(
     assert len(sources) == 0
 
     # verifying filtering by item name and good version:
-    sources = client.get("hub/sources", params={"item-name": good_name, "version": "1.1.0"}).json()
+    sources = client.get(
+        "hub/sources", params={"item-name": good_name, "version": "1.1.0"}
+    ).json()
     assert len(sources) == 1
 
     # verifying bad filtering with tag and without item name:

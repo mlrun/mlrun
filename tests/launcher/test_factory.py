@@ -60,7 +60,9 @@ def test_create_client_launcher(
         mlrun.launcher.local.ClientLocalLauncher,
     ],
 ):
-    launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(is_remote, local=local)
+    launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
+        is_remote, local=local
+    )
     assert type(launcher) is expected_instance
 
     if local:

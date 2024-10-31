@@ -51,7 +51,9 @@ def _generate_pydantic_schema_from_method_signature(
         # ignore the session parameter as the methods get a new session each time
         if parameter.annotation != sqlalchemy.orm.Session
     }
-    return pydantic.create_model(f"{method.__name__}_schema", __config__=Config, **fields)
+    return pydantic.create_model(
+        f"{method.__name__}_schema", __config__=Config, **fields
+    )
 
 
 class PaginatedMethods:
@@ -119,7 +121,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size,
                 **method_kwargs,
             )
-            new_result = await services.api.utils.asyncio.await_or_call_in_threadpool(filter_, new_result)
+            new_result = await services.api.utils.asyncio.await_or_call_in_threadpool(
+                filter_, new_result
+            )
             result.extend(new_result)
 
             if not pagination_info:
@@ -147,13 +151,21 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
         **method_kwargs,
-    ) -> tuple[typing.Any, typing.Optional[mlrun.common.schemas.pagination.PaginationInfo]]:
+    ) -> tuple[
+        typing.Any, typing.Optional[mlrun.common.schemas.pagination.PaginationInfo]
+    ]:
         if not PaginatedMethods.method_is_supported(method):
-            raise NotImplementedError(f"Pagination is not supported for method {method}")
+            raise NotImplementedError(
+                f"Pagination is not supported for method {method}"
+            )
 
         if page_size is None and token is None:
-            self._logger.debug("No token or page size provided, returning all records", method=method)
-            return await services.api.utils.asyncio.await_or_call_in_threadpool(method, session, **method_kwargs), None
+            self._logger.debug(
+                "No token or page size provided, returning all records", method=method
+            )
+            return await services.api.utils.asyncio.await_or_call_in_threadpool(
+                method, session, **method_kwargs
+            ), None
 
         page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
@@ -182,7 +194,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             )
             return await services.api.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs, page=page, page_size=page_size
-            ), mlrun.common.schemas.pagination.PaginationInfo(page=page, page_size=page_size, page_token=token)
+            ), mlrun.common.schemas.pagination.PaginationInfo(
+                page=page, page_size=page_size, page_token=token
+            )
         except (RuntimeError, StopIteration) as exc:
             if isinstance(exc, StopIteration) or "StopIteration" in str(exc):
                 # don't revoke the token here as we might still want to go to previous pages.
@@ -201,10 +215,16 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         **method_kwargs,
     ) -> tuple[str, int, int, typing.Callable, dict]:
         if token:
-            self._logger.debug("Token provided, updating pagination cache record", token=token)
-            pagination_cache_record = self._pagination_cache.get_pagination_cache_record(session, key=token)
+            self._logger.debug(
+                "Token provided, updating pagination cache record", token=token
+            )
+            pagination_cache_record = (
+                self._pagination_cache.get_pagination_cache_record(session, key=token)
+            )
             if pagination_cache_record is None:
-                raise mlrun.errors.MLRunPaginationEndOfResultsError(f"Token {token} not found in pagination cache")
+                raise mlrun.errors.MLRunPaginationEndOfResultsError(
+                    f"Token {token} not found in pagination cache"
+                )
             method = PaginatedMethods.get_method(pagination_cache_record.function)
             method_kwargs = pagination_cache_record.kwargs
             page = page or pagination_cache_record.current_page + 1
@@ -212,7 +232,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             user = pagination_cache_record.user
 
             if user and (not auth_info or auth_info.user_id != user):
-                raise mlrun.errors.MLRunAccessDeniedError("User is not allowed to access this token")
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    "User is not allowed to access this token"
+                )
 
         # upsert pagination cache record to update last_accessed time or create a new record
         method_schema = PaginatedMethods.get_method_schema(method.__name__)

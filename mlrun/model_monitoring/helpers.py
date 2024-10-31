@@ -57,7 +57,9 @@ def get_stream_path(
     :return:                    Monitoring stream path to the relevant application.
     """
 
-    stream_uri = stream_uri or mlrun.get_secret_or_env(mm_constants.ProjectSecretKeys.STREAM_PATH)
+    stream_uri = stream_uri or mlrun.get_secret_or_env(
+        mm_constants.ProjectSecretKeys.STREAM_PATH
+    )
 
     if not stream_uri or stream_uri == "v3io":
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -138,7 +140,9 @@ def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:
     return datetime.timedelta(**batch_dict)
 
 
-def _get_monitoring_time_window_from_controller_run(project: str, db: "RunDBInterface") -> datetime.timedelta:
+def _get_monitoring_time_window_from_controller_run(
+    project: str, db: "RunDBInterface"
+) -> datetime.timedelta:
     """
     Get the base period form the controller.
 
@@ -157,7 +161,9 @@ def _get_monitoring_time_window_from_controller_run(project: str, db: "RunDBInte
         controller = mlrun.runtimes.RemoteRuntime.from_dict(controller)
     elif not hasattr(controller, "to_dict"):
         raise mlrun.errors.MLRunNotFoundError()
-    base_period = controller.spec.config["spec.triggers.cron_interval"]["attributes"]["interval"]
+    base_period = controller.spec.config["spec.triggers.cron_interval"]["attributes"][
+        "interval"
+    ]
     batch_dict = {
         mm_constants.EventFieldType.MINUTES: int(base_period[:-1]),
         mm_constants.EventFieldType.HOURS: 0,
@@ -208,7 +214,9 @@ def update_model_endpoint_last_request(
         bumped_last_request = (
             current_request
             + time_window
-            + datetime.timedelta(seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs)
+            + datetime.timedelta(
+                seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            )
         ).isoformat()
         logger.info(
             "Bumping model endpoint last request time (EP without serving)",
@@ -267,11 +275,15 @@ def get_endpoint_record(
     endpoint_id: str,
     secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
 ) -> dict[str, typing.Any]:
-    model_endpoint_store = mlrun.model_monitoring.get_store_object(project=project, secret_provider=secret_provider)
+    model_endpoint_store = mlrun.model_monitoring.get_store_object(
+        project=project, secret_provider=secret_provider
+    )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
 
 
-def get_result_instance_fqn(model_endpoint_id: str, app_name: str, result_name: str) -> str:
+def get_result_instance_fqn(
+    model_endpoint_id: str, app_name: str, result_name: str
+) -> str:
     return f"{model_endpoint_id}.{app_name}.result.{result_name}"
 
 

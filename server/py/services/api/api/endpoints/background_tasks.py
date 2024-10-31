@@ -37,8 +37,12 @@ router = fastapi.APIRouter()
 async def get_project_background_task(
     project: str,
     name: str,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        services.api.api.deps.get_db_session
+    ),
 ):
     # Since there's no not-found option on get_project_background_task - we authorize before getting (unlike other
     # get endpoint)
@@ -68,8 +72,12 @@ async def list_project_background_tasks(
     created_to: str = None,
     last_update_time_from: str = None,
     last_update_time_to: str = None,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        services.api.api.deps.get_db_session
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
@@ -77,9 +85,17 @@ async def list_project_background_tasks(
         auth_info,
     )
 
-    if not state and not created_from and not created_to and not last_update_time_from and not last_update_time_to:
+    if (
+        not state
+        and not created_from
+        and not created_to
+        and not last_update_time_from
+        and not last_update_time_to
+    ):
         # default to last week on no filter
-        created_from = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+        created_from = (
+            datetime.datetime.now() - datetime.timedelta(days=7)
+        ).isoformat()
 
     background_tasks = await run_in_threadpool(
         services.api.utils.background_tasks.ProjectBackgroundTasksHandler().list_background_tasks,
@@ -112,15 +128,22 @@ async def list_project_background_tasks(
 async def get_internal_background_task(
     name: str,
     request: fastapi.Request,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting internal background task, re-routing to chief",
             internal_background_task=name,
         )
         chief_client = services.api.utils.clients.chief.Client()
-        return await chief_client.get_internal_background_task(name=name, request=request)
+        return await chief_client.get_internal_background_task(
+            name=name, request=request
+        )
 
     background_task = await run_in_threadpool(
         services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task,
@@ -139,9 +162,14 @@ async def list_internal_background_tasks(
     request: fastapi.Request,
     name: typing.Optional[str] = None,
     kind: typing.Optional[str] = None,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting internal background tasks, re-routing to chief",
             internal_background_task=name,
@@ -162,7 +190,9 @@ async def list_internal_background_tasks(
         except mlrun.errors.MLRunAccessDeniedError:
             pass
 
-    return mlrun.common.schemas.BackgroundTaskList(background_tasks=allowed_background_tasks)
+    return mlrun.common.schemas.BackgroundTaskList(
+        background_tasks=allowed_background_tasks
+    )
 
 
 async def _authorize_get_background_task_request(

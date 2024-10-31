@@ -130,23 +130,37 @@ async def test_paginate_request(
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info, None, 1, page_size, **method_kwargs
     )
-    _assert_paginated_response(response, pagination_info, 1, page_size, ["item0", "item1", "item2"])
+    _assert_paginated_response(
+        response, pagination_info, 1, page_size, ["item0", "item1", "item2"]
+    )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(db, pagination_info.page_token)
-    _assert_cache_record(cache_record, auth_info.user_id, paginated_method, 1, page_size)
+    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
+        db, pagination_info.page_token
+    )
+    _assert_cache_record(
+        cache_record, auth_info.user_id, paginated_method, 1, page_size
+    )
 
     logger.info("Requesting second page")
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info, pagination_info.page_token
     )
-    _assert_paginated_response(response, pagination_info, 2, page_size, ["item3", "item4"])
+    _assert_paginated_response(
+        response, pagination_info, 2, page_size, ["item3", "item4"]
+    )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(db, pagination_info.page_token)
-    _assert_cache_record(cache_record, auth_info.user_id, paginated_method, 2, page_size)
+    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
+        db, pagination_info.page_token
+    )
+    _assert_cache_record(
+        cache_record, auth_info.user_id, paginated_method, 2, page_size
+    )
 
-    logger.info("Requesting third page, which is the end of the items and should return empty response")
+    logger.info(
+        "Requesting third page, which is the end of the items and should return empty response"
+    )
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info, pagination_info.page_token
     )
@@ -177,19 +191,31 @@ async def test_paginate_other_users_token(
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info_1, None, 1, page_size, **method_kwargs
     )
-    _assert_paginated_response(response, pagination_info, 1, page_size, ["item0", "item1", "item2"])
+    _assert_paginated_response(
+        response, pagination_info, 1, page_size, ["item0", "item1", "item2"]
+    )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(db, pagination_info.page_token)
-    _assert_cache_record(cache_record, auth_info_1.user_id, paginated_method, 1, page_size)
+    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
+        db, pagination_info.page_token
+    )
+    _assert_cache_record(
+        cache_record, auth_info_1.user_id, paginated_method, 1, page_size
+    )
 
     logger.info("Requesting second page with user2, should raise AccessDeniedError")
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        await paginator.paginate_request(db, paginated_method, auth_info_2, pagination_info.page_token)
+        await paginator.paginate_request(
+            db, paginated_method, auth_info_2, pagination_info.page_token
+        )
 
-    logger.info("Requesting second page without auth info, should raise AccessDeniedError")
+    logger.info(
+        "Requesting second page without auth info, should raise AccessDeniedError"
+    )
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        await paginator.paginate_request(db, paginated_method, None, pagination_info.page_token)
+        await paginator.paginate_request(
+            db, paginated_method, None, pagination_info.page_token
+        )
 
 
 @pytest.mark.asyncio
@@ -213,10 +239,14 @@ async def test_paginate_no_auth(
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, None, None, 1, page_size, **method_kwargs
     )
-    _assert_paginated_response(response, pagination_info, 1, page_size, ["item0", "item1", "item2"])
+    _assert_paginated_response(
+        response, pagination_info, 1, page_size, ["item0", "item1", "item2"]
+    )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(db, pagination_info.page_token)
+    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
+        db, pagination_info.page_token
+    )
     _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
 
     logger.info("Requesting second page with auth info of some user")
@@ -224,11 +254,17 @@ async def test_paginate_no_auth(
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info, pagination_info.page_token
     )
-    _assert_paginated_response(response, pagination_info, 2, page_size, ["item3", "item4"])
+    _assert_paginated_response(
+        response, pagination_info, 2, page_size, ["item3", "item4"]
+    )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(db, pagination_info.page_token)
-    _assert_cache_record(cache_record, auth_info.user_id, paginated_method, 2, page_size)
+    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
+        db, pagination_info.page_token
+    )
+    _assert_cache_record(
+        cache_record, auth_info.user_id, paginated_method, 2, page_size
+    )
 
 
 @pytest.mark.asyncio
@@ -260,7 +296,9 @@ async def test_no_pagination(
     assert not pagination_info
 
     logger.info("Checking that no cache record was created")
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+    )
 
 
 @pytest.mark.asyncio
@@ -321,14 +359,18 @@ async def test_pagination_cache_cleanup(
         )
         token = pagination_info.page_token
 
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+    )
 
     logger.info("Cleaning up pagination cache")
     paginator._pagination_cache.cleanup_pagination_cache(db)
     db.commit()
 
     logger.info("Checking that all records were removed")
-    assert len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+    assert (
+        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+    )
 
     logger.info("Try to get page with token")
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -530,7 +572,9 @@ async def test_paginate_permission_filtered_with_token(
 
     pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
 
-    _assert_paginated_response(response, pagination_info, 1, page_size, ["item0", "item1", "item2", "item3"])
+    _assert_paginated_response(
+        response, pagination_info, 1, page_size, ["item0", "item1", "item2", "item3"]
+    )
 
     token = pagination_info.page_token
 
@@ -550,7 +594,9 @@ async def test_paginate_permission_filtered_with_token(
         db, paginated_method, filter_, auth_info, token
     )
     pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
-    _assert_paginated_response(response, pagination_info, 5, page_size, ["item12"], last_page=True)
+    _assert_paginated_response(
+        response, pagination_info, 5, page_size, ["item12"], last_page=True
+    )
 
 
 def _assert_paginated_response(

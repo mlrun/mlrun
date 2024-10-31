@@ -47,9 +47,9 @@ tests_map = [
 def _new_server(url, engine, method="POST", **kwargs):
     function = mlrun.new_function("test1", kind="serving")
     flow = function.set_topology("flow", engine=engine)
-    flow.to(name="s1", handler="echo").to("$remote", "remote_echo", url=url, method=method, **kwargs).to(
-        name="s3", handler="echo"
-    ).respond()
+    flow.to(name="s1", handler="echo").to(
+        "$remote", "remote_echo", url=url, method=method, **kwargs
+    ).to(name="s3", handler="echo").respond()
     return function.to_mock_server()
 
 
@@ -63,10 +63,12 @@ def test_remote_step(httpserver, engine):
         event_id_key: "123",
         event_path_key: "/datapath",
     }
-    httpserver.expect_request("/data", method="POST", data="req text", headers=expected_headers).respond_with_data(
-        "my str"
+    httpserver.expect_request(
+        "/data", method="POST", data="req text", headers=expected_headers
+    ).respond_with_data("my str")
+    httpserver.expect_request("/json", method="POST", json={"x": 5}).respond_with_json(
+        {"post": "ok"}
     )
-    httpserver.expect_request("/json", method="POST", json={"x": 5}).respond_with_json({"post": "ok"})
     url = httpserver.url_for("/")
     for params, request, expected in tests_map:
         print(f"test params: {params}, request: {request}, expected: {expected}")
@@ -100,10 +102,12 @@ def test_remote_step_bad_status_code(httpserver, engine):
         event_id_key: "123",
         event_path_key: "/datapath",
     }
-    httpserver.expect_request("/data", method="POST", data="req text", headers=expected_headers).respond_with_data(
-        "my str"
+    httpserver.expect_request(
+        "/data", method="POST", data="req text", headers=expected_headers
+    ).respond_with_data("my str")
+    httpserver.expect_request("/json", method="POST", json={"x": 5}).respond_with_json(
+        {"post": "ok"}
     )
-    httpserver.expect_request("/json", method="POST", json={"x": 5}).respond_with_json({"post": "ok"})
     url = httpserver.url_for("/")
 
     for params, request, expected in tests_map:
@@ -184,7 +188,9 @@ def test_remote_class_to_dict(httpserver):
 def test_remote_class_no_header_propagation(httpserver, engine):
     from mlrun.serving.remote import RemoteStep
 
-    httpserver.expect_request("/cat", method="GET", headers={"X-dont-propagate": "me"}).respond_with_json({"cat": "ok"})
+    httpserver.expect_request(
+        "/cat", method="GET", headers={"X-dont-propagate": "me"}
+    ).respond_with_json({"cat": "ok"})
 
     function = mlrun.new_function("test2", kind="serving")
     flow = function.set_topology("flow", engine=engine)
@@ -216,7 +222,9 @@ def test_remote_class_no_header_propagation(httpserver, engine):
 def test_remote_advance(httpserver, engine):
     from mlrun.serving.remote import RemoteStep
 
-    httpserver.expect_request("/dog", method="POST", json={"x": 5}).respond_with_json({"post": "ok"})
+    httpserver.expect_request("/dog", method="POST", json={"x": 5}).respond_with_json(
+        {"post": "ok"}
+    )
 
     function = mlrun.new_function("test2", kind="serving")
     flow = function.set_topology("flow", engine=engine)
@@ -248,7 +256,9 @@ def _timed_out_handler(request: Request):
 
 @pytest.mark.parametrize("engine", ["async", "sync"])
 def test_timeout(httpserver, engine):
-    httpserver.expect_request("/data", method="POST").respond_with_handler(_timed_out_handler)
+    httpserver.expect_request("/data", method="POST").respond_with_handler(
+        _timed_out_handler
+    )
     url = httpserver.url_for("/data")
     server = _new_server(url, engine, timeout=1, retries=0, return_json=False)
 
@@ -256,7 +266,11 @@ def test_timeout(httpserver, engine):
         server.test(body=b"tst", method="POST")
         assert False, "did not time out"
     except Exception as exc:
-        is_timeout = ("timed out" in str(exc)) or ("CancelledError" in str(exc)) or ("TimeoutError" in str(exc))
+        is_timeout = (
+            ("timed out" in str(exc))
+            or ("CancelledError" in str(exc))
+            or ("TimeoutError" in str(exc))
+        )
         if not is_timeout:
             raise exc
 
@@ -284,7 +298,9 @@ class RetryTester:
 def test_failure(httpserver, engine):
     tester = RetryTester()
     method = "POST"
-    httpserver.expect_request("/data", method=method).respond_with_handler(tester.handler)
+    httpserver.expect_request("/data", method=method).respond_with_handler(
+        tester.handler
+    )
     url = httpserver.url_for("/data")
     server = _new_server(url, engine, method=method, return_json=False, retries=0)
 
@@ -308,14 +324,18 @@ def test_retry(httpserver, engine):
     retries = 1
     tester = RetryTester(retries)
     method = "POST"
-    httpserver.expect_request("/data", method=method).respond_with_handler(tester.handler)
+    httpserver.expect_request("/data", method=method).respond_with_handler(
+        tester.handler
+    )
     url = httpserver.url_for("/data")
     server = _new_server(url, engine, method=method, return_json=False, retries=retries)
     try:
         server.test(body=b"tst", method=method)
     finally:
         server.wait_for_completion()
-    assert tester.retries_dict["/data"] == retries + 1, "did not get expected number of retries"
+    assert (
+        tester.retries_dict["/data"] == retries + 1
+    ), "did not get expected number of retries"
 
 
 def _echo_handler(request: Request):
@@ -326,7 +346,9 @@ def test_parallel_remote(httpserver):
     # test calling multiple http clients
     from mlrun.serving.remote import BatchHttpRequests
 
-    httpserver.expect_request(re.compile("^/.*"), method="POST").respond_with_handler(_echo_handler)
+    httpserver.expect_request(re.compile("^/.*"), method="POST").respond_with_handler(
+        _echo_handler
+    )
     url = httpserver.url_for("/")
 
     function = mlrun.new_function("test2", kind="serving")
@@ -357,7 +379,9 @@ def test_parallel_remote_retry(httpserver):
 
     retries = 1
     tester = RetryTester(retries)
-    httpserver.expect_request(re.compile("^/.*"), method="POST").respond_with_handler(tester.handler)
+    httpserver.expect_request(re.compile("^/.*"), method="POST").respond_with_handler(
+        tester.handler
+    )
     url = httpserver.url_for("/")
 
     function = mlrun.new_function("test2", kind="serving")

@@ -27,19 +27,25 @@ import services.api.crud
 import services.api.tests.unit.conftest
 
 
-def test_store_project_secrets_verifications(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+def test_store_project_secrets_verifications(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         services.api.crud.Secrets().store_project_secrets(
             project,
-            mlrun.common.schemas.SecretsData(provider=provider, secrets={"invalid/key": "value"}),
+            mlrun.common.schemas.SecretsData(
+                provider=provider, secrets={"invalid/key": "value"}
+            ),
         )
 
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         services.api.crud.Secrets().store_project_secrets(
             project,
-            mlrun.common.schemas.SecretsData(provider=provider, secrets={"mlrun.internal.key": "value"}),
+            mlrun.common.schemas.SecretsData(
+                provider=provider, secrets={"mlrun.internal.key": "value"}
+            ),
         )
 
 
@@ -50,14 +56,18 @@ def test_store_project_secrets_with_key_map_verifications(
 ):
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        services.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            services.api.crud.SecretsClientType.schedules
+        )
     )
     # not allowed to edit key map
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         services.api.crud.Secrets().store_project_secrets(
             project,
-            mlrun.common.schemas.SecretsData(provider=provider, secrets={key_map_secret_key: "value"}),
+            mlrun.common.schemas.SecretsData(
+                provider=provider, secrets={key_map_secret_key: "value"}
+            ),
         )
 
     # not allowed with provider other than k8s
@@ -74,7 +84,9 @@ def test_store_project_secrets_with_key_map_verifications(
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         services.api.crud.Secrets().store_project_secrets(
             project,
-            mlrun.common.schemas.SecretsData(provider=provider, secrets={"invalid/key": "value"}),
+            mlrun.common.schemas.SecretsData(
+                provider=provider, secrets={"invalid/key": "value"}
+            ),
             key_map_secret_key="invalid-key-map-secret-key",
         )
 
@@ -82,7 +94,9 @@ def test_store_project_secrets_with_key_map_verifications(
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         services.api.crud.Secrets().store_project_secrets(
             project,
-            mlrun.common.schemas.SecretsData(provider=provider, secrets={"invalid/key": "value"}),
+            mlrun.common.schemas.SecretsData(
+                provider=provider, secrets={"invalid/key": "value"}
+            ),
             allow_internal_secrets=True,
             key_map_secret_key=f"{services.api.crud.Secrets().key_map_secrets_key_prefix}invalid/key",
         )
@@ -91,7 +105,9 @@ def test_store_project_secrets_with_key_map_verifications(
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         services.api.crud.Secrets().store_project_secrets(
             project,
-            mlrun.common.schemas.SecretsData(provider=provider, secrets={"valid-key": "value"}),
+            mlrun.common.schemas.SecretsData(
+                provider=provider, secrets={"valid-key": "value"}
+            ),
             key_map_secret_key=key_map_secret_key,
         )
 
@@ -103,14 +119,18 @@ def test_get_project_secret_verifications(
 ):
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        services.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            services.api.crud.SecretsClientType.schedules
+        )
     )
 
     # verifications check
     # not allowed from k8s
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        services.api.crud.Secrets().get_project_secret(project, provider, "does-not-exist-key")
+        services.api.crud.Secrets().get_project_secret(
+            project, provider, "does-not-exist-key"
+        )
 
     # key map with provider other than k8s
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -130,8 +150,10 @@ def test_get_project_secret(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        services.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            services.api.crud.SecretsClientType.schedules
+        )
     )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
@@ -174,7 +196,9 @@ def test_get_project_secret(
     )
 
     assert (
-        services.api.crud.Secrets().get_project_secret(project, provider, valid_secret_key, allow_secrets_from_k8s=True)
+        services.api.crud.Secrets().get_project_secret(
+            project, provider, valid_secret_key, allow_secrets_from_k8s=True
+        )
         == valid_secret_value
     )
     assert (
@@ -208,8 +232,10 @@ def test_delete_project_secret_verifications(
 ):
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        services.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            services.api.crud.SecretsClientType.schedules
+        )
     )
     internal_key = services.api.crud.Secrets().generate_client_project_secret_key(
         services.api.crud.SecretsClientType.schedules, "some-name", "access_key"
@@ -218,7 +244,9 @@ def test_delete_project_secret_verifications(
     # verifications check
     # internal key without allow
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        services.api.crud.Secrets().delete_project_secret(project, provider, internal_key)
+        services.api.crud.Secrets().delete_project_secret(
+            project, provider, internal_key
+        )
 
     # vault provider
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -250,8 +278,10 @@ def test_delete_project_secret(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        services.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            services.api.crud.SecretsClientType.schedules
+        )
     )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
@@ -287,18 +317,24 @@ def test_delete_project_secret(
             valid_secret_key: valid_secret_value,
             0: invalid_secret_value,
             1: invalid_secret_2_value,
-            key_map_secret_key: json.dumps({invalid_secret_key: 0, invalid_secret_2_key: 1}),
+            key_map_secret_key: json.dumps(
+                {invalid_secret_key: 0, invalid_secret_2_key: 1}
+            ),
         },
     )
 
-    services.api.crud.Secrets().delete_project_secret(project, provider, valid_secret_key, allow_secrets_from_k8s=True)
+    services.api.crud.Secrets().delete_project_secret(
+        project, provider, valid_secret_key, allow_secrets_from_k8s=True
+    )
 
     k8s_secrets_mock.assert_project_secrets(
         project,
         {
             0: invalid_secret_value,
             1: invalid_secret_2_value,
-            key_map_secret_key: json.dumps({invalid_secret_key: 0, invalid_secret_2_key: 1}),
+            key_map_secret_key: json.dumps(
+                {invalid_secret_key: 0, invalid_secret_2_key: 1}
+            ),
         },
     )
 
@@ -337,8 +373,10 @@ def test_store_project_secrets_with_key_map_success(
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    key_map_secret_key = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-        services.api.crud.SecretsClientType.schedules
+    key_map_secret_key = (
+        services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            services.api.crud.SecretsClientType.schedules
+        )
     )
     invalid_secret_key = "invalid/key"
     invalid_secret_value = "some-value"
@@ -353,16 +391,22 @@ def test_store_project_secrets_with_key_map_success(
     # store secret with valid key - map shouldn't be used
     services.api.crud.Secrets().store_project_secrets(
         project,
-        mlrun.common.schemas.SecretsData(provider=provider, secrets={valid_secret_key: valid_secret_value}),
+        mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={valid_secret_key: valid_secret_value}
+        ),
         allow_internal_secrets=True,
         key_map_secret_key=key_map_secret_key,
     )
-    k8s_secrets_mock.assert_project_secrets(project, {valid_secret_key: valid_secret_value})
+    k8s_secrets_mock.assert_project_secrets(
+        project, {valid_secret_key: valid_secret_value}
+    )
 
     # store secret with invalid key - map should be used
     services.api.crud.Secrets().store_project_secrets(
         project,
-        mlrun.common.schemas.SecretsData(provider=provider, secrets={invalid_secret_key: invalid_secret_value}),
+        mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={invalid_secret_key: invalid_secret_value}
+        ),
         allow_internal_secrets=True,
         key_map_secret_key=key_map_secret_key,
     )
@@ -378,7 +422,9 @@ def test_store_project_secrets_with_key_map_success(
     # store secret with the same invalid key and different value
     services.api.crud.Secrets().store_project_secrets(
         project,
-        mlrun.common.schemas.SecretsData(provider=provider, secrets={invalid_secret_key: invalid_secret_value_2}),
+        mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={invalid_secret_key: invalid_secret_value_2}
+        ),
         allow_internal_secrets=True,
         key_map_secret_key=key_map_secret_key,
     )
@@ -408,7 +454,9 @@ def test_store_project_secrets_with_key_map_success(
                 valid_secret_key: valid_secret_value,
                 0: invalid_secret_value_2,
                 1: invalid_secret_2_value,
-                key_map_secret_key: json.dumps({invalid_secret_key: 0, invalid_secret_2_key: 1}),
+                key_map_secret_key: json.dumps(
+                    {invalid_secret_key: 0, invalid_secret_2_key: 1}
+                ),
             },
         )
 
@@ -432,7 +480,9 @@ def test_store_project_secrets_with_key_map_success(
             valid_secret_key: valid_secret_value_2,
             0: invalid_secret_value,
             1: invalid_secret_2_value_2,
-            key_map_secret_key: json.dumps({invalid_secret_key: 0, invalid_secret_2_key: 1}),
+            key_map_secret_key: json.dumps(
+                {invalid_secret_key: 0, invalid_secret_2_key: 1}
+            ),
         },
     )
 
@@ -443,7 +493,9 @@ def _mock_secrets_crud_uuid_generation():
     def _mock_generate_uuid():
         return next(uuids_iter)
 
-    services.api.crud.Secrets()._generate_uuid = unittest.mock.Mock(side_effect=_mock_generate_uuid)
+    services.api.crud.Secrets()._generate_uuid = unittest.mock.Mock(
+        side_effect=_mock_generate_uuid
+    )
 
 
 def test_secrets_crud_internal_project_secrets(
@@ -455,31 +507,41 @@ def test_secrets_crud_internal_project_secrets(
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
     regular_secret_key = "key"
     regular_secret_value = "value"
-    internal_secret_key = f"{services.api.crud.Secrets().internal_secrets_key_prefix}internal-key"
+    internal_secret_key = (
+        f"{services.api.crud.Secrets().internal_secrets_key_prefix}internal-key"
+    )
     internal_secret_value = "internal-value"
 
     # store regular secret - pass
     services.api.crud.Secrets().store_project_secrets(
         project,
-        mlrun.common.schemas.SecretsData(provider=provider, secrets={regular_secret_key: regular_secret_value}),
+        mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={regular_secret_key: regular_secret_value}
+        ),
     )
 
     # store internal secret - fail
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         services.api.crud.Secrets().store_project_secrets(
             project,
-            mlrun.common.schemas.SecretsData(provider=provider, secrets={internal_secret_key: internal_secret_value}),
+            mlrun.common.schemas.SecretsData(
+                provider=provider, secrets={internal_secret_key: internal_secret_value}
+            ),
         )
 
     # store internal secret with allow - pass
     services.api.crud.Secrets().store_project_secrets(
         project,
-        mlrun.common.schemas.SecretsData(provider=provider, secrets={internal_secret_key: internal_secret_value}),
+        mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={internal_secret_key: internal_secret_value}
+        ),
         allow_internal_secrets=True,
     )
 
     # list keys without allow - regular only
-    secret_keys_data = services.api.crud.Secrets().list_project_secret_keys(project, provider)
+    secret_keys_data = services.api.crud.Secrets().list_project_secret_keys(
+        project, provider
+    )
     assert secret_keys_data.secret_keys == [regular_secret_key]
 
     # list keys with allow - regular and internal
@@ -489,7 +551,9 @@ def test_secrets_crud_internal_project_secrets(
     assert secret_keys_data.secret_keys == [regular_secret_key, internal_secret_key]
 
     # list data without allow - regular only
-    secrets_data = services.api.crud.Secrets().list_project_secrets(project, provider, allow_secrets_from_k8s=True)
+    secrets_data = services.api.crud.Secrets().list_project_secrets(
+        project, provider, allow_secrets_from_k8s=True
+    )
     assert (
         deepdiff.DeepDiff(
             secrets_data.secrets,
@@ -557,7 +621,9 @@ def test_secrets_crud_internal_project_secrets(
         project, provider, [internal_secret_key], allow_internal_secrets=True
     )
     # list to verify - there should be no secrets
-    secrets_data = services.api.crud.Secrets().list_project_secrets(project, provider, allow_secrets_from_k8s=True)
+    secrets_data = services.api.crud.Secrets().list_project_secrets(
+        project, provider, allow_secrets_from_k8s=True
+    )
     assert (
         deepdiff.DeepDiff(
             secrets_data.secrets,
@@ -570,7 +636,9 @@ def test_secrets_crud_internal_project_secrets(
     # store internal secret again to verify deletion with empty list with allow - pass
     services.api.crud.Secrets().store_project_secrets(
         project,
-        mlrun.common.schemas.SecretsData(provider=provider, secrets={internal_secret_key: internal_secret_value}),
+        mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={internal_secret_key: internal_secret_value}
+        ),
         allow_internal_secrets=True,
     )
     # delete with empty list (delete all) with allow - nothing should remain
@@ -581,7 +649,9 @@ def test_secrets_crud_internal_project_secrets(
         allow_internal_secrets=True,
     )
     # list to verify
-    secrets_data = services.api.crud.Secrets().list_project_secrets(project, provider, allow_secrets_from_k8s=True)
+    secrets_data = services.api.crud.Secrets().list_project_secrets(
+        project, provider, allow_secrets_from_k8s=True
+    )
     assert (
         deepdiff.DeepDiff(
             secrets_data.secrets,
@@ -592,7 +662,9 @@ def test_secrets_crud_internal_project_secrets(
     )
 
 
-def test_store_auth_secret_verifications(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+def test_store_auth_secret_verifications(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
     # not allowed with provider other than k8s
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         services.api.crud.Secrets().store_auth_secret(

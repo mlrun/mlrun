@@ -47,9 +47,15 @@ async def handler_returning_response(request: fastapi.Request, exc: Handled1Erro
 
 
 @app.exception_handler(Handled2Error)
-async def handler_returning_http_exception(request: fastapi.Request, exc: Handled2Error):
-    logger.warning("Handler caught Handled2Error exception, returning HTTPException with 401")
-    return await http_exception_handler(request, fastapi.HTTPException(status_code=HTTPStatus.UNAUTHORIZED.value))
+async def handler_returning_http_exception(
+    request: fastapi.Request, exc: Handled2Error
+):
+    logger.warning(
+        "Handler caught Handled2Error exception, returning HTTPException with 401"
+    )
+    return await http_exception_handler(
+        request, fastapi.HTTPException(status_code=HTTPStatus.UNAUTHORIZED.value)
+    )
 
 
 test_router = fastapi.APIRouter()
@@ -63,13 +69,17 @@ def success():
 
 @test_router.get("/handled_1_error")
 def handled_1_error():
-    logger.info("handled_exception_1 endpoint received request, raising handled 1 error")
+    logger.info(
+        "handled_exception_1 endpoint received request, raising handled 1 error"
+    )
     raise Handled1Error("handled 1 error")
 
 
 @test_router.get("/handled_2_error")
 def handled_2_error():
-    logger.info("handled_exception_2 endpoint received request, raising handled 2 error")
+    logger.info(
+        "handled_exception_2 endpoint received request, raising handled 2 error"
+    )
     raise Handled2Error("handled 2 error")
 
 

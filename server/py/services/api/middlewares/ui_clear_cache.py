@@ -37,7 +37,9 @@ class UiClearCacheMiddleware:
         self.app = app
         self._backend_version = backend_version
 
-    async def __call__(self, scope: "Scope", receive: "ASGIReceiveCallable", send: "ASGISendCallable") -> None:
+    async def __call__(
+        self, scope: "Scope", receive: "ASGIReceiveCallable", send: "ASGISendCallable"
+    ) -> None:
         """
         This middleware tells ui when to clear its cache based on backend version changes.
         """
@@ -50,7 +52,9 @@ class UiClearCacheMiddleware:
         #  - ui version is different from backend version
         # otherwise, do not ask ui to reload its cache as it will make each request to reload ui and clear cache
         request_headers = MutableHeaders(scope=scope)
-        ui_version = request_headers.get(mlrun.common.schemas.constants.HeaderNames.ui_version, "")
+        ui_version = request_headers.get(
+            mlrun.common.schemas.constants.HeaderNames.ui_version, ""
+        )
 
         async def send_wrapper(message: Message) -> None:
             if (

@@ -35,7 +35,9 @@ class RuntimeResources(
         kind: typing.Optional[str] = None,
         object_id: typing.Optional[str] = None,
         label_selector: typing.Optional[str] = None,
-        group_by: typing.Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: typing.Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ) -> typing.Union[
         mlrun.common.schemas.RuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -48,9 +50,15 @@ class RuntimeResources(
             kinds = [kind]
         for kind in kinds:
             runtime_handler = services.api.runtime_handlers.get_runtime_handler(kind)
-            resources = runtime_handler.list_resources(project, object_id, label_selector, group_by)
+            resources = runtime_handler.list_resources(
+                project, object_id, label_selector, group_by
+            )
             if group_by is None:
-                response.append(mlrun.common.schemas.KindRuntimeResources(kind=kind, resources=resources))
+                response.append(
+                    mlrun.common.schemas.KindRuntimeResources(
+                        kind=kind, resources=resources
+                    )
+                )
             else:
                 mergedeep.merge(response, resources)
         return response
@@ -59,7 +67,9 @@ class RuntimeResources(
         self,
         grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         allowed_projects: list[str],
-        group_by: typing.Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
+        group_by: typing.Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ) -> typing.Union[
         mlrun.common.schemas.RuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -72,14 +82,20 @@ class RuntimeResources(
         ) in grouped_by_project_runtime_resources_output.items():
             for kind, runtime_resources in kind_runtime_resources_map.items():
                 if project in allowed_projects:
-                    runtime_resources_by_kind.setdefault(kind, []).append(runtime_resources)
+                    runtime_resources_by_kind.setdefault(kind, []).append(
+                        runtime_resources
+                    )
         runtimes_resources_output = [] if group_by is None else {}
         for kind, runtime_resources_list in runtime_resources_by_kind.items():
             runtime_handler = services.api.runtime_handlers.get_runtime_handler(kind)
-            resources = runtime_handler.build_output_from_runtime_resources(runtime_resources_list, group_by)
+            resources = runtime_handler.build_output_from_runtime_resources(
+                runtime_resources_list, group_by
+            )
             if group_by is None:
                 runtimes_resources_output.append(
-                    mlrun.common.schemas.KindRuntimeResources(kind=kind, resources=resources)
+                    mlrun.common.schemas.KindRuntimeResources(
+                        kind=kind, resources=resources
+                    )
                 )
             else:
                 mergedeep.merge(runtimes_resources_output, resources)

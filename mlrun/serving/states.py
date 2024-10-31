@@ -200,7 +200,9 @@ class BaseStep(ModelObj):
         if not (class_name or handler):
             raise MLRunInvalidArgumentError("class_name or handler must be provided")
         if isinstance(self, RootFlowStep) and before:
-            raise MLRunInvalidArgumentError("`before` arg can't be specified for graph error handler")
+            raise MLRunInvalidArgumentError(
+                "`before` arg can't be specified for graph error handler"
+            )
 
         name = get_name(name, class_name)
         step = ErrorStep(
@@ -267,7 +269,9 @@ class BaseStep(ModelObj):
         )
         error_trace = traceback.format_exc()
         self.context.logger.error(error_trace)
-        self.context.push_error(event, f"{error_message}\n{error_trace}", source=self.fullname, **kwargs)
+        self.context.push_error(
+            event, f"{error_message}\n{error_trace}", source=self.fullname, **kwargs
+        )
 
     def _call_error_handler(self, event, err, **kwargs):
         """call the error handler if exist"""
@@ -284,7 +288,9 @@ class BaseStep(ModelObj):
         next_level = self
         for step in tree:
             if step not in next_level:
-                raise GraphError(f"step {step} doesnt exist in the graph under {next_level.fullname}")
+                raise GraphError(
+                    f"step {step} doesnt exist in the graph under {next_level.fullname}"
+                )
             next_level = next_level[step]
         return next_level
 
@@ -332,7 +338,9 @@ class BaseStep(ModelObj):
         elif self._parent:
             parent = self._parent
         else:
-            raise GraphError(f"step {self.name} parent is not set or it's not part of a graph")
+            raise GraphError(
+                f"step {self.name} parent is not set or it's not part of a graph"
+            )
 
         name, step = params_to_step(
             class_name,
@@ -446,7 +454,9 @@ class TaskStep(BaseStep):
             self._set_error_handler()
             return
 
-        self._class_object, self.class_name = self.get_step_class_object(namespace=namespace)
+        self._class_object, self.class_name = self.get_step_class_object(
+            namespace=namespace
+        )
         if not self._object or reset:
             # init the step class + args
             extracted_class_args = self.get_full_class_args(
@@ -457,13 +467,17 @@ class TaskStep(BaseStep):
             try:
                 self._object = self._class_object(**extracted_class_args)
             except TypeError as exc:
-                raise TypeError(f"failed to init step {self.name}\n args={self.class_args}") from exc
+                raise TypeError(
+                    f"failed to init step {self.name}\n args={self.class_args}"
+                ) from exc
 
             # determine the right class handler to use
             handler = self.handler
             if handler:
                 if not hasattr(self._object, handler):
-                    raise GraphError(f"handler ({handler}) specified but doesnt exist in class {self.class_name}")
+                    raise GraphError(
+                        f"handler ({handler}) specified but doesnt exist in class {self.class_name}"
+                    )
             else:
                 if hasattr(self._object, "do_event"):
                     handler = "do_event"
@@ -519,7 +533,9 @@ class TaskStep(BaseStep):
             return True
         if not self.function and not current_function:
             return True
-        if (self.function and self.function == "*") or self.function == current_function:
+        if (
+            self.function and self.function == "*"
+        ) or self.function == current_function:
             return True
         return False
 
@@ -565,9 +581,13 @@ class TaskStep(BaseStep):
                 return self._handler(event, *args, **kwargs)
 
             if self._handler is None:
-                raise MLRunInvalidArgumentError(f"step {self.name} does not have a handler")
+                raise MLRunInvalidArgumentError(
+                    f"step {self.name} does not have a handler"
+                )
 
-            result = self._handler(_extract_input_data(self.input_path, event.body), *args, **kwargs)
+            result = self._handler(
+                _extract_input_data(self.input_path, event.body), *args, **kwargs
+            )
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             if self._on_error_handler:
@@ -737,7 +757,9 @@ class RouterStep(TaskStep):
             return
 
         self.class_args = self.class_args or {}
-        super().init_object(context, namespace, "skip", reset=reset, routes=self._routes, **extra_kwargs)
+        super().init_object(
+            context, namespace, "skip", reset=reset, routes=self._routes, **extra_kwargs
+        )
 
         for route in self._routes.values():
             if self.function and not route.function:
@@ -771,7 +793,9 @@ class RouterStep(TaskStep):
         :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
         :return: graphviz graph object
         """
-        return _generate_graphviz(self, _add_graphviz_router, filename, format, source=source, **kw)
+        return _generate_graphviz(
+            self, _add_graphviz_router, filename, format, source=source, **kw
+        )
 
 
 class QueueStep(BaseStep):
@@ -991,15 +1015,21 @@ class FlowStep(BaseStep):
                 previous = self._last_added.name
             else:
                 if after not in self._steps.keys():
-                    raise MLRunInvalidArgumentError(f"cant set after, there is no step named {after}")
+                    raise MLRunInvalidArgumentError(
+                        f"cant set after, there is no step named {after}"
+                    )
                 previous = after
             step.after_step(previous)
 
         if before:
             if before not in self._steps.keys():
-                raise MLRunInvalidArgumentError(f"cant set before, there is no step named {before}")
+                raise MLRunInvalidArgumentError(
+                    f"cant set before, there is no step named {before}"
+                )
             if before == step.name or before == previous:
-                raise GraphError(f"graph loop, step {before} is specified in before and/or after {key}")
+                raise GraphError(
+                    f"graph loop, step {before} is specified in before and/or after {key}"
+                )
             self[step.name].after_step(*self[before].after, append=False)
             self[before].after_step(step.name, append=False)
         self._last_added = step
@@ -1063,13 +1093,19 @@ class FlowStep(BaseStep):
             if step.after:
                 loop_step = has_loop(step, [])
                 if loop_step:
-                    raise GraphError(f"Error, loop detected in step {loop_step}, graph must be acyclic (DAG)")
+                    raise GraphError(
+                        f"Error, loop detected in step {loop_step}, graph must be acyclic (DAG)"
+                    )
             else:
                 start_steps.append(step.name)
 
         responders = []
         for step in self._steps.values():
-            if hasattr(step, "responder") and step.responder and step.kind != "error_step":
+            if (
+                hasattr(step, "responder")
+                and step.responder
+                and step.kind != "error_step"
+            ):
                 responders.append(step.name)
             if step.on_error and step.on_error in start_steps:
                 start_steps.remove(step.on_error)
@@ -1079,19 +1115,29 @@ class FlowStep(BaseStep):
         if self.on_error and self.on_error in start_steps:
             start_steps.remove(self.on_error)
 
-        if len(responders) > 1:  # should not have multiple steps which respond to request
-            raise GraphError(f'there are more than one responder steps in the graph ({",".join(responders)})')
+        if (
+            len(responders) > 1
+        ):  # should not have multiple steps which respond to request
+            raise GraphError(
+                f'there are more than one responder steps in the graph ({",".join(responders)})'
+            )
 
         if self.from_step:
             if self.from_step not in self.steps:
-                raise GraphError(f"from_step ({self.from_step}) specified and not found in graph steps")
+                raise GraphError(
+                    f"from_step ({self.from_step}) specified and not found in graph steps"
+                )
             start_steps = [self.from_step]
 
         self._start_steps = [self[name] for name in start_steps]
 
         def get_first_function_step(step, current_function):
             # find the first step which belongs to the function
-            if hasattr(step, "function") and step.function and step.function == current_function:
+            if (
+                hasattr(step, "function")
+                and step.function
+                and step.function == current_function
+            ):
                 return step
             for item in step.next or []:
                 next_step = self[item]
@@ -1107,16 +1153,22 @@ class FlowStep(BaseStep):
                 if step:
                     new_start_steps.append(step)
             if not new_start_steps:
-                raise GraphError(f"did not find steps pointing to current function ({current_function})")
+                raise GraphError(
+                    f"did not find steps pointing to current function ({current_function})"
+                )
             self._start_steps = new_start_steps
 
         if self.engine == "sync" and len(self._start_steps) > 1:
-            raise GraphError("sync engine can only have one starting step (without .after)")
+            raise GraphError(
+                "sync engine can only have one starting step (without .after)"
+            )
 
         default_final_step = None
         if self.final_step:
             if self.final_step not in self.steps:
-                raise GraphError(f"final_step ({self.final_step}) specified and not found in graph steps")
+                raise GraphError(
+                    f"final_step ({self.final_step}) specified and not found in graph steps"
+                )
             default_final_step = self.final_step
 
         elif len(self._start_steps) == 1:
@@ -1146,9 +1198,13 @@ class FlowStep(BaseStep):
                 if next_state.async_object:
                     next_step = step.to(next_state.async_object)
                     process_step(next_state, next_step, root)
-            state._visited = True  # mark visited to avoid re-visit in case of multiple uplinks
+            state._visited = (
+                True  # mark visited to avoid re-visit in case of multiple uplinks
+            )
 
-        default_source, self._wait_for_result = _init_async_objects(self.context, self._steps.values())
+        default_source, self._wait_for_result = _init_async_objects(
+            self.context, self._steps.values()
+        )
 
         source = self._source or default_source
         for next_state in self._start_steps:
@@ -1185,7 +1241,9 @@ class FlowStep(BaseStep):
                         )
 
                     if next_step.function in links:
-                        raise GraphError(f"function ({next_step.function}) cannot read from multiple queues")
+                        raise GraphError(
+                            f"function ({next_step.function}) cannot read from multiple queues"
+                        )
                     links[next_step.function] = step
         return links
 
@@ -1199,7 +1257,11 @@ class FlowStep(BaseStep):
         """return a list of child function names referred to in the steps"""
         functions = []
         for step in self.get_children():
-            if hasattr(step, "function") and step.function and step.function not in functions:
+            if (
+                hasattr(step, "function")
+                and step.function
+                and step.function not in functions
+            ):
                 functions.append(step.function)
         return functions
 
@@ -1218,7 +1280,9 @@ class FlowStep(BaseStep):
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            resp = self._controller.emit(event, return_awaitable_result=self._wait_for_result)
+            resp = self._controller.emit(
+                event, return_awaitable_result=self._wait_for_result
+            )
             if self._wait_for_result and resp:
                 return resp.await_result()
             event = copy(event)
@@ -1244,11 +1308,17 @@ class FlowStep(BaseStep):
 
             if hasattr(event, "terminated") and event.terminated:
                 return event
-            if hasattr(event, "error") and isinstance(event.error, dict) and next_obj.name in event.error:
+            if (
+                hasattr(event, "error")
+                and isinstance(event.error, dict)
+                and next_obj.name in event.error
+            ):
                 next_obj = self._steps[next_obj.on_error]
             next = next_obj.next
             if next and len(next) > 1:
-                raise GraphError(f"synchronous flow engine doesnt support branches use async, step={next_obj.name}")
+                raise GraphError(
+                    f"synchronous flow engine doesnt support branches use async, step={next_obj.name}"
+                )
             next_obj = self[next[0]] if next else None
         return event
 
@@ -1294,13 +1364,17 @@ class FlowStep(BaseStep):
         insert error step to the graph
         run after deployment
         """
-        if not step.before and not any([step.name in other_step.after for other_step in self._steps.values()]):
+        if not step.before and not any(
+            [step.name in other_step.after for other_step in self._steps.values()]
+        ):
             step.responder = True
             return
 
         for step_name in step.before:
             if step_name not in self._steps.keys():
-                raise MLRunInvalidArgumentError(f"cant set before, there is no step named {step_name}")
+                raise MLRunInvalidArgumentError(
+                    f"cant set before, there is no step named {step_name}"
+                )
             self[step_name].after_step(name)
 
     def set_flow(
@@ -1368,7 +1442,9 @@ def _add_graphviz_flow(
     source=None,
     targets=None,
 ):
-    start_steps, default_final_step, responders = step.check_and_process_graph(allow_empty=True)
+    start_steps, default_final_step, responders = step.check_and_process_graph(
+        allow_empty=True
+    )
     graph.node("_start", source.name, shape=source.shape, style="filled")
     for start_step in start_steps:
         graph.edge("_start", start_step.fullname)
@@ -1389,7 +1465,9 @@ def _add_graphviz_flow(
         for target in targets or []:
             target_kind, target_name = target.name.split("/", 1)
             if target_kind != target_name:
-                label = f"<{target_name}<br/><font point-size='8'>({target_kind})</font>>"
+                label = (
+                    f"<{target_name}<br/><font point-size='8'>({target_kind})</font>>"
+                )
             else:
                 label = target_name
             graph.node(target.fullname, label=label, shape=target.get_shape())
@@ -1422,7 +1500,9 @@ def _generate_graphviz(
     try:
         from graphviz import Digraph
     except ImportError:
-        raise ImportError('graphviz is not installed, run "pip install graphviz" first!')
+        raise ImportError(
+            'graphviz is not installed, run "pip install graphviz" first!'
+        )
     graph = Digraph("mlrun-flow", format="jpg")
     graph.attr(compound="true", **kw)
     source = source or BaseStep("start", shape="egg")
@@ -1493,7 +1573,9 @@ def params_to_step(
 
     elif class_name and class_name in queue_class_names:
         if "path" not in class_args:
-            raise MLRunInvalidArgumentError("path=<stream path or None> must be specified for queues")
+            raise MLRunInvalidArgumentError(
+                "path=<stream path or None> must be specified for queues"
+            )
         if not name:
             raise MLRunInvalidArgumentError("queue name must be specified")
         # Pass full_event on only if it's explicitly defined
@@ -1559,7 +1641,9 @@ def _init_async_objects(context, steps):
                     endpoint = None
                     # in case of a queue, we default to a full_event=True
                     full_event = step.options.get("full_event")
-                    options = {"full_event": full_event or full_event is None and step.next}
+                    options = {
+                        "full_event": full_event or full_event is None and step.next
+                    }
                     options.update(step.options)
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
@@ -1567,7 +1651,9 @@ def _init_async_objects(context, steps):
                     if stream_path.startswith("kafka://") or kafka_brokers:
                         topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
 
-                        kafka_producer_options = options.pop("kafka_producer_options", None)
+                        kafka_producer_options = options.pop(
+                            "kafka_producer_options", None
+                        )
 
                         step._async_object = storey.KafkaTarget(
                             topic=topic,
@@ -1600,13 +1686,20 @@ def _init_async_objects(context, steps):
                     context=context,
                     pass_context=step._inject_context,
                 )
-            if respond_supported and not step.next and hasattr(step, "responder") and step.responder:
+            if (
+                respond_supported
+                and not step.next
+                and hasattr(step, "responder")
+                and step.responder
+            ):
                 # if responder step (return result), add Complete()
                 step.async_object.to(storey.Complete(full_event=True))
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-    explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
+    explicit_ack = (
+        is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
+    )
 
     # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
     default_source = storey.SyncEmitSource(

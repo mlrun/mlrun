@@ -63,7 +63,9 @@ def raise_for_status_code(func):
         try:
             return func(*args, **kwargs)
         except k8s_client_rest.ApiException as exc:
-            raise mlrun.errors.err_for_status_code(exc.status, message=mlrun.errors.err_to_str(exc)) from exc
+            raise mlrun.errors.err_for_status_code(
+                exc.status, message=mlrun.errors.err_to_str(exc)
+            ) from exc
 
     return wrapper
 
@@ -83,7 +85,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             self.v1api = client.CoreV1Api()
             self.crdapi = client.CustomObjectsApi()
         except Exception as exc:
-            logger.warning("Cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc))
+            logger.warning(
+                "Cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
+            )
             if not silent:
                 raise
 
@@ -95,7 +99,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     @raise_for_status_code
     def list_pods(self, namespace=None, selector="", states=None):
-        resp = self.v1api.list_namespaced_pod(self.resolve_namespace(namespace), label_selector=selector)
+        resp = self.v1api.list_namespaced_pod(
+            self.resolve_namespace(namespace), label_selector=selector
+        )
         items = []
         for i in resp.items:
             if not states or i.status.phase in states:
@@ -132,7 +138,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     _continue=_continue,
                 )
             except k8s_client_rest.ApiException as exc:
-                self._validate_paginated_list_retry(exc, retry_count, max_retry, resource_name="pods")
+                self._validate_paginated_list_retry(
+                    exc, retry_count, max_retry, resource_name="pods"
+                )
                 _continue = None
                 retry_count += 1
                 continue
@@ -187,7 +195,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             except k8s_client_rest.ApiException as exc:
                 # ignore error if crd is not defined
                 if exc.status != 404:
-                    self._validate_paginated_list_retry(exc, retry_count, max_retry, resource_name=crd_plural)
+                    self._validate_paginated_list_retry(
+                        exc, retry_count, max_retry, resource_name=crd_plural
+                    )
                     _continue = None
                     retry_count += 1
                     continue
@@ -219,9 +229,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                         exc=mlrun.errors.err_to_str(exc),
                         pod=pod,
                     )
-                    raise mlrun.errors.err_for_status_code(exc.status, message=mlrun.errors.err_to_str(exc)) from exc
+                    raise mlrun.errors.err_for_status_code(
+                        exc.status, message=mlrun.errors.err_to_str(exc)
+                    ) from exc
 
-                logger.error("Failed to create pod", exc=mlrun.errors.err_to_str(exc), pod=pod)
+                logger.error(
+                    "Failed to create pod", exc=mlrun.errors.err_to_str(exc), pod=pod
+                )
 
                 # known k8s issue, see https://github.com/kubernetes/kubernetes/issues/67761
                 if "gke-resource-quotas" in mlrun.errors.err_to_str(exc):
@@ -233,7 +247,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     time.sleep(retry_interval)
                     continue
 
-                raise mlrun.errors.err_for_status_code(exc.status, message=mlrun.errors.err_to_str(exc)) from exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
             else:
                 logger.info("Pod created", pod_name=resp.metadata.name)
                 return resp.metadata.name, resp.metadata.namespace
@@ -255,23 +271,33 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     pod_name=name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
-                raise mlrun.errors.err_for_status_code(exc.status, message=mlrun.errors.err_to_str(exc)) from exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
         try:
-            api_response = self.v1api.read_namespaced_pod(name=name, namespace=self.resolve_namespace(namespace))
+            api_response = self.v1api.read_namespaced_pod(
+                name=name, namespace=self.resolve_namespace(namespace)
+            )
             return api_response
         except k8s_client_rest.ApiException as exc:
             if exc.status != 404:
-                logger.error("Failed to get pod", pod_name=name, exc=mlrun.errors.err_to_str(exc))
-                raise mlrun.errors.err_for_status_code(exc.status, message=mlrun.errors.err_to_str(exc)) from exc
+                logger.error(
+                    "Failed to get pod", pod_name=name, exc=mlrun.errors.err_to_str(exc)
+                )
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
             else:
                 if raise_on_not_found:
                     raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
             return None
 
     def get_pod_phase(self, name, namespace=None):
-        return self._get_pod_status(name, namespace, raise_on_not_found=True).status.phase.lower()
+        return self._get_pod_status(
+            name, namespace, raise_on_not_found=True
+        ).status.phase.lower()
 
     def get_pod_status(self, name, namespace=None) -> client.V1PodStatus:
         return self._get_pod_status(name, namespace, raise_on_not_found=True).status
@@ -311,11 +337,15 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     crd_version=crd_version,
                     crd_plural=crd_plural,
                 )
-                raise mlrun.errors.err_for_status_code(exc.status, message=mlrun.errors.err_to_str(exc)) from exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
 
     def logs(self, name, namespace=None):
         try:
-            resp = self.v1api.read_namespaced_pod_log(name=name, namespace=self.resolve_namespace(namespace))
+            resp = self.v1api.read_namespaced_pod_log(
+                name=name, namespace=self.resolve_namespace(namespace)
+            )
         except k8s_client_rest.ApiException as exc:
             logger.error("Failed to get pod logs", exc=mlrun.errors.err_to_str(exc))
             raise exc
@@ -325,7 +355,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def get_logger_pods(self, project, uid, run_kind, namespace=""):
         namespace = self.resolve_namespace(namespace)
         mpijob_crd_version = services.api.runtime_handlers.resolve_mpijob_crd_version()
-        mpijob_role_label = mlrun.common.runtimes.constants.MPIJobCRDVersions.role_label_by_version(mpijob_crd_version)
+        mpijob_role_label = (
+            mlrun.common.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
+                mpijob_crd_version
+            )
+        )
         extra_selectors = {
             "spark": f"{mlrun_constants.MLRunInternalLabels.spark_role}=driver",
             "mpijob": f"{mpijob_role_label}=launcher",
@@ -350,11 +384,15 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         return {p.metadata.name: p.status.phase for p in pods}
 
-    def get_project_vault_secret_name(self, project, service_account_name, namespace=""):
+    def get_project_vault_secret_name(
+        self, project, service_account_name, namespace=""
+    ):
         namespace = self.resolve_namespace(namespace)
 
         try:
-            service_account = self.v1api.read_namespaced_service_account(service_account_name, namespace)
+            service_account = self.v1api.read_namespaced_service_account(
+                service_account_name, namespace
+            )
         except k8s_client_rest.ApiException as exc:
             # It's valid for the service account to not exist. Simply return None
             if exc.status != 404:
@@ -363,20 +401,28 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     service_account_name=service_account_name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
-                raise mlrun.errors.err_for_status_code(exc.status, message=mlrun.errors.err_to_str(exc)) from exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
             return None
 
         if len(service_account.secrets) > 1:
-            raise ValueError(f"Service account {service_account_name} has more than one secret")
+            raise ValueError(
+                f"Service account {service_account_name} has more than one secret"
+            )
 
         return service_account.secrets[0].name
 
     def get_project_secret_name(self, project) -> str:
-        return mlrun.mlconf.secret_stores.kubernetes.project_secret_name.format(project=project)
+        return mlrun.mlconf.secret_stores.kubernetes.project_secret_name.format(
+            project=project
+        )
 
     def resolve_auth_secret_name(self, access_key: str) -> str:
         hashed_access_key = self._hash_access_key(access_key)
-        return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(hashed_access_key=hashed_access_key)
+        return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=hashed_access_key
+        )
 
     def store_project_secrets(
         self, project, secrets, namespace=""
@@ -412,8 +458,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             else:
                 return None
 
-        username = _get_secret_value(mlrun.common.schemas.AuthSecretData.get_field_secret_key("username"))
-        access_key = _get_secret_value(mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"))
+        username = _get_secret_value(
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")
+        )
+        access_key = _get_secret_value(
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
+        )
 
         return username, access_key
 
@@ -426,8 +476,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         secret_name = self.resolve_auth_secret_name(access_key)
         secret_data = {
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username"): username,
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"): access_key,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "username"
+            ): username,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "access_key"
+            ): access_key,
         }
         action = self.store_secrets_with_retry(
             secret_name,
@@ -500,7 +554,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 secret_name=secret_name,
                 namespace=namespace,
             )
-        except k8s_dynamic_exceptions.NotFoundError:  # If secret doesn't exist, we'll simply create it
+        except (
+            k8s_dynamic_exceptions.NotFoundError
+        ):  # If secret doesn't exist, we'll simply create it
             self._create_secret(
                 labels=labels,
                 namespace=namespace,
@@ -644,7 +700,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         # Create a copy of the k8s secret data, filtering out specified secrets if any
         if secrets:
-            secret_data = {key: value for key, value in k8s_secret.data.items() if key not in secrets}
+            secret_data = {
+                key: value
+                for key, value in k8s_secret.data.items()
+                if key not in secrets
+            }
         elif secrets is None:
             # Delete all secrets
             secret_data = {}
@@ -689,7 +749,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             have_confmap = True
         else:
             full_name = f"{resource}-{resource_name}"
-            configmap_name = full_name if len(full_name) <= 63 else full_name[:59] + self._generate_rand_string(4)
+            configmap_name = (
+                full_name
+                if len(full_name) <= 63
+                else full_name[:59] + self._generate_rand_string(4)
+            )
 
         body = client.V1ConfigMap(
             kind="ConfigMap",
@@ -699,7 +763,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         if have_confmap:
             try:
-                self.v1api.replace_namespaced_config_map(configmap_name, namespace=namespace, body=body)
+                self.v1api.replace_namespaced_config_map(
+                    configmap_name, namespace=namespace, body=body
+                )
             except k8s_client_rest.ApiException as exc:
                 logger.error(
                     "Failed to replace k8s config map",
@@ -727,7 +793,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             namespace=namespace, label_selector=f"{label_name}={name}"
         )
         if len(configmaps_with_label.items) > 1:
-            raise mlrun.errors.MLRunInternalServerError(f"Received more than one config map for label: {name}")
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Received more than one config map for label: {name}"
+            )
 
         return configmaps_with_label.items[0] if configmaps_with_label.items else None
 
@@ -810,7 +878,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         secret_keys = list(secrets_data.keys())
         if filter_internal:
-            secret_keys = list(filter(lambda key: not key.startswith("mlrun."), secret_keys))
+            secret_keys = list(
+                filter(lambda key: not key.startswith("mlrun."), secret_keys)
+            )
         return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
@@ -821,12 +891,18 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets_data = self._get_secret_raw_data(secret_name, namespace)
         return self._decode_secret_data(secrets_data)
 
-    def list_object_events(self, object_name: str, namespace: str = None) -> list[client.CoreV1Event]:
-        return self._list_events(namespace=namespace, field_selector=f"involvedObject.name={object_name}")
+    def list_object_events(
+        self, object_name: str, namespace: str = None
+    ) -> list[client.CoreV1Event]:
+        return self._list_events(
+            namespace=namespace, field_selector=f"involvedObject.name={object_name}"
+        )
 
     @raise_for_status_code
     def _list_events(self, namespace=None, field_selector=""):
-        resp = self.v1api.list_namespaced_event(self.resolve_namespace(namespace), field_selector=field_selector)
+        resp = self.v1api.list_namespaced_event(
+            self.resolve_namespace(namespace), field_selector=field_selector
+        )
         return resp.items
 
     @staticmethod
@@ -857,9 +933,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             labels[mlrun_constants.MLRunInternalLabels.username_domain] = domain
         return labels
 
-    def _get_pod_status(self, name, namespace=None, raise_on_not_found=False) -> typing.Optional[client.V1Pod]:
+    def _get_pod_status(
+        self, name, namespace=None, raise_on_not_found=False
+    ) -> typing.Optional[client.V1Pod]:
         try:
-            api_response = self.v1api.read_namespaced_pod_status(name=name, namespace=self.resolve_namespace(namespace))
+            api_response = self.v1api.read_namespaced_pod_status(
+                name=name, namespace=self.resolve_namespace(namespace)
+            )
             return api_response
         except k8s_client_rest.ApiException as exc:
             if exc.status != 404:
@@ -868,7 +948,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     pod_name=name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
-                raise mlrun.errors.err_for_status_code(exc.status, message=mlrun.errors.err_to_str(exc)) from exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
             else:
                 if raise_on_not_found:
                     raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
@@ -876,7 +958,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     @staticmethod
     def _generate_rand_string(length):
-        return "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(length))
+        return "".join(
+            random.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+        )
 
     def _init_k8s_config(self, log=True):
         try:
@@ -979,7 +1063,11 @@ class BasePod:
         self._annotations[key] = str(value)
 
     def add_volume(self, volume: client.V1Volume, mount_path, name=None, sub_path=None):
-        self._mounts.append(client.V1VolumeMount(name=name or volume.name, mount_path=mount_path, sub_path=sub_path))
+        self._mounts.append(
+            client.V1VolumeMount(
+                name=name or volume.name, mount_path=mount_path, sub_path=sub_path
+            )
+        )
         self._volumes.append(volume)
 
     def mount_empty(self, name="empty", mount_path="/empty"):
@@ -988,7 +1076,9 @@ class BasePod:
             mount_path=mount_path,
         )
 
-    def mount_v3io(self, name="v3io", remote="~/", mount_path="/User", access_key="", user=""):
+    def mount_v3io(
+        self, name="v3io", remote="~/", mount_path="/User", access_key="", user=""
+    ):
         self.add_volume(
             mlrun.platforms.iguazio.v3io_to_vol(name, remote, access_key, user),
             mount_path=mount_path,
@@ -997,7 +1087,9 @@ class BasePod:
 
     def mount_cfgmap(self, name, path="/config"):
         self.add_volume(
-            client.V1Volume(name=name, config_map=client.V1ConfigMapVolumeSource(name=name)),
+            client.V1Volume(
+                name=name, config_map=client.V1ConfigMapVolumeSource(name=name)
+            ),
             mount_path=path,
         )
 
@@ -1073,7 +1165,9 @@ def kube_resource_spec_to_pod_spec(
         volumes=kube_resource_spec.volumes,
         service_account=kube_resource_spec.service_account,
         node_name=kube_resource_spec.node_name,
-        node_selector=resolve_node_selector(node_selector, kube_resource_spec.node_selector),
+        node_selector=resolve_node_selector(
+            node_selector, kube_resource_spec.node_selector
+        ),
         affinity=kube_resource_spec.affinity,
         priority_class_name=kube_resource_spec.priority_class_name
         if len(mlrun.mlconf.get_valid_function_priority_class_names())

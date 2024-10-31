@@ -179,7 +179,9 @@ class Packager(ABC):
         """
         pass
 
-    def is_packable(self, obj: Any, artifact_type: str = None, configurations: dict = None) -> bool:
+    def is_packable(
+        self, obj: Any, artifact_type: str = None, configurations: dict = None
+    ) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
 
@@ -197,7 +199,10 @@ class Packager(ABC):
         object_type = type(obj)
 
         # Validate the object type (ellipses means any type):
-        if self.PACKABLE_OBJECT_TYPE is not ... and object_type != self.PACKABLE_OBJECT_TYPE:
+        if (
+            self.PACKABLE_OBJECT_TYPE is not ...
+            and object_type != self.PACKABLE_OBJECT_TYPE
+        ):
             return False
 
         # Validate the artifact type (if given):
@@ -206,7 +211,9 @@ class Packager(ABC):
 
         return True
 
-    def is_unpackable(self, data_item: DataItem, type_hint: type, artifact_type: str = None) -> bool:
+    def is_unpackable(
+        self, data_item: DataItem, type_hint: type, artifact_type: str = None
+    ) -> bool:
         """
         Check if this packager can unpack an input according to the user-given type hint and the provided artifact type.
 
@@ -307,7 +314,9 @@ class Packager(ABC):
             f"priority={self.priority})"
         )
 
-    def get_data_item_local_path(self, data_item: DataItem, add_to_future_clearing_path: bool = None) -> str:
+    def get_data_item_local_path(
+        self, data_item: DataItem, add_to_future_clearing_path: bool = None
+    ) -> str:
         """
         Get the local path to the item handled by the data item provided. The local path can be the same as the data
         item in case the data item points to a local path, or will be downloaded to a temporary directory and return
@@ -327,7 +336,9 @@ class Packager(ABC):
         local_path = data_item.local()
 
         # Check if needed to add to the future clear list:
-        if add_to_future_clearing_path or (add_to_future_clearing_path is None and data_item.kind != "file"):
+        if add_to_future_clearing_path or (
+            add_to_future_clearing_path is None and data_item.kind != "file"
+        ):
             self.add_future_clearing_path(path=local_path)
 
         return local_path

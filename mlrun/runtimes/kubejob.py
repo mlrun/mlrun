@@ -49,7 +49,9 @@ class KubejobRuntime(KubeResource):
             return True
         return False
 
-    def with_source_archive(self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None):
+    def with_source_archive(
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+    ):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:          valid absolute path or URL to git, zip, or tar file, e.g.

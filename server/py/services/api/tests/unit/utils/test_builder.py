@@ -36,7 +36,9 @@ from mlrun.runtimes import RuntimeKinds
 
 
 def test_build_runtime_use_base_image_when_no_build():
-    fn = mlrun.new_function("some-function", "some-project", "some-tag", kind=RuntimeKinds.job)
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", kind=RuntimeKinds.job
+    )
     base_image = "mlrun/mlrun"
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
@@ -50,31 +52,44 @@ def test_build_runtime_use_base_image_when_no_build():
 
 def test_build_runtime_enrich_base_image(monkeypatch):
     _patch_k8s_helper(monkeypatch)
-    with unittest.mock.patch("services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()):
+    with unittest.mock.patch(
+        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
 
-        fn = mlrun.new_function("some-function", "some-project", "some-tag", kind=RuntimeKinds.job)
+        fn = mlrun.new_function(
+            "some-function", "some-project", "some-tag", kind=RuntimeKinds.job
+        )
         base_image = "some/image"
-        fn.build_config(base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}")
+        fn.build_config(
+            base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}"
+        )
         assert fn.spec.image == ""
         services.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             fn,
         )
 
-        dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            "dockertext"
+        ]
         dockerfile_lines = dockerfile.splitlines()
         assert dockerfile_lines[0] == f"FROM {docker_registry}/{base_image}"
 
         # verify that the target image is populated properly
         target_image = services.api.utils.builder.make_kaniko_pod.call_args[0][2]
-        assert target_image == f"{docker_registry}/func-{fn.metadata.project}-{fn.metadata.name}:{fn.metadata.tag}"
+        assert (
+            target_image
+            == f"{docker_registry}/func-{fn.metadata.project}-{fn.metadata.name}:{fn.metadata.tag}"
+        )
 
 
 def test_build_runtime_use_image_when_no_build():
     image = "mlrun/mlrun"
-    fn = mlrun.new_function("some-function", "some-project", "some-tag", image=image, kind=RuntimeKinds.job)
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", image=image, kind=RuntimeKinds.job
+    )
     assert fn.spec.image == image
     ready = services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
@@ -96,7 +111,9 @@ def test_build_runtime_use_image_when_no_build():
         ("disabled", "disabled", "", False),
     ],
 )
-def test_build_runtime_insecure_registries(monkeypatch, pull_mode, push_mode, secret, flags_expected):
+def test_build_runtime_insecure_registries(
+    monkeypatch, pull_mode, push_mode, secret, flags_expected
+):
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = "registry.hub.docker.com/username"
     function = mlrun.new_function(
@@ -135,7 +152,9 @@ def test_build_runtime_target_image(monkeypatch):
     docker_registry_secret = "whatever"
     mlrun.mlconf.httpdb.builder.docker_registry = registry
     mlrun.mlconf.httpdb.builder.docker_registry_secret = docker_registry_secret
-    mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template = "my-cool-prefix-{project}-{name}"
+    mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template = (
+        "my-cool-prefix-{project}-{name}"
+    )
     function = mlrun.new_function(
         "some-function",
         "some-project",
@@ -144,8 +163,10 @@ def test_build_runtime_target_image(monkeypatch):
         kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
-    image_name_prefix = mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template.format(
-        project=function.metadata.project, name=function.metadata.name
+    image_name_prefix = (
+        mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template.format(
+            project=function.metadata.project, name=function.metadata.name
+        )
     )
 
     services.api.utils.builder.build_runtime(
@@ -161,7 +182,9 @@ def test_build_runtime_target_image(monkeypatch):
     assert docker_registry_secret == function.spec.build.secret
 
     # assert we can override the target image as long as we stick to the prefix
-    function.spec.build.image = f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
+    function.spec.build.image = (
+        f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
+    )
     function.spec.build.secret = docker_registry_secret + "-other"
     services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
@@ -184,7 +207,10 @@ def test_build_runtime_target_image(monkeypatch):
         function,
     )
     target_image = _get_target_image_from_create_pod_mock()
-    assert target_image == f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
+    assert (
+        target_image
+        == f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
+    )
 
     # assert it raises if we don't stick to the prefix
     for invalid_image in [
@@ -200,7 +226,8 @@ def test_build_runtime_target_image(monkeypatch):
 
     # assert if we can not-stick to the regex if it's a different registry
     function.spec.build.image = (
-        f"registry.hub.docker.com/some-other-username/image-not-by-prefix" f":{function.metadata.tag}"
+        f"registry.hub.docker.com/some-other-username/image-not-by-prefix"
+        f":{function.metadata.tag}"
     )
     services.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
@@ -217,7 +244,9 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         "label-1": "val1",
         "label-2": "val2",
     }
-    mlrun.mlconf.default_function_node_selector = base64.b64encode(json.dumps(node_selector).encode("utf-8"))
+    mlrun.mlconf.default_function_node_selector = base64.b64encode(
+        json.dumps(node_selector).encode("utf-8")
+    )
     function = mlrun.new_function(
         "some-function",
         "some-project",
@@ -268,8 +297,18 @@ def test_function_build_with_attributes_from_spec(monkeypatch):
         mlrun.common.schemas.AuthInfo(),
         function,
     )
-    assert deepdiff.DeepDiff(_create_pod_mock_pod_spec().node_name, node_name, ignore_order=True) == {}
-    assert deepdiff.DeepDiff(_create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True) == {}
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_name, node_name, ignore_order=True
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            _create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True
+        )
+        == {}
+    )
     assert (
         deepdiff.DeepDiff(
             _create_pod_mock_pod_spec().priority_class_name,
@@ -411,10 +450,14 @@ def test_resolve_mlrun_install_command_version():
         },
     ]
     for case in cases:
-        config.httpdb.builder.mlrun_version_specifier = case.get("server_mlrun_version_specifier")
+        config.httpdb.builder.mlrun_version_specifier = case.get(
+            "server_mlrun_version_specifier"
+        )
         config.package_path = case.get("package_path", "mlrun")
         if case.get("version") is not None:
-            mlrun.utils.version.Version().get = unittest.mock.Mock(return_value={"version": case["version"]})
+            mlrun.utils.version.Version().get = unittest.mock.Mock(
+                return_value={"version": case["version"]}
+            )
 
         mlrun_version_specifier = case.get("mlrun_version_specifier")
         client_version = case.get("client_version")
@@ -423,12 +466,16 @@ def test_resolve_mlrun_install_command_version():
         result = services.api.utils.builder.resolve_mlrun_install_command_version(
             mlrun_version_specifier, client_version
         )
-        assert result == expected_result, f"Test supposed to pass {case.get('test_description')}"
+        assert (
+            result == expected_result
+        ), f"Test supposed to pass {case.get('test_description')}"
 
 
 def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     _patch_k8s_helper(monkeypatch)
-    mlrun.mlconf.httpdb.builder.docker_registry = "aws_account_id.dkr.ecr.region.amazonaws.com"
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        "aws_account_id.dkr.ecr.region.amazonaws.com"
+    )
     project = mlrun.new_project("some-project")
     project.set_secrets(
         secrets={
@@ -517,12 +564,16 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
                 ), f"test case: {case.get('name')}"
                 break
         else:
-            pytest.fail(f"no create-repos init container, test case: {case.get('name')}")
+            pytest.fail(
+                f"no create-repos init container, test case: {case.get('name')}"
+            )
 
 
 def test_build_runtime_ecr_with_aws_secret(monkeypatch):
     _patch_k8s_helper(monkeypatch)
-    mlrun.mlconf.httpdb.builder.docker_registry = "aws_account_id.dkr.ecr.region.amazonaws.com"
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        "aws_account_id.dkr.ecr.region.amazonaws.com"
+    )
     mlrun.mlconf.httpdb.builder.docker_registry_secret = "aws-secret"
     function = mlrun.new_function(
         "some-function",
@@ -537,7 +588,11 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         function,
     )
     pod_spec = _create_pod_mock_pod_spec()
-    assert "aws-secret" in [volume.secret.to_dict()["secret_name"] for volume in pod_spec.volumes if volume.secret]
+    assert "aws-secret" in [
+        volume.secret.to_dict()["secret_name"]
+        for volume in pod_spec.volumes
+        if volume.secret
+    ]
     aws_mount = {
         "mount_path": "/tmp/aws",
         "mount_propagation": None,
@@ -546,18 +601,26 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         "sub_path": None,
         "sub_path_expr": None,
     }
-    assert aws_mount in [volume_mount.to_dict() for volume_mount in pod_spec.containers[0].volume_mounts]
+    assert aws_mount in [
+        volume_mount.to_dict() for volume_mount in pod_spec.containers[0].volume_mounts
+    ]
 
     aws_creds_location_env = {
         "name": "AWS_SHARED_CREDENTIALS_FILE",
         "value": "/tmp/aws/credentials",
         "value_from": None,
     }
-    assert aws_creds_location_env in [env.to_dict() for env in pod_spec.containers[0].env]
+    assert aws_creds_location_env in [
+        env.to_dict() for env in pod_spec.containers[0].env
+    ]
     for init_container in pod_spec.init_containers:
         if init_container.name == "create-repos":
-            assert aws_mount in [volume_mount.to_dict() for volume_mount in init_container.volume_mounts]
-            assert aws_creds_location_env in [env.to_dict() for env in init_container.env]
+            assert aws_mount in [
+                volume_mount.to_dict() for volume_mount in init_container.volume_mounts
+            ]
+            assert aws_creds_location_env in [
+                env.to_dict() for env in init_container.env
+            ]
             break
     else:
         pytest.fail("no create-repos init container")
@@ -566,7 +629,9 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
 def test_build_runtime_ecr_with_repository(monkeypatch):
     _patch_k8s_helper(monkeypatch)
     repo_name = "my-repo"
-    mlrun.mlconf.httpdb.builder.docker_registry = f"aws_account_id.dkr.ecr.us-east-2.amazonaws.com/{repo_name}"
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        f"aws_account_id.dkr.ecr.us-east-2.amazonaws.com/{repo_name}"
+    )
     mlrun.mlconf.httpdb.builder.docker_registry_secret = "aws-secret"
     function = mlrun.new_function(
         "some-function",
@@ -639,7 +704,9 @@ def test_resolve_image_dest(image_target, registry, default_repository, expected
     config.httpdb.builder.docker_registry = default_repository
     config.httpdb.builder.docker_registry_secret = docker_registry_secret
 
-    image_target = services.api.utils.builder.resolve_image_target(image_target, registry)
+    image_target = services.api.utils.builder.resolve_image_target(
+        image_target, registry
+    )
     assert image_target == expected_dest
 
 
@@ -704,7 +771,9 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 )
 def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
     _patch_k8s_helper(monkeypatch)
-    with unittest.mock.patch("services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()):
+    with unittest.mock.patch(
+        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
 
@@ -722,9 +791,15 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
             mlrun.common.schemas.AuthInfo(),
             function,
         )
-        dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            "dockertext"
+        ]
         dockerfile_lines = dockerfile.splitlines()
-        dockerfile_lines = [line for line in list(dockerfile_lines) if not line.startswith(("ARG", "ENV"))]
+        dockerfile_lines = [
+            line
+            for line in list(dockerfile_lines)
+            if not line.startswith(("ARG", "ENV"))
+        ]
         expected_source_dir_re = re.compile(expected_source_dir)
         assert expected_source_dir_re.match(dockerfile_lines[1])
 
@@ -751,7 +826,9 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
 )
 def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
     _patch_k8s_helper(monkeypatch)
-    with unittest.mock.patch("services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()):
+    with unittest.mock.patch(
+        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
 
@@ -770,28 +847,42 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
                 function,
             )
 
-            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
             dockerfile_lines = dockerfile.splitlines()
-            dockerfile_lines = [line for line in list(dockerfile_lines) if not line.startswith(("ARG", "ENV"))]
+            dockerfile_lines = [
+                line
+                for line in list(dockerfile_lines)
+                if not line.startswith(("ARG", "ENV"))
+            ]
 
             expected_source = source
             if "://" in source:
                 _, expected_source = os.path.split(source)
 
             if source.endswith(".zip"):
-                expected_output_re = re.compile(rf"COPY {expected_source} /home/mlrun_code/source")
+                expected_output_re = re.compile(
+                    rf"COPY {expected_source} /home/mlrun_code/source"
+                )
                 expected_line_index = 3
 
             else:
-                expected_output_re = re.compile(rf"ADD {expected_source} /home/mlrun_code")
+                expected_output_re = re.compile(
+                    rf"ADD {expected_source} /home/mlrun_code"
+                )
                 expected_line_index = 1
 
-            assert expected_output_re.match(dockerfile_lines[expected_line_index].strip())
+            assert expected_output_re.match(
+                dockerfile_lines[expected_line_index].strip()
+            )
 
         # assert v3io remote is normalized
         if expected_v3io_remote:
             k8s_helper_mock = services.api.utils.singletons.k8s.get_k8s_helper()
-            mount_v3io_args = k8s_helper_mock.create_pod.call_args[0][0].mount_v3io.call_args
+            mount_v3io_args = k8s_helper_mock.create_pod.call_args[0][
+                0
+            ].mount_v3io.call_args
             assert mount_v3io_args[-1]["remote"] == expected_v3io_remote
 
 
@@ -806,7 +897,9 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
             True,
             None,
             None,
-            [f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"],
+            [
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+            ],
             ["mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"],
             "/empty/requirements.txt",
         ),
@@ -829,7 +922,9 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
             True,
             "",
             "1.4.0",
-            [f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"],
+            [
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+            ],
             ["mlrun[complete]==1.4.0"],
             "/empty/requirements.txt",
         ),
@@ -839,7 +934,9 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
             True,
             "",
             "1.4.0",
-            [f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"],
+            [
+                f"python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+            ],
             ["mlrun[complete]==1.4.0", "pandas"],
             "/empty/requirements.txt",
         ),
@@ -998,7 +1095,9 @@ def test_mlrun_base_image_with_requirements(
     config.httpdb.builder.docker_registry = docker_registry
     _patch_k8s_helper(monkeypatch)
 
-    with unittest.mock.patch("services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()):
+    with unittest.mock.patch(
+        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
         function = mlrun.new_function(
             "some-function",
             "some-project",
@@ -1015,7 +1114,9 @@ def test_mlrun_base_image_with_requirements(
             mlrun_version_specifier=mlrun_version_specifier,
         )
 
-        requirements = services.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
+        requirements = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            "requirements"
+        ]
         if expected_mlrun_version is None:
             assert requirements == [
                 "some-package",
@@ -1033,7 +1134,9 @@ def test_mlrun_base_image_with_requirements(
 
 
 def test_mlrun_base_image_no_requirements():
-    with unittest.mock.patch("services.api.utils.builder.build_image", new=unittest.mock.MagicMock()):
+    with unittest.mock.patch(
+        "services.api.utils.builder.build_image", new=unittest.mock.MagicMock()
+    ):
         function = mlrun.new_function(
             "some-function",
             "some-project",
@@ -1048,7 +1151,9 @@ def test_mlrun_base_image_no_requirements():
             function,
         )
 
-        requirements = services.api.utils.builder.build_image.call_args[1]["requirements"]
+        requirements = services.api.utils.builder.build_image.call_args[1][
+            "requirements"
+        ]
         with_mlrun = services.api.utils.builder.build_image.call_args[1]["with_mlrun"]
         assert requirements == []
         assert with_mlrun is False
@@ -1146,7 +1251,9 @@ def test_make_dockerfile_with_build_and_extra_args(
         ),
     ],
 )
-def test_make_kaniko_pod_command_using_build_args(builder_env, extra_args, parsed_extra_args):
+def test_make_kaniko_pod_command_using_build_args(
+    builder_env, extra_args, parsed_extra_args
+):
     with unittest.mock.patch(
         "services.api.api.utils.resolve_project_default_service_account",
         return_value=(None, None),
@@ -1165,7 +1272,9 @@ def test_make_kaniko_pod_command_using_build_args(builder_env, extra_args, parse
         expected_env_vars.extend(parsed_extra_args)
 
     args = kpod.args
-    actual_env_vars = [args[i + 1] for i in range(len(args)) if args[i] == "--build-arg"]
+    actual_env_vars = [
+        args[i + 1] for i in range(len(args)) if args[i] == "--build-arg"
+    ]
     assert expected_env_vars == actual_env_vars
 
 
@@ -1305,7 +1414,12 @@ def test_validate_extra_args(extra_args, expected):
     ],
 )
 def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_result):
-    assert services.api.utils.builder._validate_and_merge_args_with_extra_args(args, extra_args) == expected_result
+    assert (
+        services.api.utils.builder._validate_and_merge_args_with_extra_args(
+            args, extra_args
+        )
+        == expected_result
+    )
 
 
 @pytest.mark.parametrize(
@@ -1341,17 +1455,24 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
         ),
         (
             "--build-arg KEY=name=Name",
-            pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY=name=Name"),
+            pytest.raises(
+                ValueError, match=r"Invalid --build-arg value: KEY=name=Name"
+            ),
         ),
         (
             "--build-arg VALID=valid --build-arg invalid=inv=alid",
-            pytest.raises(ValueError, match=r"Invalid --build-arg value: invalid=inv=alid"),
+            pytest.raises(
+                ValueError, match=r"Invalid --build-arg value: invalid=inv=alid"
+            ),
         ),
     ],
 )
 def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
     if isinstance(expected_result, dict):
-        assert services.api.utils.builder._parse_extra_args_for_dockerfile(extra_args) == expected_result
+        assert (
+            services.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
+            == expected_result
+        )
     else:
         with expected_result:
             services.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
@@ -1397,7 +1518,11 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
         )
 
     kpod_args = kpod.args
-    kpod_build_args = [kpod_args[i + 1] for i in range(len(kpod.args) - 1) if kpod_args[i] == "--build-arg"]
+    kpod_build_args = [
+        kpod_args[i + 1]
+        for i in range(len(kpod.args) - 1)
+        if kpod_args[i] == "--build-arg"
+    ]
 
     dock_arg_lines = [line for line in dock.splitlines() if line.startswith("ARG")]
     for arg in kpod_build_args:
@@ -1468,8 +1593,11 @@ def test_resolve_function_image_secret(
 ):
     config.httpdb.builder.docker_registry = default_registry
     config.httpdb.builder.docker_registry_secret = default_secret_name
-    assert expected_secret_name == services.api.utils.builder._resolve_function_image_secret(
-        resolved_image_target, secret_name
+    assert (
+        expected_secret_name
+        == services.api.utils.builder._resolve_function_image_secret(
+            resolved_image_target, secret_name
+        )
     )
 
 
@@ -1478,17 +1606,27 @@ def _get_target_image_from_create_pod_mock():
 
 
 def _create_pod_mock_pod_spec():
-    return services.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_args[0][0].pod.spec
+    return (
+        services.api.utils.singletons.k8s.get_k8s_helper()
+        .create_pod.call_args[0][0]
+        .pod.spec
+    )
 
 
 def _patch_k8s_helper(monkeypatch):
     get_k8s_helper_mock = unittest.mock.Mock()
-    get_k8s_helper_mock.create_pod = unittest.mock.Mock(side_effect=lambda pod: (pod, "some-namespace"))
-    get_k8s_helper_mock.get_project_secret_name = unittest.mock.Mock(side_effect=lambda name: "name")
+    get_k8s_helper_mock.create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    get_k8s_helper_mock.get_project_secret_name = unittest.mock.Mock(
+        side_effect=lambda name: "name"
+    )
     get_k8s_helper_mock.get_project_secret_keys = unittest.mock.Mock(
         side_effect=lambda project, filter_internal: ["KEY"]
     )
-    get_k8s_helper_mock.get_project_secret_data = unittest.mock.Mock(side_effect=lambda project, keys: {"KEY": "val"})
+    get_k8s_helper_mock.get_project_secret_data = unittest.mock.Mock(
+        side_effect=lambda project, keys: {"KEY": "val"}
+    )
     monkeypatch.setattr(
         services.api.utils.singletons.k8s,
         "get_k8s_helper",

@@ -116,7 +116,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         update_in(run, "status.state", "running", append=False, replace=False)
         return {}
 
-    def with_tracing(self, log_file_path: str = None, enable_cycle_markers: bool = False):
+    def with_tracing(
+        self, log_file_path: str = None, enable_cycle_markers: bool = False
+    ):
         """Add Horovod Timeline activity tracking to the job to analyse
         its performance.
 
@@ -135,7 +137,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         """
 
         log_path = (
-            os.path.join(config.artifact_path, "hvd_logs", "trace.log") if log_file_path is None else log_file_path
+            os.path.join(config.artifact_path, "hvd_logs", "trace.log")
+            if log_file_path is None
+            else log_file_path
         )
         horovod_timeline_settings = {
             "HOROVOD_TIMELINE": log_path,
@@ -178,7 +182,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         """
 
         log_path = (
-            os.path.join(config.artifact_path, "hvd_logs", "autotune.csv") if log_file_path is None else log_file_path
+            os.path.join(config.artifact_path, "hvd_logs", "autotune.csv")
+            if log_file_path is None
+            else log_file_path
         )
         horovod_autotune_settings = {
             "HOROVOD_AUTOTUNE": "1",
@@ -189,9 +195,13 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         if steps_per_sample is not None:
             horovod_autotune_settings["autotune-steps-per-sample"] = steps_per_sample
         if bayes_opt_max_samples is not None:
-            horovod_autotune_settings["autotune-bayes-opt-max-samples"] = bayes_opt_max_samples
+            horovod_autotune_settings["autotune-bayes-opt-max-samples"] = (
+                bayes_opt_max_samples
+            )
         if gaussian_process_noise is not None:
-            horovod_autotune_settings["autotune-gaussian-process-noise"] = gaussian_process_noise
+            horovod_autotune_settings["autotune-gaussian-process-noise"] = (
+                gaussian_process_noise
+            )
 
         self.set_envs(horovod_autotune_settings)
 
@@ -234,6 +244,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         # Verify that we are given only strings
         if not all([isinstance(arg, str) for arg in args]):
-            raise ValueError("Args is of type `List[str]` and can only accept `str` type params.")
+            raise ValueError(
+                "Args is of type `List[str]` and can only accept `str` type params."
+            )
 
         self.spec.mpi_args = args

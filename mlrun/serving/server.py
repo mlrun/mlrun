@@ -68,7 +68,9 @@ class _StreamContext:
 
         if (enabled or log_stream) and function_uri:
             self.enabled = True
-            project, _, _, _ = parse_versioned_object_uri(function_uri, config.default_project)
+            project, _, _, _ = parse_versioned_object_uri(
+                function_uri, config.default_project
+            )
 
             self.stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
 
@@ -168,9 +170,13 @@ class GraphServer(ModelObj):
         context.monitoring_mock = monitoring_mock
         context.root = self.graph
 
-        context.stream = _StreamContext(self.track_models, self.parameters, self.function_uri)
+        context.stream = _StreamContext(
+            self.track_models, self.parameters, self.function_uri
+        )
         context.current_function = self._current_function
-        context.get_store_resource = self.resource_cache.resource_getter(self._get_db(), self._secrets)
+        context.get_store_resource = self.resource_cache.resource_getter(
+            self._get_db(), self._secrets
+        )
         context.get_table = self.resource_cache.get_table
         context.verbose = self.verbose
         self.context = context
@@ -222,7 +228,9 @@ class GraphServer(ModelObj):
         :param time:       event time Datetime or str, default to now()
         """
         if not self.graph:
-            raise MLRunInvalidArgumentError("no models or steps were set, use function.set_topology() and add steps")
+            raise MLRunInvalidArgumentError(
+                "no models or steps were set, use function.set_topology() and add steps"
+            )
         if not method:
             method = "POST" if body else "GET"
         event = MockEvent(
@@ -264,7 +272,9 @@ class GraphServer(ModelObj):
                     message = f"failed to json decode event, {err_to_str(exc)}"
                     context.logger.error(message)
                     server_context.push_error(event, message, source="_handler")
-                    return context.Response(body=message, content_type="text/plain", status_code=400)
+                    return context.Response(
+                        body=message, content_type="text/plain", status_code=400
+                    )
         try:
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
@@ -273,7 +283,9 @@ class GraphServer(ModelObj):
                 message += "\n" + str(traceback.format_exc())
             context.logger.error(f"run error, {traceback.format_exc()}")
             server_context.push_error(event, message, source="_handler")
-            return context.Response(body=message, content_type="text/plain", status_code=400)
+            return context.Response(
+                body=message, content_type="text/plain", status_code=400
+            )
 
         if asyncio.iscoroutine(response):
             return self._process_async_response(context, response, get_body)
@@ -290,7 +302,9 @@ class GraphServer(ModelObj):
 
         if body and not isinstance(body, (str, bytes)):
             body = json.dumps(body)
-            return context.Response(body=body, content_type="application/json", status_code=200)
+            return context.Response(
+                body=body, content_type="application/json", status_code=200
+            )
         return body
 
     def wait_for_completion(self):
@@ -313,7 +327,9 @@ def v2_serving_init(context, namespace=None):
         current_function=os.getenv("SERVING_CURRENT_FUNCTION", ""),
     )
     server.set_current_function(os.getenv("SERVING_CURRENT_FUNCTION", ""))
-    context.logger.info_with("Initializing states", namespace=namespace or get_caller_globals())
+    context.logger.info_with(
+        "Initializing states", namespace=namespace or get_caller_globals()
+    )
     kwargs = {}
     if hasattr(context, "is_mock"):
         kwargs["is_mock"] = context.is_mock
@@ -339,7 +355,9 @@ def _set_callbacks(server, context):
         return
 
     if hasattr(context.platform, "set_termination_callback"):
-        context.logger.info("Setting termination callback to terminate graph on worker shutdown")
+        context.logger.info(
+            "Setting termination callback to terminate graph on worker shutdown"
+        )
 
         async def termination_callback():
             context.logger.info("Termination callback called")
@@ -356,7 +374,9 @@ def _set_callbacks(server, context):
         async def drain_callback():
             context.logger.info("Drain callback called")
             server.wait_for_completion()
-            context.logger.info("Termination of async flow is completed. Rerunning async flow.")
+            context.logger.info(
+                "Termination of async flow is completed. Rerunning async flow."
+            )
             # Rerun the flow without reconstructing it
             server.graph._run_async_flow()
             context.logger.info("Async flow restarted")
@@ -408,7 +428,9 @@ def create_graph_server(
     """
     parameters = parameters or {}
     server = GraphServer(graph, parameters, load_mode, verbose=verbose, **kwargs)
-    server.set_current_function(current_function or os.getenv("SERVING_CURRENT_FUNCTION", ""))
+    server.set_current_function(
+        current_function or os.getenv("SERVING_CURRENT_FUNCTION", "")
+    )
     return server
 
 
@@ -489,7 +511,9 @@ class GraphContext:
         if nuclio_context:
             self.logger: NuclioLogger = nuclio_context.logger
             self.Response = nuclio_context.Response
-            if hasattr(nuclio_context, "trigger") and hasattr(nuclio_context.trigger, "kind"):
+            if hasattr(nuclio_context, "trigger") and hasattr(
+                nuclio_context.trigger, "kind"
+            ):
                 self.trigger = nuclio_context.trigger.kind
             self.worker_id = nuclio_context.worker_id
             if hasattr(nuclio_context, "platform"):
@@ -510,15 +534,21 @@ class GraphContext:
     @property
     def project(self) -> str:
         """current project name (for the current function)"""
-        project, _, _, _ = mlrun.common.helpers.parse_versioned_object_uri(self._server.function_uri)
+        project, _, _, _ = mlrun.common.helpers.parse_versioned_object_uri(
+            self._server.function_uri
+        )
         return project
 
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:
-            self.logger.error(f"got error from {source} state:\n{event.body}\n{message}")
+            self.logger.error(
+                f"got error from {source} state:\n{event.body}\n{message}"
+            )
         if self._server and self._server._error_stream_object:
             try:
-                message = format_error(self._server, self, source, event, message, kwargs)
+                message = format_error(
+                    self._server, self, source, event, message, kwargs
+                )
                 self._server._error_stream_object.push(message)
             except Exception as ex:
                 message = traceback.format_exc()
@@ -542,11 +572,15 @@ class GraphContext:
         """
         if "://" in name:
             return name
-        project, uri, tag, _ = mlrun.common.helpers.parse_versioned_object_uri(self._server.function_uri)
+        project, uri, tag, _ = mlrun.common.helpers.parse_versioned_object_uri(
+            self._server.function_uri
+        )
         if name.startswith("."):
             name = f"{uri}-{name[1:]}"
         else:
-            project, name, tag, _ = mlrun.common.helpers.parse_versioned_object_uri(name, project)
+            project, name, tag, _ = mlrun.common.helpers.parse_versioned_object_uri(
+                name, project
+            )
         (
             state,
             fullname,
@@ -557,7 +591,9 @@ class GraphContext:
         ) = mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(name, project, tag)
 
         if state in ["error", "unhealthy"]:
-            raise ValueError(f"Nuclio function {fullname} is in error state, cannot be accessed")
+            raise ValueError(
+                f"Nuclio function {fullname} is in error state, cannot be accessed"
+            )
 
         key = "externalInvocationUrls" if external else "internalInvocationUrls"
         urls = function_status.get(key)

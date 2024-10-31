@@ -41,13 +41,17 @@ def docker_images(registry_url: str, registry_container_name: str, images: str):
         click.echo("Removing images from datanode docker")
         _remove_image_from_datanode_docker()
     except Exception as exc:
-        click.echo(f"Unable to remove images from datanode docker: {exc}, continuing anyway")
+        click.echo(
+            f"Unable to remove images from datanode docker: {exc}, continuing anyway"
+        )
 
     try:
         click.echo("Removing dangling images from datanode docker")
         _remove_dangling_images_from_datanode_docker()
     except Exception as exc:
-        click.echo(f"Unable to remove dangling images from datanode docker: {exc}, continuing anyway")
+        click.echo(
+            f"Unable to remove dangling images from datanode docker: {exc}, continuing anyway"
+        )
 
     try:
         _run_registry_garbage_collection(registry_container_name)
@@ -80,7 +84,9 @@ async def _collect_image_tags(registry: str, images: list[str]) -> dict[str, lis
         for image in images:
             async with session.get(f"{registry}/v2/{image}/tags/list") as response:
                 if response.status != 200:
-                    click.echo(f"Unable to fetch tags for {image}: {response.status}, skipping")
+                    click.echo(
+                        f"Unable to fetch tags for {image}: {response.status}, skipping"
+                    )
                     continue
                 data = await response.json()
                 if data.get("tags"):
@@ -136,7 +142,9 @@ async def _delete_image_tag(registry: str, image: str, tag: str) -> None:
     digest = await _get_tag_digest(registry, image, tag)
     async with aiohttp.ClientSession() as session:
         click.echo(f"\tDeleting {image}:{tag} ({digest})")
-        async with session.delete(f"{registry}/v2/{image}/manifests/{digest}") as response:
+        async with session.delete(
+            f"{registry}/v2/{image}/manifests/{digest}"
+        ) as response:
             if response.status != 202:
                 raise RuntimeError(f"Unable to delete {image}:{tag}: {response.status}")
 
@@ -149,7 +157,9 @@ async def _get_tag_digest(registry: str, image: str, tag: str) -> str:
             headers={"Accept": "application/vnd.docker.distribution.manifest.v2+json"},
         ) as response:
             if response.status != 200:
-                raise RuntimeError(f"Unable to fetch digest for {image}:{tag}: {response.status}")
+                raise RuntimeError(
+                    f"Unable to fetch digest for {image}:{tag}: {response.status}"
+                )
             return response.headers["Docker-Content-Digest"]
 
 
@@ -178,7 +188,9 @@ def _clean_images_from_local_docker_cache(
 ) -> None:
     """Clean images from local Docker cache."""
     command = ["docker", "rmi", "-f"]
-    command.extend([f"{image}:{tag}" for image, image_tags in tags.items() for tag in image_tags])
+    command.extend(
+        [f"{image}:{tag}" for image, image_tags in tags.items() for tag in image_tags]
+    )
     subprocess.run(command)
 
 

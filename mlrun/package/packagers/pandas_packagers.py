@@ -36,7 +36,9 @@ class _Formatter(ABC):
 
     @classmethod
     @abstractmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the file path given.
 
@@ -53,7 +55,9 @@ class _Formatter(ABC):
 
     @classmethod
     @abstractmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read the dataframe from the given file path.
 
@@ -87,12 +91,16 @@ class _Formatter(ABC):
         # Turn multi-index columns into single columns:
         if len(columns_levels) > 1:
             # We turn the column tuple into a string to eliminate parsing issues during savings to text formats:
-            dataframe.columns = pd.Index("-".join(column_tuple) for column_tuple in columns)
+            dataframe.columns = pd.Index(
+                "-".join(column_tuple) for column_tuple in columns
+            )
 
         # Rename indexes in case they appear in the columns so it won't get overriden when the index reset:
         dataframe.index.set_names(
             names=[
-                name if name is not None and name not in dataframe.columns else f"INDEX_{name}_{i}"
+                name
+                if name is not None and name not in dataframe.columns
+                else f"INDEX_{name}_{i}"
                 for i, name in enumerate(dataframe.index.names)
             ],
             inplace=True,
@@ -125,12 +133,16 @@ class _Formatter(ABC):
         :return: The un-flatted dataframe.
         """
         # Move back index from columns:
-        dataframe.set_index(keys=list(dataframe.columns[: len(index_levels)]), inplace=True)
+        dataframe.set_index(
+            keys=list(dataframe.columns[: len(index_levels)]), inplace=True
+        )
         dataframe.index.set_names(names=index_levels, inplace=True)
 
         # Set the columns back in case they were multi-leveled:
         if len(columns_levels) > 1:
-            dataframe.columns = pd.MultiIndex.from_tuples(tuples=columns, names=columns_levels)
+            dataframe.columns = pd.MultiIndex.from_tuples(
+                tuples=columns, names=columns_levels
+            )
         else:
             dataframe.columns.set_names(names=columns_levels, inplace=True)
 
@@ -143,7 +155,9 @@ class _ParquetFormatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the parquet file path given.
 
@@ -158,7 +172,9 @@ class _ParquetFormatter(_Formatter):
         return {}
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read the dataframe from the given parquet file path.
 
@@ -177,7 +193,9 @@ class _CSVFormatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the csv file path given.
 
@@ -202,7 +220,9 @@ class _CSVFormatter(_Formatter):
         return instructions
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read the dataframe from the given csv file path.
 
@@ -232,7 +252,9 @@ class _H5Formatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the h5 file path given.
 
@@ -252,7 +274,9 @@ class _H5Formatter(_Formatter):
         return {"key": key}
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read the dataframe from the given h5 file path.
 
@@ -271,7 +295,9 @@ class _XMLFormatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the xml file path given.
 
@@ -305,7 +331,9 @@ class _XMLFormatter(_Formatter):
         return instructions
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read the dataframe from the given xml file path.
 
@@ -335,7 +363,9 @@ class _XLSXFormatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the xlsx file path given.
 
@@ -360,7 +390,9 @@ class _XLSXFormatter(_Formatter):
         return instructions
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read the dataframe from the given xlsx file path.
 
@@ -390,7 +422,9 @@ class _HTMLFormatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the html file path given.
 
@@ -414,7 +448,9 @@ class _HTMLFormatter(_Formatter):
         return instructions
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read dataframes from the given html file path.
 
@@ -444,7 +480,9 @@ class _JSONFormatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the json file path given.
 
@@ -471,7 +509,9 @@ class _JSONFormatter(_Formatter):
         return instructions
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read dataframes from the given json file path.
 
@@ -497,7 +537,9 @@ class _FeatherFormatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the feather file path given.
 
@@ -522,7 +564,9 @@ class _FeatherFormatter(_Formatter):
         return instructions
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read dataframes from the given feather file path.
 
@@ -548,7 +592,9 @@ class _ORCFormatter(_Formatter):
     """
 
     @classmethod
-    def to(cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs) -> dict:
+    def to(
+        cls, obj: pd.DataFrame, file_path: str, flatten: bool = True, **to_kwargs
+    ) -> dict:
         """
         Save the given dataframe to the orc file path given.
 
@@ -573,7 +619,9 @@ class _ORCFormatter(_Formatter):
         return instructions
 
     @classmethod
-    def read(cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs) -> pd.DataFrame:
+    def read(
+        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+    ) -> pd.DataFrame:
         """
         Read dataframes from the given orc file path.
 
@@ -672,7 +720,9 @@ class PandasDataFramePackager(DefaultPackager):
         dataframe_dictionary = obj.to_dict(orient=orient)
 
         # Prepare the result (casting tuples to lists):
-        dataframe_dictionary = PandasDataFramePackager._prepare_result(obj=dataframe_dictionary)
+        dataframe_dictionary = PandasDataFramePackager._prepare_result(
+            obj=dataframe_dictionary
+        )
 
         return super().pack_result(obj=dataframe_dictionary, key=key)
 
@@ -711,7 +761,9 @@ class PandasDataFramePackager(DefaultPackager):
         temp_directory = pathlib.Path(tempfile.mkdtemp())
         self.add_future_clearing_path(path=temp_directory)
         file_path = temp_directory / f"{key}.{file_format}"
-        read_kwargs = formatter.to(obj=obj, file_path=str(file_path), flatten=flatten, **to_kwargs)
+        read_kwargs = formatter.to(
+            obj=obj, file_path=str(file_path), flatten=flatten, **to_kwargs
+        )
 
         # Create the artifact and instructions:
         artifact = Artifact(key=key, src_path=os.path.abspath(file_path))
@@ -786,8 +838,8 @@ class PandasDataFramePackager(DefaultPackager):
         """
         if isinstance(obj, dict):
             for key, value in obj.items():
-                obj[PandasDataFramePackager._prepare_result(obj=key)] = PandasDataFramePackager._prepare_result(
-                    obj=value
+                obj[PandasDataFramePackager._prepare_result(obj=key)] = (
+                    PandasDataFramePackager._prepare_result(obj=value)
                 )
         elif isinstance(obj, list):
             for i, value in enumerate(obj):

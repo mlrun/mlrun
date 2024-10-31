@@ -106,7 +106,9 @@ class Logger:
         # Log the metric's result:
         metric_results.append(result)
 
-    def log_static_hyperparameter(self, parameter_name: str, value: MLTypes.TrackableType):
+    def log_static_hyperparameter(
+        self, parameter_name: str, value: MLTypes.TrackableType
+    ):
         """
         Log the given parameter value in the static hyperparameters dictionary.
 
@@ -115,7 +117,9 @@ class Logger:
         """
         self._static_hyperparameters[parameter_name] = value
 
-    def log_dynamic_hyperparameter(self, parameter_name: str, value: MLTypes.TrackableType):
+    def log_dynamic_hyperparameter(
+        self, parameter_name: str, value: MLTypes.TrackableType
+    ):
         """
         Log the given parameter value in the dynamic hyperparameters dictionary at the current iteration (if it's a new
         parameter it will be iteration 0). If the parameter appears in the static hyperparameters dictionary, it will be

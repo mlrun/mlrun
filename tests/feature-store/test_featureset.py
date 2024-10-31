@@ -126,4 +126,6 @@ def test_deploy_ingestion_service(mock_deploy):
     )
 
     # Assert that deploy_ingestion_service was called with the correct parameters
-    mock_deploy.assert_called_once_with(fset, test_source, test_targets, test_name, test_run_config, test_verbose)
+    mock_deploy.assert_called_once_with(
+        fset, test_source, test_targets, test_name, test_run_config, test_verbose
+    )

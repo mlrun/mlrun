@@ -47,7 +47,9 @@ import services.api.utils.db.mysql
         ("sqlite:///db/mlrun.db?check_same_thread=false", None),
     ],
 )
-def test_get_mysql_dsn_data(http_dsn: str, expected_output: dict, monkeypatch: pytest.MonkeyPatch):
+def test_get_mysql_dsn_data(
+    http_dsn: str, expected_output: dict, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setenv("MLRUN_HTTPDB__DSN", http_dsn)
     dns_data = services.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
     assert dns_data == expected_output

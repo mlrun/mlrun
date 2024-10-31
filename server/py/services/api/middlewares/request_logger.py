@@ -44,7 +44,9 @@ class RequestLoggerMiddleware:
             "healthz",
         ]
 
-    async def __call__(self, scope: "Scope", receive: "ASGIReceiveCallable", send: "ASGISendCallable") -> None:
+    async def __call__(
+        self, scope: "Scope", receive: "ASGIReceiveCallable", send: "ASGISendCallable"
+    ) -> None:
         """
         This middleware logs request and response information for audit and debugging purposes.
         """
@@ -55,11 +57,14 @@ class RequestLoggerMiddleware:
         request_id = headers.get("x-request-id") or str(uuid.uuid4())
         # limit request id to 36 characters (uuid4 length) to avoid log lines being too long
         request_id = request_id[:36]
-        path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(scope)
+        path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
+            scope
+        )
         scope.setdefault("state", {}).setdefault("request_id", request_id)
         start_time = time.perf_counter_ns()
         should_log = not any(
-            silent_logging_path in path_with_query_string for silent_logging_path in self._silent_logging_paths
+            silent_logging_path in path_with_query_string
+            for silent_logging_path in self._silent_logging_paths
         )
         if should_log:
             self._logger.debug(
@@ -78,7 +83,9 @@ class RequestLoggerMiddleware:
             finally:
                 if message["type"] == "http.response.start":
                     # convert from nanoseconds to milliseconds
-                    elapsed_time_in_ms = (time.perf_counter_ns() - start_time) / 1000 / 1000
+                    elapsed_time_in_ms = (
+                        (time.perf_counter_ns() - start_time) / 1000 / 1000
+                    )
                     if should_log:
                         self._logger.debug(
                             "Sending response",

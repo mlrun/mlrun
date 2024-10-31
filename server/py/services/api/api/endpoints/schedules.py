@@ -53,7 +53,10 @@ async def create_schedule(
         auth_info,
     )
     # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting to create schedule, re-routing to chief",
             project=project,
@@ -100,7 +103,10 @@ async def update_schedule(
         auth_info,
     )
     # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting to update schedule, re-routing to chief",
             project=project,
@@ -224,14 +230,19 @@ async def invoke_schedule(
         auth_info,
     )
     # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting to invoke schedule, re-routing to chief",
             project=project,
             name=name,
         )
         chief_client = services.api.utils.clients.chief.Client()
-        return await chief_client.invoke_schedule(project=project, name=name, request=request)
+        return await chief_client.invoke_schedule(
+            project=project, name=name, request=request
+        )
 
     return await get_scheduler().invoke_schedule(db_session, auth_info, project, name)
 
@@ -252,14 +263,19 @@ async def delete_schedule(
         auth_info,
     )
     # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting to delete schedule, re-routing to chief",
             project=project,
             name=name,
         )
         chief_client = services.api.utils.clients.chief.Client()
-        return await chief_client.delete_schedule(project=project, name=name, request=request)
+        return await chief_client.delete_schedule(
+            project=project, name=name, request=request
+        )
 
     await run_in_threadpool(get_scheduler().delete_schedule, db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
@@ -285,7 +301,10 @@ async def delete_schedules(
         auth_info,
     )
     # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting to delete all project schedules, re-routing to chief",
             project=project,
@@ -302,8 +321,12 @@ async def set_schedule_notifications(
     project: str,
     name: str,
     request: fastapi.Request,
-    set_notifications_request: mlrun.common.schemas.SetNotificationRequest = fastapi.Body(...),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(deps.authenticate_request),
+    set_notifications_request: mlrun.common.schemas.SetNotificationRequest = fastapi.Body(
+        ...
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(deps.get_db_session),
 ):
     await fastapi.concurrency.run_in_threadpool(
@@ -322,7 +345,10 @@ async def set_schedule_notifications(
         auth_info=auth_info,
     )
 
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info(
             "Requesting to set schedule notifications, re-routing to chief",
             project=project,

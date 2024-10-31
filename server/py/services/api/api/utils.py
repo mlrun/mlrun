@@ -126,7 +126,9 @@ def get_allowed_path_prefixes_list() -> list[str]:
     """
     real_path = config.httpdb.real_path
     allowed_file_paths = config.httpdb.allowed_file_paths or ""
-    allowed_paths_list = [path.strip() for path in allowed_file_paths.split(",") if "://" in path]
+    allowed_paths_list = [
+        path.strip() for path in allowed_file_paths.split(",") if "://" in path
+    ]
     if real_path:
         allowed_paths_list.append(real_path)
     allowed_paths_list.append("v3io://")
@@ -176,10 +178,14 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
         function = new_function(runtime=function_dict)
     else:
         if "://" in function_url:
-            function = import_function(url=function_url, project=task.get("metadata", {}).get("project"))
+            function = import_function(
+                url=function_url, project=task.get("metadata", {}).get("project")
+            )
         else:
             project, name, tag, hash_key = parse_versioned_object_uri(function_url)
-            function_record = get_db().get_function(db_session, name, project, tag, hash_key)
+            function_record = get_db().get_function(
+                db_session, name, project, tag, hash_key
+            )
             if not function_record:
                 log_and_raise(
                     HTTPStatus.NOT_FOUND.value,
@@ -198,14 +204,20 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
     return function, task
 
 
-async def submit_run(db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data):
-    _, _, _, response = await run_in_threadpool(submit_run_sync, db_session, auth_info, data)
+async def submit_run(
+    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
+):
+    _, _, _, response = await run_in_threadpool(
+        submit_run_sync, db_session, auth_info, data
+    )
     return response
 
 
 def apply_enrichment_and_validation_on_task(task):
     # Conceal notification config params from the task object with secrets
-    mask_notification_params_on_task(task, services.api.constants.MaskOperations.CONCEAL)
+    mask_notification_params_on_task(
+        task, services.api.constants.MaskOperations.CONCEAL
+    )
 
 
 def mask_notification_params_on_task(
@@ -224,7 +236,10 @@ def mask_notification_params_on_task(
         notifications_objects = _mask_notifications_params(
             run_uid,
             project,
-            [mlrun.model.Notification.from_dict(notification) for notification in notifications],
+            [
+                mlrun.model.Notification.from_dict(notification)
+                for notification in notifications
+            ],
             action,
         )
         task.setdefault("spec", {})["notifications"] = [
@@ -245,7 +260,9 @@ def mask_notification_params_on_task_object(
     project = task.metadata.project
     notifications = task.spec.notifications
     if notifications:
-        task.spec.notifications = _mask_notifications_params(run_uid, project, notifications, action)
+        task.spec.notifications = _mask_notifications_params(
+            run_uid, project, notifications, action
+        )
 
 
 def _mask_notifications_params(
@@ -277,7 +294,10 @@ def _notification_params_mask_op(
 def _conceal_notification_params_with_secret(
     project: str, parent: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
-    if notification_object.secret_params and "secret" not in notification_object.secret_params:
+    if (
+        notification_object.secret_params
+        and "secret" not in notification_object.secret_params
+    ):
         # create secret key from a hash of the secret params. this will allow multiple notifications with the same
         # params to share the same secret (saving secret storage space).
         # TODO: add holders to the secret content, so we can monitor when all runs that use the secret are deleted.
@@ -320,7 +340,9 @@ def _generate_notification_secret_key(
     notification_object: mlrun.model.Notification,
 ) -> str:
     # hash notification params to generate a unique secret key
-    return sha224(json.dumps(notification_object.secret_params, sort_keys=True).encode("utf-8")).hexdigest()
+    return sha224(
+        json.dumps(notification_object.secret_params, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
 
 def unmask_notification_params_secret_on_task(
@@ -335,7 +357,9 @@ def unmask_notification_params_secret_on_task(
     for notification in run.spec.notifications:
         invalid_notifications = []
         try:
-            notifications.append(unmask_notification_params_secret(run.metadata.project, notification))
+            notifications.append(
+                unmask_notification_params_secret(run.metadata.project, notification)
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to unmask notification params, notification will not be sent",
@@ -371,7 +395,9 @@ def unmask_notification_params_secret(
 
     k8s = services.api.utils.singletons.k8s.get_k8s_helper()
     if not k8s:
-        raise mlrun.errors.MLRunRuntimeError("Not running in k8s environment, cannot load notification params secret")
+        raise mlrun.errors.MLRunRuntimeError(
+            "Not running in k8s environment, cannot load notification params secret"
+        )
 
     secret = services.api.crud.Secrets().get_project_secret(
         project,
@@ -390,7 +416,9 @@ def unmask_notification_params_secret(
     return notification_object
 
 
-def delete_notification_params_secret(project: str, notification_object: mlrun.model.Notification) -> None:
+def delete_notification_params_secret(
+    project: str, notification_object: mlrun.model.Notification
+) -> None:
     secret_params = notification_object.secret_params or {}
     params_secret = secret_params.get("secret", "")
     if not params_secret:
@@ -398,7 +426,9 @@ def delete_notification_params_secret(project: str, notification_object: mlrun.m
 
     k8s = services.api.utils.singletons.k8s.get_k8s_helper()
     if not k8s:
-        raise mlrun.errors.MLRunRuntimeError("Not running in k8s environment, cannot delete notification params secret")
+        raise mlrun.errors.MLRunRuntimeError(
+            "Not running in k8s environment, cannot delete notification params secret"
+        )
 
     if services.api.crud.Secrets().is_internal_project_secret_key(params_secret):
         services.api.crud.Secrets().delete_project_secret(
@@ -411,7 +441,9 @@ def delete_notification_params_secret(project: str, notification_object: mlrun.m
 
 
 def validate_and_mask_notification_list(
-    notifications: list[typing.Union[mlrun.model.Notification, mlrun.common.schemas.Notification, dict]],
+    notifications: list[
+        typing.Union[mlrun.model.Notification, mlrun.common.schemas.Notification, dict]
+    ],
     parent: str,
     project: str,
 ) -> list[mlrun.model.Notification]:
@@ -430,11 +462,15 @@ def validate_and_mask_notification_list(
         if isinstance(notification, dict):
             notification_object = mlrun.model.Notification.from_dict(notification)
         elif isinstance(notification, mlrun.common.schemas.Notification):
-            notification_object = mlrun.model.Notification.from_dict(notification.dict())
+            notification_object = mlrun.model.Notification.from_dict(
+                notification.dict()
+            )
         elif isinstance(notification, mlrun.model.Notification):
             notification_object = notification
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError("notification must be a dict or a Notification object")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "notification must be a dict or a Notification object"
+            )
 
         # validate notification schema
         mlrun.common.schemas.Notification(**notification_object.to_dict())
@@ -526,8 +562,14 @@ def _mask_v3io_volume_credentials(
                 # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
                 if not isinstance(volume["flexVolume"], dict):
                     # sanity
-                    if isinstance(volume["flexVolume"], kubernetes.client.V1FlexVolumeSource):
-                        volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(volume["flexVolume"])
+                    if isinstance(
+                        volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
+                    ):
+                        volume["flexVolume"] = (
+                            k8s_api_client.sanitize_for_serialization(
+                                volume["flexVolume"]
+                            )
+                        )
                     else:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             f"Unexpected flex volume type: {type(volume['flexVolume'])}"
@@ -536,7 +578,9 @@ def _mask_v3io_volume_credentials(
         elif isinstance(volume, kubernetes.client.V1Volume):
             new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Unexpected volume type: {type(volume)}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected volume type: {type(volume)}"
+            )
     function.spec.volumes = new_volumes
 
     for index, volume in enumerate(function.spec.volumes):
@@ -552,7 +596,9 @@ def _mask_v3io_volume_credentials(
                     volume_mount=volume_mount,
                 )
                 continue
-            volume_name_to_volume_mounts[get_item_attribute(volume_mount, "name")].append(volume_mount)
+            volume_name_to_volume_mounts[
+                get_item_attribute(volume_mount, "name")
+            ].append(volume_mount)
         for index in v3io_volume_indices:
             volume = function.spec.volumes[index]
             flex_volume = volume["flexVolume"]
@@ -568,7 +614,9 @@ def _mask_v3io_volume_credentials(
                 )
                 continue
             if not volume.get("name"):
-                logger.warning("Found volume without name, skipping masking", volume=volume)
+                logger.warning(
+                    "Found volume without name, skipping masking", volume=volume
+                )
                 continue
             username = _resolve_v3io_fuse_volume_access_key_matching_username(
                 function,
@@ -614,7 +662,9 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
     for volume_mount in volume_name_to_volume_mounts[volume_name]:
         # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
         # access, camel case)
-        sub_path = get_item_attribute(volume_mount, "subPath") or get_item_attribute(volume_mount, "sub_path")
+        sub_path = get_item_attribute(volume_mount, "subPath") or get_item_attribute(
+            volume_mount, "sub_path"
+        )
         if sub_path and sub_path.startswith("users/"):
             username_from_sub_path = sub_path.replace("users/", "")
             if username_from_sub_path:
@@ -646,7 +696,9 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
     return username
 
 
-def _mask_v3io_access_key_env_var(function: mlrun.runtimes.pod.KubeResource, auth_info: mlrun.common.schemas.AuthInfo):
+def _mask_v3io_access_key_env_var(
+    function: mlrun.runtimes.pod.KubeResource, auth_info: mlrun.common.schemas.AuthInfo
+):
     v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
     # if it's already a V1EnvVarSource or dict instance, it's already been masked
     if (
@@ -662,7 +714,9 @@ def _mask_v3io_access_key_env_var(function: mlrun.runtimes.pod.KubeResource, aut
             if services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
                 # auth_info should always has username, sanity
                 if not auth_info.username:
-                    raise mlrun.errors.MLRunInvalidArgumentError("Username is missing from auth info")
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Username is missing from auth info"
+                    )
                 username = auth_info.username
             else:
                 logger.warning(
@@ -676,8 +730,12 @@ def _mask_v3io_access_key_env_var(function: mlrun.runtimes.pod.KubeResource, aut
                 access_key=v3io_access_key,
             )
         )
-        access_key_secret_key = mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
-        function.set_env_from_secret("V3IO_ACCESS_KEY", secret_name, access_key_secret_key)
+        access_key_secret_key = (
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
+        )
+        function.set_env_from_secret(
+            "V3IO_ACCESS_KEY", secret_name, access_key_secret_key
+        )
 
 
 def ensure_function_has_auth_set(
@@ -695,7 +753,10 @@ def ensure_function_has_auth_set(
         and services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
     ):
         function: mlrun.runtimes.pod.KubeResource
-        if function.metadata.credentials.access_key == mlrun.model.Credentials.generate_access_key:
+        if (
+            function.metadata.credentials.access_key
+            == mlrun.model.Credentials.generate_access_key
+        ):
             if not auth_info.access_key:
                 auth_info.access_key = services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
                     auth_info.session
@@ -718,9 +779,13 @@ def ensure_function_has_auth_set(
             )
 
         # after access key was passed or enriched with the condition above, we mask it with creating auth secret
-        if not function.metadata.credentials.access_key.startswith(mlrun.model.Credentials.secret_reference_prefix):
+        if not function.metadata.credentials.access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix
+        ):
             if not auth_info.username:
-                raise mlrun.errors.MLRunInvalidArgumentError("Username is missing from auth info")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Username is missing from auth info"
+                )
             secret_name = services.api.crud.Secrets().store_auth_secret(
                 mlrun.common.schemas.AuthSecretData(
                     provider=mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -728,13 +793,17 @@ def ensure_function_has_auth_set(
                     access_key=function.metadata.credentials.access_key,
                 )
             )
-            function.metadata.credentials.access_key = f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+            function.metadata.credentials.access_key = (
+                f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+            )
         else:
             secret_name = function.metadata.credentials.access_key.lstrip(
                 mlrun.model.Credentials.secret_reference_prefix
             )
 
-        access_key_secret_key = mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
+        access_key_secret_key = (
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
+        )
         auth_env_vars = {
             mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
                 secret_name,
@@ -746,7 +815,10 @@ def ensure_function_has_auth_set(
 
 
 def try_perform_auto_mount(function, auth_info: mlrun.common.schemas.AuthInfo):
-    if mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind) or function.spec.disable_auto_mount:
+    if (
+        mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
+        or function.spec.disable_auto_mount
+    ):
         return
     # Retrieve v3io auth params from the caller auth info
     override_params = {}
@@ -760,7 +832,9 @@ def try_perform_auto_mount(function, auth_info: mlrun.common.schemas.AuthInfo):
 
 def process_function_service_account(function):
     # If we're not running inside k8s, skip this check as it's not relevant.
-    if not services.api.utils.singletons.k8s.get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if not services.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
         return
 
     (
@@ -768,7 +842,9 @@ def process_function_service_account(function):
         default_service_account,
     ) = resolve_project_default_service_account(function.metadata.project)
 
-    function.validate_and_enrich_service_account(allowed_service_accounts, default_service_account)
+    function.validate_and_enrich_service_account(
+        allowed_service_accounts, default_service_account
+    )
 
 
 def resolve_project_default_service_account(project_name: str):
@@ -782,7 +858,10 @@ def resolve_project_default_service_account(project_name: str):
         allow_internal_secrets=True,
     )
     if allowed_service_accounts:
-        allowed_service_accounts = [service_account.strip() for service_account in allowed_service_accounts.split(",")]
+        allowed_service_accounts = [
+            service_account.strip()
+            for service_account in allowed_service_accounts.split(",")
+        ]
 
     default_service_account = services.api.crud.secrets.Secrets().get_project_secret(
         project_name,
@@ -795,10 +874,16 @@ def resolve_project_default_service_account(project_name: str):
     )
 
     # If default SA was not configured for the project, try to retrieve it from global config (if exists)
-    default_service_account = default_service_account or mlrun.mlconf.function.spec.service_account.default
+    default_service_account = (
+        default_service_account or mlrun.mlconf.function.spec.service_account.default
+    )
 
     # Sanity check on project configuration
-    if default_service_account and allowed_service_accounts and default_service_account not in allowed_service_accounts:
+    if (
+        default_service_account
+        and allowed_service_accounts
+        and default_service_account not in allowed_service_accounts
+    ):
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Default service account {default_service_account} is not in list of allowed "
             + f"service accounts {allowed_service_accounts}"
@@ -807,7 +892,9 @@ def resolve_project_default_service_account(project_name: str):
     return allowed_service_accounts, default_service_account
 
 
-def ensure_function_security_context(function, auth_info: mlrun.common.schemas.AuthInfo):
+def ensure_function_security_context(
+    function, auth_info: mlrun.common.schemas.AuthInfo
+):
     """
     For iguazio we enforce that pods run with user id and group id depending on
     mlrun.mlconf.function.spec.security_context.enrichment_mode
@@ -854,25 +941,36 @@ def ensure_function_security_context(function, auth_info: mlrun.common.schemas.A
         # so we need to request it explicitly
         if auth_info.user_unix_id is None:
             iguazio_client = services.api.utils.clients.iguazio.Client()
-            if services.api.utils.clients.iguazio.SessionPlanes.control not in auth_info.planes:
+            if (
+                services.api.utils.clients.iguazio.SessionPlanes.control
+                not in auth_info.planes
+            ):
                 logger.warning(
                     "Auth info doesn't contain a session tagged as a control session plane, trying to get user unix id",
                     function_name=function.metadata.name,
                 )
                 try:
-                    auth_info.user_unix_id = iguazio_client.get_user_unix_id(auth_info.session)
+                    auth_info.user_unix_id = iguazio_client.get_user_unix_id(
+                        auth_info.session
+                    )
                     # if we were able to get the user unix id it means we have a control session plane so adding that
                     # to the auth info
-                    auth_info.planes.append(services.api.utils.clients.iguazio.SessionPlanes.control)
+                    auth_info.planes.append(
+                        services.api.utils.clients.iguazio.SessionPlanes.control
+                    )
                 except Exception as exc:
                     raise mlrun.errors.MLRunUnauthorizedError(
                         "Were unable to enrich user unix id, missing control plane session"
                     ) from exc
             else:
-                auth_info.user_unix_id = iguazio_client.get_user_unix_id(auth_info.session)
+                auth_info.user_unix_id = iguazio_client.get_user_unix_id(
+                    auth_info.session
+                )
 
         # if enrichment group id is -1 we set group id to user unix id
-        enriched_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(auth_info.user_unix_id)
+        enriched_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(
+            auth_info.user_unix_id
+        )
         logger.debug(
             "Enriching/overriding security context",
             mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
@@ -891,7 +989,9 @@ def ensure_function_security_context(function, auth_info: mlrun.common.schemas.A
         )
 
 
-def submit_run_sync(db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data) -> tuple[str, str, str, dict]:
+def submit_run_sync(
+    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
+) -> tuple[str, str, str, dict]:
     """
     :return: Tuple with:
         1. str of the project of the run
@@ -910,7 +1010,9 @@ def submit_run_sync(db_session: Session, auth_info: mlrun.common.schemas.AuthInf
 
         task_for_logging = copy.deepcopy(task)
         for notification in task_for_logging["spec"].get("notifications", []):
-            mlrun.utils.notifications.notification_pusher.sanitize_notification(notification)
+            mlrun.utils.notifications.notification_pusher.sanitize_notification(
+                notification
+            )
 
         logger.info("Submitting run", function=fn.to_dict(), task=task_for_logging)
         schedule = data.get("schedule")
@@ -962,7 +1064,9 @@ def submit_run_sync(db_session: Session, auth_info: mlrun.common.schemas.AuthInf
                 )
                 .secrets
             )
-            param_file_secrets["V3IO_ACCESS_KEY"] = auth_info.data_session or auth_info.access_key
+            param_file_secrets["V3IO_ACCESS_KEY"] = (
+                auth_info.data_session or auth_info.access_key
+            )
 
             run = fn.run(
                 task,
@@ -1047,7 +1151,9 @@ def get_or_create_project_deletion_background_task(
 
     # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
     # project. Otherwise, we create a wrapper background task for deletion of the project.
-    background_task_kind_format = services.api.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper
+    background_task_kind_format = (
+        services.api.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper
+    )
     if (
         services.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
         or mlrun.mlconf.httpdb.projects.leader == "mlrun"
@@ -1062,7 +1168,9 @@ def get_or_create_project_deletion_background_task(
                 secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                 store=False,
             )
-        background_task_kind_format = services.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
+        background_task_kind_format = (
+            services.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
+        )
 
     elif igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
         # The project deletion wrapper should wait for the project deletion to complete. This is a backwards
@@ -1171,11 +1279,17 @@ def verify_project_is_deleted(project_name, auth_info):
             return
         else:
             project_status = project.status.dict()
-            if background_task_name := project_status.get("deletion_background_task_name"):
+            if background_task_name := project_status.get(
+                "deletion_background_task_name"
+            ):
                 bg_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                     name=background_task_name, raise_on_not_found=False
                 )
-                if bg_task and bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed:
+                if (
+                    bg_task
+                    and bg_task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.failed
+                ):
                     # Background task failed, stop retrying
                     raise mlrun.errors.MLRunFatalFailureError(
                         original_exception=mlrun.errors.MLRunInternalServerError(
@@ -1183,7 +1297,9 @@ def verify_project_is_deleted(project_name, auth_info):
                         )
                     )
 
-            raise mlrun.errors.MLRunInternalServerError(f"Project {project_name} was not deleted")
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Project {project_name} was not deleted"
+            )
 
     mlrun.utils.helpers.retry_until_successful(
         5,
@@ -1234,7 +1350,9 @@ async def _delete_function(
         function_name,
     )
     if len(functions) == 0:
-        logger.debug("No functions to delete found", function_name=function_name, project=project)
+        logger.debug(
+            "No functions to delete found", function_name=function_name, project=project
+        )
         return True
     logger.debug(
         "Updating functions with deletion task id",
@@ -1244,7 +1362,9 @@ async def _delete_function(
     )
 
     # update functions with deletion task id
-    await _update_functions_with_deletion_info(functions, project, {"status.deletion_task_id": background_task_name})
+    await _update_functions_with_deletion_info(
+        functions, project, {"status.deletion_task_id": background_task_name}
+    )
 
     # Since we request functions by a specific name and project,
     # in MLRun terminology, they are all just versions of the same function
@@ -1256,11 +1376,15 @@ async def _delete_function(
 
         # generate Nuclio function names based on function tags
         nuclio_function_names = [
-            mlrun.runtimes.nuclio.function.get_fullname(function_name, project, function.get("metadata", {}).get("tag"))
+            mlrun.runtimes.nuclio.function.get_fullname(
+                function_name, project, function.get("metadata", {}).get("tag")
+            )
             for function in nuclio_functions
         ]
         # delete Nuclio functions associated with the function tags in batches
-        failed_requests = await delete_nuclio_functions_in_batches(auth_info, project, nuclio_function_names)
+        failed_requests = await delete_nuclio_functions_in_batches(
+            auth_info, project, nuclio_function_names
+        )
         if failed_requests:
             error_message = f"Failed to delete function {function_name}. {';'.join(failed_requests)}"
             await _update_functions_with_deletion_info(
@@ -1278,7 +1402,9 @@ async def _delete_function(
 
 
 async def _update_functions_with_deletion_info(functions, project, updates: dict):
-    semaphore = asyncio.Semaphore(mlrun.mlconf.background_tasks.function_deletion_batch_size)
+    semaphore = asyncio.Semaphore(
+        mlrun.mlconf.background_tasks.function_deletion_batch_size
+    )
 
     async def update_function(function):
         async with semaphore:

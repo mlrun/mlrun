@@ -131,7 +131,9 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             self.project,
             group_by=mlrun.common.schemas.ListRuntimeResourcesGroupByField.project,
         )
-        runtime_handler.build_output_from_runtime_resources([resources[self.project][RuntimeKinds.dask]])
+        runtime_handler.build_output_from_runtime_resources(
+            [resources[self.project][RuntimeKinds.dask]]
+        )
 
     def test_delete_resources_completed_cluster(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
@@ -154,10 +156,16 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             self.completed_scheduler_pod.metadata.namespace,
         )
         self._assert_delete_namespaced_services(
-            [self.completed_scheduler_pod.metadata.labels.get(mlrun_constants.MLRunInternalLabels.dask_cluster_name)],
+            [
+                self.completed_scheduler_pod.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.dask_cluster_name
+                )
+            ],
             self.completed_scheduler_pod.metadata.namespace,
         )
-        self._assert_list_namespaced_pods_calls(self.runtime_handler, len(list_namespaced_pods_calls))
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, len(list_namespaced_pods_calls)
+        )
 
     def test_delete_resources_running_cluster(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
@@ -170,7 +178,9 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
         self._assert_delete_namespaced_pods([])
         self._assert_delete_namespaced_services([])
-        self._assert_list_namespaced_pods_calls(self.runtime_handler, len(list_namespaced_pods_calls))
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, len(list_namespaced_pods_calls)
+        )
 
     def test_monitor_run(self, db: Session, client: TestClient):
         """

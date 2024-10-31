@@ -121,7 +121,9 @@ class TestGoogleCloudStorage:
         os.environ.pop("GCP_CREDENTIALS", None)
         remove_temporary_client_datastore_profile(self.profile_name)
         self._bucket_path = (
-            f"ds://{self.profile_name}/{self.bucket_name}" if use_datastore_profile else f"gcs://{self.bucket_name}"
+            f"ds://{self.profile_name}/{self.bucket_name}"
+            if use_datastore_profile
+            else f"gcs://{self.bucket_name}"
         )
         self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
         self.object_url = f"{self.run_dir_url}{object_file}"
@@ -136,7 +138,9 @@ class TestGoogleCloudStorage:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
         os.environ.pop("GCP_CREDENTIALS", None)
 
-    def _setup_by_google_credentials_file(self, use_datastore_profile, use_secrets=False):
+    def _setup_by_google_credentials_file(
+        self, use_datastore_profile, use_secrets=False
+    ):
         # We give priority to profiles, then to secrets, and finally to environment variables.
         self.storage_options = {}
         if use_datastore_profile:
@@ -147,12 +151,16 @@ class TestGoogleCloudStorage:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
         else:
             if use_secrets:
-                self.storage_options = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
+                self.storage_options = {
+                    "GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path
+                }
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
             else:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
 
-    def _setup_by_serialized_json_content(self, use_datastore_profile, use_secrets=False):
+    def _setup_by_serialized_json_content(
+        self, use_datastore_profile, use_secrets=False
+    ):
         self.storage_options = {}
         if use_datastore_profile:
             self._setup_profile(profile_auth_by="gcp_credentials")
@@ -175,10 +183,14 @@ class TestGoogleCloudStorage:
         "use_secrets",
         [False, True],
     )
-    def test_perform_google_cloud_storage_tests(self, use_datastore_profile, setup_by, use_secrets):
+    def test_perform_google_cloud_storage_tests(
+        self, use_datastore_profile, setup_by, use_secrets
+    ):
         # TODO: split to smaller tests by datastore conventions
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
-        data_item = mlrun.run.get_dataitem(self.object_url, secrets=self.storage_options)
+        data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
         data_item.put(self.test_string)
 
         response = data_item.get()
@@ -195,9 +207,13 @@ class TestGoogleCloudStorage:
             content = temp_file.read()
             assert content == self.test_string
 
-        dir_list = mlrun.run.get_dataitem(self._bucket_path, secrets=self.storage_options).listdir()
+        dir_list = mlrun.run.get_dataitem(
+            self._bucket_path, secrets=self.storage_options
+        ).listdir()
         assert self._object_path in dir_list
-        listdir_dataitem_parent = mlrun.run.get_dataitem(os.path.dirname(self.object_url), secrets=self.storage_options)
+        listdir_dataitem_parent = mlrun.run.get_dataitem(
+            os.path.dirname(self.object_url), secrets=self.storage_options
+        )
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) in listdir_parent
 
@@ -215,7 +231,9 @@ class TestGoogleCloudStorage:
     )
     def test_upload(self, use_datastore_profile, setup_by, use_secrets):
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
-        upload_data_item = mlrun.run.get_dataitem(self.object_url, secrets=self.storage_options)
+        upload_data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
         assert response.decode() == self.test_string
@@ -235,7 +253,9 @@ class TestGoogleCloudStorage:
 
         first_start_time = time.monotonic()
 
-        with tempfile.NamedTemporaryFile(suffix=".txt", delete=True, mode="wb") as temp_file:
+        with tempfile.NamedTemporaryFile(
+            suffix=".txt", delete=True, mode="wb"
+        ) as temp_file:
             num_chunks = file_size // chunk_size
             remainder = file_size % chunk_size
             for _ in range(num_chunks):
@@ -248,15 +268,22 @@ class TestGoogleCloudStorage:
             temp_file.seek(0)
 
             logger.info(
-                f"gcs test_large_upload - finished to write locally in {time.monotonic() - first_start_time} " "seconds"
+                f"gcs test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
+                "seconds"
             )
             start_time = time.monotonic()
             data_item.upload(temp_file.name)
-            logger.info(f"gcs test_large_upload - finished to upload in {time.monotonic() - start_time} seconds")
-            with tempfile.NamedTemporaryFile(suffix=".txt", delete=True, mode="wb") as temp_file_download:
+            logger.info(
+                f"gcs test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
+            )
+            with tempfile.NamedTemporaryFile(
+                suffix=".txt", delete=True, mode="wb"
+            ) as temp_file_download:
                 start_time = time.monotonic()
                 data_item.download(temp_file_download.name)
-                logger.info(f"gcs test_large_upload - finished to download in {time.monotonic() - start_time} seconds")
+                logger.info(
+                    f"gcs test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
+                )
                 with (
                     open(temp_file.name, "rb") as file1,
                     open(temp_file_download.name, "rb") as file2,
@@ -306,7 +333,9 @@ class TestGoogleCloudStorage:
         local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
 
         source = pd_reader(local_file_path, **reader_args)
-        upload_data_item = mlrun.run.get_dataitem(dataframe_url, secrets=self.storage_options)
+        upload_data_item = mlrun.run.get_dataitem(
+            dataframe_url, secrets=self.storage_options
+        )
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(**reader_args)
         pd.testing.assert_frame_equal(source, response)
@@ -331,15 +360,21 @@ class TestGoogleCloudStorage:
         dd_reader,
         reset_index,
     ):
-        self._setup_by_google_credentials_file(use_datastore_profile=use_datastore_profile, use_secrets=True)
+        self._setup_by_google_credentials_file(
+            use_datastore_profile=use_datastore_profile, use_secrets=True
+        )
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
         df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")
         df2_path = os.path.join(self.assets_path, f"additional_data.{file_format}")
 
         # upload
-        dt1 = mlrun.run.get_dataitem(f"{dataframes_url}/df1.{file_format}", secrets=self.storage_options)
-        dt2 = mlrun.run.get_dataitem(f"{dataframes_url}/df2.{file_format}", secrets=self.storage_options)
+        dt1 = mlrun.run.get_dataitem(
+            f"{dataframes_url}/df1.{file_format}", secrets=self.storage_options
+        )
+        dt2 = mlrun.run.get_dataitem(
+            f"{dataframes_url}/df2.{file_format}", secrets=self.storage_options
+        )
         dt1.upload(src_path=df1_path)
         dt2.upload(src_path=df2_path)
         dt_dir = mlrun.run.get_dataitem(dataframes_url, secrets=self.storage_options)
@@ -364,8 +399,12 @@ class TestGoogleCloudStorage:
         data,
         use_datastore_profile,
     ):
-        self._setup_by_google_credentials_file(use_datastore_profile=use_datastore_profile, use_secrets=True)
-        data_item = mlrun.run.get_dataitem(self.object_url, secrets=self.storage_options)
+        self._setup_by_google_credentials_file(
+            use_datastore_profile=use_datastore_profile, use_secrets=True
+        )
+        data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
         data_item.put(data)
         result = data_item.get()
         assert result == b"test"
@@ -397,8 +436,12 @@ class TestGoogleCloudStorage:
         else:
             fake_credentials = None
         if use_datastore_profile:
-            gcp_credentials_dict = {"gcp_credentials": fake_credentials} if credentials_value else {}
-            self.profile = DatastoreProfileGCS(name=self.profile_name, **gcp_credentials_dict)
+            gcp_credentials_dict = (
+                {"gcp_credentials": fake_credentials} if credentials_value else {}
+            )
+            self.profile = DatastoreProfileGCS(
+                name=self.profile_name, **gcp_credentials_dict
+            )
             register_temporary_client_datastore_profile(self.profile)
         elif fake_credentials:
             os.environ["GCP_CREDENTIALS"] = fake_credentials

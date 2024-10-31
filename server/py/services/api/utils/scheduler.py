@@ -75,7 +75,9 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            await fastapi.concurrency.run_in_threadpool(self._reload_schedules, db_session)
+            await fastapi.concurrency.run_in_threadpool(
+                self._reload_schedules, db_session
+            )
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=err_to_str(exc))
 
@@ -92,7 +94,9 @@ class Scheduler:
             labels[self._db_record_auth_label] = secret_name
         return labels
 
-    def _get_access_key_secret_name_from_db_record(self, db_schedule: mlrun.common.schemas.ScheduleRecord):
+    def _get_access_key_secret_name_from_db_record(
+        self, db_schedule: mlrun.common.schemas.ScheduleRecord
+    ):
         schedule_labels = db_schedule.dict()["labels"]
         for label in schedule_labels:
             if label["name"] == self._db_record_auth_label:
@@ -112,7 +116,9 @@ class Scheduler:
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
-            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
+                cron_trigger
+            )
 
         self._validate_cron_trigger(cron_trigger)
 
@@ -130,7 +136,9 @@ class Scheduler:
             labels=labels,
             scheduled_object=scheduled_object,
         )
-        labels = self._enrich_schedule(auth_info, kind, labels, name, project, scheduled_object)
+        labels = self._enrich_schedule(
+            auth_info, kind, labels, name, project, scheduled_object
+        )
 
         db_schedule = get_db().create_schedule(
             session=db_session,
@@ -153,7 +161,9 @@ class Scheduler:
         )
         self.update_schedule_next_run_time(db_session, name, project, job)
 
-    def update_schedule_next_run_time(self, db_session, schedule_name, project_name, job=None):
+    def update_schedule_next_run_time(
+        self, db_session, schedule_name, project_name, job=None
+    ):
         if not job:
             job_id = self._resolve_job_id(project_name, schedule_name)
             job = self._scheduler.get_job(job_id)
@@ -164,7 +174,9 @@ class Scheduler:
                 job=job,
                 next_run_time=job.next_run_time,
             )
-            get_db().update_schedule(db_session, project_name, schedule_name, next_run_time=job.next_run_time)
+            get_db().update_schedule(
+                db_session, project_name, schedule_name, next_run_time=job.next_run_time
+            )
 
     @services.api.utils.helpers.ensure_running_on_chief
     def update_schedule(
@@ -179,7 +191,9 @@ class Scheduler:
         concurrency_limit: int = None,
     ):
         if isinstance(cron_trigger, str):
-            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
+                cron_trigger
+            )
 
         if cron_trigger is not None:
             self._validate_cron_trigger(cron_trigger)
@@ -196,11 +210,15 @@ class Scheduler:
 
         db_schedule = get_db().get_schedule(db_session, project, name)
 
-        labels, scheduled_object = services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
-            labels, scheduled_object, db_schedule
+        labels, scheduled_object = (
+            services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+                labels, scheduled_object, db_schedule
+            )
         )
 
-        labels = self._enrich_schedule(auth_info, db_schedule.kind, labels, name, project, scheduled_object)
+        labels = self._enrich_schedule(
+            auth_info, db_schedule.kind, labels, name, project, scheduled_object
+        )
 
         get_db().update_schedule(
             session=db_session,
@@ -213,7 +231,9 @@ class Scheduler:
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
 
-        updated_schedule = self._transform_and_enrich_db_schedule(db_session, db_schedule)
+        updated_schedule = self._transform_and_enrich_db_schedule(
+            db_session, db_schedule
+        )
 
         job = self._update_schedule_in_scheduler(
             project,
@@ -255,7 +275,9 @@ class Scheduler:
     ) -> mlrun.common.schemas.ScheduleOutput:
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
-        return self._transform_and_enrich_db_schedule(db_session, db_schedule, include_last_run, include_credentials)
+        return self._transform_and_enrich_db_schedule(
+            db_session, db_schedule, include_last_run, include_credentials
+        )
 
     @services.api.utils.helpers.ensure_running_on_chief
     def delete_schedule(
@@ -310,7 +332,9 @@ class Scheduler:
         fn_kind: str = None,
     ):
         if isinstance(cron_trigger, str):
-            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(cron_trigger)
+            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
+                cron_trigger
+            )
 
         if cron_trigger is not None:
             self._validate_cron_trigger(cron_trigger)
@@ -326,18 +350,24 @@ class Scheduler:
             concurrency_limit=concurrency_limit,
         )
 
-        db_schedule = get_db().get_schedule(db_session, project, name, raise_on_not_found=False)
+        db_schedule = get_db().get_schedule(
+            db_session, project, name, raise_on_not_found=False
+        )
         if not kind:
             # TODO: Need to think of a way to not use `get_schedule`
             #  in this function or in `get_db().store_function()` in this flow
             #  because we must have kind to ensure that auth info has access key.
             kind = db_schedule.kind
 
-        labels, scheduled_object = services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
-            labels, scheduled_object, db_schedule
+        labels, scheduled_object = (
+            services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+                labels, scheduled_object, db_schedule
+            )
         )
 
-        labels = self._enrich_schedule(auth_info, kind, labels, name, project, scheduled_object, fn_kind)
+        labels = self._enrich_schedule(
+            auth_info, kind, labels, name, project, scheduled_object, fn_kind
+        )
 
         db_schedule, is_update = get_db().store_schedule(
             session=db_session,
@@ -352,7 +382,9 @@ class Scheduler:
 
         # we differentiate between update and create because it changes our communication with the scheduler
         if is_update:
-            updated_schedule = self._transform_and_enrich_db_schedule(db_session, db_schedule)
+            updated_schedule = self._transform_and_enrich_db_schedule(
+                db_session, db_schedule
+            )
 
             job = self._update_schedule_in_scheduler(
                 project,
@@ -378,7 +410,9 @@ class Scheduler:
         self.update_schedule_next_run_time(db_session, name, project, job)
         return is_update
 
-    def _remove_schedule_scheduler_resources(self, db_session: Session, project, name, skip_notification_secrets=False):
+    def _remove_schedule_scheduler_resources(
+        self, db_session: Session, project, name, skip_notification_secrets=False
+    ):
         self._remove_schedule_from_scheduler(project, name)
         if not skip_notification_secrets:
             self._remove_schedule_notification_secrets(db_session, project, name)
@@ -405,7 +439,9 @@ class Scheduler:
             project,
             name,
         )
-        await fastapi.concurrency.run_in_threadpool(self._ensure_auth_info_has_access_key, auth_info, db_schedule.kind)
+        await fastapi.concurrency.run_in_threadpool(
+            self._ensure_auth_info_has_access_key, auth_info, db_schedule.kind
+        )
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,
             db_schedule.scheduled_object,
@@ -452,7 +488,10 @@ class Scheduler:
             kind not in mlrun.common.schemas.ScheduleKinds.local_kinds()
             and services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
         ):
-            if not auth_info.access_key or auth_info.access_key == mlrun.model.Credentials.generate_access_key:
+            if (
+                not auth_info.access_key
+                or auth_info.access_key == mlrun.model.Credentials.generate_access_key
+            ):
                 auth_info.access_key = services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
                     auth_info.session
                 )
@@ -462,9 +501,15 @@ class Scheduler:
                     services.api.utils.clients.iguazio.SessionPlanes.data,
                 ]
             # Support receiving access-key reference ($ref:...), for example when updating existing schedule
-            if auth_info.access_key.startswith(mlrun.model.Credentials.secret_reference_prefix):
-                secret_name = auth_info.access_key.lstrip(mlrun.model.Credentials.secret_reference_prefix)
-                secret = services.api.crud.Secrets().read_auth_secret(secret_name, raise_on_not_found=True)
+            if auth_info.access_key.startswith(
+                mlrun.model.Credentials.secret_reference_prefix
+            ):
+                secret_name = auth_info.access_key.lstrip(
+                    mlrun.model.Credentials.secret_reference_prefix
+                )
+                secret = services.api.crud.Secrets().read_auth_secret(
+                    secret_name, raise_on_not_found=True
+                )
                 auth_info.access_key = secret.access_key
                 auth_info.username = secret.username
 
@@ -506,24 +551,30 @@ class Scheduler:
                 raise mlrun.errors.MLRunAccessDeniedError(
                     "Access key is required to create schedules in OPA authorization mode"
                 )
-            access_key_secret_key = services.api.crud.Secrets().generate_client_project_secret_key(
-                services.api.crud.SecretsClientType.schedules,
-                name,
-                self._secret_access_key_subtype,
+            access_key_secret_key = (
+                services.api.crud.Secrets().generate_client_project_secret_key(
+                    services.api.crud.SecretsClientType.schedules,
+                    name,
+                    self._secret_access_key_subtype,
+                )
             )
             # schedule name may be an invalid secret key, therefore we're using the key map feature of our secrets
             # handler
-            secret_key_map = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-                services.api.crud.SecretsClientType.schedules
+            secret_key_map = (
+                services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+                    services.api.crud.SecretsClientType.schedules
+                )
             )
             secrets = {
                 access_key_secret_key: auth_info.access_key,
             }
             if auth_info.username:
-                username_secret_key = services.api.crud.Secrets().generate_client_project_secret_key(
-                    services.api.crud.SecretsClientType.schedules,
-                    name,
-                    self._secret_username_subtype,
+                username_secret_key = (
+                    services.api.crud.Secrets().generate_client_project_secret_key(
+                        services.api.crud.SecretsClientType.schedules,
+                        name,
+                        self._secret_username_subtype,
+                    )
                 )
                 secrets[username_secret_key] = auth_info.username
             services.api.crud.Secrets().store_project_secrets(
@@ -539,13 +590,17 @@ class Scheduler:
     def _get_schedule_secrets(
         self, project: str, name: str, include_username: bool = True
     ) -> tuple[typing.Optional[str], typing.Optional[str]]:
-        schedule_access_key_secret_key = services.api.crud.Secrets().generate_client_project_secret_key(
-            services.api.crud.SecretsClientType.schedules,
-            name,
-            self._secret_access_key_subtype,
+        schedule_access_key_secret_key = (
+            services.api.crud.Secrets().generate_client_project_secret_key(
+                services.api.crud.SecretsClientType.schedules,
+                name,
+                self._secret_access_key_subtype,
+            )
         )
-        secret_key_map = services.api.crud.Secrets().generate_client_key_map_project_secret_key(
-            services.api.crud.SecretsClientType.schedules
+        secret_key_map = (
+            services.api.crud.Secrets().generate_client_key_map_project_secret_key(
+                services.api.crud.SecretsClientType.schedules
+            )
         )
         # TODO: support listing (and not only get) secrets using key map
         access_key = services.api.crud.Secrets().get_project_secret(
@@ -558,10 +613,12 @@ class Scheduler:
         )
         username = None
         if include_username:
-            schedule_username_secret_key = services.api.crud.Secrets().generate_client_project_secret_key(
-                services.api.crud.SecretsClientType.schedules,
-                name,
-                self._secret_username_subtype,
+            schedule_username_secret_key = (
+                services.api.crud.Secrets().generate_client_project_secret_key(
+                    services.api.crud.SecretsClientType.schedules,
+                    name,
+                    self._secret_username_subtype,
+                )
             )
             username = services.api.crud.Secrets().get_project_secret(
                 project,
@@ -583,7 +640,11 @@ class Scheduler:
         """
         Enforce no more than one job per min_allowed_interval
         """
-        apscheduler_cron_trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(cron_trigger)
+        apscheduler_cron_trigger = (
+            self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+                cron_trigger
+            )
+        )
         now = now or datetime.now(apscheduler_cron_trigger.timezone)
         second_next_run_time = now
 
@@ -591,16 +652,24 @@ class Scheduler:
         # won't fail in certain scenarios that it should. See test_validate_cron_trigger_multi_checks for detailed
         # explanation
         for index in range(60):
-            next_run_time = apscheduler_cron_trigger.get_next_fire_time(None, second_next_run_time)
+            next_run_time = apscheduler_cron_trigger.get_next_fire_time(
+                None, second_next_run_time
+            )
             # will be none if we got a schedule that has no next fire time - for example schedule with year=1999
             if next_run_time is None:
                 return
-            second_next_run_time = apscheduler_cron_trigger.get_next_fire_time(next_run_time, next_run_time)
+            second_next_run_time = apscheduler_cron_trigger.get_next_fire_time(
+                next_run_time, next_run_time
+            )
             # will be none if we got a schedule that has no next fire time - for example schedule with year=2050
             if second_next_run_time is None:
                 return
-            min_allowed_interval_seconds = humanfriendly.parse_timespan(self._min_allowed_interval)
-            if second_next_run_time < next_run_time + timedelta(seconds=min_allowed_interval_seconds):
+            min_allowed_interval_seconds = humanfriendly.parse_timespan(
+                self._min_allowed_interval
+            )
+            if second_next_run_time < next_run_time + timedelta(
+                seconds=min_allowed_interval_seconds
+            ):
                 logger.warn(
                     "Cron trigger too frequent. Rejecting",
                     cron_trigger=cron_trigger,
@@ -609,7 +678,8 @@ class Scheduler:
                     delta=second_next_run_time - next_run_time,
                 )
                 raise ValueError(
-                    f"Cron trigger too frequent. no more than one job " f"per {self._min_allowed_interval} is allowed"
+                    f"Cron trigger too frequent. no more than one job "
+                    f"per {self._min_allowed_interval} is allowed"
                 )
 
     def _create_schedule_in_scheduler(
@@ -633,7 +703,9 @@ class Scheduler:
         # of the jobs themselves (our logic in the run wrapper may be invoked manually).
         return self._scheduler.add_job(
             function,
-            self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(cron_trigger),
+            self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+                cron_trigger
+            ),
             args,
             kwargs,
             job_id,
@@ -655,7 +727,9 @@ class Scheduler:
         function, args, kwargs = self._resolve_job_function(
             kind, scheduled_object, project, name, concurrency_limit, auth_info
         )
-        trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(cron_trigger)
+        trigger = self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
+            cron_trigger
+        )
         now = datetime.now(self._scheduler.timezone)
         next_run_time = trigger.get_next_fire_time(None, now)
         return self._modify_job_in_scheduler(
@@ -699,9 +773,13 @@ class Scheduler:
                 access_key = None
                 username = None
                 if services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
-                    secret_name = self._get_access_key_secret_name_from_db_record(db_schedule)
+                    secret_name = self._get_access_key_secret_name_from_db_record(
+                        db_schedule
+                    )
                     if secret_name:
-                        secret = services.api.crud.Secrets().read_auth_secret(secret_name, raise_on_not_found=True)
+                        secret = services.api.crud.Secrets().read_auth_secret(
+                            secret_name, raise_on_not_found=True
+                        )
                         username = secret.username
                         access_key = secret.access_key
 
@@ -737,12 +815,17 @@ class Scheduler:
         include_credentials: bool = False,
     ) -> mlrun.common.schemas.ScheduleOutput:
         schedule_dict = schedule_record.dict()
-        schedule_dict["labels"] = {label["name"]: label["value"] for label in schedule_dict["labels"]}
+        schedule_dict["labels"] = {
+            label["name"]: label["value"] for label in schedule_dict["labels"]
+        }
         schedule = mlrun.common.schemas.ScheduleOutput(**schedule_dict)
 
         # Schedules are running only on chief. Therefore, we query next_run_time from the scheduler only when
         # running on chief.
-        if mlrun.mlconf.httpdb.clusterization.role == mlrun.common.schemas.ClusterizationRole.chief:
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+        ):
             job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
             job = self._scheduler.get_job(job_id)
             if job:
@@ -759,7 +842,9 @@ class Scheduler:
 
         return schedule
 
-    def _enrich_schedule_with_last_run(self, db_session: Session, schedule_output: mlrun.common.schemas.ScheduleOutput):
+    def _enrich_schedule_with_last_run(
+        self, db_session: Session, schedule_output: mlrun.common.schemas.ScheduleOutput
+    ):
         if schedule_output.last_run_uri:
             run_data = self._get_last_run(db_session, schedule_output.last_run_uri)
             if run_data:
@@ -784,10 +869,14 @@ class Scheduler:
             )
             return None
 
-    def _enrich_schedule_with_credentials(self, schedule_output: mlrun.common.schemas.ScheduleOutput):
+    def _enrich_schedule_with_credentials(
+        self, schedule_output: mlrun.common.schemas.ScheduleOutput
+    ):
         secret_name = schedule_output.labels.get(self._db_record_auth_label)
         if secret_name:
-            schedule_output.credentials.access_key = mlrun.model.Credentials.secret_reference_prefix + secret_name
+            schedule_output.credentials.access_key = (
+                mlrun.model.Credentials.secret_reference_prefix + secret_name
+            )
 
     def _resolve_job_function(
         self,
@@ -835,11 +924,15 @@ class Scheduler:
         return self._job_id_separator.join([project, name])
 
     @staticmethod
-    def _enrich_schedule_notifications(project: str, schedule_name: str, scheduled_object: Union[dict, Callable]):
+    def _enrich_schedule_notifications(
+        project: str, schedule_name: str, scheduled_object: Union[dict, Callable]
+    ):
         if not isinstance(scheduled_object, dict):
             return
 
-        schedule_notifications = scheduled_object.get("task", {}).get("spec", {}).get("notifications")
+        schedule_notifications = (
+            scheduled_object.get("task", {}).get("spec", {}).get("notifications")
+        )
         if schedule_notifications:
             scheduled_object["task"]["spec"]["notifications"] = [
                 notification.to_dict()
@@ -848,7 +941,9 @@ class Scheduler:
                 )
             ]
 
-    def _enrich_schedule(self, auth_info, kind, labels, name, project, scheduled_object, fn_kind=None):
+    def _enrich_schedule(
+        self, auth_info, kind, labels, name, project, scheduled_object, fn_kind=None
+    ):
         self._ensure_auth_info_has_access_key(auth_info, kind)
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
@@ -862,7 +957,9 @@ class Scheduler:
         return labels
 
     @staticmethod
-    def _remove_schedule_notification_secrets(db_session: Session, project: str, schedule_name: str):
+    def _remove_schedule_notification_secrets(
+        db_session: Session, project: str, schedule_name: str
+    ):
         try:
             db_schedule = get_db().get_schedule(
                 db_session,
@@ -879,7 +976,11 @@ class Scheduler:
             return
 
         if db_schedule and isinstance(db_schedule.scheduled_object, dict):
-            notifications = db_schedule.scheduled_object.get("task", {}).get("spec", {}).get("notifications")
+            notifications = (
+                db_schedule.scheduled_object.get("task", {})
+                .get("spec", {})
+                .get("notifications")
+            )
             if notifications:
                 for notification in notifications:
                     services.api.api.utils.delete_notification_params_secret(
@@ -905,9 +1006,9 @@ class Scheduler:
 
         if "task" in scheduled_object and "metadata" in scheduled_object["task"]:
             scheduled_object["task"]["metadata"].setdefault("labels", {})
-            scheduled_object["task"]["metadata"]["labels"][mlrun.common.schemas.constants.LabelNames.schedule_name] = (
-                schedule_name
-            )
+            scheduled_object["task"]["metadata"]["labels"][
+                mlrun.common.schemas.constants.LabelNames.schedule_name
+            ] = schedule_name
 
         return await fastapi.concurrency.run_in_threadpool(
             Scheduler._submit_run_wrapper,
@@ -965,7 +1066,10 @@ class Scheduler:
             # if credentials are needed but missing (will happen for schedules on upgrade from scheduler
             # that didn't store credentials to one that does store) enrich them
             # Note that here we're using the "knowledge" that submit_run only requires the access key of the auth info
-            if not auth_info.access_key and services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+            if (
+                not auth_info.access_key
+                and services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+            ):
                 logger.info(
                     "Schedule missing auth info which is required. Trying to fill from project owner",
                     project_name=project_name,
@@ -990,10 +1094,14 @@ class Scheduler:
                     schedule_name,
                 )
 
-            _, _, _, response = services.api.api.utils.submit_run_sync(db_session, auth_info, scheduled_object)
+            _, _, _, response = services.api.api.utils.submit_run_sync(
+                db_session, auth_info, scheduled_object
+            )
 
             run_metadata = response["data"]["metadata"]
-            run_uri = RunObject.create_uri(run_metadata["project"], run_metadata["uid"], run_metadata["iteration"])
+            run_uri = RunObject.create_uri(
+                run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
+            )
             # update every finish of a run the next run time, so it would be accessible for worker instances
             job_id = scheduler._resolve_job_id(run_metadata["project"], schedule_name)
             job = scheduler._scheduler.get_job(job_id)
@@ -1034,7 +1142,9 @@ class Scheduler:
                 schedule_concurrency_limit=schedule_concurrency_limit,
                 active_runs=len(active_runs),
             )
-            scheduler.update_schedule_next_run_time(db_session, schedule_name, project_name)
+            scheduler.update_schedule_next_run_time(
+                db_session, schedule_name, project_name
+            )
             return False
 
         return True

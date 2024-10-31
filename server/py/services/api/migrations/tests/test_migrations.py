@@ -35,11 +35,15 @@ log = logging.getLogger(__name__)
 
 
 class Constants:
-    ini_file_path = str(pathlib.Path(__file__).absolute().parent.parent.parent / "alembic.ini")
+    ini_file_path = str(
+        pathlib.Path(__file__).absolute().parent.parent.parent / "alembic.ini"
+    )
     notifications_table = "runs_notifications"
 
     notifications_params_to_secret_params_revision = "eefc169f7633"
-    notifications_params_to_secret_params_project = "notifications_params_to_secret_params_project"
+    notifications_params_to_secret_params_project = (
+        "notifications_params_to_secret_params_project"
+    )
 
 
 alembic_config = {
@@ -66,7 +70,9 @@ alembic_config = {
 
 # alembic modifies the original config for some reason, so in order to
 # access it during the tests we need to supply alembic with a copy.
-alembic_runner = pytest_alembic.plugin.fixtures.create_alembic_fixture(raw_config=copy.deepcopy(alembic_config))
+alembic_runner = pytest_alembic.plugin.fixtures.create_alembic_fixture(
+    raw_config=copy.deepcopy(alembic_config)
+)
 
 
 @pytest.fixture
@@ -84,9 +90,13 @@ def alembic_session(alembic_engine):
 
 @pytest.mark.alembic
 def test_notification_params_to_secret_params(alembic_runner, alembic_session):
-    alembic_runner.migrate_up_to(Constants.notifications_params_to_secret_params_revision)
+    alembic_runner.migrate_up_to(
+        Constants.notifications_params_to_secret_params_revision
+    )
 
-    revision_data = alembic_config["before_revision_data"][Constants.notifications_params_to_secret_params_revision]
+    revision_data = alembic_config["before_revision_data"][
+        Constants.notifications_params_to_secret_params_revision
+    ]
 
     for index, item in enumerate(
         alembic_session.query(Run.Notification.params, Run.Notification.secret_params)

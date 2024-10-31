@@ -51,7 +51,9 @@ class _BaseFormatter(logging.Formatter):
 
         return orjson.dumps(
             json_object,
-            option=orjson.OPT_NAIVE_UTC | orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_SORT_KEYS,
+            option=orjson.OPT_NAIVE_UTC
+            | orjson.OPT_SERIALIZE_NUMPY
+            | orjson.OPT_SORT_KEYS,
             default=default,
         ).decode()
 
@@ -107,7 +109,9 @@ class CustomFormatter(HumanReadableFormatter):
     # that causes the warning to be written numerous times(for any log generation).
     # We want to print the errors just once, not for each logger generation.
     fail_on_format_configuration = False  # for issues that relates to unrecognized keys
-    fail_on_missing_default_keys_key = False  # for issues that relates to missing default keys
+    fail_on_missing_default_keys_key = (
+        False  # for issues that relates to missing default keys
+    )
 
     def format(self, record) -> str:
         more = self._resolve_more(record)
@@ -119,10 +123,19 @@ class CustomFormatter(HumanReadableFormatter):
             if custom_format:
                 default_keys = ["timestamp", "level", "message", "more"]
                 formatter = string.Formatter()
-                custom_format_keys = [key for _, key, _, _ in formatter.parse(custom_format) if key is not None]
-                missing_default_flags = list(set(default_keys) - set(custom_format_keys))
+                custom_format_keys = [
+                    key
+                    for _, key, _, _ in formatter.parse(custom_format)
+                    if key is not None
+                ]
+                missing_default_flags = list(
+                    set(default_keys) - set(custom_format_keys)
+                )
 
-                if missing_default_flags and not CustomFormatter.fail_on_missing_default_keys_key:
+                if (
+                    missing_default_flags
+                    and not CustomFormatter.fail_on_missing_default_keys_key
+                ):
                     print(
                         f'> {formatted_time} [warning] Custom loggers must '
                         f'include those keys within the logger format, {", ".join(default_keys)} '
@@ -132,7 +145,9 @@ class CustomFormatter(HumanReadableFormatter):
                     CustomFormatter.fail_on_missing_default_keys_key = True
                 record_dict = record.__dict__
                 missing_format_configuraiton_keys = list(
-                    set(custom_format_keys) - set(default_keys) - set(record_dict.keys())
+                    set(custom_format_keys)
+                    - set(default_keys)
+                    - set(record_dict.keys())
                 )
                 if missing_format_configuraiton_keys:
                     if not CustomFormatter.fail_on_format_configuration:
@@ -190,10 +205,20 @@ class HumanReadableExtendedFormatter(HumanReadableFormatter):
         if record_with:
 
             def _format_value(val):
-                formatted_val = val if isinstance(val, str) else str(orjson.loads(self._json_dump(val)))
-                return formatted_val.replace("\n", "\n\t\t") if len(formatted_val) < 4096 else repr(formatted_val)
+                formatted_val = (
+                    val
+                    if isinstance(val, str)
+                    else str(orjson.loads(self._json_dump(val)))
+                )
+                return (
+                    formatted_val.replace("\n", "\n\t\t")
+                    if len(formatted_val) < 4096
+                    else repr(formatted_val)
+                )
 
-            more = "\n\t" + "\n\t".join([f"{key}: {_format_value(val)}" for key, val in record_with.items()])
+            more = "\n\t" + "\n\t".join(
+                [f"{key}: {_format_value(val)}" for key, val in record_with.items()]
+            )
         return (
             f"{self._get_message_color(record.levelno)}> "
             f"{self.formatTime(record, self.datefmt)} "
@@ -247,7 +272,9 @@ class Logger:
         ]:
             setattr(self, f"{log_level_func.__name__}_with", log_level_func)
 
-    def set_handler(self, handler_name: str, file: IO[str], formatter: logging.Formatter):
+    def set_handler(
+        self, handler_name: str, file: IO[str], formatter: logging.Formatter
+    ):
         # check if there's a handler by this name
         for handler in self._logger.handlers:
             if handler.name == handler_name:
@@ -315,16 +342,22 @@ class Logger:
         self._update_bound_vars_and_log(logging.ERROR, message, *args, **kw_args)
 
     def exception(self, message, *args, exc_info=True, **kw_args):
-        self._update_bound_vars_and_log(logging.ERROR, message, *args, exc_info=exc_info, **kw_args)
+        self._update_bound_vars_and_log(
+            logging.ERROR, message, *args, exc_info=exc_info, **kw_args
+        )
 
     def bind(self, **kw_args):
         self._bound_variables.update(kw_args)
 
-    def _update_bound_vars_and_log(self, level, message, *args, exc_info=None, **kw_args):
+    def _update_bound_vars_and_log(
+        self, level, message, *args, exc_info=None, **kw_args
+    ):
         kw_args.update(self._bound_variables)
 
         if kw_args:
-            self._logger.log(level, message, *args, exc_info=exc_info, extra={"with": kw_args})
+            self._logger.log(
+                level, message, *args, exc_info=exc_info, extra={"with": kw_args}
+            )
             return
 
         self._logger.log(level, message, *args, exc_info=exc_info)
@@ -378,7 +411,9 @@ def create_logger(
     logger_instance = Logger(level, name=name, propagate=False)
 
     # resolve formatter
-    formatter_instance = resolve_formatter_by_kind(FormatterKinds(formatter_kind.lower()))
+    formatter_instance = resolve_formatter_by_kind(
+        FormatterKinds(formatter_kind.lower())
+    )
 
     # set handler
     logger_instance.set_handler("default", stream or stdout, formatter_instance())

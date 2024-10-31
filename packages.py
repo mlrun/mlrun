@@ -18,7 +18,9 @@ import os
 def packages(exclude_packages: list[str] = None) -> list[str]:
     """Get list of project packages"""
     _exclude_packages = set(exclude_packages or [])
-    all_packages = _flatten_packages(_get_package_dict(f"{os.path.dirname(__file__)}/mlrun"), parent_key="mlrun")
+    all_packages = _flatten_packages(
+        _get_package_dict(f"{os.path.dirname(__file__)}/mlrun"), parent_key="mlrun"
+    )
     return list(sorted(all_packages.difference(_exclude_packages)))
 
 
@@ -41,7 +43,9 @@ def _get_package_dict(starting_path, exclude: list[str] = None) -> dict:
     return package_dict
 
 
-def _flatten_packages(package_dict: dict, parent_key: str = "", sep: str = ".") -> set[str]:
+def _flatten_packages(
+    package_dict: dict, parent_key: str = "", sep: str = "."
+) -> set[str]:
     """Flatten hierarchical dict of packages to set of packages"""
     items = [parent_key] if parent_key else []
     for key, value in package_dict.items():

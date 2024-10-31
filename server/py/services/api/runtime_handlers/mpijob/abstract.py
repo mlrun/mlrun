@@ -43,7 +43,9 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
 
         meta = self._get_meta(runtime, run, True)
 
-        self.add_secrets_to_spec_before_running(runtime, project_name=run.metadata.project)
+        self.add_secrets_to_spec_before_running(
+            runtime, project_name=run.metadata.project
+        )
 
         job = self._generate_mpi_job(runtime, run, execution, meta)
 
@@ -76,23 +78,35 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
                 run.status.status_text = txt
 
     def get_pods(self, name=None, namespace=None, launcher=False):
-        namespace = services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace(namespace)
+        namespace = (
+            services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace(
+                namespace
+            )
+        )
 
         selector = self._generate_pods_selector(name, launcher)
 
-        pods = services.api.utils.singletons.k8s.get_k8s_helper().list_pods(selector=selector, namespace=namespace)
+        pods = services.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+            selector=selector, namespace=namespace
+        )
         if pods:
             return {p.metadata.name: p.status.phase for p in pods}
 
     def get_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
-        namespace = services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace(namespace)
+        namespace = (
+            services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace(
+                namespace
+            )
+        )
         try:
             resp = services.api.utils.singletons.k8s.get_k8s_helper().crdapi.get_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name
             )
         except client.exceptions.ApiException as exc:
-            logger.warning("Exception when reading MPIJob", error=mlrun.errors.err_to_str(exc))
+            logger.warning(
+                "Exception when reading MPIJob", error=mlrun.errors.err_to_str(exc)
+            )
             return None
         return resp
 
@@ -131,7 +145,11 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
     def _submit_mpijob(self, job, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
 
-        namespace = services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace(namespace)
+        namespace = (
+            services.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace(
+                namespace
+            )
+        )
         try:
             resp = services.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object(
                 mpi_group,
@@ -144,8 +162,12 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             logger.info(f"MpiJob {name} created")
             return resp
         except client.rest.ApiException as exc:
-            logger.error(f"Exception when creating MPIJob: {mlrun.errors.err_to_str(exc)}")
-            raise mlrun.runtimes.utils.RunError("Exception when creating MPIJob") from exc
+            logger.error(
+                f"Exception when creating MPIJob: {mlrun.errors.err_to_str(exc)}"
+            )
+            raise mlrun.runtimes.utils.RunError(
+                "Exception when creating MPIJob"
+            ) from exc
 
     @staticmethod
     def _crd_state_to_run_state(state: str) -> str:

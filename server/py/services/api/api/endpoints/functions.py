@@ -92,7 +92,9 @@ async def store_function(
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        services.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     logger.debug("Storing function", project=project, name=name, tag=tag)
     hash_key = await run_in_threadpool(
@@ -178,17 +180,26 @@ async def delete_function(
         # when deleting a function, we should also delete its schedules if exists
         # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
         # and we are running in worker, we send the request to the chief client
-        if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
             logger.info(
                 "Function has a schedule, deleting",
                 function=name,
                 project=project,
             )
             chief_client = services.api.utils.clients.chief.Client()
-            await chief_client.delete_schedule(project=project, name=name, request=request)
+            await chief_client.delete_schedule(
+                project=project, name=name, request=request
+            )
         else:
-            await run_in_threadpool(get_scheduler().delete_schedule, db_session, project, name)
-    await run_in_threadpool(services.api.crud.Functions().delete_function, db_session, project, name)
+            await run_in_threadpool(
+                get_scheduler().delete_schedule, db_session, project, name
+            )
+    await run_in_threadpool(
+        services.api.crud.Functions().delete_function, db_session, project, name
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
@@ -224,7 +235,9 @@ async def list_functions(
             mlrun.common.schemas.AuthorizationResourceTypes.function,
             _functions,
             lambda function: (
-                function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                function.get("metadata", {}).get(
+                    "project", mlrun.mlconf.default_project
+                ),
                 function["metadata"]["name"],
             ),
             auth_info,
@@ -260,14 +273,20 @@ async def build_function(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    client_version: Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.client_version),
-    client_python_version: Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.python_version),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
 ):
     data = None
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        services.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     logger.info("Building function", data=data)
     function = data.get("function")
@@ -290,10 +309,13 @@ async def build_function(
     # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
     # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
     # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get("spec", {}).get(
-        "track_models", False
-    ):
-        if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get(
+        "spec", {}
+    ).get("track_models", False):
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
             logger.info(
                 "Requesting to deploy serving function with track models, re-routing to chief",
                 function_name=function_name,
@@ -326,7 +348,9 @@ async def build_function(
 
     # clone_target_dir is deprecated but needs to remain for backward compatibility
     func_dict = fn.to_dict()
-    func_dict["spec"]["clone_target_dir"] = get_in(func_dict, "spec.build.source_code_target_dir")
+    func_dict["spec"]["clone_target_dir"] = get_in(
+        func_dict, "spec.build.source_code_target_dir"
+    )
 
     return {
         "data": func_dict,
@@ -341,15 +365,21 @@ async def start_function(
     background_tasks: BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    client_version: Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.client_version),
-    client_python_version: Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.python_version),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
 ):
     # TODO: ensure project here !!! for background task
     data = None
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        services.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     logger.info("Got request to start function", body=data)
 
@@ -391,7 +421,9 @@ async def function_status(
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        services.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     resp = await _get_function_status(data, auth_info)
     return {
@@ -412,7 +444,9 @@ async def build_status(
     verbose: bool = False,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    client_version: Optional[str] = Header(None, alias=mlrun.common.schemas.HeaderNames.client_version),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -423,13 +457,19 @@ async def build_status(
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
-    fn = await run_in_threadpool(services.api.crud.Functions().get_function, db_session, name, project, tag)
+    fn = await run_in_threadpool(
+        services.api.crud.Functions().get_function, db_session, name, project, tag
+    )
     if not fn:
-        services.api.api.utils.log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
+        services.api.api.utils.log_and_raise(
+            HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag
+        )
 
     # nuclio deploy status
     if fn.get("kind") in RuntimeKinds.pure_nuclio_deployed_runtimes():
-        api_gateways_urls = await _get_api_gateways_urls_for_function(auth_info, project, name, tag)
+        api_gateways_urls = await _get_api_gateways_urls_for_function(
+            auth_info, project, name, tag
+        )
         return await run_in_threadpool(
             _handle_nuclio_deploy_status,
             db_session,
@@ -494,8 +534,13 @@ def _handle_job_deploy_status(
         )
 
     # read from log file
-    log_file = services.api.api.utils.log_path(project, f"build_{name}__{tag or 'latest'}")
-    if function_state in mlrun.common.schemas.FunctionState.terminal_states() and log_file.exists():
+    log_file = services.api.api.utils.log_path(
+        project, f"build_{name}__{tag or 'latest'}"
+    )
+    if (
+        function_state in mlrun.common.schemas.FunctionState.terminal_states()
+        and log_file.exists()
+    ):
         if function_state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
@@ -519,7 +564,9 @@ def _handle_job_deploy_status(
             },
         )
 
-    build_pod_state = services.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_phase(pod)
+    build_pod_state = services.api.utils.singletons.k8s.get_k8s_helper(
+        silent=False
+    ).get_pod_phase(pod)
     logger.debug(
         "Resolved pod status",
         function_name=name,
@@ -527,8 +574,10 @@ def _handle_job_deploy_status(
         pod_name=pod,
     )
 
-    normalized_pod_function_state = mlrun.common.schemas.FunctionState.get_function_state_from_pod_state(
-        build_pod_state
+    normalized_pod_function_state = (
+        mlrun.common.schemas.FunctionState.get_function_state_from_pod_state(
+            build_pod_state
+        )
     )
     if normalized_pod_function_state == mlrun.common.schemas.FunctionState.ready:
         logger.info(
@@ -538,17 +587,23 @@ def _handle_job_deploy_status(
             pod_state=build_pod_state,
         )
     elif normalized_pod_function_state == mlrun.common.schemas.FunctionState.error:
-        logger.error("Build failed", function_name=name, pod_name=pod, pod_status=build_pod_state)
+        logger.error(
+            "Build failed", function_name=name, pod_name=pod, pod_status=build_pod_state
+        )
 
     if (
         logs
         and normalized_pod_function_state == mlrun.common.schemas.FunctionState.pending
-        and services.api.utils.helpers.validate_client_version(client_version, "1.8.0-rc1")
-    ):
-        response_headers["deploy_status_text_kind"] = mlrun.common.constants.DeployStatusTextKind.events
-        build_pod_events = services.api.utils.singletons.k8s.get_k8s_helper(silent=False).list_object_events(
-            object_name=pod
+        and services.api.utils.helpers.validate_client_version(
+            client_version, "1.8.0-rc1"
         )
+    ):
+        response_headers["deploy_status_text_kind"] = (
+            mlrun.common.constants.DeployStatusTextKind.events
+        )
+        build_pod_events = services.api.utils.singletons.k8s.get_k8s_helper(
+            silent=False
+        ).list_object_events(object_name=pod)
         logger.debug(
             "Resolved build pod events",
             function_name=name,
@@ -572,10 +627,18 @@ Message: {event.message}
         out = resp[events_offset:].encode()
 
     elif (
-        logs and normalized_pod_function_state != mlrun.common.schemas.FunctionState.pending
-    ) or normalized_pod_function_state in mlrun.common.schemas.FunctionState.terminal_states():
+        (
+            logs
+            and normalized_pod_function_state
+            != mlrun.common.schemas.FunctionState.pending
+        )
+        or normalized_pod_function_state
+        in mlrun.common.schemas.FunctionState.terminal_states()
+    ):
         try:
-            resp = services.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
+            resp = services.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(
+                pod
+            )
         except ApiException as exc:
             logger.warning(
                 "Failed to get build logs",
@@ -586,14 +649,19 @@ Message: {event.message}
             )
             resp = ""
 
-        if normalized_pod_function_state in mlrun.common.schemas.FunctionState.terminal_states():
+        if (
+            normalized_pod_function_state
+            in mlrun.common.schemas.FunctionState.terminal_states()
+        ):
             # TODO: move to log collector
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
                 fp.write(resp.encode())
 
         if resp and logs:
-            response_headers["deploy_status_text_kind"] = mlrun.common.constants.DeployStatusTextKind.logs
+            response_headers["deploy_status_text_kind"] = (
+                mlrun.common.constants.DeployStatusTextKind.logs
+            )
             # begin from the offset number and then encode
             out = resp[offset:].encode()
 
@@ -636,7 +704,9 @@ def _parse_start_function_body(db_session, data):
         )
 
     project, name, tag, hash_key = parse_versioned_object_uri(url)
-    runtime = services.api.crud.Functions().get_function(db_session, name, project, tag, hash_key)
+    runtime = services.api.crud.Functions().get_function(
+        db_session, name, project, tag, hash_key
+    )
     if not runtime:
         services.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
@@ -676,7 +746,9 @@ def _start_function(
             auth_info,
         )
 
-        services.api.crud.Functions().start_function(function, client_version, client_python_version)
+        services.api.crud.Functions().start_function(
+            function, client_version, client_python_version
+        )
         logger.info("Fn:\n %s", function.to_yaml())
 
     except mlrun.errors.MLRunBadRequestError:

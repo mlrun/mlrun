@@ -147,10 +147,14 @@ def chdir_to_test_location(request):
 def patch_file_forbidden(monkeypatch):
     class MockV3ioObject:
         def get(self, *args, **kwargs):
-            raise v3io.dataplane.response.HttpResponseError("error", HTTPStatus.FORBIDDEN.value)
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
 
         def head(self, *args, **kwargs):
-            raise v3io.dataplane.response.HttpResponseError("error", HTTPStatus.FORBIDDEN.value)
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
 
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
@@ -174,10 +178,14 @@ def patch_file_forbidden(monkeypatch):
 def patch_file_not_found(monkeypatch):
     class MockV3ioObject:
         def get(self, *args, **kwargs):
-            raise v3io.dataplane.response.HttpResponseError("error", HTTPStatus.NOT_FOUND.value)
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
 
         def head(self, *args, **kwargs):
-            raise v3io.dataplane.response.HttpResponseError("error", HTTPStatus.NOT_FOUND.value)
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
 
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
@@ -201,7 +209,9 @@ def mock_failed_get_func(status_code: int):
     def mock_get(*args, **kwargs):
         mock_response = Mock()
         mock_response.status_code = status_code
-        mock_response.raise_for_status = Mock(side_effect=requests.HTTPError("Error", response=mock_response))
+        mock_response.raise_for_status = Mock(
+            side_effect=requests.HTTPError("Error", response=mock_response)
+        )
         return mock_response
 
     return mock_get
@@ -254,7 +264,9 @@ class RunDBMock:
         self._functions[name] = function
         return hash_key
 
-    def store_artifact(self, key, artifact, uid=None, iter=None, tag="", project="", tree=None):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         self._artifacts[(key, iter or 0)] = artifact
         return artifact
 
@@ -311,10 +323,14 @@ class RunDBMock:
         start_time_to: Optional[datetime] = None,
         last_update_time_from: Optional[datetime] = None,
         last_update_time_to: Optional[datetime] = None,
-        partition_by: Optional[Union[mlrun.common.schemas.RunPartitionByField, str]] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
-        partition_order: Union[mlrun.common.schemas.OrderType, str] = mlrun.common.schemas.OrderType.desc,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ) -> mlrun.lists.RunList:
@@ -406,7 +422,8 @@ class RunDBMock:
         func.status.state = mlrun.common.schemas.FunctionState.ready
         if func.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
             func.status.external_invocation_urls = [
-                api_gateways.get_invoke_url() for api_gateways in self._api_gateways.values()
+                api_gateways.get_invoke_url()
+                for api_gateways in self._api_gateways.values()
             ]
         return "ready", last_log_timestamp
 
@@ -425,7 +442,8 @@ class RunDBMock:
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
         func.status.external_invocation_urls = [
-            api_gateways.get_invoke_url() for api_gateways in self._api_gateways.values()
+            api_gateways.get_invoke_url()
+            for api_gateways in self._api_gateways.values()
         ]
         return "ready", last_log_timestamp
 
@@ -435,7 +453,9 @@ class RunDBMock:
         project: str,
     ):
         key = self._generate_api_gateway_key(api_gateway.metadata.name, project)
-        api_gateway.metadata.labels = {mlrun_constants.MLRunInternalLabels.nuclio_project_name: project}
+        api_gateway.metadata.labels = {
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name: project
+        }
         self._api_gateways[key] = api_gateway
         return api_gateway
 
@@ -472,7 +492,9 @@ class RunDBMock:
         assert len(volumes) == 0
         assert len(volume_mounts) == 0
 
-    def assert_v3io_mount_or_creds_configured(self, v3io_user, v3io_access_key, cred_only=False, function_name=None):
+    def assert_v3io_mount_or_creds_configured(
+        self, v3io_user, v3io_access_key, cred_only=False, function_name=None
+    ):
         function = self._get_function_internal(function_name)
         env_list = function["spec"]["env"]
         env_dict = {item["name"]: item["value"] for item in env_list}
@@ -546,7 +568,10 @@ class RunDBMock:
         }
 
         if secret_name:
-            expected_envs = {name: {"secretKeyRef": {"key": name, "name": secret_name}} for name in param_names}
+            expected_envs = {
+                name: {"secretKeyRef": {"key": name, "name": secret_name}}
+                for name in param_names
+            }
         else:
             expected_envs = {
                 "AWS_ACCESS_KEY_ID": s3_params["aws_access_key"],
@@ -586,7 +611,9 @@ class RunDBMock:
         return mlrun.common.schemas.IndexedHubSource(
             index=1,
             source=mlrun.common.schemas.HubSource(
-                metadata=mlrun.common.schemas.HubObjectMetadata(name="default", description="some description"),
+                metadata=mlrun.common.schemas.HubObjectMetadata(
+                    name="default", description="some description"
+                ),
                 spec=mlrun.common.schemas.HubSourceSpec(
                     path=mlrun.mlconf.hub.default_source.url,
                     channel="master",
@@ -629,7 +656,9 @@ def rundb_mock() -> RunDBMock:
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:
-        mlrun.get_or_create_project("default", context=tmp_dir, allow_cross_project=True)
+        mlrun.get_or_create_project(
+            "default", context=tmp_dir, allow_cross_project=True
+        )
 
         yield mock_object
 
@@ -670,7 +699,9 @@ class RemoteBuilderMock(RunDBMock):
 
         super().__init__()
         self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
-        self.deploy_nuclio_function = unittest.mock.Mock(side_effect=_remote_builder_handler)
+        self.deploy_nuclio_function = unittest.mock.Mock(
+            side_effect=_remote_builder_handler
+        )
 
     def get_build_config_and_target_dir(self):
         self.remote_builder.assert_called_once()
@@ -705,7 +736,13 @@ class RemoteBuilderMock(RunDBMock):
 def remote_builder_mock(monkeypatch):
     builder_mock = RemoteBuilderMock()
 
-    monkeypatch.setattr(mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy"))
-    monkeypatch.setattr(mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock))
-    monkeypatch.setattr(mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock))
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    monkeypatch.setattr(
+        mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
     return builder_mock

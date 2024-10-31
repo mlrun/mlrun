@@ -53,4 +53,6 @@ def test_store_alert_created_time(db: DBInterface, db_session: Session):
     alerts = db.list_alerts(db_session, project)
     assert len(alerts) == 1
 
-    assert alerts[0].created.replace(tzinfo=timezone.utc) < datetime.now(tz=timezone.utc)
+    assert alerts[0].created.replace(tzinfo=timezone.utc) < datetime.now(
+        tz=timezone.utc
+    )

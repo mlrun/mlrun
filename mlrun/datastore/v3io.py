@@ -166,11 +166,15 @@ class V3ioStore(DataStore):
 
     def stat(self, key):
         container, path = split_path(self._join(key))
-        response = self._do_object_request(function=self.object.head, container=container, path=path)
+        response = self._do_object_request(
+            function=self.object.head, container=container, path=path
+        )
         head = dict(response.headers)
         size = int(head.get("Content-Length", "0"))
         datestr = head.get("Last-Modified", "0")
-        modified = time.mktime(datetime.strptime(datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple())
+        modified = time.mktime(
+            datetime.strptime(datestr, "%a, %d %b %Y %H:%M:%S %Z").timetuple()
+        )
         return FileStats(size, modified)
 
     def listdir(self, key):
@@ -190,11 +194,15 @@ class V3ioStore(DataStore):
             )
         except RuntimeError as exc:
             if "Permission denied" in str(exc):
-                raise mlrun.errors.MLRunAccessDeniedError(f"Access denied to path: {key}") from exc
+                raise mlrun.errors.MLRunAccessDeniedError(
+                    f"Access denied to path: {key}"
+                ) from exc
             raise
 
         # todo: full = key, size, last_modified
-        dir_content = [dir.prefix[subpath_length:] for dir in response.output.common_prefixes]
+        dir_content = [
+            dir.prefix[subpath_length:] for dir in response.output.common_prefixes
+        ]
         obj_content = [obj.key[subpath_length:] for obj in response.output.contents]
         return dir_content + obj_content
 
@@ -211,8 +219,17 @@ class V3ioStore(DataStore):
             _, p = parse_path(p, suffix="")
             p = "/" + p
             if recursive:
-                find_out = file_system.find(p, maxdepth=maxdepth, withdirs=True, detail=True)
-                rec = set(sorted([f["name"] + ("/" if f["type"] == "directory" else "") for f in find_out.values()]))
+                find_out = file_system.find(
+                    p, maxdepth=maxdepth, withdirs=True, detail=True
+                )
+                rec = set(
+                    sorted(
+                        [
+                            f["name"] + ("/" if f["type"] == "directory" else "")
+                            for f in find_out.values()
+                        ]
+                    )
+                )
                 to_rm |= rec
             if p not in to_rm and (recursive is False or file_system.exists(p)):
                 p = p + ("/" if file_system.isdir(p) else "")

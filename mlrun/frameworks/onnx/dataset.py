@@ -90,7 +90,9 @@ class ONNXDataset:
 
         return item
 
-    def __getitem__(self, index: int) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+    def __getitem__(
+        self, index: int
+    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
         """
         Get the item at the given index. If ground truth was provided, a tuple of (x, y) will be returned. Otherwise x.
 
@@ -103,7 +105,9 @@ class ONNXDataset:
         # Calculate the indexes:
         from_index = self._batch_size * index
         if from_index >= len(self):
-            raise IndexError(f"Dataset's length is {len(self)}, yet given index was {index}.")
+            raise IndexError(
+                f"Dataset's length is {len(self)}, yet given index was {index}."
+            )
         to_index = max(self._batch_size * (index + 1), len(self._x))
         is_batched = (to_index - from_index) > 1
 
@@ -128,7 +132,9 @@ class ONNXDataset:
         :return: Transformed input.
         """
         if self._x_transforms is not None:
-            return self._call_transforms(items=x, transforms=self._x_transforms, is_batched=is_batched)
+            return self._call_transforms(
+                items=x, transforms=self._x_transforms, is_batched=is_batched
+            )
         return x
 
     def _call_y_transforms(self, y: np.ndarray, is_batched: bool):
@@ -141,7 +147,9 @@ class ONNXDataset:
         :return: Transformed input.
         """
         if self._y_transforms is not None:
-            return self._call_transforms(items=y, transforms=self._y_transforms, is_batched=is_batched)
+            return self._call_transforms(
+                items=y, transforms=self._y_transforms, is_batched=is_batched
+            )
         return y
 
     def _call_transforms(

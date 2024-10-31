@@ -64,7 +64,9 @@ async def test_process_event_no_cache(
         ],
     )
 
-    services.api.crud.Alerts().store_alert(db, project=project, name=alert_name, alert_data=alert)
+    services.api.crud.Alerts().store_alert(
+        db, project=project, name=alert_name, alert_data=alert
+    )
 
     event = mlrun.common.schemas.alert.Event(
         kind=event_kind,
@@ -75,7 +77,9 @@ async def test_process_event_no_cache(
         services.api.crud.Alerts().process_event_no_cache, db, event.kind, event
     )
 
-    alert = services.api.crud.Alerts().get_enriched_alert(db, project=project, name=alert_name)
+    alert = services.api.crud.Alerts().get_enriched_alert(
+        db, project=project, name=alert_name
+    )
     assert alert.state == mlrun.common.schemas.alert.AlertActiveState.ACTIVE
 
 
@@ -122,7 +126,11 @@ async def test_validate_alert_name(
         severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
         entities=entity,
         trigger=mlrun.common.schemas.alert.AlertTrigger(events=[event_kind]),
-        notifications=[mlrun.common.schemas.AlertNotification(notification=notification)],
+        notifications=[
+            mlrun.common.schemas.AlertNotification(notification=notification)
+        ],
     )
     with expectation:
-        services.api.crud.Alerts().store_alert(db, project=project, name=alert_name, alert_data=alert_data)
+        services.api.crud.Alerts().store_alert(
+            db, project=project, name=alert_name, alert_data=alert_data
+        )

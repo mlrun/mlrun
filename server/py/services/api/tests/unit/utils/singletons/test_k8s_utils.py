@@ -58,7 +58,9 @@ def k8s_helper():
 
 
 def test_create_new_secret(k8s_helper):
-    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(k8s_client_rest.ApiException(status=404))
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+        k8s_client_rest.ApiException(status=404)
+    )
     result = k8s_helper.store_secrets(
         secret_name="my-secret",
         secrets={"key1": "value1"},
@@ -70,7 +72,9 @@ def test_create_new_secret(k8s_helper):
 
 
 def test_conflict_during_create_secret(k8s_helper):
-    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(k8s_client_rest.ApiException(status=404))
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+        k8s_client_rest.ApiException(status=404)
+    )
     k8s_helper._create_secret.side_effect = k8s_dynamic_exceptions.api_exception(
         k8s_client_rest.ApiException(status=409)
     )
@@ -118,7 +122,9 @@ def test_update_failure(k8s_helper):
 
 
 def test_read_secret_failure(k8s_helper):
-    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.api_exception(k8s_client_rest.ApiException(status=403))
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=403)
+    )
 
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         k8s_helper.store_secrets(
@@ -147,7 +153,9 @@ def test_read_secret_failure(k8s_helper):
         ),
     ],
 )
-def test_get_logger_pods_label_selector(k8s_helper, monkeypatch, run_type, mpi_version, extra_selector):
+def test_get_logger_pods_label_selector(
+    k8s_helper, monkeypatch, run_type, mpi_version, extra_selector
+):
     monkeypatch.setattr(
         services.api.runtime_handlers.mpijob,
         "cached_mpijob_crd_version",
@@ -166,7 +174,9 @@ def test_get_logger_pods_label_selector(k8s_helper, monkeypatch, run_type, mpi_v
     k8s_helper.list_pods = unittest.mock.MagicMock()
 
     k8s_helper.get_logger_pods(project, uid, run_type)
-    k8s_helper.list_pods.assert_called_once_with(k8s_helper.namespace, selector=selector)
+    k8s_helper.list_pods.assert_called_once_with(
+        k8s_helper.namespace, selector=selector
+    )
 
 
 @pytest.mark.parametrize(
@@ -255,14 +265,18 @@ def test_store_secret(
         ),
     ],
 )
-def test_delete_secrets(k8s_helper, k8s_secret_data, secrets_data, expected_action, expected_secret_data):
+def test_delete_secrets(
+    k8s_helper, k8s_secret_data, secrets_data, expected_action, expected_secret_data
+):
     k8s_secret_mock = unittest.mock.MagicMock(data=k8s_secret_data)
     k8s_helper.v1api.read_namespaced_secret.return_value = k8s_secret_mock
 
     result = k8s_helper.delete_secrets("my-secret", secrets_data)
     assert result == expected_action
 
-    k8s_helper.v1api.read_namespaced_secret.assert_called_once_with("my-secret", k8s_helper.namespace)
+    k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
+        "my-secret", k8s_helper.namespace
+    )
 
     if expected_action == mlrun.common.schemas.SecretEventActions.updated:
         data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
@@ -307,7 +321,9 @@ def test_delete_secrets(k8s_helper, k8s_secret_data, secrets_data, expected_acti
         ),
     ],
 )
-def test_list_paginated_pods_retry(k8s_helper, side_effect, expectation, expected_result):
+def test_list_paginated_pods_retry(
+    k8s_helper, side_effect, expectation, expected_result
+):
     k8s_helper.v1api.list_namespaced_pod.side_effect = side_effect
     with expectation:
         result = list(k8s_helper.list_pods_paginated("my-ns"))
@@ -355,7 +371,9 @@ def test_list_paginated_pods_retry(k8s_helper, side_effect, expectation, expecte
         ),
     ],
 )
-def test_list_paginated_crds_retry(k8s_helper, side_effect, expectation, expected_result):
+def test_list_paginated_crds_retry(
+    k8s_helper, side_effect, expectation, expected_result
+):
     k8s_helper.crdapi.list_namespaced_custom_object.side_effect = side_effect
     with expectation:
         result = list(k8s_helper.list_crds_paginated("group", "v1", "objects", "my-ns"))

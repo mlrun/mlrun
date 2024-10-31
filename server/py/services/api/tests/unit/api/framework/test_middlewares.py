@@ -50,7 +50,9 @@ def test_ui_clear_cache_middleware(
             middleware.kwargs["backend_version"] = backend_version
     client.app.middleware_stack = client.app.build_middleware_stack()
 
-    with unittest.mock.patch.object(mlrun.utils.version.Version, "get", return_value={"version": backend_version}):
+    with unittest.mock.patch.object(
+        mlrun.utils.version.Version, "get", return_value={"version": backend_version}
+    ):
         response = client.get(
             "client-spec",
             headers={
@@ -60,16 +62,27 @@ def test_ui_clear_cache_middleware(
 
     if clear_cache:
         assert response.headers["Clear-Site-Data"] == '"cache"'
-        assert response.headers[mlrun.common.schemas.constants.HeaderNames.ui_clear_cache] == "true"
+        assert (
+            response.headers[mlrun.common.schemas.constants.HeaderNames.ui_clear_cache]
+            == "true"
+        )
     else:
         assert "Clear-Site-Data" not in response.headers
-        assert mlrun.common.schemas.constants.HeaderNames.ui_clear_cache not in response.headers
+        assert (
+            mlrun.common.schemas.constants.HeaderNames.ui_clear_cache
+            not in response.headers
+        )
 
 
-def test_ensure_be_version_middleware(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient) -> None:
+def test_ensure_be_version_middleware(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
     for middleware in client.app.user_middleware:
         if "backend_version" in middleware.kwargs:
             middleware.kwargs["backend_version"] = "dummy-version"
     client.app.middleware_stack = client.app.build_middleware_stack()
     response = client.get("client-spec")
-    assert response.headers[mlrun.common.schemas.constants.HeaderNames.backend_version] == "dummy-version"
+    assert (
+        response.headers[mlrun.common.schemas.constants.HeaderNames.backend_version]
+        == "dummy-version"
+    )

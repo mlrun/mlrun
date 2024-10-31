@@ -116,7 +116,10 @@ def handler(
                 # Get the available parameters type hints from the function's signature:
                 func_signature = inspect.signature(func)
                 parameters = OrderedDict(
-                    {parameter.name: parameter.annotation for parameter in func_signature.parameters.values()}
+                    {
+                        parameter.name: parameter.annotation
+                        for parameter in func_signature.parameters.values()
+                    }
                 )
                 # If user input is given, add it on top of the collected defaults (from signature):
                 if isinstance(inputs, dict):
@@ -129,7 +132,9 @@ def handler(
 
             # If an MLRun context is found, parse arguments pre-run (kwargs are parsed inplace):
             if cxt_handler.is_context_available() and inputs:
-                args = cxt_handler.parse_inputs(args=args, kwargs=kwargs, type_hints=inputs)
+                args = cxt_handler.parse_inputs(
+                    args=args, kwargs=kwargs, type_hints=inputs
+                )
 
             # Call the original function and get the returning values:
             func_outputs = func(*args, **kwargs)
@@ -142,7 +147,8 @@ def handler(
                 if outputs:
                     cxt_handler.log_outputs(
                         outputs=func_outputs
-                        if type(func_outputs) is tuple and not config.packagers.pack_tuples
+                        if type(func_outputs) is tuple
+                        and not config.packagers.pack_tuples
                         else [func_outputs],
                         log_hints=outputs,
                     )

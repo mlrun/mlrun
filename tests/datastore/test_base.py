@@ -65,7 +65,9 @@ def test_s3_fs_parquet_as_df():
 def test_load_object_into_dask_dataframe():
     # Load a parquet file from Azure Open Datasets
     os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = "azureopendatastorage"
-    data_item = mlrun.datastore.store_manager.object("az://tutorials/noaa_isd_weather/demo_data.parquet")
+    data_item = mlrun.datastore.store_manager.object(
+        "az://tutorials/noaa_isd_weather/demo_data.parquet"
+    )
     ddf = data_item.as_df(df_module=dd)
     assert isinstance(ddf, dd.DataFrame)
 
@@ -225,10 +227,14 @@ def test_schema_to_store(schemas, expected_class, expected):
 def test_as_df_time_filters(start_time_tz, end_time_tz, df_tz):
     time_column = "timestamp"
 
-    parquet_file = os.path.join(os.path.join(os.path.dirname(__file__), "assets"), "testdata.parquet")
+    parquet_file = os.path.join(
+        os.path.join(os.path.dirname(__file__), "assets"), "testdata.parquet"
+    )
     full_df = pd.read_parquet(parquet_file)
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".parquet", delete=True) as parquet_file:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".parquet", delete=True
+    ) as parquet_file:
         if df_tz:
             full_df[time_column] = full_df[time_column].dt.tz_localize("UTC")
         full_df.to_parquet(parquet_file.name)
@@ -254,6 +260,10 @@ def test_as_df_time_filters(start_time_tz, end_time_tz, df_tz):
             expectation = does_not_raise()
 
         with expectation:
-            resp = data_item.as_df(start_time=start_time, end_time=end_time, time_column=time_column)
-            num_row_expected = 190 - (80 if start_time_tz else 0) - (90 if end_time_tz else 0)
+            resp = data_item.as_df(
+                start_time=start_time, end_time=end_time, time_column=time_column
+            )
+            num_row_expected = (
+                190 - (80 if start_time_tz else 0) - (90 if end_time_tz else 0)
+            )
             assert len(resp) == num_row_expected

@@ -39,14 +39,20 @@ class ONNXMLRunInterface:
         context: mlrun.MLClientCtx = None,
     ):
         # Set the context:
-        self._context = context if context is not None else mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        self._context = (
+            context
+            if context is not None
+            else mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        )
 
         # Store the model:
         self._model = model
 
         # Set the execution providers (default will prefer CUDA Execution Provider over CPU Execution Provider):
         self._execution_providers = (
-            ["CUDAExecutionProvider", "CPUExecutionProvider"] if execution_providers is None else execution_providers
+            ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            if execution_providers is None
+            else execution_providers
         )
 
         # initialize the onnx run time session:
@@ -56,10 +62,14 @@ class ONNXMLRunInterface:
         )
 
         # Get the input layers names:
-        self._input_layers = [input_layer.name for input_layer in self._inference_session.get_inputs()]
+        self._input_layers = [
+            input_layer.name for input_layer in self._inference_session.get_inputs()
+        ]
 
         # Get the outputs layers names:
-        self._output_layers = [output_layer.name for output_layer in self._inference_session.get_outputs()]
+        self._output_layers = [
+            output_layer.name for output_layer in self._inference_session.get_outputs()
+        ]
 
     def evaluate(
         self,

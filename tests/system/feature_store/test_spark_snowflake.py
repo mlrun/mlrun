@@ -54,10 +54,14 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         cls.configure_image_deployment(Deployment.Remote)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
-            pytest.skip(f"The following snowflake keys are missing: {snowflake_missing_keys}")
+            pytest.skip(
+                f"The following snowflake keys are missing: {snowflake_missing_keys}"
+            )
         cls.snowflake_spark_parameters = get_snowflake_spark_parameters()
         cls.database = cls.snowflake_spark_parameters["database"]
-        account = cls.snowflake_spark_parameters["url"].replace(".snowflakecomputing.com", "")
+        account = cls.snowflake_spark_parameters["url"].replace(
+            ".snowflakecomputing.com", ""
+        )
         cls.snowflake_connector = snowflake.connector.connect(
             account=account,
             user=cls.snowflake_spark_parameters["user"],
@@ -79,12 +83,16 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.source_table = f"source_{self.current_time}"
         self.tables_to_drop = [self.source_table]
         if self.deployment_type == Deployment.Remote:
-            self.project.set_secrets({"SNOWFLAKE_PASSWORD": os.environ["SNOWFLAKE_PASSWORD"]})
+            self.project.set_secrets(
+                {"SNOWFLAKE_PASSWORD": os.environ["SNOWFLAKE_PASSWORD"]}
+            )
 
     def teardown_method(self, method):
         super().teardown_method(method)
         for table_name in self.tables_to_drop:
-            drop_query = f"DROP TABLE IF EXISTS {self.database}.{self.schema}.{table_name}"
+            drop_query = (
+                f"DROP TABLE IF EXISTS {self.database}.{self.schema}.{table_name}"
+            )
             self.cursor.execute(drop_query)
         self.cursor.close()
 
@@ -151,14 +159,20 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         )
         expected_df = source_df.sort_values(by="ID").head(number_of_rows)
         if not passthrough:
-            result_data = self.cursor.execute(f"select * from {self.database}.{self.schema}.{result_table}").fetchall()
+            result_data = self.cursor.execute(
+                f"select * from {self.database}.{self.schema}.{result_table}"
+            ).fetchall()
             column_names = [desc[0] for desc in self.cursor.description]
             result_df = pd.DataFrame(result_data, columns=column_names)
             result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
 
             pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
-        vector = fstore.FeatureVector("feature_vector_snowflake", ["snowflake_feature_set.*"])
-        run_config = fstore.RunConfig(local=self.run_local, kind=None if self.run_local else "remote-spark")
+        vector = fstore.FeatureVector(
+            "feature_vector_snowflake", ["snowflake_feature_set.*"]
+        )
+        run_config = fstore.RunConfig(
+            local=self.run_local, kind=None if self.run_local else "remote-spark"
+        )
         result = vector.get_offline_features(
             engine="spark",
             with_indexes=True,
@@ -167,7 +181,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             target=None if self.run_local else ParquetTarget(),
         ).to_dataframe()
         result = result.reset_index(drop=False)
-        pd.testing.assert_frame_equal(expected_df, result.sort_values(by="ID"), check_dtype=False)
+        pd.testing.assert_frame_equal(
+            expected_df, result.sort_values(by="ID"), check_dtype=False
+        )
 
     def test_purge_snowflake_target(self):
         self.generate_snowflake_source_table()
@@ -219,7 +235,8 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             source = ParquetSource("parquet_source", path=path)
         else:
             v3io_parquet_source_path = (
-                f"v3io:///projects/{self.project_name}/" f"df_parquet_filtered_source_{uuid.uuid4()}.parquet"
+                f"v3io:///projects/{self.project_name}/"
+                f"df_parquet_filtered_source_{uuid.uuid4()}.parquet"
             )
             df.to_parquet(v3io_parquet_source_path)
             source = ParquetSource("parquet_source", path=v3io_parquet_source_path)
@@ -239,11 +256,15 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             relations=None,
         )
         run_config = fstore.RunConfig(local=self.run_local)
-        fset_obj.ingest(source, [target], run_config=run_config, spark_context=self.spark_service)
+        fset_obj.ingest(
+            source, [target], run_config=run_config, spark_context=self.spark_service
+        )
 
         features = ["feature_set.*"]
         vector = fstore.FeatureVector("feature_vector", features)
-        run_config = fstore.RunConfig(local=self.run_local, kind=None if self.run_local else "remote-spark")
+        run_config = fstore.RunConfig(
+            local=self.run_local, kind=None if self.run_local else "remote-spark"
+        )
         target = ParquetTarget()
         result = vector.get_offline_features(
             engine="spark",
@@ -254,7 +275,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         )
         result_df = result.to_dataframe()
         result_df = result_df.reset_index(drop=False)
-        pd.testing.assert_frame_equal(sort_df(df, "id"), sort_df(result_df, "id"), check_dtype=False)
+        pd.testing.assert_frame_equal(
+            sort_df(df, "id"), sort_df(result_df, "id"), check_dtype=False
+        )
 
     def test_snowflake_target_to_dataframe(self):
         if self.run_local:
@@ -289,7 +312,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
                 local=False,
             ),
         )
-        vector = fstore.FeatureVector("feature_vector_snowflake", ["snowflake_feature_set.*"])
+        vector = fstore.FeatureVector(
+            "feature_vector_snowflake", ["snowflake_feature_set.*"]
+        )
         run_config = fstore.RunConfig(local=False, kind="remote-spark")
 
         get_offline_table = f"get_offline_table_{self.current_time}"

@@ -34,7 +34,9 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             )
             assert len(runs) == 1
             assert len(runs[0]["status"]["notifications"]) == 2
-            for notification_name, notification in runs[0]["status"]["notifications"].items():
+            for notification_name, notification in runs[0]["status"][
+                "notifications"
+            ].items():
                 if notification_name == error_notification.name:
                     assert notification["status"] == "error"
                     assert len(notification["reason"]) > 0
@@ -90,7 +92,10 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             )
             assert len(runs) == 1
             assert len(runs[0]["status"]["notifications"]) == 1
-            assert runs[0]["status"]["notifications"][notification_name]["status"] == "sent"
+            assert (
+                runs[0]["status"]["notifications"][notification_name]["status"]
+                == "sent"
+            )
 
         self._create_sleep_func_in_project()
 
@@ -103,8 +108,12 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             },
         )
 
-        run = self.project.run_function("test-sleep", local=False, params={"time_to_sleep": 10})
-        self._run_db.set_run_notifications(self.project_name, run.metadata.uid, [notification])
+        run = self.project.run_function(
+            "test-sleep", local=False, params={"time_to_sleep": 10}
+        )
+        self._run_db.set_run_notifications(
+            self.project_name, run.metadata.uid, [notification]
+        )
 
         run.wait_for_completion()
 
@@ -122,7 +131,9 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         schedule_name = "test-sleep"
 
         def _assert_notification_in_schedule():
-            schedule = self._run_db.get_schedule(self.project_name, schedule_name, include_last_run=True)
+            schedule = self._run_db.get_schedule(
+                self.project_name, schedule_name, include_last_run=True
+            )
             schedule_spec = schedule.scheduled_object["task"]["spec"]
             last_run = schedule.last_run
             assert "notifications" in schedule_spec
@@ -136,7 +147,10 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             )
             assert len(runs) == 1
             assert len(runs[0]["status"]["notifications"]) == 1
-            assert runs[0]["status"]["notifications"][notification_name]["status"] == "sent"
+            assert (
+                runs[0]["status"]["notifications"][notification_name]["status"]
+                == "sent"
+            )
 
         self._create_sleep_func_in_project()
 
@@ -155,7 +169,9 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             params={"time_to_sleep": 1},
             schedule="* * * * *",
         )
-        self._run_db.set_schedule_notifications(self.project_name, schedule_name, [notification])
+        self._run_db.set_schedule_notifications(
+            self.project_name, schedule_name, [notification]
+        )
 
         mlrun.utils.retry_until_successful(
             1,

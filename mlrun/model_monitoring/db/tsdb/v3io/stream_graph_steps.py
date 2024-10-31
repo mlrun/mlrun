@@ -56,7 +56,9 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         # Compute prediction per second
-        event[EventLiveStats.PREDICTIONS_PER_SECOND] = float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
+        event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
+            float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
+        )
         base_fields = [
             EventFieldType.TIMESTAMP,
             EventFieldType.ENDPOINT_ID,
@@ -69,9 +71,15 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         # base_metrics includes the stats about the average latency and the amount of predictions over time
         base_metrics = {
             EventFieldType.RECORD_TYPE: EventKeyMetrics.BASE_METRICS,
-            EventLiveStats.PREDICTIONS_PER_SECOND: event[EventLiveStats.PREDICTIONS_PER_SECOND],
-            EventLiveStats.PREDICTIONS_COUNT_5M: event[EventLiveStats.PREDICTIONS_COUNT_5M],
-            EventLiveStats.PREDICTIONS_COUNT_1H: event[EventLiveStats.PREDICTIONS_COUNT_1H],
+            EventLiveStats.PREDICTIONS_PER_SECOND: event[
+                EventLiveStats.PREDICTIONS_PER_SECOND
+            ],
+            EventLiveStats.PREDICTIONS_COUNT_5M: event[
+                EventLiveStats.PREDICTIONS_COUNT_5M
+            ],
+            EventLiveStats.PREDICTIONS_COUNT_1H: event[
+                EventLiveStats.PREDICTIONS_COUNT_1H
+            ],
             EventLiveStats.LATENCY_AVG_5M: event[EventLiveStats.LATENCY_AVG_5M],
             EventLiveStats.LATENCY_AVG_1H: event[EventLiveStats.LATENCY_AVG_1H],
             **base_event,

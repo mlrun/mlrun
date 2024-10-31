@@ -126,14 +126,18 @@ class BaseModelRouter(RouterToDict):
         urlpath = getattr(event, "path", "")
 
         # if health check or "/" return Ok + metadata
-        if method == "GET" and (urlpath == "/" or urlpath.startswith(self.health_prefix)):
+        if method == "GET" and (
+            urlpath == "/" or urlpath.startswith(self.health_prefix)
+        ):
             setattr(event, "terminated", True)
             event.body = self.get_metadata()
             return event
 
         # check for legal path prefix
         if urlpath and not urlpath.startswith(self.url_prefix) and not urlpath == "/":
-            raise ValueError(f"illegal path prefix {urlpath}, must start with {self.url_prefix}")
+            raise ValueError(
+                f"illegal path prefix {urlpath}, must start with {self.url_prefix}"
+            )
         return event
 
     def do_event(self, event, *args, **kwargs):
@@ -267,7 +271,9 @@ class ParallelRun(BaseModelRouter):
             fn = mlrun.new_function("parallel", kind="serving")
             graph = fn.set_topology(
                 "router",
-                mlrun.serving.routers.ParallelRun(extend_event=True, executor_type=executor),
+                mlrun.serving.routers.ParallelRun(
+                    extend_event=True, executor_type=executor
+                ),
             )
             graph.add_route("child1", class_name="Cls1")
             graph.add_route("child2", class_name="Cls2", my_arg={"c": 7})
@@ -340,7 +346,9 @@ class ParallelRun(BaseModelRouter):
 
         # Should we terminate the event?
         if hasattr(event, "terminated") and event.terminated:
-            event.body = _update_result_body(self._result_path, original_body, event.body)
+            event.body = _update_result_body(
+                self._result_path, original_body, event.body
+            )
             self._shutdown_pool()
             return event
 
@@ -349,12 +357,16 @@ class ParallelRun(BaseModelRouter):
         self._apply_logic(results, response)
         response = self.postprocess(response)
 
-        event.body = _update_result_body(self._result_path, original_body, response.body if response else None)
+        event.body = _update_result_body(
+            self._result_path, original_body, response.body if response else None
+        )
         return event
 
     def _init_pool(
         self,
-    ) -> Union[concurrent.futures.ProcessPoolExecutor, concurrent.futures.ThreadPoolExecutor]:
+    ) -> Union[
+        concurrent.futures.ProcessPoolExecutor, concurrent.futures.ThreadPoolExecutor
+    ]:
         """
 
         Get the tasks pool of this runner. If the pool is `None`,
@@ -409,13 +421,18 @@ class ParallelRun(BaseModelRouter):
         """
         results = {}
         if self.executor_type == ParallelRunnerModes.array:
-            results = {model_name: model.run(copy.copy(event)).body for model_name, model in self.routes.items()}
+            results = {
+                model_name: model.run(copy.copy(event)).body
+                for model_name, model in self.routes.items()
+            }
             return results
         futures = []
         executor = self._init_pool()
         for route in self.routes.keys():
             if self.executor_type == ParallelRunnerModes.process:
-                future = executor.submit(ParallelRun._wrap_step, route, copy.copy(event))
+                future = executor.submit(
+                    ParallelRun._wrap_step, route, copy.copy(event)
+                )
             elif self.executor_type == ParallelRunnerModes.thread:
                 step = self.routes[route]
                 future = executor.submit(
@@ -579,7 +596,11 @@ class VotingEnsemble(ParallelRun):
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
         self.weights = weights
-        self._model_logger = _ModelLogPusher(self, context) if context and context.stream.enabled else None
+        self._model_logger = (
+            _ModelLogPusher(self, context)
+            if context and context.stream.enabled
+            else None
+        )
         self.version = kwargs.get("version", "v1")
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
@@ -587,7 +608,9 @@ class VotingEnsemble(ParallelRun):
         self.model_endpoint_uid = None
 
     def post_init(self, mode="sync"):
-        server = getattr(self.context, "_server", None) or getattr(self.context, "server", None)
+        server = getattr(self.context, "_server", None) or getattr(
+            self.context, "server", None
+        )
         if not server:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
@@ -695,7 +718,9 @@ class VotingEnsemble(ParallelRun):
         # Create 3d matrix (n,c,m) - m the number of models,
         # c the number of classes and n the number of samples
         one_hot_representation = np.transpose(
-            (np.arange(all_predictions.max() + 1) == all_predictions[..., None]).astype(int),
+            (np.arange(all_predictions.max() + 1) == all_predictions[..., None]).astype(
+                int
+            ),
             (0, 2, 1),
         )
         # Each 2d matrix multiply by the weights, and
@@ -734,7 +759,10 @@ class VotingEnsemble(ParallelRun):
             if all(
                 [
                     all(response)
-                    for response in [list(map(self._is_int, prediction_array)) for prediction_array in predictions]
+                    for response in [
+                        list(map(self._is_int, prediction_array))
+                        for prediction_array in predictions
+                    ]
                 ]
             ):
                 self.vote_type = VotingTypes.classification
@@ -747,7 +775,9 @@ class VotingEnsemble(ParallelRun):
             self.vote_flag = True
         # Apply voting logic
         if self.vote_type == VotingTypes.classification:
-            int_predictions = [list(map(int, sample_predictions)) for sample_predictions in predictions]
+            int_predictions = [
+                list(map(int, sample_predictions)) for sample_predictions in predictions
+            ]
             self.context.logger.debug(f"Applying max logic vote on {predictions}")
             votes = self._majority_vote(int_predictions, weights)
         else:
@@ -802,7 +832,9 @@ class VotingEnsemble(ParallelRun):
 
         # Should we terminate the event?
         if hasattr(event, "terminated") and event.terminated:
-            event.body = _update_result_body(self._result_path, original_body, event.body)
+            event.body = _update_result_body(
+                self._result_path, original_body, event.body
+            )
 
             self._shutdown_pool()
             return event
@@ -821,7 +853,9 @@ class VotingEnsemble(ParallelRun):
                 "models": list(self.routes.keys()) + [self.name],
                 "weights": self.weights,
             }
-            event.body = _update_result_body(self._result_path, original_body, event.body)
+            event.body = _update_result_body(
+                self._result_path, original_body, event.body
+            )
             return event
         else:
             # Verify we use the V2 protocol
@@ -854,8 +888,13 @@ class VotingEnsemble(ParallelRun):
                 }
                 for route in self.routes.values():
                     response_random_route = route.run(copy.copy(event))
-                    response_body["inputs"] = response_body["inputs"] or response_random_route.body["inputs"]
-                    response_body["outputs"] = response_body["outputs"] or response_random_route.body["outputs"]
+                    response_body["inputs"] = (
+                        response_body["inputs"] or response_random_route.body["inputs"]
+                    )
+                    response_body["outputs"] = (
+                        response_body["outputs"]
+                        or response_random_route.body["outputs"]
+                    )
                     if response_body["inputs"] and response_body["outputs"]:
                         break
                 response.body = response_body
@@ -869,7 +908,9 @@ class VotingEnsemble(ParallelRun):
             if "id" not in request:
                 request["id"] = response.body["id"]
             self._model_logger.push(start, request, response.body)
-        event.body = _update_result_body(self._result_path, original_body, response.body if response else None)
+        event.body = _update_result_body(
+            self._result_path, original_body, response.body if response else None
+        )
         return event
 
     def extract_results_from_response(self, response):
@@ -950,7 +991,9 @@ class VotingEnsemble(ParallelRun):
                 self._weights[model] = 0
 
 
-def _init_endpoint_record(graph_server: GraphServer, voting_ensemble: VotingEnsemble) -> Union[str, None]:
+def _init_endpoint_record(
+    graph_server: GraphServer, voting_ensemble: VotingEnsemble
+) -> Union[str, None]:
     """
     Initialize model endpoint record and write it into the DB. In general, this method retrieve the unique model
     endpoint ID which is generated according to the function uri and the model version. If the model endpoint is
@@ -968,7 +1011,9 @@ def _init_endpoint_record(graph_server: GraphServer, voting_ensemble: VotingEnse
     # Generate required values for the model endpoint record
     try:
         # Getting project name from the function uri
-        project, uri, tag, hash_key = parse_versioned_object_uri(graph_server.function_uri)
+        project, uri, tag, hash_key = parse_versioned_object_uri(
+            graph_server.function_uri
+        )
     except Exception as e:
         logger.error("Failed to parse function URI", exc=err_to_str(e))
         return None
@@ -985,7 +1030,9 @@ def _init_endpoint_record(graph_server: GraphServer, voting_ensemble: VotingEnse
     ).uid
 
     try:
-        model_ep = mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=endpoint_uid)
+        model_ep = mlrun.get_run_db().get_model_endpoint(
+            project=project, endpoint_id=endpoint_uid
+        )
     except mlrun.errors.MLRunNotFoundError:
         model_ep = None
     except mlrun.errors.MLRunBadRequestError as err:
@@ -1002,7 +1049,9 @@ def _init_endpoint_record(graph_server: GraphServer, voting_ensemble: VotingEnse
             if hasattr(c, "endpoint_uid"):
                 children_uids.append(c.endpoint_uid)
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata=mlrun.common.schemas.ModelEndpointMetadata(project=project, uid=endpoint_uid),
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                project=project, uid=endpoint_uid
+            ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_uri=graph_server.function_uri,
                 model=versioned_model_name,
@@ -1028,8 +1077,12 @@ def _init_endpoint_record(graph_server: GraphServer, voting_ensemble: VotingEnse
 
         # Update model endpoint children type
         for model_endpoint in children_uids:
-            current_endpoint = db.get_model_endpoint(project=project, endpoint_id=model_endpoint)
-            current_endpoint.status.endpoint_type = mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            current_endpoint = db.get_model_endpoint(
+                project=project, endpoint_id=model_endpoint
+            )
+            current_endpoint.status.endpoint_type = (
+                mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            )
             db.create_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint,
@@ -1037,7 +1090,10 @@ def _init_endpoint_record(graph_server: GraphServer, voting_ensemble: VotingEnse
             )
     elif (
         model_ep
-        and (model_ep.spec.monitoring_mode == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled)
+        and (
+            model_ep.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        )
         != voting_ensemble.context.server.track_models
     ):
         monitoring_mode = (
@@ -1124,7 +1180,9 @@ class EnrichmentModelRouter(ModelRouter):
         from ..feature_store import get_feature_vector
 
         super().post_init(mode)
-        self._feature_service = get_feature_vector(self.feature_vector_uri).get_online_feature_service(
+        self._feature_service = get_feature_vector(
+            self.feature_vector_uri
+        ).get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 
@@ -1132,7 +1190,9 @@ class EnrichmentModelRouter(ModelRouter):
         """Turn an entity identifier (source) to a Feature Vector"""
         if isinstance(event.body, (str, bytes)):
             event.body = json.loads(event.body)
-        event.body["inputs"] = self._feature_service.get(event.body["inputs"], as_list=True)
+        event.body["inputs"] = self._feature_service.get(
+            event.body["inputs"], as_list=True
+        )
         return event
 
 
@@ -1266,7 +1326,9 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         from ..feature_store import get_feature_vector
 
         super().post_init(mode)
-        self._feature_service = get_feature_vector(self.feature_vector_uri).get_online_feature_service(
+        self._feature_service = get_feature_vector(
+            self.feature_vector_uri
+        ).get_online_feature_service(
             impute_policy=self.impute_policy,
         )
 
@@ -1274,5 +1336,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         """Turn an entity identifier (source) to a Feature Vector"""
         if isinstance(event.body, (str, bytes)):
             event.body = json.loads(event.body)
-        event.body["inputs"] = self._feature_service.get(event.body["inputs"], as_list=True)
+        event.body["inputs"] = self._feature_service.get(
+            event.body["inputs"], as_list=True
+        )
         return event

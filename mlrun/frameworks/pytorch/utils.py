@@ -75,7 +75,9 @@ class PyTorchUtils(DLUtils):
         # Convert and return:
         if value_type in conversion_map:
             return conversion_map[value_type]
-        raise mlrun.errors.MLRunInvalidArgumentError(f"The ValueType given is not supported in torch: '{value_type}'.")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"The ValueType given is not supported in torch: '{value_type}'."
+        )
 
     @staticmethod
     def convert_torch_dtype_to_value_type(torch_dtype: Union[torch.dtype, str]) -> str:

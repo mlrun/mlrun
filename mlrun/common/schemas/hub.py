@@ -106,7 +106,9 @@ class HubItemMetadata(HubObjectMetadata):
             version = self.tag or self.version
             return f"{modified_name}/{version}/"
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Bad source for hub item - {self.source}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Bad source for hub item - {self.source}"
+            )
 
 
 class HubItemSpec(ObjectSpec):

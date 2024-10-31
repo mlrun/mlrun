@@ -39,7 +39,9 @@ class LRUCache:
             self.misses = 0
             self.currsize = 0
 
-    def __init__(self, func, maxsize: int = 128, ignore_args_for_hash: list[int] = None):
+    def __init__(
+        self, func, maxsize: int = 128, ignore_args_for_hash: list[int] = None
+    ):
         """
         Initialize an lru cache instance
         :param func: The function that gets the actual value
@@ -108,5 +110,9 @@ class LRUCache:
         return key in self.cache
 
     def _gen_key(self, args, kwargs) -> str:
-        args_for_hash = [arg for idx, arg in enumerate(args) if idx not in self.ignored_args]
-        return hashlib.sha256(f"{args_for_hash}/{sorted(kwargs.items())}".encode()).hexdigest()
+        args_for_hash = [
+            arg for idx, arg in enumerate(args) if idx not in self.ignored_args
+        ]
+        return hashlib.sha256(
+            f"{args_for_hash}/{sorted(kwargs.items())}".encode()
+        ).hexdigest()

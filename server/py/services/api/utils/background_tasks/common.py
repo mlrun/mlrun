@@ -26,7 +26,8 @@ def background_task_exceeded_timeout(start_time, timeout, task_state) -> bool:
     if (
         timeout
         and task_state not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-        and datetime.datetime.utcnow() > datetime.timedelta(seconds=int(timeout)) + start_time
+        and datetime.datetime.utcnow()
+        > datetime.timedelta(seconds=int(timeout)) + start_time
     ):
         return True
     return False

@@ -35,7 +35,9 @@ def resolve_mpijob_crd_version():
     if not cached_mpijob_crd_version:
         # try to resolve the crd version with K8s API
         # backoff to use default if needed
-        mpijob_crd_version = _resolve_mpijob_crd_version_best_effort() or MPIJobCRDVersions.default()
+        mpijob_crd_version = (
+            _resolve_mpijob_crd_version_best_effort() or MPIJobCRDVersions.default()
+        )
 
         if mpijob_crd_version not in MPIJobCRDVersions.all():
             raise ValueError(

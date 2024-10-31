@@ -50,8 +50,10 @@ class Member(
     def initialize(self):
         logger.info("Initializing projects follower")
         self._should_sync = (
-            mlrun.mlconf.httpdb.clusterization.role == mlrun.common.schemas.ClusterizationRole.chief
-            and mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync == "enabled"
+            mlrun.mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+            and mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync
+            == "enabled"
         )
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
@@ -64,7 +66,9 @@ class Member(
                 )
             self._sync_session = mlrun.mlconf.httpdb.projects.iguazio_access_key
         elif self._leader_name == "nop":
-            self._leader_client = services.api.utils.projects.remotes.nop_leader.Member()
+            self._leader_client = (
+                services.api.utils.projects.remotes.nop_leader.Member()
+            )
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
@@ -109,18 +113,24 @@ class Member(
         commit_before_get: bool = False,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._validate_project(project)
-        if services.api.utils.helpers.is_request_from_leader(projects_role, leader_name=self._leader_name):
+        if services.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             services.api.crud.Projects().create_project(db_session, project)
             return project, False
         else:
-            is_running_in_background = self._leader_client.create_project(leader_session, project, wait_for_completion)
+            is_running_in_background = self._leader_client.create_project(
+                leader_session, project, wait_for_completion
+            )
             created_project = None
             if not is_running_in_background:
                 # not running in background means long-project creation operation might stale
                 # its db session, so we need to create a new one
                 # https://jira.iguazeng.com/browse/ML-5764
-                created_project = services.api.db.session.run_function_with_new_db_session(
-                    self.get_project, project.metadata.name, leader_session
+                created_project = (
+                    services.api.db.session.run_function_with_new_db_session(
+                        self.get_project, project.metadata.name, leader_session
+                    )
                 )
             return created_project, is_running_in_background
 
@@ -134,7 +144,9 @@ class Member(
         wait_for_completion: bool = True,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
         self._validate_project(project)
-        if services.api.utils.helpers.is_request_from_leader(projects_role, leader_name=self._leader_name):
+        if services.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             services.api.crud.Projects().store_project(db_session, name, project)
             return project, False
         else:
@@ -165,7 +177,9 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if services.api.utils.helpers.is_request_from_leader(projects_role, leader_name=self._leader_name):
+        if services.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
             raise NotImplementedError("Patch operation not supported from leader")
         else:
@@ -194,7 +208,9 @@ class Member(
         background_task_name: str = None,
         model_monitoring_access_key: str = None,
     ) -> bool:
-        if services.api.utils.helpers.is_request_from_leader(projects_role, leader_name=self._leader_name):
+        if services.api.utils.helpers.is_request_from_leader(
+            projects_role, leader_name=self._leader_name
+        ):
             services.api.crud.Projects().delete_project(
                 session=db_session,
                 name=name,
@@ -226,7 +242,9 @@ class Member(
             return self._leader_client.get_project(leader_session, name)
 
         # format_ is relevant for cases where we want to get the project from mlrun db
-        projects = self.list_projects(db_session, format_=format_, leader_session=leader_session, names=[name]).projects
+        projects = self.list_projects(
+            db_session, format_=format_, leader_session=leader_session, names=[name]
+        ).projects
         if not projects:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
         return projects[0]
@@ -252,14 +270,21 @@ class Member(
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
             format_ == mlrun.common.formatters.ProjectFormat.leader
-            and not services.api.utils.helpers.is_request_from_leader(projects_role, leader_name=self._leader_name)
+            and not services.api.utils.helpers.is_request_from_leader(
+                projects_role, leader_name=self._leader_name
+            )
         ):
-            raise mlrun.errors.MLRunAccessDeniedError("Leader format is allowed only to the leader")
+            raise mlrun.errors.MLRunAccessDeniedError(
+                "Leader format is allowed only to the leader"
+            )
 
-        projects_output = services.api.crud.Projects().list_projects(db_session, owner, format_, labels, state, names)
+        projects_output = services.api.crud.Projects().list_projects(
+            db_session, owner, format_, labels, state, names
+        )
         if format_ == mlrun.common.formatters.ProjectFormat.leader:
             leader_projects = [
-                self._leader_client.format_as_leader_project(project) for project in projects_output.projects
+                self._leader_client.format_as_leader_project(project)
+                for project in projects_output.projects
             ]
             projects_output.projects = leader_projects
         return projects_output
@@ -274,7 +299,9 @@ class Member(
         leader_session: typing.Optional[str] = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
-        return await services.api.crud.Projects().list_project_summaries(db_session, owner, labels, state, names)
+        return await services.api.crud.Projects().list_project_summaries(
+            db_session, owner, labels, state, names
+        )
 
     async def get_project_summary(
         self,
@@ -301,7 +328,9 @@ class Member(
 
     @services.api.utils.helpers.ensure_running_on_chief
     def _stop_periodic_sync(self):
-        services.api.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
+        services.api.utils.periodic.cancel_periodic_function(
+            self._sync_projects.__name__
+        )
 
     @services.api.utils.helpers.ensure_running_on_chief
     def _sync_projects(self, full_sync=False):
@@ -318,7 +347,9 @@ class Member(
             self._store_projects_from_leader(db_session, db_projects, leader_projects)
 
             if full_sync:
-                self._archive_projects_missing_from_leader(db_session, db_projects, leader_projects)
+                self._archive_projects_missing_from_leader(
+                    db_session, db_projects, leader_projects
+                )
 
             self._update_latest_synced_datetime(latest_updated_at)
         finally:
@@ -332,7 +363,9 @@ class Member(
         except Exception:
             # if we failed to get projects from the leader, we'll try get all the
             # projects without the updated_at filter
-            leader_projects, latest_updated_at = self._leader_client.list_projects(self._sync_session)
+            leader_projects, latest_updated_at = self._leader_client.list_projects(
+                self._sync_session
+            )
         return leader_projects, latest_updated_at
 
     def _store_projects_from_leader(self, db_session, db_projects, leader_projects):
@@ -343,16 +376,21 @@ class Member(
         filtered_projects = []
         for leader_project in leader_projects:
             if (
-                leader_project.status.state not in mlrun.common.schemas.ProjectState.terminal_states()
+                leader_project.status.state
+                not in mlrun.common.schemas.ProjectState.terminal_states()
                 and leader_project.metadata.name not in db_projects_names
-            ) or self._project_deletion_background_task_exists(leader_project.metadata.name):
+            ) or self._project_deletion_background_task_exists(
+                leader_project.metadata.name
+            ):
                 continue
             filtered_projects.append(leader_project)
 
         for project in filtered_projects:
             # if a project was previously archived, it's state will be overriden by the leader
             # and returned to normal here.
-            services.api.crud.Projects().store_project(db_session, project.metadata.name, project)
+            services.api.crud.Projects().store_project(
+                db_session, project.metadata.name, project
+            )
 
     @staticmethod
     def _project_deletion_background_task_exists(project_name):
@@ -373,10 +411,14 @@ class Member(
             ]
         )
 
-    def _archive_projects_missing_from_leader(self, db_session, db_projects, leader_projects):
+    def _archive_projects_missing_from_leader(
+        self, db_session, db_projects, leader_projects
+    ):
         logger.info("Performing full sync")
         leader_project_names = [project.metadata.name for project in leader_projects]
-        projects_to_archive = {project.metadata.name: project for project in db_projects.projects}
+        projects_to_archive = {
+            project.metadata.name: project for project in db_projects.projects
+        }
         for project_name in leader_project_names:
             if project_name in projects_to_archive:
                 del projects_to_archive[project_name]
@@ -387,7 +429,9 @@ class Member(
                 name=project_to_archive,
             )
             try:
-                projects_to_archive[project_to_archive].status.state = mlrun.common.schemas.ProjectState.archived
+                projects_to_archive[
+                    project_to_archive
+                ].status.state = mlrun.common.schemas.ProjectState.archived
                 services.api.crud.Projects().patch_project(
                     db_session,
                     project_to_archive,

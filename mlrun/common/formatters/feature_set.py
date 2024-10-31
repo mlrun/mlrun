@@ -27,5 +27,7 @@ class FeatureSetFormat(ObjectFormat, mlrun.common.types.StrEnum):
     def format_method(_format: str) -> typing.Optional[typing.Callable]:
         return {
             FeatureSetFormat.full: None,
-            FeatureSetFormat.minimal: FeatureSetFormat.filter_obj_method(["kind", "metadata", "spec", "status.state"]),
+            FeatureSetFormat.minimal: FeatureSetFormat.filter_obj_method(
+                ["kind", "metadata", "spec", "status.state"]
+            ),
         }[_format]

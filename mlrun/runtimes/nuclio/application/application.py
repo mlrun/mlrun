@@ -129,7 +129,8 @@ class ApplicationSpec(NuclioSpec):
         self.max_replicas = max_replicas or 1
 
         self.internal_application_port = (
-            internal_application_port or mlrun.mlconf.function.application.default_sidecar_internal_port
+            internal_application_port
+            or mlrun.mlconf.function.application.default_sidecar_internal_port
         )
 
     @property
@@ -226,15 +227,21 @@ class ApplicationRuntime(RemoteRuntime):
     def pre_deploy_validation(self):
         super().pre_deploy_validation()
         if not self.spec.config.get("spec.sidecars"):
-            raise mlrun.errors.MLRunBadRequestError("Application spec must include a sidecar configuration")
+            raise mlrun.errors.MLRunBadRequestError(
+                "Application spec must include a sidecar configuration"
+            )
 
         sidecars = self.spec.config["spec.sidecars"]
         for sidecar in sidecars:
             if not sidecar.get("image"):
-                raise mlrun.errors.MLRunBadRequestError("Application sidecar spec must include an image")
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Application sidecar spec must include an image"
+                )
 
             if not sidecar.get("ports"):
-                raise mlrun.errors.MLRunBadRequestError("Application sidecar spec must include at least one port")
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Application sidecar spec must include at least one port"
+                )
 
             ports = sidecar["ports"]
             for port in ports:
@@ -244,7 +251,9 @@ class ApplicationRuntime(RemoteRuntime):
                     )
 
                 if not port.get("name"):
-                    raise mlrun.errors.MLRunBadRequestError("Application sidecar port spec must include a name")
+                    raise mlrun.errors.MLRunBadRequestError(
+                        "Application sidecar port spec must include a name"
+                    )
 
             if not sidecar.get("command") and sidecar.get("args"):
                 raise mlrun.errors.MLRunBadRequestError(
@@ -315,7 +324,9 @@ class ApplicationRuntime(RemoteRuntime):
         self._configure_application_sidecar()
 
         # We only allow accessing the application via the API Gateway
-        self.spec.add_templated_ingress_host_mode = NuclioIngressAddTemplatedIngressModes.never
+        self.spec.add_templated_ingress_host_mode = (
+            NuclioIngressAddTemplatedIngressModes.never
+        )
 
         super().deploy(
             project=project,
@@ -442,15 +453,22 @@ class ApplicationRuntime(RemoteRuntime):
         :return:                        The API gateway URL
         """
         if not name:
-            raise mlrun.errors.MLRunInvalidArgumentError("API gateway name must be specified.")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "API gateway name must be specified."
+            )
 
         if not set_as_default and name == self.resolve_default_api_gateway_name():
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Non-default API gateway cannot use the default gateway name, {name=}."
             )
 
-        if authentication_mode == schemas.APIGatewayAuthenticationMode.basic and not authentication_creds:
-            raise mlrun.errors.MLRunInvalidArgumentError("Authentication credentials not provided")
+        if (
+            authentication_mode == schemas.APIGatewayAuthenticationMode.basic
+            and not authentication_creds
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Authentication credentials not provided"
+            )
 
         ports = self.spec.internal_application_port if direct_port_access else []
 
@@ -476,14 +494,19 @@ class ApplicationRuntime(RemoteRuntime):
             api_gateway.with_force_ssl_redirect()
 
         # Add authentication if required
-        authentication_mode = authentication_mode or mlrun.mlconf.function.application.default_authentication_mode
+        authentication_mode = (
+            authentication_mode
+            or mlrun.mlconf.function.application.default_authentication_mode
+        )
         if authentication_mode == schemas.APIGatewayAuthenticationMode.access_key:
             api_gateway.with_access_key_auth()
         elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
             api_gateway.with_basic_auth(*authentication_creds)
 
         db = self._get_db()
-        api_gateway_scheme = db.store_api_gateway(api_gateway=api_gateway.to_scheme(), project=self.metadata.project)
+        api_gateway_scheme = db.store_api_gateway(
+            api_gateway=api_gateway.to_scheme(), project=self.metadata.project
+        )
 
         if set_as_default:
             self.status.api_gateway_name = api_gateway_scheme.metadata.name
@@ -530,10 +553,14 @@ class ApplicationRuntime(RemoteRuntime):
 
         # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
         if not self.status.api_gateway:
-            logger.warning("Default API gateway is not configured, invoking function invocation URL.")
+            logger.warning(
+                "Default API gateway is not configured, invoking function invocation URL."
+            )
             # create a requests auth object if credentials are provided and not already set in the http client kwargs
             auth = http_client_kwargs.pop("auth", None) or (
-                nuclio.auth.AuthInfo(username=credentials[0], password=credentials[1]).to_requests_auth()
+                nuclio.auth.AuthInfo(
+                    username=credentials[0], password=credentials[1]
+                ).to_requests_auth()
                 if credentials
                 else None
             )
@@ -573,7 +600,9 @@ class ApplicationRuntime(RemoteRuntime):
         """
         # create a function that includes only the reverse proxy, without the application
 
-        reverse_proxy_func = mlrun.run.new_function(name="reverse-proxy-temp", kind="remote")
+        reverse_proxy_func = mlrun.run.new_function(
+            name="reverse-proxy-temp", kind="remote"
+        )
         # default max replicas is 4, we only need one replica for the reverse proxy
         reverse_proxy_func.spec.max_replicas = 1
 
@@ -589,16 +618,24 @@ class ApplicationRuntime(RemoteRuntime):
         cls.reverse_proxy_image = reverse_proxy_func.status.container_image
 
         # delete the function to avoid cluttering the project
-        mlrun.get_run_db().delete_function(reverse_proxy_func.metadata.name, reverse_proxy_func.metadata.project)
+        mlrun.get_run_db().delete_function(
+            reverse_proxy_func.metadata.name, reverse_proxy_func.metadata.project
+        )
 
     def resolve_default_api_gateway_name(self):
-        return f"{self.metadata.name}-{self.metadata.tag}" if self.metadata.tag else self.metadata.name
+        return (
+            f"{self.metadata.name}-{self.metadata.tag}"
+            if self.metadata.tag
+            else self.metadata.name
+        )
 
     @min_nuclio_versions("1.13.1")
     def disable_default_http_trigger(
         self,
     ):
-        raise mlrun.runtimes.RunError("Application runtime does not support disabling the default HTTP trigger")
+        raise mlrun.runtimes.RunError(
+            "Application runtime does not support disabling the default HTTP trigger"
+        )
 
     @min_nuclio_versions("1.13.1")
     def enable_default_http_trigger(
@@ -607,7 +644,9 @@ class ApplicationRuntime(RemoteRuntime):
         pass
 
     def _run(self, runobj: "mlrun.RunObject", execution):
-        raise mlrun.runtimes.RunError("Application runtime .run() is not yet supported. Use .invoke() instead.")
+        raise mlrun.runtimes.RunError(
+            "Application runtime .run() is not yet supported. Use .invoke() instead."
+        )
 
     def _enrich_command_from_status(self):
         pass
@@ -662,22 +701,32 @@ class ApplicationRuntime(RemoteRuntime):
             handler=handler,
         )
         function.spec.function_handler = mlrun.utils.get_in(spec, "spec.handler")
-        function.spec.build.functionSourceCode = mlrun.utils.get_in(spec, "spec.build.functionSourceCode")
+        function.spec.build.functionSourceCode = mlrun.utils.get_in(
+            spec, "spec.build.functionSourceCode"
+        )
         function.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
 
         # default the reverse proxy logger level to info
         logger_sinks_key = "spec.loggerSinks"
         if not function.spec.config.get(logger_sinks_key):
-            function.set_config(logger_sinks_key, [{"level": "info", "sink": "myStdoutLoggerSink"}])
+            function.set_config(
+                logger_sinks_key, [{"level": "info", "sink": "myStdoutLoggerSink"}]
+            )
 
     def _configure_application_sidecar(self):
         # Save the application image in the status to allow overriding it with the reverse proxy entry point
-        if self.spec.image and (not self.status.application_image or self.spec.image != self.status.container_image):
+        if self.spec.image and (
+            not self.status.application_image
+            or self.spec.image != self.status.container_image
+        ):
             self.status.application_image = self.spec.image
             self.spec.image = ""
 
         # reuse the reverse proxy image if it was built before
-        if reverse_proxy_image := self.status.container_image or self.reverse_proxy_image:
+        if (
+            reverse_proxy_image := self.status.container_image
+            or self.reverse_proxy_image
+        ):
             self.from_image(reverse_proxy_image)
 
         self.status.sidecar_name = f"{self.metadata.name}-sidecar"
@@ -692,14 +741,18 @@ class ApplicationRuntime(RemoteRuntime):
         self.set_env("SIDECAR_HOST", "http://localhost")
 
         # configure the sidecar container as the default container for logging purposes
-        self.metadata.annotations["kubectl.kubernetes.io/default-container"] = self.status.sidecar_name
+        self.metadata.annotations["kubectl.kubernetes.io/default-container"] = (
+            self.status.sidecar_name
+        )
 
     def _sync_api_gateway(self):
         if not self.status.api_gateway_name:
             return
 
         db = self._get_db()
-        api_gateway_scheme = db.get_api_gateway(name=self.status.api_gateway_name, project=self.metadata.project)
+        api_gateway_scheme = db.get_api_gateway(
+            name=self.status.api_gateway_name, project=self.metadata.project
+        )
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url

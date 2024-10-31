@@ -202,7 +202,8 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
         # Validate that if the prediction probabilities are required, this model has the 'predict_proba' method:
         if (
-            self._producer.is_probabilities_required() or self._mlrun_estimator.is_probabilities_required()
+            self._producer.is_probabilities_required()
+            or self._mlrun_estimator.is_probabilities_required()
         ) and not hasattr(self, "predict_proba"):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Some of the metrics and or artifacts required to be calculated and produced require prediction "
@@ -222,7 +223,9 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         """
         self._producer.produce_stage(stage=MLPlanStages.PRE_FIT, model=self, x=x, y=y)
 
-    def _post_fit(self, x: SKLearnTypes.DatasetType, y: SKLearnTypes.DatasetType = None):
+    def _post_fit(
+        self, x: SKLearnTypes.DatasetType, y: SKLearnTypes.DatasetType = None
+    ):
         """
         Method for creating the artifacts after the fit method. If a validation set is available, the method will start
         a validation process calling predict - creating and calculating validation artifacts and metrics.
@@ -277,7 +280,9 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         self._mlrun_estimator.set_mode(mode=LoggingMode.EVALUATION)
 
         # Produce and log all the artifacts pre prediction:
-        self._producer.produce_stage(stage=MLPlanStages.PRE_PREDICT, model=self, x=x, y=y)
+        self._producer.produce_stage(
+            stage=MLPlanStages.PRE_PREDICT, model=self, x=x, y=y
+        )
 
     def _post_predict(
         self,
@@ -306,11 +311,14 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         )
 
         # Calculate and log the metrics results:
-        self._mlrun_estimator.estimate(y_true=y, y_pred=y_pred, is_probabilities=is_predict_proba)
+        self._mlrun_estimator.estimate(
+            y_true=y, y_pred=y_pred, is_probabilities=is_predict_proba
+        )
 
         # If some metrics and / or plans require probabilities, run 'predict_proba':
         if not is_predict_proba and (
-            self._producer.is_probabilities_required() or self._mlrun_estimator.is_probabilities_required()
+            self._producer.is_probabilities_required()
+            or self._mlrun_estimator.is_probabilities_required()
         ):
             y_pred_proba = self.predict_proba(x)
             self._producer.produce_stage(
@@ -321,7 +329,9 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
                 y=y,
                 y_pred=y_pred_proba,
             )
-            self._mlrun_estimator.estimate(y_true=y, y_pred=y_pred_proba, is_probabilities=True)
+            self._mlrun_estimator.estimate(
+                y_true=y, y_pred=y_pred_proba, is_probabilities=True
+            )
 
         # If its part of validation post training, return:
         if self._producer.mode == LoggingMode.TRAINING:

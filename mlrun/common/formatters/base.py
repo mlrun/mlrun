@@ -55,7 +55,9 @@ class ObjectFormat:
         """
         exclude_formats = exclude_formats or []
         format_ = format_ or cls.full
-        invalid_format_exc = mlrun.errors.MLRunBadRequestError(f"Provided format is not supported. format={format_}")
+        invalid_format_exc = mlrun.errors.MLRunBadRequestError(
+            f"Provided format is not supported. format={format_}"
+        )
 
         if format_ in exclude_formats:
             raise invalid_format_exc
@@ -96,11 +98,15 @@ class ObjectFormat:
                 for idx, key in enumerate(key_list):
                     if key not in obj_recursive_iterator:
                         break
-                    value = {} if idx < len(key_list) - 1 else obj_recursive_iterator[key]
+                    value = (
+                        {} if idx < len(key_list) - 1 else obj_recursive_iterator[key]
+                    )
                     formatted_obj_recursive_iterator.setdefault(key, value)
 
                     obj_recursive_iterator = obj_recursive_iterator[key]
-                    formatted_obj_recursive_iterator = formatted_obj_recursive_iterator[key]
+                    formatted_obj_recursive_iterator = formatted_obj_recursive_iterator[
+                        key
+                    ]
 
             return formatted_obj
 

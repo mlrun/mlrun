@@ -41,8 +41,12 @@ class TestArtifactTags:
         tag = "tag1"
         overwrite_tag = "tag2"
         artifact1_labels = {"artifact_name": "artifact1"}
-        _, _, artifact1_name, _, artifact1_key, _, _ = self._store_artifact(client, tag=tag, labels=artifact1_labels)
-        _, _, artifact2_name, _, artifact2_key, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact1_name, _, artifact1_key, _, _ = self._store_artifact(
+            client, tag=tag, labels=artifact1_labels
+        )
+        _, _, artifact2_name, _, artifact2_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._overwrite_artifact_tags(
             client=client,
@@ -53,10 +57,14 @@ class TestArtifactTags:
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact2_name
 
-        response_body = self._list_artifacts_and_assert(client, tag=overwrite_tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=overwrite_tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_overwrite_artifact_tags_by_tree_identifier(
@@ -70,7 +78,9 @@ class TestArtifactTags:
             client,
             tag=tag,
         )
-        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._overwrite_artifact_tags(
             client=client,
@@ -81,10 +91,14 @@ class TestArtifactTags:
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact2_name
 
-        response_body = self._list_artifacts_and_assert(client, tag=overwrite_tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=overwrite_tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_overwrite_artifact_tags_by_multiple_tree_identifiers(
@@ -98,7 +112,9 @@ class TestArtifactTags:
             client,
             tag=tag,
         )
-        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._overwrite_artifact_tags(
             client=client,
@@ -112,7 +128,9 @@ class TestArtifactTags:
 
         self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
 
-        response_body = self._list_artifacts_and_assert(client, tag=overwrite_tag, expected_number_of_artifacts=2)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=overwrite_tag, expected_number_of_artifacts=2
+        )
         for artifact in response_body["artifacts"]:
             assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
@@ -124,8 +142,12 @@ class TestArtifactTags:
         tag = "tag1"
         overwrite_tag = "tag2"
         artifact1_labels = {"artifact_name": "artifact1"}
-        _, _, artifact1_name, _, artifact1_key, _, _ = self._store_artifact(client, tag=tag, labels=artifact1_labels)
-        _, _, artifact2_name, _, artifact2_key, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact1_name, _, artifact1_key, _, _ = self._store_artifact(
+            client, tag=tag, labels=artifact1_labels
+        )
+        _, _, artifact2_name, _, artifact2_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._overwrite_artifact_tags(
             client=client,
@@ -139,7 +161,9 @@ class TestArtifactTags:
 
         self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
 
-        response_body = self._list_artifacts_and_assert(client, tag=overwrite_tag, expected_number_of_artifacts=2)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=overwrite_tag, expected_number_of_artifacts=2
+        )
         for artifact in response_body["artifacts"]:
             assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
@@ -154,7 +178,9 @@ class TestArtifactTags:
         _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
             client, tag=tag, labels=artifact1_labels
         )
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._append_artifact_tag(
             client=client,
@@ -165,11 +191,15 @@ class TestArtifactTags:
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=2)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=2
+        )
         for artifact in response_body["artifacts"]:
             assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
-        response_body = self._list_artifacts_and_assert(client, tag=new_tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=new_tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_append_artifact_tags_by_tree_identifier_latest(
@@ -194,20 +224,28 @@ class TestArtifactTags:
             artifact1_key,
             _,
             _,
-        ) = self._store_artifact(client, tag=tag, tree="latest", labels=artifact1_labels)
+        ) = self._store_artifact(
+            client, tag=tag, tree="latest", labels=artifact1_labels
+        )
         response = self._append_artifact_tag(
             client=client,
             tag=new_tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key, producer_id=artifact1_tree),
+                mlrun.common.schemas.ArtifactIdentifier(
+                    key=artifact1_key, producer_id=artifact1_tree
+                ),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
-        response_body = self._list_artifacts_and_assert(client, tag=new_tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=new_tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_create_and_append_artifact_tags_with_invalid_characters(
@@ -248,20 +286,28 @@ class TestArtifactTags:
             artifact1_key,
             _,
             _,
-        ) = self._store_artifact(client, tag=valid_tag_name, tree=tree, labels=artifact1_labels)
+        ) = self._store_artifact(
+            client, tag=valid_tag_name, tree=tree, labels=artifact1_labels
+        )
 
         response = self._append_artifact_tag(
             client=client,
             tag=invalid_tag_name,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(key=artifact1_key, producer_id=artifact1_tree),
+                mlrun.common.schemas.ArtifactIdentifier(
+                    key=artifact1_key, producer_id=artifact1_tree
+                ),
             ],
         )
         assert response.status_code == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
 
-        self._list_artifacts_and_assert(client, tag=invalid_tag_name, expected_number_of_artifacts=0)
+        self._list_artifacts_and_assert(
+            client, tag=invalid_tag_name, expected_number_of_artifacts=0
+        )
 
-        self._list_artifacts_and_assert(client, tag=valid_tag_name, expected_number_of_artifacts=1)
+        self._list_artifacts_and_assert(
+            client, tag=valid_tag_name, expected_number_of_artifacts=1
+        )
 
     def test_overwrite_artifact_tags_with_invalid_characters(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -278,14 +324,18 @@ class TestArtifactTags:
             client=client,
             tag=invalid_tag_name,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(key=artifact_key, uid=artifact_uid),
+                mlrun.common.schemas.ArtifactIdentifier(
+                    key=artifact_key, uid=artifact_uid
+                ),
             ],
         )
 
         assert response.status_code == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
 
         # make sure the original tag was not deleted
-        self._list_artifacts_and_assert(client, tag=valid_tag_name, expected_number_of_artifacts=1)
+        self._list_artifacts_and_assert(
+            client, tag=valid_tag_name, expected_number_of_artifacts=1
+        )
 
     def test_delete_artifact_tags_with_invalid_characters(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -306,18 +356,24 @@ class TestArtifactTags:
                 artifact_key,
                 _,
                 _,
-            ) = self._store_artifact(client, tag=invalid_tag_name, tree="latest", labels=artifact_labels)
+            ) = self._store_artifact(
+                client, tag=invalid_tag_name, tree="latest", labels=artifact_labels
+            )
 
         response = self._delete_artifact_tag(
             client=client,
             tag=invalid_tag_name,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(key=artifact_key, producer_id=artifact_tree),
+                mlrun.common.schemas.ArtifactIdentifier(
+                    key=artifact_key, producer_id=artifact_tree
+                ),
             ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
-        self._list_artifacts_and_assert(client, tag=invalid_tag_name, expected_number_of_artifacts=0)
+        self._list_artifacts_and_assert(
+            client, tag=invalid_tag_name, expected_number_of_artifacts=0
+        )
 
     def test_append_artifact_tags_by_uid_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -330,7 +386,9 @@ class TestArtifactTags:
             client,
             tag=tag,
         )
-        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact2_name, artifact2_tree, _, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._append_artifact_tag(
             client=client,
@@ -341,11 +399,15 @@ class TestArtifactTags:
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=2)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=2
+        )
         for artifact in response_body["artifacts"]:
             assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
-        response_body = self._list_artifacts_and_assert(client, tag=new_tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=new_tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_append_artifact_tags_by_multiple_key_identifiers(
@@ -359,7 +421,9 @@ class TestArtifactTags:
         _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
             client, tag=tag, labels=artifact1_labels
         )
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._append_artifact_tag(
             client=client,
@@ -371,15 +435,21 @@ class TestArtifactTags:
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=2)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=2
+        )
         for artifact in response_body["artifacts"]:
             assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
-        response_body = self._list_artifacts_and_assert(client, tag=new_tag, expected_number_of_artifacts=2)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=new_tag, expected_number_of_artifacts=2
+        )
         for artifact in response_body["artifacts"]:
             assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
-    def test_append_artifact_existing_tag(self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+    def test_append_artifact_existing_tag(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
         self._create_project(client)
 
         tag = "tag1"
@@ -387,7 +457,9 @@ class TestArtifactTags:
         _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
             client, tag=tag, labels=artifact1_labels
         )
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._append_artifact_tag(
             client=client,
@@ -398,7 +470,9 @@ class TestArtifactTags:
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=2)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=2
+        )
         for artifact in response_body["artifacts"]:
             assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
@@ -413,7 +487,9 @@ class TestArtifactTags:
             client, tag=tag, labels=artifact1_labels
         )
 
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._delete_artifact_tag(
             client=client,
@@ -424,7 +500,9 @@ class TestArtifactTags:
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact2_name
 
     def test_delete_artifact_tag_by_uid_identifier(
@@ -461,7 +539,9 @@ class TestArtifactTags:
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
-        response_body = self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=1)
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact2_name
 
     def test_delete_artifact_tag_by_multiple_key_identifiers(
@@ -474,7 +554,9 @@ class TestArtifactTags:
         _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
             client, tag=tag, labels=artifact1_labels
         )
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(client, tag=tag)
+        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
 
         response = self._delete_artifact_tag(
             client=client,
@@ -495,8 +577,12 @@ class TestArtifactTags:
 
         tag = "tag1"
         artifact1_labels = {"artifact_name": "artifact1"}
-        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(client, labels=artifact1_labels)
-        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(client)
+        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+            client, labels=artifact1_labels
+        )
+        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+            client
+        )
 
         self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
 
@@ -558,7 +644,11 @@ class TestArtifactTags:
         return {
             "kind": "artifact",
             "identifiers": [
-                (identifier.dict() if isinstance(identifier, mlrun.common.schemas.ArtifactIdentifier) else identifier)
+                (
+                    identifier.dict()
+                    if isinstance(identifier, mlrun.common.schemas.ArtifactIdentifier)
+                    else identifier
+                )
                 for identifier in identifiers
             ],
         }
@@ -585,10 +675,16 @@ class TestArtifactTags:
             artifact_tag = mlrun.utils.get_in_artifact(artifact, "tag")
             assert artifact_tag == expected_tag
 
-    def _create_project(self, client: fastapi.testclient.TestClient, project_name: str = None):
+    def _create_project(
+        self, client: fastapi.testclient.TestClient, project_name: str = None
+    ):
         project = mlrun.common.schemas.Project(
-            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name or self.project),
-            spec=mlrun.common.schemas.ProjectSpec(description="banana", source="source", goals="some goals"),
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=project_name or self.project
+            ),
+            spec=mlrun.common.schemas.ProjectSpec(
+                description="banana", source="source", goals="some goals"
+            ),
         )
         response = client.post(API_PROJECTS_PATH, json=project.dict())
         assert response.status_code == http.HTTPStatus.CREATED.value
@@ -597,7 +693,9 @@ class TestArtifactTags:
     def _list_artifacts(self, client, project: str = None, tag: str = None):
         project = project or self.project
         if tag:
-            return client.get(API_ARTIFACTS_PATH_WITH_TAG.format(project=project, tag=tag))
+            return client.get(
+                API_ARTIFACTS_PATH_WITH_TAG.format(project=project, tag=tag)
+            )
         return client.get(API_ARTIFACTS_PATH.format(project=project))
 
     def _store_artifact(
@@ -628,7 +726,9 @@ class TestArtifactTags:
             data["metadata"]["labels"] = labels
 
         response = client.post(
-            STORE_API_ARTIFACTS_PATH.format(project=project or self.project, uid=tree, key=key, tag=tag),
+            STORE_API_ARTIFACTS_PATH.format(
+                project=project or self.project, uid=tree, key=key, tag=tag
+            ),
             data=json.dumps(data),
         )
         assert response.status_code == expected_status_code

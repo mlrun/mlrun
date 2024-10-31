@@ -57,7 +57,9 @@ def test_transform_list_filters_to_tuple(additional_filters, message):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
             transform_list_filters_to_tuple(additional_filters)
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
-            transform_list_filters_to_tuple(additional_filters=back_from_json_serialization)
+            transform_list_filters_to_tuple(
+                additional_filters=back_from_json_serialization
+            )
     else:
         transform_list_filters_to_tuple(additional_filters)
         result = transform_list_filters_to_tuple(back_from_json_serialization)

@@ -47,7 +47,9 @@ def _gen_dropdown_buttons(output_cols) -> list:
     return buttons
 
 
-def _gen_dimensions(df: pd.DataFrame, col: str, prefix: str = None, is_index=False) -> dict:
+def _gen_dimensions(
+    df: pd.DataFrame, col: str, prefix: str = None, is_index=False
+) -> dict:
     """
     Computes the plotting dimensions of each parameter/output col according to its type.
     :param df: Dataframe containing the data to be plotted
@@ -149,7 +151,9 @@ def gen_pcp_plot(
         # Appending to list
         data.append(
             go.Parcoords(
-                line=dict(color=source_df[index_col], colorscale=colorscale or "viridis"),
+                line=dict(
+                    color=source_df[index_col], colorscale=colorscale or "viridis"
+                ),
                 dimensions=dimensions,
                 visible=visibility,
             )

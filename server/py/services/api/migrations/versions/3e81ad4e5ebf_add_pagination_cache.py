@@ -37,7 +37,9 @@ def upgrade():
         "pagination_cache",
         sa.Column("key", sa.String(length=255, collation="utf8_bin"), nullable=False),
         sa.Column("user", sa.String(length=255, collation="utf8_bin"), nullable=True),
-        sa.Column("function", sa.String(length=255, collation="utf8_bin"), nullable=True),
+        sa.Column(
+            "function", sa.String(length=255, collation="utf8_bin"), nullable=True
+        ),
         sa.Column("current_page", sa.Integer(), nullable=True),
         sa.Column("page_size", sa.Integer(), nullable=True),
         sa.Column("kwargs", sa.JSON(), nullable=True),

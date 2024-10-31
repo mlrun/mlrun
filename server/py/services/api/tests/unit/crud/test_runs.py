@@ -56,7 +56,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
 
         k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
         with (
-            unittest.mock.patch.object(k8s_helper.v1api, "delete_namespaced_pod") as delete_namespaced_pod_mock,
+            unittest.mock.patch.object(
+                k8s_helper.v1api, "delete_namespaced_pod"
+            ) as delete_namespaced_pod_mock,
             unittest.mock.patch.object(
                 k8s_helper.v1api,
                 "list_namespaced_pod",
@@ -125,11 +127,15 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
 
         k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
         with (
-            unittest.mock.patch.object(k8s_helper.v1api, "delete_namespaced_pod") as delete_namespaced_pod_mock,
+            unittest.mock.patch.object(
+                k8s_helper.v1api, "delete_namespaced_pod"
+            ) as delete_namespaced_pod_mock,
             unittest.mock.patch.object(
                 k8s_helper.v1api,
                 "list_namespaced_pod",
-                return_value=k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
+                return_value=k8s_client.V1PodList(
+                    items=[], metadata=k8s_client.V1ListMeta()
+                ),
             ),
             unittest.mock.patch.object(
                 services.api.runtime_handlers.BaseRuntimeHandler,
@@ -140,7 +146,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                 "delete_logs",
             ) as delete_logs_mock,
         ):
-            await services.api.crud.Runs().delete_runs(db, name=run_name, project=project)
+            await services.api.crud.Runs().delete_runs(
+                db, name=run_name, project=project
+            )
             runs = services.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 0
             delete_namespaced_pod_mock.assert_not_called()
@@ -197,7 +205,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
             ) as delete_logs_mock,
         ):
             with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
-                await services.api.crud.Runs().delete_runs(db, name=run_name, project=project)
+                await services.api.crud.Runs().delete_runs(
+                    db, name=run_name, project=project
+                )
             assert "Failed to delete 1 run(s). Error: Boom!" in str(exc.value)
             assert delete_logs_mock.call_count == 2
 
@@ -231,7 +241,10 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
             await services.api.crud.Runs().delete_run(db, "uid", 0, project)
 
-        assert f"Can not delete run in {run_state} state, consider aborting the run first" in str(exc.value)
+        assert (
+            f"Can not delete run in {run_state} state, consider aborting the run first"
+            in str(exc.value)
+        )
 
     def test_run_abortion_failure(self, db: sqlalchemy.orm.Session):
         project = "project-name"
@@ -425,7 +438,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
 
         self._validate_run_artifacts(artifacts, db, project, run_uid)
 
-    def test_get_workflow_run_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session):
+    def test_get_workflow_run_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session
+    ):
         project = "project-name"
         run_uid = str(uuid.uuid4())
         workflow_uid = str(uuid.uuid4())
@@ -463,7 +478,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         self._validate_run_artifacts(artifacts, db, project, run_uid)
 
     @pytest.mark.parametrize("workflow_id", [None, str(uuid.uuid4())])
-    def test_get_run_iteration_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session, workflow_id):
+    def test_get_run_iteration_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session, workflow_id
+    ):
         project = "project-name"
         run_uid = str(uuid.uuid4())
         workflow_uid = workflow_id
@@ -503,7 +520,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
 
         self._validate_run_artifacts(artifacts, db, project, run_uid, iter)
 
-    def test_get_workflow_run_best_iteration_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session):
+    def test_get_workflow_run_best_iteration_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session
+    ):
         project = "project-name"
         run_uid = str(uuid.uuid4())
         workflow_uid = str(uuid.uuid4())
@@ -587,13 +606,19 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
             project=project,
         )
 
-        self._validate_run_artifacts(best_iteration_artifacts + parent_run_arts, db, project, run_uid)
+        self._validate_run_artifacts(
+            best_iteration_artifacts + parent_run_arts, db, project, run_uid
+        )
 
     @pytest.mark.parametrize("workflow_uid", [None, str(uuid.uuid4())])
-    def test_get_run_restore_artifacts_metadata_with_missing_artifact(self, db: sqlalchemy.orm.Session, workflow_uid):
+    def test_get_run_restore_artifacts_metadata_with_missing_artifact(
+        self, db: sqlalchemy.orm.Session, workflow_uid
+    ):
         project = "project-name"
         run_uid = str(uuid.uuid4())
-        artifacts = self._generate_artifacts(project, run_uid, workflow_uid, artifacts_len=3)
+        artifacts = self._generate_artifacts(
+            project, run_uid, workflow_uid, artifacts_len=3
+        )
 
         # Create only 2 artifacts
         for artifact in artifacts[:2]:
@@ -636,7 +661,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
             mlrun.common.formatters.RunFormat.standard,
         ],
     )
-    def test_run_formats(self, db: sqlalchemy.orm.Session, run_format: mlrun.common.formatters.RunFormat):
+    def test_run_formats(
+        self, db: sqlalchemy.orm.Session, run_format: mlrun.common.formatters.RunFormat
+    ):
         project = "project-name"
         run_uid = str(uuid.uuid4())
         artifacts = self._generate_artifacts(project, run_uid)
@@ -668,7 +695,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         expected_artifacts = artifacts
         if run_format == mlrun.common.formatters.RunFormat.standard:
             expected_artifacts = []
-        self._validate_run_artifacts(expected_artifacts, db, project, run_uid, run_format=run_format)
+        self._validate_run_artifacts(
+            expected_artifacts, db, project, run_uid, run_format=run_format
+        )
 
     def test_get_workflow_run_no_artifacts(self, db: sqlalchemy.orm.Session):
         project = "project-name"
@@ -678,7 +707,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         iter = 0
 
         # Create some artifacts with different producer id
-        artifacts = self._generate_artifacts(project, str(uuid.uuid4()), str(uuid.uuid4()), artifacts_len=3)
+        artifacts = self._generate_artifacts(
+            project, str(uuid.uuid4()), str(uuid.uuid4()), artifacts_len=3
+        )
 
         for artifact in artifacts:
             services.api.crud.Artifacts().store_artifact(
@@ -881,7 +912,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         def sort_by_key(e):
             return e["metadata"]["key"]
 
-        assert len(enriched_artifacts) == len(artifacts), "Number of artifacts is different"
+        assert len(enriched_artifacts) == len(
+            artifacts
+        ), "Number of artifacts is different"
         enriched_artifacts.sort(key=sort_by_key)
         artifacts.sort(key=sort_by_key)
         for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):

@@ -92,7 +92,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         cls._replace_functions(obj=obj, functions=restoration[2])
 
     @classmethod
-    def remove_interface(cls, obj: CommonTypes.MLRunInterfaceableType) -> CommonTypes.MLRunInterfaceRestorationType:
+    def remove_interface(
+        cls, obj: CommonTypes.MLRunInterfaceableType
+    ) -> CommonTypes.MLRunInterfaceRestorationType:
         """
         Remove the MLRun features from the given object. The properties and replaced attributes found in the object will
         be returned.
@@ -185,7 +187,11 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
             properties = {}
 
         # Verify the provided properties are supported by this interface (noted in the interface '_PROPERTIES'):
-        error_properties = [property_name for property_name in properties if property_name not in cls._PROPERTIES]
+        error_properties = [
+            property_name
+            for property_name in properties
+            if property_name not in cls._PROPERTIES
+        ]
         assert not error_properties, (
             f"The following properties provided to insert to the object are not supported by this interface: "
             f"{error_properties}"
@@ -199,7 +205,11 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
                 f"name."
             )
             # Insert the property to the object prioritizing given values over default ones:
-            value = properties[property_name] if property_name in properties else copy.copy(default_value)
+            value = (
+                properties[property_name]
+                if property_name in properties
+                else copy.copy(default_value)
+            )
             setattr(obj, property_name, value)
 
     @classmethod
@@ -227,7 +237,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
             setattr(obj, function_name, func)
 
     @classmethod
-    def _replace_properties(cls, obj: CommonTypes.MLRunInterfaceableType, properties: dict[str, Any] = None):
+    def _replace_properties(
+        cls, obj: CommonTypes.MLRunInterfaceableType, properties: dict[str, Any] = None
+    ):
         """
         Replace the properties of the given object according to the configuration in the MLRun interface.
 
@@ -245,7 +257,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
             # Verify the provided properties are supported by this interface (noted in the interface's
             # '_REPLACED_PROPERTIES' dictionary):
             error_properties = [
-                property_name for property_name in properties if property_name not in cls._REPLACED_PROPERTIES
+                property_name
+                for property_name in properties
+                if property_name not in cls._REPLACED_PROPERTIES
             ]
             assert not error_properties, (
                 f"The following properties provided to be replace in the object are not supported by this "
@@ -267,7 +281,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
             )
 
     @classmethod
-    def _replace_functions(cls, obj: CommonTypes.MLRunInterfaceableType, functions: list[str] = None):
+    def _replace_functions(
+        cls, obj: CommonTypes.MLRunInterfaceableType, functions: list[str] = None
+    ):
         """
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
 
@@ -284,7 +300,8 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
             error_functions = [
                 function_name
                 for function_name in functions
-                if function_name not in [*cls._REPLACED_METHODS, *cls._REPLACED_FUNCTIONS]
+                if function_name
+                not in [*cls._REPLACED_METHODS, *cls._REPLACED_FUNCTIONS]
             ]
             assert not error_functions, (
                 f"The following functions / methods provided to be replace in the object are not supported by this "
@@ -335,7 +352,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         setattr(obj, property_name, property_value)
 
     @classmethod
-    def _replace_function(cls, obj: CommonTypes.MLRunInterfaceableType, function_name: str):
+    def _replace_function(
+        cls, obj: CommonTypes.MLRunInterfaceableType, function_name: str
+    ):
         """
         Replace the method / function in the object with the configured method / function in this interface. The
         original method / function will be stored in a backup attribute with the prefix noted in
@@ -373,7 +392,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         setattr(obj, function_name, replacing_function)
 
     @classmethod
-    def _restore_attribute(cls, obj: CommonTypes.MLRunInterfaceableType, attribute_name: str):
+    def _restore_attribute(
+        cls, obj: CommonTypes.MLRunInterfaceableType, attribute_name: str
+    ):
         """
         Restore the replaced attribute (property, method or function) in the object, removing the backup attribute as
         well.
@@ -428,9 +449,15 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
 
         # Check in the arguments, inspecting the function's parameters to get the right index:
         func_parameters = {
-            parameter_name: i for i, parameter_name in enumerate(inspect.signature(func).parameters.keys())
+            parameter_name: i
+            for i, parameter_name in enumerate(
+                inspect.signature(func).parameters.keys()
+            )
         }
-        if argument_name in func_parameters and len(passed_args) >= func_parameters[argument_name] + 1:
+        if (
+            argument_name in func_parameters
+            and len(passed_args) >= func_parameters[argument_name] + 1
+        ):
             return (
                 passed_args[func_parameters[argument_name]],
                 func_parameters[argument_name],

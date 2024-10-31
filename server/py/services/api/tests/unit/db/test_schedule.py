@@ -84,7 +84,9 @@ def test_calculate_schedules_counters(db: DBInterface, db_session: Session):
         db_session,
         project="project1",
         name="job1",
-        labels={mlrun_constants.MLRunInternalLabels.kind: mlrun.runtimes.RuntimeKinds.job},
+        labels={
+            mlrun_constants.MLRunInternalLabels.kind: mlrun.runtimes.RuntimeKinds.job
+        },
         kind=mlrun.common.schemas.ScheduleKinds.job,
         cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
         next_run_time=next_minute,

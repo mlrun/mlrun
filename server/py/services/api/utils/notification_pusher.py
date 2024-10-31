@@ -31,15 +31,21 @@ from mlrun.utils.notifications.notification_pusher import (
 
 
 class RunNotificationPusher(NotificationPusher):
-    def _prepare_notification_args(self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification):
+    def _prepare_notification_args(
+        self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification
+    ):
         """
         Prepare notification arguments for the notification pusher.
         In the server side implementation, we need to mask the notification parameters on the task as they are
         unmasked to extract the credentials required to send the notification.
         """
-        message, severity, runs = super()._prepare_notification_args(run, notification_object)
+        message, severity, runs = super()._prepare_notification_args(
+            run, notification_object
+        )
         for run in runs:
-            services.api.api.utils.mask_notification_params_on_task(run, services.api.constants.MaskOperations.REDACT)
+            services.api.api.utils.mask_notification_params_on_task(
+                run, services.api.constants.MaskOperations.REDACT
+            )
 
         return message, severity, runs
 
@@ -60,10 +66,14 @@ class AlertNotificationPusher(_NotificationPusherBase):
         async def async_push():
             tasks = []
             for notification_data in alert.notifications:
-                notification_object = mlrun.model.Notification.from_dict(notification_data.notification.dict())
+                notification_object = mlrun.model.Notification.from_dict(
+                    notification_data.notification.dict()
+                )
 
-                notification_object = services.api.api.utils.unmask_notification_params_secret(
-                    alert.project, notification_object
+                notification_object = (
+                    services.api.api.utils.unmask_notification_params_secret(
+                        alert.project, notification_object
+                    )
                 )
 
                 name = notification_object.name
@@ -109,7 +119,9 @@ class AlertNotificationPusher(_NotificationPusherBase):
             name=alert.name,
         )
         try:
-            await notification.push(message, severity, alert=alert, event_data=event_data)
+            await notification.push(
+                message, severity, alert=alert, event_data=event_data
+            )
             logger.debug(
                 "Notification sent successfully",
                 notification=notification_object,
@@ -144,7 +156,11 @@ class AlertNotificationPusher(_NotificationPusherBase):
         alert: mlrun.common.schemas.AlertConfig,
         notification_object: mlrun.common.schemas.Notification,
     ):
-        message = f": {notification_object.message}" if notification_object.message else alert.summary
+        message = (
+            f": {notification_object.message}"
+            if notification_object.message
+            else alert.summary
+        )
 
         severity = alert.severity
         return message, severity

@@ -83,16 +83,23 @@ async def delete_function(
         # when deleting a function, we should also delete its schedules if exists
         # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
         # and we are running in worker, we send the request to the chief client
-        if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
             logger.info(
                 "Function has a schedule, deleting",
                 function=name,
                 project=project,
             )
             chief_client = services.api.utils.clients.chief.Client()
-            await chief_client.delete_schedule(project=project, name=name, request=request)
+            await chief_client.delete_schedule(
+                project=project, name=name, request=request
+            )
         else:
-            await run_in_threadpool(get_scheduler().delete_schedule, db_session, project, name)
+            await run_in_threadpool(
+                get_scheduler().delete_schedule, db_session, project, name
+            )
     task = await run_in_threadpool(
         services.api.api.utils.create_function_deletion_background_task,
         background_tasks,

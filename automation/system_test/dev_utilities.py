@@ -82,7 +82,9 @@ def create_ingress_resource(domain_name, ipadd):
         - {domain_name}
         secretName: ingress-tls
     """
-    subprocess.run(["kubectl", "apply", "-f", "-"], input=yaml_manifest.encode(), check=True)
+    subprocess.run(
+        ["kubectl", "apply", "-f", "-"], input=yaml_manifest.encode(), check=True
+    )
 
 
 def get_ingress_controller_version():
@@ -195,7 +197,9 @@ def install_redisinsight(ipadd):
             {"name": "RITRUSTEDORIGINS", "value": pfull_domain},
             {"name": "RIPROXYENABLE", "value": "true"},
         ]
-        add_env_to_deployment(namespace="devtools", deployment_name=deployment_name, env_vars=env_vars)
+        add_env_to_deployment(
+            namespace="devtools", deployment_name=deployment_name, env_vars=env_vars
+        )
         clean_command = "rm -rf redisinsight-chart-0.1.0.tgz*"
         subprocess.run(clean_command, shell=True)
     else:
@@ -211,7 +215,9 @@ def install_redisinsight(ipadd):
 @click.option("--ipadd", default="localhost", help="IP address as string")
 def install(redis, kafka, mysql, redisinsight, ipadd):
     # Check if the local-path storage class exists
-    output, exit_code = run_command("kubectl get storageclass local-path >/dev/null 2>&1")
+    output, exit_code = run_command(
+        "kubectl get storageclass local-path >/dev/null 2>&1"
+    )
     if exit_code != 0:
         # Install the local-path provisioner
         cmd = (
@@ -227,7 +233,9 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
             )
             output, exit_code = run_command(cmd)
             if exit_code == 0:
-                print("local-path storage class has been installed and set as the default.")
+                print(
+                    "local-path storage class has been installed and set as the default."
+                )
             else:
                 print(f"Error setting local-path storage class as default: {output}")
         else:

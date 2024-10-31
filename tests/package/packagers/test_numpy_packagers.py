@@ -87,7 +87,9 @@ def test_formatter_single_array(obj: np.ndarray, file_format: str):
     "file_format",
     NumPySupportedFormat.get_multi_array_formats(),
 )
-@pytest.mark.parametrize("save_kwargs", [{"is_compressed": boolean_value} for boolean_value in [True, False]])
+@pytest.mark.parametrize(
+    "save_kwargs", [{"is_compressed": boolean_value} for boolean_value in [True, False]]
+)
 def test_formatter_multiple_arrays(
     obj: Union[dict[str, np.ndarray], list[np.ndarray]],
     file_format: str,

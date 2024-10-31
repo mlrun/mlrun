@@ -35,11 +35,15 @@ def get_db_session() -> typing.Generator[Session, None, None]:
 
 
 async def authenticate_request(request: Request) -> mlrun.common.schemas.AuthInfo:
-    return await services.api.utils.auth.verifier.AuthVerifier().authenticate_request(request)
+    return await services.api.utils.auth.verifier.AuthVerifier().authenticate_request(
+        request
+    )
 
 
 def verify_api_state(request: Request):
-    path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(request.scope)
+    path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
+        request.scope
+    )
     path = path_with_query_string.split("?")[0]
     if mlrun.mlconf.httpdb.state == mlrun.common.schemas.APIStates.offline:
         enabled_endpoints = [
@@ -65,13 +69,19 @@ def verify_api_state(request: Request):
             "memory-reports",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
-            message = mlrun.common.schemas.APIStates.description(mlrun.mlconf.httpdb.state)
+            message = mlrun.common.schemas.APIStates.description(
+                mlrun.mlconf.httpdb.state
+            )
             raise mlrun.errors.MLRunPreconditionFailedError(message)
 
 
 def expose_internal_endpoints(request: Request):
     if not mlrun.mlconf.debug.expose_internal_api_endpoints:
-        path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(request.scope)
+        path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
+            request.scope
+        )
         path = path_with_query_string.split("?")[0]
         if "/_internal" in path:
-            raise mlrun.errors.MLRunPreconditionFailedError("Internal endpoints are not exposed")
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Internal endpoints are not exposed"
+            )

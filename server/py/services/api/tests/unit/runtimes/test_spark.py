@@ -41,7 +41,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
 
-    def _generate_runtime(self, set_resources: bool = True) -> mlrun.runtimes.Spark3Runtime:
+    def _generate_runtime(
+        self, set_resources: bool = True
+    ) -> mlrun.runtimes.Spark3Runtime:
         runtime = mlrun.runtimes.Spark3Runtime()
         runtime.spec.image = self.image_name
         if set_resources:
@@ -60,7 +62,10 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         else:
             assert "javaOptions" not in body["spec"]["driver"]
         if expected_executor_java_options:
-            assert body["spec"]["executor"]["javaOptions"] == expected_executor_java_options
+            assert (
+                body["spec"]["executor"]["javaOptions"]
+                == expected_executor_java_options
+            )
         else:
             assert "javaOptions" not in body["spec"]["executor"]
 
@@ -74,9 +79,14 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         if expected_job_node_selector:
             assert body["spec"]["nodeSelector"] == expected_job_node_selector
         if expected_driver_node_selector:
-            assert body["spec"]["driver"]["nodeSelector"] == expected_driver_node_selector
+            assert (
+                body["spec"]["driver"]["nodeSelector"] == expected_driver_node_selector
+            )
         if expected_executor_node_selector:
-            assert body["spec"]["executor"]["nodeSelector"] == expected_executor_node_selector
+            assert (
+                body["spec"]["executor"]["nodeSelector"]
+                == expected_executor_node_selector
+            )
 
     @staticmethod
     def _assert_cores(body: dict, expected_cores: dict):
@@ -112,12 +122,16 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             expected_executor_volume_mounts,
         )
 
-        self._assert_java_options(body, expected_driver_java_options, expected_executor_java_options)
+        self._assert_java_options(
+            body, expected_driver_java_options, expected_executor_java_options
+        )
 
         if expected_driver_resources:
             self._assert_resources(body["spec"]["driver"], expected_driver_resources)
         if expected_executor_resources:
-            self._assert_resources(body["spec"]["executor"], expected_executor_resources)
+            self._assert_resources(
+                body["spec"]["executor"], expected_executor_resources
+            )
 
         if expected_cores:
             self._assert_cores(body["spec"], expected_cores)
@@ -152,7 +166,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
                 == {}
             )
         if expected_driver_volume_mounts is not None:
-            sanitized_driver_volume_mounts = self._sanitize_list_for_serialization(expected_driver_volume_mounts)
+            sanitized_driver_volume_mounts = self._sanitize_list_for_serialization(
+                expected_driver_volume_mounts
+            )
             assert (
                 deepdiff.DeepDiff(
                     body["spec"]["driver"]["volumeMounts"],
@@ -163,7 +179,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
                 == {}
             )
         if expected_executor_volume_mounts is not None:
-            sanitized_executor_volume_mounts = self._sanitize_list_for_serialization(expected_executor_volume_mounts)
+            sanitized_executor_volume_mounts = self._sanitize_list_for_serialization(
+                expected_executor_volume_mounts
+            )
             assert (
                 deepdiff.DeepDiff(
                     body["spec"]["executor"]["volumeMounts"],
@@ -182,7 +200,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
     def _assert_requests(actual: dict, expected: dict):
         assert actual.get("coreRequest", None) == expected.get("cpu", None)
         assert actual.get("memory", None) == expected.get("mem", None)
-        assert actual.get("serviceAccount", None) == expected.get("serviceAccount", "sparkapp")
+        assert actual.get("serviceAccount", None) == expected.get(
+            "serviceAccount", "sparkapp"
+        )
 
     @staticmethod
     def _assert_limits(actual: dict, expected: dict):
@@ -198,12 +218,18 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         body = self._get_custom_object_creation_body()
 
         if expected_driver_security_context:
-            assert body["spec"]["driver"].get("securityContext") == expected_driver_security_context
+            assert (
+                body["spec"]["driver"].get("securityContext")
+                == expected_driver_security_context
+            )
         else:
             assert body["spec"]["driver"].get("securityContext") is None
 
         if expected_executor_security_context:
-            assert body["spec"]["executor"].get("securityContext") == expected_executor_security_context
+            assert (
+                body["spec"]["executor"].get("securityContext")
+                == expected_executor_security_context
+            )
         else:
             assert body["spec"]["executor"].get("securityContext") is None
 
@@ -213,7 +239,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
     ):
         body = self._get_custom_object_creation_body()
         if expected_image_pull_secret:
-            assert body["spec"].get("imagePullSecrets") == mlrun.utils.helpers.as_list(expected_image_pull_secret)
+            assert body["spec"].get("imagePullSecrets") == mlrun.utils.helpers.as_list(
+                expected_image_pull_secret
+            )
         else:
             assert body["spec"].get("imagePullSecrets") is None
 
@@ -221,7 +249,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         kubernetes_api_client = kubernetes.client.ApiClient()
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))
 
-    def test_deploy_default_image_without_limits(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
+    def test_deploy_default_image_without_limits(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
         mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         runtime.spec.image = None
@@ -234,8 +264,12 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
 
-    def test_run_with_default_resources(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+    def test_run_with_default_resources(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
 
         expected_executor_resources = {
             "requests": {"cpu": "1", "mem": "5g"},
@@ -259,8 +293,12 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
-    def test_run_with_limits_and_requests(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+    def test_run_with_limits_and_requests(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
 
         expected_executor_resources = {
             "requests": {"cpu": "1", "mem": "1G", "serviceAccount": "executorsa"},
@@ -291,8 +329,12 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
-    def test_run_with_conflicting_limits_and_requests(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+    def test_run_with_conflicting_limits_and_requests(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
 
         runtime.spec.service_account = "executorsa"
         runtime.with_executor_requests(cpu="1", mem="1G")
@@ -304,19 +346,31 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             self.execute_function(runtime)
 
-    def test_run_with_invalid_requests(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+    def test_run_with_invalid_requests(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
         with pytest.raises(ValueError):
             # Java notation applies to spark-operator memory requests
             runtime.with_driver_requests(mem="2Gi", cpu="3")
 
-    def test_run_with_invalid_limits(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+    def test_run_with_invalid_limits(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
         with pytest.raises(ValueError):
             runtime.with_driver_limits(cpu="not a number", gpus=1)
 
-    def test_run_with_limits_and_requests_patch_true(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+    def test_run_with_limits_and_requests_patch_true(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
 
         runtime.with_executor_limits(cpu="3")
         runtime.with_executor_requests(cpu="1", mem="1G")
@@ -349,8 +403,12 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
-    def test_run_with_limits_and_requests_patch_false(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+    def test_run_with_limits_and_requests_patch_false(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
         runtime.with_driver_requests(cpu="2")
         runtime.with_driver_limits(cpu="3", gpus=1)
 
@@ -484,14 +542,18 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         driver_node_selector,
         executor_node_selector,
     ):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
 
         run_db = mlrun.get_run_db()
         project = run_db.get_project(self.project)
         project.spec.default_function_node_selector = project_node_selector
         run_db.store_project(self.project, project)
 
-        mlrun.mlconf.default_function_node_selector = base64.b64encode(json.dumps(config_node_selector).encode("utf-8"))
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(config_node_selector).encode("utf-8")
+        )
 
         runtime.with_node_selection(node_selector=function_node_selector)
         runtime.with_executor_node_selection(node_selector=executor_node_selector)
@@ -506,17 +568,29 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             {
                 **config_node_selector,
                 **project_node_selector,
-                **(function_node_selector if driver_node_selector is None else driver_node_selector),
+                **(
+                    function_node_selector
+                    if driver_node_selector is None
+                    else driver_node_selector
+                ),
             },
             {
                 **config_node_selector,
                 **project_node_selector,
-                **(function_node_selector if executor_node_selector is None else executor_node_selector),
+                **(
+                    function_node_selector
+                    if executor_node_selector is None
+                    else executor_node_selector
+                ),
             },
         )
 
-    def test_explicit_node_selector_for_function_applied_correctly(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+    def test_explicit_node_selector_for_function_applied_correctly(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
         function_node_selector = {"function-label": "function-val"}
         # This test verifies that directly setting the node selector on the runtime object,
         # instead of using the `with_node_selection` method, correctly applies the function node selector
@@ -525,10 +599,14 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
 
         self.execute_function(runtime)
         body = self._get_custom_object_creation_body()
-        self._assert_merged_node_selectors(body, {}, function_node_selector, function_node_selector)
+        self._assert_merged_node_selectors(
+            body, {}, function_node_selector, function_node_selector
+        )
 
     def test_with_node_selection_invalid_ns(self):
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(set_resources=False)
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
         function_node_selector = {"function-label": "function=val"}
         with pytest.warns(
             Warning,
@@ -536,11 +614,15 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         ):
             runtime.with_node_selection(node_selector=function_node_selector)
 
-    def test_run_with_host_path_volume(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
+    def test_run_with_host_path_volume(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         shared_volume = kubernetes.client.V1Volume(
             name="shared-volume",
-            host_path=kubernetes.client.V1HostPathVolumeSource(path="/shared-volume-host-path", type=""),
+            host_path=kubernetes.client.V1HostPathVolumeSource(
+                path="/shared-volume-host-path", type=""
+            ),
         )
         shared_volume_driver_volume_mount = kubernetes.client.V1VolumeMount(
             mount_path="/shared-volume-driver-mount-path", name=shared_volume.name
@@ -550,14 +632,18 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         )
         driver_volume = kubernetes.client.V1Volume(
             name="driver-volume",
-            host_path=kubernetes.client.V1HostPathVolumeSource(path="/driver-volume-host-path", type=""),
+            host_path=kubernetes.client.V1HostPathVolumeSource(
+                path="/driver-volume-host-path", type=""
+            ),
         )
         driver_volume_volume_mount = kubernetes.client.V1VolumeMount(
             mount_path="/driver-mount-path", name=driver_volume.name
         )
         executor_volume = kubernetes.client.V1Volume(
             name="executor-volume",
-            host_path=kubernetes.client.V1HostPathVolumeSource(path="/executor-volume-host-path", type=""),
+            host_path=kubernetes.client.V1HostPathVolumeSource(
+                path="/executor-volume-host-path", type=""
+            ),
         )
         executor_volume_volume_mount = kubernetes.client.V1VolumeMount(
             mount_path="/executor-mount-path", name=executor_volume.name
@@ -629,7 +715,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         runtime = self._generate_runtime()
         if expect_failure:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                runtime.with_cores(executor_cores=executor_cores, driver_cores=driver_cores)
+                runtime.with_cores(
+                    executor_cores=executor_cores, driver_cores=driver_cores
+                )
             return
         else:
             runtime.with_cores(executor_cores=executor_cores, driver_cores=driver_cores)
@@ -677,21 +765,37 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
 
         self.execute_function(runtime)
         user_added_executor_volume_mounts = [
-            kubernetes.client.V1VolumeMount(mount_path="/before", name="path-volume-before"),
-            kubernetes.client.V1VolumeMount(mount_path="/after", name="path-volume-after"),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/before", name="path-volume-before"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/after", name="path-volume-after"
+            ),
         ]
         common_volume_mounts = [
             kubernetes.client.V1VolumeMount(mount_path="/dev/shm", name="shm"),
-            kubernetes.client.V1VolumeMount(mount_path="/var/run/iguazio/dayman", name="v3iod-comm"),
-            kubernetes.client.V1VolumeMount(mount_path="/var/run/iguazio/daemon_health", name="daemon-health"),
-            kubernetes.client.V1VolumeMount(mount_path="/etc/config/v3io", name="v3io-config"),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/var/run/iguazio/dayman", name="v3iod-comm"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/var/run/iguazio/daemon_health", name="daemon-health"
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/etc/config/v3io", name="v3io-config"
+            ),
         ]
         v3io_mounts = [
-            kubernetes.client.V1VolumeMount(mount_path="/v3io", name="v3io", sub_path=""),
-            kubernetes.client.V1VolumeMount(mount_path="/User", name="v3io", sub_path="users/me"),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/v3io", name="v3io", sub_path=""
+            ),
+            kubernetes.client.V1VolumeMount(
+                mount_path="/User", name="v3io", sub_path="users/me"
+            ),
         ]
         expected_driver_mounts = common_volume_mounts + v3io_mounts
-        expected_executor_mounts = common_volume_mounts + user_added_executor_volume_mounts
+        expected_executor_mounts = (
+            common_volume_mounts + user_added_executor_volume_mounts
+        )
         if mount_v3io_to_executor:
             expected_executor_mounts += v3io_mounts
         self._assert_custom_object_creation_config(
@@ -699,7 +803,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             expected_executor_volume_mounts=expected_executor_mounts,
         )
 
-    def test_deploy_with_image_pull_secret(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
+    def test_deploy_with_image_pull_secret(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
         # no image pull secret
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
@@ -812,7 +918,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
 
         self.name = "my-vector-merger"
 
-        expected_code = _default_merger_handler.replace("{{{engine}}}", "SparkFeatureMerger")
+        expected_code = _default_merger_handler.replace(
+            "{{{engine}}}", "SparkFeatureMerger"
+        )
 
         self._assert_custom_object_creation_config(
             expected_driver_resources={
@@ -836,9 +944,13 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         ):
             runtime.with_source_archive(source="git://github.com/mock/repo")
 
-        runtime.with_source_archive(source="git://github.com/mock/repo", pull_at_runtime=False)
+        runtime.with_source_archive(
+            source="git://github.com/mock/repo", pull_at_runtime=False
+        )
 
-    def test_run_with_load_source_on_run(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
+    def test_run_with_load_source_on_run(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
         # set default output path
         mlrun.mlconf.artifact_path = "v3io:///tmp"
         # generate runtime and set source code to load on run

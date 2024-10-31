@@ -47,7 +47,9 @@ def test_create_server_side_launcher(is_remote, local, expectation):
         assert isinstance(launcher, services.api.launcher.ServerSideLauncher)
 
 
-def test_enrich_runtime_with_auth_info(monkeypatch, k8s_secrets_mock, client: TestClient):
+def test_enrich_runtime_with_auth_info(
+    monkeypatch, k8s_secrets_mock, client: TestClient
+):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     monkeypatch.setattr(
         services.api.utils.clients.iguazio,
@@ -58,7 +60,9 @@ def test_enrich_runtime_with_auth_info(monkeypatch, k8s_secrets_mock, client: Te
         access_key="access_key",
         username="username",
     )
-    services.api.tests.unit.api.utils.create_project(client, mlrun.mlconf.default_project)
+    services.api.tests.unit.api.utils.create_project(
+        client, mlrun.mlconf.default_project
+    )
 
     launcher_kwargs = {"auth_info": auth_info}
     launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -71,10 +75,15 @@ def test_enrich_runtime_with_auth_info(monkeypatch, k8s_secrets_mock, client: Te
         name="launcher-test",
         kind="job",
     )
-    function.metadata.credentials.access_key = mlrun.model.Credentials.generate_access_key
+    function.metadata.credentials.access_key = (
+        mlrun.model.Credentials.generate_access_key
+    )
 
     launcher.enrich_runtime(function)
-    assert function.get_env("MLRUN_AUTH_SESSION").secret_key_ref.name == "secret-ref-username-access_key"
+    assert (
+        function.get_env("MLRUN_AUTH_SESSION").secret_key_ref.name
+        == "secret-ref-username-access_key"
+    )
 
 
 def test_validate_state_thresholds_success():
@@ -123,5 +132,7 @@ def test_validate_state_thresholds_success():
 )
 def test_validate_state_thresholds_failure(state_thresholds, expected_error):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-        services.api.launcher.ServerSideLauncher._validate_state_thresholds(state_thresholds=state_thresholds)
+        services.api.launcher.ServerSideLauncher._validate_state_thresholds(
+            state_thresholds=state_thresholds
+        )
     assert expected_error in str(exc.value)

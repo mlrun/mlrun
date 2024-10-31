@@ -65,7 +65,9 @@ def values_to_column(values, column_type):
     if column_type == _TDEngineColumn.BINARY_10000:
         return taosws.binary_to_column(values)
 
-    raise mlrun.errors.MLRunInvalidArgumentError(f"unsupported column type '{column_type}'")
+    raise mlrun.errors.MLRunInvalidArgumentError(
+        f"unsupported column type '{column_type}'"
+    )
 
 
 @dataclass
@@ -101,7 +103,9 @@ class TDEngineSchema:
         try:
             tags = ", ".join(f"'{values[val]}'" for val in self.tags)
         except KeyError:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"values must contain all tags: {self.tags.keys()}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"values must contain all tags: {self.tags.keys()}"
+            )
         return f"CREATE TABLE if NOT EXISTS {self.database}.{subtable} USING {self.super_table} TAGS ({tags});"
 
     @staticmethod
@@ -130,9 +134,13 @@ class TDEngineSchema:
         subtable: str,
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> str:
-        values = " AND ".join(f"{val} LIKE '{values[val]}'" for val in self.tags if val in values)
+        values = " AND ".join(
+            f"{val} LIKE '{values[val]}'" for val in self.tags if val in values
+        )
         if not values:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"values must contain at least one tag: {self.tags.keys()}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"values must contain at least one tag: {self.tags.keys()}"
+            )
         return f"DELETE FROM {self.database}.{subtable} WHERE {values};"
 
     def _drop_subtable_query(
@@ -145,9 +153,13 @@ class TDEngineSchema:
         self,
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> str:
-        values = " AND ".join(f"{val} LIKE '{values[val]}'" for val in self.tags if val in values)
+        values = " AND ".join(
+            f"{val} LIKE '{values[val]}'" for val in self.tags if val in values
+        )
         if not values:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"values must contain at least one tag: {self.tags.keys()}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"values must contain at least one tag: {self.tags.keys()}"
+            )
         return f"SELECT DISTINCT tbname FROM {self.database}.{self.super_table} WHERE {values};"
 
     @staticmethod
@@ -175,14 +187,22 @@ class TDEngineSchema:
 
         # if aggregate function or interval is provided, the other must be provided as well
         if interval and not agg_funcs:
-            raise mlrun.errors.MLRunInvalidArgumentError("`agg_funcs` must be provided when using interval")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`agg_funcs` must be provided when using interval"
+            )
 
         if sliding_window_step and not interval:
-            raise mlrun.errors.MLRunInvalidArgumentError("`interval` must be provided when using sliding window")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`interval` must be provided when using sliding window"
+            )
         if group_by and not agg_funcs:
-            raise mlrun.errors.MLRunInvalidArgumentError("aggregate functions must be provided when using group by")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "aggregate functions must be provided when using group by"
+            )
         if desc and not order_by:
-            raise mlrun.errors.MLRunInvalidArgumentError("`order_by` must be provided when using descending")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`order_by` must be provided when using descending"
+            )
 
         with StringIO() as query:
             query.write("SELECT ")
@@ -190,13 +210,18 @@ class TDEngineSchema:
                 query.write("_wstart, _wend, ")
             if agg_funcs:
                 preform_agg_funcs_columns = (
-                    columns_to_filter if preform_agg_funcs_columns is None else preform_agg_funcs_columns
+                    columns_to_filter
+                    if preform_agg_funcs_columns is None
+                    else preform_agg_funcs_columns
                 )
                 query.write(
                     ", ".join(
                         [
                             f"{a}({col})"
-                            if col.upper() in map(str.upper, preform_agg_funcs_columns)  # Case-insensitive check
+                            if col.upper()
+                            in map(
+                                str.upper, preform_agg_funcs_columns
+                            )  # Case-insensitive check
                             else f"{col}"
                             for a in agg_funcs
                             for col in columns_to_filter

@@ -26,7 +26,9 @@ import tests.conftest
 
 def test_dataset_preview_size_limit():
     # more than allowed rows
-    data_frame = pandas.DataFrame(range(0, mlrun.artifacts.dataset.default_preview_rows_length * 2), columns=["A"])
+    data_frame = pandas.DataFrame(
+        range(0, mlrun.artifacts.dataset.default_preview_rows_length * 2), columns=["A"]
+    )
     _assert_data_artifact_limits(data_frame, len(data_frame))
 
     # more than allowed columns
@@ -101,7 +103,9 @@ def test_resolve_dataset_hash_path():
         {
             # generates incremental values dataframe
             "artifact": mlrun.artifacts.dataset.DatasetArtifact(
-                df=pandas.DataFrame(numpy.broadcast_to(numpy.arange(1, 300 + 1)[:, None], (300, 100))),
+                df=pandas.DataFrame(
+                    numpy.broadcast_to(numpy.arange(1, 300 + 1)[:, None], (300, 100))
+                ),
                 format="parquet",
             ),
             "artifact_path": "v3io://just/regular/path",
@@ -143,10 +147,14 @@ def test_resolve_dataset_hash_path():
     ]:
         artifact = test_case.get("artifact")
         artifact_path = test_case.get("artifact_path")
-        expected_error: mlrun.errors.MLRunBaseError = test_case.get("expected_error", None)
+        expected_error: mlrun.errors.MLRunBaseError = test_case.get(
+            "expected_error", None
+        )
         if expected_error:
             with pytest.raises(expected_error):
-                artifact.resolve_dataframe_target_hash_path(dataframe=artifact.df, artifact_path=artifact_path)
+                artifact.resolve_dataframe_target_hash_path(
+                    dataframe=artifact.df, artifact_path=artifact_path
+                )
             break
         dataset_hash, target_path = artifact.resolve_dataframe_target_hash_path(
             dataframe=artifact.df, artifact_path=artifact_path
@@ -162,7 +170,9 @@ def test_dataset_stats():
         "age": [42, 52, 36, 24, 73],
         "testScore": [25, 94, 57, 62, 70],
     }
-    df = pandas.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+    df = pandas.DataFrame(
+        raw_data, columns=["first_name", "last_name", "age", "testScore"]
+    )
     for test_case in [
         {
             # status is not set
@@ -184,12 +194,16 @@ def test_dataset_stats():
         },
         {
             # status is not set and df is very large
-            "df": pandas.DataFrame(raw_data, columns=[f"column-title-{i}" for i in range(200)]),
+            "df": pandas.DataFrame(
+                raw_data, columns=[f"column-title-{i}" for i in range(200)]
+            ),
             "stats": None,
             "expected_none_status_stats": True,
         },
     ]:
-        dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(df=test_case.get("df"), stats=test_case.get("stats"))
+        dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(
+            df=test_case.get("df"), stats=test_case.get("stats")
+        )
 
         if test_case["expected_none_status_stats"]:
             assert dataset_artifact.status.stats is None
@@ -264,7 +278,9 @@ def test_dataset_preview_size_limit_from_large_dask_dataframe(monkeypatch):
 
     # for a large DDF, sample 20% of the rows for
     # creating the preview
-    _assert_data_artifact_limits(ddf, len(ddf.sample(frac=0.2).compute().values.tolist()))
+    _assert_data_artifact_limits(
+        ddf, len(ddf.sample(frac=0.2).compute().values.tolist())
+    )
 
     # more than allowed columns
     number_of_columns = mlrun.artifacts.dataset.max_preview_columns * 3
@@ -330,7 +346,9 @@ def _assert_data_artifact_limits(df, expected_preview_length):
     assert len(artifact.preview) == limit
 
     # ignore limits
-    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=df, ignore_preview_limits=True)
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=df, ignore_preview_limits=True
+    )
     assert len(artifact.preview) == expected_preview_length
 
 
@@ -340,6 +358,8 @@ def _assert_data_artifacts(df, number_of_columns):
     assert artifact.stats is None
 
     # ignore limits
-    artifact = mlrun.artifacts.dataset.DatasetArtifact(df=df, ignore_preview_limits=True)
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=df, ignore_preview_limits=True
+    )
     # Dataset previews have an extra column called "index"
     assert len(artifact.preview[0]) - 1 == number_of_columns

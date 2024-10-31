@@ -52,13 +52,17 @@ class TestMLRunIntegration:
         cls._run_api(cls.extra_env)
 
     def setup_method(self, method):
-        self._logger.info(f"Setting up test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Setting up test {self.__class__.__name__}::{method.__name__}"
+        )
         self._test_env = {}
         self._old_env = {}
         api_url = self._start_api()
         self._setup_env({"MLRUN_DBPATH": api_url})
         self.custom_setup()
-        self._logger.info(f"Finished setting up test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -69,12 +73,16 @@ class TestMLRunIntegration:
         cls._remove_container(cls.api_container_name)
 
     def teardown_method(self, method):
-        self._logger.info(f"Tearing down test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
         self.custom_teardown()
         self._teardown_env()
         self._stop_api()
         self._reset_db()
-        self._logger.info(f"Finished tearing down test {self.__class__.__name__}::{method.__name__}")
+        self._logger.info(
+            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
 
     def custom_setup(self):
         pass
@@ -84,7 +92,10 @@ class TestMLRunIntegration:
 
     @property
     def assets_path(self):
-        return pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent / "assets"
+        return (
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / "assets"
+        )
 
     @property
     def base_url(self):
@@ -285,7 +296,9 @@ class TestMLRunIntegration:
 
     def _resolve_mlrun_api_url(self):
         # retrieve container bind port + host
-        output = self._run_command("docker", args=["port", self.api_container_name, "8080"])
+        output = self._run_command(
+            "docker", args=["port", self.api_container_name, "8080"]
+        )
         # usually the output is something like '0.0.0.0:49154\n' but sometimes (in GH actions) it's something like
         # '0.0.0.0:49154\n:::49154\n' for some reason, so just taking the first line
         host = output.splitlines()[0]

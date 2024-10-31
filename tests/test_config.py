@@ -37,12 +37,24 @@ from tests.conftest import out_path
 assets_path = pathlib.Path(__file__).parent / "assets"
 
 namespace_env_key = f"{mlrun.config.env_prefix}NAMESPACE"
-default_function_pod_resources_env_key = f"{mlrun.config.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
-default_function_pod_resources_request_gpu_env_key = f"{default_function_pod_resources_env_key}REQUESTS__GPU"
-default_function_pod_resources_limits_gpu_env_key = f"{default_function_pod_resources_env_key}LIMITS__GPU"
-default_function_pod_resources_request_cpu_env_key = f"{default_function_pod_resources_env_key}REQUESTS__CPU"
-default_function_pod_resources_request_memory_env_key = f"{default_function_pod_resources_env_key}REQUESTS__MEMORY"
-default_function_pod_resources_limits_cpu_env_key = f"{default_function_pod_resources_env_key}LIMITS__CPU"
+default_function_pod_resources_env_key = (
+    f"{mlrun.config.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
+)
+default_function_pod_resources_request_gpu_env_key = (
+    f"{default_function_pod_resources_env_key}REQUESTS__GPU"
+)
+default_function_pod_resources_limits_gpu_env_key = (
+    f"{default_function_pod_resources_env_key}LIMITS__GPU"
+)
+default_function_pod_resources_request_cpu_env_key = (
+    f"{default_function_pod_resources_env_key}REQUESTS__CPU"
+)
+default_function_pod_resources_request_memory_env_key = (
+    f"{default_function_pod_resources_env_key}REQUESTS__MEMORY"
+)
+default_function_pod_resources_limits_cpu_env_key = (
+    f"{default_function_pod_resources_env_key}LIMITS__CPU"
+)
 
 
 @pytest.fixture
@@ -193,25 +205,33 @@ def test_decode_base64_config_and_load_to_object():
 
     # Non-hierarchical attribute loading with passing of expected type
     mlrun.mlconf.encoded_attribute = encoded_dict_attribute
-    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object("encoded_attribute", dict)
+    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
+        "encoded_attribute", dict
+    )
     assert isinstance(decoded_output, dict)
     assert decoded_output == expected_decoded_dict_output
 
     # Hierarchical attribute loading without passing of expected type
     mlrun.mlconf.for_test = {"encoded_attribute": encoded_dict_attribute}
-    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object("for_test.encoded_attribute")
+    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
+        "for_test.encoded_attribute"
+    )
     assert isinstance(decoded_output, dict)
     assert decoded_output == expected_decoded_dict_output
 
     # Not defined attribute without passing of expected type
     mlrun.mlconf.for_test = {"encoded_attribute": None}
-    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object("for_test.encoded_attribute")
+    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
+        "for_test.encoded_attribute"
+    )
     assert isinstance(decoded_output, dict)
     assert decoded_output == {}
 
     # Not defined attribute with passing of expected type
     mlrun.mlconf.for_test = {"encoded_attribute": None}
-    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object("for_test.encoded_attribute", list)
+    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
+        "for_test.encoded_attribute", list
+    )
     assert isinstance(decoded_output, list)
     assert decoded_output == []
 
@@ -222,11 +242,15 @@ def test_decode_base64_config_and_load_to_object():
     # Attribute defined but not encoded
     mlrun.mlconf.for_test = {"encoded_attribute": "notencoded"}
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-        mlrun.mlconf.decode_base64_config_and_load_to_object("for_test.encoded_attribute")
+        mlrun.mlconf.decode_base64_config_and_load_to_object(
+            "for_test.encoded_attribute"
+        )
 
     # list attribute loading
     mlrun.mlconf.for_test = {"encoded_attribute": encoded_list}
-    decoded_list_output = mlrun.mlconf.decode_base64_config_and_load_to_object("for_test.encoded_attribute", list)
+    decoded_list_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
+        "for_test.encoded_attribute", list
+    )
     assert isinstance(decoded_list_output, list)
     assert decoded_list_output == expected_decoded_list_output
 
@@ -302,7 +326,9 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
         ]:
             with_requests_gpu = test_case.get("with_gpu_requests")
             with_gpu_limits = test_case.get("with_gpu_limits")
-            resources = config.get_default_function_pod_resources(with_requests_gpu, with_gpu_limits)
+            resources = config.get_default_function_pod_resources(
+                with_requests_gpu, with_gpu_limits
+            )
             assert (
                 deepdiff.DeepDiff(
                     resources,
@@ -330,7 +356,9 @@ def test_get_default_function_pod_requirement_resources(config):
     }
     with patch_env(env):
         mlrun.mlconf.reload()
-        requests = config.get_default_function_pod_requirement_resources("requests", with_gpu=True)
+        requests = config.get_default_function_pod_requirement_resources(
+            "requests", with_gpu=True
+        )
         assert (
             deepdiff.DeepDiff(
                 requests,
@@ -339,7 +367,9 @@ def test_get_default_function_pod_requirement_resources(config):
             )
             == {}
         )
-        limits = config.get_default_function_pod_requirement_resources("limits", with_gpu=True)
+        limits = config.get_default_function_pod_requirement_resources(
+            "limits", with_gpu=True
+        )
         assert (
             deepdiff.DeepDiff(
                 limits,
@@ -348,7 +378,9 @@ def test_get_default_function_pod_requirement_resources(config):
             )
             == {}
         )
-        requests = config.get_default_function_pod_requirement_resources("requests", with_gpu=False)
+        requests = config.get_default_function_pod_requirement_resources(
+            "requests", with_gpu=False
+        )
         assert (
             deepdiff.DeepDiff(
                 requests,
@@ -357,7 +389,9 @@ def test_get_default_function_pod_requirement_resources(config):
             )
             == {}
         )
-        limits = config.get_default_function_pod_requirement_resources("limits", with_gpu=False)
+        limits = config.get_default_function_pod_requirement_resources(
+            "limits", with_gpu=False
+        )
         assert (
             deepdiff.DeepDiff(
                 limits,
@@ -488,11 +522,15 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
 def test_verify_security_context_enrichment_mode_is_allowed_success():
     mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
 
-    mlrun.mlconf.function.spec.security_context.enrichment_mode = SecurityContextEnrichmentModes.override.value
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
     mlrun.mlconf.igz_version = "3.5.1-b1"
     mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
 
-    mlrun.mlconf.function.spec.security_context.enrichment_mode = SecurityContextEnrichmentModes.override.value
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
     mlrun.mlconf.igz_version = "3.6.0-b1"
     mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
 
@@ -500,7 +538,9 @@ def test_verify_security_context_enrichment_mode_is_allowed_success():
 def test_verify_security_context_enrichment_mode_is_allowed_failure():
     igz_version = "3.5.0-b1"
     mlrun.mlconf.igz_version = igz_version
-    mlrun.mlconf.function.spec.security_context.enrichment_mode = SecurityContextEnrichmentModes.override.value
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
         mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
     assert (
@@ -520,8 +560,9 @@ def test_verify_security_context_enrichment_mode_is_allowed_failure():
     mlrun.mlconf.igz_version = ""
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
         mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
-    assert "Unable to determine if security context enrichment mode is allowed. Missing iguazio version" in str(
-        exc.value
+    assert (
+        "Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
+        in str(exc.value)
     )
 
 
@@ -619,7 +660,9 @@ def test_set_config():
     env_path = f"{out_path}/env/myenv.env"
     api = "http://localhost:8080"
     pathlib.Path(env_path).parent.mkdir(parents=True, exist_ok=True)
-    _exec_mlrun(f"config set -f {env_path} -a {api} -u joe -k mykey -p /c/y -e XXX=myvar")
+    _exec_mlrun(
+        f"config set -f {env_path} -a {api} -u joe -k mykey -p /c/y -e XXX=myvar"
+    )
 
     expected = {
         "MLRUN_DBPATH": api,

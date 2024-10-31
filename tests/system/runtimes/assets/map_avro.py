@@ -38,7 +38,9 @@ class MyMap(MapClass):
     AVRO_SCHEMA = avro.schema.parse(schema)
 
     def do(self, event):
-        self.context.logger.info(f"MyMap-1: event = {event.body} event_type={type(event.body)}")
+        self.context.logger.info(
+            f"MyMap-1: event = {event.body} event_type={type(event.body)}"
+        )
 
         reader = avro.io.DatumReader(self.AVRO_SCHEMA)
 
@@ -46,7 +48,9 @@ class MyMap(MapClass):
         decoder = avro.io.BinaryDecoder(bytes_reader)
 
         record = reader.read(decoder)
-        self.context.logger.info(f"MyMap-2: record={record}, type(record)={type(record)}")
+        self.context.logger.info(
+            f"MyMap-2: record={record}, type(record)={type(record)}"
+        )
         event.key = record["ticker"]
         event.body = record
         return event

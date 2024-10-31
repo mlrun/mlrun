@@ -42,8 +42,12 @@ class LoggingCallback(Callback):
         """
         super().__init__()
         self._logger = Logger()
-        self._dynamic_hyperparameters_keys = dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
-        self._static_hyperparameters_keys = static_hyperparameters if static_hyperparameters is not None else {}
+        self._dynamic_hyperparameters_keys = (
+            dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
+        )
+        self._static_hyperparameters_keys = (
+            static_hyperparameters if static_hyperparameters is not None else {}
+        )
 
     @property
     def logger(self) -> Logger:
@@ -70,7 +74,9 @@ class LoggingCallback(Callback):
         # Log the hyperparameters out of the `params` field:
         self._log_hyperparameters(parameters=env.params)
 
-    def _log_results(self, evaluation_result_list: list[LGBMTypes.EvaluationResultType]):
+    def _log_results(
+        self, evaluation_result_list: list[LGBMTypes.EvaluationResultType]
+    ):
         """
         Log the callback environment results data into the logger.
 
@@ -106,7 +112,11 @@ class LoggingCallback(Callback):
         """
         for parameter_name, value in parameters.items():
             if parameter_name in self._dynamic_hyperparameters_keys:
-                self._logger.log_dynamic_hyperparameter(parameter_name=parameter_name, value=value)
+                self._logger.log_dynamic_hyperparameter(
+                    parameter_name=parameter_name, value=value
+                )
                 continue
             if parameter_name in self._static_hyperparameters_keys:
-                self._logger.log_static_hyperparameter(parameter_name=parameter_name, value=value)
+                self._logger.log_static_hyperparameter(
+                    parameter_name=parameter_name, value=value
+                )

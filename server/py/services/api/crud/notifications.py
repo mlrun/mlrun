@@ -41,8 +41,10 @@ class Notifications(
         # we don't mask the notification params when it's a status update as they are already masked
         notification_objects_to_store = notification_objects
         if mask_params:
-            notification_objects_to_store = services.api.api.utils.validate_and_mask_notification_list(
-                notification_objects, alert_id, project
+            notification_objects_to_store = (
+                services.api.api.utils.validate_and_mask_notification_list(
+                    notification_objects, alert_id, project
+                )
             )
 
         services.api.utils.singletons.db.get_db().store_alert_notifications(
@@ -62,8 +64,10 @@ class Notifications(
         # we don't mask the notification params when it's a status update as they are already masked
         notification_objects_to_store = notification_objects
         if mask_params:
-            notification_objects_to_store = services.api.api.utils.validate_and_mask_notification_list(
-                notification_objects, run_uid, project
+            notification_objects_to_store = (
+                services.api.api.utils.validate_and_mask_notification_list(
+                    notification_objects, run_uid, project
+                )
             )
 
         services.api.utils.singletons.db.get_db().store_run_notifications(
@@ -77,7 +81,9 @@ class Notifications(
         project: str = "",
     ) -> list[mlrun.model.Notification]:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_run_notifications(session, run_uid, project)
+        return services.api.utils.singletons.db.get_db().list_run_notifications(
+            session, run_uid, project
+        )
 
     def delete_run_notifications(
         self,
@@ -97,9 +103,13 @@ class Notifications(
         if notifications:
             # unique constraint on name, run_uid, project, so the list will contain one item at most
             notification = notifications[0]
-            services.api.api.utils.delete_notification_params_secret(project, notification)
+            services.api.api.utils.delete_notification_params_secret(
+                project, notification
+            )
 
-        services.api.utils.singletons.db.get_db().delete_run_notifications(session, name, run_uid, project)
+        services.api.utils.singletons.db.get_db().delete_run_notifications(
+            session, name, run_uid, project
+        )
 
     @staticmethod
     def set_object_notifications(
@@ -107,7 +117,9 @@ class Notifications(
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         notifications: list[mlrun.common.schemas.Notification],
-        notification_parent: typing.Union[mlrun.common.schemas.RunIdentifier, mlrun.common.schemas.ScheduleIdentifier],
+        notification_parent: typing.Union[
+            mlrun.common.schemas.RunIdentifier, mlrun.common.schemas.ScheduleIdentifier
+        ],
     ):
         """
         Sets notifications on given object (run or schedule, might be extended in the future).
@@ -131,10 +143,14 @@ class Notifications(
             },
         }
 
-        set_notification_method = set_notification_methods.get(notification_parent.kind, {})
+        set_notification_method = set_notification_methods.get(
+            notification_parent.kind, {}
+        )
         factory = set_notification_method.get("factory")
         if not factory:
-            raise mlrun.errors.MLRunNotFoundError(f"couldn't find factory for object kind: {notification_parent.kind}")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find factory for object kind: {notification_parent.kind}"
+            )
         set_func = set_notification_method.get("method_name")
         if not set_func:
             raise mlrun.errors.MLRunNotFoundError(
@@ -146,10 +162,12 @@ class Notifications(
                 f"couldn't find identifier key for object kind: {notification_parent.kind}"
             )
 
-        notification_objects_to_set = services.api.api.utils.validate_and_mask_notification_list(
-            notifications,
-            getattr(notification_parent, identifier_key),
-            project,
+        notification_objects_to_set = (
+            services.api.api.utils.validate_and_mask_notification_list(
+                notifications,
+                getattr(notification_parent, identifier_key),
+                project,
+            )
         )
 
         getattr(factory(), set_func)(

@@ -25,7 +25,9 @@ from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationResult,
 )
 
-EXPECTED_EVENTS_COUNT = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+EXPECTED_EVENTS_COUNT = (
+    mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+)
 
 
 class DemoMonitoringApp(ModelMonitoringApplicationBase):
@@ -35,7 +37,9 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
     # noinspection PyMethodOverriding
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__()
-        assert (list(kwargs.keys())) == ["check_num_events"], f"kwargs fields = {list(kwargs.keys())}"  # ml-6071
+        assert (list(kwargs.keys())) == [
+            "check_num_events"
+        ], f"kwargs fields = {list(kwargs.keys())}"  # ml-6071
         cls.check_num_events = kwargs["check_num_events"]
 
     def do_tracking(
@@ -45,7 +49,9 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
         if self.check_num_events:
             assert len(monitoring_context.sample_df) == EXPECTED_EVENTS_COUNT
         monitoring_context.nuclio_logger.info("Asserted sample_df length")
-        monitoring_context.logger.info("Now with MLRun logger", sample_df_len=len(monitoring_context.sample_df))
+        monitoring_context.logger.info(
+            "Now with MLRun logger", sample_df_len=len(monitoring_context.sample_df)
+        )
         return [
             ModelMonitoringApplicationResult(
                 name="data_drift_test",

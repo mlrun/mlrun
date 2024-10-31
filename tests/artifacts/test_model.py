@@ -30,8 +30,12 @@ model_file = pathlib.Path(__file__).parent / "assets" / "model.pkl"
     "generate_target_path_from_artifact_hash, expected_model_target_file",
     [(True, "da39a3ee5e6b4b0d3255bfef95601890afd80709"), (False, None)],
 )
-def test_model_target_paths(generate_target_path_from_artifact_hash, expected_model_target_file):
-    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = generate_target_path_from_artifact_hash
+def test_model_target_paths(
+    generate_target_path_from_artifact_hash, expected_model_target_file
+):
+    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
+        generate_target_path_from_artifact_hash
+    )
     project_name = "model-target-path-test"
     artifact_path = results_dir / project_name
     model_key = "model"

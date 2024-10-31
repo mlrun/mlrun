@@ -43,7 +43,10 @@ async def trigger_migrations(
     request: fastapi.Request,
 ):
     # only chief can execute migrations, redirecting request to chief
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.common.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
         logger.info("Requesting to trigger migrations, re-routing to chief")
         chief_client = services.api.utils.clients.chief.Client()
         return await chief_client.trigger_migrations(request)
@@ -79,7 +82,10 @@ def _get_or_create_migration_background_task(
     typing.Optional[mlrun.common.schemas.BackgroundTask],
     str,
 ]:
-    if mlrun.mlconf.httpdb.state == mlrun.common.schemas.APIStates.migrations_in_progress:
+    if (
+        mlrun.mlconf.httpdb.state
+        == mlrun.common.schemas.APIStates.migrations_in_progress
+    ):
         background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             task_name
         )
@@ -88,7 +94,10 @@ def _get_or_create_migration_background_task(
         raise mlrun.errors.MLRunPreconditionFailedError(
             "Migrations were already triggered and failed. Restart the API to retry"
         )
-    elif mlrun.mlconf.httpdb.state != mlrun.common.schemas.APIStates.waiting_for_migrations:
+    elif (
+        mlrun.mlconf.httpdb.state
+        != mlrun.common.schemas.APIStates.waiting_for_migrations
+    ):
         return None, None, ""
 
     logger.info("Starting the migration process")
@@ -107,6 +116,8 @@ async def _perform_migration():
     # import here to prevent import cycle
     import services.api.main
 
-    await run_in_threadpool(services.api.initial_data.init_data, perform_migrations_if_needed=True)
+    await run_in_threadpool(
+        services.api.initial_data.init_data, perform_migrations_if_needed=True
+    )
     await services.api.main.move_api_to_online()
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online

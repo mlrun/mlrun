@@ -43,7 +43,9 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
     project = "project-name"
     services.api.tests.unit.api.utils.create_project(client, project)
 
-    function_reference = "cat-and-dog-servers/aggregate@b145b6d958a7b4d84f12821a06459e31ea422308"
+    function_reference = (
+        "cat-and-dog-servers/aggregate@b145b6d958a7b4d84f12821a06459e31ea422308"
+    )
     body = {
         "task": {
             "metadata": {"name": "task-name", "project": project},
@@ -61,47 +63,65 @@ access_key = "12345"
 
 @pytest.fixture()
 def pod_create_mock():
-    create_pod_orig_function = services.api.utils.singletons.k8s.get_k8s_helper().create_pod
+    create_pod_orig_function = (
+        services.api.utils.singletons.k8s.get_k8s_helper().create_pod
+    )
     _get_project_secrets_raw_data_orig_function = (
         services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
     )
     services.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
         return_value=("pod-name", "namespace")
     )
-    services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
-        return_value={}
+    services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
+        unittest.mock.Mock(return_value={})
     )
 
-    update_run_state_orig_function = mlrun.runtimes.kubejob.KubejobRuntime._update_run_state
+    update_run_state_orig_function = (
+        mlrun.runtimes.kubejob.KubejobRuntime._update_run_state
+    )
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = unittest.mock.MagicMock()
 
     mock_run_object = mlrun.RunObject()
     mock_run_object.metadata.uid = "1234567890"
     mock_run_object.metadata.project = "project-name"
 
-    auth_info_mock = AuthInfo(username=username, session="some-session", data_session=access_key)
+    auth_info_mock = AuthInfo(
+        username=username, session="some-session", data_session=access_key
+    )
 
-    authenticate_request_orig_function = services.api.utils.auth.verifier.AuthVerifier().authenticate_request
-    services.api.utils.auth.verifier.AuthVerifier().authenticate_request = unittest.mock.AsyncMock(
-        return_value=auth_info_mock
+    authenticate_request_orig_function = (
+        services.api.utils.auth.verifier.AuthVerifier().authenticate_request
+    )
+    services.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+        unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
     yield services.api.utils.singletons.k8s.get_k8s_helper().create_pod
 
     # Have to revert the mocks, otherwise other tests are failing
-    services.api.utils.singletons.k8s.get_k8s_helper().create_pod = create_pod_orig_function
+    services.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
+        create_pod_orig_function
+    )
     services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
         _get_project_secrets_raw_data_orig_function
     )
-    mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = update_run_state_orig_function
-    services.api.utils.auth.verifier.AuthVerifier().authenticate_request = authenticate_request_orig_function
+    mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
+        update_run_state_orig_function
+    )
+    services.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+        authenticate_request_orig_function
+    )
 
 
-def test_submit_job_auto_mount(db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock) -> None:
+def test_submit_job_auto_mount(
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
+) -> None:
     mlconf.storage.auto_mount_type = "v3io_credentials"
     api_url = "https://api/url"
     # Set different auto-mount-params, to ensure the auth info is overridden
-    mlconf.storage.auto_mount_params = f"api={api_url},user=invalid-user,access_key=invalid-access-key"
+    mlconf.storage.auto_mount_params = (
+        f"api={api_url},user=invalid-user,access_key=invalid-access-key"
+    )
     project = "my-proj1"
     services.api.tests.unit.api.utils.create_project(client, project)
 
@@ -195,7 +215,9 @@ def test_submit_job_with_output_path_enrichment(
 ) -> None:
     project_name = "proj-with-artifact-path"
     project_artifact_path = f"/{project_name}"
-    services.api.tests.unit.api.utils.create_project(client, project_name, artifact_path=project_artifact_path)
+    services.api.tests.unit.api.utils.create_project(
+        client, project_name, artifact_path=project_artifact_path
+    )
     function = mlrun.new_function(
         name="test-function",
         project=project_name,
@@ -205,7 +227,9 @@ def test_submit_job_with_output_path_enrichment(
     )
     # set default artifact path
     mlconf.artifact_path = "/some-path"
-    submit_job_body = _create_submit_job_body(function, project_name, with_output_path=False)
+    submit_job_body = _create_submit_job_body(
+        function, project_name, with_output_path=False
+    )
 
     resp = client.post("submit_job", json=submit_job_body)
     assert resp.status_code == http.HTTPStatus.OK.value
@@ -225,7 +249,9 @@ def test_submit_job_with_output_path_enrichment(
     )
     # set default artifact path
     mlconf.artifact_path = "/some-path"
-    submit_job_body = _create_submit_job_body(function, project_name, with_output_path=False)
+    submit_job_body = _create_submit_job_body(
+        function, project_name, with_output_path=False
+    )
     resp = client.post("submit_job", json=submit_job_body)
     assert resp.status_code == http.HTTPStatus.OK.value
 
@@ -240,7 +266,9 @@ def test_submit_job_with_output_path_enrichment(
         image="mlrun/mlrun",
     )
     # create task with output_path, expected to be used
-    submit_job_body = _create_submit_job_body(function, project_name, with_output_path=True)
+    submit_job_body = _create_submit_job_body(
+        function, project_name, with_output_path=True
+    )
     resp = client.post("submit_job", json=submit_job_body)
     assert resp.status_code == http.HTTPStatus.OK.value
 
@@ -315,7 +343,9 @@ def test_submit_job_no_image_ensure_default_image(
     # function runs with the default image. See ML-4994.
     project_name = "proj-test"
     git_repo = "git://github.com/some_user/some_repo.git"
-    services.api.tests.unit.api.utils.create_project(client, project_name, source=git_repo, load_source_on_run=True)
+    services.api.tests.unit.api.utils.create_project(
+        client, project_name, source=git_repo, load_source_on_run=True
+    )
 
     proj_obj = mlrun.new_project(project_name, context="./", save=False)
     proj_obj.set_source(source=git_repo, pull_at_runtime=True)
@@ -331,7 +361,9 @@ def test_submit_job_no_image_ensure_default_image(
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
 
-    _assert_pod_image(pod_create_mock, mlrun.mlconf.function_defaults.image_by_kind.to_dict()["job"])
+    _assert_pod_image(
+        pod_create_mock, mlrun.mlconf.function_defaults.image_by_kind.to_dict()["job"]
+    )
 
 
 class _MockDataItem:
@@ -348,7 +380,9 @@ def test_submit_job_with_hyper_params_file(
 ):
     project_name = "proj-with-hyper-params"
     project_artifact_path = f"/{project_name}"
-    services.api.tests.unit.api.utils.create_project(client, project_name, artifact_path=project_artifact_path)
+    services.api.tests.unit.api.utils.create_project(
+        client, project_name, artifact_path=project_artifact_path
+    )
     function = mlrun.new_function(
         name="test-function",
         project=project_name,
@@ -358,7 +392,9 @@ def test_submit_job_with_hyper_params_file(
     )
     # set default artifact path
     mlconf.artifact_path = "/some-path"
-    submit_job_body = _create_submit_job_body(function, project_name, with_output_path=False)
+    submit_job_body = _create_submit_job_body(
+        function, project_name, with_output_path=False
+    )
 
     async def auth_info_mock(*args, **kwargs):
         return mlrun.common.schemas.AuthInfo(username="user", data_session=access_key)
@@ -381,13 +417,17 @@ def test_submit_job_with_hyper_params_file(
     data_item = _MockDataItem()
     data_item.suffix = ""
 
-    with unittest.mock.patch.object(mlrun.MLClientCtx, "get_dataitem", return_value=data_item) as data_item_mock:
+    with unittest.mock.patch.object(
+        mlrun.MLClientCtx, "get_dataitem", return_value=data_item
+    ) as data_item_mock:
         resp = client.post("submit_job", json=submit_job_body)
         assert resp.status_code == http.HTTPStatus.OK.value
 
         # Validate that secrets were properly passed to get_dataitem
         project_secrets.update({"V3IO_ACCESS_KEY": access_key})
-        data_item_mock.assert_called_once_with(task_spec["param_file"], secrets=project_secrets)
+        data_item_mock.assert_called_once_with(
+            task_spec["param_file"], secrets=project_secrets
+        )
 
 
 def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
@@ -412,7 +452,9 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     )
 
     handler_mock = services.api.utils.clients.chief.Client()
-    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(return_value=fastapi.Response())
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
+        return_value=fastapi.Response()
+    )
     monkeypatch.setattr(
         services.api.utils.clients.chief,
         "Client",
@@ -505,7 +547,9 @@ def test_submit_job_failure_params_exceed_int64(
 ) -> None:
     project_name = "params-exceed-int64"
     project_artifact_path = f"/{project_name}"
-    services.api.tests.unit.api.utils.create_project(client, project_name, artifact_path=project_artifact_path)
+    services.api.tests.unit.api.utils.create_project(
+        client, project_name, artifact_path=project_artifact_path
+    )
     function = mlrun.new_function(
         name="test-function",
         project=project_name,

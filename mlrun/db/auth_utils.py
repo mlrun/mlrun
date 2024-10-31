@@ -43,7 +43,9 @@ class StaticTokenProvider(TokenProvider):
 
 
 class OAuthClientIDTokenProvider(TokenProvider):
-    def __init__(self, token_endpoint: str, client_id: str, client_secret: str, timeout=5):
+    def __init__(
+        self, token_endpoint: str, client_id: str, client_secret: str, timeout=5
+    ):
         if not token_endpoint or not client_id or not client_secret:
             raise mlrun.errors.MLRunValueError(
                 "Invalid client_id configuration for authentication. Must provide token endpoint, client-id and secret"
@@ -118,7 +120,9 @@ class OAuthClientIDTokenProvider(TokenProvider):
                     error = data.get("error")
                 except Exception:
                     pass
-            logger.warning("Retrieving token failed", status=response.status_code, error=error)
+            logger.warning(
+                "Retrieving token failed", status=response.status_code, error=error
+            )
             if raise_on_error:
                 mlrun.errors.raise_for_status(response)
             return
@@ -132,7 +136,9 @@ class OAuthClientIDTokenProvider(TokenProvider):
         expires_in = data.get("expires_in")
         if not self.token or not expires_in:
             token_str = "****" if self.token else "missing"
-            logger.warning("Failed to parse token response", token=token_str, expires_in=expires_in)
+            logger.warning(
+                "Failed to parse token response", token=token_str, expires_in=expires_in
+            )
             return
 
         now = datetime.now()

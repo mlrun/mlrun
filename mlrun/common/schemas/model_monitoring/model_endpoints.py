@@ -112,7 +112,9 @@ class ModelEndpointSpec(ObjectSpec):
         """Validate that the model uri includes the required prefix"""
         prefix, uri = mlrun.datastore.parse_store_uri(model_uri)
         if prefix and prefix != mlrun.utils.helpers.StorePrefix.Model:
-            return mlrun.datastore.get_store_uri(mlrun.utils.helpers.StorePrefix.Model, uri)
+            return mlrun.datastore.get_store_uri(
+                mlrun.utils.helpers.StorePrefix.Model, uri
+            )
         return model_uri
 
 
@@ -238,7 +240,9 @@ class ModelEndpoint(BaseModel):
 
                 # If the value is not from type str or bool (e.g. dict), convert it into a JSON string
                 # for matching the database required format
-                if not isinstance(current_value, (str, bool, int)) or isinstance(current_value, enum.IntEnum):
+                if not isinstance(current_value, (str, bool, int)) or isinstance(
+                    current_value, enum.IntEnum
+                ):
                     flatten_dict[key] = json.dumps(current_value)
                 else:
                     flatten_dict[key] = current_value
@@ -297,7 +301,9 @@ def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringM
     match = FQN_REGEX.fullmatch(fqn)
     if match is None:
         raise ValueError("The fully qualified name is not in the expected format")
-    return ModelEndpointMonitoringMetric.parse_obj(match.groupdict() | {"full_name": fqn})
+    return ModelEndpointMonitoringMetric.parse_obj(
+        match.groupdict() | {"full_name": fqn}
+    )
 
 
 class _MetricPoint(NamedTuple):
@@ -336,7 +342,9 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
     data: bool = False
 
 
-def _mapping_attributes(model_class: type[Model], flattened_dictionary: dict, json_parse_values: list) -> Model:
+def _mapping_attributes(
+    model_class: type[Model], flattened_dictionary: dict, json_parse_values: list
+) -> Model:
     """Generate a `BaseModel` object with the provided dictionary attributes.
 
     :param model_class:          `BaseModel` class (e.g. `ModelEndpointMetadata`).
@@ -354,7 +362,9 @@ def _mapping_attributes(model_class: type[Model], flattened_dictionary: dict, js
         if field_key in flattened_dictionary:
             if field_key in json_parse_values:
                 # Parse the JSON value into a valid dictionary
-                dict_to_parse[field_key] = _json_loads_if_not_none(flattened_dictionary[field_key])
+                dict_to_parse[field_key] = _json_loads_if_not_none(
+                    flattened_dictionary[field_key]
+                )
             else:
                 dict_to_parse[field_key] = flattened_dictionary[field_key]
 
@@ -362,4 +372,6 @@ def _mapping_attributes(model_class: type[Model], flattened_dictionary: dict, js
 
 
 def _json_loads_if_not_none(field: Any) -> Any:
-    return json.loads(field) if field and field != "null" and field is not None else None
+    return (
+        json.loads(field) if field and field != "null" and field is not None else None
+    )

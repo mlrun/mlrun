@@ -83,7 +83,8 @@ async def test_nuclio_get_api_gateway(
     assert received_api_gateway.name == api_gateway.metadata.name
     assert received_api_gateway.description == api_gateway.spec.description
     assert (
-        received_api_gateway.authentication.authentication_mode == api_gateway.spec.authentication.authentication_mode
+        received_api_gateway.authentication.authentication_mode
+        == api_gateway.spec.authentication.authentication_mode
     )
     assert received_api_gateway.spec.functions == [
         f"{project_name}/test",
@@ -139,11 +140,17 @@ async def test_nuclio_store_api_gateway(
                 name=api_gateway_name,
                 path="/",
                 host="test.host",
-                upstreams=[mlrun.common.schemas.APIGatewayUpstream(nucliofunction={"name": "test-func"})],
+                upstreams=[
+                    mlrun.common.schemas.APIGatewayUpstream(
+                        nucliofunction={"name": "test-func"}
+                    )
+                ],
             ),
         ).dict(),
     )
-    await nuclio_client.store_api_gateway(project_name=project_name, api_gateway=api_gateway.to_scheme())
+    await nuclio_client.store_api_gateway(
+        project_name=project_name, api_gateway=api_gateway.to_scheme()
+    )
 
 
 @pytest.mark.asyncio

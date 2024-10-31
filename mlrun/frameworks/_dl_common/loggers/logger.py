@@ -242,7 +242,9 @@ class Logger:
             self._validation_summaries[metric_name] = []
         self._validation_summaries[metric_name].append(result)
 
-    def log_static_hyperparameter(self, parameter_name: str, value: DLTypes.TrackableType):
+    def log_static_hyperparameter(
+        self, parameter_name: str, value: DLTypes.TrackableType
+    ):
         """
         Log the given parameter value in the static hyperparameters dictionary.
 
@@ -251,7 +253,9 @@ class Logger:
         """
         self._static_hyperparameters[parameter_name] = value
 
-    def log_dynamic_hyperparameter(self, parameter_name: str, value: DLTypes.TrackableType):
+    def log_dynamic_hyperparameter(
+        self, parameter_name: str, value: DLTypes.TrackableType
+    ):
         """
         Log the given parameter value in the dynamic hyperparameters dictionary at the current epoch (if its a new
         parameter it will be epoch 0). If the parameter appears in the static hyperparameters dictionary, it will be
@@ -279,10 +283,16 @@ class Logger:
         for parameter_name, parameter_value in self._context.parameters.items():
             # Check if the parameter is a trackable value:
             if isinstance(parameter_value, (str, bool, float, int)):
-                self.log_static_hyperparameter(parameter_name=parameter_name, value=parameter_value)
+                self.log_static_hyperparameter(
+                    parameter_name=parameter_name, value=parameter_value
+                )
             else:
                 # See if its string representation length is below the maximum value length:
                 string_value = str(parameter_value)
-                if len(string_value) < 30:  # Temporary to no log to long variables into the UI.
+                if (
+                    len(string_value) < 30
+                ):  # Temporary to no log to long variables into the UI.
                     # TODO: Make the user specify the parameters and take them all by default.
-                    self.log_static_hyperparameter(parameter_name=parameter_name, value=parameter_value)
+                    self.log_static_hyperparameter(
+                        parameter_name=parameter_name, value=parameter_value
+                    )

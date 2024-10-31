@@ -40,7 +40,9 @@ class Tags(
         tag: str,
         tag_objects: mlrun.common.schemas.TagObjects,
     ):
-        overwrite_func = kind_to_function_names.get(tag_objects.kind, {}).get("overwrite")
+        overwrite_func = kind_to_function_names.get(tag_objects.kind, {}).get(
+            "overwrite"
+        )
         if not overwrite_func:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find overwrite function for object kind: {tag_objects.kind}"
@@ -61,7 +63,9 @@ class Tags(
     ):
         append_func = kind_to_function_names.get(tag_objects.kind, {}).get("append")
         if not append_func:
-            raise mlrun.errors.MLRunNotFoundError(f"couldn't find append function for object kind: {tag_objects.kind}")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find append function for object kind: {tag_objects.kind}"
+            )
         getattr(services.api.utils.singletons.db.get_db(), append_func)(
             session=db_session,
             project=project,
@@ -78,7 +82,9 @@ class Tags(
     ):
         delete_func = kind_to_function_names.get(tag_objects.kind, {}).get("delete")
         if not delete_func:
-            raise mlrun.errors.MLRunNotFoundError(f"couldn't find delete function for object kind: {tag_objects.kind}")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find delete function for object kind: {tag_objects.kind}"
+            )
         getattr(services.api.utils.singletons.db.get_db(), delete_func)(
             session=db_session,
             project=project,

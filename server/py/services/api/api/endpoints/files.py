@@ -41,7 +41,9 @@ async def get_files_with_project_secrets(
     size: int = 0,
     offset: int = 0,
     use_secrets: bool = fastapi.Query(True, alias="use-secrets"),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
 ):
     await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
@@ -71,7 +73,9 @@ async def get_filestat_with_project_secrets(
     project: str,
     schema: str = "",
     path: str = "",
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(services.api.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        services.api.api.deps.authenticate_request
+    ),
     user: str = "",
     use_secrets: bool = fastapi.Query(True, alias="use-secrets"),
 ):
@@ -146,12 +150,16 @@ def _get_files(
     ctype, _ = mimetypes.guess_type(objpath)
     if not ctype:
         ctype = "application/octet-stream"
-    return fastapi.Response(content=body, media_type=ctype, headers={"x-suggested-filename": filename})
+    return fastapi.Response(
+        content=body, media_type=ctype, headers={"x-suggested-filename": filename}
+    )
 
 
 async def _verify_and_get_project_secrets(project, auth_info):
     # If running on Docker or locally, we cannot retrieve project secrets, so skip.
-    if not services.api.utils.singletons.k8s.get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+    if not services.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
         return {}
 
     await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

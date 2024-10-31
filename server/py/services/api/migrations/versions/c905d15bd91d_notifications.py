@@ -39,16 +39,24 @@ def upgrade():
         sa.Column("project", sa.String(length=255, collation="utf8_bin")),
         sa.Column("name", sa.String(length=255, collation="utf8_bin"), nullable=False),
         sa.Column("kind", sa.String(length=255, collation="utf8_bin"), nullable=False),
-        sa.Column("message", sa.String(length=255, collation="utf8_bin"), nullable=False),
-        sa.Column("severity", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "message", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
+        sa.Column(
+            "severity", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.Column("when", sa.String(length=255, collation="utf8_bin"), nullable=False),
-        sa.Column("condition", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "condition", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.Column("params", sa.JSON(), nullable=True),
         # A generic parent_id rather than run_id since notification table is standard across objects, see the
         # make_notification function for its definition and usage.
         sa.Column("parent_id", sa.Integer(), nullable=True),
         sa.Column("sent_time", mysql.TIMESTAMP(fsp=3), nullable=True),
-        sa.Column("status", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "status", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.ForeignKeyConstraint(
             ["parent_id"],
             ["runs.id"],

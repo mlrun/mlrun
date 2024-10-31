@@ -62,10 +62,14 @@ class ModelEndpoints:
 
         # If model artifact was supplied, grab model metadata from artifact
         if model_endpoint.spec.model_uri:
-            logger.info("Getting model object, inferring column names and collecting feature stats")
+            logger.info(
+                "Getting model object, inferring column names and collecting feature stats"
+            )
             run_db = services.api.api.utils.get_run_db_instance(db_session)
-            model_obj: mlrun.artifacts.ModelArtifact = mlrun.datastore.store_resources.get_store_resource(
-                model_endpoint.spec.model_uri, db=run_db
+            model_obj: mlrun.artifacts.ModelArtifact = (
+                mlrun.datastore.store_resources.get_store_resource(
+                    model_endpoint.spec.model_uri, db=run_db
+                )
             )
 
             # Verify and enrich the model endpoint obj with the updated model uri
@@ -75,15 +79,22 @@ class ModelEndpoints:
             )
 
             # Get stats from model object if not found in model endpoint object
-            if not model_endpoint.status.feature_stats and hasattr(model_obj, "feature_stats"):
+            if not model_endpoint.status.feature_stats and hasattr(
+                model_obj, "feature_stats"
+            ):
                 if model_obj.spec.feature_stats:
                     mlrun.common.model_monitoring.helpers.pad_features_hist(
-                        mlrun.common.model_monitoring.helpers.FeatureStats(model_obj.spec.feature_stats)
+                        mlrun.common.model_monitoring.helpers.FeatureStats(
+                            model_obj.spec.feature_stats
+                        )
                     )
                     model_endpoint.status.feature_stats = model_obj.spec.feature_stats
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and model_obj.spec.outputs:
-                model_label_names = [mlrun.feature_store.api.norm_column_name(f.name) for f in model_obj.spec.outputs]
+                model_label_names = [
+                    mlrun.feature_store.api.norm_column_name(f.name)
+                    for f in model_obj.spec.outputs
+                ]
                 model_endpoint.spec.label_names = model_label_names
 
             # Get algorithm from model object if not found in model endpoint object
@@ -107,7 +118,9 @@ class ModelEndpoints:
                     db_session=db_session,
                 )
                 # Link model endpoint object to feature set URI
-                model_endpoint.status.monitoring_feature_set_uri = monitoring_feature_set.uri
+                model_endpoint.status.monitoring_feature_set_uri = (
+                    monitoring_feature_set.uri
+                )
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
@@ -115,7 +128,9 @@ class ModelEndpoints:
         if model_endpoint.status.feature_stats:
             logger.info("Feature stats found, cleaning feature names")
 
-            model_endpoint.status.feature_stats = cls._adjust_stats(model_endpoint=model_endpoint)
+            model_endpoint.status.feature_stats = cls._adjust_stats(
+                model_endpoint=model_endpoint
+            )
 
             logger.info(
                 "Done preparing stats",
@@ -126,8 +141,10 @@ class ModelEndpoints:
         # system
         logger.info("Creating model endpoint", endpoint_id=model_endpoint.metadata.uid)
         # Write the new model endpoint
-        model_endpoint_store = services.api.crud.model_monitoring.helpers.get_store_object(
-            project=model_endpoint.metadata.project
+        model_endpoint_store = (
+            services.api.crud.model_monitoring.helpers.get_store_object(
+                project=model_endpoint.metadata.project
+            )
         )
         model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
 
@@ -155,8 +172,12 @@ class ModelEndpoints:
         """
 
         # Generate a model endpoint store object and apply the update process
-        model_endpoint_store = services.api.crud.model_monitoring.helpers.get_store_object(project=project)
-        model_endpoint_store.update_model_endpoint(endpoint_id=endpoint_id, attributes=attributes)
+        model_endpoint_store = (
+            services.api.crud.model_monitoring.helpers.get_store_object(project=project)
+        )
+        model_endpoint_store.update_model_endpoint(
+            endpoint_id=endpoint_id, attributes=attributes
+        )
 
         logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
 
@@ -178,17 +199,29 @@ class ModelEndpoints:
         if model.spec.inputs:
             for feature in itertools.chain(model.spec.inputs, model.spec.outputs):
                 name = mlrun.feature_store.api.norm_column_name(feature.name)
-                features.append(mlrun.feature_store.Feature(name=name, value_type=feature.value_type))
+                features.append(
+                    mlrun.feature_store.Feature(
+                        name=name, value_type=feature.value_type
+                    )
+                )
         # Check if features can be found within the feature vector
         elif model.spec.feature_vector:
-            _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(model.spec.feature_vector)
+            _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
+                model.spec.feature_vector
+            )
             fv = run_db.get_feature_vector(name=name, project=project, tag=tag)
             for feature in fv.status.features:
                 if feature["name"] != fv.status.label_column:
                     name = mlrun.feature_store.api.norm_column_name(feature["name"])
-                    features.append(mlrun.feature_store.Feature(name=name, value_type=feature["value_type"]))
+                    features.append(
+                        mlrun.feature_store.Feature(
+                            name=name, value_type=feature["value_type"]
+                        )
+                    )
         else:
-            logger.warn("Could not find any features in the model object and in the Feature Vector")
+            logger.warn(
+                "Could not find any features in the model object and in the Feature Vector"
+            )
         logger.debug("Listed features", features=features)
         return features
 
@@ -217,18 +250,24 @@ class ModelEndpoints:
             serving_function_name,
             _,
             _,
-        ) = mlrun.common.helpers.parse_versioned_object_uri(model_endpoint.spec.function_uri)
+        ) = mlrun.common.helpers.parse_versioned_object_uri(
+            model_endpoint.spec.function_uri
+        )
 
         model_name = model_endpoint.spec.model.replace(":", "-")
 
         feature_set = mlrun.feature_store.FeatureSet(
             f"monitoring-{serving_function_name}-{model_name}",
-            entities=[mlrun.common.schemas.model_monitoring.FeatureSetFeatures.entity()],
+            entities=[
+                mlrun.common.schemas.model_monitoring.FeatureSetFeatures.entity()
+            ],
             timestamp_key=mlrun.common.schemas.model_monitoring.FeatureSetFeatures.time_stamp(),
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
         )
         # Set the run db instance with the current db session
-        feature_set._override_run_db(services.api.api.utils.get_run_db_instance(db_session))
+        feature_set._override_run_db(
+            services.api.api.utils.get_run_db_instance(db_session)
+        )
         feature_set.spec.features = features
         feature_set.metadata.project = model_endpoint.metadata.project
         feature_set.metadata.labels = {
@@ -279,7 +318,9 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        model_endpoint_store = services.api.crud.ModelEndpoints()._get_store_object(project=project)
+        model_endpoint_store = services.api.crud.ModelEndpoints()._get_store_object(
+            project=project
+        )
         if model_endpoint_store:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
@@ -427,7 +468,9 @@ class ModelEndpoints:
 
         for endpoint_dict in endpoint_dictionary_list:
             # Convert to `ModelEndpoint` object
-            endpoint_obj = self._convert_into_model_endpoint_object(endpoint=endpoint_dict)
+            endpoint_obj = self._convert_into_model_endpoint_object(
+                endpoint=endpoint_dict
+            )
 
             # If time metrics were provided, retrieve the results from the time series DB
             if metrics:
@@ -485,7 +528,9 @@ class ModelEndpoints:
         stream_path = services.api.crud.model_monitoring.get_stream_path(
             project=project_name,
         )
-        if stream_path.startswith("v3io") and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api):
+        if stream_path.startswith("v3io") and (
+            not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api
+        ):
             return
         elif stream_path.startswith("v3io") and not model_monitoring_access_key:
             # Generate V3IO Access Key
@@ -514,7 +559,9 @@ class ModelEndpoints:
                 # Delete model monitoring TSDB resources
                 tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                     project=project_name,
-                    secret_provider=services.api.crud.secrets.get_project_secret_provider(project=project_name),
+                    secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                        project=project_name
+                    ),
                 )
             except mlrun.errors.MLRunTSDBConnectionFailureError as e:
                 logger.warning(
@@ -567,8 +614,12 @@ class ModelEndpoints:
         model_monitoring_applications = model_monitoring_applications or []
 
         # Add the writer and monitoring stream to the application streams list
-        model_monitoring_applications.append(mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.WRITER)
-        model_monitoring_applications.append(mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.STREAM)
+        model_monitoring_applications.append(
+            mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.WRITER
+        )
+        model_monitoring_applications.append(
+            mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.STREAM
+        )
 
         try:
             services.api.crud.model_monitoring.deployment.MonitoringDeployment._delete_model_monitoring_stream_resources(
@@ -599,7 +650,11 @@ class ModelEndpoints:
         """
 
         # Getting the length of label names, feature_names and feature_stats
-        len_of_label_names = 0 if not model_endpoint.spec.label_names else len(model_endpoint.spec.label_names)
+        len_of_label_names = (
+            0
+            if not model_endpoint.spec.label_names
+            else len(model_endpoint.spec.label_names)
+        )
         len_of_feature_names = len(model_endpoint.spec.feature_names)
         len_of_feature_stats = len(model_endpoint.status.feature_stats)
 
@@ -627,7 +682,10 @@ class ModelEndpoints:
             clean_name = mlrun.feature_store.api.norm_column_name(feature)
             clean_feature_stats[clean_name] = stats
             # Exclude the label columns from the feature names
-            if model_endpoint.spec.label_names and clean_name in model_endpoint.spec.label_names:
+            if (
+                model_endpoint.spec.label_names
+                and clean_name in model_endpoint.spec.label_names
+            ):
                 continue
         return clean_feature_stats
 
@@ -684,9 +742,9 @@ class ModelEndpoints:
         )
 
         if endpoint_metrics:
-            model_endpoint_object.status.metrics[mlrun.common.schemas.model_monitoring.EventKeyMetrics.REAL_TIME] = (
-                endpoint_metrics
-            )
+            model_endpoint_object.status.metrics[
+                mlrun.common.schemas.model_monitoring.EventKeyMetrics.REAL_TIME
+            ] = endpoint_metrics
         return model_endpoint_object
 
     @staticmethod
@@ -709,16 +767,20 @@ class ModelEndpoints:
 
         # If feature analysis was applied, add feature stats and current stats to the model endpoint result
         if feature_analysis and endpoint_obj.spec.feature_names:
-            endpoint_features = services.api.crud.model_monitoring.deployment.get_endpoint_features(
-                feature_names=endpoint_obj.spec.feature_names,
-                feature_stats=endpoint_obj.status.feature_stats,
-                current_stats=endpoint_obj.status.current_stats,
+            endpoint_features = (
+                services.api.crud.model_monitoring.deployment.get_endpoint_features(
+                    feature_names=endpoint_obj.spec.feature_names,
+                    feature_stats=endpoint_obj.status.feature_stats,
+                    current_stats=endpoint_obj.status.current_stats,
+                )
             )
             if endpoint_features:
                 endpoint_obj.status.features = endpoint_features
                 # Add the latest drift measures results (calculated by the model monitoring batch)
                 drift_measures = services.api.crud.model_monitoring.helpers.json_loads_if_not_none(
-                    endpoint.get(mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_MEASURES)
+                    endpoint.get(
+                        mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_MEASURES
+                    )
                 )
                 endpoint_obj.status.drift_measures = drift_measures
 
@@ -735,7 +797,11 @@ class ModelEndpoints:
         Note : Use this method only for deleting/reading model endpoints.
         """
         try:
-            model_endpoint_store = services.api.crud.model_monitoring.helpers.get_store_object(project=project)
+            model_endpoint_store = (
+                services.api.crud.model_monitoring.helpers.get_store_object(
+                    project=project
+                )
+            )
         except mlrun.errors.MLRunInvalidMMStoreTypeError:
             # TODO: delete in 1.9.0 - for BC trying to create default/v3io store
             store_connection_string = (

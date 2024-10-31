@@ -41,7 +41,9 @@ echo "abc123" $1
 
 
 class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
-    assets_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent / "run" / "assets"
+    assets_path = (
+        pathlib.Path(__file__).absolute().parent.parent.parent.parent / "run" / "assets"
+    )
 
     def custom_setup(self):
         # ensure default project exists
@@ -66,13 +68,16 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         start_time = datetime.datetime.now()
         out = self._exec_run(
             path,
-            self._compose_param_list(dict(time_to_sleep=time_to_sleep)) + ["--handler", "handler"],
+            self._compose_param_list(dict(time_to_sleep=time_to_sleep))
+            + ["--handler", "handler"],
             "test_main_run_wait_for_completion",
         )
         end_time = datetime.datetime.now()
         print(out)
         assert out.find("state: completed") != -1, out
-        assert (end_time - start_time).seconds >= time_to_sleep, "run did not wait for completion"
+        assert (
+            end_time - start_time
+        ).seconds >= time_to_sleep, "run did not wait for completion"
 
     def test_main_run_hyper(self):
         out = self._exec_run(
@@ -115,7 +120,12 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         out_stdout = out.stdout.decode("utf-8")
         print(out)
-        assert out_stdout.find("command/url '*' placeholder is not allowed when code is not from env") != -1, out
+        assert (
+            out_stdout.find(
+                "command/url '*' placeholder is not allowed when code is not from env"
+            )
+            != -1
+        ), out
 
     def test_main_run_args_with_url_placeholder_from_env(self):
         os.environ["MLRUN_EXEC_CODE"] = b64encode(code.encode("utf-8")).decode("utf-8")
@@ -289,7 +299,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     @pytest.mark.skipif(sys.platform == "win32", reason="skip on windows")
     def test_main_run_nonpy_from_env(self):
-        os.environ["MLRUN_EXEC_CODE"] = b64encode(nonpy_code.encode("utf-8")).decode("utf-8")
+        os.environ["MLRUN_EXEC_CODE"] = b64encode(nonpy_code.encode("utf-8")).decode(
+            "utf-8"
+        )
         os.environ["MLRUN_EXEC_CONFIG"] = (
             '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "job"}}}'
         )
@@ -349,7 +361,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_main_run_archive_subdir(self):
         runtime = '{"spec":{"pythonpath":"./subdir"}}'
         args = f"--source {examples_path}/archive.zip -r {runtime}"
-        out = self._exec_run("./subdir/func2.py", args.split(), "test_main_run_archive_subdir")
+        out = self._exec_run(
+            "./subdir/func2.py", args.split(), "test_main_run_archive_subdir"
+        )
         print(out)
         assert out.find("state: completed") != -1, out
 
@@ -362,7 +376,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("y: 4") != -1, out  # y = x * 2
 
     def test_main_local_flag(self):
-        fn = mlrun.code_to_function(filename=f"{examples_path}/handler.py", kind="job", handler="my_func")
+        fn = mlrun.code_to_function(
+            filename=f"{examples_path}/handler.py", kind="job", handler="my_func"
+        )
         yaml_path = f"{out_path}/myfunc.yaml"
         fn.export(yaml_path)
         args = f"-f {yaml_path} --local"
@@ -428,10 +444,14 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         fn.save()
 
         # create another project
-        project2 = mlrun.get_or_create_project("second-project", allow_cross_project=True)
+        project2 = mlrun.get_or_create_project(
+            "second-project", allow_cross_project=True
+        )
 
         # from the second project - run the function that we stored in the first project
-        args = "-f db://first-project/new-func --project second-project --ensure-project"
+        args = (
+            "-f db://first-project/new-func --project second-project --ensure-project"
+        )
         self._exec_main("run", args.split())
 
         # validate that the function is now stored also in the second project

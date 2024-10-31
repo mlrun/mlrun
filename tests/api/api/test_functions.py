@@ -129,9 +129,17 @@ async def test_list_functions_with_pagination(
             "page-size": page_size,
         },
     )
+
     tests.api.api.utils.assert_pagination_info(
-        response, 1, page_size, page_size, "function-name-0", "funcs", "name"
+        response=response,
+        expected_page=1,
+        expected_results_count=page_size,
+        expected_page_size=page_size,
+        expected_first_result_name="function-name-0",
+        entity_name="funcs",
+        entity_identifier_name="name",
     )
+
     page_token = response.json()["pagination"]["page-token"]
 
     response = await async_client.get(
@@ -140,8 +148,15 @@ async def test_list_functions_with_pagination(
             "page-token": page_token,
         },
     )
+
     tests.api.api.utils.assert_pagination_info(
-        response, 2, page_size, page_size, "function-name-10", "funcs", "name"
+        response=response,
+        expected_page=2,
+        expected_results_count=page_size,
+        expected_page_size=page_size,
+        expected_first_result_name="function-name-10",
+        entity_name="funcs",
+        entity_identifier_name="name",
     )
 
     response = await async_client.get(
@@ -150,8 +165,15 @@ async def test_list_functions_with_pagination(
             "page-token": page_token,
         },
     )
+
     tests.api.api.utils.assert_pagination_info(
-        response, 3, 5, page_size, "function-name-20", "funcs", "name"
+        response=response,
+        expected_page=3,
+        expected_results_count=5,
+        expected_page_size=page_size,
+        expected_first_result_name="function-name-20",
+        entity_name="funcs",
+        entity_identifier_name="name",
     )
 
     response = await async_client.get(

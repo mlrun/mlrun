@@ -1042,7 +1042,13 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
     )
 
     tests.api.api.utils.assert_pagination_info(
-        response, 1, page_size, page_size, "artifact-0", "artifacts", "key"
+        response=response,
+        expected_page=1,
+        expected_results_count=page_size,
+        expected_page_size=page_size,
+        expected_first_result_name="artifact-0",
+        entity_name="artifacts",
+        entity_identifier_name="key",
     )
     page_token = response.json()["pagination"]["page-token"]
 
@@ -1054,7 +1060,13 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
     )
 
     tests.api.api.utils.assert_pagination_info(
-        response, 2, page_size, page_size, "artifact-10", "artifacts", "key"
+        response=response,
+        expected_page=2,
+        expected_results_count=page_size,
+        expected_page_size=page_size,
+        expected_first_result_name="artifact-10",
+        entity_name="artifacts",
+        entity_identifier_name="key",
     )
 
     response = unversioned_client.get(
@@ -1063,8 +1075,15 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
             "page-token": page_token,
         },
     )
+
     tests.api.api.utils.assert_pagination_info(
-        response, 3, 5, page_size, "artifact-20", "artifacts", "key"
+        response=response,
+        expected_page=3,
+        expected_results_count=5,
+        expected_page_size=page_size,
+        expected_first_result_name="artifact-20",
+        entity_name="artifacts",
+        entity_identifier_name="key",
     )
 
     response = unversioned_client.get(

@@ -197,12 +197,12 @@ jobs:
 
     - name: Setup Local Docker Registry
       run: |
-        # fill /etc/rancher/k3s/registries.yaml
-        registries_file="/etc/rancher/k3s/registries.yaml"
-        echo "mirrors:"                              | sudo tee $registries_file
-        echo "  registry.localhost:"                 | sudo tee --append $registries_file
-        echo "    endpoint:"                         | sudo tee --append $registries_file
-        echo "    - http://registry.localhost:80"  | sudo tee --append $registries_file
+        sudo tee "/etc/rancher/k3s/registries.yaml" << EOF
+        mirrors:
+          registry.localhost:
+            endpoint:
+            - http://registry.localhost:80
+        EOF
 
         # restart k3s to apply the changes
         sudo systemctl restart k3s

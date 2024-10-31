@@ -106,8 +106,7 @@ jobs:
       id: docker_cache
       run: |
         export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
-        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
-        export unstable_tag=$(if [ -z "$INPUT_CACHE_TAG_SUFFIX" ]; then echo "$unstable_tag" ; else echo "$unstable_tag-$INPUT_CACHE_TAG_SUFFIX";fi);
+        export unstable_tag="unstable-cache${version_suffix:+-$version_suffix}${INPUT_CACHE_TAG_SUFFIX:+-$INPUT_CACHE_TAG_SUFFIX}"
         export build_from_cache=$(if [ -z "$INPUT_BUILD_FROM_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_FROM_CACHE";fi);
         export no_cache=$(if [ "$build_from_cache" = "false" ]; then echo "true" ; else echo "";fi);
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT

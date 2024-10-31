@@ -58,9 +58,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_list_artifacts_filter_by_kind(self):
         prj, tree, key, body = "p9", "t19", "k802", "tomato"
         mlrun.get_or_create_project(prj, context="./", allow_cross_project=True)
-        model_artifact = mlrun.artifacts.model.ModelArtifact(
-            key, body, target_path="/a.txt"
-        )
+        model_artifact = mlrun.artifacts.model.ModelArtifact(key, body, target_path="/a.txt")
 
         data = {"col1": [1, 2], "col2": [3, 4]}
         data_frame = pandas.DataFrame(data=data)
@@ -70,9 +68,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         db = mlrun.get_run_db()
         db.store_artifact(key, model_artifact, tree=f"model_{tree}", project=prj)
-        db.store_artifact(
-            key, dataset_artifact, tree=f"ds_{tree}", project=prj, iter=42
-        )
+        db.store_artifact(key, dataset_artifact, tree=f"ds_{tree}", project=prj, iter=42)
 
         artifacts = db.list_artifacts(project=prj)
         assert len(artifacts) == 2, "bad number of artifacts"
@@ -80,9 +76,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         artifacts = db.list_artifacts(project=prj, kind="model")
         assert len(artifacts) == 1, "bad number of model artifacts"
 
-        artifacts = db.list_artifacts(
-            project=prj, category=mlrun.common.schemas.ArtifactCategories.dataset
-        )
+        artifacts = db.list_artifacts(project=prj, category=mlrun.common.schemas.ArtifactCategories.dataset)
         assert len(artifacts) == 1, "bad number of dataset artifacts"
 
     def test_export_import(self):
@@ -115,9 +109,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 assert artifact.metadata.key == new_key
                 assert artifact.spec.db_key == new_key
                 assert artifact.metadata.project == "log-mod2"
-                temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(
-                    artifact.uri
-                )
+                temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(artifact.uri)
                 with open(temp_path, "rb") as fp:
                     data = fp.read()
                 assert data == b"123"
@@ -138,9 +130,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         model.export(artifact_url)
 
         # mock downloading the artifact from s3 by copying it locally to a temp path
-        mlrun.datastore.base.DataStore.download = unittest.mock.MagicMock(
-            side_effect=shutil.copyfile
-        )
+        mlrun.datastore.base.DataStore.download = unittest.mock.MagicMock(side_effect=shutil.copyfile)
         artifact = target_project.import_artifact(
             f"s3://ֿ{results_dir}/a.zip",
             "mod-zip",

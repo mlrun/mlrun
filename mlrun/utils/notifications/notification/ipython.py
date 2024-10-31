@@ -57,13 +57,7 @@ class IPythonNotification(NotificationBase):
         event_data: mlrun.common.schemas.Event = None,
     ):
         if not self._ipython:
-            mlrun.utils.helpers.logger.debug(
-                "Not in IPython environment, skipping notification"
-            )
+            mlrun.utils.helpers.logger.debug("Not in IPython environment, skipping notification")
             return
 
-        self._ipython.display.display(
-            self._ipython.display.HTML(
-                self._get_html(message, severity, runs, custom_html)
-            )
-        )
+        self._ipython.display.display(self._ipython.display.HTML(self._get_html(message, severity, runs, custom_html)))

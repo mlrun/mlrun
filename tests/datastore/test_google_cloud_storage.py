@@ -26,9 +26,7 @@ def test_get_storage_options():
     assert st.get_storage_options() == {**use_listings_cache_dict}
 
     st = GoogleCloudStorageStore(parent="parent", schema="schema", name="name")
-    st._get_secret_or_env = MagicMock(
-        return_value='{"key1": "value1", "key2": "value2"}'
-    )
+    st._get_secret_or_env = MagicMock(return_value='{"key1": "value1", "key2": "value2"}')
     assert st.get_storage_options() == {
         "token": {"key1": "value1", "key2": "value2"},
         **use_listings_cache_dict,
@@ -42,9 +40,7 @@ def test_get_storage_options():
     }
 
     st = GoogleCloudStorageStore(parent="parent", schema="schema", name="name")
-    st._get_secret_or_env = MagicMock(
-        return_value={"token": {"key1": "value1", "key2": "value2"}}
-    )
+    st._get_secret_or_env = MagicMock(return_value={"token": {"key1": "value1", "key2": "value2"}})
     assert st.get_storage_options() == {
         "token": {"token": {"key1": "value1", "key2": "value2"}},
         **use_listings_cache_dict,

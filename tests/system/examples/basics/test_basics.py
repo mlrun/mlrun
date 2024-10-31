@@ -127,9 +127,7 @@ class TestBasics(TestMLRunSystem):
     def test_inline_code_with_param_file(self):
         function = mlrun.new_function(name="inline-task-with-param-file", kind="job")
         run_object = function.run(
-            self._inline_task.with_param_file(
-                str(self.assets_path / "params.csv"), "max.accuracy"
-            ),
+            self._inline_task.with_param_file(str(self.assets_path / "params.csv"), "max.accuracy"),
             local=True,
         )
         self._logger.debug("Finished running task", run_object=run_object.to_dict())
@@ -172,9 +170,7 @@ class TestBasics(TestMLRunSystem):
             context.log_artifact(PlotArtifact("myfig", body=fig, title="my plot"))
 
             # create a dataframe artifact
-            df = pd.DataFrame(
-                [{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}]
-            )
+            df = pd.DataFrame([{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}])
             context.log_dataset("mydf", df=df)
 
             # Log an ML Model artifact

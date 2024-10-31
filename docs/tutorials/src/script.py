@@ -54,10 +54,7 @@ def sphere_dist(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):
     dlon = dropoff_lon - pickup_lon
 
     # Compute haversine distance
-    a = (
-        np.sin(dlat / 2.0) ** 2
-        + np.cos(pickup_lat) * np.cos(dropoff_lat) * np.sin(dlon / 2.0) ** 2
-    )
+    a = np.sin(dlat / 2.0) ** 2 + np.cos(pickup_lat) * np.cos(dropoff_lat) * np.sin(dlon / 2.0) ** 2
     return 2 * r_earth * np.arcsin(np.sqrt(a))
 
 
@@ -75,8 +72,7 @@ def sphere_dist_bear(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):
     # Compute bearing distance
     a = np.arctan2(
         np.sin(dlon * np.cos(dropoff_lat)),
-        np.cos(pickup_lat) * np.sin(dropoff_lat)
-        - np.sin(pickup_lat) * np.cos(dropoff_lat) * np.cos(dlon),
+        np.cos(pickup_lat) * np.sin(dropoff_lat) - np.sin(pickup_lat) * np.cos(dropoff_lat) * np.cos(dlon),
     )
     return a
 
@@ -130,9 +126,7 @@ def add_airport_dist(dataset):
 
 def add_datetime_info(dataset):
     # Convert to datetime format
-    dataset["pickup_datetime"] = pd.to_datetime(
-        dataset["pickup_datetime"], format="%Y-%m-%d %H:%M:%S UTC"
-    )
+    dataset["pickup_datetime"] = pd.to_datetime(dataset["pickup_datetime"], format="%Y-%m-%d %H:%M:%S UTC")
 
     dataset["hour"] = dataset.pickup_datetime.dt.hour
     dataset["day"] = dataset.pickup_datetime.dt.day
@@ -172,9 +166,7 @@ train_df = train_df.drop(columns=["fare_amount"])
 
 print(train_df.head())
 
-x_train, x_test, y_train, y_test = train_test_split(
-    train_df, y, random_state=123, test_size=0.10
-)
+x_train, x_test, y_train, y_test = train_test_split(train_df, y, random_state=123, test_size=0.10)
 
 del train_df
 del y

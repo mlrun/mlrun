@@ -61,17 +61,12 @@ def watch_stream(
     shard_ids = shard_ids or [0]
     if isinstance(shard_ids, int):
         shard_ids = [shard_ids]
-    watchers = [
-        V3ioStreamClient(url, shard_id, seek_to, **kwargs)
-        for shard_id in list(shard_ids)
-    ]
+    watchers = [V3ioStreamClient(url, shard_id, seek_to, **kwargs) for shard_id in list(shard_ids)]
     while True:
         for watcher in watchers:
             records = watcher.get_records()
             for record in records:
-                print(
-                    f"{watcher.url}:{watcher.shard_id} (#{record.sequence_number}) >> "
-                )
+                print(f"{watcher.url}:{watcher.shard_id} (#{record.sequence_number}) >> ")
                 data = json.loads(record.data) if is_json else record.data.decode()
                 pprint(data)
         if interval <= 0:

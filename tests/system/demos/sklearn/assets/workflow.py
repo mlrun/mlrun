@@ -78,9 +78,7 @@ def kfpipeline():
     )
 
     # deploy our model as a serverless function
-    deploy = funcs["serving"].deploy_step(
-        models={f"{DATASET}_v1": train.outputs["model"]}, tag="v2"
-    )
+    deploy = funcs["serving"].deploy_step(models={f"{DATASET}_v1": train.outputs["model"]}, tag="v2")
 
     # test out new model server (via REST API calls)
     funcs["live_tester"].as_step(

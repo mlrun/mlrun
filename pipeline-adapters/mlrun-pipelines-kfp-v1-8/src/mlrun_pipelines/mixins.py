@@ -51,11 +51,7 @@ class PipelineProviderMixin:
     def resolve_project_from_workflow_manifest(self, workflow_manifest):
         templates = workflow_manifest.get("spec", {}).get("templates", [])
         for template in templates:
-            project_from_annotation = (
-                template.get("metadata", {})
-                .get("annotations", {})
-                .get(PROJECT_ANNOTATION)
-            )
+            project_from_annotation = template.get("metadata", {}).get("annotations", {}).get(PROJECT_ANNOTATION)
             if project_from_annotation:
                 return project_from_annotation
             command = template.get("container", {}).get("command", [])
@@ -101,9 +97,7 @@ class PipelineProviderMixin:
     def resolve_error_from_pipeline(pipeline):
         if pipeline.run.status in [RunStatuses.error, RunStatuses.failed]:
             # status might not be available just yet
-            workflow_status = json.loads(
-                pipeline.pipeline_runtime.workflow_manifest
-            ).get("status", {})
+            workflow_status = json.loads(pipeline.pipeline_runtime.workflow_manifest).get("status", {})
             for node in workflow_status.get("nodes", {}).values():
                 # The "DAG" node is the parent node of the pipeline so we skip it for getting the detailed error
                 if node["type"] not in ["DAG", "Skipped"]:

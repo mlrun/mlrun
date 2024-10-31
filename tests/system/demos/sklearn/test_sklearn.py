@@ -47,9 +47,7 @@ class TestSKLearn(TestDemo):
         iris_generator_function.spec.remote = True
         iris_generator_function.spec.replicas = 1
         iris_generator_function.spec.service_type = "NodePort"
-        iris_generator_function.spec.build.commands.append(
-            "pip install pandas sklearn pyarrow"
-        )
+        iris_generator_function.spec.build.commands.append("pip install pandas sklearn pyarrow")
 
         self._logger.debug("Setting project functions")
         demo_project.set_function(iris_generator_function)
@@ -59,9 +57,7 @@ class TestSKLearn(TestDemo):
         demo_project.set_function("hub://model-server-tester", "live-tester")
 
         self._logger.debug("Setting project workflow")
-        demo_project.set_workflow(
-            "main", str(self.assets_path / "workflow.py"), embed=True
-        )
+        demo_project.set_workflow("main", str(self.assets_path / "workflow.py"), embed=True)
 
         return demo_project
 

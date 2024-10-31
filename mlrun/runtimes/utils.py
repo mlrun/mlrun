@@ -188,9 +188,7 @@ def results_to_iter(results, runspec, execution):
     criteria = runspec.spec.hyper_param_options.selector
     item, id = selector(results, criteria)
     if runspec.spec.selector and not id:
-        logger.warning(
-            f"No best result selected, check selector ({criteria}) or results"
-        )
+        logger.warning(f"No best result selected, check selector ({criteria}) or results")
     if id:
         logger.info(f"Best iteration={id}, used criteria {criteria}")
     task = results[item] if id and results else None
@@ -249,9 +247,7 @@ def fill_function_image_name_template(
 
 
 def resolve_function_target_image_name_prefix(project: str, name: str):
-    return config.httpdb.builder.function_target_image_name_prefix_template.format(
-        project=project, name=name
-    )
+    return config.httpdb.builder.function_target_image_name_prefix_template.format(project=project, name=name)
 
 
 def resolve_function_target_image_registries_to_enforce_prefix():
@@ -288,16 +284,14 @@ def verify_limits(
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.memory",
             mem,
-            mlrun.utils.regex.k8s_resource_quantity_regex
-            + mlrun.utils.regex.pipeline_param,
+            mlrun.utils.regex.k8s_resource_quantity_regex + mlrun.utils.regex.pipeline_param,
             mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     if cpu:
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.cpu",
             cpu,
-            mlrun.utils.regex.k8s_resource_quantity_regex
-            + mlrun.utils.regex.pipeline_param,
+            mlrun.utils.regex.k8s_resource_quantity_regex + mlrun.utils.regex.pipeline_param,
             mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
@@ -305,8 +299,7 @@ def verify_limits(
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.gpus",
             gpus,
-            mlrun.utils.regex.k8s_resource_quantity_regex
-            + mlrun.utils.regex.pipeline_param,
+            mlrun.utils.regex.k8s_resource_quantity_regex + mlrun.utils.regex.pipeline_param,
             mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     return generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
@@ -321,16 +314,14 @@ def verify_requests(
         verify_field_regex(
             f"function.spec.{resources_field_name}.requests.memory",
             mem,
-            mlrun.utils.regex.k8s_resource_quantity_regex
-            + mlrun.utils.regex.pipeline_param,
+            mlrun.utils.regex.k8s_resource_quantity_regex + mlrun.utils.regex.pipeline_param,
             mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     if cpu:
         verify_field_regex(
             f"function.spec.{resources_field_name}.requests.cpu",
             cpu,
-            mlrun.utils.regex.k8s_resource_quantity_regex
-            + mlrun.utils.regex.pipeline_param,
+            mlrun.utils.regex.k8s_resource_quantity_regex + mlrun.utils.regex.pipeline_param,
             mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     return generate_resources(mem=mem, cpu=cpu)
@@ -418,9 +409,7 @@ def enrich_function_from_dict(function, function_dict):
                 function.spec.volume_mounts = override_value
             elif attribute == "resources":
                 # don't override if there are limits and requests but both are empty
-                if override_value.get("limits", {}) or override_value.get(
-                    "requests", {}
-                ):
+                if override_value.get("limits", {}) or override_value.get("requests", {}):
                     setattr(function.spec, attribute, override_value)
             elif attribute == "credentials":
                 if any(override_value.to_dict().values()):
@@ -447,9 +436,7 @@ def enrich_run_labels(
     return labels
 
 
-def resolve_node_selectors(
-    project_node_selector: dict, instance_node_selector: dict
-) -> dict:
+def resolve_node_selectors(project_node_selector: dict, instance_node_selector: dict) -> dict:
     config_node_selector = mlrun.mlconf.get_default_function_node_selector()
     if project_node_selector or config_node_selector:
         mlrun.utils.logger.debug(
@@ -474,8 +461,6 @@ def enrich_gateway_timeout_annotations(annotations: dict, gateway_timeout: int):
     if not gateway_timeout:
         return
     gateway_timeout_str = str(gateway_timeout)
-    annotations["nginx.ingress.kubernetes.io/proxy-connect-timeout"] = (
-        gateway_timeout_str
-    )
+    annotations["nginx.ingress.kubernetes.io/proxy-connect-timeout"] = gateway_timeout_str
     annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"] = gateway_timeout_str
     annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = gateway_timeout_str

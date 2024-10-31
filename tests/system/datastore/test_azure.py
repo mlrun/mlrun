@@ -60,9 +60,7 @@ class TestAzureBlobSystem(TestMLRunSystem):
         cls.connection_string = test_environment["AZURE_STORAGE_CONNECTION_STRING"]
         cls.test_dir = "test_mlrun_azure_system_objects"
         cls.profile_name = "azure_system_profile"
-        cls._azure_fs = fsspec.filesystem(
-            "az", using_bucket=cls._bucket_name, connection_string=cls.connection_string
-        )
+        cls._azure_fs = fsspec.filesystem("az", using_bucket=cls._bucket_name, connection_string=cls.connection_string)
         cls.clean_test_directory()
 
     @classmethod
@@ -73,23 +71,13 @@ class TestAzureBlobSystem(TestMLRunSystem):
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         self._object_dir = self.test_dir + "/" + f"target_directory_{uuid.uuid4()}"
-        self._bucket_path = (
-            f"ds://{self.profile_name}"
-            if use_datastore_profile
-            else "az://" + self._bucket_name
-        )
-        self._source_url_template = (
-            self._bucket_path + "/" + self._object_dir + "/source"
-        )
-        self._target_url_template = (
-            self._bucket_path + "/" + self._object_dir + "/target"
-        )
+        self._bucket_path = f"ds://{self.profile_name}" if use_datastore_profile else "az://" + self._bucket_name
+        self._source_url_template = self._bucket_path + "/" + self._object_dir + "/source"
+        self._target_url_template = self._bucket_path + "/" + self._object_dir + "/target"
         logger.info(f"Object URL template: {self._target_url_template}")
         if use_datastore_profile:
             kwargs = {"connection_string": self.connection_string}
-            profile = DatastoreProfileAzureBlob(
-                name=self.profile_name, container=self._bucket_name, **kwargs
-            )
+            profile = DatastoreProfileAzureBlob(name=self.profile_name, container=self._bucket_name, **kwargs)
             register_temporary_client_datastore_profile(profile)
             os.environ.pop("AZURE_STORAGE_CONNECTION_STRING", None)
         else:
@@ -144,14 +132,8 @@ class TestAzureBlobSystem(TestMLRunSystem):
     ):
         df = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
         source_url = self._source_url_template + file_extension
-        target_url = (
-            self._target_url_template
-            if use_folder
-            else self._target_url_template + file_extension
-        )
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=f"{file_extension}", delete=True
-        ) as df_file:
+        target_url = self._target_url_template if use_folder else self._target_url_template + file_extension
+        with tempfile.NamedTemporaryFile(mode="w", suffix=f"{file_extension}", delete=True) as df_file:
             writer(df, df_file.name, **writer_kwargs)
             self._azure_fs.upload(
                 lpath=df_file.name,
@@ -159,9 +141,7 @@ class TestAzureBlobSystem(TestMLRunSystem):
             )
         source = source_class(path=source_url)
         targets = [target_class(path=target_url)]
-        fset = fstore.FeatureSet(
-            name="az_system_test", entities=[fstore.Entity("name")]
-        )
+        fset = fstore.FeatureSet(name="az_system_test", entities=[fstore.Entity("name")])
         fset.set_targets(
             targets=targets,
             with_defaults=False,
@@ -174,13 +154,9 @@ class TestAzureBlobSystem(TestMLRunSystem):
         result = source_class(path=target_path).to_dataframe(**to_dataframe_dict)
         if reset_index:
             result.reset_index(inplace=True, drop=False)
-        assert_frame_equal(
-            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
-        )
+        assert_frame_equal(df.sort_index(axis=1), result.sort_index(axis=1), check_like=True)
 
-        azure_path = (
-            f"{self._bucket_name}/{target_path[target_path.index(self.test_dir):]}"
-        )
+        azure_path = f"{self._bucket_name}/{target_path[target_path.index(self.test_dir):]}"
         # Check for ML-6587 regression
         assert self._azure_fs.exists(azure_path)
         fset.purge_targets()

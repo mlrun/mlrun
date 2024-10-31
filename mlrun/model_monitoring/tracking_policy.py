@@ -62,10 +62,8 @@ class TrackingPolicy(mlrun.model.ModelObj):
         )
 
         if isinstance(default_batch_intervals, str):
-            default_batch_intervals = (
-                mlrun.common.schemas.schedule.ScheduleCronTrigger.from_crontab(
-                    default_batch_intervals
-                )
+            default_batch_intervals = mlrun.common.schemas.schedule.ScheduleCronTrigger.from_crontab(
+                default_batch_intervals
             )
         self.default_batch_intervals = default_batch_intervals
         self.default_batch_image = default_batch_image
@@ -75,43 +73,30 @@ class TrackingPolicy(mlrun.model.ModelObj):
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
-        new_obj = super().from_dict(
-            struct, fields=cls._dict_fields, deprecated_fields=deprecated_fields
-        )
+        new_obj = super().from_dict(struct, fields=cls._dict_fields, deprecated_fields=deprecated_fields)
         # Convert default batch interval into ScheduleCronTrigger object
-        if (
-            mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
-            in struct
-        ):
+        if mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS in struct:
             if isinstance(
-                struct[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
-                ],
+                struct[mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS],
                 str,
             ):
                 new_obj.default_batch_intervals = mlrun.common.schemas.schedule.ScheduleCronTrigger.from_crontab(
-                    struct[
-                        mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
-                    ]
+                    struct[mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS]
                 )
             else:
                 new_obj.default_batch_intervals = mlrun.common.schemas.schedule.ScheduleCronTrigger.parse_obj(
-                    struct[
-                        mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
-                    ]
+                    struct[mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS]
                 )
         return new_obj
 
     def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         struct = super().to_dict(
             fields,
-            exclude=[
-                mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
-            ],
+            exclude=[mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS],
             strip=strip,
         )
         if self.default_batch_intervals:
-            struct[
-                mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
-            ] = self.default_batch_intervals.dict()
+            struct[mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS] = (
+                self.default_batch_intervals.dict()
+            )
         return struct

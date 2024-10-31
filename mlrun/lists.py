@@ -70,33 +70,23 @@ class RunList(list):
             ]
             if extend_iterations and iterations:
                 parameters_dict = {
-                    key[len("param.") :]: i
-                    for i, key in enumerate(iterations[0])
-                    if key.startswith("param.")
+                    key[len("param.") :]: i for i, key in enumerate(iterations[0]) if key.startswith("param.")
                 }
                 results_dict = {
-                    key[len("output.") :]: i
-                    for i, key in enumerate(iterations[0])
-                    if key.startswith("output.")
+                    key[len("output.") :]: i for i, key in enumerate(iterations[0]) if key.startswith("output.")
                 }
                 for iter in iterations[1:]:
                     row[state_index] = iter[0]
                     row[iter_index] = iter[1]
-                    row[parameters_index] = {
-                        key: iter[col] for key, col in parameters_dict.items()
-                    }
-                    row[results_index] = {
-                        key: iter[col] for key, col in results_dict.items()
-                    }
+                    row[parameters_index] = {key: iter[col] for key, col in parameters_dict.items()}
+                    row[results_index] = {key: iter[col] for key, col in results_dict.items()}
                     rows.append(copy(row))
             else:
                 rows.append(row)
 
         return [list_header] + rows
 
-    def to_df(
-        self, flat: bool = False, extend_iterations: bool = False, cache: bool = True
-    ) -> pd.DataFrame:
+    def to_df(self, flat: bool = False, extend_iterations: bool = False, cache: bool = True) -> pd.DataFrame:
         """convert the run list to a dataframe"""
         if hasattr(self, "_df") and cache:
             return self._df

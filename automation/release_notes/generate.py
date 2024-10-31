@@ -101,19 +101,13 @@ class ReleaseNotesGenerator:
             ),
         )
 
-        with tempfile.TemporaryDirectory(
-            suffix="mlrun-release-notes-clone"
-        ) as repo_dir:
+        with tempfile.TemporaryDirectory(suffix="mlrun-release-notes-clone") as repo_dir:
             current_working_dir = repo_dir
             if self._skip_clone:
                 current_working_dir = None
-                self._logger.info(
-                    "Skipping cloning repo, assuming already cloned, using current working dir"
-                )
+                self._logger.info("Skipping cloning repo, assuming already cloned, using current working dir")
             else:
-                self._logger.info(
-                    "Cloning repo", extra=dict(repo_dir=current_working_dir)
-                )
+                self._logger.info("Cloning repo", extra=dict(repo_dir=current_working_dir))
                 self._run_command(
                     "git",
                     args=[
@@ -145,13 +139,9 @@ class ReleaseNotesGenerator:
                 cwd=current_working_dir,
             )
 
-        self._generate_release_notes_from_commits(
-            commits_for_highlights, commits_for_pull_requests
-        )
+        self._generate_release_notes_from_commits(commits_for_highlights, commits_for_pull_requests)
 
-    def _generate_release_notes_from_commits(
-        self, commits_for_highlights, commits_for_pull_requests
-    ):
+    def _generate_release_notes_from_commits(self, commits_for_highlights, commits_for_pull_requests):
         (
             feature_notes,
             bug_fixes_notes,
@@ -187,18 +177,14 @@ class ReleaseNotesGenerator:
             release_notes += failed_parsing_template
             if self._raise_on_failed_parsing:
                 self.output_release_notes(release_notes)
-                raise ValueError(
-                    "Failed parsing some of the commits, added them at the end of the release notes"
-                )
+                raise ValueError("Failed parsing some of the commits, added them at the end of the release notes")
 
         self.output_release_notes(release_notes)
 
     def output_release_notes(self, release_notes: str):
         print(release_notes)
         if self._tmp_file_path:
-            logger.info(
-                "Writing release notes to file", extra=dict(path=self._tmp_file_path)
-            )
+            logger.info("Writing release notes to file", extra=dict(path=self._tmp_file_path))
             with open(self._tmp_file_path, "w") as f:
                 f.write(release_notes)
 

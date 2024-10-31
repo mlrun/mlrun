@@ -32,16 +32,12 @@ class TestDB(TestMLRunSystem):
             .set_label("type", "demo")
         )
         runs_count_before_run = len(self._run_db.list_runs(project=self.project_name))
-        artifacts_count_before_run = len(
-            self._run_db.list_artifacts(project=self.project_name, tag="*")
-        )
+        artifacts_count_before_run = len(self._run_db.list_artifacts(project=self.project_name, tag="*"))
 
         self._logger.debug("Running dummy task")
         function = mlrun.new_function(name="dummy", kind="job", command="training.py")
         run_object = function.run(task, workdir=str(self.assets_path), local=True)
-        self._logger.debug(
-            "Finished running dummy task", run_object=run_object.to_dict()
-        )
+        self._logger.debug("Finished running dummy task", run_object=run_object.to_dict())
 
         self._run_uid = run_object.uid()
 

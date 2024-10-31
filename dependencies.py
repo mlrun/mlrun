@@ -81,9 +81,7 @@ def extra_requirements() -> dict[str, list[str]]:
     }
 
     exclude_from_complete = ["bokeh"]
-    api_deps = list(
-        _load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt")
-    )
+    api_deps = list(_load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt"))
     extras_require.update(
         {
             "api": api_deps,
@@ -119,11 +117,7 @@ def _load_dependencies_from_file(path: str, parent_dir: str = None) -> list[str]
     """Load dependencies from requirements file"""
     parent_dir = parent_dir or os.path.dirname(__file__)
     with open(f"{parent_dir}/{path}") as fp:
-        return [
-            _extract_package_from_egg(line.strip())
-            for line in fp
-            if not _is_ignored(line)
-        ]
+        return [_extract_package_from_egg(line.strip()) for line in fp if not _is_ignored(line)]
 
 
 def _get_extra_dependencies(

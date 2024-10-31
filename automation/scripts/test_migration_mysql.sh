@@ -56,4 +56,4 @@ python -m pytest -v \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		${ROOT_DIR}/server/api/migrations/tests/*
+		${ROOT_DIR}/server/py/services/api/migrations/tests/*

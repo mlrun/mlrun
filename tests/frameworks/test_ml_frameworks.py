@@ -57,8 +57,7 @@ FRAMEWORKS_ALGORITHM_FUNCTIONALITIES = [
     for algorithm_functionality in ALGORITHM_FUNCTIONALITIES
     if (
         framework is not FrameworkKeys.XGBOOST
-        or algorithm_functionality
-        != AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
+        or algorithm_functionality != AlgorithmFunctionality.MULTI_OUTPUT_MULTICLASS_CLASSIFICATION.value
     )
 ]  # type: List[Tuple[str, str]]
 
@@ -93,9 +92,7 @@ def test_training(rundb_mock, framework_algorithm_functionality_pair: tuple[str,
     # Get assertion parameters:
     algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
     dummy_model = functions.get_model(algorithm_functionality=algorithm_functionality)
-    _, dummy_y = functions.get_dataset(
-        algorithm_functionality=algorithm_functionality, for_training=False
-    )
+    _, dummy_y = functions.get_dataset(algorithm_functionality=algorithm_functionality, for_training=False)
     expected_artifacts = artifacts_library.get_plans(model=dummy_model, y=dummy_y)
     expected_results = metrics_library.get_metrics(model=dummy_model, y=dummy_y)
 
@@ -142,9 +139,7 @@ def test_evaluation(
     # Get assertion parameters:
     algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
     dummy_model = functions.get_model(algorithm_functionality=algorithm_functionality)
-    _, dummy_y = functions.get_dataset(
-        algorithm_functionality=algorithm_functionality, for_training=False
-    )
+    _, dummy_y = functions.get_dataset(algorithm_functionality=algorithm_functionality, for_training=False)
     expected_artifacts = [
         plan
         for plan in artifacts_library.get_plans(model=dummy_model, y=dummy_y)

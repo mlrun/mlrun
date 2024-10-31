@@ -29,16 +29,12 @@ from mlrun.frameworks._ml_common.utils import AlgorithmFunctionality, MLTypes
 class MLFunctions(ABC):
     @staticmethod
     @abstractmethod
-    def train(
-        context: mlrun.MLClientCtx, algorithm_functionality: str, model_name: str = None
-    ):
+    def train(context: mlrun.MLClientCtx, algorithm_functionality: str, model_name: str = None):
         pass
 
     @staticmethod
     @abstractmethod
-    def evaluate(
-        context: mlrun.MLClientCtx, algorithm_functionality: str, model_path: str
-    ):
+    def evaluate(context: mlrun.MLClientCtx, algorithm_functionality: str, model_path: str):
         pass
 
     @staticmethod
@@ -73,7 +69,5 @@ class MLFunctions(ABC):
 
         if not for_training:
             return x, y
-        x_train, x_test, y_train, y_test = train_test_split(
-            x, y, test_size=0.2, stratify=stratify
-        )
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, stratify=stratify)
         return x_train, x_test, y_train, y_test

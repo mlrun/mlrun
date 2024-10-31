@@ -80,9 +80,7 @@ def get_model_endpoint_store(
         # TODO: remove in 1.9.0
         FutureWarning,
     )
-    return get_store_object(
-        project=project, access_key=access_key, secret_provider=secret_provider
-    )
+    return get_store_object(project=project, access_key=access_key, secret_provider=secret_provider)
 
 
 def get_store_object(
@@ -105,32 +103,23 @@ def get_store_object(
              or the provided store connection is invalid.
     """
 
-    store_connection_string = (
-        store_connection_string
-        or mlrun.model_monitoring.helpers.get_connection_string(
-            secret_provider=secret_provider
-        )
+    store_connection_string = store_connection_string or mlrun.model_monitoring.helpers.get_connection_string(
+        secret_provider=secret_provider
     )
 
     if store_connection_string and (
-        store_connection_string.startswith("mysql")
-        or store_connection_string.startswith("sqlite")
+        store_connection_string.startswith("mysql") or store_connection_string.startswith("sqlite")
     ):
         store_type = mlrun.common.schemas.model_monitoring.ModelEndpointTarget.SQL
         kwargs["store_connection_string"] = store_connection_string
     elif store_connection_string and store_connection_string == "v3io":
-        store_type = (
-            mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
-        )
+        store_type = mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
     else:
         raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-            "You must provide a valid store connection by using "
-            "set_model_monitoring_credentials API."
+            "You must provide a valid store connection by using " "set_model_monitoring_credentials API."
         )
     # Get store type value from ObjectStoreFactory enum class
     store_type_fact = ObjectStoreFactory(store_type)
 
     # Convert into store target object
-    return store_type_fact.to_object_store(
-        project=project, secret_provider=secret_provider, **kwargs
-    )
+    return store_type_fact.to_object_store(project=project, secret_provider=secret_provider, **kwargs)

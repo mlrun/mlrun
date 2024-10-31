@@ -31,7 +31,5 @@ def create_file_artifact() -> str:
     with open(file_path, "wb") as file:
         file.write(file_content)
 
-    print(
-        f"Temporary directory '{temp_dir}' created successfully with file '{file_name}'."
-    )
+    print(f"Temporary directory '{temp_dir}' created successfully with file '{file_name}'.")
     return str(temp_dir)

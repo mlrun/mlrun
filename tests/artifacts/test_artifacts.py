@@ -144,9 +144,7 @@ class FakeProducer:
 )
 def test_generate_target_path(artifact_path, artifact, iter, producer, expected):
     artifact.iter = iter
-    target = mlrun.artifacts.base.generate_target_path(
-        artifact, artifact_path, producer
-    )
+    target = mlrun.artifacts.base.generate_target_path(artifact, artifact_path, producer)
     print(f"\ntarget:   {target}\nexpected: {expected}")
     assert target == expected
 
@@ -169,9 +167,7 @@ def assets_path():
             True,
         ),
         (
-            mlrun.artifacts.Artifact(
-                key="some-artifact", body="asdasdasdasdas", format="parquet"
-            ),
+            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas", format="parquet"),
             "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
             "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3.parquet",
             "v3io://just/regular/path",
@@ -181,9 +177,7 @@ def assets_path():
             True,
         ),
         (
-            mlrun.artifacts.Artifact(
-                key="some-artifact", body="asdasdasdasdas", format="parquet"
-            ),
+            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas", format="parquet"),
             None,
             None,
             "v3io://just/regular/path",
@@ -203,9 +197,7 @@ def assets_path():
             True,
         ),
         (
-            mlrun.artifacts.Artifact(
-                key="some-artifact", src_path=str(assets_path() / "results.csv")
-            ),
+            mlrun.artifacts.Artifact(key="some-artifact", src_path=str(assets_path() / "results.csv")),
             "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
             "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
             "v3io://just/regular/path",
@@ -215,9 +207,7 @@ def assets_path():
             True,
         ),
         (
-            mlrun.artifacts.Artifact(
-                key="some-artifact", src_path=str(assets_path() / "results.csv")
-            ),
+            mlrun.artifacts.Artifact(key="some-artifact", src_path=str(assets_path() / "results.csv")),
             None,
             None,
             "v3io://just/regular/path",
@@ -227,9 +217,7 @@ def assets_path():
             True,
         ),
         (
-            mlrun.artifacts.Artifact(
-                key="some-artifact", src_path=str(assets_path() / "results.csv")
-            ),
+            mlrun.artifacts.Artifact(key="some-artifact", src_path=str(assets_path() / "results.csv")),
             None,
             "v3io://just/regular/path/test/0/some-artifact.csv",
             "v3io://just/regular/path",
@@ -239,9 +227,7 @@ def assets_path():
             True,
         ),
         (
-            mlrun.artifacts.Artifact(
-                key="some-artifact", body="asdasdasdasdas", format="parquet"
-            ),
+            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas", format="parquet"),
             None,
             "v3io://just/regular/path/test/0/some-artifact.parquet",
             "v3io://just/regular/path",
@@ -284,9 +270,7 @@ def test_log_artifact(
     artifact_is_logged: bool,
     monkeypatch,
 ):
-    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
-        generate_target_path
-    )
+    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = generate_target_path
 
     monkeypatch.setattr(
         mlrun.datastore.DataItem,
@@ -308,13 +292,9 @@ def test_log_artifact(
 
     if not expected_hash and generate_target_path:
         if artifact.get_body():
-            expected_hash = mlrun.artifacts.base.calculate_blob_hash(
-                artifact.get_body()
-            )
+            expected_hash = mlrun.artifacts.base.calculate_blob_hash(artifact.get_body())
         else:
-            expected_hash = mlrun.utils.calculate_local_file_hash(
-                artifact.spec.src_path
-            )
+            expected_hash = mlrun.utils.calculate_local_file_hash(artifact.spec.src_path)
     if artifact_is_logged:
         if artifact.spec.format:
             assert logged_artifact.target_path.endswith(f".{artifact.spec.format}")
@@ -339,9 +319,7 @@ def test_log_artifact(
     ],
 )
 def test_log_artifact_with_target_path_and_upload_options(target_path, upload_options):
-    artifact = mlrun.artifacts.Artifact(
-        key="some-artifact", body="asdasdasdasdas", format="parquet"
-    )
+    artifact = mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas", format="parquet")
     with unittest.mock.patch.object(mlrun.datastore.DataItem, "put"):
         logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
             artifact, target_path=target_path, upload=upload_options
@@ -373,16 +351,12 @@ def test_log_artifact_with_target_path_and_upload_options(target_path, upload_op
 def test_log_artifact_with_invalid_key(artifact_key, expected):
     project = mlrun.new_project("test-project")
     target_path = "s3://some/path"
-    artifact = mlrun.artifacts.Artifact(
-        key=artifact_key, body="123", target_path=target_path
-    )
+    artifact = mlrun.artifacts.Artifact(key=artifact_key, body="123", target_path=target_path)
     with expected:
         project.log_artifact(artifact)
 
     # now test log_artifact with db_key that is different than the artifact's key
-    artifact = mlrun.artifacts.Artifact(
-        key="some-key", body="123", target_path=target_path
-    )
+    artifact = mlrun.artifacts.Artifact(key="some-key", body="123", target_path=target_path)
     artifact.spec.db_key = artifact_key
     with expected:
         project.log_artifact(artifact)
@@ -473,27 +447,21 @@ def test_ensure_artifact_source_file_exists_by_df(df, fail):
     "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
     [
         (
-            mlrun.artifacts.Artifact(
-                "results", src_path=str(assets_path() / "results.csv")
-            ),
+            mlrun.artifacts.Artifact("results", src_path=str(assets_path() / "results.csv")),
             "v3io://just/regular/path",
             "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
             "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
             None,
         ),
         (
-            mlrun.artifacts.Artifact(
-                "results", src_path=str(assets_path() / "results.csv")
-            ),
+            mlrun.artifacts.Artifact("results", src_path=str(assets_path() / "results.csv")),
             "v3io://just/regular/path",
             None,
             None,
             None,
         ),
         (
-            mlrun.artifacts.Artifact(
-                "results", src_path=str(assets_path() / "results.csv")
-            ),
+            mlrun.artifacts.Artifact("results", src_path=str(assets_path() / "results.csv")),
             None,
             None,
             None,
@@ -510,9 +478,7 @@ def test_resolve_file_hash_path(
 ):
     if expected_error:
         with pytest.raises(expected_error):
-            artifact.resolve_file_target_hash_path(
-                source_path=artifact.spec.src_path, artifact_path=artifact_path
-            )
+            artifact.resolve_file_target_hash_path(source_path=artifact.spec.src_path, artifact_path=artifact_path)
         return
     file_hash, target_path = artifact.resolve_file_target_hash_path(
         source_path=artifact.spec.src_path, artifact_path=artifact_path
@@ -579,9 +545,7 @@ def test_resolve_body_hash_path(
 ):
     if expected_error:
         with pytest.raises(expected_error):
-            artifact.resolve_body_target_hash_path(
-                body=artifact.get_body(), artifact_path=artifact_path
-            )
+            artifact.resolve_body_target_hash_path(body=artifact.get_body(), artifact_path=artifact_path)
         return
     body_hash, target_path = artifact.resolve_body_target_hash_path(
         body=artifact.get_body(), artifact_path=artifact_path
@@ -604,16 +568,12 @@ def test_inline_body():
     project = mlrun.new_project("inline", save=False)
 
     # log an artifact and save the content/body in the object (inline)
-    artifact = project.log_artifact(
-        "x", body="123", is_inline=True, artifact_path=results_dir
-    )
+    artifact = project.log_artifact("x", body="123", is_inline=True, artifact_path=results_dir)
     assert artifact.spec.get_body() == "123"
     artifact.export(f"{results_dir}/x.yaml")
 
     # verify the body survived the export and import
-    artifact = project.import_artifact(
-        f"{results_dir}/x.yaml", "y", artifact_path=results_dir
-    )
+    artifact = project.import_artifact(f"{results_dir}/x.yaml", "y", artifact_path=results_dir)
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
 
@@ -641,9 +601,7 @@ def test_producer_in_exported_artifact():
     project_name = "my-project"
     project = mlrun.new_project(project_name, save=False)
 
-    artifact = project.log_artifact(
-        "x", body="123", is_inline=True, artifact_path=results_dir
-    )
+    artifact = project.log_artifact("x", body="123", is_inline=True, artifact_path=results_dir)
 
     assert artifact.producer.get("kind") == "project"
     assert artifact.producer.get("name") == project_name
@@ -703,7 +661,4 @@ def test_producer_in_exported_artifact():
 )
 def test_artifact_producer_parse_uri(uri, expected_parsed_result):
     parsed_result = mlrun.artifacts.ArtifactProducer.parse_uri(uri)
-    assert (
-        deepdiff.DeepDiff(parsed_result, expected_parsed_result, ignore_order=True)
-        == {}
-    )
+    assert deepdiff.DeepDiff(parsed_result, expected_parsed_result, ignore_order=True) == {}

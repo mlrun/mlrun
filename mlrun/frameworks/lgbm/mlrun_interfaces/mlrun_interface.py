@@ -157,9 +157,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         booster = lgb.original_train(*args, **kwargs)
 
         # Call the post train function:
-        lgb._post_train(
-            booster=booster, train_set=train_set, validation_sets=validation_sets
-        )
+        lgb._post_train(booster=booster, train_set=train_set, validation_sets=validation_sets)
 
         return booster
 
@@ -236,11 +234,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         if lgb._log_training:
             # Add only if it was not given already by the user:
             if MLRunLoggingCallback not in [type(callback) for callback in callbacks]:
-                callbacks.append(
-                    MLRunLoggingCallback(
-                        context=lgb._context, **lgb._mlrun_logging_callback_kwargs
-                    )
-                )
+                callbacks.append(MLRunLoggingCallback(context=lgb._context, **lgb._mlrun_logging_callback_kwargs))
 
         # Collect all the MLRun API callbacks:
         lgb._mlrun_callbacks.clear()
@@ -260,9 +254,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     def _post_train(
         booster: lgb.Booster,
         train_set: tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]],
-        validation_sets: list[
-            tuple[tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]], str]
-        ],
+        validation_sets: list[tuple[tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]], str]],
     ):
         """
         Called post training to call the mlrun callbacks `on_train_end` method and to log the model.
@@ -309,10 +301,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
                     }
                 except Exception:
                     pass
-            artifacts = {
-                f"{validation_set_name}-{key}": value
-                for key, value in artifacts.items()
-            }
+            artifacts = {f"{validation_set_name}-{key}": value for key, value in artifacts.items()}
             for artifact in artifacts.values():
                 if validation_set_name not in artifact.key:
                     artifact.metadata.key = f"{validation_set_name}-{artifact.key}"
@@ -324,9 +313,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         LGBMBoosterMLRunInterface.add_interface(obj=booster)
 
         # Set the handler to the booster:
-        booster.model_handler = LGBMModelHandler(
-            model=booster, context=lgb._context, **lgb._model_handler_kwargs
-        )
+        booster.model_handler = LGBMModelHandler(model=booster, context=lgb._context, **lgb._model_handler_kwargs)
 
         # Register found extra data and metrics:
         booster.model_handler.set_extra_data(to_add=extra_data)

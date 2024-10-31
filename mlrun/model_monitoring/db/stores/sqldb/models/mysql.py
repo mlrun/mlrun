@@ -33,12 +33,8 @@ Base = declarative_base()
 
 
 class ModelEndpointsTable(Base, ModelEndpointsBaseTable):
-    feature_stats = Column(
-        EventFieldType.FEATURE_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT
-    )
-    current_stats = Column(
-        EventFieldType.CURRENT_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT
-    )
+    feature_stats = Column(EventFieldType.FEATURE_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT)
+    current_stats = Column(EventFieldType.CURRENT_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT)
     metrics = Column(EventFieldType.METRICS, sqlalchemy.dialects.mysql.MEDIUMTEXT)
     first_request = Column(
         EventFieldType.FIRST_REQUEST,
@@ -77,20 +73,12 @@ class _ApplicationResultOrMetric:
         )
 
 
-class ApplicationResultTable(
-    Base, _ApplicationResultOrMetric, ApplicationResultBaseTable
-):
-    result_extra_data = Column(
-        ResultData.RESULT_EXTRA_DATA, sqlalchemy.dialects.mysql.MEDIUMTEXT
-    )
-    current_stats = Column(
-        ResultData.CURRENT_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT
-    )
+class ApplicationResultTable(Base, _ApplicationResultOrMetric, ApplicationResultBaseTable):
+    result_extra_data = Column(ResultData.RESULT_EXTRA_DATA, sqlalchemy.dialects.mysql.MEDIUMTEXT)
+    current_stats = Column(ResultData.CURRENT_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT)
 
 
-class ApplicationMetricsTable(
-    Base, _ApplicationResultOrMetric, ApplicationMetricsBaseTable
-):
+class ApplicationMetricsTable(Base, _ApplicationResultOrMetric, ApplicationMetricsBaseTable):
     pass
 
 

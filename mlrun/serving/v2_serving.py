@@ -107,11 +107,7 @@ class V2ModelServer(StepToDict):
         self._result_path = result_path
         self._kwargs = kwargs  # for to_dict()
         self._params = kwargs
-        self._model_logger = (
-            _ModelLogPusher(self, context)
-            if context and context.stream.enabled
-            else None
-        )
+        self._model_logger = _ModelLogPusher(self, context) if context and context.stream.enabled else None
 
         self.metrics = {}
         self.labels = {}
@@ -141,17 +137,13 @@ class V2ModelServer(StepToDict):
             else:
                 self._load_and_update_state()
 
-        server = getattr(self.context, "_server", None) or getattr(
-            self.context, "server", None
-        )
+        server = getattr(self.context, "_server", None) or getattr(self.context, "server", None)
         if not server:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
         if not self.context.is_mock or self.context.monitoring_mock:
-            self.model_endpoint_uid = _init_endpoint_record(
-                graph_server=server, model=self
-            )
+            self.model_endpoint_uid = _init_endpoint_record(graph_server=server, model=self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -193,9 +185,7 @@ class V2ModelServer(StepToDict):
             extra dataitems dictionary
 
         """
-        model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
-            self.model_path, suffix
-        )
+        model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(self.model_path, suffix)
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():
                 self._params[key] = value
@@ -238,12 +228,7 @@ class V2ModelServer(StepToDict):
         if not op and event.method != "GET":
             op = "infer"
 
-        if (
-            op == "predict"
-            or op == "infer"
-            or op == "infer_dict"
-            or op == "predict_dict"
-        ):
+        if op == "predict" or op == "infer" or op == "infer_dict" or op == "predict_dict":
             # predict operation
             request = self._pre_event_processing_actions(event, event_body, op)
             try:
@@ -277,9 +262,7 @@ class V2ModelServer(StepToDict):
                 )
 
             else:
-                event.body = self.context.Response(
-                    status_code=408, body=b"model not ready"
-                )
+                event.body = self.context.Response(status_code=408, body=b"model not ready")
 
             return event
 
@@ -295,9 +278,7 @@ class V2ModelServer(StepToDict):
             if self.model_spec:
                 event_body["inputs"] = self.model_spec.inputs.to_dict()
                 event_body["outputs"] = self.model_spec.outputs.to_dict()
-            event.body = _update_result_body(
-                self._result_path, original_body, event_body
-            )
+            event.body = _update_result_body(self._result_path, original_body, event_body)
             return event
 
         elif op == "explain":
@@ -405,12 +386,8 @@ class V2ModelServer(StepToDict):
             )
         inputs = request.get("inputs")
         try:
-            if isinstance(inputs, list) and all(
-                isinstance(item, dict) for item in inputs
-            ):
-                new_inputs = [
-                    [input_dict[key] for key in input_order] for input_dict in inputs
-                ]
+            if isinstance(inputs, list) and all(isinstance(item, dict) for item in inputs):
+                new_inputs = [[input_dict[key] for key in input_order] for input_dict in inputs]
             elif isinstance(inputs, dict):
                 new_inputs = [inputs[key] for key in input_order]
             else:
@@ -475,9 +452,7 @@ class _ModelLogPusher:
             if self.stream_batch > 1:
                 if self._batch_iter == 0:
                     self._batch = []
-                self._batch.append(
-                    [request, op, resp, str(start), microsec, self.model.metrics]
-                )
+                self._batch.append([request, op, resp, str(start), microsec, self.model.metrics])
                 self._batch_iter = (self._batch_iter + 1) % self.stream_batch
 
                 if self._batch_iter == 0:
@@ -504,9 +479,7 @@ class _ModelLogPusher:
                 self.output_stream.push([data])
 
 
-def _init_endpoint_record(
-    graph_server: GraphServer, model: V2ModelServer
-) -> Union[str, None]:
+def _init_endpoint_record(graph_server: GraphServer, model: V2ModelServer) -> Union[str, None]:
     """
     Initialize model endpoint record and write it into the DB. In general, this method retrieve the unique model
     endpoint ID which is generated according to the function uri and the model version. If the model endpoint is
@@ -524,9 +497,7 @@ def _init_endpoint_record(
     # Generate required values for the model endpoint record
     try:
         # Getting project name from the function uri
-        project, uri, tag, hash_key = parse_versioned_object_uri(
-            graph_server.function_uri
-        )
+        project, uri, tag, hash_key = parse_versioned_object_uri(graph_server.function_uri)
     except Exception as e:
         logger.error("Failed to parse function URI", exc=err_to_str(e))
         return None
@@ -549,23 +520,17 @@ def _init_endpoint_record(
     ).uid
 
     try:
-        model_ep = mlrun.get_run_db().get_model_endpoint(
-            project=project, endpoint_id=uid
-        )
+        model_ep = mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=uid)
     except mlrun.errors.MLRunNotFoundError:
         model_ep = None
     except mlrun.errors.MLRunBadRequestError as err:
-        logger.info(
-            "Cannot get the model endpoints store", err=mlrun.errors.err_to_str(err)
-        )
+        logger.info("Cannot get the model endpoints store", err=mlrun.errors.err_to_str(err))
         return
 
     if model.context.server.track_models and not model_ep:
         logger.info("Creating a new model endpoint record", endpoint_id=uid)
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=project, labels=model.labels, uid=uid
-            ),
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(project=project, labels=model.labels, uid=uid),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_uri=graph_server.function_uri,
                 model=versioned_model_name,
@@ -597,8 +562,7 @@ def _init_endpoint_record(
         if model_ep.spec.model_uri != old_model_uri:
             attributes["model_uri"] = model_ep.spec.model_uri
         if (
-            model_ep.spec.monitoring_mode
-            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+            model_ep.spec.monitoring_mode == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
         ) != model.context.server.track_models:
             attributes["monitoring_mode"] = (
                 mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled

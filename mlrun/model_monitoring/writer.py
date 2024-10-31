@@ -110,9 +110,7 @@ class ModelMonitoringWriter(StepToDict):
         self.project = project
         self.name = project  # required for the deployment process
 
-        self._custom_notifier = CustomNotificationPusher(
-            notification_types=[NotificationKind.slack]
-        )
+        self._custom_notifier = CustomNotificationPusher(notification_types=[NotificationKind.slack])
 
         self._app_result_store = mlrun.model_monitoring.get_store_object(
             project=self.project, secret_provider=secret_provider
@@ -136,9 +134,7 @@ class ModelMonitoringWriter(StepToDict):
             ids=[entity_id],
         )
 
-        event_kind = self._generate_alert_event_kind(
-            result_status=result_status, result_kind=result_kind
-        )
+        event_kind = self._generate_alert_event_kind(result_status=result_status, result_kind=result_kind)
 
         event_data = mlrun.common.schemas.Event(
             kind=alert_objects.EventKind(value=event_kind),
@@ -150,9 +146,7 @@ class ModelMonitoringWriter(StepToDict):
         logger.info("Drift event sent successfully")
 
     @staticmethod
-    def _generate_alert_event_kind(
-        result_kind: int, result_status: int
-    ) -> alert_objects.EventKind:
+    def _generate_alert_event_kind(result_kind: int, result_status: int) -> alert_objects.EventKind:
         """Generate the required Event Kind format for the alerting system"""
         event_kind = ResultKindApp(value=result_kind).name
 
@@ -160,9 +154,7 @@ class ModelMonitoringWriter(StepToDict):
             event_kind = f"{event_kind}_detected"
         else:
             event_kind = f"{event_kind}_suspected"
-        return alert_objects.EventKind(
-            value=mlrun.utils.helpers.normalize_name(event_kind)
-        )
+        return alert_objects.EventKind(value=mlrun.utils.helpers.normalize_name(event_kind))
 
     @staticmethod
     def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, WriterEventKind]:
@@ -171,9 +163,7 @@ class ModelMonitoringWriter(StepToDict):
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
         if not isinstance(event, dict):
-            raise _WriterEventTypeError(
-                f"The event is of type: {type(event)}, expected a dictionary"
-            )
+            raise _WriterEventTypeError(f"The event is of type: {type(event)}, expected a dictionary")
         kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
         result_event = _AppResultEvent(json.loads(event.pop(WriterEvent.DATA, "{}")))
         if not result_event:  # BC for < 1.7.0, can be removed in 1.9.0
@@ -181,19 +171,13 @@ class ModelMonitoringWriter(StepToDict):
         else:
             result_event.update(_AppResultEvent(event))
 
-        expected_keys = list(
-            set(WriterEvent.list()).difference(
-                [WriterEvent.EVENT_KIND, WriterEvent.DATA]
-            )
-        )
+        expected_keys = list(set(WriterEvent.list()).difference([WriterEvent.EVENT_KIND, WriterEvent.DATA]))
         if kind == WriterEventKind.METRIC:
             expected_keys.extend(MetricData.list())
         elif kind == WriterEventKind.RESULT:
             expected_keys.extend(ResultData.list())
         else:
-            raise _WriterEventValueError(
-                f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}"
-            )
+            raise _WriterEventValueError(f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}")
         missing_keys = [key for key in expected_keys if key not in result_event]
         if missing_keys:
             raise _WriterEventValueError(
@@ -219,8 +203,7 @@ class ModelMonitoringWriter(StepToDict):
             and kind == WriterEventKind.RESULT
             and (
                 event[ResultData.RESULT_STATUS] == ResultStatusApp.detected.value
-                or event[ResultData.RESULT_STATUS]
-                == ResultStatusApp.potential_detection.value
+                or event[ResultData.RESULT_STATUS] == ResultStatusApp.potential_detection.value
             )
         ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
@@ -249,21 +232,16 @@ class ModelMonitoringWriter(StepToDict):
 
         if (
             kind == WriterEventKind.RESULT
-            and event[WriterEvent.APPLICATION_NAME]
-            == HistogramDataDriftApplicationConstants.NAME
-            and event[ResultData.RESULT_NAME]
-            == HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
+            and event[WriterEvent.APPLICATION_NAME] == HistogramDataDriftApplicationConstants.NAME
+            and event[ResultData.RESULT_NAME] == HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
         ):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
             logger.info(
-                "Updating the model endpoint with metadata specific to the histogram "
-                "data drift app",
+                "Updating the model endpoint with metadata specific to the histogram " "data drift app",
                 endpoint_id=endpoint_id,
             )
             attributes = json.loads(event[ResultData.RESULT_EXTRA_DATA])
-            attributes[EventFieldType.DRIFT_STATUS] = str(
-                attributes[EventFieldType.DRIFT_STATUS]
-            )
+            attributes[EventFieldType.DRIFT_STATUS] = str(attributes[EventFieldType.DRIFT_STATUS])
             self._app_result_store.update_model_endpoint(
                 endpoint_id=endpoint_id,
                 attributes=attributes,

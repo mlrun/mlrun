@@ -39,12 +39,8 @@ private_repo = os.environ.get(
     "MLRUN_SYSTEM_TESTS_PRIVATE_REPO",
     "git://github.com/mlrun/private_git_tests.git#main",
 )
-has_private_source = (
-    "MLRUN_SYSTEM_TESTS_PRIVATE_GIT_TOKEN" in os.environ and private_repo
-)
-need_private_git = pytest.mark.skipif(
-    not has_private_source, reason="env vars for private git repo not set"
-)
+has_private_source = "MLRUN_SYSTEM_TESTS_PRIVATE_GIT_TOKEN" in os.environ and private_repo
+need_private_git = pytest.mark.skipif(not has_private_source, reason="env vars for private git repo not set")
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -125,9 +121,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     def test_nuclio_deploy(self, codepath, tag):
         workdir, module = codepath
         fn = self._new_function("nuclio")
-        fn.with_source_archive(
-            f"{git_uri}#{tag}", workdir=workdir, handler=f"{module}:nuclio_handler"
-        )
+        fn.with_source_archive(f"{git_uri}#{tag}", workdir=workdir, handler=f"{module}:nuclio_handler")
         mlrun.deploy_function(fn)
         resp = fn.invoke("")
         assert resp.decode() == f"tag={tag}"
@@ -237,9 +231,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert run.output("tag")
 
     def test_run_function_with_auto_build_and_source_is_idempotent(self):
-        project = mlrun.get_or_create_project(
-            "run-with-source-and-auto-build", allow_cross_project=True
-        )
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build", allow_cross_project=True)
         # using project.name because this is a user project meaning the project name get concatenated with the user name
         self.custom_project_names_to_delete.append(project.name)
         project.set_source(f"{git_uri}#main", False)
@@ -254,9 +246,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         project.save()
         project.run_function("myjob", auto_build=True)
 
-        project = mlrun.get_or_create_project(
-            "run-with-source-and-auto-build", allow_cross_project=True
-        )
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build", allow_cross_project=True)
         project.set_source(f"{git_uri}#main", False)
         project.set_function(
             name="myjob",
@@ -270,9 +260,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         project.run_function("myjob", auto_build=True)
 
     def test_run_function_with_auto_build_and_source_is_idempotent_after_failure(self):
-        project = mlrun.get_or_create_project(
-            "run-with-source-and-auto-build", allow_cross_project=True
-        )
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build", allow_cross_project=True)
         # using project.name because this is a user project meaning the project name get concatenated with the username
         self.custom_project_names_to_delete.append(project.name)
         project.set_source(f"{git_uri}#main", False)
@@ -289,9 +277,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         with pytest.raises(mlrun.errors.MLRunRuntimeError):
             project.run_function("myjob", auto_build=True)
 
-        project = mlrun.get_or_create_project(
-            "run-with-source-and-auto-build", allow_cross_project=True
-        )
+        project = mlrun.get_or_create_project("run-with-source-and-auto-build", allow_cross_project=True)
         project.set_source(f"{git_uri}#main", False)
         project.set_function(
             name="myjob",
@@ -357,9 +343,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     @pytest.mark.parametrize("pull_at_runtime", [False])
     def test_with_igz_spark_from_source(self, pull_at_runtime):
         self._upload_code_to_cluster()
-        fn = mlrun.new_function(
-            name="spark-test", kind="spark", command="spark_session.py"
-        )
+        fn = mlrun.new_function(name="spark-test", kind="spark", command="spark_session.py")
         fn.with_igz_spark()
 
         # spark requires requests

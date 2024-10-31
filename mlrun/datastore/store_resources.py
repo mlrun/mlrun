@@ -106,9 +106,7 @@ class ResourceCache:
             ]:
                 target = get_online_target(resource)
                 if not target:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"resource {uri} does not have an online data target"
-                    )
+                    raise mlrun.errors.MLRunInvalidArgumentError(f"resource {uri} does not have an online data target")
                 self._tabels[uri] = target.get_table_object()
                 return self._tabels[uri]
 
@@ -141,36 +139,24 @@ class ResourceCache:
         return _get_store_resource
 
 
-def get_store_resource(
-    uri, db=None, secrets=None, project=None, data_store_secrets=None
-):
+def get_store_resource(uri, db=None, secrets=None, project=None, data_store_secrets=None):
     """get store resource object by uri"""
 
     db = db or mlrun.get_run_db(secrets=secrets)
     kind, uri = parse_store_uri(uri)
     if not kind:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Cannot get store resource from invalid URI: {uri}"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError(f"Cannot get store resource from invalid URI: {uri}")
     elif kind == StorePrefix.FeatureSet:
-        project, name, tag, uid = parse_versioned_object_uri(
-            uri, project or config.default_project
-        )
+        project, name, tag, uid = parse_versioned_object_uri(uri, project or config.default_project)
         return db.get_feature_set(name, project, tag, uid)
 
     elif kind == StorePrefix.FeatureVector:
-        project, name, tag, uid = parse_versioned_object_uri(
-            uri, project or config.default_project
-        )
+        project, name, tag, uid = parse_versioned_object_uri(uri, project or config.default_project)
         return db.get_feature_vector(name, project, tag, uid)
 
     elif StorePrefix.is_artifact(kind):
-        project, key, iteration, tag, tree = parse_artifact_uri(
-            uri, project or config.default_project
-        )
-        resource = db.read_artifact(
-            key, project=project, tag=tag, iter=iteration, tree=tree
-        )
+        project, key, iteration, tag, tree = parse_artifact_uri(uri, project or config.default_project)
+        resource = db.read_artifact(key, project=project, tag=tag, iter=iteration, tree=tree)
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
             link_iteration = resource["spec"].get("link_iteration", 0)

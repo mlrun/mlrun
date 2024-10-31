@@ -75,18 +75,14 @@ def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
 
 def test_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
-        "application-test", kind="application", image=image
-    )
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function("application-test", kind="application", image=image)
     fn.deploy()
     _assert_application_post_deploy_spec(fn, image)
 
 
 def test_consecutive_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
-        "application-test", kind="application", image=image
-    )
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function("application-test", kind="application", image=image)
     fn.deploy()
     _assert_application_post_deploy_spec(fn, image)
 
@@ -192,9 +188,7 @@ def test_application_image_build(remote_builder_mock, igz_version_mock):
     )
     assert fn.requires_build()
     fn.deploy()
-    _assert_application_post_deploy_spec(
-        fn, ".mlrun/func-default-application-test:latest"
-    )
+    _assert_application_post_deploy_spec(fn, ".mlrun/func-default-application-test:latest")
 
 
 def test_application_default_api_gateway(rundb_mock, igz_version_mock):
@@ -262,9 +256,7 @@ def test_application_api_gateway_timeout_annotations(rundb_mock, gateway_timeout
     )
 
     function.deploy(create_default_api_gateway=False)
-    function.create_api_gateway(
-        name="my-gateway", gateway_timeout=gateway_timeout, set_as_default=True
-    )
+    function.create_api_gateway(name="my-gateway", gateway_timeout=gateway_timeout, set_as_default=True)
 
     annotations = [
         "nginx.ingress.kubernetes.io/proxy-connect-timeout",
@@ -337,13 +329,9 @@ def test_application_from_local_file_validation():
 
 
 def _assert_function_code(fn, file_path=None):
-    file_path = (
-        file_path or mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()[0]
-    )
+    file_path = file_path or mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()[0]
     expected_code = pathlib.Path(file_path).read_text()
-    expected_code_encoded = base64.b64encode(expected_code.encode("utf-8")).decode(
-        "utf-8"
-    )
+    expected_code_encoded = base64.b64encode(expected_code.encode("utf-8")).decode("utf-8")
     assert fn.spec.build.functionSourceCode == expected_code_encoded
 
 

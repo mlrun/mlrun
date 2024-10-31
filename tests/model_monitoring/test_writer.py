@@ -52,9 +52,7 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
         return _AppResultEvent(
             {
                 WriterEvent.ENDPOINT_ID: "some-ep-id",
-                WriterEvent.START_INFER_TIME: start_infer_time.strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
+                WriterEvent.START_INFER_TIME: start_infer_time.strftime("%Y-%m-%d %H:%M:%S"),
                 WriterEvent.END_INFER_TIME: now.strftime("%Y-%m-%d %H:%M:%S"),
                 WriterEvent.APPLICATION_NAME: "dummy-app",
                 ResultData.RESULT_NAME: "data-drift-0",
@@ -69,9 +67,7 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
         return _AppResultEvent(
             {
                 WriterEvent.ENDPOINT_ID: "some-ep-id",
-                WriterEvent.START_INFER_TIME: start_infer_time.strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
+                WriterEvent.START_INFER_TIME: start_infer_time.strftime("%Y-%m-%d %H:%M:%S"),
                 WriterEvent.END_INFER_TIME: now.strftime("%Y-%m-%d %H:%M:%S"),
                 WriterEvent.APPLICATION_NAME: "dummy-app",
                 WriterEvent.EVENT_KIND: request.param[2],
@@ -91,9 +87,7 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
         return _AppResultEvent(
             {
                 WriterEvent.ENDPOINT_ID: "some-ep-id",
-                WriterEvent.START_INFER_TIME: start_infer_time.strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
+                WriterEvent.START_INFER_TIME: start_infer_time.strftime("%Y-%m-%d %H:%M:%S"),
                 WriterEvent.END_INFER_TIME: now.strftime("%Y-%m-%d %H:%M:%S"),
                 WriterEvent.APPLICATION_NAME: "dummy-app",
                 WriterEvent.EVENT_KIND: request.param[2],
@@ -168,9 +162,7 @@ class TestHistogramGeneralDriftResultEvent:
             ):
                 with patch(
                     "mlrun.model_monitoring.get_tsdb_connector",
-                    return_value=Mock(
-                        spec=mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector
-                    ),
+                    return_value=Mock(spec=mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector),
                 ):
                     writer = ModelMonitoringWriter(project=TEST_PROJECT)
                     writer._app_result_store = mlrun.model_monitoring.get_store_object(
@@ -187,8 +179,7 @@ class TestHistogramGeneralDriftResultEvent:
         writer.do(event=general_drift_event)
         update_mock = mock_v3io_client.kv.update
         assert update_mock.call_count == 2, (
-            "Expects two update calls - one for the results KV, "
-            "and one for the model endpoint"
+            "Expects two update calls - one for the results KV, " "and one for the model endpoint"
         )
         update_mock.assert_called_with(
             container="users",
@@ -215,13 +206,11 @@ class TestTSDB:
     @staticmethod
     @pytest.fixture
     def tsdb_connector() -> mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector:
-        tsdb_connector = mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector(
-            project=TEST_PROJECT
-        )
+        tsdb_connector = mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector(project=TEST_PROJECT)
 
         # Generate dummy tables for the test
-        tsdb_connector._frames_client = v3io_frames.client.ClientBase = (
-            tsdb_connector._get_v3io_frames_client(V3IO_TABLE_CONTAINER)
+        tsdb_connector._frames_client = v3io_frames.client.ClientBase = tsdb_connector._get_v3io_frames_client(
+            V3IO_TABLE_CONTAINER
         )
         tsdb_connector.tables = {
             mm_schemas.V3IOTSDBTables.APP_RESULTS: mm_schemas.V3IOTSDBTables.APP_RESULTS,
@@ -266,14 +255,10 @@ class TestTSDB:
 
         actual_columns = list(record_from_tsdb.columns)
 
-        assert (
-            ResultData.CURRENT_STATS not in actual_columns
-        ), "Current stats should not be written to the TSDB"
+        assert ResultData.CURRENT_STATS not in actual_columns, "Current stats should not be written to the TSDB"
 
         # TODO: Remove this assertion after the extra data is supported in TSDB (ML-7460)
-        assert (
-            ResultData.RESULT_EXTRA_DATA not in actual_columns
-        ), "The extra data should not be written to the TSDB"
+        assert ResultData.RESULT_EXTRA_DATA not in actual_columns, "The extra data should not be written to the TSDB"
 
         expected_columns = WriterEvent.list() + ResultData.list()
         expected_columns.remove(ResultData.RESULT_EXTRA_DATA)

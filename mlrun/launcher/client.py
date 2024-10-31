@@ -54,10 +54,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         require_build = runtime.requires_build()
         image = runtime.spec.image
         # we allow users to not set an image, in that case we'll use the default
-        if (
-            not image
-            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
-        ):
+        if not image and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
             image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
 
         # TODO: need a better way to decide whether a function requires a build
@@ -67,13 +64,9 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             runtime.spec.image = ""
 
     @staticmethod
-    def _store_function(
-        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
-    ):
+    def _store_function(runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
-        mlrun.runtimes.utils.enrich_run_labels(
-            run.metadata.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
-        )
+        mlrun.runtimes.utils.enrich_run_labels(run.metadata.labels, [mlrun.common.runtimes.constants.RunLabels.owner])
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
                 "{{run.user}}",
@@ -82,9 +75,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()
-            hash_key = db.store_function(
-                struct, runtime.metadata.name, runtime.metadata.project, versioned=True
-            )
+            hash_key = db.store_function(struct, runtime.metadata.name, runtime.metadata.project, versioned=True)
             run.spec.function = runtime._function_uri(hash_key=hash_key)
 
     @staticmethod
@@ -103,9 +94,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
                     # TODO: have a better way to check if nuclio function deploy started
                     and not hasattr(runtime.status, "nuclio_name")
                 ):
-                    runtime.spec.image = mlrun.utils.get_in(
-                        db_func, "spec.image", runtime.spec.image
-                    )
+                    runtime.spec.image = mlrun.utils.get_in(db_func, "spec.image", runtime.spec.image)
         except mlrun.errors.MLRunNotFoundError:
             pass
 
@@ -138,18 +127,14 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             if ui_url:
                 ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
             IPython.display.display(
-                IPython.display.HTML(
-                    f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
-                )
+                IPython.display.HTML(f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>")
             )
         elif is_child:
             # TODO: Log sdk commands to track results instead of CLI commands
             project_flag = f"-p {project}" if project else ""
             info_cmd = f"mlrun get run {uid} {project_flag}"
             logs_cmd = f"mlrun logs {uid} {project_flag}"
-            mlrun.utils.logger.info(
-                "To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd
-            )
+            mlrun.utils.logger.info("To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd)
             ui_url = mlrun.utils.get_ui_url(project, uid)
             if ui_url:
                 mlrun.utils.logger.info("Or click for UI", ui_url=ui_url)

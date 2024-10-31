@@ -72,14 +72,9 @@ class WasbFS(AbstractFileSystem):
         az_path = url
         parsed_url = urlparse(url)
         if parsed_url.scheme:
-            if (
-                parsed_url.scheme.lower() == "wasb"
-                or parsed_url.scheme.lower() == "wasbs"
-            ):
+            if parsed_url.scheme.lower() == "wasb" or parsed_url.scheme.lower() == "wasbs":
                 az_path = (
-                    "az://"
-                    + parsed_url.username
-                    + ("/" if not parsed_url.path.startswith("/") else parsed_url.path)
+                    "az://" + parsed_url.username + ("/" if not parsed_url.path.startswith("/") else parsed_url.path)
                 )
             else:
                 raise ValueError("Operation expects to wasb or wasbs scheme only!")
@@ -158,9 +153,7 @@ class WasbFS(AbstractFileSystem):
 
     def open(self, path, mode="rb", block_size=None, cache_options=None, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azure_blob_fs.open(
-            az_path, mode, block_size, cache_options, **kwargs
-        )
+        return self.azure_blob_fs.open(az_path, mode, block_size, cache_options, **kwargs)
 
     def touch(self, path, truncate=True, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)

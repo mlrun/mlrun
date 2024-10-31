@@ -267,9 +267,7 @@ class ArtifactManager:
         # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
             if is_relative_path(target_path):
-                raise ValueError(
-                    f"target_path ({target_path}) param cannot be relative"
-                )
+                raise ValueError(f"target_path ({target_path}) param cannot be relative")
             if upload is None:
                 upload = False
 
@@ -298,9 +296,7 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-        target_path = template_artifact_path(
-            artifact_path=target_path, project=producer.project, run_uid=producer.uid
-        )
+        target_path = template_artifact_path(artifact_path=target_path, project=producer.project, run_uid=producer.uid)
         item.target_path = target_path
 
         item.before_log()
@@ -316,9 +312,7 @@ class ArtifactManager:
             self._log_to_db(db_key, project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
-        logger.debug(
-            f"Log artifact {key} at {item.target_path}, size: {size}, db: {db_str}"
-        )
+        logger.debug(f"Log artifact {key} at {item.target_path}, size: {size}, db: {db_str}")
         return item
 
     def update_artifact(self, producer, item: Artifact):

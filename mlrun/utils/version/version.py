@@ -37,13 +37,9 @@ class Version(metaclass=Singleton):
         self.version_info = {"git_commit": "unknown", "version": "0.0.0+unstable"}
         self.python_version = self._resolve_python_version()
         try:
-            self.version_info = json.loads(
-                read_text("mlrun.utils.version", "version.json")
-            )
+            self.version_info = json.loads(read_text("mlrun.utils.version", "version.json"))
         except Exception:
-            mlrun.utils.logger.warning(
-                "Failed resolving version info. Ignoring and using defaults"
-            )
+            mlrun.utils.logger.warning("Failed resolving version info. Ignoring and using defaults")
 
     def get(self):
         return self.version_info

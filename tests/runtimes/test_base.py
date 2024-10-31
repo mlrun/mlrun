@@ -62,16 +62,12 @@ class TestAutoMount:
 
     @pytest.mark.parametrize("cred_only", [True, False])
     def test_auto_mount_v3io(self, cred_only, rundb_mock):
-        mlconf.storage.auto_mount_type = (
-            "v3io_credentials" if cred_only else "v3io_fuse"
-        )
+        mlconf.storage.auto_mount_type = "v3io_credentials" if cred_only else "v3io_fuse"
 
         runtime = self._generate_runtime()
         self._execute_run(runtime)
 
-        rundb_mock.assert_v3io_mount_or_creds_configured(
-            self.v3io_user, self.v3io_access_key, cred_only=cred_only
-        )
+        rundb_mock.assert_v3io_mount_or_creds_configured(self.v3io_user, self.v3io_access_key, cred_only=cred_only)
 
         # Check that disable-auto-mount works. Need a fresh runtime, to reset its mount-applied indication.
         rundb_mock.reset()
@@ -124,9 +120,7 @@ class TestAutoMount:
         ],
     )
     def test_resolve_requirements(self, requirements, encoded_requirements):
-        encoded = self._generate_runtime().spec.build._resolve_requirements(
-            requirements
-        )
+        encoded = self._generate_runtime().spec.build._resolve_requirements(requirements)
         assert encoded == encoded_requirements, f"Failed to encode {requirements}"
 
     @pytest.mark.parametrize(
@@ -153,9 +147,7 @@ class TestAutoMount:
         # create requirements file
         requirements_file = self._create_temp_requirements_file(requirements_in_file)
 
-        encoded = self._generate_runtime().spec.build._resolve_requirements(
-            requirements, requirements_file
-        )
+        encoded = self._generate_runtime().spec.build._resolve_requirements(requirements, requirements_file)
         assert (
             encoded == encoded_requirements
         ), f"Failed to encode {requirements.extend(requirements_in_file)} as file {requirements_file}"
@@ -165,16 +157,11 @@ class TestAutoMount:
         expects to set the generate access key so that the API will enrich with the auth session that is being passed
         through the request headers
         """
-        os.environ[
-            mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
-        ] = "some-access-key"
+        os.environ[mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session] = "some-access-key"
 
         runtime = self._generate_runtime()
         self._execute_run(runtime)
-        assert (
-            runtime.metadata.credentials.access_key
-            == mlrun.model.Credentials.generate_access_key
-        )
+        assert runtime.metadata.credentials.access_key == mlrun.model.Credentials.generate_access_key
 
     def test_auto_mount_invalid_value(self):
         # When invalid value is used, we explode
@@ -202,9 +189,7 @@ class TestAutoMount:
         pvc_params["invalid_param"] = "blublu"
 
         # Try with a simple string
-        pvc_params_str = ",".join(
-            [f"{key}={value}" for key, value in pvc_params.items()]
-        )
+        pvc_params_str = ",".join([f"{key}={value}" for key, value in pvc_params.items()])
         mlconf.storage.auto_mount_params = pvc_params_str
 
         runtime = self._generate_runtime()
@@ -230,9 +215,7 @@ class TestAutoMount:
         rundb_mock.assert_no_mount_or_creds_configured()
 
         # Try something that does not translate to a dictionary
-        bad_params_str = base64.b64encode(
-            json.dumps(["I'm", "not", "a", "dictionary"]).encode()
-        )
+        bad_params_str = base64.b64encode(json.dumps(["I'm", "not", "a", "dictionary"]).encode())
         mlconf.storage.auto_mount_params = bad_params_str
 
         with pytest.raises(TypeError):
@@ -253,9 +236,7 @@ class TestAutoMount:
         os.environ.pop("V3IO_ACCESS_KEY", None)
         # This won't work if mount type is not pvc
         mlconf.storage.auto_mount_type = "auto"
-        with pytest.raises(
-            ValueError, match="failed to auto mount, need to set env vars"
-        ):
+        with pytest.raises(ValueError, match="failed to auto mount, need to set env vars"):
             runtime.apply(mlrun_pipelines.mounts.auto_mount())
 
     @staticmethod
@@ -278,9 +259,7 @@ class TestAutoMount:
     @pytest.mark.parametrize("non_anonymous", [True, False])
     def test_auto_mount_s3(self, use_secret, non_anonymous, rundb_mock):
         s3_params = self._setup_s3_mount(use_secret, non_anonymous)
-        mlconf.storage.auto_mount_params = ",".join(
-            [f"{key}={value}" for key, value in s3_params.items()]
-        )
+        mlconf.storage.auto_mount_params = ",".join([f"{key}={value}" for key, value in s3_params.items()])
         runtime = self._generate_runtime()
         self._execute_run(runtime)
         rundb_mock.assert_s3_mount_configured(s3_params)
@@ -294,9 +273,7 @@ class TestAutoMount:
 
         mlconf.storage.auto_mount_type = "env"
         # Pass key=value pairs to the function
-        mlconf.storage.auto_mount_params = ",".join(
-            [f"{key}={value}" for key, value in expected_env.items()]
-        )
+        mlconf.storage.auto_mount_params = ",".join([f"{key}={value}" for key, value in expected_env.items()])
         print(f"Auto mount params: {mlconf.storage.auto_mount_params}")
         runtime = self._generate_runtime()
         self._execute_run(runtime)
@@ -312,9 +289,7 @@ class TestAutoMount:
         rundb_mock.assert_env_variables(expected_env)
 
     def _create_temp_requirements_file(self, requirements):
-        with tempfile.NamedTemporaryFile(
-            delete=False, dir=self._temp_dir, suffix=".txt"
-        ) as temp_file:
+        with tempfile.NamedTemporaryFile(delete=False, dir=self._temp_dir, suffix=".txt") as temp_file:
             with open(temp_file.name, "w") as f:
                 for requirement in requirements:
                     f.write(requirement + "\n")

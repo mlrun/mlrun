@@ -114,11 +114,7 @@ class _DefaultPackagerMeta(ABCMeta):
         packing_sub_classes = f"**Packing Sub-Classes**: {packager.PACK_SUBCLASSES}"
 
         # Priority section:
-        priority_value = (
-            packager.priority
-            if packager.priority is not ...
-            else "Default priority (5)"
-        )
+        priority_value = packager.priority if packager.priority is not ... else "Default priority (5)"
         priority = f"**Priority**: {priority_value}"
 
         # Default artifact types:
@@ -128,11 +124,9 @@ class _DefaultPackagerMeta(ABCMeta):
             argument_name = pack_or_unpack.upper()
             return (
                 getattr(packager, argument_name)
-                if packager_name == "DefaultPackager"
-                or method_name not in packager.__class__.__dict__
+                if packager_name == "DefaultPackager" or method_name not in packager.__class__.__dict__
                 else (
-                    f"Refer to the packager's "
-                    f":py:meth:`~{packager_module}.{packager_name}.{method_name}` method."
+                    f"Refer to the packager's " f":py:meth:`~{packager_module}.{packager_name}.{method_name}` method."
                 )
             )
 
@@ -146,9 +140,7 @@ class _DefaultPackagerMeta(ABCMeta):
         artifact_types = "**Artifact Types**:"
         for artifact_type in packager.get_supported_artifact_types():
             # Get the packing method docstring:
-            method_doc = docstring_parser.parse(
-                getattr(packager, f"pack_{artifact_type}").__doc__
-            )
+            method_doc = docstring_parser.parse(getattr(packager, f"pack_{artifact_type}").__doc__)
             # Add the artifact type bullet:
             artifact_type_doc = f"{method_doc.short_description or ''}{method_doc.long_description or ''}".replace(
                 "\n", ""
@@ -159,9 +151,7 @@ class _DefaultPackagerMeta(ABCMeta):
             )
             # Add the artifact type configurations (ignoring the `obj` and `key` parameters):
             configurations_doc = "\n\n  * ".join(
-                "{} - {}".format(
-                    parameter.arg_name, parameter.description.replace("\n", "")
-                )
+                "{} - {}".format(parameter.arg_name, parameter.description.replace("\n", ""))
                 for parameter in method_doc.params[2:]
             )
             if configurations_doc:
@@ -378,9 +368,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         """
         # Get default artifact type in case it was not provided:
         if artifact_type is None:
-            artifact_type = self.get_default_unpacking_artifact_type(
-                data_item=data_item
-            )
+            artifact_type = self.get_default_unpacking_artifact_type(data_item=data_item)
 
         # Set empty dictionary in case no instructions were given:
         instructions = instructions or {}
@@ -398,9 +386,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         # Call the unpacking method and return the object:
         return unpack_method(data_item, **instructions)
 
-    def is_packable(
-        self, obj: Any, artifact_type: str = None, configurations: dict = None
-    ) -> bool:
+    def is_packable(self, obj: Any, artifact_type: str = None, configurations: dict = None) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
 
@@ -428,10 +414,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
                 return False
 
         # Check the artifact type:
-        if (
-            artifact_type is not None
-            and artifact_type not in self.get_supported_artifact_types()
-        ):
+        if artifact_type is not None and artifact_type not in self.get_supported_artifact_types():
             return False
 
         # Packable:
@@ -453,9 +436,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         :return: The artifacts and its pickling instructions.
         """
         # Pickle the object to file:
-        pickle_path, instructions = Pickler.pickle(
-            obj=obj, pickle_module_name=pickle_module_name
-        )
+        pickle_path, instructions = Pickler.pickle(obj=obj, pickle_module_name=pickle_module_name)
 
         # Initialize an artifact to the pkl file:
         artifact = Artifact(key=key, src_path=pickle_path)
@@ -517,9 +498,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             object_module_version=object_module_version,
         )
 
-    def _validate_method_arguments(
-        self, method: MethodType, arguments: dict, is_packing: bool
-    ):
+    def _validate_method_arguments(self, method: MethodType, arguments: dict, is_packing: bool):
         """
         Validate keyword arguments to pass to a method. Used for validating log hint configurations for packing methods
         and instructions for unpacking methods.
@@ -540,8 +519,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             # If default value is `empty` it is mandatory:
             if parameter.default is inspect.Parameter.empty
             # Ignore the *args and **kwargs parameters:
-            and parameter.kind
-            not in [inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL]
+            and parameter.kind not in [inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL]
         ]
 
         # Remove non-configuration (or non-instructions in case of unpacking) arguments:
@@ -555,9 +533,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
         # Validate there are no missing arguments (only mandatory ones):
         missing_arguments = [
-            mandatory_argument
-            for mandatory_argument in mandatory_arguments
-            if mandatory_argument not in arguments
+            mandatory_argument for mandatory_argument in mandatory_arguments if mandatory_argument not in arguments
         ]
         if missing_arguments:
             if is_packing:
@@ -575,9 +551,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             )
 
         # Validate all given arguments are correct:
-        incorrect_arguments = [
-            argument for argument in arguments if argument not in possible_arguments
-        ]
+        incorrect_arguments = [argument for argument in arguments if argument not in possible_arguments]
         if incorrect_arguments:
             arguments_type = "configurations" if is_packing else "instructions"
             logger.warn(

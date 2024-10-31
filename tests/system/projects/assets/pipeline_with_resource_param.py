@@ -17,9 +17,7 @@ import kfp
 import mlrun
 
 
-@kfp.dsl.pipeline(
-    name="Demo passing param to function spec", description="Shows how to use mlrun."
-)
+@kfp.dsl.pipeline(name="Demo passing param to function spec", description="Shows how to use mlrun.")
 def kfpipeline(memory: str = "10Mi"):
     time_to_sleep = 2
     project: mlrun.projects.MlrunProject = mlrun.get_current_project()

@@ -28,9 +28,7 @@ def get_log_artifacts_code(runobj: RunObject, task_parameters: dict):
         "artifact_json_dir",
         mlrun.mlconf.function.databricks.artifact_directory_path,
     )
-    artifact_json_path = (
-        f"{artifact_json_dir}/mlrun_artifact_{runobj.metadata.uid}.json"
-    )
+    artifact_json_path = f"{artifact_json_dir}/mlrun_artifact_{runobj.metadata.uid}.json"
     return (
         log_artifacts_code_template.format(f"/dbfs{artifact_json_path}"),
         artifact_json_path,
@@ -133,14 +131,10 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
     def _verify_returns(returns):
         # TODO complete returns feature
         if returns:
-            raise MLRunInvalidArgumentError(
-                "Databricks function does not support returns."
-            )
+            raise MLRunInvalidArgumentError("Databricks function does not support returns.")
 
     def _get_modified_user_code(self, original_handler: str, log_artifacts_code: str):
-        encoded_code = (
-            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
-        )
+        encoded_code = self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         if not encoded_code:
             raise ValueError("Databricks function must be provided with user code")
 
@@ -149,16 +143,9 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
             code=decoded_code, log_artifacts_code=log_artifacts_code
         )
         if is_replaced:
-            decoded_code = (
-                logger_and_consts_code + _databricks_script_code + decoded_code
-            )
+            decoded_code = logger_and_consts_code + _databricks_script_code + decoded_code
         else:
-            decoded_code = (
-                logger_and_consts_code
-                + log_artifacts_code
-                + _databricks_script_code
-                + decoded_code
-            )
+            decoded_code = logger_and_consts_code + log_artifacts_code + _databricks_script_code + decoded_code
         if original_handler:
             decoded_code += f"\nresult = {original_handler}(**handler_arguments)\n"
             decoded_code += _return_artifacts_code
@@ -173,9 +160,7 @@ class DatabricksRuntime(kubejob.KubejobRuntime):
             original_handler = task_parameters["original_handler"]
         else:
             original_handler = runobj.spec.handler or ""
-        log_artifacts_code, artifact_json_path = get_log_artifacts_code(
-            runobj=runobj, task_parameters=task_parameters
-        )
+        log_artifacts_code, artifact_json_path = get_log_artifacts_code(runobj=runobj, task_parameters=task_parameters)
         returns = runobj.spec.returns or []
         self._verify_returns(returns=returns)
         code = self._get_modified_user_code(
@@ -208,9 +193,7 @@ def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
 
     def run(
         self,
-        runspec: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
+        runspec: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]] = None,
         handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",

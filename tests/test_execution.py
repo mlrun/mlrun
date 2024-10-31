@@ -37,9 +37,7 @@ def my_func(context):
     context.log_result("np-nan", np.nan)
     context.log_result("np-list", [1.5, np.nan, np.inf])
     context.log_result("dict", {"x": -1.3, "y": np.float32(1.5), "z": "ab"})
-    context.log_result(
-        "array", np.array([1, 2, 3.2, np.nan, np.datetime64("2018-01-01")])
-    )
+    context.log_result("array", np.array([1, 2, 3.2, np.nan, np.datetime64("2018-01-01")]))
 
     raw_data = {
         "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
@@ -74,9 +72,7 @@ def test_local_context(rundb_mock):
     project_name = "xtst"
     mlrun.mlconf.artifact_path = out_path
     db = mlrun.get_run_db()
-    context = mlrun.get_or_create_ctx(
-        "xx", rundb=db, project=project_name, upload_artifacts=True
-    )
+    context = mlrun.get_or_create_ctx("xx", rundb=db, project=project_name, upload_artifacts=True)
     run = db.read_run(context._uid, project=project_name)
     assert run["status"]["state"] == "running", "run status not updated in db"
 
@@ -103,13 +99,9 @@ def test_local_context(rundb_mock):
     assert run["status"]["state"] == "completed", "run status was not updated in db"
     assert run["status"]["artifact_uris"].get("xx"), "artifact not updated in db"
 
-    artifact = mlrun.datastore.get_store_resource(
-        run["status"]["artifact_uris"].get("xx")
-    )
+    artifact = mlrun.datastore.get_store_resource(run["status"]["artifact_uris"].get("xx"))
     assert artifact.spec.format == "z", "run/artifact attribute not updated in db"
-    assert artifact.spec.target_path.startswith(
-        out_path
-    ), "artifact not uploaded to subpath"
+    assert artifact.spec.target_path.startswith(out_path), "artifact not uploaded to subpath"
 
     db_artifact = db.read_artifact(artifact.db_key, project=project_name)
     assert db_artifact["spec"]["format"] == "z", "artifact attribute not updated in db"
@@ -118,9 +110,7 @@ def test_local_context(rundb_mock):
     assert run["spec"]["parameters"]["p2"] == "a string", "param not updated in db"
     assert run["status"]["results"]["accuracy"] == 16, "result not updated in db"
     assert run["metadata"]["labels"]["label-key"] == "label-value", "label not updated"
-    assert (
-        run["metadata"]["annotations"]["annotation-key"] == "annotation-value"
-    ), "annotation not updated"
+    assert run["metadata"]["annotations"]["annotation-key"] == "annotation-value", "annotation not updated"
 
     assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
 
@@ -150,13 +140,8 @@ def test_context_from_run_dict(is_api):
         assert context._annotations == run_dict["metadata"]["annotations"]
         assert context.get_param("p1") == run_dict["spec"]["parameters"]["p1"]
         assert context.get_param("p2") == run_dict["spec"]["parameters"]["p2"]
-        assert (
-            context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
-        )
-        assert (
-            context.annotations["annotation-key"]
-            == run_dict["metadata"]["annotations"]["annotation-key"]
-        )
+        assert context.labels["label-key"] == run_dict["metadata"]["labels"]["label-key"]
+        assert context.annotations["annotation-key"] == run_dict["metadata"]["annotations"]["annotation-key"]
         assert context.artifact_path == run_dict["spec"]["output_path"]
 
 
@@ -196,10 +181,7 @@ def test_context_inputs(rundb_mock, is_api):
         # create run object from dict and dict again to mock the run serialization
         run = mlrun.run.RunObject.from_dict(run_dict)
         context = mlrun.MLClientCtx.from_dict(PipelineRun(run.to_dict()), is_api=is_api)
-        assert (
-            context.get_input("input-key").artifact_url
-            == run_dict["spec"]["inputs"]["input-key"]
-        )
+        assert context.get_input("input-key").artifact_url == run_dict["spec"]["inputs"]["input-key"]
         assert context._inputs["input-key"] == run_dict["spec"]["inputs"]["input-key"]
 
         key = "store-input"
@@ -219,9 +201,7 @@ def test_context_inputs(rundb_mock, is_api):
         assert context.get_input(key).artifact_url == run_dict["spec"]["inputs"][key]
 
 
-@pytest.mark.parametrize(
-    "host, is_logging_worker", [("test-worker-0", True), ("test-worker-1", False)]
-)
+@pytest.mark.parametrize("host, is_logging_worker", [("test-worker-0", True), ("test-worker-1", False)])
 def test_is_logging_worker(host: str, is_logging_worker: bool):
     """
     Test the `is_logging_worker` method of the context.
@@ -245,9 +225,7 @@ def test_is_logging_worker(host: str, is_logging_worker: bool):
 def test_artifact_owner(rundb_mock, owner):
     run_dict = _generate_run_dict()
     if owner:
-        run_dict["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.owner] = (
-            owner
-        )
+        run_dict["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.owner] = owner
 
     run = mlrun.run.RunObject.from_dict(run_dict)
     context = mlrun.MLClientCtx.from_dict(run.to_dict())

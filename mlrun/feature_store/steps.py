@@ -122,9 +122,7 @@ class FeaturesetValidator(StepToDict, MLRunStep):
                 if not ok:
                     message = args.pop("message")
                     key_text = f" key={event.key}" if event.key else ""
-                    print(
-                        f"{validator.severity}! {name} {message},{key_text} args={args}"
-                    )
+                    print(f"{validator.severity}! {name} {message},{key_text} args={args}")
         return event
 
     def _do_pandas(self, event):
@@ -143,9 +141,7 @@ class FeaturesetValidator(StepToDict, MLRunStep):
                         message = args.pop("message")
                 if violations != 0:
                     text = f" column={column}, has {violations} violations"
-                    print(
-                        f"{validator.severity}! {column} {message},{text} args={all_args}"
-                    )
+                    print(f"{validator.severity}! {column} {message},{text} args={all_args}")
         return event
 
 
@@ -168,13 +164,7 @@ class MapValues(StepToDict, MLRunStep):
             graph.to(MapValues(mapping={"not": {0: 1, 1: 0}}))
 
             # replace by range, use -inf and inf for extended range
-            graph.to(
-                MapValues(
-                    mapping={
-                        "numbers": {"ranges": {"negative": [-inf, 0], "positive": [0, inf]}}
-                    }
-                )
-            )
+            graph.to(MapValues(mapping={"numbers": {"ranges": {"negative": [-inf, 0], "positive": [0, inf]}}}))
 
         :param mapping: a dict with entry per column and the associated old/new values map
         :param with_original_features: set to True to keep the original features
@@ -226,20 +216,12 @@ class MapValues(StepToDict, MLRunStep):
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
                     feature_map["ranges"][val] = [min_val, max_val]
 
-                matchdf = pd.DataFrame.from_dict(
-                    feature_map["ranges"], "index"
-                ).reset_index()
-                matchdf.index = pd.IntervalIndex.from_arrays(
-                    left=matchdf[0], right=matchdf[1], closed="both"
-                )
-                df[self._get_feature_name(feature)] = matchdf.loc[event[feature]][
-                    "index"
-                ].values
+                matchdf = pd.DataFrame.from_dict(feature_map["ranges"], "index").reset_index()
+                matchdf.index = pd.IntervalIndex.from_arrays(left=matchdf[0], right=matchdf[1], closed="both")
+                df[self._get_feature_name(feature)] = matchdf.loc[event[feature]]["index"].values
             elif feature_map:
                 # create and apply simple map
-                df[self._get_feature_name(feature)] = event[feature].map(
-                    lambda x: feature_map.get(x, None)
-                )
+                df[self._get_feature_name(feature)] = event[feature].map(lambda x: feature_map.get(x, None))
 
         if self.with_original_features:
             df = pd.concat([event, df], axis=1)
@@ -272,9 +254,7 @@ class MapValues(StepToDict, MLRunStep):
                 #  then the original column.
                 #  we will try to replace the values without using 'otherwise'.
                 except AnalysisException:
-                    df = df.withColumn(
-                        new_column_name, mapping_expr.getItem(col(column))
-                    )
+                    df = df.withColumn(new_column_name, mapping_expr.getItem(col(column)))
                     col_type = df.schema[column].dataType
                     new_col_type = df.schema[new_column_name].dataType
                     #  in order to avoid exception at isna on non-decimal/float columns -
@@ -284,24 +264,18 @@ class MapValues(StepToDict, MLRunStep):
                     else:
                         column_filter = ~isnull(col(column))
                     if isinstance(new_col_type, (FloatType, DoubleType, DecimalType)):
-                        new_column_filter = isnull(col(new_column_name)) | isnan(
-                            col(new_column_name)
-                        )
+                        new_column_filter = isnull(col(new_column_name)) | isnan(col(new_column_name))
                     else:
                         #  we need to check that every value replaced if we changed column type - except None or NaN.
                         new_column_filter = isnull(col(new_column_name))
                     mapping_to_null = [
                         k
                         for k, v in column_map.items()
-                        if v is None
-                        or (
-                            isinstance(v, (float, np.float64, np.float32, np.float16))
-                            and math.isnan(v)
-                        )
+                        if v is None or (isinstance(v, (float, np.float64, np.float32, np.float16)) and math.isnan(v))
                     ]
-                    turned_to_none_values = df.filter(
-                        column_filter & new_column_filter
-                    ).filter(~col(column).isin(mapping_to_null))
+                    turned_to_none_values = df.filter(column_filter & new_column_filter).filter(
+                        ~col(column).isin(mapping_to_null)
+                    )
 
                     if len(turned_to_none_values.head(1)) > 0:
                         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -337,10 +311,7 @@ class MapValues(StepToDict, MLRunStep):
                     type(val)
                     for val in column_map.values()
                     if type(val) is not None
-                    and not (
-                        isinstance(val, (float, np.float64, np.float32, np.float16))
-                        and math.isnan(val)
-                    )
+                    and not (isinstance(val, (float, np.float64, np.float32, np.float16)) and math.isnan(val))
                 )
             else:
                 if len(column_map) > 1:
@@ -357,10 +328,7 @@ class MapValues(StepToDict, MLRunStep):
                         if type(val) is not None
                         and val != "-inf"
                         and val != "inf"
-                        and not (
-                            isinstance(val, (float, np.float64, np.float32, np.float16))
-                            and math.isnan(val)
-                        )
+                        and not (isinstance(val, (float, np.float64, np.float32, np.float16)) and math.isnan(val))
                     )
                     types = types.union(range_types)
             if len(types) > 1:
@@ -400,9 +368,7 @@ class Imputer(StepToDict, MLRunStep):
         return value
 
     def _do_storey(self, event):
-        imputed_values = {
-            feature: self._impute(feature, val) for feature, val in event.items()
-        }
+        imputed_values = {feature: self._impute(feature, val) for feature, val in event.items()}
         return imputed_values
 
     def _do_pandas(self, event):
@@ -454,18 +420,11 @@ class OneHotEncoder(StepToDict, MLRunStep):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-            one_hot_encoding = {
-                f"{feature}_{OneHotEncoder._sanitized_category(category)}": 0
-                for category in encoding
-            }
+            one_hot_encoding = {f"{feature}_{OneHotEncoder._sanitized_category(category)}": 0 for category in encoding}
             if value in encoding:
-                one_hot_encoding[
-                    f"{feature}_{OneHotEncoder._sanitized_category(value)}"
-                ] = 1
+                one_hot_encoding[f"{feature}_{OneHotEncoder._sanitized_category(value)}"] = 1
             elif self.logger:
-                self.logger.warn(
-                    f"OneHotEncoder does not have an encoding for value '{value}' of feature '{feature}'"
-                )
+                self.logger.warn(f"OneHotEncoder does not have an encoding for value '{value}' of feature '{feature}'")
             return one_hot_encoding
 
         return {feature: value}
@@ -481,10 +440,7 @@ class OneHotEncoder(StepToDict, MLRunStep):
         for key, values in self.mapping.items():
             event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
-            col_rename = {
-                name: OneHotEncoder._sanitized_category(name)
-                for name in encoded.columns
-            }
+            col_rename = {name: OneHotEncoder._sanitized_category(name) for name in encoded.columns}
             encoded.rename(columns=col_rename, inplace=True)
             event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
         event.drop(columns=list(self.mapping.keys()), inplace=True)
@@ -585,9 +541,7 @@ class DateExtractor(StepToDict, MLRunStep):
         try:
             timestamp = event[self.timestamp_col]
         except KeyError:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{self.timestamp_col} does not exist in the event"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"{self.timestamp_col} does not exist in the event")
         return timestamp
 
     def _do_storey(self, event):
@@ -606,9 +560,7 @@ class DateExtractor(StepToDict, MLRunStep):
         # Extract specified parts
         for part in self.parts:
             # Extract part and add it to event
-            event[self._get_key_name(part)] = timestamp.map(
-                lambda x: getattr(pd.Timestamp(x), part)
-            )
+            event[self._get_key_name(part)] = timestamp.map(lambda x: getattr(pd.Timestamp(x), part))
         return event
 
     def _do_spark(self, event):
@@ -626,9 +578,7 @@ class DateExtractor(StepToDict, MLRunStep):
                     func(self.timestamp_col).cast("long"),
                 )
             else:
-                raise mlrun.errors.MLRunRuntimeError(
-                    f"DateExtractor with spark engine doesn't support {part} param"
-                )
+                raise mlrun.errors.MLRunRuntimeError(f"DateExtractor with spark engine doesn't support {part} param")
         return event
 
 

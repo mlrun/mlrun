@@ -114,14 +114,11 @@ def test_tracked_function(rundb_mock, enable_tracking):
 
     rundb_mock.patch_model_endpoint.assert_called_once()
     assert (
-        rundb_mock.patch_model_endpoint.call_args.kwargs["attributes"]["model_uri"]
-        == model_uri
+        rundb_mock.patch_model_endpoint.call_args.kwargs["attributes"]["model_uri"] == model_uri
     ), "model_uri attribute of the model endpoint was not updated as expected"
     if not enable_tracking:
         assert (
-            rundb_mock.patch_model_endpoint.call_args.kwargs["attributes"][
-                "monitoring_mode"
-            ]
+            rundb_mock.patch_model_endpoint.call_args.kwargs["attributes"]["monitoring_mode"]
             == ModelMonitoringMode.disabled
         ), "model_uri attribute of the model endpoint was not updated as expected"
 

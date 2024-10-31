@@ -27,9 +27,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         handlers to be triggered and verifies that for all of them the actual error details returned in the response and
         that the client successfully parses them and raise the right error class
         """
-        mlrun.get_or_create_project(
-            "some-project", context="./", allow_cross_project=True
-        )
+        mlrun.get_or_create_project("some-project", context="./", allow_cross_project=True)
         # log_and_raise - mlrun code uses log_and_raise (common) which raises fastapi.HTTPException because we're
         # sending a store artifact request with an invalid json body
         # This is practically verifies that log_and_raise puts the kwargs under the details
@@ -44,12 +42,10 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             )
 
         # mlrun exception - mlrun code raises an mlrun exception because we're creating a project with invalid name
-        # This is handled in the server/api/main.py::http_status_error_handler
+        # This is handled in the server/py/services/api/main.py::http_status_error_handler
         invalid_project_name = "some_project"
         # Not using client class cause it does validation on client side and we want to fail on server side
-        project = mlrun.common.schemas.Project(
-            metadata=mlrun.common.schemas.ProjectMetadata(name=invalid_project_name)
-        )
+        project = mlrun.common.schemas.Project(metadata=mlrun.common.schemas.ProjectMetadata(name=invalid_project_name))
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
             match=rf"Field \'project\.metadata\.name\' is malformed"
@@ -68,9 +64,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             r"permitted: 'restrict', 'restricted', 'cascade', 'cascading', 'check'\", 'type': 'type_error.enum',"
             r" 'ctx': {'enum_values': \['restrict', 'restricted', 'cascade', 'cascading', 'check']}}]",
         ):
-            mlrun.get_run_db().delete_project(
-                "some-project-name", deletion_strategy=invalid_deletion_strategy
-            )
+            mlrun.get_run_db().delete_project("some-project-name", deletion_strategy=invalid_deletion_strategy)
 
         # lastly let's verify that a request error (failure reaching to the server) is handled nicely
         mlrun.get_run_db().base_url = "http://does-not-exist"

@@ -74,9 +74,7 @@ def test_features_parser():
         (False, True, "v3io:///bigdata/{run_id}/file.parquet", None),
     ],
 )
-def test_different_target_path_scenarios_for_run_id(
-    pass_run_id, is_single_file, target_path, expected_path
-):
+def test_different_target_path_scenarios_for_run_id(pass_run_id, is_single_file, target_path, expected_path):
     run_id = "run_id_val" if pass_run_id else None
 
     if not expected_path:
@@ -84,9 +82,7 @@ def test_different_target_path_scenarios_for_run_id(
             TargetPathObject(target_path, run_id, is_single_file)
     else:
         tp_obj = TargetPathObject(target_path, run_id, is_single_file)
-        assert (
-            mlrun.model.RUN_ID_PLACE_HOLDER in tp_obj.get_templated_path()
-        ) == pass_run_id
+        assert (mlrun.model.RUN_ID_PLACE_HOLDER in tp_obj.get_templated_path()) == pass_run_id
         assert mlrun.model.RUN_ID_PLACE_HOLDER not in tp_obj.get_absolute_path()
         assert tp_obj.get_absolute_path() == expected_path
 
@@ -112,12 +108,8 @@ def test_different_target_path_scenarios_for_run_id(
         ("2021-05-25T10:30:29.592+02:00", True, True, timedelta(hours=2)),
     ],
 )
-def test_parquet_source_with_iso_start_or_end_time(
-    time_for_source, is_through_init, should_succeed, time_delta
-):
-    def _test_parquet_source_with_iso_start_or_end_time(
-        time_for_source, is_through_init, time_delta
-    ):
+def test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, should_succeed, time_delta):
+    def _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta):
         if time_delta is None:
             tzinfo = None
         else:
@@ -139,11 +131,7 @@ def test_parquet_source_with_iso_start_or_end_time(
             assert source.end_time == actual
 
     if should_succeed:
-        _test_parquet_source_with_iso_start_or_end_time(
-            time_for_source, is_through_init, time_delta
-        )
+        _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta)
     else:
         with pytest.raises(ValueError, match=r".*Invalid isoformat string:.*"):
-            _test_parquet_source_with_iso_start_or_end_time(
-                time_for_source, is_through_init, time_delta
-            )
+            _test_parquet_source_with_iso_start_or_end_time(time_for_source, is_through_init, time_delta)

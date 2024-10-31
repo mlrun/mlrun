@@ -34,9 +34,7 @@ def parse_feature_string(feature):
     """parse feature string into feature set name, feature name, alias"""
     # expected format: <feature-set>.<name|*>[ as alias]
     if feature_separator not in feature:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"feature {feature} must be {expected_message}"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError(f"feature {feature} must be {expected_message}")
     feature_set, feature_name = feature.rsplit(feature_separator, 1)
     feature_set = feature_set.strip()
     split_result = feature_name.split(" as ", 1)
@@ -81,15 +79,9 @@ def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_feature_set_uri(uri, project)
-    resource = (
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
-            project, "feature-set"
-        )
-    )
+    resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(project, "feature-set")
 
-    auth_input = AuthorizationVerificationInput(
-        resource=resource, action=mlrun.common.schemas.AuthorizationAction.read
-    )
+    auth_input = AuthorizationVerificationInput(resource=resource, action=mlrun.common.schemas.AuthorizationAction.read)
     db.verify_authorization(auth_input)
 
     return db.get_feature_set(name, project, tag, uid)
@@ -129,16 +121,10 @@ def get_feature_vector_by_uri(uri, project=None, update=True):
     return db.get_feature_vector(name, project, tag, uid)
 
 
-def verify_feature_set_permissions(
-    feature_set, action: mlrun.common.schemas.AuthorizationAction
-):
+def verify_feature_set_permissions(feature_set, action: mlrun.common.schemas.AuthorizationAction):
     project, _, _, _ = parse_feature_set_uri(feature_set.uri)
 
-    resource = (
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
-            project, "feature-set"
-        )
-    )
+    resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(project, "feature-set")
     db = feature_set._get_run_db()
 
     auth_input = AuthorizationVerificationInput(resource=resource, action=action)
@@ -158,9 +144,7 @@ def verify_feature_set_exists(feature_set):
         raise mlrun.errors.MLRunNotFoundError(f"feature set {uri} is empty")
 
 
-def verify_feature_vector_permissions(
-    feature_vector, action: mlrun.common.schemas.AuthorizationAction
-):
+def verify_feature_vector_permissions(feature_vector, action: mlrun.common.schemas.AuthorizationAction):
     project = feature_vector._metadata.project or config.default_project
 
     resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
@@ -255,9 +239,7 @@ class RunConfig:
 
     @function.setter
     def function(self, function):
-        if function and not (
-            isinstance(function, (str, FunctionReference)) or hasattr(function, "apply")
-        ):
+        if function and not (isinstance(function, (str, FunctionReference)) or hasattr(function, "apply")):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "function must be a uri (string) or mlrun function object/reference"
             )
@@ -301,9 +283,7 @@ class RunConfig:
                 self.function.requirements = self.requirements
             if self.extra_spec:
                 self.function.spec = self.extra_spec
-            function = self.function.to_function(
-                default_kind, self.image or default_image
-            )
+            function = self.function.to_function(default_kind, self.image or default_image)
         elif hasattr(self.function, "apply"):
             function = copy(self.function)
             if self.code:
@@ -311,9 +291,7 @@ class RunConfig:
             if self.requirements:
                 self.function.with_requirements(self.requirements)
             if self.extra_spec:
-                self.function = enrich_function_from_dict(
-                    self.function, self.extra_spec
-                )
+                self.function = enrich_function_from_dict(self.function, self.extra_spec)
             function.spec.image = function.spec.image or self.image or default_image
         else:
             function = FunctionReference(

@@ -36,9 +36,7 @@ if os.path.exists(config_file_path):
 
 
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
-@pytest.mark.skipif(
-    not config.get("redis_endpoint"), reason="redis parameters not configured"
-)
+@pytest.mark.skipif(not config.get("redis_endpoint"), reason="redis parameters not configured")
 class TestRedisDataStore:
     profile_name = "redis_profile"
 
@@ -49,9 +47,7 @@ class TestRedisDataStore:
     def setup_before_test(self, use_datastore_profile):
         file = f"file_{uuid.uuid4()}.txt"
         if use_datastore_profile:
-            profile = DatastoreProfileRedis(
-                name=self.profile_name, endpoint_url=self.redis_endpoint
-            )
+            profile = DatastoreProfileRedis(name=self.profile_name, endpoint_url=self.redis_endpoint)
             register_temporary_client_datastore_profile(profile)
             self.test_endpoint = f"ds://{self.profile_name}"
         else:
@@ -134,17 +130,13 @@ class TestRedisDataStore:
 
         dir_item = mlrun.datastore.store_manager.object(list_dir)
         actual = dir_item.listdir()
-        assert set(expected) == set(
-            actual
-        ), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
+        assert set(expected) == set(actual), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
 
         # clean test objects
         dir_item.store.rm("/dir-0/", recursive=True)
         expected = []
         actual = dir_item.listdir()
-        assert set(expected) == set(
-            actual
-        ), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
+        assert set(expected) == set(actual), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
         dir_item.store.rm("/not-exist-dir/", recursive=True)
 
     def test_wrong_credential_rm(self, use_datastore_profile):
@@ -158,15 +150,9 @@ class TestRedisDataStore:
             )
             register_temporary_client_datastore_profile(profile)
             test_endpoint = f"ds://{self.profile_name}"
-        secrets = (
-            {"REDIS_USER": "not_exist", "REDIS_PASSWORD": "not_exist"}
-            if not use_datastore_profile
-            else {}
-        )
+        secrets = {"REDIS_USER": "not_exist", "REDIS_PASSWORD": "not_exist"} if not use_datastore_profile else {}
 
-        data_item = mlrun.run.get_dataitem(
-            test_endpoint + "/fake_file.txt", secrets=secrets
-        )
+        data_item = mlrun.run.get_dataitem(test_endpoint + "/fake_file.txt", secrets=secrets)
         with pytest.raises(AuthenticationError):
             data_item.delete()
 

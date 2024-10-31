@@ -57,27 +57,17 @@ def test_infer_from_df():
 
     # test entity infer
     assert len(featureset.spec.entities) == 1, "entity not properly inferred"
-    assert (
-        list(featureset.spec.entities.keys())[0] == key
-    ), "entity key not properly inferred"
-    assert (
-        list(featureset.spec.entities.values())[0].value_type == "str"
-    ), "entity type not properly inferred"
+    assert list(featureset.spec.entities.keys())[0] == key, "entity key not properly inferred"
+    assert list(featureset.spec.entities.values())[0].value_type == "str", "entity type not properly inferred"
 
     # test infer features
-    assert (
-        featureset.spec.features.to_dict() == expected_schema
-    ), "did not infer schema properly"
+    assert featureset.spec.features.to_dict() == expected_schema, "did not infer schema properly"
 
     preview = featureset.status.preview
     # by default preview should be 20 lines + 1 for headers
     assert len(preview) == 21, "unexpected num of preview lines"
-    assert len(preview[0]) == df.shape[1] + len(
-        df.index.names
-    ), "unexpected num of header columns"
-    assert len(preview[1]) == df.shape[1] + len(
-        df.index.names
-    ), "unexpected num of value columns"
+    assert len(preview[0]) == df.shape[1] + len(df.index.names), "unexpected num of header columns"
+    assert len(preview[1]) == df.shape[1] + len(df.index.names), "unexpected num of value columns"
 
     features = sorted(featureset.spec.features.keys())
     stats = sorted(featureset.status.stats.keys())
@@ -119,9 +109,7 @@ def test_check_permissions(rundb_mock, monkeypatch):
             "string": ["ab", "cd", "ef"],
         }
     )
-    data_set1 = fstore.FeatureSet(
-        "fs1", entities=[Entity("string")], timestamp_key="time_stamp"
-    )
+    data_set1 = fstore.FeatureSet("fs1", entities=[Entity("string")], timestamp_key="time_stamp")
 
     monkeypatch.setattr(
         rundb_mock,
@@ -155,6 +143,4 @@ def test_check_permissions(rundb_mock, monkeypatch):
 
 def test_check_timestamp_key_is_entity():
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        fstore.FeatureSet(
-            "imp1", entities=[Entity("time_stamp")], timestamp_key="time_stamp"
-        )
+        fstore.FeatureSet("imp1", entities=[Entity("time_stamp")], timestamp_key="time_stamp")

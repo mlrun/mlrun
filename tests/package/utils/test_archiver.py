@@ -78,20 +78,12 @@ def test_archiver(archive_format: str, directory_layout: list[str]):
 
     # Archive the files:
     archiver = ArchiveSupportedFormat.get_format_handler(fmt=archive_format)
-    archive_path = Path(
-        archiver.create_archive(
-            directory_path=str(directory_path), output_path=str(output_path)
-        )
-    )
+    archive_path = Path(archiver.create_archive(directory_path=str(directory_path), output_path=str(output_path)))
     assert archive_path.exists()
     assert archive_path == output_path / f"{directory_name}.{archive_format}"
 
     # Extract the files:
-    extracted_dir_path = Path(
-        archiver.extract_archive(
-            archive_path=str(archive_path), output_path=str(output_path)
-        )
-    )
+    extracted_dir_path = Path(archiver.extract_archive(archive_path=str(archive_path), output_path=str(output_path)))
     assert extracted_dir_path.exists()
     assert extracted_dir_path.name.startswith((output_path / directory_name).name)
 

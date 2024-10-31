@@ -208,8 +208,7 @@ def pack_array_dict(i: int) -> dict[str, np.ndarray]:
 
 def unpack_array_dict(obj: dict[str, np.ndarray], i: int):
     assert isinstance(obj, dict) and all(
-        isinstance(key, str) and isinstance(value, np.ndarray)
-        for key, value in obj.items()
+        isinstance(key, str) and isinstance(value, np.ndarray) for key, value in obj.items()
     )
     assert obj.keys() == _ARRAY_DICT_SAMPLES[i].keys()
     for obj_array, sample_array in zip(obj.values(), _ARRAY_DICT_SAMPLES[i].values()):

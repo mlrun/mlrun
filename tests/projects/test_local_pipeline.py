@@ -35,12 +35,8 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
 
     def test_set_artifact(self, rundb_mock):
         self.project = mlrun.new_project("test-sa", save=False)
-        self.project.set_artifact(
-            "data1", mlrun.artifacts.Artifact(target_path=self.data_url)
-        )
-        self.project.set_artifact(
-            "data2", target_path=self.data_url, tag="x"
-        )  # test the short form
+        self.project.set_artifact("data1", mlrun.artifacts.Artifact(target_path=self.data_url))
+        self.project.set_artifact("data2", target_path=self.data_url, tag="x")  # test the short form
         self.project.register_artifacts()
 
         for artifact in self.project.spec.artifacts:
@@ -52,9 +48,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
 
     def test_import_artifacts(self, rundb_mock):
         results_path = str(pathlib.Path(tests.conftest.results) / "project")
-        project = mlrun.new_project(
-            "test-sa2", context=str(self.assets_path), save=False
-        )
+        project = mlrun.new_project("test-sa2", context=str(self.assets_path), save=False)
         project.spec.artifact_path = results_path
         # use inline body (in the yaml)
         project.set_artifact("y", "artifact.yaml")
@@ -73,10 +67,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
             db_key = artifact.db_key or artifact.metadata.key
             some_artifact = project.get_artifact(db_key)
             assert some_artifact.metadata.key == artifact.metadata.key
-            assert (
-                some_artifact._get_file_body()
-                == expected_body_map[artifact.metadata.key]
-            )
+            assert some_artifact._get_file_body() == expected_body_map[artifact.metadata.key]
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)
@@ -96,9 +87,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         mlrun.projects.pipeline_context.clear(with_project=True)
         self._create_project("localpipe1")
         self._set_functions()
-        run1 = mlrun.run_function(
-            "tstfunc", handler="func1", params={"p1": 3}, local=True
-        )
+        run1 = mlrun.run_function("tstfunc", handler="func1", params={"p1": 3}, local=True)
         run2 = mlrun.run_function(
             "tstfunc",
             handler="func2",
@@ -171,17 +160,13 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         run_result: mlrun.RunObject = mlrun.projects.pipeline_context._test_result
         print(run_result.to_yaml())
         # expect p1 = param1, p2 = default for param2 (abc)
-        assert (
-            run_result.output("p1") == 6 and run_result.output("p2") == "abc"
-        ), "wrong arg values"
+        assert run_result.output("p1") == 6 and run_result.output("p2") == "abc", "wrong arg values"
 
         self.project.run("main", local=True, arguments={"param1": 6, "param2": "xy"})
         run_result: mlrun.RunObject = mlrun.projects.pipeline_context._test_result
         print(run_result.to_yaml())
         # expect p1=param1, p2=xy
-        assert (
-            run_result.output("p1") == 6 and run_result.output("p2") == "xy"
-        ), "wrong arg values"
+        assert run_result.output("p1") == 6 and run_result.output("p2") == "xy", "wrong arg values"
 
     def test_run_pipeline_artifact_path(self):
         mlrun.projects.pipeline_context.clear(with_project=True)
@@ -212,10 +197,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         )
 
         # Otherwise, the artifact_path should automatically have the run id injected in it.
-        assert (
-            mlrun.projects.pipeline_context._artifact_path
-            == f"{generic_path}/{run_status.run_id}"
-        )
+        assert mlrun.projects.pipeline_context._artifact_path == f"{generic_path}/{run_status.run_id}"
 
     def test_run_pipeline_with_ttl(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

@@ -66,18 +66,14 @@ class TestDBFS(TestMLRunSystem):
     @classmethod
     def teardown_class(cls):
         super().teardown_class()
-        teardown_dbfs_dirs(
-            workspace=cls.workspace, specific_test_class_dir=cls.test_dir
-        )
+        teardown_dbfs_dirs(workspace=cls.workspace, specific_test_class_dir=cls.test_dir)
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         self._object_dir = f"/directory_{uuid.uuid4()}"
         self._object_dir_path = self.dir_path + self._object_dir
         if use_datastore_profile:
-            profile = DatastoreProfileDBFS(
-                name=self.profile_name, endpoint_url=self.host, token=self.token
-            )
+            profile = DatastoreProfileDBFS(name=self.profile_name, endpoint_url=self.host, token=self.token)
             register_temporary_client_datastore_profile(profile)
             os.environ.pop("DATABRICKS_TOKEN", None)
             os.environ.pop("DATABRICKS_HOST", None)
@@ -146,9 +142,7 @@ class TestDBFS(TestMLRunSystem):
         measurements = fstore.FeatureSet("measurements", entities=[Entity(key)])
 
         dbfs_source_path = f"{self._dir_url}/source_{local_filename}"
-        dbfs_target_path = (
-            f"{self._dir_url}/target_{'parquets' if use_folder else local_filename}"
-        )
+        dbfs_target_path = f"{self._dir_url}/target_{'parquets' if use_folder else local_filename}"
         target = target_class(name="specified-path", path=dbfs_target_path)
         measurements.set_targets(targets=[target], with_defaults=False)
 
@@ -165,9 +159,7 @@ class TestDBFS(TestMLRunSystem):
         target_file_path = measurements.get_target_path()
         # Avoids adding date columns when using a folder as the target.
         to_dataframe_dict = {"columns": list(expected.columns)} if use_folder else {}
-        result = source_class(path=target_file_path, **reader_kwargs).to_dataframe(
-            **to_dataframe_dict
-        )
+        result = source_class(path=target_file_path, **reader_kwargs).to_dataframe(**to_dataframe_dict)
         if drop_index:
             result.reset_index(inplace=True, drop=False)
 

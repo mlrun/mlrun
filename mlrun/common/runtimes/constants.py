@@ -272,9 +272,7 @@ class SparkApplicationStates:
     @staticmethod
     def spark_application_state_to_run_state(spark_application_state):
         if spark_application_state not in SparkApplicationStates.all():
-            raise ValueError(
-                f"Invalid spark application state: {spark_application_state}"
-            )
+            raise ValueError(f"Invalid spark application state: {spark_application_state}")
         return {
             SparkApplicationStates.completed: RunStates.completed,
             SparkApplicationStates.failed: RunStates.error,

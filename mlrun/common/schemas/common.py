@@ -61,9 +61,7 @@ class LabelsModel(pydantic.BaseModel):
         - If no labels are specified, the default is an empty list.
     """
 
-    labels: typing.Optional[
-        typing.Union[str, dict[str, typing.Optional[str]], list[str]]
-    ]
+    labels: typing.Optional[typing.Union[str, dict[str, typing.Optional[str]], list[str]]]
 
     @pydantic.validator("labels")
     @classmethod
@@ -77,16 +75,11 @@ class LabelsModel(pydantic.BaseModel):
 
         if isinstance(labels, list):
             if not all(isinstance(item, str) for item in labels):
-                raise mlrun.errors.MLRunValueError(
-                    "All items in the list must be strings."
-                )
+                raise mlrun.errors.MLRunValueError("All items in the list must be strings.")
             return labels
 
         if isinstance(labels, dict):
-            return [
-                f"{key}={value}" if value is not None else key
-                for key, value in labels.items()
-            ]
+            return [f"{key}={value}" if value is not None else key for key, value in labels.items()]
 
         raise mlrun.errors.MLRunValueError(
             "Invalid labels format. Must be a string, dictionary of strings, or a list of strings."

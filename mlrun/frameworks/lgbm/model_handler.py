@@ -174,9 +174,7 @@ class LGBMModelHandler(MLModelHandler):
 
         :raise MLRunNotFoundError: If the model file was not found.
         """
-        self._model_file = os.path.join(
-            self._model_path, f"{self._model_name}.{self._model_format}"
-        )
+        self._model_file = os.path.join(self._model_path, f"{self._model_name}.{self._model_format}")
         if not os.path.exists(self._model_file):
             raise mlrun.errors.MLRunNotFoundError(
                 f"The model file '{self._model_name}.{self._model_format}' was not found within the given "

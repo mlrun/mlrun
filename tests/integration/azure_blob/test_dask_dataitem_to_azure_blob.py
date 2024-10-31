@@ -175,6 +175,4 @@ def test_log_large_dask_dataframe_to_azure(auth_method):
     df = ddf.compute()
     df = df.reset_index(drop=True)
     # Verify that the returned dataframe matches the original
-    pd.testing.assert_frame_equal(
-        df, df2, check_index_type=False, check_less_precise=True
-    )
+    pd.testing.assert_frame_equal(df, df2, check_index_type=False, check_less_precise=True)

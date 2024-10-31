@@ -61,9 +61,7 @@ def new_v2_model_server(
 ):
     f = ServingRuntime()
     if not image:
-        name, spec, code = nuclio.build_file(
-            filename, name=name, handler="handler", kind=serving_subkind
-        )
+        name, spec, code = nuclio.build_file(filename, name=name, handler="handler", kind=serving_subkind)
         f.spec.base_spec = spec
 
     f.metadata.name = name
@@ -283,9 +281,7 @@ class ServingRuntime(RemoteRuntime):
         """
         topology = topology or StepKinds.router
         if self.spec.graph and not exist_ok:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "graph topology is already set, cannot be overwritten"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("graph topology is already set, cannot be overwritten")
 
         if topology == StepKinds.router:
             if class_name and hasattr(class_name, "to_dict"):
@@ -300,9 +296,7 @@ class ServingRuntime(RemoteRuntime):
         elif topology == StepKinds.flow:
             self.spec.graph = RootFlowStep(engine=engine)
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"unsupported topology {topology}, use 'router' or 'flow'"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"unsupported topology {topology}, use 'router' or 'flow'")
         return self.spec.graph
 
     def set_tracking(
@@ -394,20 +388,13 @@ class ServingRuntime(RemoteRuntime):
         if graph.kind != StepKinds.router:
             if router_step:
                 if router_step not in graph:
-                    raise ValueError(
-                        f"router step {router_step} not present in the graph"
-                    )
+                    raise ValueError(f"router step {router_step} not present in the graph")
                 graph = graph[router_step]
             else:
-                routers = [
-                    step
-                    for step in graph.steps.values()
-                    if step.kind == StepKinds.router
-                ]
+                routers = [step for step in graph.steps.values() if step.kind == StepKinds.router]
                 if len(routers) == 0:
                     raise ValueError(
-                        "graph does not contain any router, add_model can only be "
-                        "used when there is a router step"
+                        "graph does not contain any router, add_model can only be " "used when there is a router step"
                     )
                 if len(routers) > 1:
                     raise ValueError(
@@ -425,9 +412,7 @@ class ServingRuntime(RemoteRuntime):
                 raise ValueError("model_path or model_url must be provided")
             class_name = class_name or self.spec.default_class
             if class_name and not isinstance(class_name, str):
-                raise ValueError(
-                    "class name must be a string (name of module.submodule.name)"
-                )
+                raise ValueError("class name must be a string (name of module.submodule.name)")
             if model_path and not class_name:
                 raise ValueError("model_path must be provided with class_name")
             if model_path:
@@ -438,15 +423,11 @@ class ServingRuntime(RemoteRuntime):
             else:
                 class_args = deepcopy(class_args)
                 class_args["model_path"] = model_path
-                state = TaskStep(
-                    class_name, class_args, handler=handler, function=child_function
-                )
+                state = TaskStep(class_name, class_args, handler=handler, function=child_function)
 
         return graph.add_route(key, state)
 
-    def add_child_function(
-        self, name, url=None, image=None, requirements=None, kind=None
-    ):
+    def add_child_function(self, name, url=None, image=None, requirements=None, kind=None):
         """in a multi-function pipeline add child function
 
         example::
@@ -461,9 +442,7 @@ class ServingRuntime(RemoteRuntime):
 
         :return function object
         """
-        function_reference = FunctionReference(
-            url, image, requirements=requirements, kind=kind or "serving"
-        )
+        function_reference = FunctionReference(url, image, requirements=requirements, kind=kind or "serving")
         self._spec.function_refs.update(function_reference, name)
         func = function_reference.to_function(self.kind)
         return func
@@ -481,9 +460,7 @@ class ServingRuntime(RemoteRuntime):
 
                 engine = self.spec.graph.engine or "async"
                 if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
-                    trigger_args["explicit_ack_mode"] = trigger_args.get(
-                        "explicit_ack_mode", "explicitOnly"
-                    )
+                    trigger_args["explicit_ack_mode"] = trigger_args.get("explicit_ack_mode", "explicitOnly")
                     extra_attributes = trigger_args.get("extra_attributes", {})
                     trigger_args["extra_attributes"] = extra_attributes
                     extra_attributes["worker_allocation_mode"] = extra_attributes.get(
@@ -521,9 +498,7 @@ class ServingRuntime(RemoteRuntime):
             function_object.metadata.tag = self.metadata.tag
 
             function_object.metadata.labels = function_object.metadata.labels or {}
-            function_object.metadata.labels["mlrun/parent-function"] = (
-                self.metadata.name
-            )
+            function_object.metadata.labels["mlrun/parent-function"] = self.metadata.name
             function_object._is_child_function = True
             if not function_object.spec.graph:
                 # copy the current graph only if the child doesnt have a graph of his own
@@ -602,9 +577,7 @@ class ServingRuntime(RemoteRuntime):
         if not self.spec.graph:
             raise ValueError("nothing to deploy, .spec.graph is none, use .add_model()")
 
-        if self.spec.graph.kind != StepKinds.router and not getattr(
-            self, "_is_child_function", None
-        ):
+        if self.spec.graph.kind != StepKinds.router and not getattr(self, "_is_child_function", None):
             # initialize or create required streams/queues
             self.spec.graph.check_and_process_graph()
             self.spec.graph.init_queues()

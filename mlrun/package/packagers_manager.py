@@ -79,9 +79,7 @@ class PackagersManager:
         """
         return self._results
 
-    def collect_packagers(
-        self, packagers: list[Union[type[Packager], str]], default_priority: int = 5
-    ):
+    def collect_packagers(self, packagers: list[Union[type[Packager], str]], default_priority: int = 5):
         """
         Collect the provided packagers. Packagers passed as module paths are imported and validated to be of type
         `Packager`. If it's needed to import all packagers from a module, use the module path with an asterisk
@@ -164,9 +162,7 @@ class PackagersManager:
             # Collect the packager (putting him first in the list for highest priority:
             self._packagers.insert(0, packager)
             # For debugging, we'll print the collected packager:
-            logger.debug(
-                f"The packagers manager collected the packager: {str(packager)}"
-            )
+            logger.debug(f"The packagers manager collected the packager: {str(packager)}")
 
         # Sort the packagers:
         self._packagers.sort()
@@ -201,10 +197,7 @@ class PackagersManager:
                     f"of type '{self._get_type_name(type(obj))}'. The object is ignored, to log it, please remove the "
                     f"'**' prefix from the key."
                 )
-            objects_to_pack = {
-                f"{log_hint_key[len('**'):]}{dict_key}": dict_obj
-                for dict_key, dict_obj in obj.items()
-            }
+            objects_to_pack = {f"{log_hint_key[len('**'):]}{dict_key}": dict_obj for dict_key, dict_obj in obj.items()}
         elif log_hint_key.startswith("*"):
             # An iterable unpacking prefix was given, validate the object is iterable and prepare the objects to pack
             # with their keys:
@@ -221,9 +214,7 @@ class PackagersManager:
                     f"given object is of type '{self._get_type_name(type(obj))}'. The object is ignored, to log it, "
                     f"please remove the '*' prefix from the key."
                 )
-            objects_to_pack = {
-                f"{log_hint_key[len('*'):]}{i}": obj_i for i, obj_i in enumerate(obj)
-            }
+            objects_to_pack = {f"{log_hint_key[len('*'):]}{i}": obj_i for i, obj_i in enumerate(obj)}
         else:
             # A single object is required to be packaged:
             objects_to_pack = {log_hint_key: obj}
@@ -331,9 +322,7 @@ class PackagersManager:
                     )
                     # Print a warning if a link is missing:
                     if extra_data is None:
-                        logger.warn(
-                            f"Could not find {key} to link as extra data for {artifact.key}."
-                        )
+                        logger.warn(f"Could not find {key} to link as extra data for {artifact.key}.")
                     # Link it (None will be used in case it was not found):
                     artifact.spec.extra_data[key] = extra_data
             # Go over the metrics keys if available (`ModelArtifactSpec` has a metrics property that may be waiting for
@@ -417,9 +406,7 @@ class PackagersManager:
         """
         # Look for a packager for the combination of object nad artifact type:
         for packager in self._packagers:
-            if packager.is_packable(
-                obj=obj, artifact_type=artifact_type, configurations=configurations
-            ):
+            if packager.is_packable(obj=obj, artifact_type=artifact_type, configurations=configurations):
                 return packager
 
         # No packager was found:
@@ -444,9 +431,7 @@ class PackagersManager:
         """
         # Look for a packager for the combination of object type nad artifact type:
         for packager in self._packagers:
-            if packager.is_unpackable(
-                data_item=data_item, type_hint=type_hint, artifact_type=artifact_type
-            ):
+            if packager.is_unpackable(data_item=data_item, type_hint=type_hint, artifact_type=artifact_type):
                 return packager
 
         # No packager was found:
@@ -466,13 +451,9 @@ class PackagersManager:
         key = log_hint.pop(LogHintKey.KEY, None)
 
         # Get a packager:
-        packager = self._get_packager_for_packing(
-            obj=obj, artifact_type=artifact_type, configurations=log_hint
-        )
+        packager = self._get_packager_for_packing(obj=obj, artifact_type=artifact_type, configurations=log_hint)
         if packager is None:
-            if self._default_packager.is_packable(
-                obj=obj, artifact_type=artifact_type, configurations=log_hint
-            ):
+            if self._default_packager.is_packable(obj=obj, artifact_type=artifact_type, configurations=log_hint):
                 logger.info(f"Using the default packager to pack the object '{key}'")
                 packager = self._default_packager
             else:
@@ -482,9 +463,7 @@ class PackagersManager:
                 )
 
         # Use the packager to pack the object:
-        packed_object = packager.pack(
-            obj=obj, key=key, artifact_type=artifact_type, configurations=log_hint
-        )
+        packed_object = packager.pack(obj=obj, key=key, artifact_type=artifact_type, configurations=log_hint)
 
         # If the packed object is a result, return it as is:
         if isinstance(packed_object, dict):
@@ -500,9 +479,7 @@ class PackagersManager:
             self._InstructionsNotesKey.PACKAGER_NAME: packager.__class__.__name__,
             self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(typ=type(obj)),
             self._InstructionsNotesKey.ARTIFACT_TYPE: (
-                artifact_type
-                if artifact_type
-                else packager.get_default_packing_artifact_type(obj=obj)
+                artifact_type if artifact_type else packager.get_default_packing_artifact_type(obj=obj)
             ),
             self._InstructionsNotesKey.INSTRUCTIONS: instructions,
         }
@@ -545,9 +522,7 @@ class PackagersManager:
             #    original packager as well, so it will try to use another package before raising an error.
             # 3. An edge case where the user declared the class at the MLRun function itself. Read the long warning to
             #    understand more.
-            self._get_type_from_name(
-                type_name=packaging_instructions[self._InstructionsNotesKey.OBJECT_TYPE]
-            )
+            self._get_type_from_name(type_name=packaging_instructions[self._InstructionsNotesKey.OBJECT_TYPE])
         except ModuleNotFoundError:
             logger.warn(
                 f"Could not import the original type "
@@ -578,9 +553,7 @@ class PackagersManager:
                 f"warning."
             )
         artifact_type = packaging_instructions[self._InstructionsNotesKey.ARTIFACT_TYPE]
-        instructions = (
-            packaging_instructions[self._InstructionsNotesKey.INSTRUCTIONS] or {}
-        )
+        instructions = packaging_instructions[self._InstructionsNotesKey.INSTRUCTIONS] or {}
 
         # Get the original packager by its name:
         packager = self._get_packager_by_name(name=packager_name)
@@ -607,9 +580,7 @@ class PackagersManager:
             while not unpack_as_package and len(type_hints) > 0:
                 # Check for each hint (one match is enough):
                 for hint in type_hints:
-                    if packager.is_unpackable(
-                        data_item=data_item, type_hint=hint, artifact_type=artifact_type
-                    ):
+                    if packager.is_unpackable(data_item=data_item, type_hint=hint, artifact_type=artifact_type):
                         unpack_as_package = True
                         break
                 if not unpack_as_package:
@@ -655,9 +626,7 @@ class PackagersManager:
         while len(possible_type_hints) > 0:
             for hint in possible_type_hints:
                 # Get the packager by the given type:
-                packager = self._get_packager_for_unpacking(
-                    data_item=data_item, type_hint=hint
-                )
+                packager = self._get_packager_for_unpacking(data_item=data_item, type_hint=hint)
                 if packager is None:
                     # No packager was found that supports this hinted type:
                     continue
@@ -678,14 +647,10 @@ class PackagersManager:
                     )
                     found_packagers.append((packager, exception_string))
             # Reduce the type hint list and continue:
-            possible_type_hints = TypeHintUtils.reduce_type_hint(
-                type_hint=possible_type_hints
-            )
+            possible_type_hints = TypeHintUtils.reduce_type_hint(type_hint=possible_type_hints)
 
         # Check the default packager:
-        logger.info(
-            f"Trying to use the default packager to unpack the data item '{data_item.key}'"
-        )
+        logger.info(f"Trying to use the default packager to unpack the data item '{data_item.key}'")
         try:
             return self._default_packager.unpack(
                 data_item=data_item,
@@ -707,10 +672,7 @@ class PackagersManager:
             f"Could not unpack data item with the hinted type '{type_hint}'. The following packagers were tried to "
             f"be used to unpack it but raised the exceptions joined:\n\n"
             + "\n".join(
-                [
-                    f"Found packager: '{packager}'\nException: {exception}\n"
-                    for packager, exception in found_packagers
-                ]
+                [f"Found packager: '{packager}'\nException: {exception}\n" for packager, exception in found_packagers]
             )
         )
 
@@ -799,8 +761,6 @@ class PackagersManager:
 
         :return: The represented type as imported from its module.
         """
-        module_name, class_name = PackagersManager._split_module_path(
-            module_path=type_name
-        )
+        module_name, class_name = PackagersManager._split_module_path(module_path=type_name)
         module = importlib.import_module(module_name)
         return getattr(module, class_name)

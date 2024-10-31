@@ -78,9 +78,7 @@ class Tracker(ABC):
         """
         pass
 
-    def import_model(
-        self, project: MlrunProject, reference_id: Any, **kwargs
-    ) -> ModelArtifact:
+    def import_model(self, project: MlrunProject, reference_id: Any, **kwargs) -> ModelArtifact:
         """
         Import a model from a 3rd party vendor to MLRun.
 
@@ -91,9 +89,7 @@ class Tracker(ABC):
         """
         pass
 
-    def import_artifact(
-        self, project: MlrunProject, reference_id: Any, **kwargs
-    ) -> Artifact:
+    def import_artifact(self, project: MlrunProject, reference_id: Any, **kwargs) -> Artifact:
         """
         Import an artifact from a 3rd party vendor to MLRun.
 

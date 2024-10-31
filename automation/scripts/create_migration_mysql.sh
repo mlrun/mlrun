@@ -56,6 +56,6 @@ done
 
 export PYTHONPATH=$ROOT_DIR
 
-cd ${ROOT_DIR}/server/api
+cd ${ROOT_DIR}/server/py/services/api
 alembic upgrade head
 alembic revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"

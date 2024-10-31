@@ -31,17 +31,13 @@ def is_databricks_configured(config_file_path=None):
     return all(config["env"].get(key) for key in MUST_HAVE_VARIABLES)
 
 
-def setup_dbfs_dirs(
-    workspace: WorkspaceClient, specific_test_class_dir: str, subdirs: list
-):
+def setup_dbfs_dirs(workspace: WorkspaceClient, specific_test_class_dir: str, subdirs: list):
     all_paths = [file_info.path for file_info in workspace.dbfs.list("/")]
     if MLRUN_ROOT_DIR not in all_paths:
         workspace.dbfs.mkdirs(MLRUN_ROOT_DIR)
         return
     specific_test_class_path = f"{MLRUN_ROOT_DIR}{specific_test_class_dir}"
-    mlrun_test_dirs = [
-        file_info.path for file_info in workspace.dbfs.list(MLRUN_ROOT_DIR)
-    ]
+    mlrun_test_dirs = [file_info.path for file_info in workspace.dbfs.list(MLRUN_ROOT_DIR)]
     if specific_test_class_path in mlrun_test_dirs:
         workspace.dbfs.delete(specific_test_class_path, recursive=True)
     for test_dir in subdirs:
@@ -52,8 +48,6 @@ def teardown_dbfs_dirs(workspace: WorkspaceClient, specific_test_class_dir: str)
     specific_test_class_path = f"{MLRUN_ROOT_DIR}{specific_test_class_dir}"
     if not workspace.dbfs.exists(specific_test_class_path):
         return
-    all_paths_under_class_path = [
-        file_info.path for file_info in workspace.dbfs.list(specific_test_class_path)
-    ]
+    all_paths_under_class_path = [file_info.path for file_info in workspace.dbfs.list(specific_test_class_path)]
     for path in all_paths_under_class_path:
         workspace.dbfs.delete(path, recursive=True)

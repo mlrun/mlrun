@@ -91,24 +91,17 @@ class AlertTrigger(pydantic.BaseModel):
     prometheus_alert: str = None
 
     def __eq__(self, other):
-        return (
-            self.prometheus_alert == other.prometheus_alert
-            and self.events == other.events
-        )
+        return self.prometheus_alert == other.prometheus_alert and self.events == other.events
 
 
 class AlertCriteria(pydantic.BaseModel):
     count: Annotated[
         int,
-        pydantic.Field(
-            description="Number of events to wait until notification is sent"
-        ),
+        pydantic.Field(description="Number of events to wait until notification is sent"),
     ] = 1
     period: Annotated[
         str,
-        pydantic.Field(
-            description="Time period during which event occurred. e.g. 1d, 3h, 5m, 15s"
-        ),
+        pydantic.Field(description="Time period during which event occurred. e.g. 1d, 3h, 5m, 15s"),
     ] = None
 
     def __eq__(self, other):
@@ -158,9 +151,7 @@ class AlertConfig(pydantic.BaseModel):
     count: Optional[int] = 0
 
     def get_raw_notifications(self) -> list[Notification]:
-        return [
-            alert_notification.notification for alert_notification in self.notifications
-        ]
+        return [alert_notification.notification for alert_notification in self.notifications]
 
 
 class AlertsModes(StrEnum):
@@ -168,14 +159,10 @@ class AlertsModes(StrEnum):
     disabled = "disabled"
 
 
-class AlertTemplate(
-    pydantic.BaseModel
-):  # Template fields that are not shared with created configs
+class AlertTemplate(pydantic.BaseModel):  # Template fields that are not shared with created configs
     template_id: int = None
     template_name: str
-    template_description: Optional[str] = (
-        "String explaining the purpose of this template"
-    )
+    template_description: Optional[str] = "String explaining the purpose of this template"
 
     # A property that identifies templates that were created by the system and cannot be modified/deleted by the user
     system_generated: bool = False

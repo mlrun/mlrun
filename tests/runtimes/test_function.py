@@ -88,10 +88,7 @@ def test_generate_nuclio_volumes():
 class TestAutoMountNuclio(TestAutoMount):
     def setup_method(self, method):
         super().setup_method(method)
-        self.assets_path = (
-            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / "assets"
-        )
+        self.assets_path = pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent / "assets"
         self.code_filename = str(self.assets_path / "sample_function.py")
         self.code_handler = "test_func"
 
@@ -127,10 +124,7 @@ def test_http_trigger():
     assert trigger["attributes"]["ingresses"] == {"0": {"host": "x", "paths": ["/"]}}
     assert trigger["attributes"]["yy"] == "123"
     assert trigger["workerAvailabilityTimeoutMilliseconds"] == 5000
-    assert (
-        trigger["annotations"]["nginx.ingress.kubernetes.io/proxy-connect-timeout"]
-        == "65"
-    )
+    assert trigger["annotations"]["nginx.ingress.kubernetes.io/proxy-connect-timeout"] == "65"
 
 
 def test_v3io_stream_trigger():

@@ -42,9 +42,7 @@ class NopDB(RunDBInterface):
                 raise mlrun.errors.MLRunBadRequestError(env_var_message)
 
             if config.httpdb.nop_db.verbose:
-                logger.warning(
-                    "Could not detect path to API server, not connected to API server!"
-                )
+                logger.warning("Could not detect path to API server, not connected to API server!")
                 logger.warning(env_var_message)
 
             return
@@ -80,9 +78,7 @@ class NopDB(RunDBInterface):
         label_selector: Optional[str] = None,
         kind: Optional[str] = None,
         object_id: Optional[str] = None,
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: Optional[mlrun.common.schemas.ListRuntimeResourcesGroupByField] = None,
     ) -> Union[
         mlrun.common.schemas.RuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -105,9 +101,7 @@ class NopDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,  # Backward compatibility
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
@@ -119,9 +113,7 @@ class NopDB(RunDBInterface):
         partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_order: Union[mlrun.common.schemas.OrderType, str] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
@@ -140,9 +132,7 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def store_artifact(
-        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
-    ):
+    def store_artifact(self, key, artifact, uid=None, iter=None, tag="", project="", tree=None):
         pass
 
     def read_artifact(
@@ -228,14 +218,10 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def delete_objects_tag(
-        self, project: str, tag_name: str, tag_objects: mlrun.common.schemas.TagObjects
-    ):
+    def delete_objects_tag(self, project: str, tag_name: str, tag_objects: mlrun.common.schemas.TagObjects):
         pass
 
-    def tag_artifacts(
-        self, artifacts, project: str, tag_name: str, replace: bool = False
-    ):
+    def tag_artifacts(self, artifacts, project: str, tag_name: str, replace: bool = False):
         pass
 
     def delete_artifacts_tags(self, artifacts, project: str, tag_name: str):
@@ -248,9 +234,7 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def store_project(
-        self, name: str, project: mlrun.common.schemas.Project
-    ) -> mlrun.common.schemas.Project:
+    def store_project(self, name: str, project: mlrun.common.schemas.Project) -> mlrun.common.schemas.Project:
         pass
 
     def patch_project(
@@ -261,9 +245,7 @@ class NopDB(RunDBInterface):
     ) -> mlrun.common.schemas.Project:
         pass
 
-    def create_project(
-        self, project: mlrun.common.schemas.Project
-    ) -> mlrun.common.schemas.Project:
+    def create_project(self, project: mlrun.common.schemas.Project) -> mlrun.common.schemas.Project:
         pass
 
     def list_projects(
@@ -293,9 +275,7 @@ class NopDB(RunDBInterface):
     ) -> dict:
         pass
 
-    def get_feature_set(
-        self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    def get_feature_set(self, name: str, project: str = "", tag: str = None, uid: str = None) -> dict:
         pass
 
     def list_features(
@@ -345,17 +325,11 @@ class NopDB(RunDBInterface):
         entities: list[str] = None,
         features: list[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        partition_by: Union[
-            mlrun.common.schemas.FeatureStorePartitionByField, str
-        ] = None,
+        partition_by: Union[mlrun.common.schemas.FeatureStorePartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
-        format_: Union[
-            str, mlrun.common.formatters.FeatureSetFormat
-        ] = mlrun.common.formatters.FeatureSetFormat.full,
+        partition_order: Union[mlrun.common.schemas.OrderType, str] = mlrun.common.schemas.OrderType.desc,
+        format_: Union[str, mlrun.common.formatters.FeatureSetFormat] = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> list[dict]:
         pass
 
@@ -377,9 +351,7 @@ class NopDB(RunDBInterface):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[
-            str, mlrun.common.schemas.PatchMode
-        ] = mlrun.common.schemas.PatchMode.replace,
+        patch_mode: Union[str, mlrun.common.schemas.PatchMode] = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -394,9 +366,7 @@ class NopDB(RunDBInterface):
     ) -> dict:
         pass
 
-    def get_feature_vector(
-        self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    def get_feature_vector(self, name: str, project: str = "", tag: str = None, uid: str = None) -> dict:
         pass
 
     def list_feature_vectors(
@@ -406,14 +376,10 @@ class NopDB(RunDBInterface):
         tag: str = None,
         state: str = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        partition_by: Union[
-            mlrun.common.schemas.FeatureStorePartitionByField, str
-        ] = None,
+        partition_by: Union[mlrun.common.schemas.FeatureStorePartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_order: Union[mlrun.common.schemas.OrderType, str] = mlrun.common.schemas.OrderType.desc,
     ) -> list[dict]:
         pass
 
@@ -435,9 +401,7 @@ class NopDB(RunDBInterface):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[
-            str, mlrun.common.schemas.PatchMode
-        ] = mlrun.common.schemas.PatchMode.replace,
+        patch_mode: Union[str, mlrun.common.schemas.PatchMode] = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -449,9 +413,7 @@ class NopDB(RunDBInterface):
         run_id: str,
         namespace: str = None,
         timeout: int = 30,
-        format_: Union[
-            str, mlrun.common.formatters.PipelineFormat
-        ] = mlrun.common.formatters.PipelineFormat.summary,
+        format_: Union[str, mlrun.common.formatters.PipelineFormat] = mlrun.common.formatters.PipelineFormat.summary,
         project: str = None,
     ):
         pass
@@ -514,9 +476,7 @@ class NopDB(RunDBInterface):
     def create_user_secrets(
         self,
         user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
+        provider: Union[str, mlrun.common.schemas.SecretProviderName] = mlrun.common.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
         pass
@@ -558,9 +518,7 @@ class NopDB(RunDBInterface):
     def patch_model_endpoint(self, project: str, endpoint_id: str, attributes: dict):
         pass
 
-    def create_hub_source(
-        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
-    ):
+    def create_hub_source(self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]):
         pass
 
     def store_hub_source(
@@ -700,30 +658,22 @@ class NopDB(RunDBInterface):
     def watch_log(self, uid, project="", watch=True, offset=0):
         pass
 
-    def get_datastore_profile(
-        self, name: str, project: str
-    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+    def get_datastore_profile(self, name: str, project: str) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         pass
 
     def delete_datastore_profile(self, name: str, project: str):
         pass
 
-    def list_datastore_profiles(
-        self, project: str
-    ) -> list[mlrun.common.schemas.DatastoreProfile]:
+    def list_datastore_profiles(self, project: str) -> list[mlrun.common.schemas.DatastoreProfile]:
         pass
 
-    def store_datastore_profile(
-        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
-    ):
+    def store_datastore_profile(self, profile: mlrun.common.schemas.DatastoreProfile, project: str):
         pass
 
     def function_status(self, project, name, kind, selector):
         pass
 
-    def start_function(
-        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
-    ):
+    def start_function(self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None):
         pass
 
     def submit_workflow(
@@ -774,14 +724,10 @@ class NopDB(RunDBInterface):
     ) -> bool:
         pass
 
-    def delete_model_monitoring_function(
-        self, project: str, functions: list[str]
-    ) -> bool:
+    def delete_model_monitoring_function(self, project: str, functions: list[str]) -> bool:
         pass
 
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
+    def deploy_histogram_data_drift_app(self, project: str, image: str = "mlrun/mlrun") -> None:
         pass
 
     def set_model_monitoring_credentials(
@@ -792,9 +738,7 @@ class NopDB(RunDBInterface):
     ) -> None:
         pass
 
-    def generate_event(
-        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
-    ):
+    def generate_event(self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""):
         pass
 
     def store_alert_config(

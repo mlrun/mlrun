@@ -63,12 +63,8 @@ class TestDask(TestMLRunSystem):
             name="mydask-main",
             project=self.project_name,
             labels={
-                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
-                    "V3IO_USERNAME"
-                ],
-                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
-                    "V3IO_USERNAME"
-                ],
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
             },
         )
         self._verify_run_spec(
@@ -105,9 +101,7 @@ class TestDask(TestMLRunSystem):
 
         wait_for_pipeline_completion(workflow_run_id)
 
-        runs = self._run_db.list_runs(
-            project=self.project_name, labels=f"workflow={workflow_run_id}"
-        )
+        runs = self._run_db.list_runs(project=self.project_name, labels=f"workflow={workflow_run_id}")
         assert len(runs) == 1
 
         run = runs[0]
@@ -118,12 +112,8 @@ class TestDask(TestMLRunSystem):
             name="mydask-main",
             project=self.project_name,
             labels={
-                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
-                    "V3IO_USERNAME"
-                ],
-                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
-                    "V3IO_USERNAME"
-                ],
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
             },
         )
         self._verify_run_spec(
@@ -144,9 +134,7 @@ class TestDask(TestMLRunSystem):
         # initialize the dask cluster and get its dashboard url
         client = self.dask_function.client
         time_took = (datetime.datetime.now() - cluster_start_time).seconds
-        self._logger.info(
-            "Dask cluster initialization completed", took_in_seconds=time_took
-        )
+        self._logger.info("Dask cluster initialization completed", took_in_seconds=time_took)
 
         worker_start_time = datetime.datetime.now()
         client.wait_for_workers(self.dask_function.spec.replicas)

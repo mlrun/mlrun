@@ -13,9 +13,7 @@
 # limitations under the License.
 
 
-def parse_versioned_object_uri(
-    uri: str, default_project: str = ""
-) -> tuple[str, str, str, str]:
+def parse_versioned_object_uri(uri: str, default_project: str = "") -> tuple[str, str, str, str]:
     project = default_project
     tag = ""
     hash_key = ""

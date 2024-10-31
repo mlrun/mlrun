@@ -260,9 +260,7 @@ class AutoMLRun:
     """
 
     @staticmethod
-    def _get_framework(
-        model: CommonTypes.ModelType = None, model_path: str = None
-    ) -> Union[tuple[str, dict]]:
+    def _get_framework(model: CommonTypes.ModelType = None, model_path: str = None) -> Union[tuple[str, dict]]:
         """
         Try to get the framework from the model or model path provided. The framework can be read from the model path
         only if the model path is of a logged model artifact (store object uri).
@@ -391,9 +389,7 @@ class AutoMLRun:
         # Get the model's framework (if needed):
         collected_model_file_and_artifact = {}
         if framework is None:
-            framework, collected_model_file_and_artifact = AutoMLRun._get_framework(
-                model_path=model_path
-            )
+            framework, collected_model_file_and_artifact = AutoMLRun._get_framework(model_path=model_path)
 
         # Get the ModelHandler according to the framework:
         model_handler_class = framework_to_model_handler(framework=framework)
@@ -493,9 +489,7 @@ class AutoMLRun:
         # Get the model's framework:
         collected_model_file_and_artifact = {}
         if framework is None:
-            framework, collected_model_file_and_artifact = AutoMLRun._get_framework(
-                model=model, model_path=model_path
-            )
+            framework, collected_model_file_and_artifact = AutoMLRun._get_framework(model=model, model_path=model_path)
 
         # Get the framework's 'apply_mlrun':
         apply_mlrun = framework_to_apply_mlrun(framework=framework)

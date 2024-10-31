@@ -34,9 +34,7 @@ class SecretProviderInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project_secrets(
-        self, project, secrets, namespace=""
-    ) -> (str, mlrun.common.schemas.SecretEventActions):
+    def store_project_secrets(self, project, secrets, namespace="") -> (str, mlrun.common.schemas.SecretEventActions):
         pass
 
     @abstractmethod
@@ -69,9 +67,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         self, username: str, access_key: str, namespace=""
     ) -> (str, mlrun.common.schemas.SecretEventActions):
         secret_ref = self.resolve_auth_secret_name(username, access_key)
-        self.auth_secrets_map.setdefault(secret_ref, {}).update(
-            self._generate_auth_secret_data(username, access_key)
-        )
+        self.auth_secrets_map.setdefault(secret_ref, {}).update(self._generate_auth_secret_data(username, access_key))
         return secret_ref, mlrun.common.schemas.SecretEventActions.created
 
     def delete_auth_secret(self, secret_ref: str, namespace=""):
@@ -81,22 +77,14 @@ class InMemorySecretProvider(SecretProviderInterface):
         secret = self.auth_secrets_map.get(secret_name)
         if not secret:
             if raise_on_not_found:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Secret '{secret_name}' was not found in auth secrets map"
-                )
+                raise mlrun.errors.MLRunNotFoundError(f"Secret '{secret_name}' was not found in auth secrets map")
 
             return None, None
-        username = secret[
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")
-        ]
-        access_key = secret[
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
-        ]
+        username = secret[mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")]
+        access_key = secret[mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")]
         return username, access_key
 
-    def store_project_secrets(
-        self, project, secrets, namespace=""
-    ) -> (str, mlrun.common.schemas.SecretEventActions):
+    def store_project_secrets(self, project, secrets, namespace="") -> (str, mlrun.common.schemas.SecretEventActions):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
         secret_name = project
         return secret_name, mlrun.common.schemas.SecretEventActions.created
@@ -112,17 +100,13 @@ class InMemorySecretProvider(SecretProviderInterface):
     def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secret_keys = list(self.project_secrets_map.get(project, {}).keys())
         if filter_internal:
-            secret_keys = list(
-                filter(lambda key: not key.startswith("mlrun."), secret_keys)
-            )
+            secret_keys = list(filter(lambda key: not key.startswith("mlrun."), secret_keys))
         return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
         secrets_data = self.project_secrets_map.get(project, {})
         return {
-            key: value
-            for key, value in secrets_data.items()
-            if (secret_keys and key in secret_keys) or not secret_keys
+            key: value for key, value in secrets_data.items() if (secret_keys and key in secret_keys) or not secret_keys
         }
 
     def store_secret(self, secret_name, secrets: dict):
@@ -134,12 +118,8 @@ class InMemorySecretProvider(SecretProviderInterface):
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
         return {
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
-                "username"
-            ): username,
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
-                "access_key"
-            ): access_key,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username"): username,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"): access_key,
         }
 
     @staticmethod

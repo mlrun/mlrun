@@ -40,16 +40,10 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
 
     templates = {}
     for name, template in workflow.get_executors():
-        project = project or get_in(
-            template, ["metadata", "annotations", PROJECT_ANNOTATION], ""
-        )
+        project = project or get_in(template, ["metadata", "annotations", PROJECT_ANNOTATION], "")
         templates[name] = {
-            "run_type": get_in(
-                template, ["metadata", "annotations", RUN_ANNOTATION], ""
-            ),
-            "function": get_in(
-                template, ["metadata", "annotations", FUNCTION_ANNOTATION], ""
-            ),
+            "run_type": get_in(template, ["metadata", "annotations", RUN_ANNOTATION], ""),
+            "function": get_in(template, ["metadata", "annotations", FUNCTION_ANNOTATION], ""),
         }
 
     dag = {}
@@ -57,11 +51,7 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
     if run["run_details"]:
         nodes = run["run_details"].get("task_details", [])
     for node in nodes:
-        name = (
-            node["display_name"]
-            if not node["child_tasks"]
-            else node["child_tasks"][0]["pod_name"]
-        )
+        name = node["display_name"] if not node["child_tasks"] else node["child_tasks"][0]["pod_name"]
         if not name:
             continue
         record = {
@@ -107,13 +97,9 @@ def add_default_function_resources(
     return task
 
 
-def add_function_node_selection_attributes(
-    function, task: dsl.PipelineTask
-) -> dsl.PipelineTask:
+def add_function_node_selection_attributes(function, task: dsl.PipelineTask) -> dsl.PipelineTask:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(
-            function
-        )
+        enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(function)
         if enriched_node_selector:
             for k, v in enriched_node_selector.items():
                 task = kfp_k8s.add_node_selector(task, k, v)
@@ -167,9 +153,7 @@ def add_annotations(
     if func_url and func_url.startswith("db://"):
         func_url = func_url[len("db://") :]
     kfp_k8s.add_pod_annotation(task, RUN_ANNOTATION, kind)
-    kfp_k8s.add_pod_annotation(
-        task, PROJECT_ANNOTATION, project or function.metadata.project
-    )
+    kfp_k8s.add_pod_annotation(task, PROJECT_ANNOTATION, project or function.metadata.project)
     kfp_k8s.add_pod_annotation(task, FUNCTION_ANNOTATION, func_url or function.uri)
     return task
 
@@ -184,19 +168,11 @@ def add_labels(task, function, scrape_metrics=False):
         )
         return
 
-    kfp_k8s.add_pod_label(
-        task, mlrun_constants.MLRunInternalLabels.mlrun_class, function.kind
-    )
-    kfp_k8s.add_pod_label(
-        task, mlrun_constants.MLRunInternalLabels.function, function.metadata.name
-    )
+    kfp_k8s.add_pod_label(task, mlrun_constants.MLRunInternalLabels.mlrun_class, function.kind)
+    kfp_k8s.add_pod_label(task, mlrun_constants.MLRunInternalLabels.function, function.metadata.name)
     kfp_k8s.add_pod_label(task, mlrun_constants.MLRunInternalLabels.name, task.name)
-    kfp_k8s.add_pod_label(
-        task, mlrun_constants.MLRunInternalLabels.project, function.metadata.project
-    )
-    kfp_k8s.add_pod_label(
-        task, mlrun_constants.MLRunInternalLabels.tag, function.metadata.tag or "latest"
-    )
+    kfp_k8s.add_pod_label(task, mlrun_constants.MLRunInternalLabels.project, function.metadata.project)
+    kfp_k8s.add_pod_label(task, mlrun_constants.MLRunInternalLabels.tag, function.metadata.tag or "latest")
     kfp_k8s.add_pod_label(
         task,
         mlrun_constants.MLRunInternalLabels.scrape_metrics,
@@ -219,13 +195,9 @@ def add_default_env(task):
         task.set_env_variable(name="MLRUN_DBPATH", value=config.httpdb.api_url)
 
     if config.mpijob_crd_version:
-        task.set_env_variable(
-            name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version
-        )
+        task.set_env_variable(name="MLRUN_MPIJOB_CRD_VERSION", value=config.mpijob_crd_version)
 
-    auth_env_var = (
-        mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
-    )
+    auth_env_var = mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
     if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
         task.set_env_variable(
             name=auth_env_var,
@@ -298,9 +270,7 @@ def generate_pipeline_node(
             command=command,
         )
 
-    container_component = dsl.component_factory.create_container_component_from_func(
-        mlrun_function
-    )
+    container_component = dsl.component_factory.create_container_component_from_func(mlrun_function)
 
     task = container_component()
     task.set_display_name(name)
@@ -316,9 +286,7 @@ def generate_pipeline_node(
     if code_env:
         task.set_env_variable(name="MLRUN_EXEC_CODE", value=code_env)
     if registry:
-        task.set_env_variable(
-            name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry
-        )
+        task.set_env_variable(name="MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY", value=registry)
     add_default_env(task)
     sync_mounts(function, task)
     sync_environment_variables(function, task)
@@ -338,9 +306,7 @@ def generate_image_builder_pipeline_node(
             command=cmd + runtime_args,
         )
 
-    container_component = dsl.component_factory.create_container_component_from_func(
-        build_mlrun_function
-    )
+    container_component = dsl.component_factory.create_container_component_from_func(build_mlrun_function)
     task = container_component()
     task.set_display_name(name)
 
@@ -359,13 +325,9 @@ def generate_image_builder_pipeline_node(
             value=os.environ.get("IGZ_NAMESPACE_DOMAIN"),
         )
 
-    is_v3io = function.spec.build.source and function.spec.build.source.startswith(
-        "v3io"
-    )
+    is_v3io = function.spec.build.source and function.spec.build.source.startswith("v3io")
     if "V3IO_ACCESS_KEY" in os.environ and is_v3io:
-        task.set_env_variable(
-            name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
-        )
+        task.set_env_variable(name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY"))
     add_default_env(task)
     return task
 
@@ -382,9 +344,7 @@ def generate_deployer_pipeline_node(
             command=cmd,
         )
 
-    container_component = dsl.component_factory.create_container_component_from_func(
-        deploy_function
-    )
+    container_component = dsl.component_factory.create_container_component_from_func(deploy_function)
     task = container_component()
     task.set_display_name(name)
 

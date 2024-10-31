@@ -58,9 +58,7 @@ class ScheduleCronTrigger(BaseModel):
         """
         values = expr.split()
         if len(values) != 5:
-            raise ValueError(
-                f"Wrong number of fields in crontab expression; got {len(values)}, expected 5"
-            )
+            raise ValueError(f"Wrong number of fields in crontab expression; got {len(values)}, expected 5")
 
         return cls(
             minute=values[0],

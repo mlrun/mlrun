@@ -29,7 +29,7 @@ import mlrun.errors
 from mlrun.config import config
 from tests.system.base import TestMLRunSystem
 
-# This is a copy from server/api/utils/events/iguazio.py because the system tests simulate user env
+# This is a copy from server/py/services/api/utils/events/iguazio.py because the system tests simulate user env
 # where this module is not available
 PROJECT_SECRET_CREATED = "Security.Project.Secret.Created"
 PROJECT_SECRET_UPDATED = "Security.Project.Secret.Updated"
@@ -122,9 +122,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # delete 1 of the secrets
         now = datetime.datetime.now(datetime.timezone.utc)
-        self._run_db.delete_project_secrets(
-            self.project_name, provider="kubernetes", secrets=[secret_key1]
-        )
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes", secrets=[secret_key1])
 
         # project secret should remain (updated)
         self._ensure_audit_events(
@@ -146,9 +144,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # delete the secret-less project
         now = datetime.datetime.now(datetime.timezone.utc)
-        self._run_db.delete_project(
-            self.project_name, mlrun.common.schemas.DeletionStrategy.cascade
-        )
+        self._run_db.delete_project(self.project_name, mlrun.common.schemas.DeletionStrategy.cascade)
 
         # should not emit deleted event
         time.sleep(1)
@@ -182,28 +178,15 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             "secret_keys": [key for key in secrets],
         }
 
-        self._run_db.api_call(
-            "DELETE", f"projects/{self.project_name}/secrets?provider=kubernetes"
-        )
+        self._run_db.api_call("DELETE", f"projects/{self.project_name}/secrets?provider=kubernetes")
 
-        response = self._run_db.api_call(
-            "GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes"
-        )
-        assert (
-            deepdiff.DeepDiff(
-                response.json(), {"provider": "kubernetes", "secret_keys": []}
-            )
-            == {}
-        )
+        response = self._run_db.api_call("GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes")
+        assert deepdiff.DeepDiff(response.json(), {"provider": "kubernetes", "secret_keys": []}) == {}
 
-        response = self._run_db.api_call(
-            "POST", f"projects/{self.project_name}/secrets", json=data
-        )
+        response = self._run_db.api_call("POST", f"projects/{self.project_name}/secrets", json=data)
         assert response.status_code == HTTPStatus.CREATED.value
 
-        response = self._run_db.api_call(
-            "GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes"
-        )
+        response = self._run_db.api_call("GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes")
         assert deepdiff.DeepDiff(response.json(), expected_results) == {}
 
         # Add a secret key
@@ -211,15 +194,11 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             "provider": "kubernetes",
             "secrets": {"secret3": "mySecret!!!"},
         }
-        response = self._run_db.api_call(
-            "POST", f"projects/{self.project_name}/secrets", json=add_secret_data
-        )
+        response = self._run_db.api_call("POST", f"projects/{self.project_name}/secrets", json=add_secret_data)
         assert response.status_code == HTTPStatus.CREATED.value
 
         expected_results["secret_keys"].append("secret3")
-        response = self._run_db.api_call(
-            "GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes"
-        )
+        response = self._run_db.api_call("GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes")
         assert deepdiff.DeepDiff(response.json(), expected_results) == {}
 
         # Delete a single secret
@@ -230,58 +209,40 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         assert response.status_code == HTTPStatus.NO_CONTENT.value
 
         expected_results["secret_keys"].remove("secret1")
-        response = self._run_db.api_call(
-            "GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes"
-        )
+        response = self._run_db.api_call("GET", f"projects/{self.project_name}/secret-keys?provider=kubernetes")
         assert deepdiff.DeepDiff(response.json(), expected_results) == {}
 
         # Cleanup
-        response = self._run_db.api_call(
-            "DELETE", f"projects/{self.project_name}/secrets?provider=kubernetes"
-        )
+        response = self._run_db.api_call("DELETE", f"projects/{self.project_name}/secrets?provider=kubernetes")
         assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     def test_k8s_project_secrets_using_httpdb(self):
         secrets = {"secret1": "value1", "secret2": "value2"}
-        expected_results = mlrun.common.schemas.SecretKeysData(
-            provider="kubernetes", secret_keys=list(secrets.keys())
-        )
+        expected_results = mlrun.common.schemas.SecretKeysData(provider="kubernetes", secret_keys=list(secrets.keys()))
 
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
 
-        response = self._run_db.list_project_secret_keys(
-            self.project_name, provider="kubernetes"
-        )
+        response = self._run_db.list_project_secret_keys(self.project_name, provider="kubernetes")
         assert response.secret_keys == []
 
         self._run_db.create_project_secrets(self.project_name, "kubernetes", secrets)
 
-        response = self._run_db.list_project_secret_keys(
-            self.project_name, provider="kubernetes"
-        )
+        response = self._run_db.list_project_secret_keys(self.project_name, provider="kubernetes")
         assert deepdiff.DeepDiff(response.dict(), expected_results.dict()) == {}
 
         # Add a secret key
         added_secret = {"secret3": "mySecret!!!"}
-        self._run_db.create_project_secrets(
-            self.project_name, "kubernetes", added_secret
-        )
+        self._run_db.create_project_secrets(self.project_name, "kubernetes", added_secret)
 
         expected_results.secret_keys.append("secret3")
-        response = self._run_db.list_project_secret_keys(
-            self.project_name, provider="kubernetes"
-        )
+        response = self._run_db.list_project_secret_keys(self.project_name, provider="kubernetes")
         assert deepdiff.DeepDiff(response.dict(), expected_results.dict()) == {}
 
         # Delete secrets
-        self._run_db.delete_project_secrets(
-            self.project_name, provider="kubernetes", secrets=["secret1", "secret2"]
-        )
+        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes", secrets=["secret1", "secret2"])
         expected_results.secret_keys.remove("secret1")
         expected_results.secret_keys.remove("secret2")
-        response = self._run_db.list_project_secret_keys(
-            self.project_name, provider="kubernetes"
-        )
+        response = self._run_db.list_project_secret_keys(self.project_name, provider="kubernetes")
         assert deepdiff.DeepDiff(response.dict(), expected_results.dict()) == {}
 
         # Cleanup
@@ -293,15 +254,11 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # Negative test - try to create_secret with invalid key
         with pytest.raises(mlrun.errors.MLRunBadRequestError):
-            self._run_db.create_project_secrets(
-                self.project_name, "kubernetes", {"invalid/key": "value"}
-            )
+            self._run_db.create_project_secrets(self.project_name, "kubernetes", {"invalid/key": "value"})
 
         # Negative test - try to create_secret with forbidden (internal) key
         with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-            self._run_db.create_project_secrets(
-                self.project_name, "kubernetes", {"mlrun.key": "value"}
-            )
+            self._run_db.create_project_secrets(self.project_name, "kubernetes", {"mlrun.key": "value"})
 
     def test_k8s_project_secrets_with_runtime(self):
         secrets = {"secret1": "JustMySecret", "secret2": "!@#$$%^^&&"}
@@ -370,9 +327,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         )
 
         # generate mlrun auth session
-        function.metadata.credentials.access_key = (
-            mlrun.model.Credentials.generate_access_key
-        )
+        function.metadata.credentials.access_key = mlrun.model.Credentials.generate_access_key
 
         # set v3io credentials
         v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
@@ -394,9 +349,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # verify v3io access key was masked
         masked_v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
-        secret_name_regex = config.secret_stores.kubernetes.auth_secret_name.format(
-            hashed_access_key=".+"
-        )
+        secret_name_regex = config.secret_stores.kubernetes.auth_secret_name.format(hashed_access_key=".+")
         assert re.match(
             secret_name_regex,
             masked_v3io_access_key["secretKeyRef"]["name"],
@@ -421,17 +374,12 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             if not event.parameters_text:
                 continue
             for parameter_text in event.parameters_text:
-                if (
-                    parameter_text.name == parameter_text_name
-                    and parameter_text_value in parameter_text.value
-                ):
+                if parameter_text.name == parameter_text_name and parameter_text_value in parameter_text.value:
                     actual_event = event
                     break
         assert actual_event is not None, "Failed to find the audit event"
 
-    def _get_audit_events(
-        self, event_kind: str, since_time: datetime.datetime
-    ) -> list[igz_mgmt.AuditEvent]:
+    def _get_audit_events(self, event_kind: str, since_time: datetime.datetime) -> list[igz_mgmt.AuditEvent]:
         def _get_audit_events():
             self._logger.info(
                 "Trying to get audit events",

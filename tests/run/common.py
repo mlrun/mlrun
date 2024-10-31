@@ -32,7 +32,5 @@ def my_func(context, p1=1, p2="a-string", input_name="infile.txt"):
         "age": [42, 52, 36, 24, 73],
         "postTestScore": [25, 94, 57, 62, 70],
     }
-    df = pd.DataFrame(
-        raw_data, columns=["first_name", "last_name", "age", "postTestScore"]
-    )
+    df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "postTestScore"])
     context.log_dataset("mydf", df=df)

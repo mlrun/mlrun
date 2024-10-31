@@ -17,9 +17,7 @@ IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."  # prefix for image name to enrich with 
 MLRUN_SERVING_CONF = "serving-conf"
 MLRUN_SERVING_SPEC_MOUNT_PATH = f"/tmp/mlrun/{MLRUN_SERVING_CONF}"
 MLRUN_SERVING_SPEC_FILENAME = "serving_spec.json"
-MLRUN_SERVING_SPEC_PATH = (
-    f"{MLRUN_SERVING_SPEC_MOUNT_PATH}/{MLRUN_SERVING_SPEC_FILENAME}"
-)
+MLRUN_SERVING_SPEC_PATH = f"{MLRUN_SERVING_SPEC_MOUNT_PATH}/{MLRUN_SERVING_SPEC_FILENAME}"
 MLRUN_FUNCTIONS_ANNOTATION = "mlrun/mlrun-functions"
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
 MLRUN_LABEL_PREFIX = "mlrun/"
@@ -82,11 +80,7 @@ class MLRunInternalLabels:
 
     @classmethod
     def all(cls):
-        return [
-            value
-            for key, value in cls.__dict__.items()
-            if not key.startswith("__") and isinstance(value, str)
-        ]
+        return [value for key, value in cls.__dict__.items() if not key.startswith("__") and isinstance(value, str)]
 
 
 class DeployStatusTextKind(mlrun.common.types.StrEnum):

@@ -29,9 +29,7 @@ class MLProducer(Producer):
         """
         return any(plan.need_probabilities for plan in self._plans)
 
-    def produce_stage(
-        self, stage: MLPlanStages, is_probabilities: bool = False, **kwargs
-    ):
+    def produce_stage(self, stage: MLPlanStages, is_probabilities: bool = False, **kwargs):
         """
         Produce the artifacts ready at the given stage and log them.
 
@@ -41,9 +39,7 @@ class MLProducer(Producer):
         :param kwargs:           All of the required produce arguments to pass onto the plans.
         """
         # Produce all the artifacts according to the given stage:
-        self._produce_artifacts(
-            stage=stage, is_probabilities=is_probabilities, **kwargs
-        )
+        self._produce_artifacts(stage=stage, is_probabilities=is_probabilities, **kwargs)
 
         # Log if a context is available:
         if self._context is not None:
@@ -52,9 +48,7 @@ class MLProducer(Producer):
             # Commit:
             self._context.commit(completed=False)
 
-    def _produce_artifacts(
-        self, stage: MLPlanStages, is_probabilities: bool = False, **kwargs
-    ):
+    def _produce_artifacts(self, stage: MLPlanStages, is_probabilities: bool = False, **kwargs):
         """
         Go through the plans and check if they are ready to be produced in the given stage of the run. If they are,
         the logger will pass all the arguments to the 'plan.produce' method and collect the returned artifact.
@@ -88,8 +82,7 @@ class MLProducer(Producer):
         # Add evaluation prefix if in Evaluation mode:
         if self._mode == LoggingMode.EVALUATION:
             self._not_logged_artifacts = {
-                f"evaluation-{key}": value
-                for key, value in self._not_logged_artifacts.items()
+                f"evaluation-{key}": value for key, value in self._not_logged_artifacts.items()
             }
             for artifact in self._not_logged_artifacts.values():
                 artifact.key = f"evaluation-{artifact.key}"

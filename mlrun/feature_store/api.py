@@ -75,18 +75,12 @@ def _features_to_vector_and_check_permissions(features, update_stats):
     elif isinstance(features, FeatureVector):
         vector = features
         if not vector.metadata.name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "feature vector name must be specified"
-            )
-        verify_feature_vector_permissions(
-            vector, mlrun.common.schemas.AuthorizationAction.update
-        )
+            raise mlrun.errors.MLRunInvalidArgumentError("feature vector name must be specified")
+        verify_feature_vector_permissions(vector, mlrun.common.schemas.AuthorizationAction.update)
 
         vector.save()
     else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"illegal features value/type ({type(features)})"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError(f"illegal features value/type ({type(features)})")
     return vector
 
 
@@ -227,8 +221,7 @@ def _get_offline_features(
 ) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     if entity_rows is None and entity_timestamp_column is not None:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "entity_timestamp_column param "
-            "can not be specified without entity_rows param"
+            "entity_timestamp_column param " "can not be specified without entity_rows param"
         )
     if isinstance(target, BaseStoreTarget) and not target.support_pandas:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -239,13 +232,9 @@ def _get_offline_features(
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
 
-    feature_vector = _features_to_vector_and_check_permissions(
-        feature_vector, update_stats
-    )
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector, update_stats)
 
-    entity_timestamp_column = (
-        entity_timestamp_column or feature_vector.spec.timestamp_field
-    )
+    entity_timestamp_column = entity_timestamp_column or feature_vector.spec.timestamp_field
 
     merger_engine = get_merger(engine)
 
@@ -384,9 +373,7 @@ def _get_online_feature_service(
 ) -> OnlineVectorService:
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
-    feature_vector = _features_to_vector_and_check_permissions(
-        feature_vector, update_stats
-    )
+    feature_vector = _features_to_vector_and_check_permissions(feature_vector, update_stats)
 
     # Impute policies rely on statistics in many cases, so verifying that the fvec has stats in it
     if impute_policy and not feature_vector.status.stats:
@@ -398,9 +385,7 @@ def _get_online_feature_service(
 
     merger = merger_engine(feature_vector, **engine_args)
 
-    return merger.init_online_vector_service(
-        entity_keys, fixed_window_type, update_stats=update_stats
-    )
+    return merger.init_online_vector_service(entity_keys, fixed_window_type, update_stats=update_stats)
 
 
 def norm_column_name(name: str) -> str:
@@ -562,9 +547,7 @@ def _ingest(
             source = featureset.spec.source
 
     if not mlrun_context and (not featureset or source is None):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "feature set and source must be specified"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError("feature set and source must be specified")
     if (
         not mlrun_context
         and not targets
@@ -580,13 +563,9 @@ def _ingest(
     # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config and not run_config.local:
         if isinstance(source, pd.DataFrame):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal in conjunction with run_config"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("DataFrame source is illegal in conjunction with run_config")
         # remote job execution
-        verify_feature_set_permissions(
-            featureset, mlrun.common.schemas.AuthorizationAction.update
-        )
+        verify_feature_set_permissions(featureset, mlrun.common.schemas.AuthorizationAction.update)
         run_config = run_config.copy() if run_config else RunConfig()
         source, run_config.parameters = set_task_params(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
@@ -600,13 +579,9 @@ def _ingest(
     if mlrun_context:
         # extract ingestion parameters from mlrun context
         if isinstance(source, pd.DataFrame):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal when running ingest remotely"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("DataFrame source is illegal when running ingest remotely")
         if featureset or source is not None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot specify mlrun_context with feature set or source"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("cannot specify mlrun_context with feature set or source")
         (
             featureset,
             source,
@@ -616,13 +591,9 @@ def _ingest(
         ) = context_to_ingestion_params(mlrun_context)
 
         featureset.validate_steps(namespace=namespace)
-        verify_feature_set_permissions(
-            featureset, mlrun.common.schemas.AuthorizationAction.update
-        )
+        verify_feature_set_permissions(featureset, mlrun.common.schemas.AuthorizationAction.update)
         if not source:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "data source was not specified"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("data source was not specified")
 
         filter_time_string = ""
         if source.schedule:
@@ -647,9 +618,7 @@ def _ingest(
             )
 
         if mlrun_context:
-            mlrun_context.logger.info(
-                f"starting ingestion task to {featureset.uri}.{filter_time_string}"
-            )
+            mlrun_context.logger.info(f"starting ingestion task to {featureset.uri}.{filter_time_string}")
 
         return_df = False
 
@@ -673,9 +642,7 @@ def _ingest(
 
     if overwrite:
         validate_target_list(targets=targets_to_ingest)
-        purge_target_names = [
-            t if isinstance(t, str) else t.name for t in targets_to_ingest
-        ]
+        purge_target_names = [t if isinstance(t, str) else t.name for t in targets_to_ingest]
         featureset.purge_targets(target_names=purge_target_names, silent=True)
 
         featureset.update_targets_for_ingest(
@@ -705,10 +672,7 @@ def _ingest(
     if featureset.spec.engine == "spark":
         import pyspark.sql
 
-        if (
-            isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
-            and run_config is not None
-        ):
+        if isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame)) and run_config is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DataFrame source is illegal when ingesting with remote spark or spark operator"
             )
@@ -728,9 +692,7 @@ def _ingest(
     if isinstance(source, str):
         source = mlrun.store_manager.object(url=source).as_df()
 
-    schema_options = InferOptions.get_common_options(
-        infer_options, InferOptions.schema()
-    )
+    schema_options = InferOptions.get_common_options(infer_options, InferOptions.schema())
     if schema_options:
         _preview(
             featureset,
@@ -738,9 +700,7 @@ def _ingest(
             options=schema_options,
             namespace=namespace,
         )
-    infer_stats = InferOptions.get_common_options(
-        infer_options, InferOptions.all_stats()
-    )
+    infer_stats = InferOptions.get_common_options(infer_options, InferOptions.all_stats())
     # Check if dataframe is already calculated (for feature set graph):
     calculate_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
@@ -752,20 +712,16 @@ def _ingest(
         targets=targets_to_ingest,
         return_df=calculate_df,
     )
-    if not InferOptions.get_common_options(
-        infer_stats, InferOptions.Index
-    ) and InferOptions.get_common_options(infer_options, InferOptions.Index):
+    if not InferOptions.get_common_options(infer_stats, InferOptions.Index) and InferOptions.get_common_options(
+        infer_options, InferOptions.Index
+    ):
         infer_stats += InferOptions.Index
 
     _infer_from_static_df(df, featureset, options=infer_stats)
 
     if isinstance(source, DataSource):
         for target in featureset.status.targets:
-            if (
-                target.last_written == datetime.min
-                and source.schedule
-                and source.start_time
-            ):
+            if target.last_written == datetime.min and source.schedule and source.start_time:
                 # datetime.min is a special case that indicated that nothing was written in storey. we need the fix so
                 # in the next scheduled run, we will have the same start time
                 target.last_written = source.start_time
@@ -836,9 +792,7 @@ def _preview(
 
     # preview reads the source as a pandas df, which is not fully compatible with spark
     if featureset.spec.engine == "spark":
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "preview with spark engine is not supported"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError("preview with spark engine is not supported")
 
     options = options if options is not None else InferOptions.default()
 
@@ -846,22 +800,16 @@ def _preview(
         # if source is a path/url convert to DataFrame
         source = mlrun.store_manager.object(url=source).as_df()
 
-    verify_feature_set_permissions(
-        featureset, mlrun.common.schemas.AuthorizationAction.update
-    )
+    verify_feature_set_permissions(featureset, mlrun.common.schemas.AuthorizationAction.update)
 
     featureset.spec.validate_no_processing_for_passthrough()
     featureset.validate_steps(namespace=namespace)
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
-        _, default_final_step, _ = featureset.graph.check_and_process_graph(
-            allow_empty=True
-        )
+        _, default_final_step, _ = featureset.graph.check_and_process_graph(allow_empty=True)
         if not default_final_step:
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Split flow graph must have a default final step defined"
-            )
+            raise mlrun.errors.MLRunPreconditionFailedError("Split flow graph must have a default final step defined")
         # find/update entities schema
         if len(featureset.spec.entities) == 0:
             _infer_from_static_df(
@@ -871,11 +819,7 @@ def _preview(
                 InferOptions.get_common_options(options, InferOptions.Entities),
             )
         # reduce the size of the ingestion if we do not infer stats
-        rows_limit = (
-            None
-            if InferOptions.get_common_options(options, InferOptions.Stats)
-            else 1000
-        )
+        rows_limit = None if InferOptions.get_common_options(options, InferOptions.Stats) else 1000
         source = init_featureset_graph(
             source,
             featureset,
@@ -885,9 +829,7 @@ def _preview(
             rows_limit=rows_limit,
         )
 
-    df = _infer_from_static_df(
-        source, featureset, entity_columns, options, sample_size=sample_size
-    )
+    df = _infer_from_static_df(source, featureset, entity_columns, options, sample_size=sample_size)
     featureset.save()
     return df
 
@@ -904,9 +846,7 @@ def _run_ingestion_job(
         featureset = get_feature_set_by_uri(featureset)
 
     run_config = run_config.copy() if run_config else RunConfig()
-    source, run_config.parameters = set_task_params(
-        featureset, source, targets, run_config.parameters, infer_options
-    )
+    source, run_config.parameters = set_task_params(featureset, source, targets, run_config.parameters, infer_options)
 
     return run_ingestion_job(name, featureset, run_config, source.schedule)
 
@@ -971,9 +911,7 @@ def _deploy_ingestion_service_v2(
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
 
-    verify_feature_set_permissions(
-        featureset, mlrun.common.schemas.AuthorizationAction.update
-    )
+    verify_feature_set_permissions(featureset, mlrun.common.schemas.AuthorizationAction.update)
 
     verify_feature_set_exists(featureset)
 
@@ -989,9 +927,7 @@ def _deploy_ingestion_service_v2(
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
     featureset.update_targets_for_ingest(targets_to_ingest)
 
-    source, run_config.parameters = set_task_params(
-        featureset, source, targets_to_ingest, run_config.parameters
-    )
+    source, run_config.parameters = set_task_params(featureset, source, targets_to_ingest, run_config.parameters)
 
     name = normalize_name(name or f"{featureset.metadata.name}-ingest")
     if not run_config.function:
@@ -1003,17 +939,13 @@ def _deploy_ingestion_service_v2(
             function_ref.code = function_ref.code or ""
         run_config.function = function_ref
 
-    function = run_config.to_function(
-        RuntimeKinds.serving, mlrun.mlconf.feature_store.default_job_image
-    )
+    function = run_config.to_function(RuntimeKinds.serving, mlrun.mlconf.feature_store.default_job_image)
     function.metadata.project = featureset.metadata.project
     function.metadata.name = function.metadata.name or name
 
     function.spec.graph = featureset.spec.graph
     function.spec.parameters = run_config.parameters
-    function.spec.graph_initializer = (
-        "mlrun.feature_store.ingestion.featureset_initializer"
-    )
+    function.spec.graph_initializer = "mlrun.feature_store.ingestion.featureset_initializer"
     function.verbose = function.verbose or verbose
     function = source.add_nuclio_trigger(function)
 
@@ -1045,9 +977,7 @@ def _ingest_with_spark(
             if mlrun_context:
                 session_name = f"{mlrun_context.name}-{mlrun_context.uid}"
             else:
-                session_name = (
-                    f"{featureset.metadata.project}-{featureset.metadata.name}"
-                )
+                session_name = f"{featureset.metadata.project}-{featureset.metadata.name}"
 
             spark = (
                 pyspark.sql.SparkSession.builder.appName(session_name)
@@ -1068,9 +998,7 @@ def _ingest_with_spark(
             df = run_spark_graph(df, featureset, namespace, spark)
 
         if isinstance(df, Response) and df.status_code != 0:
-            raise mlrun.errors.err_for_status_code(
-                df.status_code, df.body.split(": ")[1]
-            )
+            raise mlrun.errors.err_for_status_code(df.status_code, df.body.split(": ")[1])
 
         df.persist()
 
@@ -1094,14 +1022,10 @@ def _ingest_with_spark(
                     label_column=featureset.spec.label_column,
                 )
                 continue
-            spark_options = target.get_spark_options(
-                key_columns, timestamp_key, overwrite
-            )
+            spark_options = target.get_spark_options(key_columns, timestamp_key, overwrite)
 
             df_to_write = df
-            df_to_write = target.prepare_spark_df(
-                df_to_write, key_columns, timestamp_key, spark_options
-            )
+            df_to_write = target.prepare_spark_df(df_to_write, key_columns, timestamp_key, spark_options)
             write_format = spark_options.pop("format", None)
             # We can get to this point if the column exists in different letter cases,
             # so PySpark will be able to read it, but we still have to raise an exception for it.
@@ -1115,17 +1039,13 @@ def _ingest_with_spark(
                 label_column=featureset.spec.label_column,
             )
             if overwrite:
-                write_spark_dataframe_with_options(
-                    spark_options, df_to_write, "overwrite", write_format=write_format
-                )
+                write_spark_dataframe_with_options(spark_options, df_to_write, "overwrite", write_format=write_format)
             else:
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
                 # we would like to avoid that
                 df_to_write.persist()
                 if df_to_write.count() > 0:
-                    write_spark_dataframe_with_options(
-                        spark_options, df_to_write, "append", write_format=write_format
-                    )
+                    write_spark_dataframe_with_options(spark_options, df_to_write, "append", write_format=write_format)
             target.update_resource_status("ready")
 
         if isinstance(source, BaseSourceDriver) and source.schedule:
@@ -1135,9 +1055,7 @@ def _ingest_with_spark(
                 max_time = source.start_time
             for target in featureset.status.targets:
                 featureset.status.update_last_written_for_target(
-                    target.get_path().get_absolute_path(
-                        project_name=featureset.metadata.project
-                    ),
+                    target.get_path().get_absolute_path(project_name=featureset.metadata.project),
                     max_time,
                 )
 
@@ -1188,9 +1106,7 @@ def _infer_from_static_df(
             options=options,
         )
     if InferOptions.get_common_options(options, InferOptions.Stats):
-        featureset.status.stats = inferer.get_stats(
-            df, options, sample_size=sample_size
-        )
+        featureset.status.stats = inferer.get_stats(df, options, sample_size=sample_size)
     if InferOptions.get_common_options(options, InferOptions.Preview):
         featureset.status.preview = inferer.get_preview(df)
     return df

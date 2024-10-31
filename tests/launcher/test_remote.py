@@ -62,9 +62,7 @@ def test_launch_remote_job_no_watch(rundb_mock):
 
 def test_validate_inputs():
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
-    runtime = mlrun.code_to_function(
-        name="test", kind="job", filename=str(func_path), handler=handler
-    )
+    runtime = mlrun.code_to_function(name="test", kind="job", filename=str(func_path), handler=handler)
     run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": 1}))
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as exc:
         launcher._validate_runtime(runtime, run)
@@ -73,12 +71,8 @@ def test_validate_inputs():
 
 def test_validate_runtime_success():
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
-    runtime = mlrun.code_to_function(
-        name="test", kind="local", filename=str(func_path), handler=handler
-    )
-    run = mlrun.run.RunObject(
-        spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path")
-    )
+    runtime = mlrun.code_to_function(name="test", kind="local", filename=str(func_path), handler=handler)
+    run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path"))
     launcher._validate_runtime(runtime, run)
 
 
@@ -91,9 +85,7 @@ def test_validate_runtime_success():
         ("serving", ["pandas"], None, "mlrun/mlrun"),
     ],
 )
-def test_prepare_image_for_deploy(
-    kind, requirements, expected_base_image, expected_image
-):
+def test_prepare_image_for_deploy(kind, requirements, expected_base_image, expected_image):
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
     runtime = mlrun.code_to_function(
         name="test",

@@ -182,9 +182,7 @@ class CommonUtils(ABC):
         # Convert and return:
         if value_type in conversion_map:
             return conversion_map[value_type]
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"The ValueType given is not supported in numpy: '{value_type}'"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError(f"The ValueType given is not supported in numpy: '{value_type}'")
 
     @staticmethod
     def convert_np_dtype_to_value_type(np_dtype: Union[np.dtype, type, str]) -> str:

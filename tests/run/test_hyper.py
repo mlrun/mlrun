@@ -27,9 +27,7 @@ from .assets.hyper_func import hyper_func
 from .common import my_func
 
 base_spec = new_task(params={"p1": 8}, out_path=out_path)
-input_file_path = str(
-    pathlib.Path(__file__).parent / "assets" / "test_run_input_file.txt"
-)
+input_file_path = str(pathlib.Path(__file__).parent / "assets" / "test_run_input_file.txt")
 base_spec.spec.inputs = {"infile.txt": str(input_file_path)}
 
 
@@ -48,9 +46,7 @@ def test_handler_hyper(rundb_mock):
     run_spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
     result = new_function().run(run_spec, handler=my_func)
     assert len(result.status.iterations) == 3 + 1, "hyper parameters test failed"
-    assert (
-        result.status.results["best_iteration"] == 2
-    ), "failed to select best iteration"
+    assert result.status.results["best_iteration"] == 2, "failed to select best iteration"
     verify_state(result)
 
 
@@ -85,9 +81,7 @@ def test_hyper_grid_parallel():
     mlrun.datastore.set_in_memory_item("params.json", grid_params)
 
     run_spec = tag_test(base_spec, "test_hyper_grid")
-    run_spec.with_param_file(
-        "memory://params.json", selector="r1", strategy="grid", parallel_runs=2
-    )
+    run_spec.with_param_file("memory://params.json", selector="r1", strategy="grid", parallel_runs=2)
     run = new_function().run(run_spec, handler=hyper_func)
 
     verify_state(run)
@@ -157,9 +151,7 @@ def test_hyper_parallel_with_stop():
 def test_hyper_random():
     grid_params = {"p2": [2, 1, 3], "p3": [10, 20, 30]}
     run_spec = tag_test(base_spec, "test_hyper_random")
-    run_spec.with_hyper_params(
-        grid_params, selector="r1", strategy="random", max_iterations=5
-    )
+    run_spec.with_hyper_params(grid_params, selector="r1", strategy="random", max_iterations=5)
     run = new_function().run(run_spec, handler=hyper_func)
 
     verify_state(run)
@@ -196,9 +188,7 @@ def hyper_func2(context, p1=1):
         "age": [42, 52, 36, 24, 73],
         "postTestScore": [25, 94, 57, 62, 70],
     }
-    df = pd.DataFrame(
-        raw_data, columns=["first_name", "last_name", "age", "postTestScore"]
-    )
+    df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "postTestScore"])
     context.log_dataset("df1", df=df, db_key="dbdf")
     context.log_dataset("df2", df=df)
 

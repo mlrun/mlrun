@@ -44,9 +44,7 @@ def _get_engine_and_function(function, project=None):
                 )
             # we don't want to use a copy of the function object, we want to use the actual object
             # so changes on it will be reflected in the project and will persist for future use of the function
-            function = project.get_function(
-                function, sync=False, enrich=True, copy_function=False
-            )
+            function = project.get_function(function, sync=False, enrich=True, copy_function=False)
     elif project:
         # if a user provide the function object we enrich in-place so build, deploy, etc.
         # will update the original function object status/image, and not the copy (may fail fn.run())
@@ -195,17 +193,13 @@ def run_function(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Scheduling jobs is not supported when running a workflow with the kfp engine."
             )
-        return function.as_step(
-            name=name, runspec=task, workdir=workdir, outputs=outputs, labels=labels
-        )
+        return function.as_step(name=name, runspec=task, workdir=workdir, outputs=outputs, labels=labels)
     else:
         project = project_object or pipeline_context.project
         local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
-            task.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = (
-                pipeline_context.workflow_id
-            )
+            task.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = pipeline_context.workflow_id
         if function.kind == "local":
             command, function = mlrun.run.load_func_code(function)
             function.spec.command = command
@@ -232,9 +226,7 @@ def run_function(
         if run_result:
             run_result._notified = False
             pipeline_context.runs_map[run_result.uid()] = run_result
-            run_result.after = (
-                lambda x: run_result
-            )  # emulate KFP op, .after() will be ignored
+            run_result.after = lambda x: run_result  # emulate KFP op, .after() will be ignored
         return run_result
 
 
@@ -303,9 +295,7 @@ def build_function(
 
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Cannot build use deploy_function()"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError("Cannot build use deploy_function()")
     if engine == mlrun.common.schemas.workflow.EngineType.KFP:
         if overwrite_build_params:
             function.spec.build.commands = None
@@ -328,9 +318,7 @@ def build_function(
     else:
         # TODO: remove filter once overwrite_build_params default is changed to True in 1.8.0
         with warnings.catch_warnings():
-            warnings.simplefilter(
-                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
-            )
+            warnings.simplefilter("ignore", category=mlrun.utils.OverwriteBuildParamsWarning)
 
             function.build_config(
                 image=image,

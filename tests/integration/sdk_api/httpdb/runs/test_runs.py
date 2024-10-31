@@ -69,10 +69,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # basic list, all projects, all iterations so 3 projects * 3 names * 3 uids * 3 iterations = 81
         _list_and_assert_objects(
-            expected_number_of_runs=len(projects)
-            * len(run_names)
-            * len(suffixes)
-            * iterations,
+            expected_number_of_runs=len(projects) * len(run_names) * len(suffixes) * iterations,
             project="*",
             iter=True,
         )
@@ -176,10 +173,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
                 partition_by="key",
                 partition_sort_by=mlrun.common.schemas.SortField.updated,
             )
-        assert (
-            excinfo.value.response.status_code
-            == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
-        )
+        assert excinfo.value.response.status_code == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
 
         # expecting 3 since we're getting back all iterations for that uid
         _list_and_assert_objects(
@@ -210,16 +204,11 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert isinstance(fn.metadata.labels, dict), "metadata labels were not set"
         run = fn.run(workdir=str(examples_path), local=True)
 
-        project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(
-            run.spec.function
-        )
-        local_fn = mlrun.get_run_db().get_function(
-            uri, project, tag=tag, hash_key=hash_key
-        )
+        project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(run.spec.function)
+        local_fn = mlrun.get_run_db().get_function(uri, project, tag=tag, hash_key=hash_key)
         assert local_fn["spec"]["command"] == filename, "wrong command path"
         assert (
-            local_fn["spec"]["build"]["functionSourceCode"]
-            == fn.spec.build.functionSourceCode
+            local_fn["spec"]["build"]["functionSourceCode"] == fn.spec.build.functionSourceCode
         ), "code was not copied to local function"
 
 

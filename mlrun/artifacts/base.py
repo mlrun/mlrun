@@ -64,16 +64,12 @@ class ArtifactMetadata(ModelObj):
 
     def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         """return long dict form of the artifact"""
-        return super().to_dict(
-            self._dict_fields + self._extra_fields, exclude=exclude, strip=strip
-        )
+        return super().to_dict(self._dict_fields + self._extra_fields, exclude=exclude, strip=strip)
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
         fields = fields or cls._dict_fields + cls._extra_fields
-        return super().from_dict(
-            struct, fields=fields, deprecated_fields=deprecated_fields
-        )
+        return super().from_dict(struct, fields=fields, deprecated_fields=deprecated_fields)
 
 
 class ArtifactSpec(ModelObj):
@@ -133,16 +129,12 @@ class ArtifactSpec(ModelObj):
 
     def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         """return long dict form of the artifact"""
-        return super().to_dict(
-            self._dict_fields + self._extra_fields, exclude=exclude, strip=strip
-        )
+        return super().to_dict(self._dict_fields + self._extra_fields, exclude=exclude, strip=strip)
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
         fields = fields or cls._dict_fields + cls._extra_fields
-        return super().from_dict(
-            struct, fields=fields, deprecated_fields=deprecated_fields
-        )
+        return super().from_dict(struct, fields=fields, deprecated_fields=deprecated_fields)
 
     @property
     def inline(self):
@@ -198,17 +190,7 @@ class Artifact(ModelObj):
         metadata: ArtifactMetadata = None,
         spec: ArtifactSpec = None,
     ):
-        if (
-            key
-            or body
-            or viewer
-            or is_inline
-            or format
-            or size
-            or target_path
-            or project
-            or src_path
-        ):
+        if key or body or viewer or is_inline or format or size or target_path or project or src_path:
             warnings.warn(
                 "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
                 "Use the metadata and spec parameters instead.",
@@ -221,9 +203,7 @@ class Artifact(ModelObj):
         self.spec = spec
 
         self.metadata.key = key or self.metadata.key
-        self.metadata.project = (
-            project or mlrun.mlconf.default_project or self.metadata.project
-        )
+        self.metadata.project = project or mlrun.mlconf.default_project or self.metadata.project
         self.spec.size = size or self.spec.size
         self.spec.target_path = target_path or self.spec.target_path
         self.spec.format = format or self.spec.format
@@ -387,21 +367,15 @@ class Artifact(ModelObj):
                     "Unable to resolve target path, no target path is defined and "
                     "mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash is set to false"
                 )
-            body_hash, self.spec.target_path = self.resolve_body_target_hash_path(
-                body, artifact_path
-            )
+            body_hash, self.spec.target_path = self.resolve_body_target_hash_path(body, artifact_path)
 
         if mlrun.mlconf.artifacts.calculate_hash:
             self.metadata.hash = body_hash or calculate_blob_hash(body)
         self.spec.size = len(body)
 
-        mlrun.datastore.store_manager.object(url=target or self.spec.target_path).put(
-            body
-        )
+        mlrun.datastore.store_manager.object(url=target or self.spec.target_path).put(body)
 
-    def _upload_file(
-        self, source_path: str, target_path: str = None, artifact_path: str = None
-    ):
+    def _upload_file(self, source_path: str, target_path: str = None, artifact_path: str = None):
         file_hash = None
         if not target_path and not self.spec.target_path:
             if not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
@@ -409,20 +383,14 @@ class Artifact(ModelObj):
                     "Unable to resolve target path, no target path is defined and "
                     "mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash is set to false"
                 )
-            file_hash, self.spec.target_path = self.resolve_file_target_hash_path(
-                source_path, artifact_path
-            )
+            file_hash, self.spec.target_path = self.resolve_file_target_hash_path(source_path, artifact_path)
         if mlrun.mlconf.artifacts.calculate_hash:
             self.metadata.hash = file_hash or calculate_local_file_hash(source_path)
         self.spec.size = os.stat(source_path).st_size
 
-        mlrun.datastore.store_manager.object(
-            url=target_path or self.spec.target_path
-        ).upload(source_path)
+        mlrun.datastore.store_manager.object(url=target_path or self.spec.target_path).upload(source_path)
 
-    def resolve_body_target_hash_path(
-        self, body: typing.Union[bytes, str], artifact_path: str
-    ) -> (str, str):
+    def resolve_body_target_hash_path(self, body: typing.Union[bytes, str], artifact_path: str) -> (str, str):
         """
         constructs the target path by calculating the artifact body hash
         :param body: artifact body to calculate hash on
@@ -435,9 +403,7 @@ class Artifact(ModelObj):
             hash_method=calculate_blob_hash,
         )
 
-    def resolve_file_target_hash_path(
-        self, source_path: str, artifact_path: str
-    ) -> (str, str):
+    def resolve_file_target_hash_path(self, source_path: str, artifact_path: str) -> (str, str):
         """
         constructs the target path by calculating the artifact source hash
         :param source_path: artifact file source path to calculate hash on
@@ -469,9 +435,7 @@ class Artifact(ModelObj):
             )
         artifact_hash = hash_method(artifact_source)
         suffix = self._resolve_suffix()
-        artifact_path = (
-            artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
-        )
+        artifact_path = artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
         target_path = f"{artifact_path}{artifact_hash}{suffix}"
         return artifact_hash, target_path
 
@@ -657,24 +621,18 @@ class DirArtifact(Artifact):
         :param artifact_path: required only for when generating target_path from artifact hash
         """
         if not self.spec.src_path:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "local/source path not specified"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("local/source path not specified")
 
         files = os.listdir(self.spec.src_path)
         for file_name in files:
             file_path = os.path.join(self.spec.src_path, file_name)
             if not os.path.isfile(file_path):
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"file {file_path} not found, cant upload"
-                )
+                raise mlrun.errors.MLRunNotFoundError(f"file {file_path} not found, cant upload")
 
             if self.spec.target_path:
                 target_path = os.path.join(self.spec.target_path, file_name)
             elif mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
-                _, target_path = self.resolve_file_target_hash_path(
-                    source_path=file_path, artifact_path=artifact_path
-                )
+                _, target_path = self.resolve_file_target_hash_path(source_path=file_path, artifact_path=artifact_path)
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "target path is not specified and mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash "
@@ -729,9 +687,7 @@ class LinkArtifact(Artifact):
                 "Use the metadata and spec parameters instead.",
                 DeprecationWarning,
             )
-        super().__init__(
-            key, target_path=target_path, project=project, metadata=metadata, spec=spec
-        )
+        super().__init__(key, target_path=target_path, project=project, metadata=metadata, spec=spec)
         self.spec.link_iteration = link_iteration
         self.spec.link_key = link_key
         self.spec.link_tree = link_tree
@@ -773,27 +729,21 @@ def upload_extra_data(
             if target_path:
                 target = os.path.join(target_path, prefix + key)
             else:
-                _, target = artifact.resolve_body_target_hash_path(
-                    item, artifact_path=artifact_path
-                )
+                _, target = artifact.resolve_body_target_hash_path(item, artifact_path=artifact_path)
 
             mlrun.datastore.store_manager.object(url=target).put(item)
             artifact.extra_data[prefix + key] = target
             continue
 
         if is_relative_path(item):
-            src_path = (
-                os.path.join(artifact.src_path, item) if artifact.src_path else item
-            )
+            src_path = os.path.join(artifact.src_path, item) if artifact.src_path else item
             if not os.path.isfile(src_path):
                 raise ValueError(f"Extra data file {src_path} not found")
 
             if target_path:
                 target = os.path.join(target_path, item)
             else:
-                _, target = artifact.resolve_file_target_hash_path(
-                    src_path, artifact_path=artifact_path
-                )
+                _, target = artifact.resolve_file_target_hash_path(src_path, artifact_path=artifact_path)
             mlrun.datastore.store_manager.object(url=target).upload(src_path)
             artifact.extra_data[prefix + key] = target
             continue
@@ -815,9 +765,7 @@ def get_artifact_meta(artifact):
         artifact = artifact.artifact_url
 
     if mlrun.datastore.is_store_uri(artifact):
-        artifact_spec, target = mlrun.datastore.store_manager.get_store_artifact(
-            artifact
-        )
+        artifact_spec, target = mlrun.datastore.store_manager.get_store_artifact(artifact)
 
     elif artifact.lower().endswith(".yaml"):
         data = mlrun.datastore.store_manager.object(url=artifact).get()
@@ -873,9 +821,7 @@ def convert_legacy_artifact_to_new_format(
         FutureWarning,
     )
 
-    artifact = mlrun.artifacts.artifact_types.get(
-        legacy_artifact.get("kind", "artifact"), mlrun.artifacts.Artifact
-    )()
+    artifact = mlrun.artifacts.artifact_types.get(legacy_artifact.get("kind", "artifact"), mlrun.artifacts.Artifact)()
 
     artifact.metadata = artifact.metadata.from_dict(legacy_artifact)
     artifact.spec = artifact.spec.from_dict(legacy_artifact)
@@ -890,9 +836,7 @@ def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
     labels = object_dict["metadata"].pop("labels", None)
     object_updated_timestamp = object_dict["metadata"].pop("updated", None)
 
-    artifact_cls = mlrun.artifacts.artifact_types.get(
-        object_dict.get("kind", "artifact"), Artifact
-    )()
+    artifact_cls = mlrun.artifacts.artifact_types.get(object_dict.get("kind", "artifact"), Artifact)()
     spec_fields_to_exclude = artifact_cls.spec._exclude_fields_from_uid_hash
     spec_fields_to_exclude_values = []
     object_dict.setdefault("spec", {})

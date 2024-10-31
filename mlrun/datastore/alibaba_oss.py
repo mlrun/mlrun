@@ -105,9 +105,7 @@ class OSSStore(DataStore):
         remote_path = f"{remote_path}/**"
         files = self.filesystem.glob(remote_path)
         key_length = len(key)
-        files = [
-            f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
-        ]
+        files = [f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1]
         return files
 
     def delete(self, key):

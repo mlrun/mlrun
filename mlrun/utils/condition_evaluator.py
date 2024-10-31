@@ -18,9 +18,7 @@ import typing
 from mlrun.utils import logger
 
 
-def evaluate_condition_in_separate_process(
-    condition: str, context: dict[str, typing.Any], timeout: int = 5
-):
+def evaluate_condition_in_separate_process(condition: str, context: dict[str, typing.Any], timeout: int = 5):
     if not condition:
         return True
 
@@ -43,9 +41,7 @@ def evaluate_condition_in_separate_process(
         return True
 
 
-def _evaluate_condition_wrapper(
-    connection, condition: str, context: dict[str, typing.Any]
-):
+def _evaluate_condition_wrapper(connection, condition: str, context: dict[str, typing.Any]):
     connection.send(_evaluate_condition(condition, context))
     return connection.close()
 

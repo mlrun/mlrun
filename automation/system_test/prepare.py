@@ -37,9 +37,7 @@ class Logger:
         self._logger.setLevel(level)
         if not self._logger.handlers:
             ch = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             ch.setFormatter(formatter)
             self._logger.addHandler(ch)
 
@@ -61,9 +59,7 @@ class SystemTestPreparer:
         igz_version_file = homedir / "igz" / "version.txt"
         mlrun_code_path = workdir / "mlrun"
         provctl_path = workdir / "provctl"
-        system_tests_env_yaml = (
-            project_dir / pathlib.Path("tests") / "system" / "env.yml"
-        )
+        system_tests_env_yaml = project_dir / pathlib.Path("tests") / "system" / "env.yml"
         namespace = "default-tenant"
 
         git_url = "https://github.com/mlrun/mlrun.git"
@@ -148,9 +144,7 @@ class SystemTestPreparer:
             self._install_dev_utilities()
             logger.log("debug", "installing dev utilities - done")
         except Exception as exp:
-            self._logger.log(
-                "error", "error on install dev utilities", exception=str(exp)
-            )
+            self._logger.log("error", "error on install dev utilities", exception=str(exp))
 
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
@@ -166,12 +160,8 @@ class SystemTestPreparer:
         self._patch_mlrun()
 
     def clean_up_remote_workdir(self):
-        self._logger.log(
-            "info", "Cleaning up remote workdir", workdir=str(self.Constants.workdir)
-        )
-        self._run_command(
-            f"rm -rf {self.Constants.workdir}", workdir=str(self.Constants.homedir)
-        )
+        self._logger.log("info", "Cleaning up remote workdir", workdir=str(self.Constants.workdir))
+        self._run_command(f"rm -rf {self.Constants.workdir}", workdir=str(self.Constants.homedir))
 
     def _run_command(
         self,
@@ -209,9 +199,7 @@ class SystemTestPreparer:
             return b"", b""
         try:
             if local:
-                stdout, stderr, exit_status = run_command(
-                    command, args, workdir, stdin, live
-                )
+                stdout, stderr, exit_status = run_command(command, args, workdir, stdin, live)
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
                     command,
@@ -233,9 +221,7 @@ class SystemTestPreparer:
                         )
                         break
                 else:
-                    raise RuntimeError(
-                        f"Command failed with exit status: {exit_status}"
-                    )
+                    raise RuntimeError(f"Command failed with exit status: {exit_status}")
 
         except (paramiko.SSHException, RuntimeError) as exc:
             err_log_kwargs = {
@@ -285,13 +271,9 @@ class SystemTestPreparer:
         if detach:
             command = f"screen -d -m bash -c '{command}'"
             if verbose:
-                self._logger.log(
-                    "debug", "running command in detached mode", command=command
-                )
+                self._logger.log("debug", "running command in detached mode", command=command)
 
-        stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
-            command
-        )
+        stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(command)
 
         if stdin:
             stdin_stream.write(stdin)
@@ -327,9 +309,7 @@ class SystemTestPreparer:
 
         # if filepath exists, backup the file first (to avoid overriding it)
         if os.path.isfile(filepath) and not os.path.isfile(backup_filepath):
-            self._logger.log(
-                "debug", "Backing up existing env.yml", destination=backup_filepath
-            )
+            self._logger.log("debug", "Backing up existing env.yml", destination=backup_filepath)
             shutil.copy(filepath, backup_filepath)
 
         # enrichment can be done only if ssh client is initialized
@@ -392,14 +372,10 @@ class SystemTestPreparer:
         spark_service_name = self._get_service_name("app=spark,component=spark-master")
         self._env_config["MLRUN_IGUAZIO_API_URL"] = f"https://{api_url_host}"
         self._env_config["V3IO_FRAMESD"] = f"https://{framesd_host}"
-        self._env_config["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"] = (
-            spark_service_name
-        )
+        self._env_config["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"] = spark_service_name
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
         self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
-        self._env_config[
-            "MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION"
-        ] = "v3io"
+        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION"] = "v3io"
         self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"] = "v3io"
         self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"] = "v3io"
 
@@ -560,9 +536,7 @@ class SystemTestPreparer:
                 # we force because by default provctl doesn't allow downgrading between version but due to system tests
                 # running on multiple branches this might occur.
                 "--force",
-                f"--override-mlrun-ui-version={self._mlrun_ui_version}"
-                if self._mlrun_ui_version
-                else "",
+                f"--override-mlrun-ui-version={self._mlrun_ui_version}" if self._mlrun_ui_version else "",
                 f"--override-default-image-registry={self._override_image_registry.rstrip('/')}/mlrun",
                 # purged db to allow downgrading between versions
                 "--purge-mlrun-db",
@@ -592,9 +566,7 @@ class SystemTestPreparer:
                 live=False,
             )
             self._iguazio_version = self._iguazio_version.strip().decode()
-        self._logger.log(
-            "info", "Resolved iguazio version", iguazio_version=self._iguazio_version
-        )
+        self._logger.log("info", "Resolved iguazio version", iguazio_version=self._iguazio_version)
 
     def _get_pod_name_command(self, labels):
         labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
@@ -651,9 +623,7 @@ class SystemTestPreparer:
             ],
         )
         if stderr:
-            raise RuntimeError(
-                f"Failed getting {ingress_name} ingress host. Error: {stderr}"
-            )
+            raise RuntimeError(f"Failed getting {ingress_name} ingress host. Error: {stderr}")
         return host.strip()
 
     def _get_service_name(self, label_selector):
@@ -690,9 +660,7 @@ class SystemTestPreparer:
                 ],
             )
         except Exception as exc:
-            self._logger.log(
-                "warning", "Failed to enrich env", exc=exc, err=err, out=out
-            )
+            self._logger.log("warning", "Failed to enrich env", exc=exc, err=err, out=out)
 
         return json.loads(out or "{}")
 
@@ -799,9 +767,7 @@ def run(
 @click.option("--data-cluster-ssh-password")
 @click.option("--username", help="Iguazio running username")
 @click.option("--access-key", help="Iguazio running user access key")
-@click.option(
-    "--slack-webhook-url", help="Slack webhook url to send tests notifications to"
-)
+@click.option("--slack-webhook-url", help="Slack webhook url to send tests notifications to")
 @click.option(
     "--debug",
     "-d",

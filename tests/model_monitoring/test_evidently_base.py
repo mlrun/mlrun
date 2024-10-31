@@ -44,6 +44,4 @@ def test_version_check(
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         with expectation:
-            _check_evidently_version(
-                cur=semver.Version.parse(cur), ref=semver.Version.parse(ref)
-            )
+            _check_evidently_version(cur=semver.Version.parse(cur), ref=semver.Version.parse(ref))

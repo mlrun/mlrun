@@ -35,11 +35,7 @@ class GitNotification(NotificationBase):
         git_repo = params.get("repo", None)
         git_issue = params.get("issue", None)
         git_merge_request = params.get("merge_request", None)
-        token = (
-            params.get("token", None)
-            or params.get("GIT_TOKEN", None)
-            or params.get("GITHUB_TOKEN", None)
-        )
+        token = params.get("token", None) or params.get("GIT_TOKEN", None) or params.get("GITHUB_TOKEN", None)
         if not git_repo:
             raise ValueError("Parameter 'repo' is required for GitNotification")
 
@@ -47,9 +43,7 @@ class GitNotification(NotificationBase):
             raise ValueError("Parameter 'token' is required for GitNotification")
 
         if not git_issue and not git_merge_request:
-            raise ValueError(
-                "At least one of 'issue' or 'merge_request' is required for GitNotification"
-            )
+            raise ValueError("At least one of 'issue' or 'merge_request' is required for GitNotification")
 
     async def push(
         self,
@@ -104,11 +98,7 @@ class GitNotification(NotificationBase):
         """
         if ("CI_PROJECT_ID" in os.environ) or (server and "gitlab" in server):
             gitlab = True
-        token = (
-            token
-            or mlrun.get_secret_or_env("GITHUB_TOKEN")
-            or mlrun.get_secret_or_env("GIT_TOKEN")
-        )
+        token = token or mlrun.get_secret_or_env("GITHUB_TOKEN") or mlrun.get_secret_or_env("GIT_TOKEN")
 
         if gitlab:
             server = server or "gitlab.com"
@@ -125,9 +115,7 @@ class GitNotification(NotificationBase):
             elif issue:
                 url = f"https://{server}/api/v4/projects/{repo}/issues/{issue}/notes"
             else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "GitLab issue or merge request id not specified"
-                )
+                raise mlrun.errors.MLRunInvalidArgumentError("GitLab issue or merge request id not specified")
         else:
             server = server or "api.github.com"
             repo = repo or os.environ.get("GITHUB_REPOSITORY")
@@ -152,8 +140,6 @@ class GitNotification(NotificationBase):
             resp = await session.post(url, headers=headers, json={"body": message})
             if not resp.ok:
                 resp_text = await resp.text()
-                raise mlrun.errors.MLRunBadRequestError(
-                    f"Failed commenting on PR: {resp_text}"
-                )
+                raise mlrun.errors.MLRunBadRequestError(f"Failed commenting on PR: {resp_text}")
             data = await resp.json()
             return data.get("id")

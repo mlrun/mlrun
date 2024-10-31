@@ -120,9 +120,7 @@ class RemoteStep(storey.SendToHttp):
             self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")
         if self.body_expression:
             # init lambda function for calculating url from event
-            self._body_function_handler = eval(
-                "lambda event: " + self.body_expression, {"context": self.context}, {}
-            )
+            self._body_function_handler = eval("lambda event: " + self.body_expression, {"context": self.context}, {})
         if self.url_expression:
             # init lambda function for calculating url from event
             self._url_function_handler = eval(
@@ -143,9 +141,7 @@ class RemoteStep(storey.SendToHttp):
         if self.timeout:
             kwargs["timeout"] = aiohttp.ClientTimeout(total=self.timeout)
         try:
-            resp = await self._client_session.request(
-                method, url, headers=headers, data=body, ssl=False, **kwargs
-            )
+            resp = await self._client_session.request(method, url, headers=headers, data=body, ssl=False, **kwargs)
             if resp.status >= 500:
                 text = await resp.text()
                 raise RuntimeError(f"bad http response {resp.status}: {text}")
@@ -230,10 +226,9 @@ class RemoteStep(storey.SendToHttp):
         return method, url, headers, body
 
     def _get_data(self, data, headers):
-        if (
-            self.return_json
-            or headers.get("content-type", "").lower() == "application/json"
-        ) and isinstance(data, (str, bytes)):
+        if (self.return_json or headers.get("content-type", "").lower() == "application/json") and isinstance(
+            data, (str, bytes)
+        ):
             data = json.loads(data)
         return data
 
@@ -300,9 +295,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         :param timeout:     How long to wait for the server to send data before giving up, float in seconds
         """
         if url and url_expression:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot set both url and url_expression"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("cannot set both url and url_expression")
         self.url = url
         self.url_expression = url_expression
         self.body_expression = body_expression
@@ -339,14 +332,10 @@ class BatchHttpRequests(_ConcurrentJobExecution):
             self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")
         if self.body_expression:
             # init lambda function for calculating url from event
-            self._body_function_handler = eval(
-                "lambda event: " + self.body_expression, {}, {}
-            )
+            self._body_function_handler = eval("lambda event: " + self.body_expression, {}, {})
         if self.url_expression:
             # init lambda function for calculating url from event
-            self._url_function_handler = eval(
-                "lambda event: " + self.url_expression, {}, {"endpoint": self._endpoint}
-            )
+            self._url_function_handler = eval("lambda event: " + self.url_expression, {}, {"endpoint": self._endpoint})
         elif self.subpath:
             self._endpoint = self._endpoint + "/" + self.subpath.lstrip("/")
         if self.timeout:
@@ -382,11 +371,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
 
         responses = []
         for url, body in zip(url_list, body_list):
-            responses.append(
-                asyncio.ensure_future(
-                    self._submit_with_retries(method, url, headers, body)
-                )
-            )
+            responses.append(asyncio.ensure_future(self._submit_with_retries(method, url, headers, body)))
         return await asyncio.gather(*responses)
 
     async def _process_event_with_retries(self, event):
@@ -411,16 +396,10 @@ class BatchHttpRequests(_ConcurrentJobExecution):
                 times_attempted += 1
                 attempts_left = max_attempts - times_attempted
                 if self.logger:
-                    self.logger.warn(
-                        f"{self.name} failed to process event ({attempts_left} retries left): {ex}"
-                    )
+                    self.logger.warn(f"{self.name} failed to process event ({attempts_left} retries left): {ex}")
                 if attempts_left <= 0:
                     raise ex
-                backoff_factor = (
-                    default_backoff_factor
-                    if self.backoff_factor is None
-                    else self.backoff_factor
-                )
+                backoff_factor = default_backoff_factor if self.backoff_factor is None else self.backoff_factor
                 backoff_value = (backoff_factor) * (2 ** (times_attempted - 1))
                 backoff_value = min(self._BACKOFF_MAX, backoff_value)
                 if backoff_value >= 0:
@@ -435,9 +414,8 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         await self._do_downstream(new_event)
 
     def _get_data(self, data, headers):
-        if (
-            self.return_json
-            or headers.get("content-type", "").lower() == "application/json"
-        ) and isinstance(data, (str, bytes)):
+        if (self.return_json or headers.get("content-type", "").lower() == "application/json") and isinstance(
+            data, (str, bytes)
+        ):
             data = json.loads(data)
         return data

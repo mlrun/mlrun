@@ -43,9 +43,7 @@ def new_v1_model_server(
 ):
     f = RemoteRuntime()
     if not image:
-        name, spec, code = nuclio.build_file(
-            filename, name=name, handler=serving_handler, kind="serving"
-        )
+        name, spec, code = nuclio.build_file(filename, name=name, handler=serving_handler, kind="serving")
         f.spec.base_spec = spec
 
     f.metadata.name = name
@@ -84,9 +82,7 @@ class MLModelServer:
         return self._params.get(key, default)
 
     def get_model(self, suffix=""):
-        model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
-            self.model_dir, suffix
-        )
+        model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(self.model_dir, suffix)
         if self.model_spec and self.model_spec.parameters:
             for key, value in self.model_spec.parameters.items():
                 self._params[key] = value
@@ -115,16 +111,10 @@ def nuclio_serving_init(context, data):
 
     # Initialize models from environment variables
     # Using the {model_prefix}_{model_name} = {model_path} syntax
-    model_paths = {
-        k[len(model_prefix) :]: v
-        for k, v in os.environ.items()
-        if k.startswith(model_prefix)
-    }
+    model_paths = {k[len(model_prefix) :]: v for k, v in os.environ.items() if k.startswith(model_prefix)}
     model_class = os.environ.get("MODEL_CLASS", "MLModelServer")
     fhandler = data[model_class]
-    models = {
-        name: fhandler(name=name, model_dir=path) for name, path in model_paths.items()
-    }
+    models = {name: fhandler(name=name, model_dir=path) for name, path in model_paths.items()}
 
     params = os.environ.get(params_prefix)
     if params:
@@ -317,9 +307,7 @@ class PredictHandler(HTTPHandler):
         response = model.postprocess(response)
         self.push_to_stream(start, request, response, model)
 
-        return context.Response(
-            body=json.dumps(response), content_type="application/json", status_code=200
-        )
+        return context.Response(body=json.dumps(response), content_type="application/json", status_code=200)
 
 
 class ExplainHandler(HTTPHandler):
@@ -350,6 +338,4 @@ class ExplainHandler(HTTPHandler):
         response = model.postprocess(response)
         self.push_to_stream(start, request, response, model)
 
-        return context.Response(
-            body=json.dumps(response), content_type="application/json", status_code=200
-        )
+        return context.Response(body=json.dumps(response), content_type="application/json", status_code=200)

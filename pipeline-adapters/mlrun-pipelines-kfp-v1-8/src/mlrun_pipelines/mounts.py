@@ -49,16 +49,10 @@ def v3io_cred(api="", user="", access_key=""):
         v3io_framesd = mlconf.v3io_framesd or environ.get("V3IO_FRAMESD")
 
         return (
-            container_op.container.add_env_variable(
-                k8s_client.V1EnvVar(name="V3IO_API", value=web_api)
-            )
+            container_op.container.add_env_variable(k8s_client.V1EnvVar(name="V3IO_API", value=web_api))
             .add_env_variable(k8s_client.V1EnvVar(name="V3IO_USERNAME", value=_user))
-            .add_env_variable(
-                k8s_client.V1EnvVar(name="V3IO_ACCESS_KEY", value=_access_key)
-            )
-            .add_env_variable(
-                k8s_client.V1EnvVar(name="V3IO_FRAMESD", value=v3io_framesd)
-            )
+            .add_env_variable(k8s_client.V1EnvVar(name="V3IO_ACCESS_KEY", value=_access_key))
+            .add_env_variable(k8s_client.V1EnvVar(name="V3IO_FRAMESD", value=v3io_framesd))
         )
 
     return _use_v3io_cred
@@ -113,9 +107,7 @@ def mount_spark_conf():
         from kubernetes import client as k8s_client
 
         container_op.container.add_volume_mount(
-            k8s_client.V1VolumeMount(
-                name="spark-master-config", mount_path="/etc/config/spark"
-            )
+            k8s_client.V1VolumeMount(name="spark-master-config", mount_path="/etc/config/spark")
         )
         return container_op
 
@@ -132,9 +124,7 @@ def mount_v3iod(namespace, v3io_config_configmap):
                 host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
             )
             container_op.add_volume(vol)
-            container_op.container.add_volume_mount(
-                k8s_client.V1VolumeMount(mount_path=mount_path, name=name)
-            )
+            container_op.container.add_volume_mount(k8s_client.V1VolumeMount(mount_path=mount_path, name=name))
 
         # this is a legacy path for the daemon shared memory
         host_path = "/dev/shm/"
@@ -151,21 +141,15 @@ def mount_v3iod(namespace, v3io_config_configmap):
             host_path="/var/run/iguazio/dayman/" + namespace,
         )
 
-        vol = k8s_client.V1Volume(
-            name="daemon-health", empty_dir=k8s_client.V1EmptyDirVolumeSource()
-        )
+        vol = k8s_client.V1Volume(name="daemon-health", empty_dir=k8s_client.V1EmptyDirVolumeSource())
         container_op.add_volume(vol)
         container_op.container.add_volume_mount(
-            k8s_client.V1VolumeMount(
-                mount_path="/var/run/iguazio/daemon_health", name="daemon-health"
-            )
+            k8s_client.V1VolumeMount(mount_path="/var/run/iguazio/daemon_health", name="daemon-health")
         )
 
         vol = k8s_client.V1Volume(
             name="v3io-config",
-            config_map=k8s_client.V1ConfigMapVolumeSource(
-                name=v3io_config_configmap, default_mode=420
-            ),
+            config_map=k8s_client.V1ConfigMapVolumeSource(name=v3io_config_configmap, default_mode=420),
         )
         container_op.add_volume(vol)
         container_op.container.add_volume_mount(
@@ -176,16 +160,12 @@ def mount_v3iod(namespace, v3io_config_configmap):
             k8s_client.V1EnvVar(
                 name="CURRENT_NODE_IP",
                 value_from=k8s_client.V1EnvVarSource(
-                    field_ref=k8s_client.V1ObjectFieldSelector(
-                        api_version="v1", field_path="status.hostIP"
-                    )
+                    field_ref=k8s_client.V1ObjectFieldSelector(api_version="v1", field_path="status.hostIP")
                 ),
             )
         )
         container_op.container.add_env_variable(
-            k8s_client.V1EnvVar(
-                name="IGZ_DATA_CONFIG_FILE", value="/igz/java/conf/v3io.conf"
-            )
+            k8s_client.V1EnvVar(name="IGZ_DATA_CONFIG_FILE", value="/igz/java/conf/v3io.conf")
         )
 
         return container_op
@@ -248,49 +228,33 @@ def mount_s3(
 
         container = container_op.container
         if _endpoint_url:
-            container.add_env_variable(
-                k8s_client.V1EnvVar(name=prefix + "S3_ENDPOINT_URL", value=endpoint_url)
-            )
+            container.add_env_variable(k8s_client.V1EnvVar(name=prefix + "S3_ENDPOINT_URL", value=endpoint_url))
         if aws_region:
-            container.add_env_variable(
-                k8s_client.V1EnvVar(name=prefix + "AWS_REGION", value=aws_region)
-            )
+            container.add_env_variable(k8s_client.V1EnvVar(name=prefix + "AWS_REGION", value=aws_region))
         if non_anonymous:
-            container.add_env_variable(
-                k8s_client.V1EnvVar(name=prefix + "S3_NON_ANONYMOUS", value="true")
-            )
+            container.add_env_variable(k8s_client.V1EnvVar(name=prefix + "S3_NON_ANONYMOUS", value="true"))
 
         if secret_name:
             container.add_env_variable(
                 k8s_client.V1EnvVar(
                     name=prefix + "AWS_ACCESS_KEY_ID",
                     value_from=k8s_client.V1EnvVarSource(
-                        secret_key_ref=k8s_client.V1SecretKeySelector(
-                            name=secret_name, key="AWS_ACCESS_KEY_ID"
-                        )
+                        secret_key_ref=k8s_client.V1SecretKeySelector(name=secret_name, key="AWS_ACCESS_KEY_ID")
                     ),
                 )
             ).add_env_variable(
                 k8s_client.V1EnvVar(
                     name=prefix + "AWS_SECRET_ACCESS_KEY",
                     value_from=k8s_client.V1EnvVarSource(
-                        secret_key_ref=k8s_client.V1SecretKeySelector(
-                            name=secret_name, key="AWS_SECRET_ACCESS_KEY"
-                        )
+                        secret_key_ref=k8s_client.V1SecretKeySelector(name=secret_name, key="AWS_SECRET_ACCESS_KEY")
                     ),
                 )
             )
 
         else:
             return container_op.add_env_variable(
-                k8s_client.V1EnvVar(
-                    name=prefix + "AWS_ACCESS_KEY_ID", value=_access_key
-                )
-            ).add_env_variable(
-                k8s_client.V1EnvVar(
-                    name=prefix + "AWS_SECRET_ACCESS_KEY", value=_secret_key
-                )
-            )
+                k8s_client.V1EnvVar(name=prefix + "AWS_ACCESS_KEY_ID", value=_access_key)
+            ).add_env_variable(k8s_client.V1EnvVar(name=prefix + "AWS_SECRET_ACCESS_KEY", value=_secret_key))
 
     return _use_s3_cred
 
@@ -311,9 +275,7 @@ def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pip
             mount = os.environ.get("MLRUN_PVC_MOUNT")
             items = mount.split(":")
             if len(items) != 2:
-                raise MLRunInvalidArgumentError(
-                    "MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>"
-                )
+                raise MLRunInvalidArgumentError("MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>")
             pvc_name = items[0]
             volume_mount_path = items[1]
 
@@ -329,9 +291,7 @@ def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pip
         local_pvc = k8s_client.V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
         return task.add_volume(
             k8s_client.V1Volume(name=volume_name, persistent_volume_claim=local_pvc)
-        ).add_volume_mount(
-            k8s_client.V1VolumeMount(mount_path=volume_mount_path, name=volume_name)
-        )
+        ).add_volume_mount(k8s_client.V1VolumeMount(mount_path=volume_mount_path, name=volume_name))
 
     return _mount_pvc
 
@@ -384,9 +344,7 @@ def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
         from kubernetes import client as k8s_client
 
         vol = k8s_client.V1SecretVolumeSource(secret_name=secret_name, items=items)
-        return task.add_volume(
-            k8s_client.V1Volume(name=volume_name, secret=vol)
-        ).add_volume_mount(
+        return task.add_volume(k8s_client.V1Volume(name=volume_name, secret=vol)).add_volume_mount(
             k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
         )
 
@@ -412,9 +370,7 @@ def mount_configmap(configmap_name, mount_path, volume_name="configmap", items=N
         from kubernetes import client as k8s_client
 
         vol = k8s_client.V1ConfigMapVolumeSource(name=configmap_name, items=items)
-        return task.add_volume(
-            k8s_client.V1Volume(name=volume_name, config_map=vol)
-        ).add_volume_mount(
+        return task.add_volume(k8s_client.V1Volume(name=volume_name, config_map=vol)).add_volume_mount(
             k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
         )
 
@@ -437,9 +393,7 @@ def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
                 name=volume_name,
                 host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
             )
-        ).add_volume_mount(
-            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
-        )
+        ).add_volume_mount(k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name))
 
     return _mount_hostpath
 
@@ -468,9 +422,7 @@ def set_env_variables(env_vars_dict: dict[str, str] = None, **kwargs):
         from kubernetes import client as k8s_client
 
         for _key, _value in env_data.items():
-            container_op.container.add_env_variable(
-                k8s_client.V1EnvVar(name=_key, value=_value)
-            )
+            container_op.container.add_env_variable(k8s_client.V1EnvVar(name=_key, value=_value))
         return container_op
 
     return _set_env_variables

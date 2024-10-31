@@ -66,9 +66,7 @@ class LoggingCallback(Callback):
                 Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
             ],
         ] = None,
-        static_hyperparameters: dict[
-            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
-        ] = None,
+        static_hyperparameters: dict[str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]] = None,
         auto_log: bool = False,
     ):
         """
@@ -103,12 +101,8 @@ class LoggingCallback(Callback):
         super().__init__()
 
         # Store the configurations:
-        self._dynamic_hyperparameters_keys = (
-            dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
-        )
-        self._static_hyperparameters_keys = (
-            static_hyperparameters if static_hyperparameters is not None else {}
-        )
+        self._dynamic_hyperparameters_keys = dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
+        self._static_hyperparameters_keys = static_hyperparameters if static_hyperparameters is not None else {}
 
         # Initialize the logger:
         self._logger = Logger(context=context)
@@ -293,9 +287,7 @@ class LoggingCallback(Callback):
             self._is_training = False
             self._logger.set_mode(mode=LoggingMode.EVALUATION)
 
-    def on_validation_end(
-        self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]
-    ):
+    def on_validation_end(self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the
         validation results summaries.
@@ -312,9 +304,7 @@ class LoggingCallback(Callback):
         )
 
         # Store the validation metrics averages of this epoch:
-        for metric_function, metric_value in zip(
-            self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values
-        ):
+        for metric_function, metric_value in zip(self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values):
             self._logger.log_validation_summary(
                 metric_name=self._get_metric_name(
                     metric_function=metric_function,
@@ -378,9 +368,7 @@ class LoggingCallback(Callback):
 
         :param metric_values: The recent metric values calculated during training.
         """
-        for metric_function, metric_value in zip(
-            self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values
-        ):
+        for metric_function, metric_value in zip(self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values):
             self._logger.log_training_result(
                 metric_name=self._get_metric_name(
                     metric_function=metric_function,
@@ -388,17 +376,13 @@ class LoggingCallback(Callback):
                 result=float(metric_value),
             )
 
-    def on_validation_metrics_end(
-        self, metric_values: list[PyTorchTypes.MetricValueType]
-    ):
+    def on_validation_metrics_end(self, metric_values: list[PyTorchTypes.MetricValueType]):
         """
         After the validating calculation of the metrics, this method will be called to log the metrics values.
 
         :param metric_values: The recent metric values calculated during validation.
         """
-        for metric_function, metric_value in zip(
-            self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values
-        ):
+        for metric_function, metric_value in zip(self._objects[self._ObjectKeys.METRIC_FUNCTIONS], metric_values):
             self._logger.log_validation_result(
                 metric_name=self._get_metric_name(
                     metric_function=metric_function,
@@ -436,10 +420,7 @@ class LoggingCallback(Callback):
             HyperparametersKeys.OPTIMIZER,
             ["param_groups", 0, "lr"],
         )
-        if (
-            "lr" not in self._dynamic_hyperparameters_keys
-            and "learning_rate" not in self._dynamic_hyperparameters_keys
-        ):
+        if "lr" not in self._dynamic_hyperparameters_keys and "learning_rate" not in self._dynamic_hyperparameters_keys:
             if self._objects[self._ObjectKeys.OPTIMIZER] is not None:
                 try:
                     # Try to get the learning rate value:
@@ -455,9 +436,7 @@ class LoggingCallback(Callback):
     def _get_hyperparameter(
         self,
         source: str,
-        key_chain: Union[
-            list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
-        ],
+        key_chain: Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
     ) -> PyTorchTypes.TrackableType:
         """
         Access the hyperparameter from the source using the given key chain.
@@ -481,8 +460,7 @@ class LoggingCallback(Callback):
                 value = key_chain()
             except TypeError:
                 raise TypeError(
-                    f"The given value of the source '{source}' "
-                    f"is of type '{type(key_chain)}' and is not callable."
+                    f"The given value of the source '{source}' " f"is of type '{type(key_chain)}' and is not callable."
                 )
         else:
             # Needed to be extracted via key chain:

@@ -88,9 +88,7 @@ class V3IOTSDBConnector(TSDBConnector):
             _,
             _,
             events_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-            events_table_full_path
-        )
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(events_table_full_path)
         self.tables[mm_schemas.V3IOTSDBTables.EVENTS] = events_path
 
         errors_table_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -101,44 +99,32 @@ class V3IOTSDBConnector(TSDBConnector):
             _,
             _,
             errors_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-            errors_table_full_path
-        )
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(errors_table_full_path)
         self.tables[mm_schemas.V3IOTSDBTables.ERRORS] = errors_path
 
-        monitoring_application_full_path = (
-            mlrun.mlconf.get_model_monitoring_file_target_path(
-                project=self.project,
-                kind=mm_schemas.FileTargetKind.MONITORING_APPLICATION,
-            )
+        monitoring_application_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mm_schemas.FileTargetKind.MONITORING_APPLICATION,
         )
         (
             _,
             _,
             monitoring_application_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-            monitoring_application_full_path
-        )
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(monitoring_application_full_path)
         self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS] = (
             monitoring_application_path + mm_schemas.V3IOTSDBTables.APP_RESULTS
         )
-        self.tables[mm_schemas.V3IOTSDBTables.METRICS] = (
-            monitoring_application_path + mm_schemas.V3IOTSDBTables.METRICS
-        )
+        self.tables[mm_schemas.V3IOTSDBTables.METRICS] = monitoring_application_path + mm_schemas.V3IOTSDBTables.METRICS
 
-        monitoring_predictions_full_path = (
-            mlrun.mlconf.get_model_monitoring_file_target_path(
-                project=self.project,
-                kind=mm_schemas.FileTargetKind.PREDICTIONS,
-            )
+        monitoring_predictions_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mm_schemas.FileTargetKind.PREDICTIONS,
         )
         (
             _,
             _,
             monitoring_predictions_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-            monitoring_predictions_full_path
-        )
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(monitoring_predictions_full_path)
         self.tables[mm_schemas.FileTargetKind.PREDICTIONS] = monitoring_predictions_path
 
     def create_tables(self) -> None:
@@ -360,9 +346,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 table=table,
                 event=event,
             )
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Failed to write application result to TSDB: {err}"
-            )
+            raise mlrun.errors.MLRunRuntimeError(f"Failed to write application result to TSDB: {err}")
 
     def delete_tsdb_resources(self, table: Optional[str] = None):
         if table:
@@ -408,9 +392,7 @@ class V3IOTSDBConnector(TSDBConnector):
         """
 
         if not metrics:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Metric names must be provided"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Metric names must be provided")
 
         metrics_mapping = {}
 
@@ -430,9 +412,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 if metric_data is None:
                     continue
 
-                values = [
-                    (str(timestamp), value) for timestamp, value in metric_data.items()
-                ]
+                values = [(str(timestamp), value) for timestamp, value in metric_data.items()]
                 metrics_mapping[metric] = values
 
         except v3io_frames.Error as err:
@@ -522,10 +502,8 @@ class V3IOTSDBConnector(TSDBConnector):
         )
 
         # Generate the main directory with the V3IO resources
-        source_directory = (
-            mlrun.common.model_monitoring.helpers.parse_model_endpoint_project_prefix(
-                events_table_full_path, self.project
-            )
+        source_directory = mlrun.common.model_monitoring.helpers.parse_model_endpoint_project_prefix(
+            events_table_full_path, self.project
         )
 
         return source_directory
@@ -626,16 +604,14 @@ class V3IOTSDBConnector(TSDBConnector):
 
         with StringIO() as query:
             query.write(
-                f"SELECT {selection} FROM '{table_path}' "
-                f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
+                f"SELECT {selection} FROM '{table_path}' " f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
             )
             if metric_and_app_names:
                 query.write(" AND (")
 
                 for i, (app_name, result_name) in enumerate(metric_and_app_names):
                     sub_cond = (
-                        f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{app_name}' "
-                        f"AND {name}='{result_name}')"
+                        f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{app_name}' " f"AND {name}='{result_name}')"
                     )
                     if i != 0:  # not first sub condition
                         query.write(" OR ")
@@ -658,9 +634,7 @@ class V3IOTSDBConnector(TSDBConnector):
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
     ]:
-        if (agg_funcs and not aggregation_window) or (
-            aggregation_window and not agg_funcs
-        ):
+        if (agg_funcs and not aggregation_window) or (aggregation_window and not agg_funcs):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "both or neither of `aggregation_window` and `agg_funcs` must be provided"
             )
@@ -683,9 +657,7 @@ class V3IOTSDBConnector(TSDBConnector):
             )
 
         latency_column = (
-            f"{agg_funcs[0]}({mm_schemas.EventFieldType.LATENCY})"
-            if agg_funcs
-            else mm_schemas.EventFieldType.LATENCY
+            f"{agg_funcs[0]}({mm_schemas.EventFieldType.LATENCY})" if agg_funcs else mm_schemas.EventFieldType.LATENCY
         )
 
         return mm_schemas.ModelEndpointMonitoringMetricValues(
@@ -704,9 +676,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        endpoint_ids = endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         df = self._get_records(
             table=mm_schemas.FileTargetKind.PREDICTIONS,
             start=start,
@@ -722,12 +692,8 @@ class V3IOTSDBConnector(TSDBConnector):
                 },
                 inplace=True,
             )
-            df[mm_schemas.EventFieldType.LAST_REQUEST] = df[
-                mm_schemas.EventFieldType.LAST_REQUEST
-            ].map(
-                lambda last_request: datetime.fromtimestamp(
-                    last_request, tz=timezone.utc
-                )
+            df[mm_schemas.EventFieldType.LAST_REQUEST] = df[mm_schemas.EventFieldType.LAST_REQUEST].map(
+                lambda last_request: datetime.fromtimestamp(last_request, tz=timezone.utc)
             )
 
         return df.reset_index(drop=True)
@@ -738,9 +704,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        endpoint_ids = endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end, delta_start=-24)
         df = self._get_records(
@@ -753,9 +717,7 @@ class V3IOTSDBConnector(TSDBConnector):
             group_by="endpoint_id",
         )
         if not df.empty:
-            df.columns = [
-                col[len("max(") : -1] if "max(" in col else col for col in df.columns
-            ]
+            df.columns = [col[len("max(") : -1] if "max(" in col else col for col in df.columns]
         return df.reset_index(drop=True)
 
     def get_metrics_metadata(
@@ -774,9 +736,7 @@ class V3IOTSDBConnector(TSDBConnector):
             agg_funcs=["last"],
         )
         if not df.empty:
-            df.drop(
-                columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"], inplace=True
-            )
+            df.drop(columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"], inplace=True)
         return df.reset_index(drop=True)
 
     def get_results_metadata(
@@ -798,9 +758,7 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         if not df.empty:
             df.rename(
-                columns={
-                    f"last({mm_schemas.ResultData.RESULT_KIND})": mm_schemas.ResultData.RESULT_KIND
-                },
+                columns={f"last({mm_schemas.ResultData.RESULT_KIND})": mm_schemas.ResultData.RESULT_KIND},
                 inplace=True,
             )
         return df.reset_index(drop=True)
@@ -811,9 +769,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = None,
         end: Union[datetime, str] = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        endpoint_ids = endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.FileTargetKind.ERRORS,
@@ -826,9 +782,7 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         if not df.empty:
             df.rename(
-                columns={
-                    f"count({mm_schemas.EventFieldType.ERROR_COUNT})": mm_schemas.EventFieldType.ERROR_COUNT
-                },
+                columns={f"count({mm_schemas.EventFieldType.ERROR_COUNT})": mm_schemas.EventFieldType.ERROR_COUNT},
                 inplace=True,
             )
             df.dropna(inplace=True)
@@ -840,9 +794,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        endpoint_ids = endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.FileTargetKind.PREDICTIONS,

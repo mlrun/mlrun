@@ -154,9 +154,7 @@ class PyTorchModelServer(V2ModelServer):
         self.model = self._model_handler.model
 
         # Initialize the MLRun interface:
-        self._pytorch_interface = PyTorchMLRunInterface(
-            model=self._model_handler.model, context=self.context
-        )
+        self._pytorch_interface = PyTorchMLRunInterface(model=self._model_handler.model, context=self.context)
 
     def predict(self, request: dict[str, Any]) -> Union[Tensor, list]:
         """
@@ -176,9 +174,7 @@ class PyTorchModelServer(V2ModelServer):
             inputs = [torch.from_numpy(array_input) for array_input in inputs]
 
         # Predict:
-        predictions = self._pytorch_interface.predict(
-            inputs=inputs, use_cuda=self.use_cuda
-        )
+        predictions = self._pytorch_interface.predict(inputs=inputs, use_cuda=self.use_cuda)
 
         # Return as list if required:
         return predictions if not self.to_list else predictions.tolist()

@@ -48,9 +48,7 @@ class PackagerA(Packager):
     def get_supported_artifact_types(self) -> list[str]:
         return ["result"]
 
-    def is_packable(
-        self, obj: Any, artifact_type: str = None, configurations: dict = None
-    ) -> bool:
+    def is_packable(self, obj: Any, artifact_type: str = None, configurations: dict = None) -> bool:
         return type(obj) is self.PACKABLE_OBJECT_TYPE and artifact_type == "result"
 
     def pack(
@@ -203,9 +201,7 @@ class NotAPackager:
         ),
     ],
 )
-def test_collect_packagers(
-    packagers_to_collect: list[str], validation: Union[list[type[Packager]], str]
-):
+def test_collect_packagers(packagers_to_collect: list[str], validation: Union[list[type[Packager]], str]):
     """
     Test the manager's `collect_packagers` method.
 
@@ -228,9 +224,9 @@ def test_collect_packagers(
         raise error
 
     # Validate only the required packagers were collected:
-    assert set(
-        packager.__class__.__name__ for packager in packagers_manager._packagers
-    ) == set(packager.__name__ for packager in validation)
+    assert set(packager.__class__.__name__ for packager in packagers_manager._packagers) == set(
+        packager.__name__ for packager in validation
+    )
 
 
 @pytest.mark.parametrize(
@@ -262,18 +258,14 @@ def test_packagers_priority(
     for packager, priority in zip(packagers_to_collect, [2, 1]):
         if not set_via_default_priority:
             packager.PRIORITY = priority
-        packagers_manager.collect_packagers(
-            packagers=[packager], default_priority=priority
-        )
+        packagers_manager.collect_packagers(packagers=[packager], default_priority=priority)
         for collected_packager in packagers_manager._packagers:
             if collected_packager.__class__.__name__ == packager:
                 assert collected_packager.priority == priority
 
     # Pack a string as a result:
     key = "some_key"
-    packagers_manager.pack(
-        obj="some string", log_hint={"key": key, "artifact_type": "result"}
-    )
+    packagers_manager.pack(obj="some string", log_hint={"key": key, "artifact_type": "result"})
 
     # Make sure the correct packager packed the result by the suffix:
     assert f"{key}{result_key_suffix}" in packagers_manager.results
@@ -302,13 +294,9 @@ def test_clear_packagers_outputs():
     )
 
     # Get the created files:
-    a_temp_dir = packagers_manager.artifacts[0].spec.unpackaging_instructions[
-        "instructions"
-    ]["temp_dir"]
+    a_temp_dir = packagers_manager.artifacts[0].spec.unpackaging_instructions["instructions"]["temp_dir"]
     a_file = os.path.join(a_temp_dir, "a.txt")
-    b_temp_dir = packagers_manager.artifacts[1].spec.unpackaging_instructions[
-        "instructions"
-    ]["temp_dir"]
+    b_temp_dir = packagers_manager.artifacts[1].spec.unpackaging_instructions["instructions"]["temp_dir"]
 
     # Assert they do exist before clearing up:
     assert os.path.exists(a_file)
@@ -380,9 +368,7 @@ def test_arbitrary_log_hint(
 
     # Pack an arbitrary amount of objects:
     try:
-        packagers_manager.pack(
-            obj=obj, log_hint={"key": key, "artifact_type": "result", "n_round": 2}
-        )
+        packagers_manager.pack(obj=obj, log_hint={"key": key, "artifact_type": "result", "n_round": 2})
     except MLRunInvalidArgumentError as error:
         # Catch only if the expected results is a string, otherwise it is a legitimate exception:
         if isinstance(expected_results, str):
@@ -437,9 +423,7 @@ def test_plural_type_hint_unpacking(
 
     # Pack an arbitrary amount of objects:
     try:
-        value = packagers_manager.unpack(
-            data_item=_DummyDataItem(key=data), type_hint=type_hint
-        )
+        value = packagers_manager.unpack(data_item=_DummyDataItem(key=data), type_hint=type_hint)
     except MLRunPackageUnpackingError as error:
         # Catch only if the expected results is a string, otherwise it is a legitimate exception:
         if isinstance(expected_results, str):

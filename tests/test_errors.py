@@ -102,12 +102,8 @@ def test_raise_for_aiohttp_client_response_status():
     response.reason = "Service Unavailable"
     with pytest.raises(MLRunHTTPError) as exc:
         raise_for_status(response)
-    assert (
-        exc.value.response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
-    ), "should have raised 503"
-    assert isinstance(
-        exc.value.response, ClientResponse
-    ), "should have aiohttp client response in exception"
+    assert exc.value.response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE, "should have raised 503"
+    assert isinstance(exc.value.response, ClientResponse), "should have aiohttp client response in exception"
 
 
 class TestErrToStatusCodeError(Exception):
@@ -130,9 +126,7 @@ def test_err_to_status_code(status_code, exc, message):
         try:
             raise TestErrToStatusCodeError(status_code, message)
         except TestErrToStatusCodeError as test_exc:
-            raise err_for_status_code(
-                test_exc.status_code, test_exc.message
-            ) from test_exc
+            raise err_for_status_code(test_exc.status_code, test_exc.message) from test_exc
 
     if exc != mlrun.errors.MLRunHTTPError:
         assert _exc.value.error_status_code == int(status_code)

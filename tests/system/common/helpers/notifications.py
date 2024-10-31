@@ -23,9 +23,7 @@ import mlrun.projects
 assets_path = pathlib.Path(__file__).parent.parent / "assets"
 
 
-def deploy_notification_nuclio(
-    project: mlrun.projects.MlrunProject, image: str = None
-) -> str:
+def deploy_notification_nuclio(project: mlrun.projects.MlrunProject, image: str = None) -> str:
     nuclio_function = project.set_function(
         name="notification-nuclio-function",
         func=str(assets_path / "notification_nuclio_function.py"),

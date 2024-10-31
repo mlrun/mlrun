@@ -92,9 +92,7 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
     """
 
     @staticmethod
-    def _calc_kl_div(
-        actual_dist: np.ndarray, expected_dist: np.ndarray, zero_scaling: float
-    ) -> float:
+    def _calc_kl_div(actual_dist: np.ndarray, expected_dist: np.ndarray, zero_scaling: float) -> float:
         """Return the asymmetric KL divergence"""
         # We take 0*log(0) == 0 for this calculation
         mask = actual_dist != 0
@@ -104,14 +102,10 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
             # Ignore overflow warnings when dividing by small numbers,
             # resulting in inf:
             # RuntimeWarning: overflow encountered in true_divide
-            relative_prob = actual_dist / np.where(
-                expected_dist != 0, expected_dist, zero_scaling
-            )
+            relative_prob = actual_dist / np.where(expected_dist != 0, expected_dist, zero_scaling)
         return np.sum(actual_dist * np.log(relative_prob))
 
-    def compute(
-        self, capping: Optional[float] = None, zero_scaling: float = 1e-4
-    ) -> float:
+    def compute(self, capping: Optional[float] = None, zero_scaling: float = 1e-4) -> float:
         """
         :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
                              the capping value which indicates a huge differences between the distributions.

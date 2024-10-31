@@ -78,9 +78,7 @@ class TestAwsS3:
     def setup_class(cls):
         with open(cls.test_file) as f:
             cls.test_string = f.read()
-        cls._fs = fsspec.filesystem(
-            "s3", anon=False, key=cls.access_key_id, secret=cls._secret_access_key
-        )
+        cls._fs = fsspec.filesystem("s3", anon=False, key=cls.access_key_id, secret=cls._secret_access_key)
 
     @classmethod
     def teardown_class(cls):
@@ -167,9 +165,7 @@ class TestAwsS3:
         # This simulates running a job in a pod with project-secrets assigned to it
         for param in credential_params:
             os.environ.pop(param, None)
-            os.environ[SecretsStore.k8s_env_variable_name_for_secret(param)] = config[
-                "env"
-            ][param]
+            os.environ[SecretsStore.k8s_env_variable_name_for_secret(param)] = config["env"][param]
 
         self._perform_aws_s3_tests()
 
@@ -323,9 +319,7 @@ class TestAwsS3:
 
         first_start_time = time.monotonic()
 
-        with tempfile.NamedTemporaryFile(
-            suffix=".txt", delete=True, mode="wb"
-        ) as temp_file:
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=True, mode="wb") as temp_file:
             num_chunks = file_size // chunk_size
             remainder = file_size % chunk_size
             for _ in range(num_chunks):
@@ -338,22 +332,15 @@ class TestAwsS3:
             temp_file.seek(0)
 
             logger.info(
-                f"s3 test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
-                "seconds"
+                f"s3 test_large_upload - finished to write locally in {time.monotonic() - first_start_time} " "seconds"
             )
             start_time = time.monotonic()
             data_item.upload(temp_file.name)
-            logger.info(
-                f"s3 test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
-            )
-            with tempfile.NamedTemporaryFile(
-                suffix=".txt", delete=True, mode="wb"
-            ) as temp_file_download:
+            logger.info(f"s3 test_large_upload - finished to upload in {time.monotonic() - start_time} seconds")
+            with tempfile.NamedTemporaryFile(suffix=".txt", delete=True, mode="wb") as temp_file_download:
                 start_time = time.monotonic()
                 data_item.download(temp_file_download.name)
-                logger.info(
-                    f"s3 test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
-                )
+                logger.info(f"s3 test_large_upload - finished to download in {time.monotonic() - start_time} seconds")
                 with (
                     open(temp_file.name, "rb") as file1,
                     open(temp_file_download.name, "rb") as file2,
@@ -376,15 +363,9 @@ class TestAwsS3:
         os.environ.pop("AWS_SECRET_ACCESS_KEY")
         os.environ.pop("AWS_ACCESS_KEY_ID")
 
-        credentials_dict = (
-            {"secret_key": fake_token, "access_key_id": self.access_key_id}
-            if fake_token
-            else {}
-        )
+        credentials_dict = {"secret_key": fake_token, "access_key_id": self.access_key_id} if fake_token else {}
         if use_datastore_profile:
-            self.profile = DatastoreProfileS3(
-                name=self.profile_name, **credentials_dict
-            )
+            self.profile = DatastoreProfileS3(name=self.profile_name, **credentials_dict)
             register_temporary_client_datastore_profile(self.profile)
         else:
             if fake_token:

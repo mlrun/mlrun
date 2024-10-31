@@ -108,9 +108,7 @@ def test_with_args(make_stream_logger):
 
 def test_with_args_and_kwargs(make_stream_logger):
     stream, test_logger = make_stream_logger
-    test_logger.debug(
-        "special_arg %s", "special_arg_value", special_kwarg_name="special_kwarg_value"
-    )
+    test_logger.debug("special_arg %s", "special_arg_value", special_kwarg_name="special_kwarg_value")
     assert "special_arg" in stream.getvalue()
     assert "special_arg_value" in stream.getvalue()
     assert "special_kwarg_name" in stream.getvalue()
@@ -187,10 +185,7 @@ def test_custom_logger():
 
     # Format the current time in the same format as the given timestamp
     formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
-    expected_logger = (
-        f"> {formatted_time} [debug] Running module: logger test custom : "
-        + '{"a":1,"b":2}'
-    )
+    expected_logger = f"> {formatted_time} [debug] Running module: logger test custom : " + '{"a":1,"b":2}'
     mlrun.mlconf.log_format_override = format
     logger = create_logger(
         "debug",

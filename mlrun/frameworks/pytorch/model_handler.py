@@ -131,9 +131,7 @@ class PyTorchModelHandler(DLModelHandler):
 
         # Parse the class name (in case it was passed as a class type) and store it:
         if model_class is not None:
-            self._model_class_name = (
-                model_class if isinstance(model_class, str) else model_class.__name__
-            )
+            self._model_class_name = model_class if isinstance(model_class, str) else model_class.__name__
 
         # Set up the base handler class:
         super().__init__(
@@ -167,9 +165,7 @@ class PyTorchModelHandler(DLModelHandler):
         # Set the required labels:
         self._labels[self._LabelKeys.MODEL_CLASS_NAME] = self._model_class_name
 
-    def save(
-        self, output_path: str = None, **kwargs
-    ) -> Union[dict[str, Artifact], None]:
+    def save(self, output_path: str = None, **kwargs) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
 
@@ -210,10 +206,7 @@ class PyTorchModelHandler(DLModelHandler):
         super().load()
 
         # Validate the model's class is in the custom objects map:
-        if (
-            self._model_class_name not in self._custom_objects
-            and self._model_class_name not in self._modules
-        ):
+        if self._model_class_name not in self._custom_objects and self._model_class_name not in self._modules:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"The model class '{self._model_class_name}' was not found in the given custom objects map. The custom "
                 f"objects map must include the model's class name in its values. Usually the model class should appear "
@@ -303,9 +296,7 @@ class PyTorchModelHandler(DLModelHandler):
                 [
                     torch.zeros(
                         size=input_feature.dims,
-                        dtype=PyTorchUtils.convert_value_type_to_torch_dtype(
-                            value_type=input_feature.value_type
-                        ),
+                        dtype=PyTorchUtils.convert_value_type_to_torch_dtype(value_type=input_feature.value_type),
                     )
                     for input_feature in self._inputs
                 ]
@@ -316,18 +307,9 @@ class PyTorchModelHandler(DLModelHandler):
         # Set the default input layers names if not provided:
         if input_layers_names is None:
             input_layers_names = (
-                (
-                    [f"input_{i}" for i in range(len(input_sample))]
-                    if isinstance(input_sample, tuple)
-                    else ["input_0"]
-                )
+                ([f"input_{i}" for i in range(len(input_sample))] if isinstance(input_sample, tuple) else ["input_0"])
                 if self._inputs is None
-                else (
-                    [
-                        f"input_{i}" if layer.name == "" else layer.name
-                        for i, layer in enumerate(self._inputs)
-                    ]
-                )
+                else ([f"input_{i}" if layer.name == "" else layer.name for i, layer in enumerate(self._inputs)])
             )
 
         # Set the default output layers names if not provided:
@@ -335,18 +317,12 @@ class PyTorchModelHandler(DLModelHandler):
             output_layers_names = (
                 ["output_0"]
                 if self._outputs is None
-                else [
-                    f"output_{i}" if layer.name == "" else layer.name
-                    for i, layer in enumerate(self._outputs)
-                ]
+                else [f"output_{i}" if layer.name == "" else layer.name for i, layer in enumerate(self._outputs)]
             )
 
         # Setup first axis to be a batch_size if needed:
         if dynamic_axes is None and is_batched:
-            dynamic_axes = {
-                layer: {0: "batch_size"}
-                for layer in input_layers_names + output_layers_names
-            }
+            dynamic_axes = {layer: {0: "batch_size"} for layer in input_layers_names + output_layers_names}
 
         # Set the output model file:
         onnx_file = f"{model_name}.onnx"
@@ -369,9 +345,7 @@ class PyTorchModelHandler(DLModelHandler):
         )
 
         # Create a handler for the ONNX model:
-        onnx_handler = ONNXModelHandler(
-            model_name=model_name, model_path=output_path, context=self._context
-        )
+        onnx_handler = ONNXModelHandler(model_name=model_name, model_path=output_path, context=self._context)
 
         # Pass on the inputs and outputs properties:
         if self._inputs is not None:
@@ -401,9 +375,7 @@ class PyTorchModelHandler(DLModelHandler):
         the model.
         """
         # Read the model's class name:
-        self._model_class_name = self._model_artifact.labels[
-            self._LabelKeys.MODEL_CLASS_NAME
-        ]
+        self._model_class_name = self._model_artifact.labels[self._LabelKeys.MODEL_CLASS_NAME]
 
         # Continue collecting from abstract class:
         super()._collect_files_from_store_object()
@@ -446,9 +418,7 @@ class PyTorchModelHandler(DLModelHandler):
             return super()._read_sample(sample=sample)
         elif isinstance(sample, torch.Tensor):
             return Feature(
-                value_type=PyTorchUtils.convert_torch_dtype_to_value_type(
-                    torch_dtype=sample.dtype
-                ),
+                value_type=PyTorchUtils.convert_torch_dtype_to_value_type(torch_dtype=sample.dtype),
                 dims=list(sample.shape),
             )
 

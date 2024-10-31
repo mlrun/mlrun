@@ -27,39 +27,25 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_ctx_creation_creates_run_with_project(self):
         ctx_name = "some-context"
         mlrun.get_or_create_ctx(ctx_name)
-        runs = mlrun.get_run_db().list_runs(
-            name=ctx_name, project=mlrun.mlconf.default_project
-        )
+        runs = mlrun.get_run_db().list_runs(name=ctx_name, project=mlrun.mlconf.default_project)
         assert len(runs) == 1
         assert runs[0]["metadata"]["project"] == mlrun.mlconf.default_project
 
     def test_ctx_state_change(self):
         ctx_name = "some-context"
         ctx = mlrun.get_or_create_ctx(ctx_name)
-        runs = mlrun.get_run_db().list_runs(
-            name=ctx_name, project=mlrun.mlconf.default_project
-        )
+        runs = mlrun.get_run_db().list_runs(name=ctx_name, project=mlrun.mlconf.default_project)
         assert len(runs) == 1
-        assert (
-            runs[0]["status"]["state"]
-            == mlrun.common.runtimes.constants.RunStates.running
-        )
+        assert runs[0]["status"]["state"] == mlrun.common.runtimes.constants.RunStates.running
         ctx.set_state(mlrun.common.runtimes.constants.RunStates.completed)
-        runs = mlrun.get_run_db().list_runs(
-            name=ctx_name, project=mlrun.mlconf.default_project
-        )
+        runs = mlrun.get_run_db().list_runs(name=ctx_name, project=mlrun.mlconf.default_project)
         assert len(runs) == 1
-        assert (
-            runs[0]["status"]["state"]
-            == mlrun.common.runtimes.constants.RunStates.completed
-        )
+        assert runs[0]["status"]["state"] == mlrun.common.runtimes.constants.RunStates.completed
 
     def test_ctx_run_labels(self):
         ctx_name = "some-context"
         ctx = mlrun.get_or_create_ctx(ctx_name)
-        runs = mlrun.get_run_db().list_runs(
-            name=ctx_name, project=mlrun.mlconf.default_project
-        )
+        runs = mlrun.get_run_db().list_runs(name=ctx_name, project=mlrun.mlconf.default_project)
         assert len(runs) == 1
 
         _remove_internal_labels(runs)
@@ -68,9 +54,7 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         ctx.set_label("label-key", "label-value")
         ctx._update_run(commit=True)
-        runs = mlrun.get_run_db().list_runs(
-            name=ctx_name, project=mlrun.mlconf.default_project
-        )
+        runs = mlrun.get_run_db().list_runs(name=ctx_name, project=mlrun.mlconf.default_project)
         assert len(runs) == 1
 
         _remove_internal_labels(runs)
@@ -84,9 +68,7 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
         ctx._update_run(commit=True)
 
         # labels should remain the same
-        runs = mlrun.get_run_db().list_runs(
-            name=ctx_name, project=mlrun.mlconf.default_project
-        )
+        runs = mlrun.get_run_db().list_runs(name=ctx_name, project=mlrun.mlconf.default_project)
         assert len(runs) == 1
 
         _remove_internal_labels(runs)
@@ -94,9 +76,7 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert runs[0]["metadata"]["labels"] == {"label-key": "label-value"}
 
     def test_local_runtime_hyper(self):
-        spec = mlrun.new_task(
-            params={"p1": 8}, out_path=out_path, in_path=examples_path
-        )
+        spec = mlrun.new_task(params={"p1": 8}, out_path=out_path, in_path=examples_path)
         spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
         result = mlrun.new_function(command=f"{examples_path}/training.py").run(spec)
         state = result.status.state

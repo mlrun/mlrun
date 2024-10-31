@@ -47,17 +47,11 @@ class GoogleCloudStorageStore(DataStore):
         access = "https://www.googleapis.com/auth/devstorage.full_control"
         if isinstance(token, str):
             if os.path.exists(token):
-                credentials = service_account.Credentials.from_service_account_file(
-                    token, scopes=[access]
-                )
+                credentials = service_account.Credentials.from_service_account_file(token, scopes=[access])
             else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "gcsfs authentication file not found!"
-                )
+                raise mlrun.errors.MLRunInvalidArgumentError("gcsfs authentication file not found!")
         elif isinstance(token, dict):
-            credentials = service_account.Credentials.from_service_account_info(
-                token, scopes=[access]
-            )
+            credentials = service_account.Credentials.from_service_account_info(token, scopes=[access])
         elif isinstance(token, Credentials):
             credentials = token
         else:
@@ -88,25 +82,19 @@ class GoogleCloudStorageStore(DataStore):
         return self._storage_options
 
     def _get_credentials(self):
-        credentials = self._get_secret_or_env(
-            "GCP_CREDENTIALS"
-        ) or self._get_secret_or_env("GOOGLE_APPLICATION_CREDENTIALS")
+        credentials = self._get_secret_or_env("GCP_CREDENTIALS") or self._get_secret_or_env(
+            "GOOGLE_APPLICATION_CREDENTIALS"
+        )
         if credentials:
             try:
                 # Try to handle credentials as a json connection string or do nothing if already a dict
-                token = (
-                    credentials
-                    if isinstance(credentials, dict)
-                    else json.loads(credentials)
-                )
+                token = credentials if isinstance(credentials, dict) else json.loads(credentials)
             except json.JSONDecodeError:
                 # If it's not json, handle it as a filename
                 token = credentials
             return self._sanitize_storage_options(dict(token=token))
         else:
-            logger.info(
-                "No GCS credentials available - auth will rely on auto-discovery of credentials"
-            )
+            logger.info("No GCS credentials available - auth will rely on auto-discovery of credentials")
             return self._sanitize_storage_options(None)
 
     def get_storage_options(self):
@@ -128,9 +116,7 @@ class GoogleCloudStorageStore(DataStore):
         path = self._make_path(key)
 
         if append:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Append mode not supported for Google cloud storage datastore"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Append mode not supported for Google cloud storage datastore")
         data, mode = self._prepare_put_data(data, append)
         with self.filesystem.open(path, mode) as f:
             f.write(data)
@@ -180,9 +166,7 @@ class GoogleCloudStorageStore(DataStore):
         remote_path = f"{path}/**"
         files = self.filesystem.glob(remote_path)
         key_length = len(key)
-        files = [
-            f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
-        ]
+        files = [f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1]
         return files
 
     def rm(self, path, recursive=False, maxdepth=None):
@@ -207,17 +191,11 @@ class GoogleCloudStorageStore(DataStore):
             if "project_id" in credentials:
                 res["spark.hadoop.fs.gs.project.id"] = credentials["project_id"]
             if "private_key_id" in credentials:
-                res["spark.hadoop.fs.gs.auth.service.account.private.key.id"] = (
-                    credentials["private_key_id"]
-                )
+                res["spark.hadoop.fs.gs.auth.service.account.private.key.id"] = credentials["private_key_id"]
             if "private_key" in credentials:
-                res["spark.hadoop.fs.gs.auth.service.account.private.key"] = (
-                    credentials["private_key"]
-                )
+                res["spark.hadoop.fs.gs.auth.service.account.private.key"] = credentials["private_key"]
             if "client_email" in credentials:
-                res["spark.hadoop.fs.gs.auth.service.account.email"] = credentials[
-                    "client_email"
-                ]
+                res["spark.hadoop.fs.gs.auth.service.account.email"] = credentials["client_email"]
             if "client_id" in credentials:
                 res["spark.hadoop.fs.gs.client.id"] = credentials["client_id"]
         return res

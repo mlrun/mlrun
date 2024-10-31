@@ -65,9 +65,7 @@ class PipelineManifest(FlexibleMapper):
 
     def get_executors(self):
         if self.is_argo_compatible():
-            yield from [
-                (t.get("name"), t) for t in self._external_data["spec"]["templates"]
-            ]
+            yield from [(t.get("name"), t) for t in self._external_data["spec"]["templates"]]
         else:
             yield from self._external_data["deploymentSpec"]["executors"].items()
 

@@ -41,9 +41,7 @@ class LGBMTypes(MLTypes):
     ]
 
     # Detailed type for the named tuple `CallbackEnv` passed during LightGBM's training for the callbacks:
-    CallbackEnvType = tuple[
-        lgb.Booster, dict, int, int, int, list[EvaluationResultType]
-    ]
+    CallbackEnvType = tuple[lgb.Booster, dict, int, int, int, list[EvaluationResultType]]
 
 
 class LGBMUtils(MLUtils):

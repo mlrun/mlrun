@@ -199,8 +199,7 @@ def parse_selector(criteria):
         field = criteria[idx + 1 :]
     if op not in ["min", "max"]:
         raise ValueError(
-            f"illegal iteration selector {criteria}, "
-            "selector format [min|max.]<result-name> e.g. max.accuracy"
+            f"illegal iteration selector {criteria}, " "selector format [min|max.]<result-name> e.g. max.accuracy"
         )
     return op, field
 

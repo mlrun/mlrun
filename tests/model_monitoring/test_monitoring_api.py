@@ -41,18 +41,14 @@ def test_read_dataset_as_dataframe():
     dataset_dict = {}
     for i in range(len(feature_columns)):
         dataset_dict[feature_columns[i]] = [dataset[0][i], dataset[1][i]]
-    df, _ = mlrun.model_monitoring.api.read_dataset_as_dataframe(
-        dataset=dataset_dict, drop_columns="feature_2"
-    )
+    df, _ = mlrun.model_monitoring.api.read_dataset_as_dataframe(dataset=dataset_dict, drop_columns="feature_2")
     feature_columns.remove("feature_2")
     assert list(df.columns) == feature_columns
 
 
 def test_record_result_updates_last_request() -> None:
     db_mock = Mock(spec=RunDBInterface)
-    datetime_mock = datetime.datetime(
-        2011, 11, 4, 0, 5, 23, 283000, tzinfo=datetime.timezone.utc
-    )
+    datetime_mock = datetime.datetime(2011, 11, 4, 0, 5, 23, 283000, tzinfo=datetime.timezone.utc)
     with patch("mlrun.model_monitoring.api.datetime_now", return_value=datetime_mock):
         with patch("mlrun.model_monitoring.api.mlrun.get_run_db", return_value=db_mock):
             with patch(
@@ -67,8 +63,7 @@ def test_record_result_updates_last_request() -> None:
 
     db_mock.patch_model_endpoint.assert_called_once()
     assert (
-        db_mock.patch_model_endpoint.call_args.kwargs["attributes"]["last_request"]
-        == datetime_mock.isoformat()
+        db_mock.patch_model_endpoint.call_args.kwargs["attributes"]["last_request"] == datetime_mock.isoformat()
     ), "last_request attribute of the model endpoint was not updated as expected"
 
 
@@ -88,9 +83,7 @@ def test_record_result_updates_last_request() -> None:
     ],
 )
 def test_create_model_monitoring_function(function) -> None:
-    app = mlrun.model_monitoring.api._create_model_monitoring_function_base(
-        project="", name="my-app", **function
-    )
+    app = mlrun.model_monitoring.api._create_model_monitoring_function_base(project="", name="my-app", **function)
     assert app.metadata.name == "my-app"
 
     steps = app.spec.graph.steps

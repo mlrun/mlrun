@@ -49,9 +49,7 @@ def test_plot_monitoring_serving_graph(tsdb_connector, endpoint_store):
 
     graph = fn.spec.graph.plot(rankdir="TB")
     print()
-    print(
-        f"Graphviz graph definition with tsdb_connector={tsdb_connector}, endpoint_store={endpoint_store}"
-    )
+    print(f"Graphviz graph definition with tsdb_connector={tsdb_connector}, endpoint_store={endpoint_store}")
     print("Feed this to graphviz, or to https://dreampuf.github.io/GraphvizOnline")
     print()
     print(graph)

@@ -83,9 +83,7 @@ def test_get_generator(
 ):
     run_spec = mlrun.model.RunSpec(inputs={"input1": 1})
     run_spec.strategy = strategy
-    run_spec.param_file = str(
-        pathlib.Path(__file__).absolute().parent / "assets" / param_file
-    )
+    run_spec.param_file = str(pathlib.Path(__file__).absolute().parent / "assets" / param_file)
     execution = mlrun.run.MLClientCtx.from_dict(
         mlrun.run.RunObject(spec=run_spec).to_dict(),
         rundb_mock,
@@ -96,16 +94,10 @@ def test_get_generator(
 
     with expected_error:
         generator = mlrun.runtimes.generators.get_generator(run_spec, execution, None)
-        assert isinstance(
-            generator, expected_generator_class
-        ), f"unexpected generator type {type(generator)}"
+        assert isinstance(generator, expected_generator_class), f"unexpected generator type {type(generator)}"
 
-        iterations = sum(
-            1 for _ in generator.generate(mlrun.run.RunObject(spec=run_spec))
-        )
-        assert (
-            iterations == expected_iterations
-        ), f"unexpected number of iterations {iterations}"
+        iterations = sum(1 for _ in generator.generate(mlrun.run.RunObject(spec=run_spec)))
+        assert iterations == expected_iterations, f"unexpected number of iterations {iterations}"
         if strategy == "list":
             assert generator.df.keys().to_list() == ["p1", "p2"]
         elif strategy in ["grid", "random"]:

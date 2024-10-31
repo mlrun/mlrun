@@ -58,12 +58,8 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: ExitCode):
         )
 
 
-def post_report_session_finish_to_slack(
-    session: pytest.Session, exitstatus: ExitCode, slack_webhook_url
-):
-    reporter: TerminalReporter = session.config.pluginmanager.get_plugin(
-        "terminalreporter"
-    )
+def post_report_session_finish_to_slack(session: pytest.Session, exitstatus: ExitCode, slack_webhook_url):
+    reporter: TerminalReporter = session.config.pluginmanager.get_plugin("terminalreporter")
     test_duration = time.time() - reporter._sessionstarttime
     mlrun_version = os.getenv("MLRUN_VERSION", "")
     mlrun_current_branch = os.getenv("MLRUN_SYSTEM_TESTS_BRANCH", "")

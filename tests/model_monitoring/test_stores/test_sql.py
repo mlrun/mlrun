@@ -56,9 +56,7 @@ class TestSQLStore:
         state: Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         def random_labels():
-            return {
-                f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
-            }
+            return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
 
         return mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
@@ -178,14 +176,10 @@ class TestSQLStore:
         assert len(list_of_endpoints) == 2
 
         # List only the model endpoint that has the model test_model
-        filtered_list_of_endpoints = new_sql_store.list_model_endpoints(
-            model="test_model"
-        )
+        filtered_list_of_endpoints = new_sql_store.list_model_endpoints(model="test_model")
         assert len(filtered_list_of_endpoints) == 1
 
-        filtered_list_of_endpoints = new_sql_store.list_model_endpoints(
-            function="function_test"
-        )
+        filtered_list_of_endpoints = new_sql_store.list_model_endpoints(function="function_test")
         assert len(filtered_list_of_endpoints) == 1
 
     @staticmethod
@@ -210,9 +204,7 @@ class TestSQLStore:
         )
 
         # Validate that these attributes were actually updated
-        endpoint_dict = new_sql_store.get_model_endpoint(
-            endpoint_id=_mock_random_endpoint.metadata.uid
-        )
+        endpoint_dict = new_sql_store.get_model_endpoint(endpoint_id=_mock_random_endpoint.metadata.uid)
 
         assert endpoint_dict["model"] == "test_model"
         assert endpoint_dict["error_count"] == 2
@@ -241,26 +233,18 @@ class TestSQLStore:
     @staticmethod
     def assert_application_record(event: _AppResultEvent, new_sql_store: SQLStoreBase):
         criteria = [
-            new_sql_store.application_results_table.endpoint_id
-            == event[WriterEvent.ENDPOINT_ID],
-            new_sql_store.application_results_table.application_name
-            == event[WriterEvent.APPLICATION_NAME],
+            new_sql_store.application_results_table.endpoint_id == event[WriterEvent.ENDPOINT_ID],
+            new_sql_store.application_results_table.application_name == event[WriterEvent.APPLICATION_NAME],
         ]
 
-        application_record = new_sql_store._get(
-            table=new_sql_store.application_results_table, criteria=criteria
-        )
+        application_record = new_sql_store._get(table=new_sql_store.application_results_table, criteria=criteria)
 
         assert application_record.endpoint_id == event[WriterEvent.ENDPOINT_ID]
-        assert (
-            application_record.application_name == event[WriterEvent.APPLICATION_NAME]
-        )
+        assert application_record.application_name == event[WriterEvent.APPLICATION_NAME]
 
         assert application_record.result_value == event[ResultData.RESULT_VALUE]
 
-        assert application_record.uid == new_sql_store._generate_application_result_uid(
-            event=event
-        )
+        assert application_record.uid == new_sql_store._generate_application_result_uid(event=event)
 
     @staticmethod
     def test_sql_last_analyzed_result(
@@ -307,17 +291,13 @@ class TestSQLStore:
             )
 
         new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
-        new_sql_store.write_application_event(
-            event=metric_event, kind=WriterEventKind.METRIC
-        )
+        new_sql_store.write_application_event(event=metric_event, kind=WriterEventKind.METRIC)
         metrics = get_metrics()
         assert len(metrics) == 1, "The metrics number is wrong"
         assert (
             metrics[0].full_name == f"{cls._TEST_PROJECT}.smart-app.metric.met-metric"
         ), "The metric FQN is different than expected"
-        new_sql_store._delete_application_metrics(
-            endpoint_id=cls._MODEL_ENDPOINT_ID, application_name="smart-app"
-        )
+        new_sql_store._delete_application_metrics(endpoint_id=cls._MODEL_ENDPOINT_ID, application_name="smart-app")
         assert get_metrics() == [], "Metric remained after deletion"
 
 
@@ -329,13 +309,9 @@ class TestMonitoringSchedules:
 
     @staticmethod
     @pytest.fixture
-    def sqlite_store(
-        in_mem_connection: str, monkeypatch: pytest.MonkeyPatch
-    ) -> SQLStoreBase:
+    def sqlite_store(in_mem_connection: str, monkeypatch: pytest.MonkeyPatch) -> SQLStoreBase:
         with monkeypatch.context() as mp_ctx:
-            mp_ctx.setenv(
-                ProjectSecretKeys.ENDPOINT_STORE_CONNECTION, in_mem_connection
-            )
+            mp_ctx.setenv(ProjectSecretKeys.ENDPOINT_STORE_CONNECTION, in_mem_connection)
             store = mlrun.model_monitoring.get_store_object(project="tmp_proj")
         store._create_tables_if_not_exist()
         return store
@@ -353,17 +329,10 @@ class TestMonitoringSchedules:
             last_analyzed=app1_last_analyzed,
         )
 
-        assert (
-            sqlite_store.get_last_analyzed(
-                endpoint_id=endpoint_id, application_name=app1_name
-            )
-            == app1_last_analyzed
-        )
+        assert sqlite_store.get_last_analyzed(endpoint_id=endpoint_id, application_name=app1_name) == app1_last_analyzed
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            sqlite_store.get_last_analyzed(
-                endpoint_id=endpoint_id, application_name=app2_name
-            )
+            sqlite_store.get_last_analyzed(endpoint_id=endpoint_id, application_name=app2_name)
 
 
 @pytest.mark.parametrize(
@@ -377,12 +346,9 @@ class TestMonitoringSchedules:
         ),
     ],
 )
-def test_get_app_metrics_table(
-    connection_string: Optional[str], expected_table: type
-) -> None:
+def test_get_app_metrics_table(connection_string: Optional[str], expected_table: type) -> None:
     assert (
-        models._get_application_result_table(connection_string=connection_string)
-        == expected_table
+        models._get_application_result_table(connection_string=connection_string) == expected_table
     ), "The metrics table is different than expected"
 
 

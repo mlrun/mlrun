@@ -58,9 +58,7 @@ class ParallelRunner:
 
         return TrackerManager()
 
-    def _get_handler(
-        self, handler: str, context: MLClientCtx, embed_in_sys: bool = True
-    ):
+    def _get_handler(self, handler: str, context: MLClientCtx, embed_in_sys: bool = True):
         return handler
 
     def _get_dask_client(self, options):
@@ -71,9 +69,7 @@ class ParallelRunner:
             return function.client, function.metadata.name
         return Client(), None
 
-    def _parallel_run_many(
-        self, generator, execution: MLClientCtx, runobj: RunObject
-    ) -> RunList:
+    def _parallel_run_many(self, generator, execution: MLClientCtx, runobj: RunObject) -> RunList:
         # TODO: this flow assumes we use dask - move it to dask runtime
         from distributed import as_completed
 
@@ -112,9 +108,7 @@ class ParallelRunner:
             run_results = resp["status"].get("results", {})
             stop = generator.eval_stop_condition(run_results)
             if stop:
-                logger.info(
-                    f"Reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
-                )
+                logger.info(f"Reached early stop condition ({generator.options.stop_condition}), stopping iterations!")
             return stop
 
         completed_iter = as_completed([])
@@ -123,12 +117,8 @@ class ParallelRunner:
             project = get_in(task_struct, "metadata.project")
             uid = get_in(task_struct, "metadata.uid")
             iter = get_in(task_struct, "metadata.iteration", 0)
-            mlrun.get_run_db().store_run(
-                task_struct, uid=uid, project=project, iter=iter
-            )
-            resp = client.submit(
-                remote_handler_wrapper, task.to_json(), handler, self.spec.workdir
-            )
+            mlrun.get_run_db().store_run(task_struct, uid=uid, project=project, iter=iter)
+            resp = client.submit(remote_handler_wrapper, task.to_json(), handler, self.spec.workdir)
             completed_iter.add(resp)
             queued_runs += 1
             if queued_runs >= parallel_runs:
@@ -229,9 +219,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def is_deployed(self):
         return True
 
-    def _get_handler(
-        self, handler: str, context: MLClientCtx, embed_in_sys: bool = True
-    ):
+    def _get_handler(self, handler: str, context: MLClientCtx, embed_in_sys: bool = True):
         command = self.spec.command
         if not command and self.spec.build.functionSourceCode:
             # if the code is embedded in the function object extract or find it
@@ -265,8 +253,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             set_paths(os.path.realpath("."))
 
         if (
-            runobj.metadata.labels.get(mlrun_constants.MLRunInternalLabels.kind)
-            == RemoteSparkRuntime.kind
+            runobj.metadata.labels.get(mlrun_constants.MLRunInternalLabels.kind) == RemoteSparkRuntime.kind
             and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):
             from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
@@ -309,9 +296,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 sout, serr = exec_from_params(fn, runobj, context)
                 # If trackers where used, this is where we log all data collected to MLRun
                 context = trackers_manager.post_run(context)
-                log_std(
-                    self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
-                )
+                log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
                 return context.to_dict()
 
             # if RunError was raised it means that the error was raised as part of running the function
@@ -325,9 +310,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 # by the caller and will set the state to error ( in `update_run_state` )
                 context.set_state(error=err_to_str(exc), commit=True)
                 logger.error(f"Run error, {traceback.format_exc()}")
-                raise RunError(
-                    "Failed on pre-loading / post-running of the function"
-                ) from exc
+                raise RunError("Failed on pre-loading / post-running of the function") from exc
 
         else:
             command = self.spec.command
@@ -426,9 +409,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     print("Running:", cmd)
-    process = Popen(
-        cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
-    )
+    process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True)
 
     def read_stderr(stderr):
         while True:
@@ -510,9 +491,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                             else True  # True will use type hints if provided in user's code.
                         ),
                         outputs=(
-                            runobj.spec.returns
-                            if runobj.spec.returns
-                            else None  # None will turn off outputs logging.
+                            runobj.spec.returns if runobj.spec.returns else None  # None will turn off outputs logging.
                         ),
                     )(handler)(**kwargs)
                 else:
@@ -521,9 +500,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             except mlrun.errors.MLRunTaskCancelledError as exc:
                 logger.warning("Run was aborted", err=err_to_str(exc))
                 # Run was aborted, the state run state is updated by the abort job, no need to commit again
-                context.set_state(
-                    mlrun.common.runtimes.constants.RunStates.aborted, commit=False
-                )
+                context.set_state(mlrun.common.runtimes.constants.RunStates.aborted, commit=False)
                 commit = False
             except Exception as exc:
                 err = err_to_str(exc)
@@ -556,9 +533,7 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         input_obj = context.get_input(input_key, inputs[input_key])
         # If there is no type hint annotation but there is a default value and its type is string, point the data
         # item to local downloaded file path (`local()` returns the downloaded temp path string):
-        if args[input_key].annotation is inspect.Parameter.empty and isinstance(
-            args[input_key].default, str
-        ):
+        if args[input_key].annotation is inspect.Parameter.empty and isinstance(args[input_key].default, str):
             return input_obj.local()
         else:
             return input_obj

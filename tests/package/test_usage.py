@@ -42,9 +42,7 @@ RETURNS_LOG_HINTS = [
 ]
 
 
-def log_artifacts_and_results() -> (
-    tuple[np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline]
-):
+def log_artifacts_and_results() -> tuple[np.ndarray, pd.DataFrame, str, dict, list, int, str, Pipeline]:
     encoder_to_imputer = Pipeline(
         steps=[
             (
@@ -133,9 +131,7 @@ def parse_inputs_from_type_annotations(
     )
 
 
-def parse_inputs_from_mlrun_function(
-    my_array, my_df, my_file, my_dict, my_list, my_object, my_int, my_str
-):
+def parse_inputs_from_mlrun_function(my_array, my_df, my_file, my_dict, my_list, my_object, my_int, my_str):
     _assert_parsing(
         my_array=my_array,
         my_df=my_df,
@@ -249,14 +245,10 @@ def test_parse_inputs_from_mlrun_function(rundb_mock):
         handler="parse_inputs_from_mlrun_function",
         inputs={
             "my_list:list": log_artifacts_and_results_run.outputs["my_list"],
-            "my_array : numpy.ndarray": log_artifacts_and_results_run.outputs[
-                "my_array"
-            ],
+            "my_array : numpy.ndarray": log_artifacts_and_results_run.outputs["my_array"],
             "my_df": log_artifacts_and_results_run.outputs["my_df"],
             "my_file": log_artifacts_and_results_run.outputs["my_file"],
-            "my_object: sklearn.pipeline.Pipeline": log_artifacts_and_results_run.outputs[
-                "my_object"
-            ],
+            "my_object: sklearn.pipeline.Pipeline": log_artifacts_and_results_run.outputs["my_object"],
             "my_dict: dict": log_artifacts_and_results_run.outputs["my_dict"],
         },
         params={
@@ -332,14 +324,10 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
     project = mlrun.get_or_create_project("default", allow_cross_project=True)
 
     # Add the custom packager for `BaseClass`:
-    project.add_custom_packager(
-        packager="tests.package.test_usage.BaseClassPackager", is_mandatory=True
-    )
+    project.add_custom_packager(packager="tests.package.test_usage.BaseClassPackager", is_mandatory=True)
 
     # Create the function:
-    mlrun_function = project.set_function(
-        func=__file__, name="test_func", kind="job", image="mlrun/mlrun"
-    )
+    mlrun_function = project.set_function(func=__file__, name="test_func", kind="job", image="mlrun/mlrun")
     artifact_path = tempfile.TemporaryDirectory()
 
     # Run the packing function:
@@ -352,9 +340,7 @@ def test_subclasses_packing_and_unpacking(rundb_mock, a: int, b: str):
     )
 
     # Make sure the `BaseClassPackager` packed the object:
-    unpacking_instructions = pack_run.status.artifacts[0]["spec"][
-        "unpackaging_instructions"
-    ]
+    unpacking_instructions = pack_run.status.artifacts[0]["spec"]["unpackaging_instructions"]
     assert unpacking_instructions["packager_name"] == BaseClassPackager.__name__
     assert unpacking_instructions["object_type"] == (
         f"{InheritingClass.__module__}.{InheritingClass.__name__}"
@@ -404,9 +390,7 @@ def test_parse_local_file(rundb_mock):
     assert json_path.exists()
 
     # Create the function:
-    mlrun_function = project.set_function(
-        func=__file__, name="test_func", kind="job", image="mlrun/mlrun"
-    )
+    mlrun_function = project.set_function(func=__file__, name="test_func", kind="job", image="mlrun/mlrun")
 
     # Run the packing function:
     mlrun_function.run(

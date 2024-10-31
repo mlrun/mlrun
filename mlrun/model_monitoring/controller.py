@@ -127,22 +127,15 @@ class _BatchWindow:
             # Iterate timestamp from start until timestamp <= stop - step
             # so that the last interval will end at (timestamp + step) <= stop.
             # Add 1 to stop - step to get <= and not <.
-            for timestamp in range(
-                self._start, self._stop - self._step + 1, self._step
-            ):
+            for timestamp in range(self._start, self._stop - self._step + 1, self._step):
                 entered = True
-                start_time = datetime.datetime.fromtimestamp(
-                    timestamp, tz=datetime.timezone.utc
-                )
-                end_time = datetime.datetime.fromtimestamp(
-                    timestamp + self._step, tz=datetime.timezone.utc
-                )
+                start_time = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+                end_time = datetime.datetime.fromtimestamp(timestamp + self._step, tz=datetime.timezone.utc)
                 yield _Interval(start_time, end_time)
                 self._update_last_analyzed(timestamp + self._step)
             if not entered:
                 logger.info(
-                    "All the data is set, but no complete intervals were found. "
-                    "Wait for last_updated to be updated",
+                    "All the data is set, but no complete intervals were found. " "Wait for last_updated to be updated",
                     endpoint=self._endpoint,
                     application=self._application,
                     start=self._start,
@@ -151,8 +144,7 @@ class _BatchWindow:
                 )
         else:
             logger.warn(
-                "The first request time is not found for this endpoint. "
-                "No intervals will be generated",
+                "The first request time is not found for this endpoint. " "No intervals will be generated",
                 endpoint=self._endpoint,
                 application=self._application,
                 start=self._start,
@@ -190,14 +182,10 @@ class _BatchWindowGenerator:
 
     def _get_timedelta(self) -> int:
         """Get the timedelta in seconds from the batch dictionary"""
-        return int(
-            batch_dict2timedelta(cast(_BatchDict, self._batch_dict)).total_seconds()
-        )
+        return int(batch_dict2timedelta(cast(_BatchDict, self._batch_dict)).total_seconds())
 
     @classmethod
-    def _get_last_updated_time(
-        cls, last_request: Optional[str], has_stream: bool
-    ) -> Optional[int]:
+    def _get_last_updated_time(cls, last_request: Optional[str], has_stream: bool) -> Optional[int]:
         """
         Get the last updated time of a model endpoint.
         """
@@ -216,15 +204,11 @@ class _BatchWindowGenerator:
             # This compensates for the bumping mechanism - see
             # `update_model_endpoint_last_request`.
             last_updated = min(int(datetime_now().timestamp()), last_updated)
-            logger.debug(
-                "The endpoint does not have a stream", last_updated=last_updated
-            )
+            logger.debug("The endpoint does not have a stream", last_updated=last_updated)
         return last_updated
 
     @classmethod
-    def _normalize_first_request(
-        cls, first_request: Optional[str], endpoint: str
-    ) -> Optional[int]:
+    def _normalize_first_request(cls, first_request: Optional[str], endpoint: str) -> Optional[int]:
         if not first_request:
             logger.debug(
                 "There is no first request time for this endpoint.",
@@ -279,11 +263,7 @@ class MonitoringApplicationController:
         self.db = mlrun.model_monitoring.get_store_object(project=self.project)
 
         self._batch_window_generator = _BatchWindowGenerator(
-            batch_dict=json.loads(
-                mlrun.get_secret_or_env(
-                    mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-                )
-            )
+            batch_dict=json.loads(mlrun.get_secret_or_env(mm_constants.EventFieldType.BATCH_INTERVALS_DICT))
         )
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
@@ -318,9 +298,7 @@ class MonitoringApplicationController:
                 return
             monitoring_functions = self.project_obj.list_model_monitoring_functions()
             if monitoring_functions:
-                applications_names = list(
-                    {app.metadata.name for app in monitoring_functions}
-                )
+                applications_names = list({app.metadata.name for app in monitoring_functions})
             # if monitoring_functions: - TODO : ML-7700
             #   Gets only application in ready state
             #   applications_names = list(
@@ -360,14 +338,9 @@ class MonitoringApplicationController:
                     == mm_constants.ModelMonitoringMode.enabled.value
                 ):
                     # Skip router endpoint:
-                    if (
-                        int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
-                        == mm_constants.EndpointType.ROUTER
-                    ):
+                    if int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE]) == mm_constants.EndpointType.ROUTER:
                         # Router endpoint has no feature stats
-                        logger.info(
-                            f"{endpoint[mm_constants.EventFieldType.UID]} is router, skipping"
-                        )
+                        logger.info(f"{endpoint[mm_constants.EventFieldType.UID]} is router, skipping")
                         continue
                     pool.submit(
                         MonitoringApplicationController.model_endpoint_process,
@@ -403,9 +376,7 @@ class MonitoringApplicationController:
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         has_stream = endpoint[mm_constants.EventFieldType.STREAM_PATH] != ""
-        m_fs = fstore.get_feature_set(
-            endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
-        )
+        m_fs = fstore.get_feature_set(endpoint[mm_constants.EventFieldType.FEATURE_SET_URI])
         try:
             for application in applications_names:
                 batch_window = batch_window_generator.get_batch_window(
@@ -477,9 +448,7 @@ class MonitoringApplicationController:
             mm_constants.ApplicationEvent.START_INFER_TIME: start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
-            mm_constants.ApplicationEvent.END_INFER_TIME: end_infer_time.isoformat(
-                sep=" ", timespec="microseconds"
-            ),
+            mm_constants.ApplicationEvent.END_INFER_TIME: end_infer_time.isoformat(sep=" ", timespec="microseconds"),
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                 project=project,
@@ -490,12 +459,8 @@ class MonitoringApplicationController:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
             stream_uri = get_stream_path(project=project, function_name=app_name)
 
-            logger.info(
-                f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"
-            )
-            get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
-                [data]
-            )
+            logger.info(f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}")
+            get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push([data])
 
 
 def handler(context: nuclio.Context, event: nuclio.Event) -> None:

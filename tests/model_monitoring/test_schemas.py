@@ -109,9 +109,7 @@ def test_fqn_parsing(
         ),
     ],
 )
-def test_model_endpoint_from_flat_dict(
-    flat_mep: dict[str, Any], expectation: AbstractContextManager
-) -> None:
+def test_model_endpoint_from_flat_dict(flat_mep: dict[str, Any], expectation: AbstractContextManager) -> None:
     with expectation:
         ModelEndpoint.from_flat_dict(flat_mep)
 

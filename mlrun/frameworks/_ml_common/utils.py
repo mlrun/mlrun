@@ -183,9 +183,7 @@ class MLUtils(CommonUtils, ABC):
         # Check if y's columns are given, if not set the default avoiding duplicates with x's columns:
         if target_columns_names is None:
             target_columns_names = [
-                column
-                if column not in x.columns
-                else f"{default_target_column_prefix}{column}"
+                column if column not in x.columns else f"{default_target_column_prefix}{column}"
                 for column in list(y.columns)
             ]
 
@@ -201,9 +199,7 @@ class MLUtils(CommonUtils, ABC):
         return dataset, target_columns_names
 
     @staticmethod
-    def get_algorithm_functionality(
-        model: MLTypes.ModelType, y: MLTypes.DatasetType = None
-    ) -> AlgorithmFunctionality:
+    def get_algorithm_functionality(model: MLTypes.ModelType, y: MLTypes.DatasetType = None) -> AlgorithmFunctionality:
         """
         Get the algorithm functionality according to the provided model and ground truth labels.
 

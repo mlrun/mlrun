@@ -41,9 +41,7 @@ class TypeHintUtils:
         # A type hint should be one of the based typing classes, meaning it will have "typing" as its module. Some
         # typing classes are considered a type (like `TypeVar`) so we check their type as well. The only case "types"
         # will be a module is for generic aliases like `list[int]`.
-        return (type_hint.__module__ == "typing") or (
-            type(type_hint).__module__ in ["typing", "types"]
-        )
+        return (type_hint.__module__ == "typing") or (type(type_hint).__module__ in ["typing", "types"])
 
     @staticmethod
     def parse_type_hint(type_hint: typing.Union[type, str]) -> type:
@@ -71,11 +69,7 @@ class TypeHintUtils:
             return type_hint
 
         # Validate the type hint is a valid module path:
-        if not bool(
-            re.fullmatch(
-                r"([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*", type_hint
-            )
-        ):
+        if not bool(re.fullmatch(r"([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*", type_hint)):
             raise MLRunInvalidArgumentError(
                 f"Invalid type hint. An input type hint must be a valid python class name or its module import path. "
                 f"For example: 'list', 'pandas.DataFrame', 'numpy.ndarray', 'sklearn.linear_model.LinearRegression'. "
@@ -201,14 +195,7 @@ class TypeHintUtils:
         type_hints = {type_hint} if not isinstance(type_hint, set) else type_hint
 
         # Iterate over the type hints and reduce each one:
-        return set(
-            itertools.chain(
-                *[
-                    TypeHintUtils._reduce_type_hint(type_hint=type_hint)
-                    for type_hint in type_hints
-                ]
-            )
-        )
+        return set(itertools.chain(*[TypeHintUtils._reduce_type_hint(type_hint=type_hint) for type_hint in type_hints]))
 
     @staticmethod
     def _reduce_type_hint(type_hint: type) -> list[type]:
@@ -244,9 +231,7 @@ class TypeHintUtils:
                 if type_hint.__forward_module__:
                     arg = f"{type_hint.__forward_module__}.{arg}"
                 return [TypeHintUtils.parse_type_hint(type_hint=arg)]
-            except (
-                MLRunInvalidArgumentError
-            ):  # May be raised from `TypeHintUtils.parse_type_hint`
+            except MLRunInvalidArgumentError:  # May be raised from `TypeHintUtils.parse_type_hint`
                 logger.warn(
                     f"Could not reduce the type hint '{type_hint}' as it is a forward reference to a class without "
                     f"it's full module path. To enable importing forward references, please provide the full module "

@@ -23,6 +23,6 @@ from mlrun.projects import MlrunProject
 @pytest.mark.parametrize("method", ["log_artifact", "log_dataset", "log_model"])
 def test_log_object_signature(method: str) -> None:
     """Future-proof the `log_x` method of MM app context with respect to the project object"""
-    assert inspect.signature(
-        getattr(MonitoringApplicationContext, method)
-    ) == inspect.signature(getattr(MlrunProject, method))
+    assert inspect.signature(getattr(MonitoringApplicationContext, method)) == inspect.signature(
+        getattr(MlrunProject, method)
+    )

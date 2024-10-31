@@ -99,10 +99,7 @@ class ContextHandler:
         # Index 2-...: If it is from mlrun.runtimes we can be sure it ran via MLRun, otherwise not.
         if self._context is None:
             for callstack_frame in inspect.getouterframes(inspect.currentframe()):
-                if (
-                    os.path.join("mlrun", "runtimes", "local")
-                    in callstack_frame.filename
-                ):
+                if os.path.join("mlrun", "runtimes", "local") in callstack_frame.filename:
                     self._context = get_or_create_ctx("context")
                     break
 
@@ -143,19 +140,13 @@ class ContextHandler:
         :returns: The parsed args (kwargs are parsed inplace).
         """
         # Parse the type hints (in case some were given as strings):
-        type_hints = {
-            key: TypeHintUtils.parse_type_hint(type_hint=value)
-            for key, value in type_hints.items()
-        }
+        type_hints = {key: TypeHintUtils.parse_type_hint(type_hint=value) for key, value in type_hints.items()}
 
         # Parse the arguments:
         parsed_args = []
         type_hints_keys = list(type_hints.keys())
         for i, argument in enumerate(args):
-            if (
-                isinstance(argument, DataItem)
-                and type_hints[type_hints_keys[i]] is not inspect.Parameter.empty
-            ):
+            if isinstance(argument, DataItem) and type_hints[type_hints_keys[i]] is not inspect.Parameter.empty:
                 parsed_args.append(
                     self._packagers_manager.unpack(
                         data_item=argument,
@@ -168,13 +159,8 @@ class ContextHandler:
 
         # Parse the keyword arguments:
         for key, value in kwargs.items():
-            if (
-                isinstance(value, DataItem)
-                and type_hints[key] is not inspect.Parameter.empty
-            ):
-                kwargs[key] = self._packagers_manager.unpack(
-                    data_item=value, type_hint=type_hints[key]
-                )
+            if isinstance(value, DataItem) and type_hints[key] is not inspect.Parameter.empty:
+                kwargs[key] = self._packagers_manager.unpack(data_item=value, type_hint=type_hints[key])
 
         return parsed_args
 
@@ -195,9 +181,7 @@ class ContextHandler:
         # Pack and log only from the logging worker (in case of multi-workers job like OpenMPI):
         if self._context.is_logging_worker():
             # Verify the outputs and log hints are the same length:
-            self._validate_objects_to_log_hints_length(
-                outputs=outputs, log_hints=log_hints
-            )
+            self._validate_objects_to_log_hints_length(outputs=outputs, log_hints=log_hints)
             # Go over the outputs and pack them:
             for obj, log_hint in zip(outputs, log_hints):
                 try:
@@ -238,9 +222,7 @@ class ContextHandler:
         for key, value in labels.items():
             self._context.set_label(key=key, value=value)
 
-    def _collect_packagers(
-        self, packagers: list[str], is_mandatory: bool, is_custom_packagers: bool
-    ):
+    def _collect_packagers(self, packagers: list[str], is_mandatory: bool, is_custom_packagers: bool):
         """
         Collect packagers with the stored manager. The collection can ignore errors raised by setting the mandatory flag
         to False.
@@ -326,13 +308,7 @@ class ContextHandler:
             )
             if len(outputs) > len(log_hints):
                 ignored_outputs = [str(output) for output in outputs[len(log_hints) :]]
-                self._context.logger.warn(
-                    f"The following outputs will not be logged: {', '.join(ignored_outputs)}"
-                )
+                self._context.logger.warn(f"The following outputs will not be logged: {', '.join(ignored_outputs)}")
             if len(outputs) < len(log_hints):
-                ignored_log_hints = [
-                    str(log_hint) for log_hint in log_hints[len(outputs) :]
-                ]
-                self._context.logger.warn(
-                    f"The following log hints will be ignored: {', '.join(ignored_log_hints)}"
-                )
+                ignored_log_hints = [str(log_hint) for log_hint in log_hints[len(outputs) :]]
+                self._context.logger.warn(f"The following log hints will be ignored: {', '.join(ignored_log_hints)}")

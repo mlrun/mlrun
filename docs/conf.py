@@ -95,9 +95,7 @@ source_suffix = {
 nitpicky = False  # TODO: Change to `True`.
 
 # versionwarning configuration
-versionwarning_default_message = (
-    "This is not the latest documentation. See {stable} instead."
-)
+versionwarning_default_message = "This is not the latest documentation. See {stable} instead."
 
 versionwarning_message_placeholder = "stable"
 
@@ -134,9 +132,7 @@ html_theme_options = {
     "extra_footer": "",
 }
 
-html_sidebars = {
-    "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
-}
+html_sidebars = {"**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]}
 
 copybutton_selector = "div:not(.output) > div.highlight pre"
 

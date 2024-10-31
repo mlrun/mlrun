@@ -90,9 +90,7 @@ class ONNXModelServer(V2ModelServer):
 
         # Set the execution providers (default will prefer CUDA Execution Provider over CPU Execution Provider):
         self.execution_providers = (
-            ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            if execution_providers is None
-            else execution_providers
+            ["CUDAExecutionProvider", "CPUExecutionProvider"] if execution_providers is None else execution_providers
         )
 
         # Prepare inference parameters:
@@ -125,14 +123,10 @@ class ONNXModelServer(V2ModelServer):
         )
 
         # Get the input layers names:
-        self._input_layers = [
-            input_layer.name for input_layer in self._inference_session.get_inputs()
-        ]
+        self._input_layers = [input_layer.name for input_layer in self._inference_session.get_inputs()]
 
         # Get the outputs layers names:
-        self._output_layers = [
-            output_layer.name for output_layer in self._inference_session.get_outputs()
-        ]
+        self._output_layers = [output_layer.name for output_layer in self._inference_session.get_outputs()]
 
     def predict(self, request: dict[str, Any]) -> np.ndarray:
         """
@@ -149,10 +143,7 @@ class ONNXModelServer(V2ModelServer):
         # Infer the inputs through the model:
         return self._inference_session.run(
             output_names=self._output_layers,
-            input_feed={
-                input_layer: data
-                for input_layer, data in zip(self._input_layers, inputs)
-            },
+            input_feed={input_layer: data for input_layer, data in zip(self._input_layers, inputs)},
         )
 
     def explain(self, request: dict[str, Any]) -> str:

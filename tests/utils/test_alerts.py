@@ -79,9 +79,7 @@ def test_summary_formatter(summary, project, alert_name, entity_id, expected_str
     )
     alert_data = mlrun.common.schemas.Event(
         kind=event_kind,
-        entity=alert_objects.EventEntities(
-            kind=entity_kind, project=project, ids=[entity_id]
-        ),
+        entity=alert_objects.EventEntities(kind=entity_kind, project=project, ids=[entity_id]),
     )
     result = mlrun.utils.helpers.format_alert_summary(alert, alert_data)
     assert result == expected_str

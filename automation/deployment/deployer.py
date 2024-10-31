@@ -116,12 +116,8 @@ class CommunityEditionDeployer:
 
         self._namespace = namespace
         self._remote = remote
-        self._remote_ssh_username = remote_ssh_username or os.environ.get(
-            "MLRUN_REMOTE_SSH_USERNAME"
-        )
-        self._remote_ssh_password = remote_ssh_password or os.environ.get(
-            "MLRUN_REMOTE_SSH_PASSWORD"
-        )
+        self._remote_ssh_username = remote_ssh_username or os.environ.get("MLRUN_REMOTE_SSH_USERNAME")
+        self._remote_ssh_password = remote_ssh_password or os.environ.get("MLRUN_REMOTE_SSH_PASSWORD")
         self._ssh_client = None
         if self._remote:
             self.connect_to_remote()
@@ -252,16 +248,12 @@ class CommunityEditionDeployer:
         :param registry_secret_name:    Name of the registry secret to delete
         """
         if cleanup_namespace:
-            self._log(
-                "warning", "Cleaning up entire namespace", namespace=self._namespace
-            )
+            self._log("warning", "Cleaning up entire namespace", namespace=self._namespace)
             self._run_command("kubectl", ["delete", "namespace", self._namespace])
             return
 
         if not skip_uninstall:
-            self._log(
-                "info", "Cleaning up helm release", release=Constants.helm_release_name
-            )
+            self._log("info", "Cleaning up helm release", release=Constants.helm_release_name)
             self._run_command(
                 "helm",
                 [
@@ -354,9 +346,7 @@ class CommunityEditionDeployer:
         :param minikube:    Whether to deploy on minikube
         """
         self._log("info", "Preparing prerequisites")
-        skip_registry_validation = skip_registry_validation or (
-            registry_url is None and minikube
-        )
+        skip_registry_validation = skip_registry_validation or (registry_url is None and minikube)
         if not skip_registry_validation:
             self._validate_registry_url(registry_url)
 
@@ -364,17 +354,13 @@ class CommunityEditionDeployer:
         self._run_command("kubectl", ["create", "namespace", self._namespace])
 
         self._log("debug", "Adding helm repo")
-        self._run_command(
-            "helm", ["repo", "add", Constants.helm_repo_name, Constants.helm_repo_url]
-        )
+        self._run_command("helm", ["repo", "add", Constants.helm_repo_name, Constants.helm_repo_url])
 
         self._log("debug", "Updating helm repo")
         self._run_command("helm", ["repo", "update"])
 
         if registry_username and registry_password:
-            self._create_registry_credentials_secret(
-                registry_url, registry_username, registry_password
-            )
+            self._create_registry_credentials_secret(registry_url, registry_username, registry_password)
         elif registry_secret_name is not None:
             self._log(
                 "warning",
@@ -382,9 +368,7 @@ class CommunityEditionDeployer:
                 secret_name=registry_secret_name,
             )
         else:
-            raise ValueError(
-                "Either registry credentials or registry secret name must be provided"
-            )
+            raise ValueError("Either registry credentials or registry secret name must be provided")
 
     def _generate_helm_install_arguments(
         self,
@@ -556,9 +540,7 @@ class CommunityEditionDeployer:
         :param registry_secret_name: Name of the registry secret to use
         """
         registry_secret_name = (
-            registry_secret_name
-            if registry_secret_name is not None
-            else Constants.default_registry_secret_name
+            registry_secret_name if registry_secret_name is not None else Constants.default_registry_secret_name
         )
         self._log(
             "debug",
@@ -612,31 +594,18 @@ class CommunityEditionDeployer:
         :return: Host IP
         """
         if platform.system() == "Darwin":
-            return (
-                self._run_command("ipconfig", ["getifaddr", "en0"], live=False)[0]
-                .strip()
-                .decode("utf-8")
-            )
+            return self._run_command("ipconfig", ["getifaddr", "en0"], live=False)[0].strip().decode("utf-8")
         elif platform.system() == "Linux":
-            return (
-                self._run_command("hostname", ["-I"], live=False)[0]
-                .split()[0]
-                .strip()
-                .decode("utf-8")
-            )
+            return self._run_command("hostname", ["-I"], live=False)[0].split()[0].strip().decode("utf-8")
         else:
-            raise NotImplementedError(
-                f"Platform {platform.system()} is not supported for this action"
-            )
+            raise NotImplementedError(f"Platform {platform.system()} is not supported for this action")
 
     def _get_minikube_ip(self) -> str:
         """
         Get the minikube IP.
         :return: Minikube IP
         """
-        return (
-            self._run_command("minikube", ["ip"], live=False)[0].strip().decode("utf-8")
-        )
+        return self._run_command("minikube", ["ip"], live=False)[0].strip().decode("utf-8")
 
     def _validate_registry_url(self, registry_url):
         """
@@ -652,17 +621,13 @@ class CommunityEditionDeployer:
             self._log("error", "Failed to validate registry url", exc=exc)
             raise exc
 
-    def _set_mlrun_version_in_helm_values(
-        self, helm_values: dict[str, str], mlrun_version: str
-    ) -> None:
+    def _set_mlrun_version_in_helm_values(self, helm_values: dict[str, str], mlrun_version: str) -> None:
         """
         Set the mlrun version in all the image tags in the helm values.
         :param helm_values: Helm values to update
         :param mlrun_version: MLRun version to use
         """
-        self._log(
-            "warning", "Installing specific mlrun version", mlrun_version=mlrun_version
-        )
+        self._log("warning", "Installing specific mlrun version", mlrun_version=mlrun_version)
         for image in Constants.mlrun_image_values:
             helm_values[f"{image}.image.tag"] = mlrun_version
 
@@ -691,9 +656,7 @@ class CommunityEditionDeployer:
         helm_values[f"{image_helm_value}.image.repository"] = overriden_image_repo
         helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
 
-    def _toggle_component_in_helm_values(
-        self, helm_values: dict[str, str], component: str, disable: bool
-    ) -> None:
+    def _toggle_component_in_helm_values(self, helm_values: dict[str, str], component: str, disable: bool) -> None:
         """
         Disable a deployment in the helm values.
         :param helm_values: Helm values to update

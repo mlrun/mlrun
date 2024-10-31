@@ -65,9 +65,7 @@ class DataDriftClassifier:
     def __post_init__(self) -> None:
         """Catch erroneous threshold values"""
         if not 0 < self.potential < self.detected < 1:
-            raise InvalidThresholdValueError(
-                "The provided thresholds do not comply with the rules"
-            )
+            raise InvalidThresholdValueError("The provided thresholds do not comply with the rules")
 
     def value_to_status(self, value: float) -> ResultStatusApp:
         """
@@ -77,9 +75,7 @@ class DataDriftClassifier:
         :returns:     `ResultStatusApp` according to the classification.
         """
         if value > 1 or value < 0:
-            raise InvalidMetricValueError(
-                f"{value = } is invalid, must be in the range [0, 1]."
-            )
+            raise InvalidMetricValueError(f"{value = } is invalid, must be in the range [0, 1].")
         if value >= self.detected:
             return ResultStatusApp.detected
         if value >= self.potential:
@@ -137,29 +133,17 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             self.metrics
         ), "TVD and Hellinger distance are required for the general data drift result"
 
-    def _compute_metrics_per_feature(
-        self, monitoring_context: mm_context.MonitoringApplicationContext
-    ) -> DataFrame:
+    def _compute_metrics_per_feature(self, monitoring_context: mm_context.MonitoringApplicationContext) -> DataFrame:
         """Compute the metrics for the different features and labels"""
-        metrics_per_feature = DataFrame(
-            columns=[metric_class.NAME for metric_class in self.metrics]
-        )
-        feature_stats = monitoring_context.dict_to_histogram(
-            monitoring_context.feature_stats
-        )
-        sample_df_stats = monitoring_context.dict_to_histogram(
-            monitoring_context.sample_df_stats
-        )
+        metrics_per_feature = DataFrame(columns=[metric_class.NAME for metric_class in self.metrics])
+        feature_stats = monitoring_context.dict_to_histogram(monitoring_context.feature_stats)
+        sample_df_stats = monitoring_context.dict_to_histogram(monitoring_context.sample_df_stats)
         for feature_name in feature_stats:
             sample_hist = np.asarray(sample_df_stats[feature_name])
             reference_hist = np.asarray(feature_stats[feature_name])
-            monitoring_context.logger.info(
-                "Computing metrics for feature", feature_name=feature_name
-            )
+            monitoring_context.logger.info("Computing metrics for feature", feature_name=feature_name)
             metrics_per_feature.loc[feature_name] = {  # pyright: ignore[reportCallIssue,reportArgumentType]
-                metric.NAME: metric(
-                    distrib_t=sample_hist, distrib_u=reference_hist
-                ).compute()
+                metric.NAME: metric(distrib_t=sample_hist, distrib_u=reference_hist).compute()
                 for metric in self.metrics
             }
         monitoring_context.logger.info("Finished computing the metrics")
@@ -195,12 +179,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             kind=ResultKindApp.data_drift,
             status=status,
             extra_data={
-                EventFieldType.CURRENT_STATS: json.dumps(
-                    monitoring_context.sample_df_stats
-                ),
+                EventFieldType.CURRENT_STATS: json.dumps(monitoring_context.sample_df_stats),
                 EventFieldType.DRIFT_MEASURES: json.dumps(
-                    metrics_per_feature.T.to_dict()
-                    | {metric.name: metric.value for metric in metrics}
+                    metrics_per_feature.T.to_dict() | {metric.name: metric.value for metric in metrics}
                 ),
                 EventFieldType.DRIFT_STATUS: status.value,
             },
@@ -233,10 +214,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         Filter out features without reference data in `feature_stats`, e.g. `timestamp`.
         """
         return mlrun.common.model_monitoring.helpers.FeatureStats(
-            {
-                key: monitoring_context.sample_df_stats[key]
-                for key in monitoring_context.feature_stats
-            }
+            {key: monitoring_context.sample_df_stats[key] for key in monitoring_context.feature_stats}
         )
 
     @staticmethod
@@ -293,17 +271,15 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         log_json_artifact: bool = True,
     ) -> None:
         """Log JSON and Plotly drift data per feature artifacts"""
-        drift_per_feature_values = metrics_per_feature[
-            [HellingerDistance.NAME, TotalVarianceDistance.NAME]
-        ].mean(axis=1)
+        drift_per_feature_values = metrics_per_feature[[HellingerDistance.NAME, TotalVarianceDistance.NAME]].mean(
+            axis=1
+        )
 
         if log_json_artifact:
             self._log_json_artifact(drift_per_feature_values, monitoring_context)
 
         self._log_plotly_table_artifact(
-            sample_set_statistics=self._get_shared_features_sample_stats(
-                monitoring_context
-            ),
+            sample_set_statistics=self._get_shared_features_sample_stats(monitoring_context),
             inputs_statistics=monitoring_context.feature_stats,
             metrics_per_feature=metrics_per_feature,
             drift_per_feature_values=drift_per_feature_values,
@@ -332,9 +308,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
                 "In order to run the application, training set must be provided when logging the model."
             )
             return []
-        metrics_per_feature = self._compute_metrics_per_feature(
-            monitoring_context=monitoring_context
-        )
+        metrics_per_feature = self._compute_metrics_per_feature(monitoring_context=monitoring_context)
         monitoring_context.logger.debug("Saving artifacts")
         self._log_drift_artifacts(
             monitoring_context=monitoring_context,
@@ -348,7 +322,5 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             metrics_per_feature=metrics_per_feature,
         )
         metrics_and_result = metrics + [result]
-        monitoring_context.logger.debug(
-            "Finished running the application", results=metrics_and_result
-        )
+        monitoring_context.logger.debug("Finished running the application", results=metrics_and_result)
         return metrics_and_result

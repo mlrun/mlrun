@@ -21,9 +21,7 @@ VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 def _enrich_and_validate_v3io_mounts(remote="", volume_mounts=None, user=""):
     if remote and not volume_mounts:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "volume_mounts must be specified when remote is given"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError("volume_mounts must be specified when remote is given")
 
     # Empty remote & volume_mounts defaults are volume mounts of /v3io and /User
     if not remote and not volume_mounts:
@@ -37,9 +35,7 @@ def _enrich_and_validate_v3io_mounts(remote="", volume_mounts=None, user=""):
             VolumeMount(path="/User", sub_path="users/" + user),
         ]
 
-    if not isinstance(volume_mounts, list) and any(
-        [not isinstance(x, VolumeMount) for x in volume_mounts]
-    ):
+    if not isinstance(volume_mounts, list) and any([not isinstance(x, VolumeMount) for x in volume_mounts]):
         raise TypeError("mounts should be a list of Mount")
 
     return volume_mounts, user

@@ -25,9 +25,7 @@ import semver
 import mlrun.datastore
 
 
-def parse_kafka_url(
-    url: str, brokers: typing.Union[list, str] = None
-) -> tuple[str, list]:
+def parse_kafka_url(url: str, brokers: typing.Union[list, str] = None) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
@@ -93,9 +91,7 @@ def filter_df_generator(
         yield _execute_time_filter(df, time_field, start_time, end_time)
 
 
-def _execute_time_filter(
-    df: pd.DataFrame, time_column: str, start_time: pd.Timestamp, end_time: pd.Timestamp
-):
+def _execute_time_filter(df: pd.DataFrame, time_column: str, start_time: pd.Timestamp, end_time: pd.Timestamp):
     if semver.parse(pd.__version__)["major"] >= 2:
         # pandas 2 is too strict by default (ML-5629)
         kwargs = {
@@ -212,8 +208,7 @@ def validate_additional_filters(additional_filters):
             )
         if len(filter_tuple) != 3:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"illegal filter tuple length, {filter_tuple} in additional filters:"
-                f" {additional_filters}"
+                f"illegal filter tuple length, {filter_tuple} in additional filters:" f" {additional_filters}"
             )
         col_name, op, value = filter_tuple
         if isinstance(value, float) and math.isnan(value):

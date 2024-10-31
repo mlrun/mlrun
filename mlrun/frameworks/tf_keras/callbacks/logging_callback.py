@@ -39,9 +39,7 @@ class LoggingCallback(Callback):
         dynamic_hyperparameters: dict[
             str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
-        static_hyperparameters: dict[
-            str, Union[TFKerasTypes.TrackableType, list[Union[str, int]]]
-        ] = None,
+        static_hyperparameters: dict[str, Union[TFKerasTypes.TrackableType, list[Union[str, int]]]] = None,
         auto_log: bool = False,
     ):
         """
@@ -74,12 +72,8 @@ class LoggingCallback(Callback):
         self._supports_tf_logs = True
 
         # Store the configurations:
-        self._dynamic_hyperparameters_keys = (
-            dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
-        )
-        self._static_hyperparameters_keys = (
-            static_hyperparameters if static_hyperparameters is not None else {}
-        )
+        self._dynamic_hyperparameters_keys = dynamic_hyperparameters if dynamic_hyperparameters is not None else {}
+        self._static_hyperparameters_keys = static_hyperparameters if static_hyperparameters is not None else {}
 
         # Initialize the logger:
         self._logger = Logger(context=context)
@@ -250,9 +244,7 @@ class LoggingCallback(Callback):
             # Check if needed to initialize:
             if metric_name not in self._logger.training_summaries:
                 self._logger.training_summaries[metric_name] = []
-            self._logger.log_training_summary(
-                metric_name=metric_name, result=float(epoch_values[-1][-1])
-            )
+            self._logger.log_training_summary(metric_name=metric_name, result=float(epoch_values[-1][-1]))
 
         # Update the dynamic hyperparameters dictionary:
         if self._dynamic_hyperparameters_keys:
@@ -384,22 +376,16 @@ class LoggingCallback(Callback):
         # Add learning rate:
         learning_rate_key = "lr"
         learning_rate_key_chain = ["optimizer", "lr"]
-        if learning_rate_key not in self._dynamic_hyperparameters_keys and hasattr(
-            self.model, "optimizer"
-        ):
+        if learning_rate_key not in self._dynamic_hyperparameters_keys and hasattr(self.model, "optimizer"):
             try:
                 self._get_hyperparameter(key_chain=learning_rate_key_chain)
-                self._dynamic_hyperparameters_keys[learning_rate_key] = (
-                    learning_rate_key_chain
-                )
+                self._dynamic_hyperparameters_keys[learning_rate_key] = learning_rate_key_chain
             except (KeyError, IndexError, ValueError):
                 pass
 
     def _get_hyperparameter(
         self,
-        key_chain: Union[
-            Callable[[], TFKerasTypes.TrackableType], list[Union[str, int]]
-        ],
+        key_chain: Union[Callable[[], TFKerasTypes.TrackableType], list[Union[str, int]]],
     ) -> TFKerasTypes.TrackableType:
         """
         Access the hyperparameter from the model stored in this callback using the given key chain.
@@ -449,10 +435,7 @@ class LoggingCallback(Callback):
                     f"elements. numpy arrays are trackable only if they have 1 element."
                 )
         elif not (
-            isinstance(value, float)
-            or isinstance(value, int)
-            or isinstance(value, str)
-            or isinstance(value, bool)
+            isinstance(value, float) or isinstance(value, int) or isinstance(value, str) or isinstance(value, bool)
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"The parameter with the following key chain: {key_chain} is of type '{type(value)}'. The only "

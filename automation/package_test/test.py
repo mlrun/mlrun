@@ -28,13 +28,11 @@ class PackageTester:
         self._logger = logger
 
         basic_import = "import mlrun"
-        api_import = "import server.api.main"
+        api_import = "import services.api.main"
         s3_import = "import mlrun.datastore.s3"
         azure_blob_storage_import = "import mlrun.datastore.azure_blob"
         azure_key_vault_import = "import mlrun.utils.azure_vault"
-        google_cloud_bigquery_import = (
-            "from mlrun.datastore.sources import BigQuerySource"
-        )
+        google_cloud_bigquery_import = "from mlrun.datastore.sources import BigQuerySource"
         oss_import = "import mlrun.datastore.alibaba_oss"
         google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
         targets_import = "import mlrun.datastore.targets"
@@ -50,20 +48,12 @@ class PackageTester:
                 "perform_vulnerability_check": True,
             },
             "[s3]": {"import_test_command": f"{basic_import}; {s3_import}"},
-            "[azure-blob-storage]": {
-                "import_test_command": f"{basic_import}; {azure_blob_storage_import}"
-            },
-            "[azure-key-vault]": {
-                "import_test_command": f"{basic_import}; {azure_key_vault_import}"
-            },
+            "[azure-blob-storage]": {"import_test_command": f"{basic_import}; {azure_blob_storage_import}"},
+            "[azure-key-vault]": {"import_test_command": f"{basic_import}; {azure_key_vault_import}"},
             "[alibaba-oss]": {"import_test_command": f"{basic_import}; {oss_import}"},
             # TODO: this won't actually fail if the requirement is missing
-            "[google-cloud-bigquery]": {
-                "import_test_command": f"{basic_import}; {google_cloud_bigquery_import}"
-            },
-            "[google-cloud-storage]": {
-                "import_test_command": f"{basic_import}; {google_cloud_storage_import}"
-            },
+            "[google-cloud-bigquery]": {"import_test_command": f"{basic_import}; {google_cloud_bigquery_import}"},
+            "[google-cloud-storage]": {"import_test_command": f"{basic_import}; {google_cloud_storage_import}"},
             "[redis]": {"import_test_command": f"{basic_import}; {redis_import}"},
             # TODO: this won't actually fail if the requirement is missing
             "[kafka]": {"import_test_command": f"{basic_import}; {targets_import}"},
@@ -111,9 +101,7 @@ class PackageTester:
                 failed = True
                 break
 
-        self._logger.info(
-            "Finished running package tests", results=results, failed=failed
-        )
+        self._logger.info("Finished running package tests", results=results, failed=failed)
         if failed:
             raise RuntimeError("Package tests failed")
 
@@ -130,9 +118,7 @@ class PackageTester:
             "Testing extra imports",
             extra=extra,
         )
-        test_command = (
-            f"python -c '{self._extras_tests_data[extra]['import_test_command']}'"
-        )
+        test_command = f"python -c '{self._extras_tests_data[extra]['import_test_command']}'"
         self._run_command(
             test_command,
             run_in_venv=True,
@@ -210,14 +196,10 @@ class PackageTester:
             filtered_vulnerabilities = []
             for vulnerability in vulnerabilities:
                 if vulnerability["package_name"] in ignored_vulnerabilities:
-                    ignored_vulnerability = ignored_vulnerabilities[
-                        vulnerability["package_name"]
-                    ]
+                    ignored_vulnerability = ignored_vulnerabilities[vulnerability["package_name"]]
                     ignore_vulnerability = False
                     for ignored_pattern in ignored_vulnerability:
-                        if re.search(
-                            ignored_pattern["pattern"], vulnerability["advisory"]
-                        ):
+                        if re.search(ignored_pattern["pattern"], vulnerability["advisory"]):
                             self._logger.debug(
                                 "Ignoring vulnerability",
                                 vulnerability=vulnerability,

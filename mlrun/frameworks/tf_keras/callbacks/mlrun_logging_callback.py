@@ -52,15 +52,11 @@ class MLRunLoggingCallback(LoggingCallback):
         log_model_tag: str = "",
         log_model_labels: dict[str, TFKerasTypes.TrackableType] = None,
         log_model_parameters: dict[str, TFKerasTypes.TrackableType] = None,
-        log_model_extra_data: dict[
-            str, Union[TFKerasTypes.TrackableType, Artifact]
-        ] = None,
+        log_model_extra_data: dict[str, Union[TFKerasTypes.TrackableType, Artifact]] = None,
         dynamic_hyperparameters: dict[
             str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
-        static_hyperparameters: dict[
-            str, Union[TFKerasTypes, list[Union[str, int]]]
-        ] = None,
+        static_hyperparameters: dict[str, Union[TFKerasTypes, list[Union[str, int]]]] = None,
         auto_log: bool = False,
     ):
         """

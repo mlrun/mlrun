@@ -49,12 +49,8 @@ def get_db():
     ],
 )
 def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_paths):
-    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
-        generate_artifact_hash_mode
-    )
-    func = mlrun.code_to_function(
-        filename=function_path, kind="job", handler="log_dataset"
-    )
+    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = generate_artifact_hash_mode
+    func = mlrun.code_to_function(filename=function_path, kind="job", handler="log_dataset")
     run = func.run(local=True, out_path=str(results))
 
     # Verify target path in enriched run list

@@ -158,9 +158,7 @@ def run_spark_graph(df, featureset, namespace, spark):
             "mlrun.feature_store.steps.FeaturesetValidator",
             "mlrun.feature_store.steps.SetEventMetadata",
         ]:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"{step_dict.class_name} is not supported for spark engine."
-            )
+            raise mlrun.errors.MLRunRuntimeError(f"{step_dict.class_name} is not supported for spark engine.")
     server = create_graph_server(graph=graph, parameters={})
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
     server.init_object(namespace)
@@ -190,16 +188,12 @@ def context_to_ingestion_params(context):
     return featureset, source, targets, infer_options, overwrite
 
 
-def _add_data_steps(
-    graph, cache, featureset, targets, source, return_df=False, context=None
-):
+def _add_data_steps(graph, cache, featureset, targets, source, return_df=False, context=None):
     _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
     validate_target_list(targets=targets)
     validate_target_placement(graph, default_final_step, targets)
     cache.cache_resource(featureset.uri, featureset, True)
-    table = add_target_steps(
-        graph, featureset, targets, to_df=return_df, final_step=default_final_step
-    )
+    table = add_target_steps(graph, featureset, targets, to_df=return_df, final_step=default_final_step)
     if table:
         cache.cache_table(featureset.uri, table, True)
 
@@ -232,16 +226,12 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
         run_config.function = function_ref
         run_config.handler = "handler"
     elif run_config.function.kind == RuntimeKinds.spark and spark_service is not None:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Spark operator jobs do not support standalone spark submission"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError("Spark operator jobs do not support standalone spark submission")
 
     image = None if use_spark else mlrun.mlconf.feature_store.default_job_image
     function = run_config.to_function(default_kind, image)
     if use_spark and function.kind not in spark_runtimes:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "ingest with spark engine require spark function kind"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError("ingest with spark engine require spark function kind")
 
     function.metadata.project = featureset.metadata.project
     function.metadata.name = function.metadata.name or name
@@ -264,13 +254,13 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
         out_path=featureset.spec.output_path,
     )
     task.spec.secret_sources = run_config.secret_sources
-    task.set_label(
-        mlrun_constants.MLRunInternalLabels.job_type, "feature-ingest"
-    ).set_label("feature-set", featureset.uri)
+    task.set_label(mlrun_constants.MLRunInternalLabels.job_type, "feature-ingest").set_label(
+        "feature-set", featureset.uri
+    )
     if run_config.owner:
-        task.set_label(
-            mlrun_constants.MLRunInternalLabels.owner, run_config.owner
-        ).set_label(mlrun_constants.MLRunInternalLabels.v3io_user, run_config.owner)
+        task.set_label(mlrun_constants.MLRunInternalLabels.owner, run_config.owner).set_label(
+            mlrun_constants.MLRunInternalLabels.v3io_user, run_config.owner
+        )
 
     # set run UID and save in the feature set status (linking the features et to the job)
     task.metadata.uid = uuid.uuid4().hex
@@ -293,9 +283,7 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
 
 
 def entities_to_index(featureset: FeatureSet, data: pd.DataFrame) -> pd.DataFrame:
-    entities_names = [
-        ent.name for ent in featureset.spec.entities if ent.name in data.columns
-    ]
+    entities_names = [ent.name for ent in featureset.spec.entities if ent.name in data.columns]
 
     if len(entities_names) > 0:
         drop_columns = []

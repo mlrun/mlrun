@@ -36,9 +36,7 @@ class ObjectTSDBFactory(enum.Enum):
 
         if self == self.v3io_tsdb:
             if mlrun.mlconf.is_ce_mode():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"{self.v3io_tsdb} is not supported in CE mode."
-                )
+                raise mlrun.errors.MLRunInvalidArgumentError(f"{self.v3io_tsdb} is not supported in CE mode.")
 
             from .v3io.v3io_connector import V3IOTSDBConnector
 
@@ -80,11 +78,8 @@ def get_tsdb_connector(
             or the provided TSDB connection is invalid.
     """
 
-    tsdb_connection_string = (
-        tsdb_connection_string
-        or mlrun.model_monitoring.helpers.get_tsdb_connection_string(
-            secret_provider=secret_provider
-        )
+    tsdb_connection_string = tsdb_connection_string or mlrun.model_monitoring.helpers.get_tsdb_connection_string(
+        secret_provider=secret_provider
     )
 
     if tsdb_connection_string and tsdb_connection_string.startswith("taosws"):
@@ -94,8 +89,7 @@ def get_tsdb_connector(
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
     else:
         raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-            "You must provide a valid tsdb store connection by using "
-            "set_model_monitoring_credentials API."
+            "You must provide a valid tsdb store connection by using " "set_model_monitoring_credentials API."
         )
 
     # Get connector type value from ObjectTSDBFactory enum class

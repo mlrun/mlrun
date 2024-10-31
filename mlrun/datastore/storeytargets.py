@@ -54,9 +54,7 @@ class StoreyTargetUtils:
         path = args[0] if args else kwargs.get("path")
         external_storage_options = kwargs.get("storage_options")
 
-        url, storage_options = get_url_and_storage_options(
-            path, external_storage_options
-        )
+        url, storage_options = get_url_and_storage_options(path, external_storage_options)
 
         if storage_options:
             kwargs["storage_options"] = storage_options
@@ -92,9 +90,7 @@ class StreamStoreyTarget(storey.StreamTarget):
         endpoint, path = parse_path(uri)
 
         access_key = storage_options.get("v3io_access_key")
-        storage = V3ioDriver(
-            webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
-        )
+        storage = V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key)
 
         if storage_options:
             kwargs["storage"] = storage
@@ -111,18 +107,12 @@ class KafkaStoreyTarget(storey.KafkaTarget):
         path = kwargs.pop("path")
         attributes = kwargs.pop("attributes", None)
         if path and path.startswith("ds://"):
-            datastore_profile = (
-                mlrun.datastore.datastore_profile.datastore_profile_read(path)
-            )
+            datastore_profile = mlrun.datastore.datastore_profile.datastore_profile_read(path)
             attributes = merge(attributes, datastore_profile.attributes())
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
+            brokers = attributes.pop("brokers", attributes.pop("bootstrap_servers", None))
             topic = datastore_profile.topic
         else:
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
+            brokers = attributes.pop("brokers", attributes.pop("bootstrap_servers", None))
             topic, brokers = parse_kafka_url(path, brokers)
 
         if not topic:

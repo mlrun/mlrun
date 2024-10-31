@@ -56,9 +56,7 @@ def validate_nuclio_version_compatibility(*min_versions):
     """
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
     """
-    return mlrun.utils.helpers.validate_component_version_compatibility(
-        "nuclio", *min_versions
-    )
+    return mlrun.utils.helpers.validate_component_version_compatibility("nuclio", *min_versions)
 
 
 def min_nuclio_versions(*versions):
@@ -72,9 +70,7 @@ def min_nuclio_versions(*versions):
             else:
                 name = function.__qualname__
 
-            message = (
-                f"'{name}' function requires Nuclio v{' or v'.join(versions)} or higher"
-            )
+            message = f"'{name}' function requires Nuclio v{' or v'.join(versions)} or higher"
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
         return wrapper
@@ -203,21 +199,13 @@ class NuclioSpec(KubeResourceSpec):
         for volume_mount in self._volume_mounts.values():
             volume_name = get_item_name(volume_mount, "name")
             if volume_name not in self._volumes:
-                raise ValueError(
-                    f"Found volume mount without a volume. name={volume_name}"
-                )
+                raise ValueError(f"Found volume mount without a volume. name={volume_name}")
             volume_with_volume_mounts_names.add(volume_name)
-            nuclio_volumes.append(
-                {"volume": self._volumes[volume_name], "volumeMount": volume_mount}
-            )
+            nuclio_volumes.append({"volume": self._volumes[volume_name], "volumeMount": volume_mount})
 
-        volumes_without_volume_mounts = (
-            volume_with_volume_mounts_names.symmetric_difference(self._volumes.keys())
-        )
+        volumes_without_volume_mounts = volume_with_volume_mounts_names.symmetric_difference(self._volumes.keys())
         if volumes_without_volume_mounts:
-            raise ValueError(
-                f"Found volumes without volume mounts. names={volumes_without_volume_mounts}"
-            )
+            raise ValueError(f"Found volumes without volume mounts. names={volumes_without_volume_mounts}")
 
         return nuclio_volumes
 
@@ -307,20 +295,16 @@ class RemoteRuntime(KubeResource):
     def _validate_triggers(self, spec):
         # ML-7763 / NUC-233
         min_nuclio_version = "1.13.12"
-        if mlconf.nuclio_version and semver.VersionInfo.parse(
-            mlconf.nuclio_version
-        ) < semver.VersionInfo.parse(min_nuclio_version):
+        if mlconf.nuclio_version and semver.VersionInfo.parse(mlconf.nuclio_version) < semver.VersionInfo.parse(
+            min_nuclio_version
+        ):
             explicit_ack_enabled = False
             num_triggers = 0
             trigger_name = spec.get("name", "UNKNOWN")
-            for key, config in [(f"spec.triggers.{trigger_name}", spec)] + list(
-                self.spec.config.items()
-            ):
+            for key, config in [(f"spec.triggers.{trigger_name}", spec)] + list(self.spec.config.items()):
                 if key.startswith("spec.triggers."):
                     num_triggers += 1
-                    explicit_ack_enabled = (
-                        config.get("explicitAckMode", "disable") != "disable"
-                    )
+                    explicit_ack_enabled = config.get("explicitAckMode", "disable") != "disable"
 
             if num_triggers > 1 and explicit_ack_enabled:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -386,11 +370,7 @@ class RemoteRuntime(KubeResource):
         :param remote: v3io path
         """
         if local and remote:
-            self.apply(
-                mount_v3io(
-                    remote=remote, volume_mounts=[VolumeMount(path=local, sub_path="")]
-                )
-            )
+            self.apply(mount_v3io(remote=remote, volume_mounts=[VolumeMount(path=local, sub_path="")]))
         else:
             self.apply(v3io_cred())
         return self
@@ -432,9 +412,7 @@ class RemoteRuntime(KubeResource):
         :return: function object (self)
         """
         if self.disable_default_http_trigger:
-            logger.warning(
-                "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
-            )
+            logger.warning("Adding HTTP trigger despite the default HTTP trigger creation being disabled")
 
         annotations = annotations or {}
         if worker_timeout:
@@ -443,12 +421,8 @@ class RemoteRuntime(KubeResource):
             workers = 0
         if gateway_timeout:
             if worker_timeout and worker_timeout >= gateway_timeout:
-                raise ValueError(
-                    "gateway timeout must be greater than the worker timeout"
-                )
-            mlrun.runtimes.utils.enrich_gateway_timeout_annotations(
-                annotations, gateway_timeout
-            )
+                raise ValueError("gateway timeout must be greater than the worker timeout")
+            mlrun.runtimes.utils.enrich_gateway_timeout_annotations(annotations, gateway_timeout)
 
         trigger = nuclio.HttpTrigger(
             workers=workers,
@@ -461,9 +435,7 @@ class RemoteRuntime(KubeResource):
             extra_attributes=extra_attributes,
         )
         if worker_timeout:
-            trigger._struct["workerAvailabilityTimeoutMilliseconds"] = (
-                worker_timeout
-            ) * 1000
+            trigger._struct["workerAvailabilityTimeoutMilliseconds"] = (worker_timeout) * 1000
         self.add_trigger(trigger_name or "http", trigger)
         return self
 
@@ -514,9 +486,7 @@ class RemoteRuntime(KubeResource):
         mlrun.utils.helpers.validate_v3io_stream_consumer_group(group)
 
         if "consumer_group" in kwargs:
-            logger.warning(
-                "'consumer_group' in kwargs will be ignored. Use group parameter instead."
-            )
+            logger.warning("'consumer_group' in kwargs will be ignored. Use group parameter instead.")
 
         container, path = split_path(stream_path)
         shards = shards or 1
@@ -608,15 +578,9 @@ class RemoteRuntime(KubeResource):
         #       now, functions can be not exposed (using service type ClusterIP) and hence
         #       for BC we first try to populate the external invocation url, and then
         #       if not exists, take the internal invocation url
-        if (
-            self.status.external_invocation_urls
-            and self.status.external_invocation_urls[0] != ""
-        ):
+        if self.status.external_invocation_urls and self.status.external_invocation_urls[0] != "":
             self.spec.command = f"http://{self.status.external_invocation_urls[0]}"
-        elif (
-            self.status.internal_invocation_urls
-            and self.status.internal_invocation_urls[0] != ""
-        ):
+        elif self.status.internal_invocation_urls and self.status.internal_invocation_urls[0] != "":
             self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
         elif self.status.address and self.status.address != "":
             self.spec.command = f"http://{self.status.address}"
@@ -635,9 +599,7 @@ class RemoteRuntime(KubeResource):
         state = ""
         last_log_timestamp = 1
         while state not in ["ready", "error", "unhealthy"]:
-            sleep(
-                int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
-            )
+            sleep(int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval))
             try:
                 text, last_log_timestamp = db.get_nuclio_deploy_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
@@ -662,9 +624,7 @@ class RemoteRuntime(KubeResource):
     ):
         """k8s node selection attributes"""
         if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
-            raise mlrun.errors.MLRunIncompatibleVersionError(
-                "tolerations are only supported from nuclio version 1.7.5"
-            )
+            raise mlrun.errors.MLRunIncompatibleVersionError("tolerations are only supported from nuclio version 1.7.5")
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
     @min_nuclio_versions("1.8.6")
@@ -692,9 +652,7 @@ class RemoteRuntime(KubeResource):
         """k8s priority class"""
         super().with_priority_class(name)
 
-    def with_service_type(
-        self, service_type: str, add_templated_ingress_host_mode: str = None
-    ):
+    def with_service_type(self, service_type: str, add_templated_ingress_host_mode: str = None):
         """
         Enables to control the service type of the pod and the addition of templated ingress host
 
@@ -766,12 +724,8 @@ class RemoteRuntime(KubeResource):
                 resolve_address=resolve_address,
                 auth_info=auth_info,
             )
-            self.status.internal_invocation_urls = function_status.get(
-                "internalInvocationUrls", []
-            )
-            self.status.external_invocation_urls = function_status.get(
-                "externalInvocationUrls", []
-            )
+            self.status.internal_invocation_urls = function_status.get("internalInvocationUrls", [])
+            self.status.external_invocation_urls = function_status.get("externalInvocationUrls", [])
             self.status.state = state
             self.status.nuclio_name = name
             self.status.container_image = function_status.get("containerImage", "")
@@ -800,9 +754,9 @@ class RemoteRuntime(KubeResource):
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:
-            runtime_env[
-                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
-            ] = self.metadata.credentials.access_key
+            runtime_env[mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session] = (
+                self.metadata.credentials.access_key
+            )
         return runtime_env
 
     def _get_serving_spec(self):
@@ -942,10 +896,7 @@ class RemoteRuntime(KubeResource):
             if not self.status.address:
                 # here we check that if default http trigger is disabled, function contains a custom http trigger
                 # Otherwise, the function is not invokable, so we raise an error
-                if (
-                    not self._trigger_of_kind_exists(kind="http")
-                    and self.spec.disable_default_http_trigger
-                ):
+                if not self._trigger_of_kind_exists(kind="http") and self.spec.disable_default_http_trigger:
                     raise mlrun.errors.MLRunPreconditionFailedError(
                         "Default http trigger creation is disabled and there is no any other custom http trigger, "
                         "so function can not be invoked via http. Either enable default http trigger creation or "
@@ -963,9 +914,7 @@ class RemoteRuntime(KubeResource):
             headers = {}
 
         # if function is scaled to zero, let the DLX know we want to wake it up
-        full_function_name = get_fullname(
-            self.metadata.name, self.metadata.project, self.metadata.tag
-        )
+        full_function_name = get_fullname(self.metadata.name, self.metadata.project, self.metadata.tag)
         headers.setdefault("x-nuclio-target", full_function_name)
         if not http_client_kwargs:
             http_client_kwargs = {}
@@ -978,13 +927,9 @@ class RemoteRuntime(KubeResource):
             logger.info("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
-            resp = self._http_session.request(
-                method, path, headers=headers, **http_client_kwargs
-            )
+            resp = self._http_session.request(method, path, headers=headers, **http_client_kwargs)
         except OSError as err:
-            raise OSError(
-                f"error: cannot run function at url {path}, {err_to_str(err)}"
-            )
+            raise OSError(f"error: cannot run function at url {path}, {err_to_str(err)}")
         if not resp.ok:
             raise RuntimeError(f"bad function response {resp.status_code}: {resp.text}")
 
@@ -1062,10 +1007,7 @@ class RemoteRuntime(KubeResource):
 
     def _pre_run_validations(self):
         if self.spec.function_kind != "mlrun":
-            raise RunError(
-                '.run() can only be execute on "mlrun" kind'
-                ', recreate with function kind "mlrun"'
-            )
+            raise RunError('.run() can only be execute on "mlrun" kind' ', recreate with function kind "mlrun"')
 
         state = self.status.state
         if state != "ready":
@@ -1113,9 +1055,7 @@ class RemoteRuntime(KubeResource):
         if runobj.spec.handler:
             command = f"{command}/{runobj.spec.handler_name}"
         loop = asyncio.get_event_loop()
-        future = asyncio.ensure_future(
-            self._invoke_async(tasks, command, headers, secrets, generator=generator)
-        )
+        future = asyncio.ensure_future(self._invoke_async(tasks, command, headers, secrets, generator=generator))
 
         loop.run_until_complete(future)
         return future.result()
@@ -1210,9 +1150,7 @@ class RemoteRuntime(KubeResource):
             return f"http://{self.status.address}{path}"
 
     def _update_credentials_from_remote_build(self, remote_data):
-        self.metadata.credentials = remote_data.get("metadata", {}).get(
-            "credentials", {}
-        )
+        self.metadata.credentials = remote_data.get("metadata", {}).get("credentials", {})
 
         credentials_env_var_names = ["V3IO_ACCESS_KEY", "MLRUN_AUTH_SESSION"]
         new_env = []
@@ -1269,9 +1207,7 @@ class RemoteRuntime(KubeResource):
         if not self.status.address:
             state, _, _ = self._get_state(auth_info=auth_info)
             if state != "ready" or not self.status.address:
-                raise ValueError(
-                    "no function address or not ready, first run .deploy()"
-                )
+                raise ValueError("no function address or not ready, first run .deploy()")
 
         return self._resolve_invocation_url("", force_external_address)
 
@@ -1292,9 +1228,7 @@ def parse_logs(logs):
             if key not in ["time", "level", "name", "message"]:
                 extra.append(f"{key}={value}")
         extra = ", ".join(extra)
-        time = datetime.fromtimestamp(float(line["time"]) / 1000).strftime(
-            "%Y-%m-%d %H:%M:%S.%f"
-        )
+        time = datetime.fromtimestamp(float(line["time"]) / 1000).strftime("%Y-%m-%d %H:%M:%S.%f")
         lines += f"{time}  {line['level']:<6} {line['message']}  {extra}\n"
 
     return lines

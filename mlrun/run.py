@@ -92,9 +92,7 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
 
         fn = mlrun.import_function("hub://open-archive")
         mod = mlrun.function_to_module(fn)
-        data = mlrun.run.get_dataitem(
-            "https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz"
-        )
+        data = mlrun.run.get_dataitem("https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz")
         context = mlrun.get_or_create_ctx("myfunc")
         mod.open_archive(context, archive_url=data)
         print(context.to_yaml())
@@ -148,19 +146,13 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
         if kind in RuntimeKinds.nuclio_runtimes():
             code = get_in(runtime.spec.base_spec, "spec.build.functionSourceCode", code)
         if code:
-            if (
-                origin_filename
-                and origin_filename.endswith(".py")
-                and path.isfile(origin_filename)
-            ):
+            if origin_filename and origin_filename.endswith(".py") and path.isfile(origin_filename):
                 command = origin_filename
             else:
                 suffix = ".py"
                 if origin_filename:
                     suffix = f"-{pathlib.Path(origin_filename).stem}.py"
-                with tempfile.NamedTemporaryFile(
-                    suffix=suffix, mode="w", delete=False
-                ) as temp_file:
+                with tempfile.NamedTemporaryFile(suffix=suffix, mode="w", delete=False) as temp_file:
                     code = b64decode(code).decode("utf-8")
                     command = temp_file.name
                     temp_file.write(code)
@@ -178,9 +170,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
 
     elif suffix == ".ipynb":
         temp_file = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
-        code_to_function(
-            name, filename=command, kind="local", code_output=temp_file.name
-        )
+        code_to_function(name, filename=command, kind="local", code_output=temp_file.name)
         command = temp_file.name
 
     elif suffix == ".py":
@@ -250,9 +240,7 @@ def get_or_create_ctx(
         context.set_label("framework", "sklearn")
 
         # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-        context.log_artifact(
-            "model.txt", body=b"abc is 123", labels={"framework": "xgboost"}
-        )
+        context.log_artifact("model.txt", body=b"abc is 123", labels={"framework": "xgboost"})
         context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
 
     """
@@ -308,21 +296,15 @@ def get_or_create_ctx(
         autocommit = True
         logger.info(f"Logging run results to: {out}")
 
-    newspec["metadata"]["project"] = (
-        newspec["metadata"].get("project") or project or mlconf.default_project
-    )
+    newspec["metadata"]["project"] = newspec["metadata"].get("project") or project or mlconf.default_project
 
     newspec["metadata"].setdefault("labels", {})
 
     # This function can also be called as a local run if it is not called within a function.
     # It will create a local run, and the run kind must be local by default.
-    newspec["metadata"]["labels"].setdefault(
-        mlrun_constants.MLRunInternalLabels.kind, RuntimeKinds.local
-    )
+    newspec["metadata"]["labels"].setdefault(mlrun_constants.MLRunInternalLabels.kind, RuntimeKinds.local)
 
-    ctx = MLClientCtx.from_dict(
-        newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
-    )
+    ctx = MLClientCtx.from_dict(newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname())
     global_context.set(ctx)
     return ctx
 
@@ -342,9 +324,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
         function = mlrun.import_function("hub://auto-trainer")
         function = mlrun.import_function("./func.yaml")
-        function = mlrun.import_function(
-            "https://raw.githubusercontent.com/org/repo/func.yaml"
-        )
+        function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
     :param url: path/url to Function Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
@@ -391,9 +371,7 @@ def import_function_to_dict(url, secrets=None):
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
         if code:
-            with tempfile.NamedTemporaryFile(
-                suffix=".py", mode="w", delete=False
-            ) as temp_file:
+            with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as temp_file:
                 code = b64decode(code).decode("utf-8")
                 update_in(runtime, "spec.command", temp_file.name)
                 temp_file.write(code)
@@ -412,9 +390,7 @@ def import_function_to_dict(url, secrets=None):
                 # look for the file in a relative path to the yaml
                 slash = url.rfind("/")
                 if slash >= 0 and path.isfile(url[: url.rfind("/") + 1] + code_file):
-                    raise ValueError(
-                        f"exec file spec.command={code_file} is relative, change working dir"
-                    )
+                    raise ValueError(f"exec file spec.command={code_file} is relative, change working dir")
                 raise ValueError(f"no file in exec path (spec.command={code_file})")
         else:
             raise ValueError("command or code not specified in function spec")
@@ -443,9 +419,7 @@ def new_function(
     Example::
 
            # define a container based function (the `training.py` must exist in the container workdir)
-           f = new_function(
-               command="training.py -x {x}", image="myrepo/image:latest", kind="job"
-           )
+           f = new_function(command="training.py -x {x}", image="myrepo/image:latest", kind="job")
            f.run(params={"x": 5})
 
            # define a container based function which reads its source from a git archive
@@ -519,16 +493,13 @@ def new_function(
     name = mlrun.utils.helpers.normalize_name(name)
 
     runner.metadata.name = name
-    runner.metadata.project = (
-        runner.metadata.project or project or mlconf.default_project
-    )
+    runner.metadata.project = runner.metadata.project or project or mlconf.default_project
     if tag:
         runner.metadata.tag = tag
     if image:
         if kind in ["", "handler", "local"]:
             raise ValueError(
-                "image should only be set with containerized "
-                "runtimes (job, mpijob, spark, ..), set kind=.."
+                "image should only be set with containerized " "runtimes (job, mpijob, spark, ..), set kind=.."
             )
         runner.spec.image = image
     if args:
@@ -540,9 +511,7 @@ def new_function(
         runner.spec.build.source = source
     if handler:
         if kind in RuntimeKinds.handlerless_runtimes():
-            raise MLRunInvalidArgumentError(
-                f"Handler is not supported for {kind} runtime"
-            )
+            raise MLRunInvalidArgumentError(f"Handler is not supported for {kind} runtime")
         elif kind in RuntimeKinds.nuclio_runtimes():
             runner.spec.function_handler = handler
         else:
@@ -715,9 +684,7 @@ def code_to_function(
             fn.with_requirements(requirements, requirements_file=requirements_file)
 
         if embed_code:
-            fn.spec.build.functionSourceCode = get_in(
-                spec, "spec.build.functionSourceCode"
-            )
+            fn.spec.build.functionSourceCode = get_in(spec, "spec.build.functionSourceCode")
 
         if fn.kind != "local":
             fn.spec.env = get_in(spec, "spec.env")
@@ -731,15 +698,8 @@ def code_to_function(
         fn.metadata.categories = categories
         fn.metadata.labels = labels or fn.metadata.labels
 
-    if (
-        not embed_code
-        and not code_output
-        and (not filename or filename.endswith(".ipynb"))
-    ):
-        raise ValueError(
-            "A valid code file must be specified "
-            "when not using the embed_code option"
-        )
+    if not embed_code and not code_output and (not filename or filename.endswith(".ipynb")):
+        raise ValueError("A valid code file must be specified " "when not using the embed_code option")
 
     if kind == RuntimeKinds.databricks and not embed_code:
         raise ValueError("Databricks tasks only support embed_code=True")
@@ -791,16 +751,12 @@ def code_to_function(
             raise ValueError("code_output option is only used with notebooks")
 
     if is_nuclio:
-        mlrun.utils.helpers.validate_single_def_handler(
-            function_kind=sub_kind, code=code
-        )
+        mlrun.utils.helpers.validate_single_def_handler(function_kind=sub_kind, code=code)
 
         runtime = RuntimeKinds.resolve_nuclio_runtime(kind, sub_kind)
         # default_handler is only used in :mlrun sub kind, determine the handler to invoke in function.run()
         runtime.spec.default_handler = handler if sub_kind == "mlrun" else ""
-        runtime.spec.function_handler = (
-            handler if handler and ":" in handler else get_in(spec, "spec.handler")
-        )
+        runtime.spec.function_handler = handler if handler and ":" in handler else get_in(spec, "spec.handler")
         if not embed_code:
             runtime.spec.source = filename
         nuclio_runtime = get_in(spec, "spec.runtime")
@@ -885,10 +841,7 @@ def _run_pipeline(
     """
     mldb = mlrun.db.get_run_db(url)
     if mldb.kind != "http":
-        raise ValueError(
-            "run pipeline require access to remote api-service"
-            ", please set the dbpath url"
-        )
+        raise ValueError("run pipeline require access to remote api-service" ", please set the dbpath url")
 
     pipeline_run_id = mldb.submit_pipeline(
         project,
@@ -959,10 +912,7 @@ def wait_for_pipeline_completion(
             return pipeline
 
         if mldb.kind != "http":
-            raise ValueError(
-                "get pipeline requires access to remote api-service"
-                ", set the dbpath url"
-            )
+            raise ValueError("get pipeline requires access to remote api-service" ", set the dbpath url")
 
         resp = retry_until_successful(
             10,
@@ -983,9 +933,7 @@ def wait_for_pipeline_completion(
     message = resp["run"].get("message", "") if resp else ""
     if expected_statuses:
         if status not in expected_statuses:
-            raise RuntimeError(
-                f"Pipeline run status {status}{', ' + message if message else ''}"
-            )
+            raise RuntimeError(f"Pipeline run status {status}{', ' + message if message else ''}")
 
     logger.debug(
         f"Finished waiting for pipeline completion."
@@ -1001,9 +949,7 @@ def wait_for_pipeline_completion(
 def get_pipeline(
     run_id,
     namespace=None,
-    format_: Union[
-        str, mlrun.common.formatters.PipelineFormat
-    ] = mlrun.common.formatters.PipelineFormat.summary,
+    format_: Union[str, mlrun.common.formatters.PipelineFormat] = mlrun.common.formatters.PipelineFormat.summary,
     project: str = None,
     remote: bool = True,
 ):
@@ -1023,24 +969,16 @@ def get_pipeline(
     if remote:
         mldb = mlrun.db.get_run_db()
         if mldb.kind != "http":
-            raise ValueError(
-                "get pipeline require access to remote api-service"
-                ", please set the dbpath url"
-            )
+            raise ValueError("get pipeline require access to remote api-service" ", please set the dbpath url")
 
-        resp = mldb.get_pipeline(
-            run_id, namespace=namespace, format_=format_, project=project
-        )
+        resp = mldb.get_pipeline(run_id, namespace=namespace, format_=format_, project=project)
 
     else:
         client = get_client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
-            if (
-                not format_
-                or format_ == mlrun.common.formatters.PipelineFormat.summary.value
-            ):
+            if not format_ or format_ == mlrun.common.formatters.PipelineFormat.summary.value:
                 resp = mlrun.common.formatters.PipelineFormat.format_obj(resp, format_)
 
     show_kfp_run(resp)
@@ -1077,9 +1015,7 @@ def list_pipelines(
     if full:
         format_ = mlrun.common.formatters.PipelineFormat.full
     run_db = mlrun.db.get_run_db()
-    pipelines = run_db.list_pipelines(
-        project, namespace, sort_by, page_token, filter_, format_, page_size
-    )
+    pipelines = run_db.list_pipelines(project, namespace, sort_by, page_token, filter_, format_, page_size)
     return pipelines.total_size, pipelines.next_page_token, pipelines.runs
 
 
@@ -1101,9 +1037,7 @@ def download_object(url, target, secrets=None):
     stores.object(url=url).download(target_path=target)
 
 
-def wait_for_runs_completion(
-    runs: typing.Union[list, typing.ValuesView], sleep=3, timeout=0, silent=False
-):
+def wait_for_runs_completion(runs: typing.Union[list, typing.ValuesView], sleep=3, timeout=0, silent=False):
     """wait for multiple runs to complete
 
     Note: need to use `watch=False` in `.run()` so the run will not wait for completion

@@ -68,9 +68,7 @@ def test_no_merger(with_queue):
     dbl.to(name="add3", class_name="Adder", add=3)
     dbl.to(name="add2", class_name="Adder", add=2)
     if with_queue:
-        graph.add_step("$queue", "q1", path="").after_step("add2", "add3").to(
-            "Gather", function="some_function"
-        )
+        graph.add_step("$queue", "q1", path="").after_step("add2", "add3").to("Gather", function="some_function")
     else:
         graph.add_step("Gather").after_step("add2", "add3")
 
@@ -110,9 +108,7 @@ def test_custom_key():
     dbl = graph.to(name="double", handler="double", input_path="x", result_path="x")
     dbl.to(name="add3", class_name="Adder", add=3, input_path="x", result_path="x")
     dbl.to(name="add2", class_name="Adder", add=2, input_path="x", result_path="x")
-    graph.add_step(
-        Merge(name="Merge", key_path="event['key']"), after=["add2", "add3"]
-    ).respond()
+    graph.add_step(Merge(name="Merge", key_path="event['key']"), after=["add2", "add3"]).respond()
 
     server = fn.to_mock_server()
     with pytest.raises(RuntimeError) as excinfo:
@@ -133,9 +129,7 @@ def test_delayed():
     dbl.to(name="add3", class_name="AsyncAdder", add=3, wait=0.1)
     dbl.to(name="add2", class_name="AsyncAdder", add=2, wait=0.2)
 
-    graph.add_step(Merge(name="Merge", max_behind=3), after=["add2", "add3"]).to(
-        "Gather"
-    )
+    graph.add_step(Merge(name="Merge", max_behind=3), after=["add2", "add3"]).to("Gather")
 
     fn.verbose = True
     server = fn.to_mock_server()

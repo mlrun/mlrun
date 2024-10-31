@@ -77,9 +77,7 @@ def test_job_file_codeout():
 def test_local_file_codeout():
     name = f"{examples_path}/mlrun_jobs.ipynb"
     out = f"{results}/ctf_tst.py"
-    fn = code_to_function(
-        filename=name, kind="local", code_output=out, embed_code=False
-    )
+    fn = code_to_function(filename=name, kind="local", code_output=out, embed_code=False)
     assert fn.kind == "local", "kind not set, test failed"
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
     assert fn.spec.command == out, "filename not set to out in command"

@@ -36,9 +36,7 @@ from .common import my_func
 
 function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
 base_spec = new_task(params={"p1": 8}, out_path=out_path)
-input_file_path = str(
-    pathlib.Path(__file__).parent / "assets" / "test_run_input_file.txt"
-)
+input_file_path = str(pathlib.Path(__file__).parent / "assets" / "test_run_input_file.txt")
 base_spec.spec.inputs = {"infile.txt": str(input_file_path)}
 
 s3_spec = base_spec.copy().with_secrets("file", "secrets.txt")
@@ -46,8 +44,7 @@ s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 assets_path = str(pathlib.Path(__file__).parent / "assets")
 
 ERROR_MSG_INVALID_HANDLER_NAME_IN_FILE = (
-    "The code file contains a function named “handler“, which is reserved. "
-    + "Use a different name for your function."
+    "The code file contains a function named “handler“, which is reserved. " + "Use a different name for your function."
 )
 
 
@@ -65,9 +62,7 @@ def captured_output():
 def test_noparams(rundb_mock):
     mlrun.get_or_create_project("default", allow_cross_project=True)
     # Since we're executing the function without inputs, it will try to use the input name as the file path
-    result = new_function().run(
-        params={"input_name": str(input_file_path)}, handler=my_func
-    )
+    result = new_function().run(params={"input_name": str(input_file_path)}, handler=my_func)
 
     assert result.output("accuracy") == 2, "failed to run"
     assert result.status.artifacts[0]["metadata"].get("key") == "chart", "failed to run"
@@ -94,26 +89,17 @@ def test_schedule_with_local_exploding():
     function = new_function()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
         function.run(local=True, schedule="* * * * *")
-    assert (
-        "Unexpected schedule='* * * * *' parameter for local function execution"
-        in str(excinfo.value)
-    )
+    assert "Unexpected schedule='* * * * *' parameter for local function execution" in str(excinfo.value)
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
         function.run(schedule="* * * * *")
-    assert (
-        "Unexpected schedule='* * * * *' parameter for local function execution"
-        in str(excinfo.value)
-    )
+    assert "Unexpected schedule='* * * * *' parameter for local function execution" in str(excinfo.value)
 
 
 def test_invalid_name():
     with pytest.raises(ValueError) as excinfo:
         # name cannot have / in it
         new_function().run(name="asd/asd", handler=my_func)
-    assert (
-        "Field 'run.metadata.name' is malformed. 'asd/asd' does not match required pattern"
-        in str(excinfo.value)
-    )
+    assert "Field 'run.metadata.name' is malformed. 'asd/asd' does not match required pattern" in str(excinfo.value)
 
 
 def test_with_params(rundb_mock):
@@ -166,9 +152,7 @@ def test_local_runtime_failure_before_executing_the_function_code(rundb_mock):
         ("func_with_default", {}, {"y": 3, "z": 4}, {"y": 3, "z": 4}),
     ],
 )
-def test_local_runtime_with_kwargs(
-    rundb_mock, handler_name, params, kwargs, expected_kwargs
-):
+def test_local_runtime_with_kwargs(rundb_mock, handler_name, params, kwargs, expected_kwargs):
     params.update(kwargs)
     function = new_function(command=f"{assets_path}/kwargs.py")
     result = function.run(local=True, params=params, handler=handler_name)
@@ -194,9 +178,7 @@ def test_local_runtime_with_kwargs_with_code_to_function(rundb_mock):
 
 def test_local_handler():
     spec = tag_test(base_spec, "test_local_runtime")
-    result = new_function(command=f"{examples_path}/handler.py").run(
-        spec, handler="my_func"
-    )
+    result = new_function(command=f"{examples_path}/handler.py").run(spec, handler="my_func")
     verify_state(result)
 
 
@@ -356,9 +338,7 @@ def setup_project():
     ],
 )
 def test_verify_run_output_uri(rundb_mock, setup_project, params, expected):
-    run = setup_project.run_function(
-        "test", handler="myhandler", params=params, local=True
-    )
+    run = setup_project.run_function("test", handler="myhandler", params=params, local=True)
     output_uri = run.output("file_result")
     outputs_uri = run.outputs["file_result"]
 
@@ -368,9 +348,7 @@ def test_verify_run_output_uri(rundb_mock, setup_project, params, expected):
 
 
 def test_verify_tag_in_output_for_relogged_artifact(rundb_mock, setup_project):
-    run = setup_project.run_function(
-        "test", handler="log_artifact_many_tags", local=True
-    )
+    run = setup_project.run_function("test", handler="log_artifact_many_tags", local=True)
     output_uri = run.output("file_result")
     outputs_uri = run.outputs["file_result"]
 

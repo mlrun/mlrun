@@ -40,14 +40,10 @@ def spark_session_update_hadoop_options(session, spark_options) -> dict[str, str
     return non_hadoop_spark_options
 
 
-def check_special_columns_exists(
-    spark_df, entities: list[Union[Entity, str]], timestamp_key: str, label_column: str
-):
+def check_special_columns_exists(spark_df, entities: list[Union[Entity, str]], timestamp_key: str, label_column: str):
     columns = spark_df.columns
     entities = entities or []
-    entities = [
-        entity.name if isinstance(entity, Entity) else entity for entity in entities
-    ]
+    entities = [entity.name if isinstance(entity, Entity) else entity for entity in entities]
     missing_entities = [entity for entity in entities if entity not in columns]
     cases_message = "Please check the letter cases (uppercase or lowercase)"
     if missing_entities:

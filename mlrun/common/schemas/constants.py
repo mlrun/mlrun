@@ -28,9 +28,7 @@ class PatchMode(mlrun.common.types.StrEnum):
         elif self.value == PatchMode.additive:
             return mergedeep.Strategy.ADDITIVE
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown patch mode: {self.value}"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unknown patch mode: {self.value}")
 
 
 class DeletionStrategy(mlrun.common.types.StrEnum):
@@ -71,9 +69,7 @@ class DeletionStrategy(mlrun.common.types.StrEnum):
         elif self.value == DeletionStrategy.check.value:
             return "check"
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown deletion strategy: {self.value}"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unknown deletion strategy: {self.value}")
 
     def to_iguazio_deletion_strategy(self) -> str:
         if self.is_restricted():
@@ -81,13 +77,9 @@ class DeletionStrategy(mlrun.common.types.StrEnum):
         elif self.is_cascading():
             return "cascading"
         elif self.value == DeletionStrategy.check.value:
-            raise NotImplementedError(
-                "Iguazio does not support the check deletion strategy"
-            )
+            raise NotImplementedError("Iguazio does not support the check deletion strategy")
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown deletion strategy: {self.value}"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unknown deletion strategy: {self.value}")
 
 
 headers_prefix = "x-mlrun-"
@@ -113,9 +105,7 @@ class FeatureStorePartitionByField(mlrun.common.types.StrEnum):
         if self.value == FeatureStorePartitionByField.name:
             return db_cls.name
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown group by field: {self.value}"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unknown group by field: {self.value}")
 
 
 class RunPartitionByField(mlrun.common.types.StrEnum):
@@ -128,9 +118,7 @@ class RunPartitionByField(mlrun.common.types.StrEnum):
         elif self.value == RunPartitionByField.project_and_name:
             return db_cls.project, db_cls.name
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown group by field: {self.value}"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unknown group by field: {self.value}")
 
 
 class SortField(mlrun.common.types.StrEnum):
@@ -146,9 +134,7 @@ class SortField(mlrun.common.types.StrEnum):
         elif self.value == SortField.updated:
             return db_cls.updated
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown sort by field: {self.value}"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unknown sort by field: {self.value}")
 
 
 class OrderType(mlrun.common.types.StrEnum):

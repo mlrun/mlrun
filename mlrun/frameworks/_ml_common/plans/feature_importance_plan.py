@@ -53,9 +53,7 @@ class FeatureImportancePlan(MLPlotPlan):
         """
         return stage == MLPlanStages.POST_FIT
 
-    def produce(
-        self, model: MLTypes.ModelType, x: MLTypes.DatasetType, **kwargs
-    ) -> dict[str, Artifact]:
+    def produce(self, model: MLTypes.ModelType, x: MLTypes.DatasetType, **kwargs) -> dict[str, Artifact]:
         """
         Produce the feature importance according to the given model and dataset ('x').
 
@@ -67,9 +65,7 @@ class FeatureImportancePlan(MLPlotPlan):
         # Get the importance score:
         importance_score = self._get_importance_score(model=model)
         if importance_score is None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "This model cannot be used for Feature Importance plotting."
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("This model cannot be used for Feature Importance plotting.")
 
         # Create a table of features and their importance along the assigned class:
         features = MLUtils.to_dataframe(dataset=x).columns
@@ -132,10 +128,7 @@ class FeatureImportancePlan(MLPlotPlan):
             return FeatureImportancePlan._get_importance_score(model=model.estimator_)
         elif hasattr(model, "estimators_"):
             return np.vstack(
-                [
-                    FeatureImportancePlan._get_importance_score(model=estimator)
-                    for estimator in model.estimators_
-                ]
+                [FeatureImportancePlan._get_importance_score(model=estimator) for estimator in model.estimators_]
             )
 
         # No feature importance or coefficients are available for the given model:

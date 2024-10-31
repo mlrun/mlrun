@@ -98,9 +98,7 @@ class BaseMerger(abc.ABC):
             self._drop_indexes = False
 
         # retrieve the feature set objects/fields needed for the vector
-        feature_set_objects, feature_set_fields = self.vector.parse_features(
-            update_stats=update_stats
-        )
+        feature_set_objects, feature_set_fields = self.vector.parse_features(update_stats=update_stats)
         if len(feature_set_fields) == 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "No features in vector. Make sure to infer the schema on all the feature sets first"
@@ -146,13 +144,9 @@ class BaseMerger(abc.ABC):
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "target path was not specified"
-                )
+                raise mlrun.errors.MLRunInvalidArgumentError("target path was not specified")
             self._target.set_resource(self.vector)
-            size = self._target.write_dataframe(
-                self._result_df, timestamp_key=self.vector.status.timestamp_key
-            )
+            size = self._target.write_dataframe(self._result_df, timestamp_key=self.vector.status.timestamp_key)
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
@@ -205,9 +199,7 @@ class BaseMerger(abc.ABC):
             entity_rows_keys = list(entity_rows.columns)
         else:
             entity_rows_keys = None
-        join_graph = self._get_graph(
-            feature_set_objects, feature_set_fields, entity_rows_keys
-        )
+        join_graph = self._get_graph(feature_set_objects, feature_set_fields, entity_rows_keys)
         if entity_rows_keys:
             entity_rows = self._convert_entity_rows_to_engine_df(entity_rows)
             dfs.append(entity_rows)
@@ -219,9 +211,7 @@ class BaseMerger(abc.ABC):
         for step in join_graph.steps:
             name = step.right_feature_set_name
             feature_set = feature_set_objects[name]
-            saved_columns_for_relation = list(
-                self.vector.get_feature_set_relations(feature_set).keys()
-            )
+            saved_columns_for_relation = list(self.vector.get_feature_set_relations(feature_set).keys())
             feature_sets.append(feature_set)
             columns = feature_set_fields[name]
             self._origin_alias.update({name: alias for name, alias in columns})
@@ -234,9 +224,7 @@ class BaseMerger(abc.ABC):
                         self._append_drop_column(column)
 
             if isinstance(timestamp_for_filtering, dict):
-                time_column = timestamp_for_filtering.get(
-                    name, feature_set.spec.timestamp_key
-                )
+                time_column = timestamp_for_filtering.get(name, feature_set.spec.timestamp_key)
             elif isinstance(timestamp_for_filtering, str):
                 time_column = timestamp_for_filtering
             else:
@@ -246,8 +234,7 @@ class BaseMerger(abc.ABC):
                 feature.name for feature in feature_set.spec.features
             ]:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Feature set `{name}` "
-                    f"does not have a column named `{time_column}` to filter on."
+                    f"Feature set `{name}` " f"does not have a column named `{time_column}` to filter on."
                 )
 
             if self._drop_indexes:
@@ -275,9 +262,7 @@ class BaseMerger(abc.ABC):
 
             # rename columns to be unique for each feature set and select if needed
             rename_col_dict = {
-                column: f"{column}_{name}"
-                for column in column_names
-                if column not in saved_columns_for_relation
+                column: f"{column}_{name}" for column in column_names if column not in saved_columns_for_relation
             }
             df_temp = self._rename_columns_and_select(
                 df,
@@ -328,9 +313,7 @@ class BaseMerger(abc.ABC):
                 self._update_alias(key=result_timestamp, val=result_timestamp)
             all_columns = list(self._alias.keys())
 
-        df_temp = self._rename_columns_and_select(
-            self._result_df, self._alias, columns=all_columns
-        )
+        df_temp = self._rename_columns_and_select(self._result_df, self._alias, columns=all_columns)
         if df_temp is not None:
             self._result_df = df_temp
             del df_temp
@@ -341,9 +324,7 @@ class BaseMerger(abc.ABC):
             del df_temp
 
         if self.vector.status.label_column:
-            self._result_df = self._result_df.dropna(
-                subset=[self.vector.status.label_column]
-            )
+            self._result_df = self._result_df.dropna(subset=[self.vector.status.label_column])
         # filter joined data frame by the query param
         if query:
             self._filter(query)
@@ -352,24 +333,19 @@ class BaseMerger(abc.ABC):
             if isinstance(order_by, str):
                 order_by = [order_by]
             order_by_active = [
-                order_col
-                if order_col in self._result_df.columns
-                else self._origin_alias.get(order_col, None)
+                order_col if order_col in self._result_df.columns else self._origin_alias.get(order_col, None)
                 for order_col in order_by
             ]
             if None in order_by_active:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Result dataframe contains {self._result_df.columns} "
-                    f"columns and can't order by {order_by}"
+                    f"Result dataframe contains {self._result_df.columns} " f"columns and can't order by {order_by}"
                 )
             self._order_by(order_by_active)
 
         self._write_to_offline_target(timestamp_key=result_timestamp)
         return OfflineVectorResponse(self)
 
-    def init_online_vector_service(
-        self, entity_keys, fixed_window_type, update_stats=False
-    ):
+    def init_online_vector_service(self, entity_keys, fixed_window_type, update_stats=False):
         """
         initialize the `OnlineVectorService`
 
@@ -403,9 +379,9 @@ class BaseMerger(abc.ABC):
                 f"others: {reference_df_timestamp_type} and {featureset_df_timestamp_type}. Converting feature set "
                 f"timestamp column '{featureset_timestamp}' to type {reference_df_timestamp_type}."
             )
-            featureset_df[featureset_timestamp] = featureset_df[
-                featureset_timestamp
-            ].astype(reference_df_timestamp_type)
+            featureset_df[featureset_timestamp] = featureset_df[featureset_timestamp].astype(
+                reference_df_timestamp_type
+            )
 
         return featureset_df
 
@@ -427,15 +403,9 @@ class BaseMerger(abc.ABC):
         if not entity_timestamp_column and featureset:
             entity_timestamp_column = featureset.spec.timestamp_key
 
-        for featureset, featureset_df, lr_key, join_type in zip(
-            featuresets, featureset_dfs, keys, join_types
-        ):
+        for featureset, featureset_df, lr_key, join_type in zip(featuresets, featureset_dfs, keys, join_types):
             join_type, as_of = join_type
-            if (
-                featureset.spec.timestamp_key
-                and entity_timestamp_column
-                and join_type == self._default_join_type
-            ):
+            if featureset.spec.timestamp_key and entity_timestamp_column and join_type == self._default_join_type:
                 merge_func = self._asof_join
             elif join_type == self._default_join_type:
                 merge_func = self._join
@@ -455,9 +425,7 @@ class BaseMerger(abc.ABC):
                 lr_key[0],
                 lr_key[1],
             )
-            entity_timestamp_column = (
-                entity_timestamp_column or featureset.spec.timestamp_key
-            )
+            entity_timestamp_column = entity_timestamp_column or featureset.spec.timestamp_key
 
             # unpersist as required by the implementation (e.g. spark) and delete references
             # to dataframe to allow for GC to free up the memory (local, dask)
@@ -512,14 +480,10 @@ class BaseMerger(abc.ABC):
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
 
-    def _get_graph(
-        self, feature_set_objects, feature_set_fields, entity_rows_keys=None
-    ):
+    def _get_graph(self, feature_set_objects, feature_set_fields, entity_rows_keys=None):
         join_graph = self.vector.spec.join_graph
         if not join_graph:
-            fs_link_list = self._create_linked_relation_list(
-                feature_set_objects, feature_set_fields, entity_rows_keys
-            )
+            fs_link_list = self._create_linked_relation_list(feature_set_objects, feature_set_fields, entity_rows_keys)
             join_graph = None
             for i, node in enumerate(fs_link_list):
                 if node.name != self._entity_rows_node_name and join_graph is None:
@@ -534,9 +498,7 @@ class BaseMerger(abc.ABC):
                 last_step.left_keys = node.left_keys
                 last_step.right_keys = node.right_keys
         else:
-            join_graph._init_all_join_keys(
-                feature_set_objects, self.vector, entity_rows_keys
-            )
+            join_graph._init_all_join_keys(feature_set_objects, self.vector, entity_rows_keys)
         return join_graph
 
     class _Node:
@@ -561,9 +523,7 @@ class BaseMerger(abc.ABC):
             return self.name == other.name
 
         def __copy__(self):
-            return BaseMerger._Node(
-                self.name, self.order, self.left_keys, self.right_keys
-            )
+            return BaseMerger._Node(self.name, self.order, self.left_keys, self.right_keys)
 
     class _LinkedList:
         def __init__(self, head=None):
@@ -643,9 +603,7 @@ class BaseMerger(abc.ABC):
                         self.add_last(other_node)
                     node = other_node
 
-    def _create_linked_relation_list(
-        self, feature_set_objects, feature_set_fields, entity_rows_keys=None
-    ):
+    def _create_linked_relation_list(self, feature_set_objects, feature_set_fields, entity_rows_keys=None):
         feature_set_names = list(feature_set_fields.keys())
         if len(feature_set_names) == 1 and not entity_rows_keys:
             return BaseMerger._LinkedList(
@@ -665,17 +623,15 @@ class BaseMerger(abc.ABC):
             relations.add_first(main_node)
             return relations
 
-        def _build_relation(
-            fs_name_in: str, name_in_order, linked_list_relation, head_order
-        ):
+        def _build_relation(fs_name_in: str, name_in_order, linked_list_relation, head_order):
             name_head = linked_list_relation.head.name
             left_keys = feature_set_objects[name_head].extract_relation_keys(
                 feature_set_objects[fs_name_in],
                 self.vector.get_feature_set_relations(feature_set_objects[name_head]),
             )
-            if left_keys == list(
-                feature_set_objects[name_head].spec.entities.keys()
-            ) and not (head_order < name_in_order):
+            if left_keys == list(feature_set_objects[name_head].spec.entities.keys()) and not (
+                head_order < name_in_order
+            ):
                 left_keys = []
 
             if left_keys:
@@ -683,9 +639,7 @@ class BaseMerger(abc.ABC):
                     BaseMerger._Node(
                         fs_name_in,
                         left_keys=left_keys,
-                        right_keys=list(
-                            feature_set_objects[fs_name_in].spec.entities.keys()
-                        ),
+                        right_keys=list(feature_set_objects[fs_name_in].spec.entities.keys()),
                         order=name_in_order,
                     )
                 )
@@ -708,9 +662,7 @@ class BaseMerger(abc.ABC):
             return entity_rows_relation
 
         if entity_rows_keys is not None:
-            entity_rows_linked_relation = _create_relation(
-                self._entity_rows_node_name, -1
-            )
+            entity_rows_linked_relation = _create_relation(self._entity_rows_node_name, -1)
             relation_linked_lists.append(entity_rows_linked_relation)
             linked_list_len_goal = len(feature_set_objects) + 1
         else:
@@ -720,9 +672,7 @@ class BaseMerger(abc.ABC):
         for i, name in enumerate(feature_set_names):
             linked_relation = _create_relation(name, i)
             if entity_rows_linked_relation is not None:
-                entity_rows_linked_relation = _build_entity_rows_relation(
-                    entity_rows_linked_relation, name, i
-                )
+                entity_rows_linked_relation = _build_entity_rows_relation(entity_rows_linked_relation, name, i)
             for j, name_in in enumerate(feature_set_names):
                 if name != name_in:
                     linked_relation = _build_relation(name_in, j, linked_relation, i)

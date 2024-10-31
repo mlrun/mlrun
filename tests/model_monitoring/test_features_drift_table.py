@@ -68,14 +68,10 @@ def generate_data(
 
 def plot_produce(context: mlrun.MLClientCtx):
     # Generate data:
-    sample_data, inputs = generate_data(
-        250000, 40, inputs_diff_range=(0, 1), scale_range=(0, 1)
-    )
+    sample_data, inputs = generate_data(250000, 40, inputs_diff_range=(0, 1), scale_range=(0, 1))
 
     # Calculate statistics:
-    sample_data_statistics = FeatureStats(
-        DFDataInfer.get_stats(df=sample_data, options=InferOptions.Histogram)
-    )
+    sample_data_statistics = FeatureStats(DFDataInfer.get_stats(df=sample_data, options=InferOptions.Histogram))
     pad_features_hist(sample_data_statistics)
     inputs_statistics = FeatureStats(
         calculate_inputs_statistics(
@@ -113,17 +109,13 @@ def plot_produce(context: mlrun.MLClientCtx):
 
 def test_plot_produce(rundb_mock, tmp_path: Path) -> None:
     # Run the plot production and logging:
-    app_plot_run = mlrun.new_function().run(
-        artifact_path=str(tmp_path), handler=plot_produce
-    )
+    app_plot_run = mlrun.new_function().run(artifact_path=str(tmp_path), handler=plot_produce)
 
     # Validate the artifact was logged:
     assert len(app_plot_run.status.artifacts) == 1
 
     # Check the plot was saved properly (only the drift table plot should appear):
-    artifact_directory_content = list(
-        Path(app_plot_run.status.artifacts[0]["spec"]["target_path"]).parent.glob("*")
-    )
+    artifact_directory_content = list(Path(app_plot_run.status.artifacts[0]["spec"]["target_path"]).parent.glob("*"))
     assert len(artifact_directory_content) == 1
     assert artifact_directory_content[0].name == "drift_table_plot.html"
 
@@ -158,12 +150,8 @@ class TestCalculateInputsStatistics:
         )
 
     @classmethod
-    def test_histograms_features(
-        cls, sample_set_statistics: dict, inputs_df: pd.DataFrame
-    ) -> None:
-        current_stats = calculate_inputs_statistics(
-            sample_set_statistics=sample_set_statistics, inputs=inputs_df
-        )
+    def test_histograms_features(cls, sample_set_statistics: dict, inputs_df: pd.DataFrame) -> None:
+        current_stats = calculate_inputs_statistics(sample_set_statistics=sample_set_statistics, inputs=inputs_df)
         assert (
             current_stats.keys() == sample_set_statistics.keys()
         ), "Inputs statistics and the current statistics should have the same features"

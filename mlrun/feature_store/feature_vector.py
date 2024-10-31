@@ -134,12 +134,8 @@ class FeatureVectorSpec(ModelObj):
             for col, ent in relation.items():
                 if isinstance(ent, str):
                     relation[col] = Entity(ent)
-            temp_relations[fs_name] = ObjectDict.from_dict(
-                {"entity": Entity}, relation, "entity"
-            )
-        self._relations = ObjectDict.from_dict(
-            {"object_dict": ObjectDict}, temp_relations, "object_dict"
-        )
+            temp_relations[fs_name] = ObjectDict.from_dict({"entity": Entity}, relation, "entity")
+        self._relations = ObjectDict.from_dict({"object_dict": ObjectDict}, temp_relations, "object_dict")
 
     @property
     def join_graph(self):
@@ -294,9 +290,7 @@ class JoinGraph(ModelObj):
             self.last_step_name,
             self.all_feature_sets_names,
         )
-        is_first_fs = (
-            join_type == JoinGraph.first_join_type or left_all_feature_sets == self.name
-        )
+        is_first_fs = join_type == JoinGraph.first_join_type or left_all_feature_sets == self.name
         # create_new_step
         new_step = _JoinStep(
             f"step_{first_key_num}",
@@ -317,9 +311,7 @@ class JoinGraph(ModelObj):
     def _start(self, other_operand: typing.Union[str, FeatureSet]):
         return self._join_operands(other_operand, JoinGraph.first_join_type)
 
-    def _init_all_join_keys(
-        self, feature_set_objects, vector, entity_rows_keys: list[str] = None
-    ):
+    def _init_all_join_keys(self, feature_set_objects, vector, entity_rows_keys: list[str] = None):
         for step in self.steps:
             step.init_join_keys(feature_set_objects, vector, entity_rows_keys)
 
@@ -331,9 +323,7 @@ class JoinGraph(ModelObj):
         :return:                    List[str]: A list of feature set names.
         """
         if self._steps:
-            return self._steps[-1].left_feature_set_names + [
-                self._steps[-1].right_feature_set_name
-            ]
+            return self._steps[-1].left_feature_set_names + [self._steps[-1].right_feature_set_name]
         else:
             return self.name
 
@@ -384,8 +374,7 @@ class _JoinStep(ModelObj):
         self.right_step_name = right_step_name
         self.left_feature_set_names = (
             left_feature_set_names
-            if left_feature_set_names is None
-            or isinstance(left_feature_set_names, list)
+            if left_feature_set_names is None or isinstance(left_feature_set_names, list)
             else [left_feature_set_names]
         )
         self.right_feature_set_name = right_feature_set_name
@@ -401,26 +390,13 @@ class _JoinStep(ModelObj):
         vector,
         entity_rows_keys: list[str] = None,
     ):
-        if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
-            entity_rows_keys
-        ):
+        if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(entity_rows_keys):
             self.left_keys, self.right_keys = [
-                list(
-                    feature_set_objects[
-                        self.right_feature_set_name
-                    ].spec.entities.keys()
-                )
+                list(feature_set_objects[self.right_feature_set_name].spec.entities.keys())
             ] * 2
 
-        if (
-            self.join_type == JoinGraph.first_join_type
-            or not self.left_feature_set_names
-        ):
-            self.join_type = (
-                "inner"
-                if self.join_type == JoinGraph.first_join_type
-                else self.join_type
-            )
+        if self.join_type == JoinGraph.first_join_type or not self.left_feature_set_names:
+            self.join_type = "inner" if self.join_type == JoinGraph.first_join_type else self.join_type
             return
 
         for left_fset in self.left_feature_set_names:
@@ -428,14 +404,9 @@ class _JoinStep(ModelObj):
                 feature_set_objects[self.right_feature_set_name],
                 vector.get_feature_set_relations(feature_set_objects[left_fset]),
             )
-            current_right_keys = list(
-                feature_set_objects[self.right_feature_set_name].spec.entities.keys()
-            )
+            current_right_keys = list(feature_set_objects[self.right_feature_set_name].spec.entities.keys())
             for i in range(len(current_left_keys)):
-                if (
-                    current_left_keys[i] not in self.left_keys
-                    and current_right_keys[i] not in self.right_keys
-                ):
+                if current_left_keys[i] not in self.left_keys and current_right_keys[i] not in self.right_keys:
                     self.left_keys.append(current_left_keys[i])
                     self.right_keys.append(current_right_keys[i])
 
@@ -460,9 +431,7 @@ class FixedWindowType(Enum):
         elif self == FixedWindowType.CurrentOpenWindow:
             return QueryByKeyFixedWindowType.CurrentOpenWindow
         else:
-            raise NotImplementedError(
-                f"Provided fixed window type is not supported. fixed_window_type={self}"
-            )
+            raise NotImplementedError(f"Provided fixed window type is not supported. fixed_window_type={self}")
 
 
 class FeatureVector(ModelObj):
@@ -562,9 +531,7 @@ class FeatureVector(ModelObj):
     @property
     def uri(self):
         """fully qualified feature vector uri"""
-        uri = (
-            f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
-        )
+        uri = f"{self._metadata.project or mlconf.default_project}/{self._metadata.name}"
         uri = get_store_uri(StorePrefix.FeatureVector, uri)
         if self._metadata.tag:
             uri += ":" + self._metadata.tag
@@ -606,9 +573,7 @@ class FeatureVector(ModelObj):
         """return feature vector (offline) data as dataframe"""
         driver = get_offline_target(self, name=target_name)
         if not driver:
-            raise mlrun.errors.MLRunNotFoundError(
-                "there are no offline targets for this feature vector"
-            )
+            raise mlrun.errors.MLRunNotFoundError("there are no offline targets for this feature vector")
         return driver.as_df(df_module=df_module)
 
     def save(self, tag="", versioned=False):
@@ -621,9 +586,7 @@ class FeatureVector(ModelObj):
 
     def reload(self, update_spec=True):
         """reload/sync the feature set status and spec from the DB"""
-        from_db = mlrun.get_run_db().get_feature_vector(
-            self.metadata.name, self.metadata.project, self.metadata.tag
-        )
+        from_db = mlrun.get_run_db().get_feature_vector(self.metadata.name, self.metadata.project, self.metadata.tag)
         self.status = from_db.status
         if update_spec:
             self.spec = from_db.spec
@@ -1001,28 +964,19 @@ class OnlineVectorService:
             entity_rows = [entity_rows]
 
         # validate we have valid input struct
-        if (
-            not entity_rows
-            or not isinstance(entity_rows, list)
-            or not isinstance(entity_rows[0], (list, dict))
-        ):
+        if not entity_rows or not isinstance(entity_rows, list) or not isinstance(entity_rows[0], (list, dict)):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"
             )
 
         # if list of list, convert to dicts (with the index columns as the dict keys)
         if isinstance(entity_rows[0], list):
-            if not self._index_columns or len(entity_rows[0]) != len(
-                self._index_columns
-            ):
+            if not self._index_columns or len(entity_rows[0]) != len(self._index_columns):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "input list must be in the same size of the index_keys list"
                 )
             index_range = range(len(self._index_columns))
-            entity_rows = [
-                {self._index_columns[i]: item[i] for i in index_range}
-                for item in entity_rows
-            ]
+            entity_rows = [{self._index_columns[i]: item[i] for i in index_range} for item in entity_rows]
 
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
@@ -1037,18 +991,13 @@ class OnlineVectorService:
                     results.append(None)
                     continue
                 for column in self._requested_columns:
-                    if (
-                        column not in actual_columns
-                        and column != self.vector.status.label_column
-                    ):
+                    if column not in actual_columns and column != self.vector.status.label_column:
                         data[column] = None
 
                 if self._impute_values:
                     for name in data.keys():
                         v = data[name]
-                        if v is None or (
-                            isinstance(v, float) and (np.isinf(v) or np.isnan(v))
-                        ):
+                        if v is None or (isinstance(v, float) and (np.isinf(v) or np.isnan(v))):
                             data[name] = self._impute_values.get(name, v)
                 if not self.vector.spec.with_indexes:
                     for name in self.vector.status.index_keys:
@@ -1058,9 +1007,7 @@ class OnlineVectorService:
 
             if as_list and data:
                 data = [
-                    data.get(key, None)
-                    for key in self._requested_columns
-                    if key != self.vector.status.label_column
+                    data.get(key, None) for key in self._requested_columns if key != self.vector.status.label_column
                 ]
             results.append(data)
 
@@ -1086,9 +1033,7 @@ class OfflineVectorResponse:
     def to_dataframe(self, to_pandas=True):
         """return result as dataframe"""
         if self.status != "completed":
-            raise mlrun.errors.MLRunTaskNotReadyError(
-                "feature vector dataset is not ready"
-            )
+            raise mlrun.errors.MLRunTaskNotReadyError("feature vector dataset is not ready")
         return self._merger.get_df(to_pandas=to_pandas)
 
     def to_parquet(self, target_path, **kw):

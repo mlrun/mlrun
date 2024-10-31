@@ -59,11 +59,7 @@ class _PushToMonitoringWriter(StepToDict):
     def do(
         self,
         event: tuple[
-            list[
-                Union[
-                    ModelMonitoringApplicationResult, ModelMonitoringApplicationMetric
-                ]
-            ],
+            list[Union[ModelMonitoringApplicationResult, ModelMonitoringApplicationMetric]],
             MonitoringApplicationContext,
         ],
     ) -> None:
@@ -87,17 +83,11 @@ class _PushToMonitoringWriter(StepToDict):
         for result in application_results:
             data = result.to_dict()
             if isinstance(result, ModelMonitoringApplicationResult):
-                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                    mm_constant.WriterEventKind.RESULT
-                )
-                data[mm_constant.ResultData.CURRENT_STATS] = json.dumps(
-                    application_context.sample_df_stats
-                )
+                writer_event[mm_constant.WriterEvent.EVENT_KIND] = mm_constant.WriterEventKind.RESULT
+                data[mm_constant.ResultData.CURRENT_STATS] = json.dumps(application_context.sample_df_stats)
                 writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             else:
-                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                    mm_constant.WriterEventKind.METRIC
-                )
+                writer_event[mm_constant.WriterEvent.EVENT_KIND] = mm_constant.WriterEventKind.METRIC
                 writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
 
             writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
@@ -105,9 +95,7 @@ class _PushToMonitoringWriter(StepToDict):
                 if isinstance(result, ModelMonitoringApplicationResult)
                 else mm_constant.WriterEventKind.METRIC
             )
-            logger.info(
-                f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
-            )
+            logger.info(f"Pushing data = {writer_event} \n to stream = {self.stream_uri}")
             self.output_stream.push([writer_event])
             logger.info(f"Pushed data to {self.stream_uri} successfully")
 
@@ -143,9 +131,7 @@ class _PrepareMonitoringEvent(StepToDict):
             model_endpoint_dict=self.model_endpoints,
         )
 
-        self.model_endpoints.setdefault(
-            application_context.endpoint_id, application_context.model_endpoint
-        )
+        self.model_endpoints.setdefault(application_context.endpoint_id, application_context.model_endpoint)
 
         return application_context
 
@@ -165,9 +151,7 @@ class _ApplicationErrorHandler(StepToDict):
         error_data = {
             "Endpoint ID": event.body.endpoint_id,
             "Application Class": event.body.application_name,
-            "Error": "".join(
-                traceback.format_exception(None, event.error, event.error.__traceback__)
-            ),
+            "Error": "".join(traceback.format_exception(None, event.error, event.error.__traceback__)),
             "Timestamp": event.timestamp,
         }
         logger.error("Error in application step", **error_data)
@@ -184,7 +168,5 @@ class _ApplicationErrorHandler(StepToDict):
             value_dict=error_data,
         )
 
-        mlrun.get_run_db().generate_event(
-            name=alert_objects.EventKind.MM_APP_FAILED, event_data=event_data
-        )
+        mlrun.get_run_db().generate_event(name=alert_objects.EventKind.MM_APP_FAILED, event_data=event_data)
         logger.info("Event generated successfully")

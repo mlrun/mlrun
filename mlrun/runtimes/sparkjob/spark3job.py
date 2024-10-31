@@ -92,12 +92,8 @@ class Spark3JobSpec(KubeResourceSpec):
         "driver_affinity",
         "driver_tolerations",
     ]
-    _k8s_fields_to_serialize = (
-        KubeResourceSpec._k8s_fields_to_serialize + __k8s_fields_to_serialize
-    )
-    _fields_to_serialize = (
-        KubeResourceSpec._fields_to_serialize + __k8s_fields_to_serialize
-    )
+    _k8s_fields_to_serialize = KubeResourceSpec._k8s_fields_to_serialize + __k8s_fields_to_serialize
+    _fields_to_serialize = KubeResourceSpec._fields_to_serialize + __k8s_fields_to_serialize
     _fields_to_skip_validation = KubeResourceSpec._fields_to_skip_validation + [
         # TODO: affinity, tolerations and node_selector are skipped due to preemption mode transitions.
         #  Preemption mode 'none' depends on the previous mode while the default mode may enrich these values.
@@ -237,10 +233,8 @@ class Spark3JobSpec(KubeResourceSpec):
 
     @executor_tolerations.setter
     def executor_tolerations(self, executor_tolerations):
-        self._executor_tolerations = (
-            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                "executor_tolerations", executor_tolerations
-            )
+        self._executor_tolerations = mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+            "executor_tolerations", executor_tolerations
         )
 
     @property
@@ -249,10 +243,8 @@ class Spark3JobSpec(KubeResourceSpec):
 
     @driver_tolerations.setter
     def driver_tolerations(self, driver_tolerations):
-        self._driver_tolerations = (
-            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                "driver_tolerations", driver_tolerations
-            )
+        self._driver_tolerations = mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+            "driver_tolerations", driver_tolerations
         )
 
     @property
@@ -261,10 +253,8 @@ class Spark3JobSpec(KubeResourceSpec):
 
     @executor_affinity.setter
     def executor_affinity(self, affinity):
-        self._executor_affinity = (
-            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                "executor_affinity", affinity
-            )
+        self._executor_affinity = mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+            "executor_affinity", affinity
         )
 
     @property
@@ -273,10 +263,8 @@ class Spark3JobSpec(KubeResourceSpec):
 
     @driver_affinity.setter
     def driver_affinity(self, affinity):
-        self._driver_affinity = (
-            mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                "executor_affinity", affinity
-            )
+        self._driver_affinity = mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+            "executor_affinity", affinity
         )
 
     @property
@@ -285,9 +273,7 @@ class Spark3JobSpec(KubeResourceSpec):
 
     @driver_preemption_mode.setter
     def driver_preemption_mode(self, mode):
-        self._driver_preemption_mode = (
-            mode or mlrun.mlconf.function_defaults.preemption_mode
-        )
+        self._driver_preemption_mode = mode or mlrun.mlconf.function_defaults.preemption_mode
         self.enrich_function_preemption_spec(
             preemption_mode_field_name="driver_preemption_mode",
             tolerations_field_name="driver_tolerations",
@@ -301,9 +287,7 @@ class Spark3JobSpec(KubeResourceSpec):
 
     @executor_preemption_mode.setter
     def executor_preemption_mode(self, mode):
-        self._executor_preemption_mode = (
-            mode or mlrun.mlconf.function_defaults.preemption_mode
-        )
+        self._executor_preemption_mode = mode or mlrun.mlconf.function_defaults.preemption_mode
         self.enrich_function_preemption_spec(
             preemption_mode_field_name="executor_preemption_mode",
             tolerations_field_name="executor_tolerations",
@@ -320,9 +304,7 @@ class Spark3JobSpec(KubeResourceSpec):
         self._driver_volume_mounts = {}
         if volume_mounts:
             for volume_mount in volume_mounts:
-                self._set_volume_mount(
-                    volume_mount, volume_mounts_field_name="_driver_volume_mounts"
-                )
+                self._set_volume_mount(volume_mount, volume_mounts_field_name="_driver_volume_mounts")
 
     @property
     def executor_volume_mounts(self) -> list:
@@ -333,13 +315,9 @@ class Spark3JobSpec(KubeResourceSpec):
         self._executor_volume_mounts = {}
         if volume_mounts:
             for volume_mount in volume_mounts:
-                self._set_volume_mount(
-                    volume_mount, volume_mounts_field_name="_executor_volume_mounts"
-                )
+                self._set_volume_mount(volume_mount, volume_mounts_field_name="_executor_volume_mounts")
 
-    def _verify_jvm_memory_string(
-        self, resources_field_name: str, memory: typing.Optional[str]
-    ):
+    def _verify_jvm_memory_string(self, resources_field_name: str, memory: typing.Optional[str]):
         if memory:
             verify_field_regex(
                 f"function.spec.{resources_field_name}.requests.memory",
@@ -347,9 +325,7 @@ class Spark3JobSpec(KubeResourceSpec):
                 [self._jvm_memory_resource_notation],
             )
 
-    def enrich_resources_with_default_pod_resources(
-        self, resources_field_name: str, resources: dict
-    ):
+    def enrich_resources_with_default_pod_resources(self, resources_field_name: str, resources: dict):
         if resources_field_name == "driver_resources":
             role = "driver"
         elif resources_field_name == "executor_resources":
@@ -363,15 +339,10 @@ class Spark3JobSpec(KubeResourceSpec):
         if resources:
             for resource_requirement in resource_requirements:
                 for resource_type in resources_types:
-                    if (
-                        resources.setdefault(resource_requirement, {}).setdefault(
+                    if resources.setdefault(resource_requirement, {}).setdefault(resource_type) is None:
+                        resources[resource_requirement][resource_type] = default_resources[resource_requirement][
                             resource_type
-                        )
-                        is None
-                    ):
-                        resources[resource_requirement][resource_type] = (
-                            default_resources[resource_requirement][resource_type]
-                        )
+                        ]
         else:
             resources = default_resources
 
@@ -380,9 +351,7 @@ class Spark3JobSpec(KubeResourceSpec):
             resources_field_name,
             cpu=resources["requests"]["cpu"],
         )
-        self._verify_jvm_memory_string(
-            resources_field_name, resources["requests"]["memory"]
-        )
+        self._verify_jvm_memory_string(resources_field_name, resources["requests"]["memory"])
         resources["requests"] = generate_resources(
             mem=resources["requests"]["memory"], cpu=resources["requests"]["cpu"]
         )
@@ -434,9 +403,7 @@ class Spark3JobSpec(KubeResourceSpec):
 
     @driver_resources.setter
     def driver_resources(self, resources):
-        self._driver_resources = self.enrich_resources_with_default_pod_resources(
-            "driver_resources", resources
-        )
+        self._driver_resources = self.enrich_resources_with_default_pod_resources("driver_resources", resources)
 
     @property
     def executor_resources(self) -> dict:
@@ -444,9 +411,7 @@ class Spark3JobSpec(KubeResourceSpec):
 
     @executor_resources.setter
     def executor_resources(self, resources):
-        self._executor_resources = self.enrich_resources_with_default_pod_resources(
-            "executor_resources", resources
-        )
+        self._executor_resources = self.enrich_resources_with_default_pod_resources("executor_resources", resources)
 
 
 class Spark3Runtime(KubejobRuntime):
@@ -490,27 +455,19 @@ class Spark3Runtime(KubejobRuntime):
         tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
     ):
         if node_name:
-            raise NotImplementedError(
-                "Setting node name is not supported for spark runtime"
-            )
+            raise NotImplementedError("Setting node name is not supported for spark runtime")
         if affinity:
-            raise NotImplementedError(
-                "Setting affinity is not supported for spark runtime"
-            )
+            raise NotImplementedError("Setting affinity is not supported for spark runtime")
         if tolerations:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 "Tolerations can be set in spark runtime but not in with_node_selection. "
                 "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations."
             )
         if node_name:
-            raise NotImplementedError(
-                "Setting node name is not supported for spark runtime"
-            )
+            raise NotImplementedError("Setting node name is not supported for spark runtime")
         mlrun.k8s_utils.validate_node_selectors(node_selector, raise_on_error=False)
         self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
-        self.with_executor_node_selection(
-            node_name, node_selector, affinity, tolerations
-        )
+        self.with_executor_node_selection(node_name, node_selector, affinity, tolerations)
 
     def with_driver_node_selection(
         self,
@@ -533,9 +490,7 @@ class Spark3Runtime(KubejobRuntime):
                                 for details
         """
         if node_name:
-            raise NotImplementedError(
-                "Setting node name is not supported for spark runtime"
-            )
+            raise NotImplementedError("Setting node name is not supported for spark runtime")
         if affinity is not None:
             self.spec.driver_affinity = affinity
         if node_selector is not None:
@@ -565,9 +520,7 @@ class Spark3Runtime(KubejobRuntime):
                                 for details
         """
         if node_name:
-            raise NotImplementedError(
-                "Setting node name is not supported for spark runtime"
-            )
+            raise NotImplementedError("Setting node name is not supported for spark runtime")
         if affinity is not None:
             self.spec.executor_affinity = affinity
         if node_selector is not None:
@@ -576,9 +529,7 @@ class Spark3Runtime(KubejobRuntime):
         if tolerations is not None:
             self.spec.executor_tolerations = tolerations
 
-    def with_preemption_mode(
-        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
-    ):
+    def with_preemption_mode(self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]):
         """
         Use with_driver_preemption_mode / with_executor_preemption_mode to setup preemption_mode for spark operator
         """
@@ -587,9 +538,7 @@ class Spark3Runtime(KubejobRuntime):
             " to set preemption mode for spark operator"
         )
 
-    def with_driver_preemption_mode(
-        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
-    ):
+    def with_driver_preemption_mode(self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]):
         """
         Preemption mode controls whether the spark driver can be scheduled on preemptible nodes.
         Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
@@ -609,9 +558,7 @@ class Spark3Runtime(KubejobRuntime):
         preemption_mode = mlrun.common.schemas.function.PreemptionModes(mode)
         self.spec.driver_preemption_mode = preemption_mode.value
 
-    def with_executor_preemption_mode(
-        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
-    ):
+    def with_executor_preemption_mode(self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]):
         """
         Preemption mode controls whether the spark executor can be scheduled on preemptible nodes.
         Tolerations, node selector, and affinity are populated on preemptible nodes corresponding to the function spec.
@@ -631,17 +578,13 @@ class Spark3Runtime(KubejobRuntime):
         preemption_mode = mlrun.common.schemas.function.PreemptionModes(mode)
         self.spec.executor_preemption_mode = preemption_mode.value
 
-    def with_security_context(
-        self, security_context: kubernetes.client.V1SecurityContext
-    ):
+    def with_security_context(self, security_context: kubernetes.client.V1SecurityContext):
         """
         With security context is not supported for spark runtime.
         Driver / Executor processes run with uid / gid 1000 as long as security context is not defined.
         If in the future we want to support setting security context it will work only from spark version 3.2 onwards.
         """
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "with_security_context is not supported with spark operator"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentTypeError("with_security_context is not supported with spark operator")
 
     def with_driver_host_path_volume(
         self,
@@ -660,9 +603,7 @@ class Spark3Runtime(KubejobRuntime):
         :param type:        Type for HostPath Volume Defaults to ""
         :param volume_name: Volume's name. Must be a DNS_LABEL and unique within the pod
         """
-        self._with_host_path_volume(
-            "_driver_volume_mounts", host_path, mount_path, type, volume_name
-        )
+        self._with_host_path_volume("_driver_volume_mounts", host_path, mount_path, type, volume_name)
 
     def with_executor_host_path_volume(
         self,
@@ -681,9 +622,7 @@ class Spark3Runtime(KubejobRuntime):
         :param type:        Type for HostPath Volume Defaults to ""
         :param volume_name: Volume's name. Must be a DNS_LABEL and unique within the pod
         """
-        self._with_host_path_volume(
-            "_executor_volume_mounts", host_path, mount_path, type, volume_name
-        )
+        self._with_host_path_volume("_executor_volume_mounts", host_path, mount_path, type, volume_name)
 
     def _with_host_path_volume(
         self,
@@ -695,13 +634,9 @@ class Spark3Runtime(KubejobRuntime):
     ):
         volume = kubernetes.client.V1Volume(
             name=volume_name,
-            host_path=kubernetes.client.V1HostPathVolumeSource(
-                path=host_path, type=type_
-            ),
+            host_path=kubernetes.client.V1HostPathVolumeSource(path=host_path, type=type_),
         )
-        volume_mount = kubernetes.client.V1VolumeMount(
-            mount_path=mount_path, name=volume_name
-        )
+        volume_mount = kubernetes.client.V1VolumeMount(mount_path=mount_path, name=volume_name)
         kubernetes_api_client = kubernetes.client.ApiClient()
         self.spec.update_vols_and_mounts(
             [kubernetes_api_client.sanitize_for_serialization(volume)],
@@ -709,9 +644,7 @@ class Spark3Runtime(KubejobRuntime):
             volume_mounts_field_name,
         )
 
-    def with_dynamic_allocation(
-        self, min_executors=None, max_executors=None, initial_executors=None
-    ):
+    def with_dynamic_allocation(self, min_executors=None, max_executors=None, initial_executors=None):
         """
         Allows to configure spark's dynamic allocation
 
@@ -766,9 +699,7 @@ class Spark3Runtime(KubejobRuntime):
         )
         if config.spark_history_server_path:
             self.spec.spark_conf["spark.eventLog.enabled"] = "true"
-            self.spec.spark_conf["spark.eventLog.dir"] = (
-                "file://" + config.spark_history_server_path
-            )
+            self.spec.spark_conf["spark.eventLog.dir"] = "file://" + config.spark_history_server_path
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
@@ -888,15 +819,9 @@ class Spark3Runtime(KubejobRuntime):
 
     @staticmethod
     def _get_gpu_type_and_quantity(resources):
-        gpu_type = [
-            resource_type
-            for resource_type in resources.keys()
-            if resource_type not in ["cpu", "memory"]
-        ]
+        gpu_type = [resource_type for resource_type in resources.keys() if resource_type not in ["cpu", "memory"]]
         if len(gpu_type) > 1:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Sparkjob supports only a single gpu type"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Sparkjob supports only a single gpu type")
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
@@ -929,23 +854,15 @@ class Spark3Runtime(KubejobRuntime):
         gpu_type="nvidia.com/gpu",
         patch: bool = False,
     ):
-        raise NotImplementedError(
-            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
-        )
+        raise NotImplementedError("In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'")
 
     def with_requests(self, mem=None, cpu=None, patch: bool = False):
-        raise NotImplementedError(
-            "In spark runtimes, use 'with_driver_requests' & 'with_executor_requests'"
-        )
+        raise NotImplementedError("In spark runtimes, use 'with_driver_requests' & 'with_executor_requests'")
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        raise NotImplementedError(
-            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
-        )
+        raise NotImplementedError("In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'")
 
-    def with_executor_requests(
-        self, mem: str = None, cpu: str = None, patch: bool = False
-    ):
+    def with_executor_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
         """
         set executor pod required cpu/memory/gpu resources
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
@@ -965,13 +882,9 @@ class Spark3Runtime(KubejobRuntime):
         """
         # in spark operator there is only use of mem passed through requests,
         # limits is set to the same value so passing mem=None
-        self.spec._verify_and_set_limits(
-            "executor_resources", None, cpu, gpus, gpu_type, patch=patch
-        )
+        self.spec._verify_and_set_limits("executor_resources", None, cpu, gpus, gpu_type, patch=patch)
 
-    def with_driver_requests(
-        self, mem: str = None, cpu: str = None, patch: bool = False
-    ):
+    def with_driver_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
         """
         set driver pod required cpu/memory/gpu resources
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
@@ -991,9 +904,7 @@ class Spark3Runtime(KubejobRuntime):
         """
         # in spark operator there is only use of mem passed through requests,
         # limits is set to the same value so passing mem=None
-        self.spec._verify_and_set_limits(
-            "driver_resources", None, cpu, gpus, gpu_type, patch=patch
-        )
+        self.spec._verify_and_set_limits("driver_resources", None, cpu, gpus, gpu_type, patch=patch)
 
     def with_restart_policy(
         self,
@@ -1015,9 +926,7 @@ class Spark3Runtime(KubejobRuntime):
             submission_retry_interval,
         )
 
-    def with_source_archive(
-        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
-    ):
+    def with_source_archive(self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None):
         """load the code from git/tar/zip archive at runtime or build
 
         :param source:          valid path to git, zip, or tar file, e.g.
@@ -1033,15 +942,9 @@ class Spark3Runtime(KubejobRuntime):
                 "pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False"
             )
 
-        super().with_source_archive(
-            source, workdir, handler, pull_at_runtime, target_dir
-        )
+        super().with_source_archive(source, workdir, handler, pull_at_runtime, target_dir)
 
     def is_deployed(self):
-        if (
-            not self.spec.build.source
-            and not self.spec.build.commands
-            and not self.spec.build.extra
-        ):
+        if not self.spec.build.source and not self.spec.build.commands and not self.spec.build.extra:
             return True
         return super().is_deployed()

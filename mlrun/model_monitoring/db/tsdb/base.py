@@ -403,12 +403,8 @@ class TSDBConnector(ABC):
             grouped = []
             logger.debug("No results", missing_results=metrics_without_data.keys())
         for (app_name, name), sub_df in grouped:
-            result_kind = mlrun.model_monitoring.db.tsdb.helpers._get_result_kind(
-                sub_df
-            )
-            full_name = mlrun.model_monitoring.helpers._compose_full_name(
-                project=project, app=app_name, name=name
-            )
+            result_kind = mlrun.model_monitoring.db.tsdb.helpers._get_result_kind(sub_df)
+            full_name = mlrun.model_monitoring.helpers._compose_full_name(project=project, app=app_name, name=name)
             try:
                 metrics_values.append(
                     mm_schemas.ModelEndpointMonitoringResultValues(
@@ -433,9 +429,7 @@ class TSDBConnector(ABC):
             del metrics_without_data[full_name]
 
         for metric in metrics_without_data.values():
-            if metric.full_name == mlrun.model_monitoring.helpers.get_invocations_fqn(
-                project
-            ):
+            if metric.full_name == mlrun.model_monitoring.helpers.get_invocations_fqn(project):
                 continue
             metrics_values.append(
                 mm_schemas.ModelEndpointMonitoringMetricNoData(

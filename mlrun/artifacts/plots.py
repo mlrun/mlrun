@@ -32,9 +32,7 @@ class PlotArtifact(Artifact):
 <img title="{}" src="data:image/png;base64,{}">
 """
 
-    def __init__(
-        self, key=None, body=None, is_inline=False, target_path=None, title=None
-    ):
+    def __init__(self, key=None, body=None, is_inline=False, target_path=None, title=None):
         if key or body or is_inline or target_path:
             warnings.warn(
                 "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
@@ -48,12 +46,8 @@ class PlotArtifact(Artifact):
         self.spec.viewer = "chart"
         import matplotlib
 
-        if not self.spec.get_body() or not isinstance(
-            self.spec.get_body(), (bytes, matplotlib.figure.Figure)
-        ):
-            raise ValueError(
-                "matplotlib fig or png bytes must be provided as artifact body"
-            )
+        if not self.spec.get_body() or not isinstance(self.spec.get_body(), (bytes, matplotlib.figure.Figure)):
+            raise ValueError("matplotlib fig or png bytes must be provided as artifact body")
 
     def get_body(self):
         """Convert Matplotlib figure 'fig' into a <img> tag for HTML use
@@ -69,9 +63,7 @@ class PlotArtifact(Artifact):
             data = png_output.getvalue()
 
         data_uri = base64.b64encode(data).decode("utf-8")
-        return self._TEMPLATE.format(
-            self.metadata.description or self.metadata.key, self.metadata.key, data_uri
-        )
+        return self._TEMPLATE.format(self.metadata.description or self.metadata.key, self.metadata.key, data_uri)
 
 
 class PlotlyArtifact(Artifact):

@@ -38,12 +38,8 @@ class LocalFeatureMerger(BaseMerger):
     ):
         index_col_not_in_entity = "index" not in entity_df.columns
         index_col_not_in_featureset = "index" not in featureset_df.columns
-        entity_df[entity_timestamp_column] = pd.to_datetime(
-            entity_df[entity_timestamp_column]
-        )
-        featureset_df[featureset_timstamp] = pd.to_datetime(
-            featureset_df[featureset_timstamp]
-        )
+        entity_df[entity_timestamp_column] = pd.to_datetime(entity_df[entity_timestamp_column])
+        featureset_df[featureset_timstamp] = pd.to_datetime(featureset_df[featureset_timstamp])
         entity_df.sort_values(by=entity_timestamp_column, inplace=True)
         featureset_df.sort_values(by=featureset_timstamp, inplace=True)
 

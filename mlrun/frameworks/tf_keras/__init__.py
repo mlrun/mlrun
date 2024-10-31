@@ -133,9 +133,7 @@ def apply_mlrun(
         )
 
     # Create a model handler:
-    model_handler_kwargs = (
-        kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
-    )
+    model_handler_kwargs = kwargs.pop("model_handler_kwargs") if "model_handler_kwargs" in kwargs else {}
     handler = TFKerasModelHandler(
         model_name=model_name,
         model_path=model_path,
@@ -164,12 +162,8 @@ def apply_mlrun(
     # Add auto-logging if needed:
     if auto_log:
         # Set the kwargs dictionaries defaults:
-        mlrun_callback_kwargs = (
-            {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
-        )
-        tensorboard_callback_kwargs = (
-            {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
-        )
+        mlrun_callback_kwargs = {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
+        tensorboard_callback_kwargs = {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
         # Add the logging callbacks with the provided parameters:
         model.add_logging_callback(
             logging_callback=MLRunLoggingCallback(

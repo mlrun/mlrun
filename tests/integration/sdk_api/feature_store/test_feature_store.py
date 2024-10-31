@@ -30,9 +30,7 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
             path=f"v3io:///projects{stream_path}",
             key_field="ticker",
         )
-        fset = fstore.FeatureSet(
-            name, timestamp_key="time", entities=[Entity("ticker")]
-        )
+        fset = fstore.FeatureSet(name, timestamp_key="time", entities=[Entity("ticker")])
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             fset.deploy_ingestion_service(

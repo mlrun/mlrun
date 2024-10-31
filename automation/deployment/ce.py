@@ -73,9 +73,7 @@ def add_options(options):
 
 
 def order_click_options(func):
-    func.__click_params__ = list(
-        reversed(sorted(func.__click_params__, key=lambda option: option.name))
-    )
+    func.__click_params__ = list(reversed(sorted(func.__click_params__, key=lambda option: option.name)))
     return func
 
 

@@ -57,9 +57,7 @@ in_docker = check_docker()
 from mlrun import RunObject, RunTemplate  # noqa
 from mlrun.utils import FormatterKinds, logger, resolve_formatter_by_kind  # noqa
 
-logger.get_handler("default").setFormatter(
-    resolve_formatter_by_kind(FormatterKinds.HUMAN_EXTENDED)()
-)
+logger.get_handler("default").setFormatter(resolve_formatter_by_kind(FormatterKinds.HUMAN_EXTENDED)())
 
 
 def tag_test(spec: RunTemplate, name) -> RunTemplate:

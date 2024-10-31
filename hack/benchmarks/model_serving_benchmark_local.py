@@ -35,9 +35,7 @@ serving_spec = {
         "kind": "router",
         "routes": {
             "classification": {
-                "class_args": {
-                    "model_path": "store://models/test-app-flow/classification:latest"
-                },
+                "class_args": {"model_path": "store://models/test-app-flow/classification:latest"},
                 "kind": "task",
                 "class_name": "ClassifierModel",
             }

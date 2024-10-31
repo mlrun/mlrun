@@ -45,9 +45,7 @@ def parse_url(url):
         netloc = str(parsed_url.netloc)
         lower_netloc = netloc.lower()
         hostname_index_in_netloc = lower_netloc.index(str(lower_hostname))
-        endpoint = netloc[
-            hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
-        ]
+        endpoint = netloc[hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)]
     if parsed_url.port:
         endpoint += f":{parsed_url.port}"
     return schema, endpoint, parsed_url
@@ -62,9 +60,7 @@ def schema_to_store(schema):
         try:
             from .s3 import S3Store
         except ImportError:
-            raise mlrun.errors.MLRunMissingDependencyError(
-                "s3 packages are missing, use pip install mlrun[s3]"
-            )
+            raise mlrun.errors.MLRunMissingDependencyError("s3 packages are missing, use pip install mlrun[s3]")
 
         return S3Store
     elif schema in ["az", "wasbs", "wasb"]:
@@ -147,9 +143,7 @@ class StoreManager:
                 self._stores[stor["name"]] = new_stor
 
     def to_dict(self, struct):
-        struct[RunKeys.data_stores] = [
-            stor.to_dict() for stor in self._stores.values() if stor.from_spec
-        ]
+        struct[RunKeys.data_stores] = [stor.to_dict() for stor in self._stores.values() if stor.from_spec]
 
     def secret(self, key):
         return self._secrets.get(key)
@@ -157,9 +151,7 @@ class StoreManager:
     def _add_store(self, store):
         self._stores[store.name] = store
 
-    def get_store_artifact(
-        self, url, project="", allow_empty_resources=None, secrets=None
-    ):
+    def get_store_artifact(self, url, project="", allow_empty_resources=None, secrets=None):
         """
         This is expected to be run only on client side. server is not expected to load artifacts.
         """
@@ -182,19 +174,13 @@ class StoreManager:
             )
         return resource, target or ""
 
-    def object(
-        self, url, key="", project="", allow_empty_resources=None, secrets: dict = None
-    ) -> DataItem:
+    def object(self, url, key="", project="", allow_empty_resources=None, secrets: dict = None) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):
             artifact_url = url
-            meta, url = self.get_store_artifact(
-                url, project, allow_empty_resources, secrets
-            )
+            meta, url = self.get_store_artifact(url, project, allow_empty_resources, secrets)
 
-        store, subpath, url = self.get_or_create_store(
-            url, secrets=secrets, project_name=project
-        )
+        store, subpath, url = self.get_or_create_store(url, secrets=secrets, project_name=project)
         return DataItem(
             key,
             store,
@@ -204,9 +190,7 @@ class StoreManager:
             artifact_url=artifact_url,
         )
 
-    def get_or_create_store(
-        self, url, secrets: dict = None, project_name=""
-    ) -> (DataStore, str, str):
+    def get_or_create_store(self, url, secrets: dict = None, project_name="") -> (DataStore, str, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
         store_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
@@ -243,9 +227,7 @@ class StoreManager:
         # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
-        store = schema_to_store(schema)(
-            self, schema, store_key, parsed_url.netloc, secrets=secrets
-        )
+        store = schema_to_store(schema)(self, schema, store_key, parsed_url.netloc, secrets=secrets)
         if not secrets and not mlrun.config.is_running_as_api():
             self._stores[store_key] = store
         return store, subpath, url

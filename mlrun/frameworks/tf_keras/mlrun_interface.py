@@ -100,16 +100,11 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         # Validate the optimizer is passed via keyword:
         if "optimizer" not in kwargs:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "The optimizer must be passed as a keyword argument:\n"
-                "model.compile(\n"
-                "    optimizer=...\n"
-                ")"
+                "The optimizer must be passed as a keyword argument:\n" "model.compile(\n" "    optimizer=...\n" ")"
             )
 
         # Call the pre compile method:
-        (optimizer, experimental_run_tf_function) = self._pre_compile(
-            optimizer=kwargs["optimizer"]
-        )
+        (optimizer, experimental_run_tf_function) = self._pre_compile(optimizer=kwargs["optimizer"])
 
         # Assign parameters:
         kwargs["optimizer"] = optimizer
@@ -268,12 +263,8 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             # Pin each GPU to a single process:
             gpus = tf.config.experimental.list_physical_devices("GPU")
             if gpus:
-                tf.config.experimental.set_visible_devices(
-                    gpus[self._hvd.local_rank()], "GPU"
-                )
-                print(
-                    f"Horovod worker #{self._hvd.rank()} is using GPU #{self._hvd.local_rank()}"
-                )
+                tf.config.experimental.set_visible_devices(gpus[self._hvd.local_rank()], "GPU")
+                print(f"Horovod worker #{self._hvd.rank()} is using GPU #{self._hvd.local_rank()}")
         else:
             # No GPUs were found, or 'use_cuda' was false:
             os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -336,18 +327,12 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             self._hvd.callbacks.BroadcastGlobalVariablesCallback(0),
             metric_average_callback,
             self._hvd.callbacks.LearningRateWarmupCallback(
-                initial_lr=float(
-                    self.optimizer.lr
-                    if hasattr(self.optimizer, "lr")
-                    else self.optimizer.learning_rate
-                )
+                initial_lr=float(self.optimizer.lr if hasattr(self.optimizer, "lr") else self.optimizer.learning_rate)
             ),
         ]
         if self._hvd.rank() != 0:
             callbacks = [
-                callback
-                for callback in callbacks
-                if type(callback).__name__ not in self._RANK_0_ONLY_CALLBACKS
+                callback for callback in callbacks if type(callback).__name__ not in self._RANK_0_ONLY_CALLBACKS
             ]
         callbacks = horovod_callbacks + callbacks
 
@@ -382,11 +367,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         :raise MLRunInvalidArgumentError: If horovod is being used but the 'steps' parameter were not given.
         """
         # Remove the 'auto_log' callback 'TensorboardLoggingCallback' (only relevant for training):
-        callbacks = [
-            callback
-            for callback in callbacks
-            if type(callback).__name__ != "TensorboardLoggingCallback"
-        ]
+        callbacks = [callback for callback in callbacks if type(callback).__name__ != "TensorboardLoggingCallback"]
 
         # Check if needed to run with horovod:
         if self._hvd is None:
@@ -408,9 +389,7 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         ]
         if self._hvd.rank() != 0:
             callbacks = [
-                callback
-                for callback in callbacks
-                if type(callback).__name__ not in self._RANK_0_ONLY_CALLBACKS
+                callback for callback in callbacks if type(callback).__name__ not in self._RANK_0_ONLY_CALLBACKS
             ]
         callbacks = horovod_callbacks + callbacks
 

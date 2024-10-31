@@ -46,9 +46,7 @@ from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (
 
 
 @pytest.fixture(params=["default-project"])
-def store(
-    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
-) -> KVStoreBase:
+def store(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> KVStoreBase:
     monkeypatch.setenv("V3IO_ACCESS_KEY", "secret-value")
     store = KVStoreBase(project=request.param)
     return store
@@ -193,9 +191,7 @@ def test_extract_metrics_from_items(
         ),
     ],
 )
-def test_is_no_schema_error(
-    exc: v3io_frames.ReadError, expected_is_no_schema: bool
-) -> None:
+def test_is_no_schema_error(exc: v3io_frames.ReadError, expected_is_no_schema: bool) -> None:
     assert _is_no_schema_error(exc) == expected_is_no_schema
 
 
@@ -209,9 +205,7 @@ def kv_client_mock() -> v3io.dataplane.kv.Model:
 
 
 @pytest.fixture
-def mocked_client_store(
-    store: KVStoreBase, kv_client_mock: v3io.dataplane.kv.Model
-) -> KVStoreBase:
+def mocked_client_store(store: KVStoreBase, kv_client_mock: v3io.dataplane.kv.Model) -> KVStoreBase:
     store.client.kv = kv_client_mock
     return store
 
@@ -233,9 +227,7 @@ def test_write_application_metric(
     kv_client_mock: v3io.dataplane.kv.Model,
     metric_event: dict[str, Any],
 ) -> None:
-    mocked_client_store.write_application_event(
-        event=metric_event, kind=mm_constants.WriterEventKind.METRIC
-    )
+    mocked_client_store.write_application_event(event=metric_event, kind=mm_constants.WriterEventKind.METRIC)
     kv_client_mock.update.assert_called_once()
     kv_client_mock.create_schema.assert_called_once()
 
@@ -293,14 +285,8 @@ class TestGetModelEndpointMetrics:
         marker: Optional[str] = None,
         filter_expression: Optional[str] = None,
     ) -> v3io.dataplane.response.Response:
-        if (
-            container != cls.CONTAINER
-            or table_path != cls.ENDPOINT
-            or marker not in cls.MARKER_TO_ENTRY_MAP
-        ):
-            raise v3io.dataplane.response.HttpResponseError(
-                status_code=HTTPStatus.NOT_FOUND
-            )
+        if container != cls.CONTAINER or table_path != cls.ENDPOINT or marker not in cls.MARKER_TO_ENTRY_MAP:
+            raise v3io.dataplane.response.HttpResponseError(status_code=HTTPStatus.NOT_FOUND)
         entry = cls.MARKER_TO_ENTRY_MAP[marker]
         response = v3io.dataplane.response.Response(
             output="",
@@ -308,9 +294,7 @@ class TestGetModelEndpointMetrics:
             headers={},
             body=b"",
         )
-        response._parsed_output = v3io.dataplane.output.GetItemsOutput(
-            decoded_body=entry.decoded_body
-        )
+        response._parsed_output = v3io.dataplane.output.GetItemsOutput(decoded_body=entry.decoded_body)
         response._parsed_output.items = entry.items
         return response
 
@@ -325,9 +309,7 @@ class TestGetModelEndpointMetrics:
     @staticmethod
     @pytest.fixture
     def response_error() -> v3io.dataplane.response.HttpResponseError:
-        return v3io.dataplane.response.HttpResponseError(
-            status_code=HTTPStatus.NETWORK_AUTHENTICATION_REQUIRED
-        )
+        return v3io.dataplane.response.HttpResponseError(status_code=HTTPStatus.NETWORK_AUTHENTICATION_REQUIRED)
 
     @staticmethod
     @pytest.fixture
@@ -349,9 +331,7 @@ class TestGetModelEndpointMetrics:
         expected_metrics: list[ModelEndpointMonitoringMetric],
     ) -> None:
         assert (
-            store.get_model_endpoint_metrics(
-                endpoint_id, type=mm_constants.ModelEndpointMonitoringMetricType.RESULT
-            )
+            store.get_model_endpoint_metrics(endpoint_id, type=mm_constants.ModelEndpointMonitoringMetricType.RESULT)
             == expected_metrics
         )
 
@@ -491,9 +471,7 @@ def _mock_frames_client(tsdb_df: pd.DataFrame) -> Iterator[None]:
     frames_client_mock = Mock()
     frames_client_mock.read = Mock(return_value=tsdb_df)
 
-    with patch.object(
-        mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
-    ):
+    with patch.object(mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock):
         yield
 
 
@@ -502,9 +480,7 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
     frames_client_mock = Mock()
     frames_client_mock.read = Mock(return_value=predictions_df)
 
-    with patch.object(
-        mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock
-    ):
+    with patch.object(mlrun.utils.v3io_clients, "get_frames_client", return_value=frames_client_mock):
         yield
 
 
@@ -557,10 +533,7 @@ def test_read_predictions() -> None:
     tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
         tsdb_connector.read_predictions(**predictions_args)
-        assert (
-            str(err.value)
-            == "both or neither of `aggregation_window` and `agg_funcs` must be provided"
-        )
+        assert str(err.value) == "both or neither of `aggregation_window` and `agg_funcs` must be provided"
     predictions_args["agg_funcs"] = ["count"]
     result = tsdb_connector.read_predictions(**predictions_args)
     assert result.full_name == "fictitious-one.mlrun-infra.metric.invocations"
@@ -586,7 +559,5 @@ def test_read_predictions() -> None:
         ),
     ],
 )
-def test_normalize_dict_for_v3io_frames(
-    input_event: dict[str, Any], expected_output: dict[str, Any]
-) -> None:
+def test_normalize_dict_for_v3io_frames(input_event: dict[str, Any], expected_output: dict[str, Any]) -> None:
     assert _normalize_dict_for_v3io_frames(input_event) == expected_output

@@ -104,8 +104,4 @@ class RunStatuses(StrEnum):
 
     @staticmethod
     def transient_statuses():
-        return [
-            status
-            for status in RunStatuses.all()
-            if status not in RunStatuses.stable_statuses()
-        ]
+        return [status for status in RunStatuses.all() if status not in RunStatuses.stable_statuses()]

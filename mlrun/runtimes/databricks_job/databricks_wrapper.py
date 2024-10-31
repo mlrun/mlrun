@@ -38,9 +38,7 @@ credentials_path = "/mlrun/databricks_credentials.yaml"
 
 def get_task(databricks_run: Run) -> RunTask:
     if len(databricks_run.tasks) == 0:
-        raise MLRunRuntimeError(
-            "Cannot find tasks related to the Databricks job run ID in Databricks environment."
-        )
+        raise MLRunRuntimeError("Cannot find tasks related to the Databricks job run ID in Databricks environment.")
     elif len(databricks_run.tasks) > 1:
         raise MLRunRuntimeError(
             "More than one task related to the Databricks job run ID has been found."
@@ -65,18 +63,12 @@ def log_artifacts_by_dbfs_json(
         if artifact_path.startswith("/dbfs"):
             fixed_artifact_path = artifact_path.replace("/dbfs", "dbfs://", 1)
         # for pyspark format:
-        elif artifact_path.startswith("dbfs:/") and not artifact_path.startswith(
-            "dbfs://"
-        ):
+        elif artifact_path.startswith("dbfs:/") and not artifact_path.startswith("dbfs://"):
             fixed_artifact_path = artifact_path.replace("dbfs:/", "dbfs:///", 1)
         elif not artifact_path.startswith("dbfs:///"):
-            context.logger.error(
-                f"Can not log artifact: {artifact_name}: {artifact_path}"
-            )
+            context.logger.error(f"Can not log artifact: {artifact_name}: {artifact_path}")
             continue
-        context.log_artifact(
-            artifact_name, local_path=fixed_artifact_path, upload=False
-        )
+        context.log_artifact(artifact_name, local_path=fixed_artifact_path, upload=False)
 
 
 def save_credentials(
@@ -122,8 +114,7 @@ def run_mlrun_databricks_job(
     logger = context.logger
     workspace = WorkspaceClient(token=databricks_token)
     script_path_on_dbfs = (
-        f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
-        f"{databricks_run_name}.py"
+        f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/" f"{databricks_run_name}.py"
     )
     spark_app_code = b64decode(spark_app_code)
     if workspace.dbfs.exists(artifact_json_path):
@@ -144,9 +135,7 @@ def run_mlrun_databricks_job(
         else:
             logger.info("Running with a new cluster")
             cluster_spec_kwargs = {
-                "spark_version": workspace.clusters.select_spark_version(
-                    long_term_support=True
-                ),
+                "spark_version": workspace.clusters.select_spark_version(long_term_support=True),
                 "node_type_id": workspace.clusters.select_node_type(local_disk=True),
                 "num_workers": number_of_workers,
             }

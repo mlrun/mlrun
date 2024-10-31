@@ -62,20 +62,14 @@ class ModelObj:
 
     @staticmethod
     def _verify_dict(param, name, new_type=None):
-        if (
-            param is not None
-            and not isinstance(param, dict)
-            and not hasattr(param, "to_dict")
-        ):
+        if param is not None and not isinstance(param, dict) and not hasattr(param, "to_dict"):
             raise ValueError(f"Parameter {name} must be a dict or object")
         if new_type and (isinstance(param, dict) or param is None):
             return new_type.from_dict(param)
         return param
 
     @mlrun.utils.filter_warnings("ignore", FutureWarning)
-    def to_dict(
-        self, fields: list = None, exclude: list = None, strip: bool = False
-    ) -> dict:
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False) -> dict:
         """
         Convert the object to a dict
 
@@ -98,45 +92,32 @@ class ModelObj:
         # fields_to_save is built from the fields list minus the fields to exclude minus the fields that requires
         # serialization and enrichment (because they will be added later to the struct)
         fields_to_save = (
-            set(fields)
-            - set(fields_to_exclude)
-            - set(self._fields_to_serialize)
-            - set(self._fields_to_enrich)
+            set(fields) - set(fields_to_exclude) - set(self._fields_to_serialize) - set(self._fields_to_enrich)
         )
 
         # Iterating over the fields to save and adding them to the struct
         for field_name in fields_to_save:
             field_value = getattr(self, field_name, None)
-            if self._is_valid_field_value_for_serialization(
-                field_name, field_value, strip
-            ):
+            if self._is_valid_field_value_for_serialization(field_name, field_value, strip):
                 # If the field value has attribute to_dict, we call it.
                 # If one of the attributes is a third party object that has to_dict method (such as k8s objects), then
                 # add it to the object's _fields_to_serialize attribute and handle it in the _serialize_field method.
                 if hasattr(field_value, "to_dict"):
                     field_value = field_value.to_dict(strip=strip)
-                    if self._is_valid_field_value_for_serialization(
-                        field_name, field_value, strip
-                    ):
+                    if self._is_valid_field_value_for_serialization(field_name, field_value, strip):
                         struct[field_name] = field_value
                 else:
                     struct[field_name] = field_value
 
         # Subtracting the fields_to_exclude from the fields_to_serialize because if we want to exclude a field there
         # is no need to serialize it.
-        fields_to_serialize = list(
-            set(self._fields_to_serialize) - set(fields_to_exclude)
-        )
-        self._resolve_field_value_by_method(
-            struct, self._serialize_field, fields_to_serialize, strip
-        )
+        fields_to_serialize = list(set(self._fields_to_serialize) - set(fields_to_exclude))
+        self._resolve_field_value_by_method(struct, self._serialize_field, fields_to_serialize, strip)
 
         # Subtracting the fields_to_exclude from the fields_to_enrich because if we want to exclude a field there
         # is no need to enrich it.
         fields_to_enrich = list(set(self._fields_to_enrich) - set(fields_to_exclude))
-        self._resolve_field_value_by_method(
-            struct, self._enrich_field, fields_to_enrich, strip
-        )
+        self._resolve_field_value_by_method(struct, self._enrich_field, fields_to_enrich, strip)
 
         self._apply_enrichment_before_to_dict_completion(struct, strip=strip)
         return struct
@@ -150,15 +131,9 @@ class ModelObj:
 
         :return: List of fields to iterate over.
         """
-        return (
-            fields
-            or self._dict_fields
-            or list(inspect.signature(self.__init__).parameters.keys())
-        )
+        return fields or self._dict_fields or list(inspect.signature(self.__init__).parameters.keys())
 
-    def _is_valid_field_value_for_serialization(
-        self, field_name: str, field_value: str, strip: bool = False
-    ) -> bool:
+    def _is_valid_field_value_for_serialization(self, field_name: str, field_value: str, strip: bool = False) -> bool:
         """
         Check if the field value is valid for serialization.
         If field name is in `_fields_to_skip_validation` attribute, skip validation and return True.
@@ -176,8 +151,7 @@ class ModelObj:
         #     return True
 
         return field_value is not None and not (
-            (isinstance(field_value, dict) or isinstance(field_value, list))
-            and not field_value
+            (isinstance(field_value, dict) or isinstance(field_value, list)) and not field_value
         )
 
     def _resolve_field_value_by_method(
@@ -189,29 +163,21 @@ class ModelObj:
     ) -> dict:
         for field_name in fields:
             field_value = method(struct=struct, field_name=field_name, strip=strip)
-            if self._is_valid_field_value_for_serialization(
-                field_name, field_value, strip
-            ):
+            if self._is_valid_field_value_for_serialization(field_name, field_value, strip):
                 struct[field_name] = field_value
         return struct
 
-    def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
-    ) -> typing.Any:
+    def _serialize_field(self, struct: dict, field_name: str = None, strip: bool = False) -> typing.Any:
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
         # the fields to save.
         return getattr(self, field_name, None)
 
-    def _enrich_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
-    ) -> typing.Any:
+    def _enrich_field(self, struct: dict, field_name: str = None, strip: bool = False) -> typing.Any:
         # We first try to pull from struct because the field might have been already serialized and if not,
         # we pull from self
         return struct.get(field_name, None) or getattr(self, field_name, None)
 
-    def _apply_enrichment_before_to_dict_completion(
-        self, struct: dict, strip: bool = False
-    ) -> dict:
+    def _apply_enrichment_before_to_dict_completion(self, struct: dict, strip: bool = False) -> dict:
         return struct
 
     @classmethod
@@ -602,9 +568,7 @@ class ImageBuilder(ModelObj):
 
         :return: function object
         """
-        if not isinstance(commands, list) or not all(
-            isinstance(item, str) for item in commands
-        ):
+        if not isinstance(commands, list) or not all(isinstance(item, str) for item in commands):
             raise ValueError("commands must be a string list")
         if not self.commands or overwrite:
             self.commands = commands
@@ -633,9 +597,7 @@ class ImageBuilder(ModelObj):
         """
         requirements = requirements or []
         self._verify_list(requirements, "requirements")
-        resolved_requirements = self._resolve_requirements(
-            requirements, requirements_file
-        )
+        resolved_requirements = self._resolve_requirements(requirements, requirements_file)
         requirements = self.requirements or [] if not overwrite else []
 
         # make sure we don't append the same line twice
@@ -735,9 +697,7 @@ class Notification(ModelObj):
         try:
             mlrun.common.schemas.notification.Notification(**self.to_dict())
         except pydantic.error_wrappers.ValidationError as exc:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid notification object"
-            ) from exc
+            raise mlrun.errors.MLRunInvalidArgumentError("Invalid notification object") from exc
 
         # validate that size of notification secret_params doesn't exceed 1 MB,
         # due to k8s default secret size limitation.
@@ -746,14 +706,10 @@ class Notification(ModelObj):
             len(json.dumps(self.secret_params))
             > mlrun.common.schemas.notification.NotificationLimits.max_params_size.value
         ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Notification params size exceeds max size of 1 MB"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Notification params size exceeds max size of 1 MB")
 
     def validate_notification_params(self):
-        notification_class = mlrun.utils.notifications.NotificationTypes(
-            self.kind
-        ).get_notification()
+        notification_class = mlrun.utils.notifications.NotificationTypes(self.kind).get_notification()
 
         secret_params = self.secret_params or {}
         params = self.params or {}
@@ -787,18 +743,14 @@ class Notification(ModelObj):
                 try:
                     self.secret_params = json.loads(secret_value)
                 except ValueError as exc:
-                    raise mlrun.errors.MLRunValueError(
-                        "Failed to parse secret value"
-                    ) from exc
+                    raise mlrun.errors.MLRunValueError("Failed to parse secret value") from exc
 
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):
         """Validate that all notifications in the list are unique by name"""
         names = [notification.name for notification in notifications]
         if len(names) != len(set(names)):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Notification names must be unique"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Notification names must be unique")
 
 
 class RunMetadata(ModelObj):
@@ -831,10 +783,7 @@ class RunMetadata(ModelObj):
     def is_workflow_runner(self):
         if not self.labels:
             return False
-        return (
-            self.labels.get(mlrun_constants.MLRunInternalLabels.job_type, "")
-            == "workflow-runner"
-        )
+        return self.labels.get(mlrun_constants.MLRunInternalLabels.job_type, "") == "workflow-runner"
 
 
 class HyperParamStrategies:
@@ -896,9 +845,7 @@ class HyperParamOptions(ModelObj):
                 f"illegal hyper param strategy, use {','.join(HyperParamStrategies.all())}"
             )
         if self.max_iterations and self.strategy != HyperParamStrategies.random:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "max_iterations is only valid in random strategy"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("max_iterations is only valid in random strategy")
 
 
 class RunSpec(ModelObj):
@@ -972,9 +919,7 @@ class RunSpec(ModelObj):
         self.reset_on_run = reset_on_run
         self.node_selector = node_selector or {}
 
-    def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
-    ) -> Optional[str]:
+    def _serialize_field(self, struct: dict, field_name: str = None, strip: bool = False) -> Optional[str]:
         # We pull the field from self and not from struct because it was excluded from the struct
         if field_name == "handler":
             if self.handler and isinstance(self.handler, str):
@@ -1035,9 +980,7 @@ class RunSpec(ModelObj):
         :param inputs_type_hints: The type hints to set.
         """
         # Verify the given value is a dictionary or None:
-        self._inputs_type_hints = self._verify_dict(
-            inputs_type_hints, "inputs_type_hints"
-        )
+        self._inputs_type_hints = self._verify_dict(inputs_type_hints, "inputs_type_hints")
 
     @property
     def returns(self):
@@ -1078,9 +1021,7 @@ class RunSpec(ModelObj):
 
     @hyper_param_options.setter
     def hyper_param_options(self, hyper_param_options):
-        self._hyper_param_options = self._verify_dict(
-            hyper_param_options, "hyper_param_options", HyperParamOptions
-        )
+        self._hyper_param_options = self._verify_dict(hyper_param_options, "hyper_param_options", HyperParamOptions)
 
     @property
     def outputs(self) -> list[str]:
@@ -1089,9 +1030,7 @@ class RunSpec(ModelObj):
 
         :return: The expected outputs list.
         """
-        return self.join_outputs_and_returns(
-            outputs=self._outputs, returns=self.returns
-        )
+        return self.join_outputs_and_returns(outputs=self._outputs, returns=self.returns)
 
     @outputs.setter
     def outputs(self, outputs):
@@ -1186,9 +1125,7 @@ class RunSpec(ModelObj):
             # Look for type hinted in input key:
             if ":" in input_key:
                 # Separate the user input by colon:
-                input_key, input_type = RunSpec._separate_type_hint_from_input_key(
-                    input_key=input_key
-                )
+                input_key, input_type = RunSpec._separate_type_hint_from_input_key(input_key=input_key)
                 # Collect the type hint:
                 extracted_inputs_type_hints[input_key] = input_type
             # Collect the cleared input key:
@@ -1199,9 +1136,7 @@ class RunSpec(ModelObj):
         self.inputs_type_hints = extracted_inputs_type_hints
 
     @staticmethod
-    def join_outputs_and_returns(
-        outputs: list[str], returns: list[Union[str, dict[str, str]]]
-    ) -> list[str]:
+    def join_outputs_and_returns(outputs: list[str], returns: list[Union[str, dict[str, str]]]) -> list[str]:
         """
         Get the outputs set in the spec. The outputs are constructed from both the 'outputs' and 'returns' properties
         that were set by the user.
@@ -1301,9 +1236,7 @@ class RunStatus(ModelObj):
             # Set artifacts as deprecated for lazy loading
             "artifacts": "artifact_uris"
         }
-        return super().from_dict(
-            struct, fields=fields, deprecated_fields=deprecated_fields
-        )
+        return super().from_dict(struct, fields=fields, deprecated_fields=deprecated_fields)
 
     @property
     def artifacts(self):
@@ -1314,9 +1247,7 @@ class RunStatus(ModelObj):
         :return: List of artifact dictionaries
         """
         self._artifacts = self._artifacts or []
-        existing_artifact_keys = {
-            artifact["metadata"]["key"] for artifact in self._artifacts
-        }
+        existing_artifact_keys = {artifact["metadata"]["key"] for artifact in self._artifacts}
         for key, uri in self.artifact_uris.items():
             if key not in existing_artifact_keys:
                 artifact = mlrun.datastore.get_store_resource(uri)
@@ -1535,9 +1466,7 @@ class RunObject(RunTemplate):
                 # Generate the JSON representation, excluding specified fields
                 json_obj = super().to_json(exclude=exclude)
                 # Restore 'params' back to the notifications
-                for notification, params in zip(
-                    self.spec.notifications, extracted_params
-                ):
+                for notification, params in zip(self.spec.notifications, extracted_params):
                     notification.params = params
                 return json_obj
         return super().to_json(exclude=exclude)
@@ -1553,30 +1482,15 @@ class RunObject(RunTemplate):
     @property
     def error(self) -> str:
         """error string if failed"""
-        if (
-            self.status
-            and self.status.state
-            in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
-        ):
+        if self.status and self.status.state in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states():
             unknown_error = ""
-            if (
-                self.status.state
-                in mlrun.common.runtimes.constants.RunStates.abortion_states()
-            ):
+            if self.status.state in mlrun.common.runtimes.constants.RunStates.abortion_states():
                 unknown_error = "Run was aborted"
 
-            elif (
-                self.status.state
-                in mlrun.common.runtimes.constants.RunStates.error_states()
-            ):
+            elif self.status.state in mlrun.common.runtimes.constants.RunStates.error_states():
                 unknown_error = "Unknown error"
 
-            return (
-                self.status.error
-                or self.status.status_text
-                or self.status.reason
-                or unknown_error
-            )
+            return self.status.error or self.status.status_text or self.status.reason or unknown_error
         return ""
 
     def output(self, key: str):
@@ -1698,11 +1612,7 @@ class RunObject(RunTemplate):
             return None
 
         # Collect artifacts that match the key
-        matching_artifacts = [
-            artifact
-            for artifact in self.status.artifacts
-            if artifact["metadata"].get("key") == key
-        ]
+        matching_artifacts = [artifact for artifact in self.status.artifacts if artifact["metadata"].get("key") == key]
 
         if not matching_artifacts:
             if key not in self.status.artifact_uris:
@@ -1715,15 +1625,11 @@ class RunObject(RunTemplate):
         # Sort matching artifacts by creation date in ascending order.
         # The last element in the list will be the one created most recently.
         # In case the `created` field does not exist in the artifact, that artifact will appear first in the sorted list
-        matching_artifacts.sort(
-            key=lambda artifact: artifact["metadata"].get("created", datetime.min)
-        )
+        matching_artifacts.sort(key=lambda artifact: artifact["metadata"].get("created", datetime.min))
 
         # Filter out artifacts with 'latest' tag
         non_latest_artifacts = [
-            artifact
-            for artifact in matching_artifacts
-            if artifact["metadata"].get("tag") != "latest"
+            artifact for artifact in matching_artifacts if artifact["metadata"].get("tag") != "latest"
         ]
 
         # Return the last non-'latest' artifact if available, otherwise return the last artifact
@@ -1748,16 +1654,10 @@ class RunObject(RunTemplate):
             # The last element in the list will be the one created most recently.
             # In case the `created` field does not exist in the artifactthat artifact will appear
             # first in the sorted list
-            artifacts.sort(
-                key=lambda artifact: artifact["metadata"].get("created", datetime.min)
-            )
+            artifacts.sort(key=lambda artifact: artifact["metadata"].get("created", datetime.min))
 
             # Filter out artifacts with 'latest' tag
-            non_latest_artifacts = [
-                artifact
-                for artifact in artifacts
-                if artifact["metadata"].get("tag") != "latest"
-            ]
+            non_latest_artifacts = [artifact for artifact in artifacts if artifact["metadata"].get("tag") != "latest"]
 
             # Save the last non-'latest' artifact if available, otherwise save the last artifact
             # In the case of only one tag, `artifacts` includes [v1, latest], in that case, we want to save v1.
@@ -1774,10 +1674,7 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
-        if (
-            self.status.state
-            in mlrun.common.runtimes.constants.RunStates.terminal_states()
-        ):
+        if self.status.state in mlrun.common.runtimes.constants.RunStates.terminal_states():
             return self.status.state
         self.refresh()
         return self.status.state or "unknown"
@@ -1811,9 +1708,7 @@ class RunObject(RunTemplate):
             logger.warning("DB is not configured, cannot show logs")
             return None
 
-        state, new_offset = db.watch_log(
-            self.metadata.uid, self.metadata.project, watch=watch, offset=offset
-        )
+        state, new_offset = db.watch_log(self.metadata.uid, self.metadata.project, watch=watch, offset=offset)
         if state:
             logger.debug("Run reached terminal state", state=state)
 
@@ -1851,12 +1746,8 @@ class RunObject(RunTemplate):
             if (
                 logs_enabled
                 and logs_interval
-                and state
-                not in mlrun.common.runtimes.constants.RunStates.terminal_states()
-                and (
-                    last_pull_log_time is None
-                    or (datetime.now() - last_pull_log_time).seconds > logs_interval
-                )
+                and state not in mlrun.common.runtimes.constants.RunStates.terminal_states()
+                and (last_pull_log_time is None or (datetime.now() - last_pull_log_time).seconds > logs_interval)
             ):
                 last_pull_log_time = datetime.now()
                 state, offset = self.logs(watch=False, offset=offset)
@@ -1868,18 +1759,11 @@ class RunObject(RunTemplate):
             time.sleep(sleep)
             total_time += sleep
             if timeout and total_time > timeout:
-                raise mlrun.errors.MLRunTimeoutError(
-                    "Run did not reach terminal state on time"
-                )
+                raise mlrun.errors.MLRunTimeoutError("Run did not reach terminal state on time")
         if logs_enabled and not logs_interval:
             self.logs(watch=False)
-        if (
-            raise_on_failure
-            and state != mlrun.common.runtimes.constants.RunStates.completed
-        ):
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Task {self.metadata.name} did not complete (state={state})"
-            )
+        if raise_on_failure and state != mlrun.common.runtimes.constants.RunStates.completed:
+            raise mlrun.errors.MLRunRuntimeError(f"Task {self.metadata.name} did not complete (state={state})")
 
         return state
 
@@ -1905,9 +1789,7 @@ class RunObject(RunTemplate):
         uri_pattern = mlrun.utils.regex.run_uri_pattern
         match = re.match(uri_pattern, uri)
         if not match:
-            raise ValueError(
-                "Uri not in supported format <project>@<uid>#<iteration>[:tag]"
-            )
+            raise ValueError("Uri not in supported format <project>@<uid>#<iteration>[:tag]")
         group_dict = match.groupdict()
         return (
             group_dict["project"],
@@ -2026,12 +1908,8 @@ def new_task(
 
     run.spec.hyperparams = hyper_params or run.spec.hyperparams
     run.spec.hyper_param_options = hyper_param_options or run.spec.hyper_param_options
-    run.spec.hyper_param_options.param_file = (
-        param_file or run.spec.hyper_param_options.param_file
-    )
-    run.spec.hyper_param_options.selector = (
-        selector or run.spec.hyper_param_options.selector
-    )
+    run.spec.hyper_param_options.param_file = param_file or run.spec.hyper_param_options.param_file
+    run.spec.hyper_param_options.selector = selector or run.spec.hyper_param_options.selector
     return run
 
 
@@ -2061,9 +1939,7 @@ class TargetPathObject:
                 if not is_single_file:
                     if self.full_path_template[-1] != "/":
                         self.full_path_template = self.full_path_template + "/"
-                    self.full_path_template = (
-                        self.full_path_template + RUN_ID_PLACE_HOLDER + "/"
-                    )
+                    self.full_path_template = self.full_path_template + RUN_ID_PLACE_HOLDER + "/"
                 else:
                     dir_name_end = len(self.full_path_template)
                     if self.full_path_template[-1] != "/":
@@ -2146,9 +2022,7 @@ class DataSource(ModelObj):
     def set_secrets(self, secrets):
         self._secrets = secrets
 
-    def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
-    ) -> typing.Any:
+    def _serialize_field(self, struct: dict, field_name: str = None, strip: bool = False) -> typing.Any:
         value = super()._serialize_field(struct, field_name, strip)
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
         # the fields to save.

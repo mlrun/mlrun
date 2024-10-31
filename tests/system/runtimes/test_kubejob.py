@@ -127,13 +127,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             filename=code_path,
         )
         function.run(local=True)
-        assert function.metadata.credentials.access_key.startswith(
-            mlrun.model.Credentials.generate_access_key
-        )
+        assert function.metadata.credentials.access_key.startswith(mlrun.model.Credentials.generate_access_key)
 
-        hash_key = mlrun.get_run_db().store_function(
-            function.to_dict(), function_name, self.project_name
-        )
+        hash_key = mlrun.get_run_db().store_function(function.to_dict(), function_name, self.project_name)
         masked_function = mlrun.get_run_db().get_function(
             function.metadata.name, self.project_name, tag="latest", hash_key=hash_key
         )
@@ -142,9 +138,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             mlrun.model.Credentials.secret_reference_prefix
         )
         # TODO: once env is sanitized attribute no need to use the camelCase anymore and rather access it is k8s class
-        assert (
-            masked_function_obj.get_env("V3IO_ACCESS_KEY")["secretKeyRef"] is not None
-        )
+        assert masked_function_obj.get_env("V3IO_ACCESS_KEY")["secretKeyRef"] is not None
 
     def test_deploy_function_after_deploy(self):
         # ML-2701
@@ -172,9 +166,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
     def test_function_with_param(self):
         code_path = str(self.assets_path / "function_with_params.py")
 
-        proj = mlrun.get_or_create_project(
-            self.project_name, self.results_path, allow_cross_project=True
-        )
+        proj = mlrun.get_or_create_project(self.project_name, self.results_path, allow_cross_project=True)
         project_param = "some value"
         local_param = "my local param"
         proj.spec.params = {"project_param": project_param}
@@ -194,9 +186,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_function_handler_with_args(self):
         code_path = str(self.assets_path / "function_with_args.py")
-        mlrun.get_or_create_project(
-            self.project_name, self.results_path, allow_cross_project=True
-        )
+        mlrun.get_or_create_project(self.project_name, self.results_path, allow_cross_project=True)
 
         function = mlrun.code_to_function(
             name="function-with-args",
@@ -227,9 +217,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_function_with_args(self):
         code_path = str(self.assets_path / "function_with_args.py")
-        mlrun.get_or_create_project(
-            self.project_name, self.results_path, allow_cross_project=True
-        )
+        mlrun.get_or_create_project(self.project_name, self.results_path, allow_cross_project=True)
 
         function = mlrun.code_to_function(
             name="function-with-args",
@@ -256,12 +244,8 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         here we upload the python code file to v3io
         """
         code_path = str(self.assets_path / "function_with_args.py")
-        project = mlrun.get_or_create_project(
-            self.project_name, self.results_path, allow_cross_project=True
-        )
-        art = project.log_artifact(
-            "my_code_artifact", local_path=code_path, format="py"
-        )
+        project = mlrun.get_or_create_project(self.project_name, self.results_path, allow_cross_project=True)
+        art = project.log_artifact("my_code_artifact", local_path=code_path, format="py")
 
         function = mlrun.new_function(
             name="new-function-with-args",
@@ -297,23 +281,17 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             kind="job",
             handler="train",
         )
-        self.project.run_function(
-            "log-artifact", params={"i": function_parameter}, local=local
-        )
+        self.project.run_function("log-artifact", params={"i": function_parameter}, local=local)
         resource = self.project.get_store_resource(
             f"store://datasets/{self.project_name}/log-artifact-train_df#0:latest"
         ).to_dataitem()
-        expected_df = pd.DataFrame(
-            {f"col{function_parameter}": [function_parameter] * 10}
-        )
+        expected_df = pd.DataFrame({f"col{function_parameter}": [function_parameter] * 10})
         result_df = resource.as_df()
         pd.testing.assert_frame_equal(result_df, expected_df)
 
     def test_function_with_kwargs(self):
         code_path = str(self.assets_path / "function_with_kwargs.py")
-        mlrun.get_or_create_project(
-            self.project_name, self.results_path, allow_cross_project=True
-        )
+        mlrun.get_or_create_project(self.project_name, self.results_path, allow_cross_project=True)
 
         function = mlrun.code_to_function(
             name="function-with-kwargs",
@@ -329,9 +307,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.outputs["return"] == kwargs
 
     # TODO: Un-skip
-    @pytest.mark.skip(
-        "Waiting for extra data parsing for default packager `pack` method"
-    )
+    @pytest.mark.skip("Waiting for extra data parsing for default packager `pack` method")
     def test_artifacts_with_future_links(self):
         code_path = str(self.assets_path / "function_with_args.py")
 
@@ -414,9 +390,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         exec_cli(args)
         end_time = datetime.datetime.now()
 
-        assert (
-            end_time - start_time
-        ).seconds >= time_to_sleep, "run did not wait for completion"
+        assert (end_time - start_time).seconds >= time_to_sleep, "run did not wait for completion"
 
         runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
         assert len(runs) == 1
@@ -489,16 +463,11 @@ def print_df(df):
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as error:
                 function.run(handler="print_df", params={"df": df}, local=False)
-            assert (
-                "Parameter 'df' has an unsupported value of type 'pandas.DataFrame'"
-                in str(error.value)
-            )
+            assert "Parameter 'df' has an unsupported value of type 'pandas.DataFrame'" in str(error.value)
 
     def test_function_handler_set_labels_and_annotations(self):
         code_path = str(self.assets_path / "handler.py")
-        mlrun.get_or_create_project(
-            self.project_name, self.results_path, allow_cross_project=True
-        )
+        mlrun.get_or_create_project(self.project_name, self.results_path, allow_cross_project=True)
 
         function = mlrun.code_to_function(
             name="test-func",
@@ -519,9 +488,7 @@ def print_df(df):
         )
         function.with_code(str(self.assets_path / "handler.py"))
 
-        task = mlrun.model.new_task(
-            name="ASC_merger", handler="set_labels_and_annotations_handler"
-        )
+        task = mlrun.model.new_task(name="ASC_merger", handler="set_labels_and_annotations_handler")
         run = function.run(task, project=self.project_name)
 
         # Before the change of ML-3265 this test should've fail because no normalization was applied on the task name
@@ -537,13 +504,9 @@ def print_df(df):
         extra_args_flag = "--skip-tls-verify"
         expected_results = [builder_env_val, extra_args_env_val]
 
-        extra_args = (
-            f"--build-arg {extra_args_env_key}={extra_args_env_val} {extra_args_flag}"
-        )
+        extra_args = f"--build-arg {extra_args_env_key}={extra_args_env_val} {extra_args_flag}"
         code_path = str(self.assets_path / "function_with_env_vars.py")
-        project = mlrun.get_or_create_project(
-            self.project_name, self.results_path, allow_cross_project=True
-        )
+        project = mlrun.get_or_create_project(self.project_name, self.results_path, allow_cross_project=True)
 
         image_name = ".test-custom-image"
         project.build_image(
@@ -585,18 +548,11 @@ def print_df(df):
         )
         db = mlrun.get_run_db()
         background_task = db.abort_run(run.metadata.uid)
-        assert (
-            background_task.status.state
-            == mlrun.common.schemas.BackgroundTaskState.succeeded
-        )
+        assert background_task.status.state == mlrun.common.schemas.BackgroundTaskState.succeeded
 
         run = db.read_run(run.metadata.uid)
-        assert (
-            run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
-        )
+        assert run["status"]["state"] == mlrun.common.runtimes.constants.RunStates.aborted
 
         # list background tasks
         background_tasks = db.list_project_background_tasks()
-        assert background_task.metadata.name in [
-            task.metadata.name for task in background_tasks
-        ]
+        assert background_task.metadata.name in [task.metadata.name for task in background_tasks]

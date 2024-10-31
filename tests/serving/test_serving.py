@@ -40,12 +40,8 @@ def generate_test_routes(model_class):
     return {
         "m1": TaskStep(model_class, class_args={"model_path": "", "multiplier": 100}),
         "m2": TaskStep(model_class, class_args={"model_path": "", "multiplier": 200}),
-        "m3:v1": TaskStep(
-            model_class, class_args={"model_path": "", "multiplier": 300}
-        ),
-        "m3:v2": TaskStep(
-            model_class, class_args={"model_path": "", "multiplier": 400}
-        ),
+        "m3:v1": TaskStep(model_class, class_args={"model_path": "", "multiplier": 300}),
+        "m3:v2": TaskStep(model_class, class_args={"model_path": "", "multiplier": 400}),
     }
 
 
@@ -79,9 +75,7 @@ ensemble_object_classification = RouterStep(
         "format_response_with_col_name_flag": True,
     },
 )
-ensemble_object_classification.routes = generate_test_routes_classification(
-    "EnsembleModelTestingClassClassification"
-)
+ensemble_object_classification.routes = generate_test_routes_classification("EnsembleModelTestingClassClassification")
 
 
 def generate_spec(graph, mode="sync", params=None):
@@ -130,10 +124,7 @@ testdata_iris_dict = (
     '{"inputs": {"sepal width (cm)": 3.5, "sepal length (cm)": 5.1, '
     '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
 )
-testdata_iris_dict_error = (
-    '{"inputs": {"sepal width (cm)": 3.5, '
-    '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
-)
+testdata_iris_dict_error = '{"inputs": {"sepal width (cm)": 3.5, ' '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
 testdata_2 = '{"inputs": [5, 5]}'
 
 
@@ -180,9 +171,7 @@ class EnsembleModelTestingClass(ModelTestingClass):
     def predict(self, request):
         resp = {"predictions": []}
         for i in range(len(request["inputs"])):
-            resp["predictions"].append(
-                request["inputs"][i] * self.get_param("multiplier")
-            )
+            resp["predictions"].append(request["inputs"][i] * self.get_param("multiplier"))
         return resp
 
 
@@ -215,9 +204,7 @@ class AsyncModelTestingClass(V2ModelServer):
         return resp
 
 
-def init_ctx(
-    spec=spec, context=None, extra_class_args=None, extra_class_args_names=None
-):
+def init_ctx(spec=spec, context=None, extra_class_args=None, extra_class_args_names=None):
     if extra_class_args is not None:
         for i in range(len(extra_class_args)):
             spec["graph"]["class_args"][extra_class_args_names[i]] = extra_class_args[i]
@@ -243,9 +230,7 @@ def test_ensemble_get_models():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology(
         "router",
-        mlrun.serving.routers.VotingEnsemble(
-            vote_type="regression", prediction_col_name="predictions"
-        ),
+        mlrun.serving.routers.VotingEnsemble(vote_type="regression", prediction_col_name="predictions"),
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
     server = fn.to_mock_server()
@@ -259,9 +244,7 @@ def test_ensemble_get_metadata_of_models():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology(
         "router",
-        mlrun.serving.routers.VotingEnsemble(
-            vote_type="regression", prediction_col_name="predictions"
-        ),
+        mlrun.serving.routers.VotingEnsemble(vote_type="regression", prediction_col_name="predictions"),
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
     server = fn.to_mock_server()
@@ -327,16 +310,12 @@ def test_ensemble_infer():
         event = MockEvent(testdata, path=url, method="POST")
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected]
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected]}, f"wrong model response {data['outputs']}"
 
         event = MockEvent(testdata_2, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected] * 2
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected] * 2}, f"wrong model response {data['outputs']}"
 
     context = init_ctx(
         ensemble_spec,
@@ -360,16 +339,12 @@ def test_ensemble_infer_classification(executor):
         event = MockEvent(testdata, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected]
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected]}, f"wrong model response {data['outputs']}"
 
         event = MockEvent(testdata_2, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected] * 2
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected] * 2}, f"wrong model response {data['outputs']}"
 
     context = init_ctx(
         ensemble_spec_classification,
@@ -399,16 +374,12 @@ def test_ensemble_infer_with_weights(ensemble_spec_parm, executor):
         event = MockEvent(testdata, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected]
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected]}, f"wrong model response {data['outputs']}"
 
         event = MockEvent(testdata_2, path=url)
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected] * 2
-        }, f"wrong model response {data['outputs']}"
+        assert data["outputs"] == {"predictions": [expected] * 2}, f"wrong model response {data['outputs']}"
 
     context = init_ctx(
         ensemble_spec_parm,
@@ -447,9 +418,7 @@ def test_v2_stream_mode():
     data = json.loads(resp.body)
     assert data["outputs"] == 1000, f"wrong model response {resp.body}"
 
-    event = MockEvent(
-        '{"model": "m3:v2", "operation": "explain", "inputs": [5]}', path=""
-    )
+    event = MockEvent('{"model": "m3:v2", "operation": "explain", "inputs": [5]}', path="")
     resp = context.mlrun_handler(context, event)
     logger.info(f"resp: {resp.body}")
     data = json.loads(resp.body)
@@ -479,21 +448,15 @@ def test_v2_async_mode():
     context.logger.info("test not ready, should return err 408")
     event = MockEvent("", path="/v2/models/m5/ready", method="GET")
     resp = context.mlrun_handler(context, event)
-    assert (
-        resp.status_code == 408
-    ), f"didnt get proper ready resp, expected 408, got {resp.status_code}"
+    assert resp.status_code == 408, f"didnt get proper ready resp, expected 408, got {resp.status_code}"
 
     event = MockEvent(testdata, path="/v2/models/m5/infer")
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
     logger.info(resp)
-    assert (
-        resp.status_code != 200
-    ), f"expected failure, got {resp.status_code} {resp.body}"
+    assert resp.status_code != 200, f"expected failure, got {resp.status_code} {resp.body}"
 
-    event = MockEvent(
-        '{"model": "m5", "inputs": [5]}', trigger=MockTrigger(kind="stream")
-    )
+    event = MockEvent('{"model": "m5", "inputs": [5]}', trigger=MockTrigger(kind="stream"))
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
     logger.info(resp)
@@ -523,17 +486,13 @@ def test_v2_get_modelmeta(rundb_mock):
     # test model m2 name, ver (none), inputs and outputs
     resp = server.test("/v2/models/m2/", method="GET")
     logger.info(f"resp: {resp}")
-    assert (
-        resp["name"] == "m2" and resp["version"] == ""
-    ), f"wrong get model meta response {resp}"
+    assert resp["name"] == "m2" and resp["version"] == "", f"wrong get model meta response {resp}"
     assert len(resp["inputs"]) == 4 and len(resp["outputs"]) == 1
     assert resp["inputs"][0]["value_type"] == "float"
 
     # test versioned model m3 metadata + get method not explicit
     resp = server.test("/v2/models/m3/versions/v2")
-    assert (
-        resp["name"] == "m3" and resp["version"] == "v2"
-    ), f"wrong get model meta response {resp}"
+    assert resp["name"] == "m3" and resp["version"] == "v2", f"wrong get model meta response {resp}"
 
     # test raise if model doesnt exist
     with pytest.raises(RuntimeError):
@@ -551,11 +510,7 @@ def test_v2_infer_dict(rundb_mock):
     resp_list_1 = server.test("/v2/models/m1/infer", testdata_iris)
     resp_list_2 = server.test("/v2/models/m1/predict", testdata_iris)
     resp_dict = server.test("/v2/models/m1/infer_dict", testdata_iris_dict)
-    assert (
-        resp_dict.get("outputs")
-        == resp_list_1.get("outputs")
-        == resp_list_2.get("outputs")
-    )
+    assert resp_dict.get("outputs") == resp_list_1.get("outputs") == resp_list_2.get("outputs")
 
     with pytest.raises(RuntimeError):
         server.test("/v2/models/m1/infer_dict", testdata_iris)
@@ -610,9 +565,7 @@ def test_v2_health():
 
 def test_v2_mock():
     host = create_graph_server(graph=RouterStep())
-    host.graph.add_route(
-        "my", class_name=ModelTestingClass, model_path="", multiplier=100
-    )
+    host.graph.add_route("my", class_name=ModelTestingClass, model_path="", multiplier=100)
     host.init_states(None, namespace=globals())
     host.init_object(globals())
     logger.info(host.to_yaml())
@@ -662,19 +615,13 @@ def test_model_chained():
         ModelTestingClass(name="m1", model_path=".", multiplier=2),
         result_path="m1",
         input_path="req",
-    ).to(
-        ModelTestingClass(
-            name="m2", model_path=".", result_path="m2", multiplier=3, input_path="req"
-        )
-    ).respond()
+    ).to(ModelTestingClass(name="m2", model_path=".", result_path="m2", multiplier=3, input_path="req")).respond()
     server = fn.to_mock_server()
 
     resp = server.test(body={"req": {"inputs": [5]}})
     server.wait_for_completion()
     assert list(resp.keys()) == ["req", "m1", "m2"], "unexpected keys in resp"
-    assert (
-        resp["m1"]["outputs"] == 5 * 2 and resp["m2"]["outputs"] == 5 * 3
-    ), "unexpected model results"
+    assert resp["m1"]["outputs"] == 5 * 2 and resp["m2"]["outputs"] == 5 * 3, "unexpected model results"
 
 
 def test_mock_deploy():

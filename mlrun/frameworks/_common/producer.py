@@ -148,8 +148,7 @@ class Producer:
         # Add evaluation prefix if in Evaluation mode:
         if self._mode == LoggingMode.EVALUATION:
             self._not_logged_artifacts = {
-                f"evaluation-{key}": value
-                for key, value in self._not_logged_artifacts.items()
+                f"evaluation-{key}": value for key, value in self._not_logged_artifacts.items()
             }
             for artifact in self._not_logged_artifacts.values():
                 artifact.key = f"evaluation-{artifact.key}"

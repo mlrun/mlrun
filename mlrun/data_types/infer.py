@@ -65,10 +65,7 @@ def infer_schema_from_df(
         is_entity = column in entity_columns or column in current_entities
         if is_entity:
             upsert_entity(column, value_type)
-        elif (
-            InferOptions.get_common_options(options, InferOptions.Features)
-            and column != timestamp_key
-        ):
+        elif InferOptions.get_common_options(options, InferOptions.Features) and column != timestamp_key:
             if column in features.keys():
                 features[column].value_type = value_type
             else:
@@ -117,8 +114,7 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     # See https://github.com/mlflow/mlflow/pull/7898 for more information
     kwargs = (
         {}
-        if packaging.version.Version(pd.__version__)
-        >= packaging.version.Version("2.0.0rc0")
+        if packaging.version.Version(pd.__version__) >= packaging.version.Version("2.0.0rc0")
         else {"datetime_is_numeric": True}
     )
     for col, values in df.describe(include="all", **kwargs).items():
@@ -135,9 +131,7 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
             else:
                 stats_dict[stat] = str(val)
 
-        if InferOptions.get_common_options(
-            options, InferOptions.Histogram
-        ) and pd.api.types.is_numeric_dtype(df[col]):
+        if InferOptions.get_common_options(options, InferOptions.Histogram) and pd.api.types.is_numeric_dtype(df[col]):
             # store histogram
             try:
                 hist, bins = np.histogram(df[col], bins=num_bins)

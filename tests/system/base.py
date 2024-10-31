@@ -93,27 +93,19 @@ class TestMLRunSystem:
         pass
 
     def setup_method(self, method):
-        self._logger.info(
-            f"Setting up test {self.__class__.__name__}::{method.__name__}"
-        )
+        self._logger.info(f"Setting up test {self.__class__.__name__}::{method.__name__}")
 
         self._setup_env(self._get_env_from_file())
         self._run_db = get_run_db()
-        self.remote_code_dir = mlrun.utils.helpers.template_artifact_path(
-            mlrun.mlconf.artifact_path, self.project_name
-        )
+        self.remote_code_dir = mlrun.utils.helpers.template_artifact_path(mlrun.mlconf.artifact_path, self.project_name)
         self._files_to_upload = []
 
         if not self._skip_set_environment():
-            self.project = mlrun.get_or_create_project(
-                self.project_name, "./", allow_cross_project=True
-            )
+            self.project = mlrun.get_or_create_project(self.project_name, "./", allow_cross_project=True)
 
         self.custom_setup()
 
-        self._logger.info(
-            f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
-        )
+        self._logger.info(f"Finished setting up test {self.__class__.__name__}::{method.__name__}")
 
     @staticmethod
     def _should_clean_resources():
@@ -127,9 +119,7 @@ class TestMLRunSystem:
             )
 
     def teardown_method(self, method):
-        self._logger.info(
-            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
-        )
+        self._logger.info(f"Tearing down test {self.__class__.__name__}::{method.__name__}")
 
         self._logger.debug("Removing test data from database")
         if self._should_clean_resources():
@@ -142,9 +132,7 @@ class TestMLRunSystem:
 
         self.custom_teardown()
 
-        self._logger.info(
-            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
-        )
+        self._logger.info(f"Finished tearing down test {self.__class__.__name__}::{method.__name__}")
 
     @classmethod
     def teardown_class(cls):
@@ -205,10 +193,7 @@ class TestMLRunSystem:
 
     @classmethod
     def get_assets_path(cls):
-        return (
-            pathlib.Path(sys.modules[cls.__module__].__file__).absolute().parent
-            / "assets"
-        )
+        return pathlib.Path(sys.modules[cls.__module__].__file__).absolute().parent / "assets"
 
     @property
     def assets_path(self) -> pathlib.Path:
@@ -279,9 +264,7 @@ class TestMLRunSystem:
                     )
                     cls.kube_client = k8s_client.CoreV1Api()
                 except kubernetes.config.config_exception.ConfigException:
-                    logger.warning(
-                        "Failed to load kubeconfig, kube_client will be unavailable."
-                    )
+                    logger.warning("Failed to load kubeconfig, kube_client will be unavailable.")
                     cls.kube_client = property(missing_kubeclient)
         else:
             cls.kube_client = property(missing_kubeclient)
@@ -372,18 +355,9 @@ class TestMLRunSystem:
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["plotly"].startswith(str(output_path))
-        assert (
-            run_outputs["mydf"]
-            == f"store://datasets/{project}/{name}_mydf:latest@{uid}"
-        )
-        assert (
-            run_outputs["model"]
-            == f"store://artifacts/{project}/{name}_model:latest@{uid}"
-        )
-        assert (
-            run_outputs["html_result"]
-            == f"store://artifacts/{project}/{name}_html_result:latest@{uid}"
-        )
+        assert run_outputs["mydf"] == f"store://datasets/{project}/{name}_mydf:latest@{uid}"
+        assert run_outputs["model"] == f"store://artifacts/{project}/{name}_model:latest@{uid}"
+        assert run_outputs["html_result"] == f"store://artifacts/{project}/{name}_html_result:latest@{uid}"
         if accuracy:
             assert run_outputs["accuracy"] == accuracy
         if loss:
@@ -396,9 +370,7 @@ class TestMLRunSystem:
     @staticmethod
     def _has_marker(test: typing.Callable, marker_name: str) -> bool:
         try:
-            return (
-                len([mark for mark in test.pytestmark if mark.name == marker_name]) > 0
-            )
+            return len([mark for mark in test.pytestmark if mark.name == marker_name]) > 0
         except AttributeError:
             return False
 
@@ -413,7 +385,5 @@ class TestMLRunSystem:
         if not self.uploaded_code:
             for file in self._files_to_upload:
                 source_path = str(self.assets_path / file)
-                mlrun.get_dataitem(os.path.join(self.remote_code_dir, file)).upload(
-                    source_path
-                )
+                mlrun.get_dataitem(os.path.join(self.remote_code_dir, file)).upload(source_path)
         self.uploaded_code = True

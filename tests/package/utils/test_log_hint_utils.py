@@ -59,9 +59,7 @@ from mlrun.package.utils.log_hint_utils import LogHintKey, LogHintUtils
         ),
     ],
 )
-def test_parse_log_hint(
-    log_hint: Union[str, dict], expected_log_hint: Union[str, dict]
-):
+def test_parse_log_hint(log_hint: Union[str, dict], expected_log_hint: Union[str, dict]):
     """
     Test the `LogHintUtils.parse_log_hint` function with multiple types.
 

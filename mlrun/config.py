@@ -257,9 +257,7 @@ default_config = {
             # function is used to prevent infinite loop
             "reload_max_recursion_depth": 100,
         },
-        "databricks": {
-            "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
-        },
+        "databricks": {"artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"},
         "application": {
             "default_sidecar_internal_port": 8050,
             "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
@@ -308,7 +306,7 @@ default_config = {
                 },
                 "request_timeout": 45,  # seconds
             },
-            # see server.api.utils.helpers.ensure_running_on_chief
+            # see server.py.services.api.utils.helpers.ensure_running_on_chief
             "ensure_function_running_on_chief_mode": "enabled",
         },
         "port": 8080,
@@ -820,9 +818,7 @@ class Config:
                     except mlrun.errors.MLRunRuntimeError as exc:
                         if not skip_errors:
                             raise exc
-                        print(
-                            f"Warning, failed to set config key {key}={value}, {mlrun.errors.err_to_str(exc)}"
-                        )
+                        print(f"Warning, failed to set config key {key}={value}, {mlrun.errors.err_to_str(exc)}")
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
@@ -835,9 +831,7 @@ class Config:
     def get_build_args():
         build_args = {}
         if config.httpdb.builder.build_args:
-            build_args_json = base64.b64decode(
-                config.httpdb.builder.build_args
-            ).decode()
+            build_args_json = base64.b64decode(config.httpdb.builder.build_args).decode()
             build_args = json.loads(build_args_json)
 
         return build_args
@@ -856,9 +850,7 @@ class Config:
         return f"{default_source.url}/{default_source.object_type}/{default_source.channel}/"
 
     @staticmethod
-    def decode_base64_config_and_load_to_object(
-        attribute_path: str, expected_type=dict
-    ):
+    def decode_base64_config_and_load_to_object(attribute_path: str, expected_type=dict):
         """
         decodes and loads the config attribute to expected type
 
@@ -872,18 +864,14 @@ class Config:
             try:
                 raw_attribute_value = raw_attribute_value.__getattr__(part)
             except AttributeError:
-                raise mlrun.errors.MLRunNotFoundError(
-                    "Attribute does not exist in config"
-                )
+                raise mlrun.errors.MLRunNotFoundError("Attribute does not exist in config")
         # There is a bug in the installer component in iguazio system that causes the configured value to be base64 of
         # null (without conditioning it we will end up returning None instead of empty dict)
         if raw_attribute_value and raw_attribute_value != "bnVsbA==":
             try:
                 decoded_attribute_value = base64.b64decode(raw_attribute_value).decode()
             except Exception:
-                raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                    f"Unable to decode {attribute_path}"
-                )
+                raise mlrun.errors.MLRunInvalidArgumentTypeError(f"Unable to decode {attribute_path}")
             parsed_attribute_value = json.loads(decoded_attribute_value)
             if not isinstance(parsed_attribute_value, expected_type):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
@@ -893,30 +881,19 @@ class Config:
         return expected_type()
 
     def get_default_function_node_selector(self) -> dict:
-        return self.decode_base64_config_and_load_to_object(
-            "default_function_node_selector", dict
-        )
+        return self.decode_base64_config_and_load_to_object("default_function_node_selector", dict)
 
     def get_preemptible_node_selector(self) -> dict:
-        return self.decode_base64_config_and_load_to_object(
-            "preemptible_nodes.node_selector", dict
-        )
+        return self.decode_base64_config_and_load_to_object("preemptible_nodes.node_selector", dict)
 
     def get_preemptible_tolerations(self) -> list:
-        return self.decode_base64_config_and_load_to_object(
-            "preemptible_nodes.tolerations", list
-        )
+        return self.decode_base64_config_and_load_to_object("preemptible_nodes.tolerations", list)
 
     def get_default_function_security_context(self) -> dict:
-        return self.decode_base64_config_and_load_to_object(
-            "function.spec.security_context.default", dict
-        )
+        return self.decode_base64_config_and_load_to_object("function.spec.security_context.default", dict)
 
     def is_preemption_nodes_configured(self):
-        if (
-            not self.get_preemptible_tolerations()
-            and not self.get_preemptible_node_selector()
-        ):
+        if not self.get_preemptible_tolerations() and not self.get_preemptible_node_selector():
             return False
         return True
 
@@ -927,9 +904,7 @@ class Config:
             return valid_function_priority_class_names
 
         # Manually ensure we have only unique values because we want to keep the order and using a set would lose it
-        for priority_class_name in config.valid_function_priority_class_names.split(
-            ","
-        ):
+        for priority_class_name in config.valid_function_priority_class_names.split(","):
             if priority_class_name not in valid_function_priority_class_names:
                 valid_function_priority_class_names.append(priority_class_name)
         return valid_function_priority_class_names
@@ -940,9 +915,7 @@ class Config:
 
     @staticmethod
     def get_security_context_enrichment_group_id(user_unix_id: int) -> int:
-        enrichment_group_id = int(
-            config.function.spec.security_context.enrichment_group_id
-        )
+        enrichment_group_id = int(config.function.spec.security_context.enrichment_group_id)
 
         # if enrichment group id is -1 we set group id to user unix id
         if enrichment_group_id == -1:
@@ -991,13 +964,9 @@ class Config:
         if self.httpdb.clusterization.chief.url:
             return self.httpdb.clusterization.chief.url
         if not self.httpdb.clusterization.chief.service:
-            raise mlrun.errors.MLRunNotFoundError(
-                "For resolving chief url, chief service name must be provided"
-            )
+            raise mlrun.errors.MLRunNotFoundError("For resolving chief url, chief service name must be provided")
         if self.namespace is None:
-            raise mlrun.errors.MLRunNotFoundError(
-                "For resolving chief url, namespace must be provided"
-            )
+            raise mlrun.errors.MLRunNotFoundError("For resolving chief url, namespace must be provided")
 
         chief_api_url = f"http://{self.httpdb.clusterization.chief.service}.{self.namespace}.svc.cluster.local"
         if config.httpdb.clusterization.chief.port:
@@ -1015,9 +984,7 @@ class Config:
         auto_mount_params = {}
         if config.storage.auto_mount_params:
             try:
-                auto_mount_params = base64.b64decode(
-                    config.storage.auto_mount_params, validate=True
-                ).decode()
+                auto_mount_params = base64.b64decode(config.storage.auto_mount_params, validate=True).decode()
                 auto_mount_params = json.loads(auto_mount_params)
             except binascii.Error:
                 # Importing here to avoid circular dependencies
@@ -1027,26 +994,16 @@ class Config:
                 mount_params = config.storage.auto_mount_params.split(",")
                 auto_mount_params = list2dict(mount_params)
         if not isinstance(auto_mount_params, dict):
-            raise TypeError(
-                f"data in storage.auto_mount_params does not resolve to a dictionary: {auto_mount_params}"
-            )
+            raise TypeError(f"data in storage.auto_mount_params does not resolve to a dictionary: {auto_mount_params}")
 
         return auto_mount_params
 
-    def get_default_function_pod_resources(
-        self, with_gpu_requests=False, with_gpu_limits=False
-    ):
+    def get_default_function_pod_resources(self, with_gpu_requests=False, with_gpu_limits=False):
         resources = {}
         resource_requirements = ["requests", "limits"]
         for requirement in resource_requirements:
-            with_gpu = (
-                with_gpu_requests if requirement == "requests" else with_gpu_limits
-            )
-            resources[requirement] = (
-                self.get_default_function_pod_requirement_resources(
-                    requirement, with_gpu
-                )
-            )
+            with_gpu = with_gpu_requests if requirement == "requests" else with_gpu_limits
+            resources[requirement] = self.get_default_function_pod_requirement_resources(requirement, with_gpu)
         return resources
 
     def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
@@ -1057,9 +1014,7 @@ class Config:
         )
 
     @staticmethod
-    def get_default_function_pod_requirement_resources(
-        requirement: str, with_gpu: bool = True
-    ):
+    def get_default_function_pod_requirement_resources(requirement: str, with_gpu: bool = True):
         """
         :param requirement: kubernetes requirement resource one of the following : requests, limits
         :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g. you cannot specify
@@ -1171,22 +1126,17 @@ class Config:
         """
 
         if target != "offline":
-            store_prefix_dict = (
-                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
-            )
+            store_prefix_dict = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
                 return store_prefix_dict[kind].format(project=project, **kwargs)
             if (
                 function_name
-                and function_name
-                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+                and function_name != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
-                    kind=kind
-                    if function_name is None
-                    else f"{kind}-{function_name.lower()}",
+                    kind=kind if function_name is None else f"{kind}-{function_name.lower()}",
                 )
             elif kind == "stream":
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
@@ -1200,14 +1150,10 @@ class Config:
                 )
 
         # Get the current offline path from the configuration
-        file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(
-            project=project, kind=kind
-        )
+        file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(project=project, kind=kind)
 
         # Absolute path
-        if any(value in file_path for value in ["://", ":///"]) or os.path.isabs(
-            file_path
-        ):
+        if any(value in file_path for value in ["://", ":///"]) or os.path.isabs(file_path):
             return file_path
 
         # Relative path
@@ -1216,9 +1162,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.template_artifact_path(
-                artifact_path=artifact_path + file_path, project=project
-            )
+            return mlrun.utils.helpers.template_artifact_path(artifact_path=artifact_path + file_path, project=project)
 
     def is_ce_mode(self) -> bool:
         # True if the setup is in CE environment
@@ -1258,8 +1202,7 @@ class Config:
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
             not self.nuclio_version
-            or semver.VersionInfo.parse(self.nuclio_version)
-            >= semver.VersionInfo.parse("1.12.10")
+            or semver.VersionInfo.parse(self.nuclio_version) >= semver.VersionInfo.parse("1.12.10")
         )
 
 
@@ -1330,9 +1273,7 @@ def _validate_config(config):
 def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if requests_gpu and not limits_gpu:
-        raise mlrun.errors.MLRunConflictError(
-            "You cannot specify GPU requests without specifying limits"
-        )
+        raise mlrun.errors.MLRunConflictError("You cannot specify GPU requests without specifying limits")
     if requests_gpu and limits_gpu and requests_gpu != limits_gpu:
         raise mlrun.errors.MLRunConflictError(
             f"When specifying both GPU requests and limits these two values must be equal, "
@@ -1346,9 +1287,7 @@ def _convert_resources_to_str(config: dict = None):
     if not config.get("default_function_pod_resources"):
         return
     for requirement in resource_requirements:
-        resource_requirement = config.get("default_function_pod_resources").get(
-            requirement
-        )
+        resource_requirement = config.get("default_function_pod_resources").get(requirement)
         if not resource_requirement:
             continue
         for resource_type in resources_types:
@@ -1401,9 +1340,7 @@ def read_env(env=None, prefix=env_prefix):
 
     env_dbpath = env.get("MLRUN_DBPATH", "")
     # expected format: https://mlrun-api.tenant.default-tenant.app.some-system.some-namespace.com
-    is_remote_mlrun = (
-        env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
-    )
+    is_remote_mlrun = env_dbpath.startswith("https://mlrun-api.") and "tenant." in env_dbpath
 
     # It's already a standard to set this env var to configure the v3io api, so we're supporting it (instead
     # of MLRUN_V3IO_API), in remote usage this can be auto detected from the DBPATH
@@ -1420,9 +1357,7 @@ def read_env(env=None, prefix=env_prefix):
     if v3io_framesd:
         config["v3io_framesd"] = v3io_framesd
     elif is_remote_mlrun:
-        config["v3io_framesd"] = env_dbpath.replace(
-            "https://mlrun-api.", "https://framesd."
-        )
+        config["v3io_framesd"] = env_dbpath.replace("https://mlrun-api.", "https://framesd.")
 
     uisvc = env.get("MLRUN_UI_SERVICE_HOST")
     igz_domain = env.get("IGZ_NAMESPACE_DOMAIN")
@@ -1437,10 +1372,7 @@ def read_env(env=None, prefix=env_prefix):
             env["IGZ_NAMESPACE_DOMAIN"] = igz_domain
 
     # workaround wrongly sqldb dsn in 2.8
-    if (
-        config.get("httpdb", {}).get("dsn")
-        == "sqlite:///mlrun.sqlite3?check_same_thread=false"
-    ):
+    if config.get("httpdb", {}).get("dsn") == "sqlite:///mlrun.sqlite3?check_same_thread=false":
         config["httpdb"]["dsn"] = "sqlite:////mlrun/db/mlrun.db?check_same_thread=false"
 
     # "disabled" is the helm chart default value, we don't want that value to be set cause when this value is set we
@@ -1464,9 +1396,7 @@ def read_env(env=None, prefix=env_prefix):
     if log_formatter_name := config.get("log_formatter"):
         import mlrun.utils.logger
 
-        log_formatter = mlrun.utils.resolve_formatter_by_kind(
-            mlrun.utils.FormatterKinds(log_formatter_name)
-        )
+        log_formatter = mlrun.utils.resolve_formatter_by_kind(mlrun.utils.FormatterKinds(log_formatter_name))
         current_handler = mlrun.utils.logger.get_handler("default")
         current_formatter_name = current_handler.formatter.__class__.__name__
         desired_formatter_name = log_formatter.__name__

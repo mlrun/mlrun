@@ -117,9 +117,7 @@ class XGBoostModelHandler(MLModelHandler):
                 "'TFKerasModelHandler.ModelFormats'"
             )
         if model_format == XGBoostModelHandler.ModelFormats.JSON:
-            raise NotImplementedError(
-                "JSON model format is not yet implemented for XGBoost."
-            )
+            raise NotImplementedError("JSON model format is not yet implemented for XGBoost.")
 
         # Store the configuration:
         self._model_format = model_format

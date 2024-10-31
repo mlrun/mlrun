@@ -56,9 +56,7 @@ class SQLStoreBase(StoreBase):
         super().__init__(project=project)
 
         if "store_connection_string" not in kwargs:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "connection_string is a required parameter for SQLStoreBase."
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("connection_string is a required parameter for SQLStoreBase.")
 
         self._sql_connection_string = kwargs.get("store_connection_string")
         self._engine = None
@@ -80,40 +78,28 @@ class SQLStoreBase(StoreBase):
         self._init_monitoring_schedules_table()
 
     def _init_model_endpoints_table(self):
-        self.model_endpoints_table = (
-            mlrun.model_monitoring.db.stores.sqldb.models._get_model_endpoints_table(
-                connection_string=self._sql_connection_string
-            )
+        self.model_endpoints_table = mlrun.model_monitoring.db.stores.sqldb.models._get_model_endpoints_table(
+            connection_string=self._sql_connection_string
         )
-        self._tables[mm_schemas.EventFieldType.MODEL_ENDPOINTS] = (
-            self.model_endpoints_table
-        )
+        self._tables[mm_schemas.EventFieldType.MODEL_ENDPOINTS] = self.model_endpoints_table
 
     def _init_application_results_table(self):
-        self.application_results_table = (
-            mlrun.model_monitoring.db.stores.sqldb.models._get_application_result_table(
-                connection_string=self._sql_connection_string
-            )
+        self.application_results_table = mlrun.model_monitoring.db.stores.sqldb.models._get_application_result_table(
+            connection_string=self._sql_connection_string
         )
-        self._tables[mm_schemas.FileTargetKind.APP_RESULTS] = (
-            self.application_results_table
-        )
+        self._tables[mm_schemas.FileTargetKind.APP_RESULTS] = self.application_results_table
 
     def _init_application_metrics_table(self) -> None:
         self.application_metrics_table = mlrun.model_monitoring.db.stores.sqldb.models._get_application_metrics_table(
             connection_string=self._sql_connection_string
         )
-        self._tables[mm_schemas.FileTargetKind.APP_METRICS] = (
-            self.application_metrics_table
-        )
+        self._tables[mm_schemas.FileTargetKind.APP_METRICS] = self.application_metrics_table
 
     def _init_monitoring_schedules_table(self):
         self.MonitoringSchedulesTable = mlrun.model_monitoring.db.stores.sqldb.models._get_monitoring_schedules_table(
             connection_string=self._sql_connection_string
         )
-        self._tables[mm_schemas.FileTargetKind.MONITORING_SCHEDULES] = (
-            self.MonitoringSchedulesTable
-        )
+        self._tables[mm_schemas.FileTargetKind.MONITORING_SCHEDULES] = self.MonitoringSchedulesTable
 
     def _write(self, table_name: str, event: dict[str, typing.Any]) -> None:
         """
@@ -184,9 +170,7 @@ class SQLStoreBase(StoreBase):
         :param criteria: A list of binary expressions that filter the query.
         """
         if not self.engine.has_table(table.__tablename__):
-            logger.debug(
-                f"Table {table.__tablename__} does not exist in the database. Skipping deletion."
-            )
+            logger.debug(f"Table {table.__tablename__} does not exist in the database. Skipping deletion.")
             return
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the delete query
@@ -204,17 +188,13 @@ class SQLStoreBase(StoreBase):
         """
 
         # Adjust timestamps fields
-        endpoint[mm_schemas.EventFieldType.FIRST_REQUEST] = (endpoint)[
-            mm_schemas.EventFieldType.LAST_REQUEST
-        ] = datetime_now()
-
-        self._write(
-            table_name=mm_schemas.EventFieldType.MODEL_ENDPOINTS, event=endpoint
+        endpoint[mm_schemas.EventFieldType.FIRST_REQUEST] = (endpoint)[mm_schemas.EventFieldType.LAST_REQUEST] = (
+            datetime_now()
         )
 
-    def update_model_endpoint(
-        self, endpoint_id: str, attributes: dict[str, typing.Any]
-    ):
+        self._write(table_name=mm_schemas.EventFieldType.MODEL_ENDPOINTS, event=endpoint)
+
+    def update_model_endpoint(self, endpoint_id: str, attributes: dict[str, typing.Any]):
         """
         Update a model endpoint record with a given attributes.
 
@@ -288,9 +268,7 @@ class SQLStoreBase(StoreBase):
         # Get the model endpoints records using sqlalchemy ORM
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate the list query
-            query = session.query(self.model_endpoints_table).filter_by(
-                project=self.project
-            )
+            query = session.query(self.model_endpoints_table).filter_by(project=self.project)
 
             # Apply filters
             if model:
@@ -333,9 +311,7 @@ class SQLStoreBase(StoreBase):
                 endpoint_dict = endpoint_record.to_dict()
 
                 # Filter labels
-                if labels and not self._validate_labels(
-                    endpoint_dict=endpoint_dict, labels=labels
-                ):
+                if labels and not self._validate_labels(endpoint_dict=endpoint_dict, labels=labels):
                     continue
 
                 if not include_stats:
@@ -376,12 +352,8 @@ class SQLStoreBase(StoreBase):
 
         application_record = self._get(table=table, criteria=criteria)
         if application_record:
-            self._convert_to_datetime(
-                event=event, key=mm_schemas.WriterEvent.START_INFER_TIME
-            )
-            self._convert_to_datetime(
-                event=event, key=mm_schemas.WriterEvent.END_INFER_TIME
-            )
+            self._convert_to_datetime(event=event, key=mm_schemas.WriterEvent.START_INFER_TIME)
+            self._convert_to_datetime(event=event, key=mm_schemas.WriterEvent.END_INFER_TIME)
             # Update an existing application result
             self._update(attributes=event, table=table, criteria=criteria)
         else:
@@ -454,9 +426,7 @@ class SQLStoreBase(StoreBase):
             )
         return monitoring_schedule_record.last_analyzed
 
-    def update_last_analyzed(
-        self, endpoint_id: str, application_name: str, last_analyzed: int
-    ):
+    def update_last_analyzed(self, endpoint_id: str, application_name: str, last_analyzed: int):
         """
         Update the last analyzed time for the provided model endpoint and application.
 
@@ -470,9 +440,7 @@ class SQLStoreBase(StoreBase):
             endpoint_id=endpoint_id,
             application_name=application_name,
         )
-        monitoring_schedule_record = self._get(
-            table=self.MonitoringSchedulesTable, criteria=criteria
-        )
+        monitoring_schedule_record = self._get(table=self.MonitoringSchedulesTable, criteria=criteria)
         if not monitoring_schedule_record:
             # Add a new record with last analyzed value
             self._write(
@@ -491,9 +459,7 @@ class SQLStoreBase(StoreBase):
             criteria=criteria,
         )
 
-    def _delete_last_analyzed(
-        self, endpoint_id: str, application_name: typing.Optional[str] = None
-    ) -> None:
+    def _delete_last_analyzed(self, endpoint_id: str, application_name: typing.Optional[str] = None) -> None:
         criteria = self._get_filter_criteria(
             table=self.MonitoringSchedulesTable,
             endpoint_id=endpoint_id,
@@ -502,9 +468,7 @@ class SQLStoreBase(StoreBase):
         # Delete the model endpoint record using sqlalchemy ORM
         self._delete(table=self.MonitoringSchedulesTable, criteria=criteria)
 
-    def _delete_application_result(
-        self, endpoint_id: str, application_name: typing.Optional[str] = None
-    ) -> None:
+    def _delete_application_result(self, endpoint_id: str, application_name: typing.Optional[str] = None) -> None:
         criteria = self._get_filter_criteria(
             table=self.application_results_table,
             endpoint_id=endpoint_id,
@@ -513,9 +477,7 @@ class SQLStoreBase(StoreBase):
         # Delete the relevant records from the results table
         self._delete(table=self.application_results_table, criteria=criteria)
 
-    def _delete_application_metrics(
-        self, endpoint_id: str, application_name: typing.Optional[str] = None
-    ) -> None:
+    def _delete_application_metrics(self, endpoint_id: str, application_name: typing.Optional[str] = None) -> None:
         criteria = self._get_filter_criteria(
             table=self.application_metrics_table,
             endpoint_id=endpoint_id,
@@ -559,14 +521,10 @@ class SQLStoreBase(StoreBase):
         """
 
         if combined and len(filtered_values) > 1:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Can't apply combined policy with multiple values"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Can't apply combined policy with multiple values")
 
         if not combined:
-            return query.filter(
-                model_endpoints_table.c[key_filter].in_(filtered_values)
-            )
+            return query.filter(model_endpoints_table.c[key_filter].in_(filtered_values))
 
         # Generating a tuple with the relevant filters
         filter_query = []

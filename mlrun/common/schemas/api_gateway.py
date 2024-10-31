@@ -104,9 +104,7 @@ class APIGateway(_APIGatewayBaseModel):
 
     def get_invoke_url(self):
         if self.spec.host and self.spec.path:
-            return f"{self.spec.host.rstrip('/')}/{self.spec.path.lstrip('/')}".rstrip(
-                "/"
-            )
+            return f"{self.spec.host.rstrip('/')}/{self.spec.path.lstrip('/')}".rstrip("/")
         return self.spec.host.rstrip("/")
 
     def enrich_mlrun_names(self):
@@ -125,11 +123,7 @@ class APIGateway(_APIGatewayBaseModel):
         # so when we then get api gateway entity from nuclio, we are able to get mlrun function names
         mlrun_functions = self.metadata.annotations.get(MLRUN_FUNCTIONS_ANNOTATION)
         if mlrun_functions:
-            mlrun_function_uris = (
-                mlrun_functions.split("&")
-                if "&" in mlrun_functions
-                else [mlrun_functions]
-            )
+            mlrun_function_uris = mlrun_functions.split("&") if "&" in mlrun_functions else [mlrun_functions]
             if len(mlrun_function_uris) != len(self.spec.upstreams):
                 raise mlrun.errors.MLRunValueError(
                     "Error when translating nuclio names to mlrun names in api gateway:"
@@ -143,9 +137,7 @@ class APIGateway(_APIGatewayBaseModel):
         # replace api gateway name
         # in Nuclio, api gateways are named as `<project>-<mlrun-api-gateway-name>`
         # remove the project prefix from the name if it exists
-        project_name = self.metadata.labels.get(
-            mlrun_constants.MLRunInternalLabels.nuclio_project_name
-        )
+        project_name = self.metadata.labels.get(mlrun_constants.MLRunInternalLabels.nuclio_project_name)
         if project_name and self.spec.name.startswith(f"{project_name}-"):
             self.spec.name = self.spec.name[len(project_name) + 1 :]
             self.metadata.name = self.spec.name
@@ -158,34 +150,24 @@ class APIGateway(_APIGatewayBaseModel):
         mlrun_function_uris = []
         for upstream in self.spec.upstreams:
             uri = upstream.nucliofunction.get("name")
-            project, function_name, tag, _ = (
-                mlrun.common.helpers.parse_versioned_object_uri(uri)
-            )
-            upstream.nucliofunction["name"] = (
-                mlrun.runtimes.nuclio.function.get_fullname(function_name, project, tag)
-            )
+            project, function_name, tag, _ = mlrun.common.helpers.parse_versioned_object_uri(uri)
+            upstream.nucliofunction["name"] = mlrun.runtimes.nuclio.function.get_fullname(function_name, project, tag)
 
             upstream_with_nuclio_names.append(upstream)
             mlrun_function_uris.append(uri)
 
         self.spec.upstreams = upstream_with_nuclio_names
         if len(mlrun_function_uris) == 1:
-            self.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION] = mlrun_function_uris[
-                0
-            ]
+            self.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION] = mlrun_function_uris[0]
         elif len(mlrun_function_uris) == 2:
-            self.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION] = "&".join(
-                mlrun_function_uris
-            )
+            self.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION] = "&".join(mlrun_function_uris)
         return self
 
     def _enrich_api_gateway_mlrun_name(self):
         # replace api gateway name
         # in Nuclio, api gateways are named as `<project>-<mlrun-api-gateway-name>`
         # add the project prefix to the name
-        project_name = self.metadata.labels.get(
-            mlrun_constants.MLRunInternalLabels.nuclio_project_name
-        )
+        project_name = self.metadata.labels.get(mlrun_constants.MLRunInternalLabels.nuclio_project_name)
         if project_name:
             self.spec.name = generate_api_gateway_name(project_name, self.spec.name)
             self.metadata.name = self.spec.name

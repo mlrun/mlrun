@@ -69,9 +69,7 @@ class ONNXModelHandler(ModelHandler):
         )
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
-    def save(
-        self, output_path: str = None, **kwargs
-    ) -> Union[dict[str, Artifact], None]:
+    def save(self, output_path: str = None, **kwargs) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
         logged and returned as artifacts.
@@ -122,9 +120,7 @@ class ONNXModelHandler(ModelHandler):
             optimizations = onnx_optimizations
 
         # Optimize the model:
-        self._model = onnxoptimizer.optimize(
-            self._model, passes=optimizations, fixed_point=fixed_point
-        )
+        self._model = onnxoptimizer.optimize(self._model, passes=optimizations, fixed_point=fixed_point)
 
     def to_onnx(self, *args, **kwargs) -> onnx.ModelProto:
         """

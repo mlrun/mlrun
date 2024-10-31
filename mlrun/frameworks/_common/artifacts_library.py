@@ -76,13 +76,9 @@ class ArtifactsLibrary(ABC):
         for user_input in [artifacts, artifacts_from_context]:
             if user_input is not None:
                 if isinstance(user_input, dict):
-                    parsed_plans += cls._from_dict(
-                        requested_plans=user_input, available_plans=available_plans
-                    )
+                    parsed_plans += cls._from_dict(requested_plans=user_input, available_plans=available_plans)
                 elif isinstance(user_input, list):
-                    parsed_plans += cls._from_list(
-                        requested_plans=user_input, available_plans=available_plans
-                    )
+                    parsed_plans += cls._from_list(requested_plans=user_input, available_plans=available_plans)
                 else:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Artifacts plans are expected to be given in a list or a dictionary, "
@@ -119,9 +115,7 @@ class ArtifactsLibrary(ABC):
         }
 
     @staticmethod
-    def _from_dict(
-        requested_plans: dict[str, dict], available_plans: dict[str, type[Plan]]
-    ) -> list[Plan]:
+    def _from_dict(requested_plans: dict[str, dict], available_plans: dict[str, type[Plan]]) -> list[Plan]:
         """
         Initialize a list of plans from a given configuration dictionary. The configuration is expected to be a
         dictionary of plans and their initialization parameters in the following format:
@@ -161,9 +155,7 @@ class ArtifactsLibrary(ABC):
         return plans
 
     @staticmethod
-    def _from_list(
-        requested_plans: list[str], available_plans: dict[str, type[Plan]]
-    ) -> list[Plan]:
+    def _from_list(requested_plans: list[str], available_plans: dict[str, type[Plan]]) -> list[Plan]:
         """
         Initialize a list of plans from a given configuration list. The configuration is expected to be a list of plans
         names to be initialized with their default configuration.

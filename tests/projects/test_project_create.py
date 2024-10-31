@@ -27,10 +27,7 @@ project_dir = f"{out_path}/project_dir"
 
 class TestNewProject:
     def setup_method(self, method):
-        self.assets_path = (
-            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / "assets"
-        )
+        self.assets_path = pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent / "assets"
 
     def test_yaml_template(self):
         project = mlrun.new_project(

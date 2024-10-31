@@ -464,9 +464,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
 		--forked \
-		-rf \
-		tests
-
+		-rf
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
@@ -540,23 +538,19 @@ test-package: ## Run mlrun package tests
 
 .PHONY: test-go
 test-go-unit: ## Run mlrun go unit tests
-	cd server/log-collector && \
-		make test-unit-local
+	$(MAKE) -C server/go test-unit-local
 
 .PHONY: test-go-dockerized
 test-go-unit-dockerized: ## Run mlrun go unit tests in docker container
-	cd server/log-collector && \
-		make test-unit-dockerized
+	$(MAKE) -C server/go test-unit-dockerized
 
 .PHONY: test-go
 test-go-integration: ## Run mlrun go unit tests
-	cd server/log-collector && \
-		make test-integration-local
+	$(MAKE) -C server/go test-integration-local
 
 .PHONY: test-go-dockerized
 test-go-integration-dockerized: ## Run mlrun go integration tests in docker container
-	cd server/log-collector && \
-		make test-integration-dockerized
+	$(MAKE) -C server/go test-integration-dockerized
 
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
@@ -645,13 +639,11 @@ lint-check: ## Check the code (using ruff)
 
 .PHONY: lint-go
 lint-go:
-	cd server/log-collector && \
-		make lint
+	$(MAKE) -C server/go lint
 
 .PHONY: fmt-go
 fmt-go:
-	cd server/log-collector && \
-		make fmt
+	$(MAKE) -C server/go fmt
 
 .PHONY: vale-docs
 vale-docs: ## Run vale check for docs and sorts ignore.txt file

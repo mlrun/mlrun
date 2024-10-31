@@ -86,9 +86,7 @@ def pa_type_to_value_type(type_):
 
 
 def python_type_to_value_type(value_type):
-    type_name = (
-        value_type.__name__ if hasattr(value_type, "__name__") else str(value_type)
-    )
+    type_name = value_type.__name__ if hasattr(value_type, "__name__") else str(value_type)
     type_map = {
         "int": ValueType.INT64,
         "str": ValueType.STRING,
@@ -168,12 +166,7 @@ class InferOptions:
 
     @staticmethod
     def all():
-        return (
-            InferOptions.schema()
-            + InferOptions.Stats
-            + InferOptions.Histogram
-            + InferOptions.Preview
-        )
+        return InferOptions.schema() + InferOptions.Stats + InferOptions.Histogram + InferOptions.Preview
 
     @staticmethod
     def default():

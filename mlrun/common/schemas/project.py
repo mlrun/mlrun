@@ -174,9 +174,7 @@ class IguazioProject(pydantic.BaseModel):
 # union by the definition order. Therefore, we can't currently add generic dict for all leader formats, but we need
 # to add a specific classes for them. it's frustrating but couldn't find other workaround, see:
 # https://github.com/samuelcolvin/pydantic/issues/1423, https://github.com/samuelcolvin/pydantic/issues/619
-ProjectOutput = typing.TypeVar(
-    "ProjectOutput", ProjectOut, str, ProjectSummary, IguazioProject
-)
+ProjectOutput = typing.TypeVar("ProjectOutput", ProjectOut, str, ProjectSummary, IguazioProject)
 
 
 class ProjectsOutput(pydantic.BaseModel):

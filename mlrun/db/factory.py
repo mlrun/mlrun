@@ -33,20 +33,13 @@ class RunDBFactory(
         if not url:
             url = mlrun.db.get_or_set_dburl("./")
 
-        if (
-            self._last_db_url is not None
-            and url == self._last_db_url
-            and self._run_db
-            and not force_reconnect
-        ):
+        if self._last_db_url is not None and url == self._last_db_url and self._run_db and not force_reconnect:
             return self._run_db
 
         self._last_db_url = url
 
         if "://" not in str(url):
-            logger.warning(
-                "Could not detect path to API server, not connected to API server!"
-            )
+            logger.warning("Could not detect path to API server, not connected to API server!")
             logger.warning(
                 "MLRUN_DBPATH is misconfigured. Set this environment variable to the URL of the API server"
                 " in order to connect"

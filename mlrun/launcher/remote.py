@@ -34,9 +34,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
     def launch(
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",
-        task: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
+        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -46,9 +44,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
-        schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
-        ] = None,
+        schedule: Optional[Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]] = None,
         hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
@@ -87,9 +83,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
 
         if not runtime.is_deployed():
             if runtime.spec.build.auto_build or auto_build:
-                logger.info(
-                    "Function is not deployed and auto_build flag is set, starting deploy..."
-                )
+                logger.info("Function is not deployed and auto_build flag is set, starting deploy...")
                 runtime.deploy(skip_deployed=True, show_on_failure=True)
 
             else:
@@ -102,13 +96,8 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         if runtime.verbose:
             logger.info(f"runspec:\n{run.to_yaml()}")
 
-        if (
-            "V3IO_USERNAME" in os.environ
-            and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels
-        ):
-            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = (
-                os.environ.get("V3IO_USERNAME")
-            )
+        if "V3IO_USERNAME" in os.environ and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels:
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = os.environ.get("V3IO_USERNAME")
 
         logger.info(
             "Storing function",
@@ -147,12 +136,8 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
             # but there's no run in case of schedule)
             if not schedule:
-                result = runtime._update_run_state(
-                    task=run, err=mlrun.errors.err_to_str(err)
-                )
-            return self._wrap_run_result(
-                runtime, result, run, schedule=schedule, err=err
-            )
+                result = runtime._update_run_state(task=run, err=mlrun.errors.err_to_str(err))
+            return self._wrap_run_result(runtime, result, run, schedule=schedule, err=err)
 
         if resp:
             txt = mlrun.runtimes.utils.helpers.get_in(resp, "status.status_text")
@@ -164,17 +149,9 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as
         # running a pipeline is mostly not an interactive process which means the logs pulling doesn't need to be pulled
         # in real time
-        if (
-            watch is None
-            and runtime.kfp
-            and mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode == "enabled"
-        ):
-            state_interval = int(
-                mlrun.mlconf.httpdb.logs.pipelines.pull_state.pull_state_interval
-            )
-            logs_interval = int(
-                mlrun.mlconf.httpdb.logs.pipelines.pull_state.pull_logs_interval
-            )
+        if watch is None and runtime.kfp and mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode == "enabled":
+            state_interval = int(mlrun.mlconf.httpdb.logs.pipelines.pull_state.pull_state_interval)
+            logs_interval = int(mlrun.mlconf.httpdb.logs.pipelines.pull_state.pull_logs_interval)
             run.wait_for_completion(
                 show_logs=True,
                 sleep=state_interval,
@@ -193,9 +170,6 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
     def _validate_run_single_param(cls, param_name, param_value):
         if isinstance(param_value, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"Parameter '{param_name}' has an unsupported value of type"
-                f" 'pandas.DataFrame' in remote execution."
+                f"Parameter '{param_name}' has an unsupported value of type" f" 'pandas.DataFrame' in remote execution."
             )
-        super()._validate_run_single_param(
-            param_name=param_name, param_value=param_value
-        )
+        super()._validate_run_single_param(param_name=param_name, param_value=param_value)

@@ -90,8 +90,8 @@ playground
 hack/*.env
 
 # Database and protobuf files
-server/api/db/mlrun.db
-server/api/proto/*pb2*.py
+server/py/services/api/db/mlrun.db
+server/py/services/api/proto/*pb2*.py
 
 # Temporary or backup files
 *.bak

@@ -92,18 +92,10 @@ class MonitoringApplicationContext:
         self.nuclio_logger = graph_context.logger
 
         # event data
-        self.start_infer_time = pd.Timestamp(
-            cast(str, event.get(mm_constants.ApplicationEvent.START_INFER_TIME))
-        )
-        self.end_infer_time = pd.Timestamp(
-            cast(str, event.get(mm_constants.ApplicationEvent.END_INFER_TIME))
-        )
-        self.endpoint_id = cast(
-            str, event.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
-        )
-        self.output_stream_uri = cast(
-            str, event.get(mm_constants.ApplicationEvent.OUTPUT_STREAM_URI)
-        )
+        self.start_infer_time = pd.Timestamp(cast(str, event.get(mm_constants.ApplicationEvent.START_INFER_TIME)))
+        self.end_infer_time = pd.Timestamp(cast(str, event.get(mm_constants.ApplicationEvent.END_INFER_TIME)))
+        self.endpoint_id = cast(str, event.get(mm_constants.ApplicationEvent.ENDPOINT_ID))
+        self.output_stream_uri = cast(str, event.get(mm_constants.ApplicationEvent.OUTPUT_STREAM_URI))
 
         self._feature_stats: Optional[FeatureStats] = None
         self._sample_df_stats: Optional[FeatureStats] = None
@@ -113,9 +105,7 @@ class MonitoringApplicationContext:
 
         # Persistent data - fetched when needed
         self._sample_df: Optional[pd.DataFrame] = None
-        self._model_endpoint: Optional[ModelEndpoint] = model_endpoint_dict.get(
-            self.endpoint_id
-        )
+        self._model_endpoint: Optional[ModelEndpoint] = model_endpoint_dict.get(self.endpoint_id)
 
     def _get_default_labels(self) -> dict[str, str]:
         return {
@@ -132,9 +122,7 @@ class MonitoringApplicationContext:
     @property
     def sample_df(self) -> pd.DataFrame:
         if self._sample_df is None:
-            feature_set = fstore.get_feature_set(
-                self.model_endpoint.status.monitoring_feature_set_uri
-            )
+            feature_set = fstore.get_feature_set(self.model_endpoint.status.monitoring_feature_set_uri)
             features = [f"{feature_set.metadata.name}.*"]
             vector = fstore.FeatureVector(
                 name=f"{self.endpoint_id}_vector",
@@ -171,20 +159,14 @@ class MonitoringApplicationContext:
     def sample_df_stats(self) -> FeatureStats:
         """statistics of the sample dataframe"""
         if not self._sample_df_stats:
-            self._sample_df_stats = calculate_inputs_statistics(
-                self.feature_stats, self.sample_df
-            )
+            self._sample_df_stats = calculate_inputs_statistics(self.feature_stats, self.sample_df)
         return self._sample_df_stats
 
     @property
     def feature_names(self) -> list[str]:
         """The feature names of the model"""
         feature_names = self.model_endpoint.spec.feature_names
-        return (
-            feature_names
-            if isinstance(feature_names, list)
-            else json.loads(feature_names)
-        )
+        return feature_names if isinstance(feature_names, list) else json.loads(feature_names)
 
     @property
     def label_names(self) -> list[str]:

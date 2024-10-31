@@ -74,9 +74,7 @@ class Merge(storey.Flow):
 
     def post_init(self, mode="sync"):
         # auto detect number of uplinks or use user specified value
-        self._uplinks = self.expected_num_events or (
-            len(self._graph_step.after) if self._graph_step else 0
-        )
+        self._uplinks = self.expected_num_events or (len(self._graph_step.after) if self._graph_step else 0)
 
         # function to extract the join key from the event
         key_path = self.key_path or "event.id"
@@ -111,9 +109,7 @@ class Merge(storey.Flow):
             if entry.arrived == self._uplinks:
                 # expected number of events arrived, can merge them
                 if self.context.verbose:
-                    self.context.logger.info(
-                        f"event {merge_key}, all {entry.arrived} parts arrived"
-                    )
+                    self.context.logger.info(f"event {merge_key}, all {entry.arrived} parts arrived")
                 del self._cache[merge_key]
                 self._keys_queue[entry.sequence % self._queue_len] = None
                 return self.merge_function(event, entry.events)
@@ -128,14 +124,10 @@ class Merge(storey.Flow):
 
             if old_key is not None:
                 # reached max queued entries, need to drop the old event
-                message = (
-                    f"missing parts for event key {old_key} after a long wait, dropping"
-                )
+                message = f"missing parts for event key {old_key} after a long wait, dropping"
                 self.context.logger.warning(message)
                 if self._full_event:
-                    self.context.push_error(
-                        self._cache[old_key].events[0], f"{message}", source=self.name
-                    )
+                    self.context.push_error(self._cache[old_key].events[0], f"{message}", source=self.name)
                 self._cache[old_key].is_late = True
 
             self._keys_queue[queue_index] = merge_key

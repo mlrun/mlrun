@@ -114,11 +114,7 @@ class HuggingFaceModelServer(V2ModelServer):
         inputs = request["inputs"]
 
         # Applying prediction according the inputs shape:
-        result = (
-            [self.pipe(**_input) for _input in inputs]
-            if isinstance(inputs[0], dict)
-            else self.pipe(inputs)
-        )
+        result = [self.pipe(**_input) for _input in inputs] if isinstance(inputs[0], dict) else self.pipe(inputs)
 
         # Arranging the result into a List[Dict]
         # (This is necessary because the result may vary from one model to another)

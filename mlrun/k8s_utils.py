@@ -61,9 +61,7 @@ def generate_preemptible_node_selector_requirements(
     return match_expressions
 
 
-def generate_preemptible_nodes_anti_affinity_terms() -> (
-    list[kubernetes.client.V1NodeSelectorTerm]
-):
+def generate_preemptible_nodes_anti_affinity_terms() -> list[kubernetes.client.V1NodeSelectorTerm]:
     """
     Generate node selector term containing anti-affinity expressions based on the
     pre-configured node selector of the preemptible nodes.
@@ -83,9 +81,7 @@ def generate_preemptible_nodes_anti_affinity_terms() -> (
     ]
 
 
-def generate_preemptible_nodes_affinity_terms() -> (
-    list[kubernetes.client.V1NodeSelectorTerm]
-):
+def generate_preemptible_nodes_affinity_terms() -> list[kubernetes.client.V1NodeSelectorTerm]:
     """
     Use for purpose of scheduling on node having at least one of the node selectors.
     When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
@@ -99,9 +95,7 @@ def generate_preemptible_nodes_affinity_terms() -> (
         mlrun.common.schemas.NodeSelectorOperator.node_selector_op_in.value
     )
     for expression in node_selector_requirements:
-        node_selector_terms.append(
-            kubernetes.client.V1NodeSelectorTerm(match_expressions=[expression])
-        )
+        node_selector_terms.append(kubernetes.client.V1NodeSelectorTerm(match_expressions=[expression]))
     return node_selector_terms
 
 
@@ -148,13 +142,9 @@ def verify_label_key(key: str, allow_k8s_prefix: bool = False):
     elif len(parts) == 2:
         prefix, name = parts
         if len(name) == 0:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Label key name cannot be empty when a prefix is set"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Label key name cannot be empty when a prefix is set")
         if len(prefix) == 0:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Label key prefix cannot be empty"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("Label key prefix cannot be empty")
 
         # prefix must adhere dns_1123_subdomain
         mlrun.utils.helpers.verify_field_regex(
@@ -163,9 +153,7 @@ def verify_label_key(key: str, allow_k8s_prefix: bool = False):
             mlrun.utils.regex.dns_1123_subdomain,
         )
     else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Label key can only contain one '/'"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError("Label key can only contain one '/'")
 
     mlrun.utils.helpers.verify_field_regex(
         f"project.metadata.labels.'{key}'",
@@ -180,14 +168,8 @@ def verify_label_key(key: str, allow_k8s_prefix: bool = False):
 
     # Allow the use of Kubernetes reserved prefixes ('k8s.io/' or 'kubernetes.io/')
     # only when setting node selectors, not when adding new labels.
-    if (
-        key.startswith("k8s.io/")
-        or key.startswith("kubernetes.io/")
-        and not allow_k8s_prefix
-    ):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Labels cannot start with 'k8s.io/' or 'kubernetes.io/'"
-        )
+    if key.startswith("k8s.io/") or key.startswith("kubernetes.io/") and not allow_k8s_prefix:
+        raise mlrun.errors.MLRunInvalidArgumentError("Labels cannot start with 'k8s.io/' or 'kubernetes.io/'")
 
 
 def verify_label_value(value, label_key):
@@ -198,9 +180,7 @@ def verify_label_value(value, label_key):
     )
 
 
-def validate_node_selectors(
-    node_selectors: dict[str, str], raise_on_error: bool = True
-) -> bool:
+def validate_node_selectors(node_selectors: dict[str, str], raise_on_error: bool = True) -> bool:
     """
     Ensures that user-defined node selectors adhere to Kubernetes label standards:
     - Validates that each key conforms to Kubernetes naming conventions, with specific rules for name and prefix.

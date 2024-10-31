@@ -68,15 +68,13 @@ def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
     env["MLRUN_HTTPDB__PORT"] = str(port)
-    env["MLRUN_HTTPDB__DSN"] = (
-        f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
-    )
+    env["MLRUN_HTTPDB__DSN"] = f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
     env["MLRUN_HTTPDB__LOGS_PATH"] = workdir
     env.update(env_config or {})
     cmd = [
         executable,
         "-m",
-        "server.api.main",
+        "services.api.main",
     ]
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
@@ -221,9 +219,7 @@ def test_api_boot_speed(create_server):
         end_time = time.perf_counter()
         runs.append(end_time - start_time)
     avg_run_time = sum(runs) / run_times
-    assert (
-        avg_run_time <= expected_time
-    ), "Seems like a performance hit on creating api server"
+    assert avg_run_time <= expected_time, "Seems like a performance hit on creating api server"
 
 
 def test_run(create_server):
@@ -369,9 +365,7 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
 
     expected_token = "my-cool-token"
     # Set a 4-second expiry, so a refresh will happen in 2 seconds
-    requests_mock.post(
-        token_url, json={"access_token": expected_token, "expires_in": 4}
-    )
+    requests_mock.post(token_url, json={"access_token": expected_token, "expires_in": 4})
 
     db_url = "http://mock-server:1919"
     db = HTTPRunDB(db_url)
@@ -388,9 +382,7 @@ def test_client_id_auth(requests_mock: requests_mock_package.Mocker, monkeypatch
 
     time.sleep(1.5)
     expected_token = "my-other-cool-token"
-    requests_mock.post(
-        token_url, json={"access_token": expected_token, "expires_in": 3}
-    )
+    requests_mock.post(token_url, json={"access_token": expected_token, "expires_in": 3})
     token = db.token_provider.get_token()
     assert token == expected_token
 
@@ -513,9 +505,7 @@ def test_list_functions(create_server):
     ],
 )
 def test_version_compatibility_validation(server_version, client_version, compatible):
-    assert compatible == HTTPRunDB._validate_version_compatibility(
-        server_version, client_version
-    )
+    assert compatible == HTTPRunDB._validate_version_compatibility(server_version, client_version)
 
 
 def _create_feature_set(name):
@@ -626,9 +616,7 @@ def test_feature_sets(create_server):
     }
 
     # additive mode means add the feature to the features-list
-    db.patch_feature_set(
-        name, feature_set_update, project, tag="latest", patch_mode="additive"
-    )
+    db.patch_feature_set(name, feature_set_update, project, tag="latest", patch_mode="additive")
     feature_sets = db.list_feature_sets(project=project)
     assert len(feature_sets) == count
 
@@ -701,9 +689,7 @@ def test_remove_labels_from_feature_set(create_server):
     feature_sets = db.list_feature_sets(project=project)
     assert len(feature_sets) == 1, "bad number of feature sets"
     assert len(feature_sets[0].metadata.labels) == 2, "bad number of labels"
-    assert (
-        feature_sets[0].metadata.labels == feature_set["metadata"]["labels"]
-    ), "labels were not set correctly"
+    assert feature_sets[0].metadata.labels == feature_set["metadata"]["labels"], "labels were not set correctly"
 
     feature_set = feature_sets[0]
     feature_set.metadata.labels = {}
@@ -807,9 +793,7 @@ def test_add_tag_and_delete_untagged_artifacts(create_server):
 
     # find untagged artifacts and add a new tag to them
     untagged_artifacts = [
-        artifact
-        for artifact in artifacts
-        if "tag" not in artifact["metadata"] or artifact["metadata"]["tag"] is None
+        artifact for artifact in artifacts if "tag" not in artifact["metadata"] or artifact["metadata"]["tag"] is None
     ]
     new_tags = []
     for idx, untagged_artifact in enumerate(untagged_artifacts):
@@ -839,9 +823,7 @@ def test_add_tag_and_delete_untagged_artifacts(create_server):
     assert len(artifacts) == num_artifacts - 1
 
     # delete the rest of the artifacts with 'delete_artifacts'
-    artifacts_to_delete = [
-        artifact for artifact in artifacts if artifact["metadata"]["tag"] != "latest"
-    ]
+    artifacts_to_delete = [artifact for artifact in artifacts if artifact["metadata"]["tag"] != "latest"]
     for artifact_to_delete in artifacts_to_delete:
         db.del_artifacts(
             name=artifact_db_key,
@@ -868,9 +850,7 @@ def _generate_project_and_artifact(project: str = "newproj", tag: str = None):
 
 def _assert_artifacts(db, project: str, tag: str, expected_count: int):
     artifacts = db.list_artifacts(project=project, tag=tag)
-    assert (
-        len(artifacts) == expected_count
-    ), "bad list results - wrong number of artifacts"
+    assert len(artifacts) == expected_count, "bad list results - wrong number of artifacts"
 
 
 def _configure_run_db_server(create_server):
@@ -923,9 +903,7 @@ def test_feature_vectors(create_server):
     assert len(feature_vectors) == count, "bad list results - wrong number of members"
 
     feature_vector = db.get_feature_vector(name, project)
-    assert (
-        len(feature_vector.spec.features) == 5
-    ), "Features didn't get updated properly"
+    assert len(feature_vector.spec.features) == 5, "Features didn't get updated properly"
 
     # Create a feature-vector that has no labels
     name = "feature_vector_no_labels"
@@ -943,9 +921,7 @@ def test_feature_vectors(create_server):
         patch_mode=mlrun.common.schemas.PatchMode.replace,
     )
     feature_vector = db.get_feature_vector(name, project)
-    assert (
-        len(feature_vector.spec.features) == 2
-    ), "Features didn't get updated properly"
+    assert len(feature_vector.spec.features) == 2, "Features didn't get updated properly"
 
 
 def test_project_sql_db_roundtrip(create_server):
@@ -980,9 +956,7 @@ def test_project_sql_db_roundtrip(create_server):
         goals=goals,
         desired_state=desired_state,
     )
-    project = mlrun.projects.project.MlrunProject(
-        metadata=project_metadata, spec=project_spec
-    )
+    project = mlrun.projects.project.MlrunProject(metadata=project_metadata, spec=project_spec)
     function_name = "trainer-function"
     function = mlrun.new_function(function_name, project_name)
     project.set_function(function, function_name)
@@ -1038,15 +1012,11 @@ def _assert_projects(expected_project, project):
         ("", ""),
     ],
 )
-def test_store_alert_config_missing_alert_name(
-    alert_name_in_config, alert_name_as_func_param, create_server
-):
+def test_store_alert_config_missing_alert_name(alert_name_in_config, alert_name_as_func_param, create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
     alert_data = mlrun.alerts.alert.AlertConfig(name=alert_name_in_config, project=None)
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError, match="Alert name must be provided"
-    ):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="Alert name must be provided"):
         db.store_alert_config(
             alert_name=alert_name_as_func_param,
             alert_data=alert_data,

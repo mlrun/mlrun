@@ -44,13 +44,7 @@ class DatastoreProfile(pydantic.BaseModel):
     @staticmethod
     def generate_secret_key(profile_name: str, project: str):
         secret_name_separator = "."
-        full_key = (
-            "datastore-profiles"
-            + secret_name_separator
-            + project
-            + secret_name_separator
-            + profile_name
-        )
+        full_key = "datastore-profiles" + secret_name_separator + project + secret_name_separator + profile_name
         return full_key
 
     def secrets(self) -> dict:
@@ -419,42 +413,28 @@ class DatastoreProfile2Json(pydantic.BaseModel):
     @staticmethod
     def _to_json(attributes):
         # First, base64 encode the values
-        encoded_dict = {
-            k: base64.b64encode(str(v).encode()).decode() for k, v in attributes.items()
-        }
+        encoded_dict = {k: base64.b64encode(str(v).encode()).decode() for k, v in attributes.items()}
         # Then, return the dictionary as a JSON string with no spaces
         return json.dumps(encoded_dict).replace(" ", "")
 
     @staticmethod
     def get_json_public(profile: DatastoreProfile) -> str:
         return DatastoreProfile2Json._to_json(
-            {
-                k: v
-                for k, v in profile.dict().items()
-                if str(k) not in profile._private_attributes
-            }
+            {k: v for k, v in profile.dict().items() if str(k) not in profile._private_attributes}
         )
 
     @staticmethod
     def get_json_private(profile: DatastoreProfile) -> str:
         return DatastoreProfile2Json._to_json(
-            {
-                k: v
-                for k, v in profile.dict().items()
-                if str(k) in profile._private_attributes
-            }
+            {k: v for k, v in profile.dict().items() if str(k) in profile._private_attributes}
         )
 
     @staticmethod
     def create_from_json(public_json: str, private_json: str = "{}"):
         attributes = json.loads(public_json)
-        attributes_public = {
-            k: base64.b64decode(str(v).encode()).decode() for k, v in attributes.items()
-        }
+        attributes_public = {k: base64.b64decode(str(v).encode()).decode() for k, v in attributes.items()}
         attributes = json.loads(private_json)
-        attributes_private = {
-            k: base64.b64decode(str(v).encode()).decode() for k, v in attributes.items()
-        }
+        attributes_private = {k: base64.b64decode(str(v).encode()).decode() for k, v in attributes.items()}
         decoded_dict = merge(attributes_public, attributes_private)
 
         def safe_literal_eval(value):
@@ -501,9 +481,7 @@ def datastore_profile_read(url, project_name="", secrets: dict = None):
     datastore = TemporaryClientDatastoreProfiles().get(profile_name)
     if datastore:
         return datastore
-    public_profile = mlrun.db.get_run_db().get_datastore_profile(
-        profile_name, project_name
-    )
+    public_profile = mlrun.db.get_run_db().get_datastore_profile(profile_name, project_name)
     # The mlrun.db.get_run_db().get_datastore_profile() function is capable of returning
     # two distinct types of objects based on its execution context.
     # If it operates from the client or within the pod (which is the common scenario),
@@ -513,12 +491,8 @@ def datastore_profile_read(url, project_name="", secrets: dict = None):
     # In the latter scenario, an extra conversion step is required to transform the object
     # into mlrun.datastore.DatastoreProfile.
     if isinstance(public_profile, mlrun.common.schemas.DatastoreProfile):
-        public_profile = DatastoreProfile2Json.create_from_json(
-            public_json=public_profile.object
-        )
-    project_ds_name_private = DatastoreProfile.generate_secret_key(
-        profile_name, project_name
-    )
+        public_profile = DatastoreProfile2Json.create_from_json(public_json=public_profile.object)
+    project_ds_name_private = DatastoreProfile.generate_secret_key(profile_name, project_name)
     private_body = get_secret_or_env(project_ds_name_private, secret_provider=secrets)
     if not public_profile or not private_body:
         raise mlrun.errors.MLRunInvalidArgumentError(

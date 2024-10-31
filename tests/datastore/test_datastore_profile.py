@@ -19,9 +19,7 @@ from mlrun.datastore.datastore_profile import DatastoreProfileKafkaTarget
 
 
 def test_kafka_target_datastore():
-    profile = DatastoreProfileKafkaTarget(
-        name="my_target", topic="my-topic", brokers="localhost:9092"
-    )
+    profile = DatastoreProfileKafkaTarget(name="my_target", topic="my-topic", brokers="localhost:9092")
     assert profile.name == "my_target"
     assert profile.topic == "my-topic"
     assert profile.brokers == "localhost:9092"
@@ -34,9 +32,7 @@ def test_kafka_target_datastore_bootstrap_servers_bwc():
         match="'bootstrap_servers' parameter is deprecated in 1.7.0 "
         "and will be removed in 1.9.0, use 'brokers' instead.",
     ):
-        profile = DatastoreProfileKafkaTarget(
-            name="my_target", topic="my-topic", bootstrap_servers="localhost:9092"
-        )
+        profile = DatastoreProfileKafkaTarget(name="my_target", topic="my-topic", bootstrap_servers="localhost:9092")
     assert profile.name == "my_target"
     assert profile.topic == "my-topic"
     assert profile.brokers == "localhost:9092"

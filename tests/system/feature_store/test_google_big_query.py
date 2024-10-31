@@ -25,9 +25,7 @@ from mlrun.datastore.targets import ParquetTarget
 from tests.system.base import TestMLRunSystem
 
 CREDENTIALS_ENV = "MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON_PATH"
-CREDENTIALS_JSON_DEFAULT_PATH = (
-    TestMLRunSystem.root_path / "tests" / "system" / "google-big-query-credentials.json"
-)
+CREDENTIALS_JSON_DEFAULT_PATH = TestMLRunSystem.root_path / "tests" / "system" / "google-big-query-credentials.json"
 
 
 def resolve_google_credentials_json_path() -> typing.Optional[pathlib.Path]:

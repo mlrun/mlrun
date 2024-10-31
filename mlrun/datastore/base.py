@@ -98,8 +98,7 @@ class DataStore:
     # TODO: remove in 1.8.0
     @deprecated(
         version="1.8.0",
-        reason="'get_filesystem()' will be removed in 1.8.0, use "
-        "'filesystem' property instead",
+        reason="'get_filesystem()' will be removed in 1.8.0, use " "'filesystem' property instead",
         category=FutureWarning,
     )
     def get_filesystem(self):
@@ -116,9 +115,7 @@ class DataStore:
 
     def _get_secret_or_env(self, key, default=None, prefix=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
-        return mlrun.get_secret_or_env(
-            key, secret_provider=self._get_secret, default=default, prefix=prefix
-        )
+        return mlrun.get_secret_or_env(key, secret_provider=self._get_secret, default=default, prefix=prefix)
 
     def get_storage_options(self):
         """get fsspec storage options"""
@@ -226,14 +223,8 @@ class DataStore:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "When providing start_time or end_time, must provide time_column"
                 )
-            if (
-                start_time
-                and end_time
-                and start_time.utcoffset() != end_time.utcoffset()
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "start_time and end_time must have the same time zone"
-                )
+            if start_time and end_time and start_time.utcoffset() != end_time.utcoffset():
+                raise mlrun.errors.MLRunInvalidArgumentError("start_time and end_time must have the same time zone")
 
             if start_time or end_time or additional_filters:
                 partitions_time_attributes = find_partitions(url, file_system)
@@ -247,22 +238,16 @@ class DataStore:
                 try:
                     return df_module.read_parquet(*args, **kwargs)
                 except pyarrow.lib.ArrowInvalid as ex:
-                    if not str(ex).startswith(
-                        "Cannot compare timestamp with timezone to timestamp without timezone"
-                    ):
+                    if not str(ex).startswith("Cannot compare timestamp with timezone to timestamp without timezone"):
                         raise ex
 
                     start_time_inner = None
                     if start_time:
-                        start_time_inner = start_time.replace(
-                            tzinfo=None if start_time.tzinfo else pytz.utc
-                        )
+                        start_time_inner = start_time.replace(tzinfo=None if start_time.tzinfo else pytz.utc)
 
                     end_time_inner = None
                     if end_time:
-                        end_time_inner = end_time.replace(
-                            tzinfo=None if end_time.tzinfo else pytz.utc
-                        )
+                        end_time_inner = end_time.replace(tzinfo=None if end_time.tzinfo else pytz.utc)
 
                     set_filters(
                         partitions_time_attributes,
@@ -298,11 +283,7 @@ class DataStore:
             is_csv = True
             drop_time_column = False
             if columns:
-                if (
-                    time_column
-                    and (start_time or end_time)
-                    and time_column not in columns
-                ):
+                if time_column and (start_time or end_time) and time_column not in columns:
                     columns.append(time_column)
                     drop_time_column = True
                 kwargs["usecols"] = columns
@@ -333,9 +314,7 @@ class DataStore:
                                 with file_system.open(fullpath) as fhandle:
                                     updated_args = [fhandle]
                                     updated_args.extend(args[1:])
-                                    dfs.append(
-                                        df_module.read_csv(*updated_args, **kwargs)
-                                    )
+                                    dfs.append(df_module.read_csv(*updated_args, **kwargs))
                         else:
                             for filename in filenames:
                                 updated_args = [f"{base_path}/{filename}"]
@@ -436,9 +415,7 @@ class DataItem:
 
 
         # reading run results using DataItem (run.artifact())
-        train_run = train_iris_func.run(
-            inputs={"dataset": dataset}, params={"label_column": "label"}
-        )
+        train_run = train_iris_func.run(inputs={"dataset": dataset}, params={"label_column": "label"})
 
         train_run.artifact("confusion-matrix").show()
         test_set = train_run.artifact("test_set").as_df()
@@ -625,9 +602,7 @@ class DataItem:
         :param format: format to use (when there is no/wrong suffix), e.g. 'png'
         """
         if not is_jupyter:
-            logger.warning(
-                "Jupyter was not detected. `.show()` displays only inside Jupyter."
-            )
+            logger.warning("Jupyter was not detected. `.show()` displays only inside Jupyter.")
             return
 
         from IPython import display

@@ -81,12 +81,7 @@ _PACKAGERS_TESTERS = [
 def _get_tests_tuples(
     test_type: Union[type[PackTest], type[UnpackTest], type[PackToUnpackTest]],
 ) -> list[tuple[type[PackagerTester], PackTest]]:
-    return [
-        (tester, test)
-        for tester in _PACKAGERS_TESTERS
-        for test in tester.TESTS
-        if isinstance(test, test_type)
-    ]
+    return [(tester, test) for tester in _PACKAGERS_TESTERS for test in tester.TESTS if isinstance(test, test_type)]
 
 
 def _setup_test(
@@ -99,9 +94,7 @@ def _setup_test(
         mlrun.mlconf.packagers.pack_tuples = True
 
     # Create a project for this tester:
-    project = mlrun.get_or_create_project(
-        name="default", context=test_directory, allow_cross_project=True
-    )
+    project = mlrun.get_or_create_project(name="default", context=test_directory, allow_cross_project=True)
 
     # Create a MLRun function using the tester source file (all the functions must be located in it):
     return project.set_function(
@@ -125,9 +118,7 @@ def _get_key_and_artifact_type(
     artifact_type = (
         log_hint[LogHintKey.ARTIFACT_TYPE]
         if LogHintKey.ARTIFACT_TYPE in log_hint
-        else tester.PACKAGER_IN_TEST.get_default_packing_artifact_type(
-            obj=test.default_artifact_type_object
-        )
+        else tester.PACKAGER_IN_TEST.get_default_packing_artifact_type(obj=test.default_artifact_type_object)
     )
 
     return key, artifact_type
@@ -147,9 +138,7 @@ def test_packager_pack(rundb_mock, tester: type[PackagerTester], test: PackTest)
     """
     # Set up the test, creating a project and a MLRun function:
     test_directory = tempfile.TemporaryDirectory()
-    mlrun_function = _setup_test(
-        tester=tester, test=test, test_directory=test_directory.name
-    )
+    mlrun_function = _setup_test(tester=tester, test=test, test_directory=test_directory.name)
 
     # Run the packing handler:
     try:
@@ -166,14 +155,10 @@ def test_packager_pack(rundb_mock, tester: type[PackagerTester], test: PackTest)
         key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
         if artifact_type == ArtifactType.RESULT:
             assert key in pack_run.status.results
-            assert test.validation_function(
-                pack_run.status.results[key], **test.validation_parameters
-            )
+            assert test.validation_function(pack_run.status.results[key], **test.validation_parameters)
         else:
             assert key in pack_run.outputs
-            assert test.validation_function(
-                pack_run._artifact(key=key), **test.validation_parameters
-            )
+            assert test.validation_function(pack_run._artifact(key=key), **test.validation_parameters)
     except Exception as exception:
         # An error was raised, check if the test failed or should have failed:
         if test.exception is None:
@@ -202,9 +187,7 @@ def test_packager_unpack(rundb_mock, tester: type[PackagerTester], test: UnpackT
 
     # Set up the test, creating a project and a MLRun function:
     test_directory = tempfile.TemporaryDirectory()
-    mlrun_function = _setup_test(
-        tester=tester, test=test, test_directory=test_directory.name
-    )
+    mlrun_function = _setup_test(tester=tester, test=test, test_directory=test_directory.name)
 
     # Run the packing handler:
     try:
@@ -232,9 +215,7 @@ def test_packager_unpack(rundb_mock, tester: type[PackagerTester], test: UnpackT
     "tester, test",
     _get_tests_tuples(test_type=PackToUnpackTest),
 )
-def test_packager_pack_to_unpack(
-    rundb_mock, tester: type[PackagerTester], test: PackToUnpackTest
-):
+def test_packager_pack_to_unpack(rundb_mock, tester: type[PackagerTester], test: PackToUnpackTest):
     """
     Test a packager's packing and unpacking by running two MLRun functions one after the other, one will return the
     value the packager should pack and the other should get the data item to make the packager unpack.
@@ -245,9 +226,7 @@ def test_packager_pack_to_unpack(
     """
     # Set up the test, creating a project and a MLRun function:
     test_directory = tempfile.TemporaryDirectory()
-    mlrun_function = _setup_test(
-        tester=tester, test=test, test_directory=test_directory.name
-    )
+    mlrun_function = _setup_test(tester=tester, test=test, test_directory=test_directory.name)
 
     # Run the packing handler:
     try:
@@ -268,13 +247,8 @@ def test_packager_pack_to_unpack(
         assert key in pack_run.outputs
 
         # Validate the packager manager notes and packager instructions:
-        unpackaging_instructions = pack_run._artifact(key=key)["spec"][
-            "unpackaging_instructions"
-        ]
-        assert (
-            unpackaging_instructions["packager_name"]
-            == tester.PACKAGER_IN_TEST.__class__.__name__
-        )
+        unpackaging_instructions = pack_run._artifact(key=key)["spec"]["unpackaging_instructions"]
+        assert unpackaging_instructions["packager_name"] == tester.PACKAGER_IN_TEST.__class__.__name__
         if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE is not ...:
             # Check the object name noted match the packager handled type (at least subclass of it):
             packable_object_type_name = PackagersManager._get_type_name(
@@ -282,12 +256,8 @@ def test_packager_pack_to_unpack(
                 if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE.__module__ != "typing"
                 else typing.get_origin(tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE)
             )
-            assert unpackaging_instructions[
-                "object_type"
-            ] == packable_object_type_name or issubclass(
-                PackagersManager._get_type_from_name(
-                    type_name=unpackaging_instructions["object_type"]
-                ),
+            assert unpackaging_instructions["object_type"] == packable_object_type_name or issubclass(
+                PackagersManager._get_type_from_name(type_name=unpackaging_instructions["object_type"]),
                 tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE,
             )
         assert unpackaging_instructions["artifact_type"] == artifact_type

@@ -41,12 +41,8 @@ def repo():
 
 def test_add_code_metadata_sanity(repo):
     code_metadata = mlrun.runtimes.utils.add_code_metadata(repo.working_dir)
-    assert (
-        repo.remote("origin").url in code_metadata
-    ), "code metadata should contain git info"
-    assert (
-        repo.head.commit.hexsha in code_metadata
-    ), "commit hash should be in code metadata"
+    assert repo.remote("origin").url in code_metadata, "code metadata should contain git info"
+    assert repo.head.commit.hexsha in code_metadata, "commit hash should be in code metadata"
 
 
 def test_add_code_metadata_stale_remote(repo):
@@ -56,12 +52,8 @@ def test_add_code_metadata_stale_remote(repo):
 
     # origin is still there and valid, use that
     code_metadata = mlrun.runtimes.utils.add_code_metadata(repo.working_dir)
-    assert (
-        repo.remote("origin").url in code_metadata
-    ), "code metadata should contain git info"
-    assert (
-        repo.head.commit.hexsha in code_metadata
-    ), "commit hash should be in code metadata"
+    assert repo.remote("origin").url in code_metadata, "code metadata should contain git info"
+    assert repo.head.commit.hexsha in code_metadata, "commit hash should be in code metadata"
 
     repo.delete_remote(repo.remote("origin"))
 
@@ -128,9 +120,7 @@ def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_t
         os.environ,
         env_vars_to_mock,
     ):
-        enriched_labels = mlrun.runtimes.utils.enrich_run_labels(
-            labels, labels_to_enrich
-        )
+        enriched_labels = mlrun.runtimes.utils.enrich_run_labels(labels, labels_to_enrich)
         assert (
             deepdiff.DeepDiff(
                 enriched_labels,

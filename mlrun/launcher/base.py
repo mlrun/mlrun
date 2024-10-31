@@ -47,9 +47,7 @@ class BaseLauncher(abc.ABC):
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
+        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]] = None,
         handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -59,9 +57,7 @@ class BaseLauncher(abc.ABC):
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
-        schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
-        ] = None,
+        schedule: Optional[Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]] = None,
         hyperparams: dict[str, list] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
@@ -87,9 +83,7 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def _store_function(
-        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
-    ):
+    def _store_function(runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"):
         pass
 
     def save_function(
@@ -110,9 +104,7 @@ class BaseLauncher(abc.ABC):
         """
         db = runtime._get_db()
         if not db:
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Database connection is not configured"
-            )
+            raise mlrun.errors.MLRunPreconditionFailedError("Database connection is not configured")
 
         if refresh:
             self._refresh_function_metadata(runtime)
@@ -121,9 +113,7 @@ class BaseLauncher(abc.ABC):
 
         obj = runtime.to_dict()
         logger.debug("Saving function", runtime_name=runtime.metadata.name, tag=tag)
-        hash_key = db.store_function(
-            obj, runtime.metadata.name, runtime.metadata.project, tag, versioned
-        )
+        hash_key = db.store_function(obj, runtime.metadata.name, runtime.metadata.project, tag, versioned)
         hash_key = hash_key if versioned else None
         return "db://" + runtime._function_uri(hash_key=hash_key, tag=tag)
 
@@ -137,9 +127,7 @@ class BaseLauncher(abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
     ):
-        mlrun.utils.helpers.verify_dict_items_type(
-            "Inputs", run.spec.inputs, [str], [str]
-        )
+        mlrun.utils.helpers.verify_dict_items_type("Inputs", run.spec.inputs, [str], [str])
 
         if runtime.spec.mode and runtime.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
@@ -159,16 +147,11 @@ class BaseLauncher(abc.ABC):
                     "Artifact/output path is not defined or is local and relative,"
                     " artifacts will not be visible in the UI"
                 )
-                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
-                    runtime.kind
-                ):
+                if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(runtime.kind):
                     raise mlrun.errors.MLRunPreconditionFailedError(
                         "Artifact path (`artifact_path`) must be absolute for remote tasks"
                     )
-            elif (
-                hasattr(runtime.spec, "volume_mounts")
-                and not runtime.spec.volume_mounts
-            ):
+            elif hasattr(runtime.spec, "volume_mounts") and not runtime.spec.volume_mounts:
                 message = (
                     "Artifact output path is local while no volume mount is specified. "
                     "Artifacts would not be visible via UI."
@@ -182,17 +165,13 @@ class BaseLauncher(abc.ABC):
                 # if the parameter is a dict, we might have some nested parameters,
                 # in this case we need to verify them as well recursively
                 self._validate_run_params(param_value)
-            self._validate_run_single_param(
-                param_name=param_name, param_value=param_value
-            )
+            self._validate_run_single_param(param_name=param_name, param_value=param_value)
 
     @classmethod
     def _validate_run_single_param(cls, param_name, param_value):
         # verify that integer parameters don't exceed a int64
         if isinstance(param_value, int) and abs(param_value) >= 2**63:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Parameter {param_name} value {param_value} exceeds int64"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Parameter {param_name} value {param_value} exceeds int64")
 
     @staticmethod
     def _create_run_object(task):
@@ -241,9 +220,7 @@ class BaseLauncher(abc.ABC):
         notifications: list[mlrun.model.Notification] = None,
         state_thresholds: Optional[dict[str, int]] = None,
     ):
-        run.spec.handler = (
-            handler or run.spec.handler or runtime.spec.default_handler or ""
-        )
+        run.spec.handler = handler or run.spec.handler or runtime.spec.default_handler or ""
         # callable handlers are valid for handler and dask runtimes,
         # for other runtimes we need to convert the handler to a string
         if run.spec.handler and runtime.kind not in ["handler", "dask"]:
@@ -267,22 +244,15 @@ class BaseLauncher(abc.ABC):
             # words with `_`), therefore we don't want to be noisy when normalizing the run name
             verbose=bool(name or run.metadata.name),
         )
-        mlrun.utils.verify_field_regex(
-            "run.metadata.name", run.metadata.name, mlrun.utils.regex.run_name
-        )
+        mlrun.utils.verify_field_regex("run.metadata.name", run.metadata.name, mlrun.utils.regex.run_name)
         run.metadata.project = (
-            project_name
-            or run.metadata.project
-            or runtime.metadata.project
-            or mlrun.mlconf.default_project
+            project_name or run.metadata.project or runtime.metadata.project or mlrun.mlconf.default_project
         )
         run.spec.parameters = params or run.spec.parameters
         run.spec.inputs = inputs or run.spec.inputs
         run.spec.returns = returns or run.spec.returns
         run.spec.hyperparams = hyperparams or run.spec.hyperparams
-        run.spec.hyper_param_options = (
-            hyper_param_options or run.spec.hyper_param_options
-        )
+        run.spec.hyper_param_options = hyper_param_options or run.spec.hyper_param_options
         run.spec.verbose = verbose or run.spec.verbose
         if scrape_metrics is None:
             if run.spec.scrape_metrics is None:
@@ -308,8 +278,7 @@ class BaseLauncher(abc.ABC):
             if run.metadata.project:
                 if (
                     mlrun.pipeline_context.project
-                    and run.metadata.project
-                    == mlrun.pipeline_context.project.metadata.name
+                    and run.metadata.project == mlrun.pipeline_context.project.metadata.name
                 ):
                     run.spec.output_path = (
                         mlrun.pipeline_context.project.spec.artifact_path
@@ -348,24 +317,16 @@ class BaseLauncher(abc.ABC):
         run.spec.notifications = notifications
 
         state_thresholds = (
-            state_thresholds
-            or run.spec.state_thresholds
-            or getattr(runtime.spec, "state_thresholds", {})
-            or {}
+            state_thresholds or run.spec.state_thresholds or getattr(runtime.spec, "state_thresholds", {}) or {}
         )
-        state_thresholds = (
-            mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
-            | state_thresholds
-        )
+        state_thresholds = mlrun.mlconf.function.spec.state_thresholds.default.to_dict() | state_thresholds
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
         return run
 
     @staticmethod
     def _run_has_valid_notifications(runobj) -> bool:
         if not runobj.spec.notifications:
-            logger.debug(
-                "No notifications to push for run", run_uid=runobj.metadata.uid
-            )
+            logger.debug("No notifications to push for run", run_uid=runobj.metadata.uid)
             return False
 
         # TODO: add support for other notifications per run iteration
@@ -402,10 +363,7 @@ class BaseLauncher(abc.ABC):
                 status=run.status.state,
                 name=run.metadata.name,
             )
-            if (
-                run.status.state
-                in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
-            ):
+            if run.status.state in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states():
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(
                         "Run did not finish successfully",
@@ -422,7 +380,5 @@ class BaseLauncher(abc.ABC):
         pass
 
     @staticmethod
-    def _log_track_results(
-        runtime: "mlrun.runtimes.BaseRuntime", result: dict, run: "mlrun.run.RunObject"
-    ):
+    def _log_track_results(runtime: "mlrun.runtimes.BaseRuntime", result: dict, run: "mlrun.run.RunObject"):
         pass

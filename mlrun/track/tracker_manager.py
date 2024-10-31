@@ -90,9 +90,7 @@ class TrackerManager(metaclass=Singleton):
         # Check if the context received is a dict to initialize it as an `MLClientCtx` object:
         is_context_dict = isinstance(context, dict)
         if is_context_dict:
-            context = MLClientCtx.from_dict(
-                context, include_status=True, store_run=False
-            )
+            context = MLClientCtx.from_dict(context, include_status=True, store_run=False)
 
         # Go over the trackers and call the `post_run` method:
         for tracker in self._trackers:
@@ -125,9 +123,7 @@ class TrackerManager(metaclass=Singleton):
         for tracker_module_name in _TRACKERS:
             # Try to import:
             try:
-                tracker_module = importlib.import_module(
-                    f"mlrun.track.trackers.{tracker_module_name}_tracker"
-                )
+                tracker_module = importlib.import_module(f"mlrun.track.trackers.{tracker_module_name}_tracker")
             except ModuleNotFoundError:
                 continue
             # Look for `Tracker` classes inside:

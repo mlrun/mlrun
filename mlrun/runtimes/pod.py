@@ -204,33 +204,22 @@ class KubeResourceSpec(FunctionSpec):
         self.volume_mounts = volume_mounts or []
         # TODO: add env attribute to the sanitized types
         self.env = env or []
-        self._resources = self.enrich_resources_with_default_pod_resources(
-            "resources", resources
-        )
+        self._resources = self.enrich_resources_with_default_pod_resources("resources", resources)
 
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         # default service account is set in mlrun.utils.process_function_service_account
         # due to project specific defaults
         self.service_account = service_account
-        self.image_pull_secret = (
-            image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
-        )
+        self.image_pull_secret = image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
         self.node_name = node_name
         self.node_selector = node_selector or {}
         self._affinity = affinity
-        self.priority_class_name = (
-            priority_class_name or mlrun.mlconf.default_function_priority_class_name
-        )
+        self.priority_class_name = priority_class_name or mlrun.mlconf.default_function_priority_class_name
         self._tolerations = tolerations
         self.preemption_mode = preemption_mode
-        self.security_context = (
-            security_context or mlrun.mlconf.get_default_function_security_context()
-        )
-        self.state_thresholds = (
-            state_thresholds
-            or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
-        )
+        self.security_context = security_context or mlrun.mlconf.get_default_function_security_context()
+        self.state_thresholds = state_thresholds or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None
@@ -272,9 +261,7 @@ class KubeResourceSpec(FunctionSpec):
 
     @tolerations.setter
     def tolerations(self, tolerations):
-        self._tolerations = transform_attribute_to_k8s_class_instance(
-            "tolerations", tolerations
-        )
+        self._tolerations = transform_attribute_to_k8s_class_instance("tolerations", tolerations)
 
     @property
     def resources(self) -> dict:
@@ -282,9 +269,7 @@ class KubeResourceSpec(FunctionSpec):
 
     @resources.setter
     def resources(self, resources):
-        self._resources = self.enrich_resources_with_default_pod_resources(
-            "resources", resources
-        )
+        self._resources = self.enrich_resources_with_default_pod_resources("resources", resources)
 
     @property
     def preemption_mode(self) -> str:
@@ -301,17 +286,13 @@ class KubeResourceSpec(FunctionSpec):
 
     @security_context.setter
     def security_context(self, security_context):
-        self._security_context = transform_attribute_to_k8s_class_instance(
-            "security_context", security_context
-        )
+        self._security_context = transform_attribute_to_k8s_class_instance("security_context", security_context)
 
     @property
     def termination_grace_period_seconds(self) -> typing.Optional[int]:
         return self._termination_grace_period_seconds
 
-    def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
-    ) -> typing.Any:
+    def _serialize_field(self, struct: dict, field_name: str = None, strip: bool = False) -> typing.Any:
         """
         Serialize a field to a dict, list, or primitive type.
         If field_name is in _k8s_fields_to_serialize, we will apply k8s serialization
@@ -321,9 +302,7 @@ class KubeResourceSpec(FunctionSpec):
             return k8s_api.sanitize_for_serialization(getattr(self, field_name))
         return super()._serialize_field(struct, field_name, strip)
 
-    def _enrich_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
-    ) -> typing.Any:
+    def _enrich_field(self, struct: dict, field_name: str = None, strip: bool = False) -> typing.Any:
         k8s_api = k8s_client.ApiClient()
         if strip:
             if field_name == "env":
@@ -338,17 +317,13 @@ class KubeResourceSpec(FunctionSpec):
                     return serialized_envs
         return super()._enrich_field(struct=struct, field_name=field_name, strip=strip)
 
-    def _apply_enrichment_before_to_dict_completion(
-        self, struct: dict, strip: bool = False
-    ):
+    def _apply_enrichment_before_to_dict_completion(self, struct: dict, strip: bool = False):
         if strip:
             # Reset this, since mounts and env variables were cleared.
             struct["disable_auto_mount"] = False
         return super()._apply_enrichment_before_to_dict_completion(struct, strip)
 
-    def update_vols_and_mounts(
-        self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"
-    ):
+    def update_vols_and_mounts(self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"):
         if volumes:
             for vol in volumes:
                 set_named_item(self._volumes, vol)
@@ -358,24 +333,18 @@ class KubeResourceSpec(FunctionSpec):
                 self._set_volume_mount(volume_mount, volume_mounts_field_name)
 
     def validate_service_account(self, allowed_service_accounts):
-        if (
-            allowed_service_accounts
-            and self.service_account not in allowed_service_accounts
-        ):
+        if allowed_service_accounts and self.service_account not in allowed_service_accounts:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Function service account {self.service_account} is not in allowed "
                 + f"service accounts {allowed_service_accounts}"
             )
 
-    def _set_volume_mount(
-        self, volume_mount, volume_mounts_field_name="_volume_mounts"
-    ):
+    def _set_volume_mount(self, volume_mount, volume_mounts_field_name="_volume_mounts"):
         # using the mountPath as the key cause it must be unique (k8s limitation)
         # volume_mount may be an V1VolumeMount instance (object access, snake case) or sanitized dict (dict
         # access, camel case)
         getattr(self, volume_mounts_field_name)[
-            get_item_name(volume_mount, "mountPath")
-            or get_item_name(volume_mount, "mount_path")
+            get_item_name(volume_mount, "mountPath") or get_item_name(volume_mount, "mount_path")
         ] = volume_mount
 
     def _verify_and_set_limits(
@@ -387,9 +356,7 @@ class KubeResourceSpec(FunctionSpec):
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
-        resources = verify_limits(
-            resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type
-        )
+        resources = verify_limits(resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
         if not patch:
             update_in(
                 getattr(self, resources_field_name),
@@ -401,9 +368,7 @@ class KubeResourceSpec(FunctionSpec):
                 # gpu_type can contain "." (e.g nvidia.com/gpu) in the name which will result the `update_in` to split
                 # the resource name
                 if resource == gpu_type:
-                    limits: dict = getattr(self, resources_field_name).setdefault(
-                        "limits", {}
-                    )
+                    limits: dict = getattr(self, resources_field_name).setdefault("limits", {})
                     limits.update({resource: resource_value})
                 else:
                     update_in(
@@ -438,9 +403,7 @@ class KubeResourceSpec(FunctionSpec):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
         for pattern in mlrun.utils.regex.pipeline_param:
             if re.match(pattern, str(cpu)) or re.match(pattern, str(mem)):
-                self._add_field_to_pending_discard(
-                    resources_field_name, getattr(self, resources_field_name)
-                )
+                self._add_field_to_pending_discard(resources_field_name, getattr(self, resources_field_name))
         if not patch:
             update_in(
                 getattr(self, resources_field_name),
@@ -486,9 +449,7 @@ class KubeResourceSpec(FunctionSpec):
         """
         self._verify_and_set_requests("resources", mem, cpu, patch)
 
-    def enrich_resources_with_default_pod_resources(
-        self, resources_field_name: str, resources: dict
-    ):
+    def enrich_resources_with_default_pod_resources(self, resources_field_name: str, resources: dict):
         resources_types = ["cpu", "memory"]
         resource_requirements = ["requests", "limits"]
         default_resources = mlconf.get_default_function_pod_resources()
@@ -496,15 +457,10 @@ class KubeResourceSpec(FunctionSpec):
         if resources:
             for resource_requirement in resource_requirements:
                 for resource_type in resources_types:
-                    if (
-                        resources.setdefault(resource_requirement, {}).setdefault(
+                    if resources.setdefault(resource_requirement, {}).setdefault(resource_type) is None:
+                        resources[resource_requirement][resource_type] = default_resources[resource_requirement][
                             resource_type
-                        )
-                        is None
-                    ):
-                        resources[resource_requirement][resource_type] = (
-                            default_resources[resource_requirement][resource_type]
-                        )
+                        ]
         # This enables the user to define that no defaults would be applied on the resources
         elif resources == {}:
             return resources
@@ -532,9 +488,7 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         # merge node selectors - precedence to existing node selector
-        self.node_selector = mlrun.utils.helpers.merge_dicts_with_precedence(
-            node_selector, self.node_selector
-        )
+        self.node_selector = mlrun.utils.helpers.merge_dicts_with_precedence(node_selector, self.node_selector)
 
     def _merge_tolerations(
         self,
@@ -630,9 +584,7 @@ class KubeResourceSpec(FunctionSpec):
 
             # purge affinity preemption related configuration
             self._prune_affinity_node_selector_requirement(
-                generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_in.value
-                ),
+                generate_preemptible_node_selector_requirements(NodeSelectorOperator.node_selector_op_in.value),
                 affinity_field_name=affinity_field_name,
             )
             # remove preemptible nodes constrain
@@ -648,9 +600,7 @@ class KubeResourceSpec(FunctionSpec):
             if not generate_preemptible_tolerations():
                 # using a single term with potentially multiple expressions to ensure anti-affinity
                 self._override_required_during_scheduling_ignored_during_execution(
-                    k8s_client.V1NodeSelector(
-                        node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()
-                    ),
+                    k8s_client.V1NodeSelector(node_selector_terms=generate_preemptible_nodes_anti_affinity_terms()),
                     affinity_field_name=affinity_field_name,
                 )
         # enrich tolerations and override all node selector terms with preemptible node selector terms
@@ -665,25 +615,19 @@ class KubeResourceSpec(FunctionSpec):
             # overriding other terms that have been set, and only setting terms for preemptible nodes
             # when having multiple terms, pod scheduling is succeeded if at least one term is satisfied
             self._override_required_during_scheduling_ignored_during_execution(
-                k8s_client.V1NodeSelector(
-                    node_selector_terms=generate_preemptible_nodes_affinity_terms()
-                ),
+                k8s_client.V1NodeSelector(node_selector_terms=generate_preemptible_nodes_affinity_terms()),
                 affinity_field_name=affinity_field_name,
             )
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
         elif self_preemption_mode == PreemptionModes.allow.value:
             # remove preemptible anti-affinity
             self._prune_affinity_node_selector_requirement(
-                generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_not_in.value
-                ),
+                generate_preemptible_node_selector_requirements(NodeSelectorOperator.node_selector_op_not_in.value),
                 affinity_field_name=affinity_field_name,
             )
             # remove preemptible affinity
             self._prune_affinity_node_selector_requirement(
-                generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_in.value
-                ),
+                generate_preemptible_node_selector_requirements(NodeSelectorOperator.node_selector_op_in.value),
                 affinity_field_name=affinity_field_name,
             )
 
@@ -699,22 +643,14 @@ class KubeResourceSpec(FunctionSpec):
                 tolerations_field_name=tolerations_field_name,
             )
 
-        self._clear_affinity_if_initialized_but_empty(
-            affinity_field_name=affinity_field_name
-        )
-        self._clear_tolerations_if_initialized_but_empty(
-            tolerations_field_name=tolerations_field_name
-        )
+        self._clear_affinity_if_initialized_but_empty(affinity_field_name=affinity_field_name)
+        self._clear_tolerations_if_initialized_but_empty(tolerations_field_name=tolerations_field_name)
 
     def _clear_affinity_if_initialized_but_empty(self, affinity_field_name: str):
         self_affinity = getattr(self, affinity_field_name)
         if not getattr(self, affinity_field_name):
             setattr(self, affinity_field_name, None)
-        elif (
-            not self_affinity.node_affinity
-            and not self_affinity.pod_affinity
-            and not self_affinity.pod_anti_affinity
-        ):
+        elif not self_affinity.node_affinity and not self_affinity.pod_affinity and not self_affinity.pod_anti_affinity:
             setattr(self, affinity_field_name, None)
 
     def _clear_tolerations_if_initialized_but_empty(self, tolerations_field_name: str):
@@ -761,9 +697,7 @@ class KubeResourceSpec(FunctionSpec):
     def _initialize_node_affinity(self, affinity_field_name: str):
         if not getattr(getattr(self, affinity_field_name), "node_affinity"):
             # self.affinity.node_affinity:
-            getattr(
-                self, affinity_field_name
-            ).node_affinity = k8s_client.V1NodeAffinity()
+            getattr(self, affinity_field_name).node_affinity = k8s_client.V1NodeAffinity()
             # self.affinity.node_affinity = k8s_client.V1NodeAffinity()
 
     def _prune_affinity_node_selector_requirement(
@@ -790,18 +724,14 @@ class KubeResourceSpec(FunctionSpec):
                 node_selector: k8s_client.V1NodeSelector = (
                     node_affinity.required_during_scheduling_ignored_during_execution
                 )
-                new_node_selector_terms = (
-                    self._prune_node_selector_requirements_from_node_selector_terms(
-                        node_selector_terms=node_selector.node_selector_terms,
-                        node_selector_requirements_to_prune=node_selector_requirements,
-                    )
+                new_node_selector_terms = self._prune_node_selector_requirements_from_node_selector_terms(
+                    node_selector_terms=node_selector.node_selector_terms,
+                    node_selector_requirements_to_prune=node_selector_requirements,
                 )
                 # check whether there are node selector terms to add to the new list of required terms
                 if len(new_node_selector_terms) > 0:
-                    new_required_during_scheduling_ignored_during_execution = (
-                        k8s_client.V1NodeSelector(
-                            node_selector_terms=new_node_selector_terms
-                        )
+                    new_required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
+                        node_selector_terms=new_node_selector_terms
                     )
             # if both preferred and new required are empty, clean node_affinity
             if (
@@ -834,15 +764,11 @@ class KubeResourceSpec(FunctionSpec):
         """
         new_node_selector_terms: list[k8s_client.V1NodeSelectorTerm] = []
         for term in node_selector_terms:
-            new_node_selector_requirements: list[
-                k8s_client.V1NodeSelectorRequirement
-            ] = []
+            new_node_selector_requirements: list[k8s_client.V1NodeSelectorRequirement] = []
             for node_selector_requirement in term.match_expressions:
                 to_prune = False
                 # go over each requirement and check if matches the current expression
-                for (
-                    node_selector_requirement_to_prune
-                ) in node_selector_requirements_to_prune:
+                for node_selector_requirement_to_prune in node_selector_requirements_to_prune:
                     if node_selector_requirement == node_selector_requirement_to_prune:
                         to_prune = True
                         # no need to keep going over the list provided for the current expression
@@ -923,9 +849,7 @@ class AutoMountType(str, Enum):
     @classmethod
     def _missing_(cls, value):
         if value:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid value for auto_mount_type - '{value}'"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Invalid value for auto_mount_type - '{value}'")
         return AutoMountType.default()
 
     @staticmethod
@@ -950,10 +874,7 @@ class AutoMountType(str, Enum):
         # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is
         # a nested function returned from the modifier function (such as 'v3io_cred.<locals>._use_v3io_cred')
         modifier_name = modifier.__qualname__
-        return any(
-            modifier_name.startswith(mount_modifier)
-            for mount_modifier in AutoMountType.all_mount_modifiers()
-        )
+        return any(modifier_name.startswith(mount_modifier) for mount_modifier in AutoMountType.all_mount_modifiers())
 
     @staticmethod
     def _get_auto_modifier():
@@ -961,10 +882,7 @@ class AutoMountType(str, Enum):
         if mlconf.igz_version != "":
             return mlrun_pipelines.mounts.v3io_cred
         # Else, either pvc mount if it's configured or do nothing otherwise
-        pvc_configured = (
-            "MLRUN_PVC_MOUNT" in os.environ
-            or "pvc_name" in mlconf.get_storage_auto_mount_params()
-        )
+        pvc_configured = "MLRUN_PVC_MOUNT" in os.environ or "pvc_name" in mlconf.get_storage_auto_mount_params()
         return mlrun_pipelines.mounts.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
@@ -1058,25 +976,19 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         :param file_path: .env file with key=value lines
         """
         if (not env_vars and not file_path) or (env_vars and file_path):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "must specify env_vars OR file_path"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("must specify env_vars OR file_path")
         if file_path:
             if os.path.isfile(file_path):
                 env_vars = dotenv.dotenv_values(file_path)
                 if None in env_vars.values():
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "env file lines must be in the form key=value"
-                    )
+                    raise mlrun.errors.MLRunInvalidArgumentError("env file lines must be in the form key=value")
             else:
                 raise mlrun.errors.MLRunNotFoundError(f"{file_path} does not exist")
         for name, value in env_vars.items():
             self.set_env(name, value)
         return self
 
-    def set_image_pull_configuration(
-        self, image_pull_policy: str = None, image_pull_secret_name: str = None
-    ):
+    def set_image_pull_configuration(self, image_pull_policy: str = None, image_pull_secret_name: str = None):
         """
         Configure the image pull parameters for the runtime.
 
@@ -1245,10 +1157,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
         :param security_context:         The security context for the pod
         """
-        if (
-            mlrun.mlconf.function.spec.security_context.enrichment_mode
-            != SecurityContextEnrichmentModes.disabled.value
-        ):
+        if mlrun.mlconf.function.spec.security_context.enrichment_mode != SecurityContextEnrichmentModes.disabled.value:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Security context is handled internally when enrichment mode is not disabled"
             )
@@ -1262,17 +1171,13 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
     def try_auto_mount_based_on_config(self, override_params=None):
         if self.spec.disable_auto_mount:
-            logger.debug(
-                "Mount already applied or auto-mount manually disabled - not performing auto-mount"
-            )
+            logger.debug("Mount already applied or auto-mount manually disabled - not performing auto-mount")
             return
 
         auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
         modifier = auto_mount_type.get_modifier()
         if not modifier:
-            logger.debug(
-                "Auto mount disabled due to user selection (auto_mount_type=none)"
-            )
+            logger.debug("Auto mount disabled due to user selection (auto_mount_type=none)")
             return
 
         mount_params_dict = mlconf.get_storage_auto_mount_params()
@@ -1284,15 +1189,11 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
         self.apply(modifier(**mount_params_dict))
 
-    def validate_and_enrich_service_account(
-        self, allowed_service_accounts, default_service_account
-    ):
+    def validate_and_enrich_service_account(self, allowed_service_accounts, default_service_account):
         if not self.spec.service_account:
             if default_service_account:
                 self.spec.service_account = default_service_account
-                logger.info(
-                    f"Setting default service account to function: {default_service_account}"
-                )
+                logger.info(f"Setting default service account to function: {default_service_account}")
 
         self.spec.validate_service_account(allowed_service_accounts)
 
@@ -1310,12 +1211,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
             self.spec.build.source_code_target_dir = target_dir
 
         self.spec.build.load_source_on_run = pull_at_runtime
-        if (
-            self.spec.build.base_image
-            and not self.spec.build.commands
-            and pull_at_runtime
-            and not self.spec.image
-        ):
+        if self.spec.build.base_image and not self.spec.build.commands and pull_at_runtime and not self.spec.image:
             # if we load source from repo and don't need a full build use the base_image as the image
             self.spec.image = self.spec.build.base_image
         elif not pull_at_runtime:
@@ -1330,19 +1226,11 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 with_mlrun = build.with_mlrun
             else:
                 with_mlrun = build.base_image and not (
-                    build.base_image.startswith("mlrun/")
-                    or "/mlrun/" in build.base_image
+                    build.base_image.startswith("mlrun/") or "/mlrun/" in build.base_image
                 )
-        if (
-            not build.source
-            and not build.commands
-            and not build.requirements
-            and not build.extra
-            and with_mlrun
-        ):
+        if not build.source and not build.commands and not build.requirements and not build.extra and with_mlrun:
             logger.info(
-                "Running build to add mlrun package, set "
-                "with_mlrun=False to skip if its already in the image"
+                "Running build to add mlrun package, set " "with_mlrun=False to skip if its already in the image"
             )
         return with_mlrun
 
@@ -1378,9 +1266,9 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
             force_build=force_build,
         )
         self.status = data["data"].get("status", None)
-        self.spec.image = mlrun.utils.get_in(
-            data, "data.spec.image"
-        ) or mlrun.utils.get_in(data, "data.spec.build.image")
+        self.spec.image = mlrun.utils.get_in(data, "data.spec.image") or mlrun.utils.get_in(
+            data, "data.spec.build.image"
+        )
         self.spec.build.base_image = self.spec.build.base_image or mlrun.utils.get_in(
             data, "data.spec.build.base_image"
         )
@@ -1390,9 +1278,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         ) or mlrun.utils.get_in(data, "data.spec.clone_target_dir")
         ready = data.get("ready", False)
         if not ready:
-            logger.info(
-                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
-            )
+            logger.info(f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}")
         if watch and not ready:
             state = self._build_watch(
                 watch=watch,
@@ -1425,17 +1311,11 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
             raise ValueError("Function or build process not found")
 
         def print_log(_text):
-            if _text and (
-                not show_on_failure
-                or self.status.state == mlrun.common.schemas.FunctionState.error
-            ):
+            if _text and (not show_on_failure or self.status.state == mlrun.common.schemas.FunctionState.error):
                 print(_text, end="")
 
         print_log(text)
-        if (
-            deploy_status_text_kind
-            == mlrun.common.constants.DeployStatusTextKind.events
-        ):
+        if deploy_status_text_kind == mlrun.common.constants.DeployStatusTextKind.events:
             events_offset += len(text)
         else:
             offset += len(text)
@@ -1464,10 +1344,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                         events_offset=events_offset,
                     )
                 print_log(text)
-                if (
-                    deploy_status_text_kind
-                    == mlrun.common.constants.DeployStatusTextKind.events
-                ):
+                if deploy_status_text_kind == mlrun.common.constants.DeployStatusTextKind.events:
                     events_offset += len(text)
                 else:
                     offset += len(text)
@@ -1490,13 +1367,9 @@ def _resolve_if_type_sanitized(attribute_name, attribute):
     return attribute
 
 
-def transform_attribute_to_k8s_class_instance(
-    attribute_name, attribute, is_sub_attr: bool = False
-):
+def transform_attribute_to_k8s_class_instance(attribute_name, attribute, is_sub_attr: bool = False):
     if attribute_name not in sanitized_attributes:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"{attribute_name} isn't in the available sanitized attributes"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError(f"{attribute_name} isn't in the available sanitized attributes")
     attribute_config = sanitized_attributes[attribute_name]
     # initialize empty attribute type
     if attribute is None:
@@ -1517,9 +1390,7 @@ def transform_attribute_to_k8s_class_instance(
             if not isinstance(sub_attr, dict):
                 return attribute
             attribute_instance.append(
-                transform_attribute_to_k8s_class_instance(
-                    attribute_name, sub_attr, is_sub_attr=True
-                )
+                transform_attribute_to_k8s_class_instance(attribute_name, sub_attr, is_sub_attr=True)
             )
         attribute = attribute_instance
     # if user have set one attribute but its part of an attribute that contains many then return inside a list
@@ -1544,9 +1415,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     """
     attribute = getattr(spec, attribute_name)
     if attribute_name not in sanitized_attributes:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"{attribute_name} isn't in the available sanitized attributes"
-        )
+        raise mlrun.errors.MLRunInvalidArgumentError(f"{attribute_name} isn't in the available sanitized attributes")
     attribute_config = sanitized_attributes[attribute_name]
     if not attribute:
         return attribute_config["not_sanitized_class"]()
@@ -1560,9 +1429,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
         if _resolve_if_type_sanitized(attribute_name, attribute):
             return attribute
 
-    elif isinstance(attribute, list) and not isinstance(
-        attribute[0], attribute_config["sub_attribute_type"]
-    ):
+    elif isinstance(attribute, list) and not isinstance(attribute[0], attribute_config["sub_attribute_type"]):
         if not isinstance(attribute_config["not_sanitized_class"], list):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got list"

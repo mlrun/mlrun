@@ -107,17 +107,8 @@ def add_credentials_git_remote_url(url: str, secrets=None) -> tuple[str, bool]:
     url_obj = urlparse(url)
 
     username = url_obj.username or get_secret("GIT_USERNAME") or get_secret("git_user")
-    password = (
-        url_obj.password
-        or get_secret("GIT_PASSWORD")
-        or get_secret("git_password")
-        or ""
-    )
-    token = (
-        get_secret("GITHUB_TOKEN")
-        or get_secret("GITLAB_TOKEN")
-        or get_secret("GIT_TOKEN")
-    )
+    password = url_obj.password or get_secret("GIT_PASSWORD") or get_secret("git_password") or ""
+    token = get_secret("GITHUB_TOKEN") or get_secret("GITLAB_TOKEN") or get_secret("GIT_TOKEN")
     if token:
         username, password = get_git_username_password_from_token(token)
 
@@ -159,9 +150,7 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
         host += f":{url_obj.port}"
 
     clone_path = f"https://{host}{url_obj.path}"
-    final_clone_path, is_path_enriched = add_credentials_git_remote_url(
-        clone_path, secrets=secrets or {}
-    )
+    final_clone_path, is_path_enriched = add_credentials_git_remote_url(clone_path, secrets=secrets or {})
 
     branch = None
     tag = None

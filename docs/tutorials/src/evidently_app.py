@@ -41,9 +41,7 @@ if _HAS_EVIDENTLY:
     _PROJECT_NAME = "Iris Monitoring"
     _PROJECT_DESCRIPTION = "Test project using iris dataset"
 
-    def _create_evidently_project(
-        workspace: Workspace, id: Optional[UUID] = None
-    ) -> Project:
+    def _create_evidently_project(workspace: Workspace, id: Optional[UUID] = None) -> Project:
         if id:
             project = Project(
                 name=_PROJECT_NAME,
@@ -125,9 +123,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self._init_evidently_project()
         self.train_set = None
 
-    def _init_iris_data(
-        self, monitoring_context: mm_context.MonitoringApplicationContext
-    ) -> None:
+    def _init_iris_data(self, monitoring_context: mm_context.MonitoringApplicationContext) -> None:
         if self.train_set is None:
             iris = load_iris()
             self.columns = monitoring_context.feature_names
@@ -137,9 +133,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         if self.evidently_project is None:
             if isinstance(self.evidently_project_id, str):
                 self.evidently_project_id = UUID(self.evidently_project_id)
-            self.evidently_project = _create_evidently_project(
-                self.evidently_workspace, self.evidently_project_id
-            )
+            self.evidently_project = _create_evidently_project(self.evidently_workspace, self.evidently_project_id)
 
     def do_tracking(
         self,
@@ -150,25 +144,13 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
 
         sample_df = monitoring_context.sample_df[self.columns]
 
-        data_drift_report = self.create_report(
-            sample_df, monitoring_context.end_infer_time
-        )
-        self.evidently_workspace.add_report(
-            self.evidently_project_id, data_drift_report
-        )
-        data_drift_test_suite = self.create_test_suite(
-            sample_df, monitoring_context.end_infer_time
-        )
-        self.evidently_workspace.add_test_suite(
-            self.evidently_project_id, data_drift_test_suite
-        )
+        data_drift_report = self.create_report(sample_df, monitoring_context.end_infer_time)
+        self.evidently_workspace.add_report(self.evidently_project_id, data_drift_report)
+        data_drift_test_suite = self.create_test_suite(sample_df, monitoring_context.end_infer_time)
+        self.evidently_workspace.add_test_suite(self.evidently_project_id, data_drift_test_suite)
 
-        self.log_evidently_object(
-            monitoring_context, data_drift_report, "evidently_report"
-        )
-        self.log_evidently_object(
-            monitoring_context, data_drift_test_suite, "evidently_suite"
-        )
+        self.log_evidently_object(monitoring_context, data_drift_report, "evidently_report")
+        self.log_evidently_object(monitoring_context, data_drift_test_suite, "evidently_suite")
 
         window_start = monitoring_context.start_infer_time
         window_end = monitoring_context.end_infer_time
@@ -191,9 +173,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
             status=ResultStatusApp.potential_detection,
         )
 
-    def create_report(
-        self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "Report":
+    def create_report(self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp) -> "Report":
         metrics = [
             DatasetDriftMetric(),
             DatasetMissingValuesMetric(),
@@ -214,9 +194,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         data_drift_report.run(reference_data=self.train_set, current_data=sample_df)
         return data_drift_report
 
-    def create_test_suite(
-        self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
-    ) -> "TestSuite":
+    def create_test_suite(self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp) -> "TestSuite":
         data_drift_test_suite = TestSuite(
             tests=[DataDriftTestPreset()],
             timestamp=schedule_time,

@@ -37,9 +37,7 @@ class TestJobs(TestMLRunSystem):
         code_path = str(self.assets_path / "jobs_function.py")
 
         self._logger.debug("Creating trainer job")
-        self._trainer = code_to_function(
-            name="my-trainer", kind="job", filename=code_path
-        )
+        self._trainer = code_to_function(name="my-trainer", kind="job", filename=code_path)
 
         self._trainer.spec.build.commands.append("pip install pandas")
         self._trainer.spec.build.base_image = "mlrun/mlrun"
@@ -56,9 +54,7 @@ class TestJobs(TestMLRunSystem):
 
         # run our training task, with hyper params, and select the one with max accuracy
         self._logger.debug("Running task with hyper params")
-        train_task = new_task(
-            name="my-training", handler="training", params={"p1": 9}, base=base_task
-        )
+        train_task = new_task(name="my-training", handler="training", params={"p1": 9}, base=base_task)
         train_run = self._trainer.run(train_task)
 
         # running validation, use the model result from the previous step
@@ -74,9 +70,7 @@ class TestJobs(TestMLRunSystem):
             :param p1: A model parameter.
             """
 
-            train = self._trainer.as_step(
-                handler="training", params={"p1": p1}, outputs=["mymodel"]
-            )
+            train = self._trainer.as_step(handler="training", params={"p1": p1}, outputs=["mymodel"])
 
             self._trainer.as_step(
                 handler="validation",
@@ -97,9 +91,7 @@ class TestJobs(TestMLRunSystem):
 
         wait_for_pipeline_completion(workflow_run_id)
 
-        runs = self._run_db.list_runs(
-            project=self.project_name, labels=f"workflow={workflow_run_id}"
-        )
+        runs = self._run_db.list_runs(project=self.project_name, labels=f"workflow={workflow_run_id}")
         assert len(runs) == 2
 
         validation_run = runs[0]
@@ -110,12 +102,8 @@ class TestJobs(TestMLRunSystem):
             name="my-trainer-training",
             project=self.project_name,
             labels={
-                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
-                    "V3IO_USERNAME"
-                ],
-                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
-                    "V3IO_USERNAME"
-                ],
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
                 mlrun_constants.MLRunInternalLabels.kind: "job",
                 "category": "tests",
             },
@@ -126,12 +114,8 @@ class TestJobs(TestMLRunSystem):
             name="my-trainer-validation",
             project=self.project_name,
             labels={
-                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
-                    "V3IO_USERNAME"
-                ],
-                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
-                    "V3IO_USERNAME"
-                ],
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
                 mlrun_constants.MLRunInternalLabels.kind: "job",
             },
         )

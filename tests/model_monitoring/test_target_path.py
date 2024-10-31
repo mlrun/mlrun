@@ -30,42 +30,26 @@ def test_get_file_target_path():
         target="offline",
         artifact_path=os.environ["MLRUN_ARTIFACT_PATH"],
     )
-    assert (
-        offline_parquet_relative
-        == os.environ["MLRUN_ARTIFACT_PATH"] + "model-endpoints/parquet"
-    )
+    assert offline_parquet_relative == os.environ["MLRUN_ARTIFACT_PATH"] + "model-endpoints/parquet"
 
     # online target
     online_target = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=TEST_PROJECT, kind="some_kind", target="online"
     )
-    assert (
-        online_target
-        == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/some_kind"
-    )
+    assert online_target == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/some_kind"
 
     # offline target with absolute path
-    mlrun.mlconf.model_endpoint_monitoring.offline_storage_path = (
-        "schema://projects/test-path"
-    )
+    mlrun.mlconf.model_endpoint_monitoring.offline_storage_path = "schema://projects/test-path"
     offline_parquet_abs = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=TEST_PROJECT, kind="parquet", target="offline"
     )
-    assert (
-        offline_parquet_abs + f"/{TEST_PROJECT}/parquet"
-        == f"schema://projects/test-path/{TEST_PROJECT}/parquet"
-    )
+    assert offline_parquet_abs + f"/{TEST_PROJECT}/parquet" == f"schema://projects/test-path/{TEST_PROJECT}/parquet"
 
-    tsdb_monitoring_application_full_path = (
-        mlrun.mlconf.get_model_monitoring_file_target_path(
-            project=TEST_PROJECT,
-            kind=mm_constants.FileTargetKind.MONITORING_APPLICATION,
-        )
+    tsdb_monitoring_application_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=TEST_PROJECT,
+        kind=mm_constants.FileTargetKind.MONITORING_APPLICATION,
     )
-    assert (
-        tsdb_monitoring_application_full_path
-        == f"v3io:///users/pipelines/{TEST_PROJECT}/monitoring-apps/"
-    )
+    assert tsdb_monitoring_application_full_path == f"v3io:///users/pipelines/{TEST_PROJECT}/monitoring-apps/"
 
 
 def test_get_stream_path():
@@ -83,7 +67,4 @@ def test_get_stream_path():
     # kafka stream path from env
     os.environ["STREAM_PATH"] = "kafka://some_kafka_broker:8080"
     stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
-    assert (
-        stream_path
-        == f"kafka://some_kafka_broker:8080?topic=monitoring_stream_{TEST_PROJECT}"
-    )
+    assert stream_path == f"kafka://some_kafka_broker:8080?topic=monitoring_stream_{TEST_PROJECT}"

@@ -128,9 +128,7 @@ def test_api_call_enum_conversion():
         ),
     ],
 )
-def test_connection_reset_causes_retries(
-    feature_config, exception_type, exception_args, call_amount
-):
+def test_connection_reset_causes_retries(feature_config, exception_type, exception_args, call_amount):
     mlrun.mlconf.httpdb.retry_api_call_on_exception = feature_config
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     original_request = requests.Session.request

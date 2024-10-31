@@ -69,13 +69,9 @@ def test_kafka_source_with_new_nuclio():
 
 # ML-5629 (pandas 2), ML-5661 (pandas 1)
 def test_timestamp_format_inference(rundb_mock):
-    source = CSVSource(
-        path=str(pathlib.Path(__file__).parent / "assets" / "mixed_timestamps.csv")
-    )
+    source = CSVSource(path=str(pathlib.Path(__file__).parent / "assets" / "mixed_timestamps.csv"))
 
-    result_df = source.to_dataframe(
-        start_time=pd.Timestamp(2020, 1, 1), time_field="time"
-    )
+    result_df = source.to_dataframe(start_time=pd.Timestamp(2020, 1, 1), time_field="time")
     expected_time = pd.Timestamp(
         year=2024,
         month=1,
@@ -134,9 +130,7 @@ def test_transform_list_filters_to_tuple(additional_filters, message):
                 additional_filters=back_from_json_serialization,
             )
     else:
-        ParquetSource(
-            "parquet_source", path="path/to/file", additional_filters=additional_filters
-        )
+        ParquetSource("parquet_source", path="path/to/file", additional_filters=additional_filters)
         parquet_source = ParquetSource(
             "parquet_source",
             path="path/to/file",

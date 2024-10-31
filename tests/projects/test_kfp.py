@@ -40,9 +40,7 @@ def my_job(context, p1=1, p2="a-string"):
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}")
     print(f"accesskey = {context.get_secret('ACCESS_KEY')}")
-    input_file = context.get_input(
-        str(tests_dir) + "/assets/test_kfp_input_file.txt"
-    ).get()
+    input_file = context.get_input(str(tests_dir) + "/assets/test_kfp_input_file.txt").get()
     print(f"file\n{input_file}\n")
 
     # RUN some useful code e.g. ML training, data prep, etc.
@@ -68,9 +66,7 @@ def my_job(context, p1=1, p2="a-string"):
         "age": [42, 52, 36, 24, 73],
         "postTestScore": [25, 94, 57, 62, 70],
     }
-    df = pd.DataFrame(
-        raw_data, columns=["first_name", "last_name", "age", "postTestScore"]
-    )
+    df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "postTestScore"])
     context.log_dataset("mydf", df=df)
 
 
@@ -89,9 +85,7 @@ def kfp_dirs(monkeypatch):
             output_dir=output_dir,
         )
         monkeypatch.setattr(mlrun_pipelines.common.ops, "KFPMETA_DIR", str(meta_dir))
-        monkeypatch.setattr(
-            mlrun_pipelines.common.ops, "KFP_ARTIFACTS_DIR", str(artifacts_dir)
-        )
+        monkeypatch.setattr(mlrun_pipelines.common.ops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
         yield str(meta_dir), str(artifacts_dir), str(output_dir)
 
 
@@ -173,9 +167,7 @@ def _assert_ui_metadata_file_existence(meta_dir):
     assert os.path.exists(meta_dir + "/mlpipeline-ui-metadata.json")
 
 
-def _assert_metrics_file(
-    meta_dir, expected_accuracy, expected_loss, best_iteration=None
-):
+def _assert_metrics_file(meta_dir, expected_accuracy, expected_loss, best_iteration=None):
     expected_data = {
         "metrics": [
             {"name": "accuracy", "numberValue": expected_accuracy},
@@ -183,9 +175,7 @@ def _assert_metrics_file(
         ]
     }
     if best_iteration is not None:
-        expected_data["metrics"].insert(
-            0, {"name": "best_iteration", "numberValue": best_iteration}
-        )
+        expected_data["metrics"].insert(0, {"name": "best_iteration", "numberValue": best_iteration})
     with open(meta_dir + "/mlpipeline-metrics.json") as metrics_file:
         data = json.load(metrics_file)
         assert data == expected_data
@@ -202,16 +192,12 @@ def _generate_task(p1, out_path):
 def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
     ensure_default_project,
 ):
-    function = new_function(
-        kfp=True, kind="job", project=ensure_default_project.metadata.name
-    )
+    function = new_function(kfp=True, kind="job", project=ensure_default_project.metadata.name)
     function_node_selector, function_val = "ns1", "val1"
     function.spec.node_selector = {function_node_selector: function_val}
 
     project_node_selector, project_val = "ns2", "val2"
-    ensure_default_project.spec.default_function_node_selector = {
-        project_node_selector: project_val
-    }
+    ensure_default_project.spec.default_function_node_selector = {project_node_selector: project_val}
 
     config_node_selector, config_val = "ns3", "val3"
     mlconf.default_function_node_selector = base64.b64encode(

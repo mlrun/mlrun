@@ -35,9 +35,7 @@ class ProcessBeforeTDEngine(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         event[EventFieldType.PROJECT] = event[EventFieldType.FUNCTION_URI].split("/")[0]
-        event[EventKeyMetrics.CUSTOM_METRICS] = json.dumps(
-            event.get(EventFieldType.METRICS, {})
-        )
+        event[EventKeyMetrics.CUSTOM_METRICS] = json.dumps(event.get(EventFieldType.METRICS, {}))
         event[EventFieldType.TIME] = event.get(EventFieldType.TIMESTAMP)
         event[EventFieldType.TABLE_COLUMN] = "_" + event.get(EventFieldType.ENDPOINT_ID)
 
@@ -68,8 +66,7 @@ class ErrorExtractor(mlrun.feature_store.steps.MapClass):
             EventFieldType.ENDPOINT_ID: endpoint_id,
             EventFieldType.TIME: timestamp,
             EventFieldType.PROJECT: event[EventFieldType.FUNCTION_URI].split("/")[0],
-            EventFieldType.TABLE_COLUMN: "_err_"
-            + event.get(EventFieldType.ENDPOINT_ID),
+            EventFieldType.TABLE_COLUMN: "_err_" + event.get(EventFieldType.ENDPOINT_ID),
         }
         logger.info("Write error to errors TSDB table", event=event)
         return event

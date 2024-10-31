@@ -34,12 +34,8 @@ class MLModelHandler(ModelHandler, ABC):
         model: MLTypes.ModelType = None,
         model_path: MLTypes.PathType = None,
         model_name: str = None,
-        modules_map: Union[
-            dict[str, Union[None, str, list[str]]], MLTypes.PathType
-        ] = None,
-        custom_objects_map: Union[
-            dict[str, Union[str, list[str]]], MLTypes.PathType
-        ] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], MLTypes.PathType] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], MLTypes.PathType] = None,
         custom_objects_directory: MLTypes.PathType = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
@@ -169,9 +165,7 @@ class MLModelHandler(ModelHandler, ABC):
         """
         self._algorithm = algorithm
 
-    def set_sample_set(
-        self, sample_set: Union[MLTypes.DatasetType, mlrun.DataItem, str]
-    ):
+    def set_sample_set(self, sample_set: Union[MLTypes.DatasetType, mlrun.DataItem, str]):
         """
         Set the sample set this model will be logged with. The sample set will be casted to a pd.DataFrame. Can be sent
         as a DataItem and as a store object string.

@@ -44,9 +44,7 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
     roc_curve = ROCCurvePlan
 
     @classmethod
-    def default(
-        cls, model: MLTypes.ModelType, y: MLTypes.DatasetType = None, *args, **kwargs
-    ) -> list[Plan]:
+    def default(cls, model: MLTypes.ModelType, y: MLTypes.DatasetType = None, *args, **kwargs) -> list[Plan]:
         """
         Get the default artifacts plans list of this framework's library.
 

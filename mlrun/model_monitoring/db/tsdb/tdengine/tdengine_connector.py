@@ -73,18 +73,10 @@ class TDEngineConnector(TSDBConnector):
     def _init_super_tables(self):
         """Initialize the super tables for the TSDB."""
         self.tables = {
-            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(
-                self.database
-            ),
-            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(
-                self.database
-            ),
-            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
-                self.database
-            ),
-            mm_schemas.TDEngineSuperTables.ERRORS: tdengine_schemas.Errors(
-                self.database
-            ),
+            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(self.database),
+            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(self.database),
+            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(self.database),
+            mm_schemas.TDEngineSuperTables.ERRORS: tdengine_schemas.Errors(self.database),
         }
 
     def create_tables(self):
@@ -112,17 +104,13 @@ class TDEngineConnector(TSDBConnector):
         if kind == mm_schemas.WriterEventKind.RESULT:
             # Write a new result
             table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS]
-            table_name = (
-                f"{table_name}_{event[mm_schemas.ResultData.RESULT_NAME]}"
-            ).replace("-", "_")
+            table_name = (f"{table_name}_{event[mm_schemas.ResultData.RESULT_NAME]}").replace("-", "_")
             event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
         else:
             # Write a new metric
             table = self.tables[mm_schemas.TDEngineSuperTables.METRICS]
-            table_name = (
-                f"{table_name}_{event[mm_schemas.MetricData.METRIC_NAME]}"
-            ).replace("-", "_")
+            table_name = (f"{table_name}_{event[mm_schemas.MetricData.METRIC_NAME]}").replace("-", "_")
 
         # Escape the table name for case-sensitivity (ML-7908)
         # https://github.com/taosdata/taos-connector-python/issues/260
@@ -246,9 +234,7 @@ class TDEngineConnector(TSDBConnector):
             subtables = self.connection.run(query=get_subtable_names_query).data
             drop_statements = []
             for subtable in subtables:
-                drop_statements.append(
-                    self.tables[table]._drop_subtable_query(subtable=subtable[0])
-                )
+                drop_statements.append(self.tables[table]._drop_subtable_query(subtable=subtable[0]))
             self.connection.run(statements=drop_statements)
         logger.debug(
             "Deleted all project resources using the TDEngine connector",
@@ -314,11 +300,7 @@ class TDEngineConnector(TSDBConnector):
         """
 
         project_condition = f"project = '{self.project}'"
-        filter_query = (
-            f"({filter_query}) AND ({project_condition})"
-            if filter_query
-            else project_condition
-        )
+        filter_query = f"({filter_query}) AND ({project_condition})" if filter_query else project_condition
 
         full_query = tdengine_schemas.TDEngineSchema._get_records_query(
             table=table,
@@ -388,9 +370,7 @@ class TDEngineConnector(TSDBConnector):
             ]
             df_handler = self.df_to_results_values
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid type {type}, must be either 'metrics' or 'results'."
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Invalid type {type}, must be either 'metrics' or 'results'.")
 
         metrics_condition = " OR ".join(
             [
@@ -409,9 +389,7 @@ class TDEngineConnector(TSDBConnector):
             columns=columns,
         )
 
-        df[mm_schemas.WriterEvent.END_INFER_TIME] = pd.to_datetime(
-            df[mm_schemas.WriterEvent.END_INFER_TIME]
-        )
+        df[mm_schemas.WriterEvent.END_INFER_TIME] = pd.to_datetime(df[mm_schemas.WriterEvent.END_INFER_TIME])
         df.set_index(mm_schemas.WriterEvent.END_INFER_TIME, inplace=True)
 
         logger.debug(
@@ -437,9 +415,7 @@ class TDEngineConnector(TSDBConnector):
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
     ]:
-        if (agg_funcs and not aggregation_window) or (
-            aggregation_window and not agg_funcs
-        ):
+        if (agg_funcs and not aggregation_window) or (aggregation_window and not agg_funcs):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "both or neither of `aggregation_window` and `agg_funcs` must be provided"
             )
@@ -468,9 +444,7 @@ class TDEngineConnector(TSDBConnector):
             df.set_index("_wend", inplace=True)
 
         latency_column = (
-            f"{agg_funcs[0]}({mm_schemas.EventFieldType.LATENCY})"
-            if agg_funcs
-            else mm_schemas.EventFieldType.LATENCY
+            f"{agg_funcs[0]}({mm_schemas.EventFieldType.LATENCY})" if agg_funcs else mm_schemas.EventFieldType.LATENCY
         )
 
         return mm_schemas.ModelEndpointMonitoringMetricValues(
@@ -489,9 +463,7 @@ class TDEngineConnector(TSDBConnector):
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        endpoint_ids = endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
@@ -517,12 +489,8 @@ class TDEngineConnector(TSDBConnector):
             },
             inplace=True,
         )
-        df[mm_schemas.EventFieldType.LAST_REQUEST] = df[
-            mm_schemas.EventFieldType.LAST_REQUEST
-        ].map(
-            lambda last_request: datetime.strptime(
-                last_request, "%Y-%m-%d %H:%M:%S.%f %z"
-            ).astimezone(tz=timezone.utc)
+        df[mm_schemas.EventFieldType.LAST_REQUEST] = df[mm_schemas.EventFieldType.LAST_REQUEST].map(
+            lambda last_request: datetime.strptime(last_request, "%Y-%m-%d %H:%M:%S.%f %z").astimezone(tz=timezone.utc)
         )
         return df
 
@@ -532,9 +500,7 @@ class TDEngineConnector(TSDBConnector):
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        endpoint_ids = endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -552,9 +518,7 @@ class TDEngineConnector(TSDBConnector):
             preform_agg_columns=[mm_schemas.ResultData.RESULT_STATUS],
         )
         df.rename(
-            columns={
-                f"max({mm_schemas.ResultData.RESULT_STATUS})": mm_schemas.ResultData.RESULT_STATUS
-            },
+            columns={f"max({mm_schemas.ResultData.RESULT_STATUS})": mm_schemas.ResultData.RESULT_STATUS},
             inplace=True,
         )
         if not df.empty:
@@ -641,9 +605,7 @@ class TDEngineConnector(TSDBConnector):
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        endpoint_ids = endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.ERRORS,
@@ -673,9 +635,7 @@ class TDEngineConnector(TSDBConnector):
         start: datetime = None,
         end: datetime = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        endpoint_ids = endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.PREDICTIONS,

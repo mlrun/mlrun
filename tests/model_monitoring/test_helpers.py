@@ -197,45 +197,29 @@ class TestBatchInterval:
     @staticmethod
     @pytest.fixture
     def timedelta_seconds(request: pytest.FixtureRequest) -> int:
-        if marker := request.node.get_closest_marker(
-            TestBatchInterval.timedelta_seconds.__name__
-        ):
+        if marker := request.node.get_closest_marker(TestBatchInterval.timedelta_seconds.__name__):
             return marker.args[0]
         return int(datetime.timedelta(minutes=6).total_seconds())
 
     @staticmethod
     @pytest.fixture
     def first_request(request: pytest.FixtureRequest) -> int:
-        if marker := request.node.get_closest_marker(
-            TestBatchInterval.first_request.__name__
-        ):
+        if marker := request.node.get_closest_marker(TestBatchInterval.first_request.__name__):
             return marker.args[0]
-        return int(
-            datetime.datetime(
-                2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
+        return int(datetime.datetime(2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc).timestamp())
 
     @staticmethod
     @pytest.fixture
     def last_updated(request: pytest.FixtureRequest) -> int:
-        if marker := request.node.get_closest_marker(
-            TestBatchInterval.last_updated.__name__
-        ):
+        if marker := request.node.get_closest_marker(TestBatchInterval.last_updated.__name__):
             return marker.args[0]
-        return int(
-            datetime.datetime(
-                2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
+        return int(datetime.datetime(2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc).timestamp())
 
     @staticmethod
     @pytest.fixture(autouse=True)
     def mock_kv() -> Iterator[None]:
         mock = Mock(spec=["kv"])
-        mock.kv.get = Mock(
-            side_effect=HttpResponseError(status_code=http.HTTPStatus.NOT_FOUND)
-        )
+        mock.kv.get = Mock(side_effect=HttpResponseError(status_code=http.HTTPStatus.NOT_FOUND))
         with patch(
             "mlrun.utils.v3io_clients.get_v3io_client",
             return_value=mock,
@@ -270,9 +254,7 @@ class TestBatchInterval:
     @pytest.fixture
     def expected_intervals() -> list[_Interval]:
         def dt(hour: int, minute: int) -> datetime.datetime:
-            return datetime.datetime(
-                2021, 1, 1, hour, minute, tzinfo=datetime.timezone.utc
-            )
+            return datetime.datetime(2021, 1, 1, hour, minute, tzinfo=datetime.timezone.utc)
 
         def interval(start: tuple[int, int], end: tuple[int, int]) -> _Interval:
             return _Interval(dt(*start), dt(*end))
@@ -297,21 +279,13 @@ class TestBatchInterval:
             assert prev[1] == curr[0], "The intervals should be touching"
 
     @staticmethod
-    def test_intervals(
-        intervals: list[_Interval], expected_intervals: list[_Interval]
-    ) -> None:
-        assert len(intervals) == len(
-            expected_intervals
-        ), "The number of intervals is not as expected"
+    def test_intervals(intervals: list[_Interval], expected_intervals: list[_Interval]) -> None:
+        assert len(intervals) == len(expected_intervals), "The number of intervals is not as expected"
         assert intervals == expected_intervals, "The intervals are not as expected"
 
     @staticmethod
-    def test_last_interval_does_not_overflow(
-        intervals: list[_Interval], last_updated: int
-    ) -> None:
-        assert (
-            intervals[-1][1].timestamp() <= last_updated
-        ), "The last interval should be after last_updated"
+    def test_last_interval_does_not_overflow(intervals: list[_Interval], last_updated: int) -> None:
+        assert intervals[-1][1].timestamp() <= last_updated, "The last interval should be after last_updated"
 
     @staticmethod
     @pytest.mark.parametrize(
@@ -348,27 +322,11 @@ class TestBatchInterval:
 
     @staticmethod
     @pytest.mark.timedelta_seconds(int(datetime.timedelta(days=6).total_seconds()))
-    @pytest.mark.first_request(
-        int(
-            datetime.datetime(
-                2020, 12, 25, 23, 0, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
-    )
-    @pytest.mark.last_updated(
-        int(
-            datetime.datetime(
-                2021, 1, 1, 3, 1, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
-    )
-    def test_large_base_period(
-        timedelta_seconds: int, intervals: list[_Interval]
-    ) -> None:
+    @pytest.mark.first_request(int(datetime.datetime(2020, 12, 25, 23, 0, 0, tzinfo=datetime.timezone.utc).timestamp()))
+    @pytest.mark.last_updated(int(datetime.datetime(2021, 1, 1, 3, 1, 0, tzinfo=datetime.timezone.utc).timestamp()))
+    def test_large_base_period(timedelta_seconds: int, intervals: list[_Interval]) -> None:
         assert len(intervals) == 1, "There should be exactly one interval"
-        assert timedelta_seconds == datetime.datetime.timestamp(
-            intervals[0][1]
-        ) - datetime.datetime.timestamp(
+        assert timedelta_seconds == datetime.datetime.timestamp(intervals[0][1]) - datetime.datetime.timestamp(
             intervals[0][0]
         ), "The time slot should be equal to timedelta_seconds (6 days)"
 
@@ -379,15 +337,8 @@ class TestBatchWindowGenerator:
         ("first_request", "expected"),
         [("", None), (None, None), ("2023-11-09 09:25:59.554971+00:00", 1699521959)],
     )
-    def test_normalize_first_request(
-        first_request: Optional[str], expected: Optional[int]
-    ) -> None:
-        assert (
-            _BatchWindowGenerator._normalize_first_request(
-                first_request=first_request, endpoint=""
-            )
-            == expected
-        )
+    def test_normalize_first_request(first_request: Optional[str], expected: Optional[int]) -> None:
+        assert _BatchWindowGenerator._normalize_first_request(first_request=first_request, endpoint="") == expected
 
     @staticmethod
     def test_last_updated_is_in_the_past() -> None:
@@ -396,9 +347,7 @@ class TestBatchWindowGenerator:
             last_request=last_request.isoformat(), has_stream=True
         )
         assert last_updated
-        assert (
-            last_updated < last_request.timestamp()
-        ), "The last updated time should be before the last request"
+        assert last_updated < last_request.timestamp(), "The last updated time should be before the last request"
 
 
 class TestBumpModelEndpointLastRequest:
@@ -424,9 +373,7 @@ class TestBumpModelEndpointLastRequest:
 
     @staticmethod
     @pytest.fixture
-    def model_endpoint(
-        empty_model_endpoint: ModelEndpoint, last_request: str
-    ) -> ModelEndpoint:
+    def model_endpoint(empty_model_endpoint: ModelEndpoint, last_request: str) -> ModelEndpoint:
         empty_model_endpoint.status.last_request = last_request
         return empty_model_endpoint
 
@@ -454,9 +401,7 @@ class TestBumpModelEndpointLastRequest:
                 )
         patch_patch_model_endpoint.assert_called_once()
         assert datetime.datetime.fromisoformat(
-            patch_patch_model_endpoint.call_args.kwargs["attributes"][
-                EventFieldType.LAST_REQUEST
-            ]
+            patch_patch_model_endpoint.call_args.kwargs["attributes"][EventFieldType.LAST_REQUEST]
         ) == datetime.datetime.fromisoformat(last_request)
         model_endpoint.spec.stream_path = ""
 
@@ -470,12 +415,8 @@ class TestBumpModelEndpointLastRequest:
                 )
         patch_patch_model_endpoint.assert_called_once()
         assert datetime.datetime.fromisoformat(
-            patch_patch_model_endpoint.call_args.kwargs["attributes"][
-                EventFieldType.LAST_REQUEST
-            ]
-        ) == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
-            minutes=1
-        ) + datetime.timedelta(
+            patch_patch_model_endpoint.call_args.kwargs["attributes"][EventFieldType.LAST_REQUEST]
+        ) == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(minutes=1) + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         ), "The patched last request time should be bumped by the given delta"
 
@@ -486,9 +427,7 @@ class TestBumpModelEndpointLastRequest:
         db: NopDB,
     ) -> None:
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(
-                db, "get_function", side_effect=mlrun.errors.MLRunNotFoundError
-            ):
+            with patch.object(db, "get_function", side_effect=mlrun.errors.MLRunNotFoundError):
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,

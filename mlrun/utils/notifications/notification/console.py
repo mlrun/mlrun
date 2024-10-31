@@ -54,9 +54,7 @@ class ConsoleNotification(NotificationBase):
             if state == "error":
                 result = run["status"].get("error", "")
             else:
-                result = mlrun.utils.helpers.dict_to_str(
-                    run["status"].get("results", {})
-                )
+                result = mlrun.utils.helpers.dict_to_str(run["status"].get("results", {}))
 
             table.append(
                 [
@@ -68,14 +66,11 @@ class ConsoleNotification(NotificationBase):
             )
         print(tabulate.tabulate(table, headers=["status", "name", "uid", "results"]))
 
-    def _resolve_severity(
-        self, severity: typing.Union[mlrun.common.schemas.NotificationSeverity, str]
-    ):
+    def _resolve_severity(self, severity: typing.Union[mlrun.common.schemas.NotificationSeverity, str]):
         if isinstance(severity, mlrun.common.schemas.NotificationSeverity):
             return severity
         elif isinstance(severity, str) and (
-            (severity_lowercase := severity.lower())
-            in set(mlrun.common.schemas.NotificationSeverity)
+            (severity_lowercase := severity.lower()) in set(mlrun.common.schemas.NotificationSeverity)
         ):
             return mlrun.common.schemas.NotificationSeverity(severity_lowercase)
 

@@ -92,9 +92,7 @@ class MLRunPatcher:
             image_tag=image_tag,
         )
         # Build and push Docker images
-        built_images = self._tag_images_for_multi_node_registries(
-            target_to_built_images.values()
-        )
+        built_images = self._tag_images_for_multi_node_registries(target_to_built_images.values())
         self._push_docker_images(built_images)
 
         # Connect to the first node and start deployment patching process
@@ -109,9 +107,7 @@ class MLRunPatcher:
             try:
                 # Replace deployment policies and images
                 self._patch_deployment_from_file()
-                self._replace_deployment_images(
-                    Constants.api_container, target_to_built_images[Constants.api]
-                )
+                self._replace_deployment_images(Constants.api_container, target_to_built_images[Constants.api])
 
                 # Reset or rollout deployment as necessary
                 if self._reset_db:
@@ -123,21 +119,14 @@ class MLRunPatcher:
 
             finally:
                 # Check status of pods after deployment
-                out = self._exec_remote(
-                    ["kubectl", "-n", "default-tenant", "get", "pods"]
-                )
+                out = self._exec_remote(["kubectl", "-n", "default-tenant", "get", "pods"])
                 for line in out.splitlines():
-                    if (
-                        Constants.api_container in line
-                        or Constants.log_collector_container in line
-                    ):
+                    if Constants.api_container in line or Constants.log_collector_container in line:
                         logger.info(line)
 
                 self._disconnect_from_node()
 
-        logger.info(
-            "Deployed branch successfully! (Note: This may not survive system restarts)"
-        )
+        logger.info("Deployed branch successfully! (Note: This may not survive system restarts)")
 
     def _docker_login_if_configured(self):
         registry_username = self._config.get("REGISTRY_USERNAME")
@@ -153,13 +142,9 @@ class MLRunPatcher:
             registry_username,
             "--password-stdin",
         ]
-        completed_process = subprocess.run(
-            command, input=registry_password.encode() + b"\n", capture_output=True
-        )
+        completed_process = subprocess.run(command, input=registry_password.encode() + b"\n", capture_output=True)
         if completed_process.returncode != 0:
-            raise RuntimeError(
-                f"Failed to login to docker registry. Error: {completed_process.stderr}"
-            )
+            raise RuntimeError(f"Failed to login to docker registry. Error: {completed_process.stderr}")
 
     def _validate_config(self):
         missing_fields = Constants.mandatory_fields - set(self._config.keys())
@@ -169,9 +154,7 @@ class MLRunPatcher:
         registry_username = self._config.get("REGISTRY_USERNAME")
         registry_password = self._config.get("REGISTRY_PASSWORD")
         if registry_username is not None and registry_password is None:
-            raise RuntimeError(
-                "REGISTRY_USERNAME defined, yet REGISTRY_PASSWORD is not defined"
-            )
+            raise RuntimeError("REGISTRY_USERNAME defined, yet REGISTRY_PASSWORD is not defined")
 
         if self._reset_db and "DB_USER" not in self._config:
             raise RuntimeError("Must define DB_USER if requesting DB reset")
@@ -193,9 +176,7 @@ class MLRunPatcher:
         mlrun_docker_repo = self._config.get("DOCKER_REPO")
 
         if mlrun_docker_repo:
-            mlrun_docker_registry = (
-                f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
-            )
+            mlrun_docker_registry = f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
 
         env = {
             "MLRUN_VERSION": image_tag,
@@ -235,9 +216,7 @@ class MLRunPatcher:
                     resolve_built_images.append(built_image)
                     for replacement_node in self._cluster_data_nodes:
                         if replacement_node != node:
-                            replaced_built_image = built_image.replace(
-                                node, replacement_node
-                            )
+                            replaced_built_image = built_image.replace(node, replacement_node)
                             self._exec_local(
                                 [
                                     "docker",
@@ -532,18 +511,14 @@ class MLRunPatcher:
     @staticmethod
     def _execute_local_proc_interactive(cmd, env=None):
         env = os.environ | (env or {})
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env
-        )
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
         yield from proc.stdout
         proc.stdout.close()
         ret_code = proc.wait()
         if ret_code:
             raise subprocess.CalledProcessError(ret_code, cmd)
 
-    def _exec_local(
-        self, cmd: list[str], live: bool = False, env: typing.Optional[dict] = None
-    ) -> str:
+    def _exec_local(self, cmd: list[str], live: bool = False, env: typing.Optional[dict] = None) -> str:
         logger.debug("Exec local: %s", " ".join(cmd))
         buf = io.StringIO()
         for line in self._execute_local_proc_interactive(cmd, env):
@@ -556,9 +531,7 @@ class MLRunPatcher:
     def _exec_remote(self, cmd: list[str], live=False) -> str:
         cmd_str = shlex.join(cmd)
         logger.debug("Exec remote: %s", cmd_str)
-        stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
-            cmd_str
-        )
+        stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(cmd_str)
 
         stdout = ""
         if live:
@@ -576,9 +549,7 @@ class MLRunPatcher:
         exit_status = stdout_stream.channel.recv_exit_status()
 
         if exit_status:
-            raise RuntimeError(
-                f"Command '{cmd_str}' finished with failure ({exit_status})\n{stderr}"
-            )
+            raise RuntimeError(f"Command '{cmd_str}' finished with failure ({exit_status})\n{stderr}")
 
         return stdout
 
@@ -611,9 +582,7 @@ class MLRunPatcher:
     type=click.File(mode="r"),
     show_default=True,
 )
-@click.option(
-    "-r", "--reset-db", is_flag=True, help="Reset mlrun DB after deploying api"
-)
+@click.option("-r", "--reset-db", is_flag=True, help="Reset mlrun DB after deploying api")
 @click.option(
     "-t",
     "--tag",

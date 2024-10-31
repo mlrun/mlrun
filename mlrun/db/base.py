@@ -74,9 +74,7 @@ class RunDBInterface(ABC):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[
-            mlrun.common.runtimes.constants.RunStates
-        ] = None,  # Backward compatibility
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,  # Backward compatibility
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
@@ -88,9 +86,7 @@ class RunDBInterface(ABC):
         partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_order: Union[mlrun.common.schemas.OrderType, str] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
@@ -112,9 +108,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(
-        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
-    ):
+    def store_artifact(self, key, artifact, uid=None, iter=None, tag="", project="", tree=None):
         pass
 
     @abstractmethod
@@ -254,11 +248,7 @@ class RunDBInterface(ABC):
 
         artifact_identifiers = []
         for artifact in artifacts:
-            artifact_obj = (
-                artifact.to_dict()
-                if isinstance(artifact, mlrun.artifacts.base.Artifact)
-                else artifact
-            )
+            artifact_obj = artifact.to_dict() if isinstance(artifact, mlrun.artifacts.base.Artifact) else artifact
             artifact_identifiers.append(
                 mlrun.common.schemas.ArtifactIdentifier(
                     # we pass the db_key and not the key so the API will be able to find the artifact in the db
@@ -269,9 +259,7 @@ class RunDBInterface(ABC):
                     iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
                 )
             )
-        return mlrun.common.schemas.TagObjects(
-            kind="artifact", identifiers=artifact_identifiers
-        )
+        return mlrun.common.schemas.TagObjects(kind="artifact", identifiers=artifact_identifiers)
 
     @abstractmethod
     def delete_project(
@@ -337,9 +325,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_feature_set(
-        self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    def get_feature_set(self, name: str, project: str = "", tag: str = None, uid: str = None) -> dict:
         pass
 
     # TODO: remove in 1.9.0
@@ -406,17 +392,11 @@ class RunDBInterface(ABC):
         entities: list[str] = None,
         features: list[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        partition_by: Union[
-            mlrun.common.schemas.FeatureStorePartitionByField, str
-        ] = None,
+        partition_by: Union[mlrun.common.schemas.FeatureStorePartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
-        format_: Union[
-            str, mlrun.common.formatters.FeatureSetFormat
-        ] = mlrun.common.formatters.FeatureSetFormat.full,
+        partition_order: Union[mlrun.common.schemas.OrderType, str] = mlrun.common.schemas.OrderType.desc,
+        format_: Union[str, mlrun.common.formatters.FeatureSetFormat] = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> list[dict]:
         pass
 
@@ -440,9 +420,7 @@ class RunDBInterface(ABC):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[
-            str, mlrun.common.schemas.PatchMode
-        ] = mlrun.common.schemas.PatchMode.replace,
+        patch_mode: Union[str, mlrun.common.schemas.PatchMode] = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -460,9 +438,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_feature_vector(
-        self, name: str, project: str = "", tag: str = None, uid: str = None
-    ) -> dict:
+    def get_feature_vector(self, name: str, project: str = "", tag: str = None, uid: str = None) -> dict:
         pass
 
     @abstractmethod
@@ -473,14 +449,10 @@ class RunDBInterface(ABC):
         tag: str = None,
         state: str = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        partition_by: Union[
-            mlrun.common.schemas.FeatureStorePartitionByField, str
-        ] = None,
+        partition_by: Union[mlrun.common.schemas.FeatureStorePartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_order: Union[mlrun.common.schemas.OrderType, str] = mlrun.common.schemas.OrderType.desc,
     ) -> list[dict]:
         pass
 
@@ -504,9 +476,7 @@ class RunDBInterface(ABC):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[
-            str, mlrun.common.schemas.PatchMode
-        ] = mlrun.common.schemas.PatchMode.replace,
+        patch_mode: Union[str, mlrun.common.schemas.PatchMode] = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -520,9 +490,7 @@ class RunDBInterface(ABC):
         run_id: str,
         namespace: str = None,
         timeout: int = 30,
-        format_: Union[
-            str, mlrun.common.formatters.PipelineFormat
-        ] = mlrun.common.formatters.PipelineFormat.summary,
+        format_: Union[str, mlrun.common.formatters.PipelineFormat] = mlrun.common.formatters.PipelineFormat.summary,
         project: str = None,
     ):
         pass
@@ -591,9 +559,7 @@ class RunDBInterface(ABC):
     def create_user_secrets(
         self,
         user: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.vault,
+        provider: Union[str, mlrun.common.schemas.SecretProviderName] = mlrun.common.schemas.SecretProviderName.vault,
         secrets: dict = None,
     ):
         pass
@@ -650,9 +616,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_hub_source(
-        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
-    ):
+    def create_hub_source(self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]):
         pass
 
     @abstractmethod
@@ -752,9 +716,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def generate_event(
-        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
-    ):
+    def generate_event(self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""):
         pass
 
     @abstractmethod
@@ -850,27 +812,19 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_datastore_profile(
-        self, name: str, project: str
-    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+    def get_datastore_profile(self, name: str, project: str) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         pass
 
     @abstractmethod
-    def delete_datastore_profile(
-        self, name: str, project: str
-    ) -> mlrun.common.schemas.DatastoreProfile:
+    def delete_datastore_profile(self, name: str, project: str) -> mlrun.common.schemas.DatastoreProfile:
         pass
 
     @abstractmethod
-    def list_datastore_profiles(
-        self, project: str
-    ) -> list[mlrun.common.schemas.DatastoreProfile]:
+    def list_datastore_profiles(self, project: str) -> list[mlrun.common.schemas.DatastoreProfile]:
         pass
 
     @abstractmethod
-    def store_datastore_profile(
-        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
-    ):
+    def store_datastore_profile(self, profile: mlrun.common.schemas.DatastoreProfile, project: str):
         pass
 
     @abstractmethod
@@ -878,9 +832,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def start_function(
-        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
-    ):
+    def start_function(self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None):
         pass
 
     @abstractmethod
@@ -936,15 +888,11 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_model_monitoring_function(
-        self, project: str, functions: list[str]
-    ) -> bool:
+    def delete_model_monitoring_function(self, project: str, functions: list[str]) -> bool:
         pass
 
     @abstractmethod
-    def deploy_histogram_data_drift_app(
-        self, project: str, image: str = "mlrun/mlrun"
-    ) -> None:
+    def deploy_histogram_data_drift_app(self, project: str, image: str = "mlrun/mlrun") -> None:
         pass
 
     @abstractmethod

@@ -101,10 +101,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         method is called once for creating the hparams table.
         """
         # Check if needed to track hyperparameters:
-        if (
-            len(self._static_hyperparameters) == 0
-            and len(self._dynamic_hyperparameters) == 0
-        ):
+        if len(self._static_hyperparameters) == 0 and len(self._dynamic_hyperparameters) == 0:
             return
 
         # Prepare the static hyperparameters values:
@@ -154,10 +151,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
         Close the file writer object, wrapping up the hyperparameters table.
         """
         # Close the hyperparameters writing:
-        if not (
-            len(self._static_hyperparameters) == 0
-            and len(self._dynamic_hyperparameters) == 0
-        ):
+        if not (len(self._static_hyperparameters) == 0 and len(self._dynamic_hyperparameters) == 0):
             with self._file_writer.as_default():
                 pb = hp_summary.session_end_pb(hp_api_pb2.STATUS_SUCCESS)
                 raw_pb = pb.SerializeToString()
@@ -198,9 +192,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
                 step=step,
             )
 
-    def _write_weight_histogram_to_tensorboard(
-        self, name: str, weight: Variable, step: int
-    ):
+    def _write_weight_histogram_to_tensorboard(self, name: str, weight: Variable, step: int):
         """
         Write the current state of the weights as histograms to tensorboard.
 
@@ -215,9 +207,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
                 step=step,
             )
 
-    def _write_weight_image_to_tensorboard(
-        self, name: str, weight: Variable, step: int
-    ):
+    def _write_weight_image_to_tensorboard(self, name: str, weight: Variable, step: int):
         """
         Log the current state of the weights as images to tensorboard.
 
@@ -256,15 +246,11 @@ class TensorboardLoggingCallback(LoggingCallback):
         tensorboard_directory: str = None,
         run_name: str = None,
         weights: Union[bool, list[str]] = False,
-        statistics_functions: list[
-            Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
-        ] = None,
+        statistics_functions: list[Callable[[Union[Variable, Tensor]], Union[float, Tensor]]] = None,
         dynamic_hyperparameters: dict[
             str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
-        static_hyperparameters: dict[
-            str, Union[TFKerasTypes.TrackableType, list[Union[str, int]]]
-        ] = None,
+        static_hyperparameters: dict[str, Union[TFKerasTypes.TrackableType, list[Union[str, int]]]] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
     ):
@@ -335,9 +321,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         del self._logger
         self._logger = _TFKerasTensorboardLogger(
             statistics_functions=(
-                statistics_functions
-                if statistics_functions is not None
-                else self.get_default_weight_statistics_list()
+                statistics_functions if statistics_functions is not None else self.get_default_weight_statistics_list()
             ),
             context=context,
             tensorboard_directory=tensorboard_directory,
@@ -550,9 +534,7 @@ class TensorboardLoggingCallback(LoggingCallback):
             self._logger.write_dynamic_hyperparameters()
 
     @staticmethod
-    def get_default_weight_statistics_list() -> (
-        list[Callable[[Union[Variable, Tensor]], Union[float, Tensor]]]
-    ):
+    def get_default_weight_statistics_list() -> list[Callable[[Union[Variable, Tensor]], Union[float, Tensor]]]:
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.
 
@@ -583,9 +565,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                         break
             if collect:
                 for weight_variable in layer.weights:
-                    self._logger.log_weight(
-                        weight_name=weight_variable.name, weight_holder=weight_variable
-                    )
+                    self._logger.log_weight(weight_name=weight_variable.name, weight_holder=weight_variable)
 
         # Log the initial (epoch 0) weights statistics:
         self._logger.log_weights_statistics()

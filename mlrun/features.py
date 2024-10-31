@@ -27,11 +27,7 @@ def _limited_string(value: str, max_size: int = 40):
     in case of error (and for better identification of error location
     based on presenting part of original value)
     """
-    return (
-        value
-        if (value is None) or (len(value) <= max_size)
-        else value[:max_size] + "..."
-    )
+    return value if (value is None) or (len(value) <= max_size) else value[:max_size] + "..."
 
 
 class Entity(ModelObj):
@@ -255,9 +251,7 @@ class Validator(ModelObj):
         if self.check_type:
             if self._feature.value_type is not None:
                 if self._feature.value_type in type_validator:
-                    return type_validator[self._feature.value_type].check(
-                        self._feature.value_type, value
-                    )
+                    return type_validator[self._feature.value_type].check(self._feature.value_type, value)
         return True, {}
 
 
@@ -267,9 +261,7 @@ class MinMaxValidator(Validator):
     kind = "minmax"
     _dict_fields = Validator._dict_fields + ["min", "max"]
 
-    def __init__(
-        self, check_type: bool = None, severity: str = None, min=None, max=None
-    ):
+    def __init__(self, check_type: bool = None, severity: str = None, min=None, max=None):
         """Validate min/max value ranges
 
         example::
@@ -327,9 +319,7 @@ class MinMaxLenValidator(Validator):
     kind = "minmaxlen"
     _dict_fields = Validator._dict_fields + ["min", "max"]
 
-    def __init__(
-        self, check_type: bool = None, severity: str = None, min=None, max=None
-    ):
+    def __init__(self, check_type: bool = None, severity: str = None, min=None, max=None):
         """Validate min/max length value ranges
 
         example::
@@ -338,9 +328,7 @@ class MinMaxLenValidator(Validator):
 
             # Add length validator to the feature 'ticker', where valid
             # minimal length is 1 and maximal length is 10
-            quotes_set["ticker"].validator = MinMaxLenValidator(
-                min=1, max=10, severity="info"
-            )
+            quotes_set["ticker"].validator = MinMaxLenValidator(min=1, max=10, severity="info")
 
         :param check_type:  check feature type e.g. True, False
         :param severity:    severity name e.g. info, warning, etc.
@@ -400,9 +388,7 @@ class RegexValidator(Validator):
             # Add regular expression validator to the feature 'name' and
             # expression '(\b[A-Za-z]{1}[0-9]{7}\b)' where valid values are
             # e.g. A1234567, z9874563, etc.
-            quotes_set["name"].validator = RegexValidator(
-                regex=r"(\b[A-Za-z]{1}[0-9]{7}\b)", severity="info"
-            )
+            quotes_set["name"].validator = RegexValidator(regex=r"(\b[A-Za-z]{1}[0-9]{7}\b)", severity="info")
 
         :param check_type:  check feature type e.g. True, False
         :param severity:    severity name e.g. info, warning, etc.
@@ -435,16 +421,11 @@ class RegexValidator(Validator):
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
-        new_obj = super().from_dict(
-            struct=struct, fields=fields, deprecated_fields=deprecated_fields
-        )
+        new_obj = super().from_dict(struct=struct, fields=fields, deprecated_fields=deprecated_fields)
         if hasattr(new_obj, "regex"):
             new_obj.regex_compile = re.compile(new_obj.regex) if new_obj.regex else None
         else:
-            raise MLRunRuntimeError(
-                f"Object with type {type(new_obj)} "
-                f"have to contain `regex` attribute"
-            )
+            raise MLRunRuntimeError(f"Object with type {type(new_obj)} " f"have to contain `regex` attribute")
         return new_obj
 
 

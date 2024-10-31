@@ -769,12 +769,12 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.key}"
 
-    class AlertHistory(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "alert_history"
+    class AlertActivation(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "alert_activation"
         __table_args__ = (
-            PrimaryKeyConstraint("activation_time", "id", name="_alert_history_uc"),
-            Index("ix_alert_history_project_name", "project", "name"),
-            Index("ix_alert_history_activation_time", "activation_time"),
+            PrimaryKeyConstraint("activation_time", "id", name="_alert_activation_uc"),
+            Index("ix_alert_activation_project_name", "project", "name"),
+            Index("ix_alert_activation_activation_time", "activation_time"),
         )
 
         id = Column(Integer)

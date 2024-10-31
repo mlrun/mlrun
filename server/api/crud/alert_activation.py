@@ -24,7 +24,7 @@ partition_name_format_mapping = {
 }
 
 
-class AlertHistory(
+class AlertActivation(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     @staticmethod

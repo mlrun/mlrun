@@ -25,7 +25,7 @@ ARG GRPCIO_TOOLS_VERSION="~=1.59.0"
 
 WORKDIR /app
 
-RUN apk --no-cache upgrade && apk add --no-cache protoc build-base linux-headers
+RUN apk --no-cache upgrade && apk add --no-cache protoc build-base linux-headers jq
 
 COPY --from=golang /usr/local/go/ /usr/local/go/
 

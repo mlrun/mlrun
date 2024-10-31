@@ -86,12 +86,11 @@ def test_unique_last_analyzed_per_app(
     app1_last_analyzed = 1716720842
     app2_name = "app-B"
 
-    schedules_file.update_application_time(
-        application=app1_name, timestamp=app1_last_analyzed
-    )
+    with schedules_file as f:
+        f.update_application_time(application=app1_name, timestamp=app1_last_analyzed)
 
-    assert schedules_file.get_application_time(app1_name) == app1_last_analyzed
-    assert schedules_file.get_application_time(app2_name) is None
+        assert f.get_application_time(app1_name) == app1_last_analyzed
+        assert f.get_application_time(app2_name) is None
 
 
 def test_stored_last_analyzed(
@@ -114,3 +113,11 @@ def test_stored_last_analyzed(
         last_analyzed = f.get_application_time(application=application_name)
 
     assert last_analyzed == current_time
+
+
+def test_file_not_opened_error(schedules_file: ModelMonitoringSchedulesFile) -> None:
+    with pytest.raises(
+        mlrun.errors.MLRunValueError,
+        match="Open the schedules file as a context manager first",
+    ):
+        schedules_file.get_application_time(application="my-app")

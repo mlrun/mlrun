@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+from collections.abc import Iterator
 from typing import NamedTuple
 from unittest.mock import patch
 
@@ -231,8 +232,11 @@ class TestBatchInterval:
 
     @staticmethod
     @pytest.fixture
-    def schedules_file() -> ModelMonitoringSchedulesFile:
-        return ModelMonitoringSchedulesFile(project="test-intervals", endpoint_id="ep")
+    def schedules_file() -> Iterator[ModelMonitoringSchedulesFile]:
+        file = ModelMonitoringSchedulesFile(project="test-intervals", endpoint_id="ep")
+        file.create()
+        yield file
+        file.delete()
 
     @staticmethod
     @pytest.fixture
@@ -242,15 +246,16 @@ class TestBatchInterval:
         first_request: int,
         last_updated: int,
     ) -> list[_Interval]:
-        return list(
-            _BatchWindow(
-                schedules_file=schedules_file,
-                application="app",
-                timedelta_seconds=timedelta_seconds,
-                first_request=first_request,
-                last_updated=last_updated,
-            ).get_intervals()
-        )
+        with schedules_file as f:
+            return list(
+                _BatchWindow(
+                    schedules_file=f,
+                    application="app",
+                    timedelta_seconds=timedelta_seconds,
+                    first_request=first_request,
+                    last_updated=last_updated,
+                ).get_intervals()
+            )
 
     @staticmethod
     @pytest.fixture
@@ -320,16 +325,17 @@ class TestBatchInterval:
         expected_last_analyzed: int,
         schedules_file: ModelMonitoringSchedulesFile,
     ) -> None:
-        assert (
-            _BatchWindow(
-                schedules_file=schedules_file,
-                application="special-app",
-                timedelta_seconds=timedelta_seconds,
-                first_request=first_request,
-                last_updated=last_updated,
-            )._get_last_analyzed()
-            == expected_last_analyzed
-        ), "The last analyzed time is not as expected"
+        with schedules_file as f:
+            assert (
+                _BatchWindow(
+                    schedules_file=f,
+                    application="special-app",
+                    timedelta_seconds=timedelta_seconds,
+                    first_request=first_request,
+                    last_updated=last_updated,
+                )._get_last_analyzed()
+                == expected_last_analyzed
+            ), "The last analyzed time is not as expected"
 
     @staticmethod
     @pytest.mark.timedelta_seconds(int(datetime.timedelta(days=6).total_seconds()))

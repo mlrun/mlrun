@@ -15,17 +15,17 @@
 import json
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import Optional, cast
-
-import fsspec
+from typing import Final, Optional
 
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.model_monitoring.helpers
 from mlrun.utils import logger
 
 
 class ModelMonitoringSchedulesFile(AbstractContextManager):
-    INITIAL_CONTENT = json.dumps({})
+    DEFAULT_SCHEDULES: Final = {}
+    INITIAL_CONTENT = json.dumps(DEFAULT_SCHEDULES)
     ENCODING = "utf-8"
 
     def __init__(self, project: str, endpoint_id: str) -> None:
@@ -42,10 +42,12 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
             project=project, endpoint_id=endpoint_id
         )
         self._path = self._item.url
-        self._fs = cast(fsspec.AbstractFileSystem, self._item.store.filesystem)
+        self._fs = self._item.store.filesystem
         # `self._schedules` is an in-memory copy of the DB for all the applications for
         # the same model endpoint.
-        self._schedules: dict[str, int] = {}
+        self._schedules: dict[str, int] = self.DEFAULT_SCHEDULES.copy()
+        # Does `self._schedules` hold the content of `self._item`?
+        self._open_schedules = False
 
     @classmethod
     def from_model_endpoint(
@@ -63,7 +65,7 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
 
     def delete(self) -> None:
         """Delete schedules file if it exists"""
-        if self._fs.exists(self._path):
+        if self._fs and self._fs.exists(self._path):
             logger.debug(
                 "Deleting model monitoring schedules file", path=self._item.url
             )
@@ -75,10 +77,16 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
             )
 
     def _open(self) -> None:
-        self._schedules = json.loads(self._item.get().decode(encoding=self.ENCODING))
+        content = self._item.get()
+        if isinstance(content, bytes):
+            content = content.decode(encoding=self.ENCODING)
+        self._schedules = json.loads(content)
+        self._open_schedules = True
 
     def _close(self) -> None:
         self._item.put(json.dumps(self._schedules))
+        self._schedules = self.DEFAULT_SCHEDULES
+        self._open_schedules = False
 
     def __enter__(self) -> "ModelMonitoringSchedulesFile":
         self._open()
@@ -92,10 +100,18 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
     ) -> Optional[bool]:
         self._close()
 
+    def _check_open_schedules(self) -> None:
+        if not self._open_schedules:
+            raise mlrun.errors.MLRunValueError(
+                "Open the schedules file as a context manager first"
+            )
+
     def get_application_time(self, application: str) -> Optional[int]:
+        self._check_open_schedules()
         return self._schedules.get(application)
 
     def update_application_time(self, application: str, timestamp: int) -> None:
+        self._check_open_schedules()
         self._schedules[application] = timestamp
 
 
@@ -104,10 +120,7 @@ def delete_model_monitoring_schedules_folder(project: str) -> None:
     folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
         project
     )
-    fs = cast(
-        fsspec.AbstractFileSystem,
-        mlrun.datastore.store_manager.object(folder).store.filesystem,
-    )
-    if fs.exists(folder):
+    fs = mlrun.datastore.store_manager.object(folder).store.filesystem
+    if fs and fs.exists(folder):
         logger.debug("Deleting model monitoring schedules folder", folder=folder)
         fs.rm(folder, recursive=True)

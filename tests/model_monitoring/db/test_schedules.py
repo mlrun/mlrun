@@ -121,3 +121,11 @@ def test_file_not_opened_error(schedules_file: ModelMonitoringSchedulesFile) -> 
         match="Open the schedules file as a context manager first",
     ):
         schedules_file.get_application_time(application="my-app")
+
+
+def test_not_found_error() -> None:
+    with pytest.raises(FileNotFoundError):
+        with ModelMonitoringSchedulesFile(
+            project="project-0", endpoint_id="endpoint-0"
+        ):
+            pass

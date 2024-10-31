@@ -17,6 +17,8 @@ from contextlib import AbstractContextManager
 from types import TracebackType
 from typing import Final, Optional
 
+import botocore.exceptions
+
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model_monitoring.helpers
@@ -77,7 +79,28 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
             )
 
     def _open(self) -> None:
-        content = self._item.get()
+        try:
+            content = self._item.get()
+        except (
+            mlrun.errors.MLRunNotFoundError,
+            # Different errors are raised for S3 or local storage, see ML-8042
+            botocore.exceptions.ClientError,
+            FileNotFoundError,
+        ) as err:
+            if (
+                isinstance(err, botocore.exceptions.ClientError)
+                # Add a log only to "NoSuchKey" errors codes - equivalent to `FileNotFoundError`
+                and err.response["Error"]["Code"] != "NoSuchKey"
+            ):
+                raise
+
+            logger.exception(
+                "The schedules file was not found. It should have been created "
+                "as a part of the model endpoint's creation",
+                path=self._path,
+            )
+            raise
+
         if isinstance(content, bytes):
             content = content.decode(encoding=self.ENCODING)
         self._schedules = json.loads(content)

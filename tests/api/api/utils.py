@@ -106,7 +106,7 @@ def assert_pagination_info(
         first_result_identifier = results[0]["metadata"].get(entity_identifier_name)
         assert (
             first_result_identifier == expected_first_result_name
-        ), f"Expemcted first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
+        ), f"Expected first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
 
 
 def _create_project_obj(

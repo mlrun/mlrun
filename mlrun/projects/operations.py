@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 import warnings
 from typing import Optional, Union
 
@@ -59,7 +60,7 @@ def _get_engine_and_function(function, project=None):
 
 def run_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    handler: str = None,
+    handler: Union[str, typing.Callable] = None,
     name: str = "",
     params: dict = None,
     hyperparams: dict = None,

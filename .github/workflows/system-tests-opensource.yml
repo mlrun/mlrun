@@ -17,26 +17,27 @@ name: System Tests Open Source
 on:
   push:
     branches:
-      - '.+-system-tests'
+      - '.+-os-system-tests'
 
-  schedule:
-
-    # * is a special character in YAML so you have to quote this string
-    # Run the system tests every 3 hours
-    - cron:  '0 */3 * * *'
+# disabled until we have a proper schedule definition
+#  schedule:
+#
+#    # * is a special character in YAML so you have to quote this string
+#    # Run the system tests every 3 hours
+#    - cron:  '0 */3 * * *'
 
   workflow_dispatch:
     inputs:
-      docker_registry:
-        description: 'Docker registry to pull images from (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
-        required: true
-        default: 'ghcr.io/'
-      docker_repo:
-        description: 'Docker repo to pull images from (default: mlrun)'
-        required: true
-        default: 'mlrun'
+      pr_number:
+        description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
+        required: false
+        default: ''
+      pytest_markers:
+        description: 'Pytest markers to run'
+        required: false
+        default: 'not enterprise and smoke'
       clean_resources_in_teardown:
-        description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
+        description: 'Clean test resources upon test teardown'
         required: true
         default: 'true'
         type: choice
@@ -44,7 +45,7 @@ on:
           - 'true'
           - 'false'
       debug_enabled:
-        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+        description: 'Allow SSH debugging'
         required: false
         default: 'false'
         type: choice
@@ -55,136 +56,138 @@ on:
 env:
   NAMESPACE: mlrun
   MLRUN_API_NODE_PORT: 30070
+  MLRUN_PYTHON_PACKAGE_INSTALLER: uv
 
 jobs:
+  prepare-inputs:
+    name: Prepare Open Source inputs
+    runs-on: ubuntu-latest
+    outputs:
+      mlrun_docker_repo: ${{ steps.computed_params.outputs.mlrun_docker_repo }}
+      mlrun_docker_tag: ${{ steps.computed_params.outputs.mlrun_docker_tag }}
+      mlrun_ui_version: ${{ steps.computed_params.outputs.mlrun_ui_version }}
+      mlrun_docker_registry: ${{ steps.computed_params.outputs.mlrun_docker_registry }}
+      mlrun_system_tests_clean_resources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
+      mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
+      mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract git hashes from upstream and latest version
+        id: git_upstream_info
+        run: |
+          # if the action is running on a PR, we need to get the latest commit hash from the PR branch
+          if [ -n "$PR_NUMBER" ]; then
+            echo "mlrun_hash=pr$PR_NUMBER" >> $GITHUB_OUTPUT
+          else
+            echo "mlrun_hash=$( \
+              cd /tmp && \
+              git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+              cd mlrun-upstream && \
+              git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
+              cd .. && \
+              rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+          fi
+          
+          # NOTE: for now, always take the latest commit hash from the development branch
+          # TODO: take from relevant branch [pr head branch]
+          echo "ui_hash=$( \
+              cd /tmp && \
+              git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+              cd mlrun-ui && \
+              git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
+              cd .. && \
+              rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+          echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
+        env:
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+
+      - name: Set computed versions params
+        id: computed_params
+        run: |
+          export mlrun_hash=$(echo ${{ steps.git_upstream_info.outputs.mlrun_hash }})
+          export ui_hash=$(echo ${{ steps.git_upstream_info.outputs.ui_hash }})
+          echo "mlrun_hash=$mlrun_hash" >> $GITHUB_OUTPUT
+          echo "ui_hash=$ui_hash" >> $GITHUB_OUTPUT
+
+          echo "mlrun_version=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)" >> $GITHUB_OUTPUT
+          echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
+          
+          export mlrun_version_specifier=$mlrun_hash
+          if [ -n "$PR_NUMBER" ]; then
+            mlrun_version_specifier="refs/pull/${PR_NUMBER}/merge"
+          fi
+          echo "mlrun_version_specifier=$mlrun_version_specifier" >> $GITHUB_OUTPUT
+          
+          echo "mlrun_docker_registry=ghcr.io/" >> $GITHUB_OUTPUT
+          echo "mlrun_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          
+          echo "mlrun_system_tests_clean_resources=$( \
+            input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
+            echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
+        env:
+          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
+          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+
+  build-mlrun:
+    if : github.event.inputs.pr_number != ''
+    name: Build MLRun
+    uses: ./.github/workflows/build-internal.yaml
+    needs: prepare-inputs
+    with:
+      docker_registries: ${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}
+      docker_repo: ${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}
+      version: ${{ needs.prepare-inputs.outputs.mlrun_version }}
+      cache_tag_suffix:  ${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}
+
+      # NOTE: currently we patch mlrun/api, mlrun/log-collector and mlrun/ui images.
+      # by overriding the version specifier, we allow using mlrun/mlrun as well.
+      # TODO: support patching jupyter as well (maybe on demand?)
+      # and use --override-mlrun-jupyter-image when patching mlrun ce
+      skip_images: test,mlrun-gpu,base,jupyter
+    secrets: inherit
+
   run-system-tests-opensource-ci:
     name: Run System Tests Open Source
     runs-on: ubuntu-latest
-
-    # let's not run this on every fork, change to your fork when developing
-    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
-
+    needs: [prepare-inputs, build-mlrun]
     steps:
     - uses: actions/checkout@v4
+
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-    - name: Set up python
-      uses: actions/setup-python@v5
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
       with:
-        python-version: 3.9
-        cache: pip
-    - name: Install automation scripts dependencies and add mlrun to dev packages
+        enable-cache: true
+        cache-dependency-glob: "**/*requirements*.txt"
+
+    - name: Set up Python
+      run: uv python install 3.9
+
+    - name: Install automation scripts dependencies
       run: |
-        pip install \
-          -r automation/requirements.txt \
-          -r dockerfiles/mlrun-api/requirements.txt \
-          -r dev-requirements.txt \
-          -r extras-requirements.txt \
-        && pip install -e .
         sudo apt-get install curl jq
+        uv venv venv --seed
+        source venv/bin/activate
+        make install-requirements install-complete-requirements
+        uv pip install -r automation/requirements.txt
 
-      # TODO: How can we avoid these duplicate lines from the enterprise system tests
-    - name: Extract git branch
-      id: git_info
-      run: |
-        echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
-    - name: Extract git hashes from upstream and latest version
-      id: git_upstream_info
-      run: |
-        echo "mlrun_hash=$( \
-          cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-          cd mlrun-upstream && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
-          cd .. && \
-          rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
-        echo "ui_hash=$( \
-          cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
-          cd mlrun-ui && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
-          cd .. && \
-          rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
-        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
-    - name: Set computed versions params
-      id: computed_params
-      run: |
-        action_mlrun_hash=${{ steps.git_action_info.outputs.mlrun_hash }} && \
-        upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
-        export mlrun_hash=${action_mlrun_hash:-`echo $upstream_mlrun_hash`}
-        echo "mlrun_hash=$(echo $mlrun_hash)" >> $GITHUB_OUTPUT
-        action_mlrun_ui_hash=${{ steps.git_action_ui_info.outputs.ui_hash }} && \
-        upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
-        export ui_hash=${action_mlrun_ui_hash:-`echo $upstream_mlrun_ui_hash`}
-        echo "ui_hash=$(echo $ui_hash)" >> $GITHUB_OUTPUT
-        echo "mlrun_version=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
-        echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_repo=$( \
-          input_docker_repo=$INPUT_DOCKER_REPO && \
-          echo ${input_docker_repo:-mlrun})" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_registry=$( \
-          input_docker_registry=$INPUT_DOCKER_REGISTRY && \
-          echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
-        echo "mlrun_system_tests_clean_resources=$( \
-          input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
-          echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
-      env:
-        INPUT_DOCKER_REPO: ${{ github.event.inputs.docker_repo }}
-        INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
-        INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
-
-    - uses: azure/setup-helm@v4
+    - uses: jupyterhub/action-k3s-helm@v4
+      name: "Start a local k8s cluster"
       with:
-        version: "v3.9.1"
+        # - k3s versions at https://github.com/k3s-io/k3s/tags
+        k3s-version: v1.31.2+k3s1
+        # - helm versions at https://github.com/helm/helm/tags
+        helm-version: v3.13.0
 
-    - uses: manusa/actions-setup-minikube@v2.13.0
-      with:
-        minikube version: "v1.32.0"
-        kubernetes version: "v1.28.5"
-        driver: docker
-        github token: ${{ github.token }}
-        # I couldn't find a way to configure the IP (https://github.com/kubernetes/minikube/issues/951)
-        # but this seems to work
-        start args: '--addons=registry --insecure-registry="192.168.49.2:5000"'
-
-    - name: Install MLRun CE helm chart
-      run: |
-        # TODO: There is a modification to the helm chart that we are doing right now:
-        #          The mlrun DB is set as the old SQLite db. There is a bug in github workers when trying to run a mysql
-        #          server pod in minikube installed on the worker, the mysql pod crashes. There isn't much information
-        #          about this issue online as this isn't how github expect you to use mysql in workflows - the worker
-        #          has a mysql server installed directly on it and should be enabled and used as the DB. So we might
-        #          want in the future to use that instead, unless the mysql will be able to come up without crashing.
-        # 
-        # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
-        python automation/deployment/ce.py deploy \
-            --verbose \
-            --minikube \
-            --namespace=${NAMESPACE} \
-            --registry-secret-name="" \
-            --sqlite /mlrun/db/mlrun.db \
-            --override-mlrun-api-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-log-collector-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/log-collector:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
-            --override-mlrun-ui-image="ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}" \
-            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
-            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
-
-    - name: Prepare system tests env
-      run: |
-        python automation/system_test/prepare.py env \
-          --mlrun-dbpath "http://$(minikube ip):${MLRUN_API_NODE_PORT}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
-
-    # Enable tmate debugging of manually-triggered workflows if the input option was provided
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
-      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
+      if: ${{ github.event.inputs.debug_enabled == 'true' }}
       with:
 
         # run in detach mode to allow the workflow to continue running while session is active
@@ -192,28 +195,76 @@ jobs:
         # it will wait until the user disconnects before finishing up the job.
         detached: true
 
-    - name: Run system tests
-      timeout-minutes: 180
+    - name: Setup Local Docker Registry
       run: |
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \
+        sudo tee "/etc/rancher/k3s/registries.yaml" << EOF
+        mirrors:
+          registry.localhost:
+            endpoint:
+            - http://registry.localhost:80
+        EOF
+
+        # restart k3s to apply the changes
+        sudo systemctl restart k3s
+
+        # wait ~30s for k3s to stabilize
+        sleep 30
+
+        # create the docker-registry namespace and deploy the registry
+        kubectl create namespace docker-registry
+        kubectl apply -f automation/system_test/k3s_docker_registry.yaml
+
+        # restart coredns to apply the changes
+        kubectl -n kube-system rollout restart deployment coredns
+
+    - name: Install MLRun CE helm chart
+      run: |
+        # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
+        source venv/bin/activate
+        python automation/deployment/ce.py deploy \
+            --verbose \
+            --registry-url="registry.localhost" \
+            --skip-registry-validation \
+            --namespace=${NAMESPACE} \
+            --registry-secret-name="" \
+            --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+            --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
+            --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
+            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
+
+    - name: Prepare system tests env
+      run: |
+        source venv/bin/activate
+        python automation/system_test/prepare.py env \
+          --mlrun-dbpath "http://localhost:${MLRUN_API_NODE_PORT}" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
+
+    - name: Run system tests
+      run: |
+        source venv/bin/activate
+        MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS" \
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}" \
+        MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}" \
           make test-system-open-source
+      env:
+        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers }}
 
     - name: Output some logs in case of failure
       if: ${{ failure() }}
       # add set -x to print commands before executing to make logs reading easier
       run: |
         set -x
-        minikube ip
-        minikube logs
-        minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
-        minikube kubectl -- --namespace ${NAMESPACE} get all
-        minikube kubectl -- --namespace ${NAMESPACE} get all -o yaml
-        minikube kubectl -- --namespace ${NAMESPACE} describe pods
-        minikube kubectl -- --namespace ${NAMESPACE} get cm
-        minikube kubectl -- --namespace ${NAMESPACE} get cm -o yaml
-        minikube kubectl -- --namespace ${NAMESPACE} get secrets
-        minikube kubectl -- --namespace ${NAMESPACE} get secrets -o yaml
-        minikube kubectl -- --namespace ${NAMESPACE} get pvc
-        minikube kubectl -- --namespace ${NAMESPACE} get pv
+        kubectl --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
+        kubectl --namespace ${NAMESPACE} get all
+        kubectl --namespace ${NAMESPACE} get all -o yaml
+        kubectl --namespace ${NAMESPACE} describe pods
+        kubectl --namespace ${NAMESPACE} get cm
+        kubectl --namespace ${NAMESPACE} get cm -o yaml
+        kubectl --namespace ${NAMESPACE} get secrets
+        kubectl --namespace ${NAMESPACE} get secrets -o yaml
+        kubectl --namespace ${NAMESPACE} get pvc
+        kubectl --namespace ${NAMESPACE} get pv
         set +x

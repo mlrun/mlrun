@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+import pytest
+
 import mlrun
 import tests.system.base
 
@@ -28,6 +30,7 @@ class TestLogCollector(tests.system.base.TestMLRunSystem):
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
 
+    @pytest.mark.smoke
     def test_log_collector(self):
         self._logger.debug("Testing log collector")
 

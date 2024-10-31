@@ -495,4 +495,4 @@ def upload_dataframe(
         size = target_class(path=target_path).write_dataframe(df, **kw)
         return size, None
 
-    raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yet")
+    raise mlrun.errors.MLRunInvalidArgumentError(f"Format {format} not implemented yet")

@@ -517,7 +517,7 @@ class BaseRuntime(ModelObj):
                 run_results = resp["status"].get("results", {})
                 if generator.eval_stop_condition(run_results):
                     logger.info(
-                        f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                        f"Reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
                     )
                     results.append(resp)
                     break
@@ -529,7 +529,7 @@ class BaseRuntime(ModelObj):
                 resp = self._update_run_state(task=task, err=error_string)
                 num_errors += 1
                 if num_errors > generator.max_errors:
-                    logger.error("too many errors, stopping iterations!")
+                    logger.error("Too many errors, stopping iterations!")
                     results.append(resp)
                     break
 

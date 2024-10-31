@@ -1,6 +1,11 @@
 (mm-applications)=
 # Writing a model monitoring application
 
+**In this section**
+- [Basics](#basics)
+- [Using the application context](#using-the-application-context)
+- [Evidently-based application](#evidently-based-application)
+
 ## Basics
 
 First, create a Python module and import the API objects:
@@ -69,16 +74,6 @@ context.log_artifact(
 )
 ```
 
-```{caution}
-Since each new artifact is saved in the artifact-manager store (in memory), it is not recommended
-to store a new artifact on each application run. Instead you can:
-
-- Override artifacts by using the same key.
-- Save artifacts with a unique key in special occasions, e.g., when a drift is detected.
-
-<!-- ML-7347 -->
-```
-
 ## Evidently-based application
 
 To create an Evidently based model monitoring application, import the following class:
@@ -113,3 +108,5 @@ It is recommended to specify the exact version of the `evidently` package for re
 `"evidently==<x.y.z>"`. Get the supported version through
 `mlrun.model_monitoring.evidently_application.SUPPORTED_EVIDENTLY_VERSION`.
 ```
+
+See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.html#evidently-app).

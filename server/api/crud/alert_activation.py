@@ -29,6 +29,17 @@ class AlertActivation(
 ):
     @staticmethod
     def get_partition_info_for_datetime(partition_interval, partition_datetime):
+        """
+        Generates partition details for a specified interval and datetime.
+
+        :param partition_interval: The partitioning interval type, e.g., "DAY", "MONTH", or "YEARWEEK".
+        :param partition_datetime: The datetime used for generating partition details.
+
+        :return: A tuple containing:
+            - partition_name: The name for the partition.
+            - partition_value: For "YEARWEEK", formatted as `YYYYWW`; for other intervals, a date string `YYYY-MM-DD`.
+            - partition_expression: The SQL partition expression.
+        """
         partition_name = partition_datetime.strftime(
             partition_name_format_mapping[partition_interval]
         )

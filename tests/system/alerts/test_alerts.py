@@ -47,7 +47,7 @@ class TestAlerts(TestMLRunSystem):
         """
         self.project.set_function(
             name="test-func",
-            func="assets/function.py",
+            func=str(self.assets_path / "function.py"),
             handler="handler",
             image="mlrun/mlrun" if self.image is None else self.image,
             kind="job",
@@ -283,7 +283,7 @@ class TestAlerts(TestMLRunSystem):
 
         self.project.set_function(
             name="test-func",
-            func="assets/function.py",
+            func=str(self.assets_path / "function.py"),
             handler="handler",
             image="mlrun/mlrun" if self.image is None else self.image,
             kind="job",

@@ -26,7 +26,7 @@ import sys
 import typing
 import uuid
 import warnings
-from datetime import datetime, timezone
+from datetime import MINYEAR, datetime, timezone
 from importlib import import_module, reload
 from os import path
 from types import ModuleType
@@ -397,6 +397,10 @@ def get_pretty_types_names(types):
 
 def now_date(tz: timezone = timezone.utc) -> datetime:
     return datetime.now(tz=tz)
+
+
+def datetime_min(tz: timezone = timezone.utc) -> datetime:
+    return datetime(MINYEAR, 1, 1, tzinfo=tz)
 
 
 datetime_now = now_date

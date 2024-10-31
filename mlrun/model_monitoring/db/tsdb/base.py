@@ -193,8 +193,8 @@ class TSDBConnector(ABC):
     def get_last_request(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
@@ -212,8 +212,8 @@ class TSDBConnector(ABC):
     def get_drift_status(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the app-results TSDB table and returns the highest status among all
@@ -232,8 +232,8 @@ class TSDBConnector(ABC):
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoint.
@@ -250,8 +250,8 @@ class TSDBConnector(ABC):
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct results metadata from the app-results TSDB table for a specified model endpoint.
@@ -268,8 +268,8 @@ class TSDBConnector(ABC):
     def get_error_count(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the error TSDB table and returns the error count for each specified endpoint.
@@ -286,8 +286,8 @@ class TSDBConnector(ABC):
     def get_avg_latency(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
@@ -462,9 +462,17 @@ class TSDBConnector(ABC):
         :return:            start datetime, end datetime
         """
         if not isinstance(start, datetime):
-            start = datetime.min if start in ["0", None] else mlrun.utils.datetime_now()
+            start = (
+                mlrun.utils.datetime_min()
+                if start in ["0", None]
+                else mlrun.utils.datetime_now()
+            )
             start = start + timedelta(hours=delta_start)
         if not isinstance(end, datetime):
-            end = datetime.min if end in ["0"] else mlrun.utils.datetime_now()
+            end = (
+                mlrun.utils.datetime_min()
+                if end in ["0"]
+                else mlrun.utils.datetime_now()
+            )
             end = end + timedelta(hours=delta_end)
         return start, end

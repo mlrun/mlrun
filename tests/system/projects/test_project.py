@@ -14,7 +14,6 @@
 #
 import io
 import os
-import pathlib
 import re
 import shutil
 import sys
@@ -87,13 +86,6 @@ class TestProject(TestMLRunSystem):
         )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
-
-    @property
-    def assets_path(self):
-        return (
-            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / "assets"
-        )
 
     def _create_project(
         self, project_name, with_repo=False, overwrite=False

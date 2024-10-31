@@ -34,7 +34,6 @@ from mlrun.model_monitoring.helpers import batch_dict2timedelta, get_stream_path
 from mlrun.utils import datetime_now, logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
-_RUNNING = True
 
 
 class _Interval(NamedTuple):
@@ -107,8 +106,6 @@ class _BatchWindow:
         # Add 1 to stop - step to get <= and not <.
         for timestamp in range(self._start, self._stop - self._step + 1, self._step):
             entered = True
-            if not _RUNNING:
-                break
             start_time = datetime.datetime.fromtimestamp(
                 timestamp, tz=datetime.timezone.utc
             )
@@ -326,8 +323,6 @@ class MonitoringApplicationController:
             max_workers=min(len(endpoints), 10)
         ) as pool:
             for endpoint in endpoints:
-                if not _RUNNING:
-                    break
                 if self._should_monitor_endpoint(endpoint):
                     pool.submit(
                         MonitoringApplicationController.model_endpoint_process,
@@ -371,8 +366,6 @@ class MonitoringApplicationController:
                 project=project, endpoint_id=endpoint_id, window_length=window_length
             ) as batch_window_generator:
                 for application in applications_names:
-                    if not _RUNNING:
-                        break
                     for (
                         start_infer_time,
                         end_infer_time,
@@ -465,16 +458,6 @@ class MonitoringApplicationController:
             get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
                 [data]
             )
-
-
-def _stop_running() -> None:
-    global _RUNNING
-    logger.info("Terminating the controller's run")
-    _RUNNING = False
-
-
-def init_context(context: nuclio_sdk.Context) -> None:
-    context.platform.set_termination_callback(callback=_stop_running)
 
 
 def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:

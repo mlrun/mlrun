@@ -67,7 +67,10 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
 
     def delete(self) -> None:
         """Delete schedules file if it exists"""
-        if self._fs and self._fs.exists(self._path):
+        if (
+            self._fs is None  # In-memory store
+            or self._fs.exists(self._path)
+        ):
             logger.debug(
                 "Deleting model monitoring schedules file", path=self._item.url
             )
@@ -147,3 +150,7 @@ def delete_model_monitoring_schedules_folder(project: str) -> None:
     if fs and fs.exists(folder):
         logger.debug("Deleting model monitoring schedules folder", folder=folder)
         fs.rm(folder, recursive=True)
+    elif fs is None:  # In-memory store
+        raise mlrun.errors.MLRunValueError(
+            "Cannot delete a folder without a file-system"
+        )

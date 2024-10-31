@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Cascade delete labels and tags
+"""Cascade delete labels tags features entities
 
-Revision ID: 68a66dc721db
+Revision ID: dd6049a25a81
 Revises: fcf2ea01f99a
-Create Date: 2024-10-30 14:22:01.368738
+Create Date: 2024-10-31 11:52:08.927212
 
 """
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "68a66dc721db"
+revision = "dd6049a25a81"
 down_revision = "fcf2ea01f99a"
 branch_labels = None
 depends_on = None
@@ -61,6 +61,15 @@ def upgrade():
         "artifacts_v2_tags",
         "artifacts_v2",
         ["obj_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+    op.drop_constraint("_entities_feature_set_id_fk", "entities", type_="foreignkey")
+    op.create_foreign_key(
+        "_entities_feature_set_id_fk",
+        "entities",
+        "feature_sets",
+        ["feature_set_id"],
         ["id"],
         ondelete="CASCADE",
     )
@@ -118,6 +127,15 @@ def upgrade():
         "feature_vectors_tags",
         "feature_vectors",
         ["obj_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+    op.drop_constraint("_features_feature_set_id_fk", "features", type_="foreignkey")
+    op.create_foreign_key(
+        "_features_feature_set_id_fk",
+        "features",
+        "feature_sets",
+        ["feature_set_id"],
         ["id"],
         ondelete="CASCADE",
     )
@@ -232,6 +250,14 @@ def downgrade():
     op.create_foreign_key(
         "_features_labels_parent_fk", "features_labels", "features", ["parent"], ["id"]
     )
+    op.drop_constraint("_features_feature_set_id_fk", "features", type_="foreignkey")
+    op.create_foreign_key(
+        "_features_feature_set_id_fk",
+        "features",
+        "feature_sets",
+        ["feature_set_id"],
+        ["id"],
+    )
     op.drop_constraint(
         "_feature_vectors_tags_obj_id_fk", "feature_vectors_tags", type_="foreignkey"
     )
@@ -279,6 +305,14 @@ def downgrade():
     )
     op.create_foreign_key(
         "_entities_labels_parent_fk", "entities_labels", "entities", ["parent"], ["id"]
+    )
+    op.drop_constraint("_entities_feature_set_id_fk", "entities", type_="foreignkey")
+    op.create_foreign_key(
+        "_entities_feature_set_id_fk",
+        "entities",
+        "feature_sets",
+        ["feature_set_id"],
+        ["id"],
     )
     op.drop_constraint(
         "artifacts_v2_tags_ibfk_1", "artifacts_v2_tags", type_="foreignkey"

@@ -511,7 +511,9 @@ with warnings.catch_warnings():
     class Feature(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "features"
         id = Column(Integer, primary_key=True)
-        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+        feature_set_id = Column(
+            Integer, ForeignKey("feature_sets.id", ondelete="CASCADE")
+        )
 
         name = Column(String(255, collation=SQLTypesUtil.collation()))
         value_type = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -523,6 +525,10 @@ with warnings.catch_warnings():
             back_populates="parent_rel",
             passive_deletes=True,
         )
+        feature_set = relationship(
+            "FeatureSet",
+            back_populates="features",
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.feature_set_id}/{self.name}"
@@ -530,7 +536,9 @@ with warnings.catch_warnings():
     class Entity(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "entities"
         id = Column(Integer, primary_key=True)
-        feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
+        feature_set_id = Column(
+            Integer, ForeignKey("feature_sets.id", ondelete="CASCADE")
+        )
 
         name = Column(String(255, collation=SQLTypesUtil.collation()))
         value_type = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -541,6 +549,10 @@ with warnings.catch_warnings():
             cascade="all, delete-orphan",
             back_populates="parent_rel",
             passive_deletes=True,
+        )
+        feature_set = relationship(
+            "FeatureSet",
+            back_populates="entities",
         )
 
         def get_identifier_string(self) -> str:
@@ -584,8 +596,18 @@ with warnings.catch_warnings():
             passive_deletes=True,
         )
 
-        features = relationship(Feature, cascade="all, delete-orphan")
-        entities = relationship(Entity, cascade="all, delete-orphan")
+        features = relationship(
+            Feature,
+            cascade="all, delete-orphan",
+            back_populates="feature_set",
+            passive_deletes=True,
+        )
+        entities = relationship(
+            Entity,
+            cascade="all, delete-orphan",
+            back_populates="feature_set",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"

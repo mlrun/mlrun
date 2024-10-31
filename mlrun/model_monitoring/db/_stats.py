@@ -20,7 +20,7 @@ from typing import Optional, cast
 import fsspec
 
 import mlrun.datastore.base
-from mlrun.common.schemas.model_monitoring.constants import StatsData
+from mlrun.common.schemas.model_monitoring.constants import StatsKind
 from mlrun.model_monitoring.helpers import (
     get_monitoring_current_stats_data,
     get_monitoring_drift_measures_data,
@@ -101,7 +101,7 @@ class ModelMonitoringCurrentStatsFile(ModelMonitoringJsonFile):
         """
         super().__init__(
             get_monitoring_current_stats_data(project, endpoint_id),
-            StatsData.CURRENT_STATS.value,
+            StatsKind.CURRENT_STATS.value,
         )
 
     @classmethod
@@ -123,7 +123,7 @@ class ModelMonitoringDriftMeasureFile(ModelMonitoringJsonFile):
         """
         super().__init__(
             get_monitoring_drift_measures_data(project, endpoint_id),
-            StatsData.DRIFT_MEASURES.value,
+            StatsKind.DRIFT_MEASURES.value,
         )
 
     @classmethod

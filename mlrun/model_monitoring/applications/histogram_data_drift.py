@@ -233,15 +233,15 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         metrics_per_feature: DataFrame,
         monitoring_context: mm_context.MonitoringApplicationContext,
     ):
-        monitoring_context._df_drift_measures = metrics_per_feature.T.to_dict() | {
-            metric.name: metric.value for metric in metrics
-        }
         stats = []
         for stats_type in HistogramDataDriftApplication._STATS_TYPES:
             stats.append(
-                mm_results.ModelMonitoringApplicationStats(
+                mm_results._ModelMonitoringApplicationStats(
                     name=stats_type.value,
-                    stats={},
+                    stats=metrics_per_feature.T.to_dict()
+                    | {metric.name: metric.value for metric in metrics}
+                    if stats_type == StatsKind.DRIFT_MEASURES
+                    else monitoring_context.sample_df_stats,
                 )
             )
         return stats

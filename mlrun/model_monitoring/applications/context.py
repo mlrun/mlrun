@@ -116,7 +116,6 @@ class MonitoringApplicationContext:
         self._model_endpoint: Optional[ModelEndpoint] = model_endpoint_dict.get(
             self.endpoint_id
         )
-        self._df_drift_measures: Optional[pd.DataFrame] = None
 
     def _get_default_labels(self) -> dict[str, str]:
         return {

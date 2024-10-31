@@ -114,7 +114,6 @@ def get_monitoring_stats_directory_path(
     stats_path = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=kind,
-        target="offline",
     )
     return stats_path
 
@@ -129,7 +128,7 @@ def _get_monitoring_current_stats_file_path(project: str, endpoint_id: str) -> s
 def _get_monitoring_drift_measures_file_path(project: str, endpoint_id: str) -> str:
     return os.path.join(
         get_monitoring_stats_directory_path(project),
-        f"{endpoint_id}_current_stats.json",
+        f"{endpoint_id}_drift_measures.json",
     )
 
 

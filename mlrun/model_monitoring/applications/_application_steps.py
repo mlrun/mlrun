@@ -29,7 +29,7 @@ from .context import MonitoringApplicationContext
 from .results import (
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
-    ModelMonitoringApplicationStats,
+    _ModelMonitoringApplicationStats,
 )
 
 
@@ -67,7 +67,7 @@ class _PushToMonitoringWriter(StepToDict):
                 Union[
                     ModelMonitoringApplicationResult,
                     ModelMonitoringApplicationMetric,
-                    ModelMonitoringApplicationStats,
+                    _ModelMonitoringApplicationStats,
                 ]
             ],
             MonitoringApplicationContext,
@@ -98,35 +98,17 @@ class _PushToMonitoringWriter(StepToDict):
                     mm_constant.WriterEventKind.RESULT
                 )
                 data[mm_constant.ResultData.CURRENT_STATS] = json.dumps(
-                    application_context.sample_df_stats  # TODO: Roy remove this
+                    application_context.sample_df_stats  # TODO: Roy remove this from event types and than from here
                 )
-                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
-            elif isinstance(result, ModelMonitoringApplicationStats):
+            elif isinstance(result, _ModelMonitoringApplicationStats):
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.STATS
                 )
-                kind = data.get(
-                    mm_constant.StatsData.STATS_NAME, mm_constant.StatsKind.CURRENT_STATS
-                )
-                if kind == mm_constant.StatsKind.CURRENT_STATS:
-                    data[mm_constant.StatsData.STATS] = json.dumps(
-                        application_context.sample_df_stats
-                    )
-                elif kind == mm_constant.StatsKind.DRIFT_MEASURES:
-                    data[mm_constant.StatsData.STATS] = json.dumps(
-                        application_context._df_drift_measures
-                    )
             else:
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.METRIC
                 )
-                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
-
-            writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                mm_constant.WriterEventKind.RESULT
-                if isinstance(result, ModelMonitoringApplicationResult)
-                else mm_constant.WriterEventKind.METRIC
-            )
+            writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             logger.info(
                 f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
             )

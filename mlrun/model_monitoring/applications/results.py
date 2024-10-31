@@ -15,9 +15,8 @@
 import dataclasses
 import json
 import re
-from abc import ABC, abstractmethod
-
 import typing
+from abc import ABC, abstractmethod
 
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
@@ -102,7 +101,7 @@ class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
 
 
 @dataclasses.dataclass
-class ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
+class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
     """
     Class representing the stats of a custom model monitoring application.
 
@@ -110,7 +109,8 @@ class ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
     :param stats            (dict) Dictionary representation of the stats calculated for the event
 
     """
-    name: typing.Union[mm_constant.StatsData,str]
+
+    name: typing.Union[mm_constant.StatsData, str]
     stats: dict = dataclasses.field(default_factory=dict)
 
     def to_dict(self):
@@ -121,5 +121,5 @@ class ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
         """
         return {
             mm_constant.StatsData.STATS_NAME: self.name,
-            mm_constant.StatsData.STATS: self.stats,
+            mm_constant.StatsData.STATS: json.dumps(self.stats),
         }

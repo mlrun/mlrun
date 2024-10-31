@@ -49,7 +49,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
 
         # create secret
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         self.project.set_secrets(secrets=secrets)
 
         self._ensure_audit_events(
@@ -59,7 +59,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             secret_key,
         )
 
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         another_secret_key = str(uuid.uuid4())
         secrets.update({another_secret_key: "one"})
         self.project.set_secrets(secrets=secrets)
@@ -71,7 +71,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         )
 
         # delete secrets
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
         self._ensure_audit_events(
             PROJECT_SECRET_DELETED,
@@ -98,7 +98,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         }
 
         # ensure no project secrets
-        start = datetime.datetime.utcnow()
+        start = datetime.datetime.now(datetime.timezone.utc)
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
         time.sleep(1)
         audit_events = igz_mgmt.AuditEvent.list(
@@ -111,7 +111,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         )
         assert len(audit_events) == 0
 
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         self.project.set_secrets(secrets=secrets)
         self._ensure_audit_events(
             PROJECT_SECRET_CREATED,
@@ -121,7 +121,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         )
 
         # delete 1 of the secrets
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         self._run_db.delete_project_secrets(
             self.project_name, provider="kubernetes", secrets=[secret_key1]
         )
@@ -135,7 +135,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         )
 
         # delete all secrets
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
         self._ensure_audit_events(
             PROJECT_SECRET_DELETED,
@@ -145,7 +145,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         )
 
         # delete the secret-less project
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         self._run_db.delete_project(
             self.project_name, mlrun.common.schemas.DeletionStrategy.cascade
         )
@@ -173,6 +173,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         )
         assert len(audit_events) == 1
 
+    @pytest.mark.smoke
     def test_k8s_project_secrets_using_api(self):
         secrets = {"secret1": "value1", "secret2": "value2"}
         data = {"provider": "kubernetes", "secrets": secrets}

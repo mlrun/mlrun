@@ -199,7 +199,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     @pytest.mark.parametrize(
-        "runs_monitoring_interval, debouncing_interval, list_namespaced_pods_calls, interval_time_to_add_to_run_update_time, start_run_states, expected_reached_state, monitor_cycles",
+        "runs_monitoring_interval, debouncing_interval, list_namespaced_pods_calls, "
+        "interval_time_to_add_to_run_update_time, start_run_states, expected_reached_state, monitor_cycles",
         [
             # no monitoring interval and no debouncing interval which means if run found in non-terminal state
             # the monitoring will override to terminal status

@@ -90,15 +90,23 @@ def assert_pagination_info(
     assert response.status_code == HTTPStatus.OK.value
 
     pagination = response.json().get("pagination")
-    assert pagination.get("page") == expected_page
-    assert pagination.get("page-size") == expected_page_size
+    assert (
+        pagination.get("page") == expected_page
+    ), f"Expected page {expected_page}, got {pagination.get('page')}"
+    assert (
+        pagination.get("page-size") == expected_page_size
+    ), f"Expected page size {expected_page_size}, got {pagination.get('page-size')}"
 
     results = response.json().get(entity_name, [])
-    assert len(results) == expected_results_count
+    assert (
+        len(results) == expected_results_count
+    ), f"Expected {expected_results_count} results, got {len(results)}"
 
     if results:
         first_result_identifier = results[0]["metadata"].get(entity_identifier_name)
-        assert first_result_identifier == expected_first_result_name
+        assert (
+            first_result_identifier == expected_first_result_name
+        ), f"Expemcted first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
 
 
 def _create_project_obj(

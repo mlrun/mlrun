@@ -448,31 +448,19 @@ class TSDBConnector(ABC):
 
     @staticmethod
     def _get_start_end(
-        start: typing.Union[str, datetime],
-        end: typing.Union[str, datetime],
-        delta_start: int = 0,
-        delta_end: int = 0,
+        start: typing.Union[datetime, None],
+        end: typing.Union[datetime, None],
     ) -> tuple[datetime, datetime]:
         """
         static utils function for tsdb start end format
-        :param start:       Either '0', 'now', None or datetime, None is handled as datetime.min
-        :param end:         Either '0' or 'now', None or datetime, None is handled as datetime.now(tz=timezone.utc)
-        :param delta_start: Hours to add to start time only for str or None
-        :param delta_end:   Hours to add to end time only for str or None
+        :param start:       Either None or datetime, None is handled as datetime.min(tz=timezone.utc)
+        :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
         :return:            start datetime, end datetime
         """
-        if not isinstance(start, datetime):
-            start = (
-                mlrun.utils.datetime_min()
-                if start in ["0", None]
-                else mlrun.utils.datetime_now()
+        start = start or mlrun.utils.datetime_min()
+        end = end or mlrun.utils.datetime_now()
+        if not (isinstance(start, datetime) and isinstance(end, datetime)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both start and end must be datetime objects"
             )
-            start = start + timedelta(hours=delta_start)
-        if not isinstance(end, datetime):
-            end = (
-                mlrun.utils.datetime_min()
-                if end in ["0"]
-                else mlrun.utils.datetime_now()
-            )
-            end = end + timedelta(hours=delta_end)
         return start, end

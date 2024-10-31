@@ -545,6 +545,7 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         fn.deploy()
         return fn
 
+    @pytest.mark.smoke
     def test_single_run(self):
         fn = self._deploy_function()
         run_result = fn.run(params={"p1": 8})

@@ -22,6 +22,7 @@ import tests.system.base
 class TestNotifications(tests.system.base.TestMLRunSystem):
     project_name = "notifications-test"
 
+    @pytest.mark.smoke
     def test_run_notifications(self):
         error_notification_name = "slack-should-fail"
         success_notification_name = "slack-should-succeed"

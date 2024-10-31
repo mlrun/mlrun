@@ -147,7 +147,7 @@ def add_code_metadata(path=""):
 
 def results_to_iter(results, runspec, execution):
     if not results:
-        logger.error("got an empty results list in to_iter")
+        logger.error("Got an empty results list in to_iter")
         return
 
     iter = []
@@ -174,7 +174,7 @@ def results_to_iter(results, runspec, execution):
 
     if not iter:
         execution.set_state("completed", commit=True)
-        logger.warning("warning!, zero iteration results")
+        logger.warning("Warning!, zero iteration results")
         return
     if hasattr(pd, "json_normalize"):
         df = pd.json_normalize(iter).sort_values("iter")
@@ -189,10 +189,10 @@ def results_to_iter(results, runspec, execution):
     item, id = selector(results, criteria)
     if runspec.spec.selector and not id:
         logger.warning(
-            f"no best result selected, check selector ({criteria}) or results"
+            f"No best result selected, check selector ({criteria}) or results"
         )
     if id:
-        logger.info(f"best iteration={id}, used criteria {criteria}")
+        logger.info(f"Best iteration={id}, used criteria {criteria}")
     task = results[item] if id and results else None
     execution.log_iteration_results(id, summary, task)
 

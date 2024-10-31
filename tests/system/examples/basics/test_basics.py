@@ -17,6 +17,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pytest
 
 import mlrun
 from mlrun import new_task
@@ -44,6 +45,7 @@ class TestBasics(TestMLRunSystem):
             artifact_path=str(self.results_path / "{{run.uid}}"),
         )
 
+    @pytest.mark.smoke
     def test_basics(self):
         function = mlrun.new_function(kind="job", command="training.py")
         run_object = function.run(

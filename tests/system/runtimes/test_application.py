@@ -34,6 +34,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._files_to_upload = [self._vizro_app_code_filename]
         self._source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
 
+    @pytest.mark.smoke
     def test_deploy_application(self):
         self._upload_code_to_cluster()
 

@@ -16,6 +16,7 @@
 import argparse
 import sys
 
+import mlrun.artifacts
 from mlrun import get_or_create_ctx
 
 parser = argparse.ArgumentParser()
@@ -29,6 +30,24 @@ def handler(context):
     some_arg = flags.some_arg
     context.log_result("some-arg-by-handler", some_arg)
     context.log_result("my-args", sys.argv)
+
+
+def handler_with_future_links(
+    context, p1: int
+) -> tuple[mlrun.artifacts.ModelArtifact, int]:
+    context.log_artifact("some_file", body=b"abc is 123", local_path="my_file.txt")
+    my_model = context.log_model(
+        "my_model",
+        body=b"abc is 123",
+        model_file="model.txt",
+        metrics={"accuracy": 0.85},
+        parameters={"xx": "abc"},
+        labels={"framework": "xgboost"},
+        artifact_path=context.artifact_subpath("models"),
+        extra_data={"some_file": ..., "px": ...},
+    )
+
+    return my_model, p1
 
 
 if __name__ == "__main__":

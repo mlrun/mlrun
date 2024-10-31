@@ -40,6 +40,7 @@ class TestAlerts(TestMLRunSystem):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
+    @pytest.mark.smoke
     def test_job_failure_alert(self):
         """
         validate that an alert is sent in case a job fails

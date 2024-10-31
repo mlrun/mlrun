@@ -1480,6 +1480,8 @@ class SQLDB(DBInterface):
             )
 
         if limit:
+            # Order the query before applying the limit
+            query = query.order_by(ArtifactV2.updated.desc())
             query = query.limit(limit)
 
         # limit operation loads all the results before performing the actual limiting,
@@ -1491,6 +1493,8 @@ class SQLDB(DBInterface):
             outer_query = outer_query.with_entities(*with_entities, subquery.c.name)
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
+
+        outer_query = outer_query.order_by(ArtifactV2.updated.desc())
 
         results = outer_query.all()
         if not attach_tags:

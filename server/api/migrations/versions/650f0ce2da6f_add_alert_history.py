@@ -27,6 +27,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
+import server.api.crud.alert_history
+
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
 down_revision = "fcf2ea01f99a"
@@ -92,25 +94,12 @@ def upgrade():
     # Current UTC date
     now_utc = datetime.utcnow()
 
-    # Define partition name format based on interval
-    partition_name_format_mapping = {
-        "YEARWEEK": "%Y%V",  # ISO week number (for weeks starting Monday)
-        "MONTH": "%Y%m",  # Format as 'YYYYMM' (year and month)
-        "DAY": "%Y%m%d",  # Format as 'YYYYMMDD' (year, month, day)
-    }
-
-    # Generate the partition name
-    partition_name = now_utc.strftime(partition_name_format_mapping[partition_interval])
-
-    # Calculate partition value depending on interval
-    if partition_interval == "YEARWEEK":
-        partition_value = int(
-            now_utc.strftime("%Y%V")
-        )  # Example: 202444 for 44th week of 2024
-        partition_expression = "YEARWEEK(activation_time, 1)"
-    else:
-        partition_value = now_utc.strftime("%Y-%m-%d")
-        partition_expression = f"{partition_interval}(activation_time)"
+    partition_name, partition_value, partition_expression = (
+        server.api.crud.alert_history.AlertHistory.get_partition_info_for_datetime(
+            partition_interval=partition_interval,
+            partition_datetime=now_utc,
+        )
+    )
 
     # Construct SQL for partitioning
     partition_sql = f"""

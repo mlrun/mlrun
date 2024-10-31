@@ -214,6 +214,14 @@ class ModelMonitoringWriter(StepToDict):
     def do(self, event: _RawEvent) -> None:
         event, kind = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
+        if (
+            kind == WriterEventKind.STATS
+            and event[WriterEvent.APPLICATION_NAME]
+            == HistogramDataDriftApplicationConstants.NAME
+        ):
+            self.write_stats(event)
+            logger.info("Model monitoring writer finished handling event")
+            return
         self._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
         self._app_result_store.write_application_event(event=event.copy(), kind=kind)
 
@@ -276,37 +284,35 @@ class ModelMonitoringWriter(StepToDict):
                 endpoint_id=endpoint_id,
                 attributes=attributes,
             )
-        if (
-            kind == WriterEventKind.STATS
-            and event[WriterEvent.APPLICATION_NAME]
-            == HistogramDataDriftApplicationConstants.NAME
-        ):
-            endpoint_id = event[WriterEvent.ENDPOINT_ID]
-            logger.debug(
-                "Updating the model endpoint with stats",
-                endpoint_id=endpoint_id,
-            )
-            stat_kind = event.get(StatsData.STATS_NAME)
-            data = event.get(StatsData.STATS)
-            if stat_kind == StatsKind.CURRENT_STATS.value:
-                with ModelMonitoringCurrentStatsFile(
-                    self.project, endpoint_id
-                ) as file_object:
-                    logger.info(
-                        "Updating the model endpoint with metadata specific to the histogram "
-                        "data drift app Current stats",
-                        endpoint_id=endpoint_id,
-                    )
-                    file_object.create(data)
-            elif stat_kind == StatsKind.DRIFT_MEASURES.value:
-                with ModelMonitoringDriftMeasureFile(
-                    self.project, endpoint_id
-                ) as file_object:
-                    logger.info(
-                        "Updating the model endpoint with metadata specific to the histogram "
-                        "data drift app Drift measures",
-                        endpoint_id=endpoint_id,
-                    )
-                    file_object.create(data)
 
         logger.info("Model monitoring writer finished handling event")
+
+
+    def write_stats(self, event: _AppResultEvent):
+        endpoint_id = event[WriterEvent.ENDPOINT_ID]
+        logger.debug(
+            "Updating the model endpoint with stats",
+            endpoint_id=endpoint_id,
+        )
+        stat_kind = event.get(StatsData.STATS_NAME)
+        data = event.get(StatsData.STATS)
+        if stat_kind == StatsKind.CURRENT_STATS.value:
+            with ModelMonitoringCurrentStatsFile(
+                    self.project, endpoint_id
+            ) as file_object:
+                logger.info(
+                    "Updating the model endpoint with metadata specific to the histogram "
+                    "data drift app Current stats",
+                    endpoint_id=endpoint_id,
+                )
+                file_object.create(data)
+        elif stat_kind == StatsKind.DRIFT_MEASURES.value:
+            with ModelMonitoringDriftMeasureFile(
+                    self.project, endpoint_id
+            ) as file_object:
+                logger.info(
+                    "Updating the model endpoint with metadata specific to the histogram "
+                    "data drift app Drift measures",
+                    endpoint_id=endpoint_id,
+                )
+                file_object.create(data)

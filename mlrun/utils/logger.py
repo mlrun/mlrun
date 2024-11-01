@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import datetime
 import logging
 import os
+import string
+import sys
 import typing
 from enum import Enum
 from functools import cached_property
@@ -24,6 +26,7 @@ from typing import IO, Optional, Union
 import orjson
 import pydantic
 
+from mlrun import errors
 from mlrun.config import config
 
 
@@ -91,6 +94,98 @@ class HumanReadableFormatter(_BaseFormatter):
         if record.exc_info:
             record_with.update(exc_info=format_exception(*record.exc_info))
         return record_with
+
+
+class CustomFormatter(HumanReadableFormatter):
+    """
+    To enable custom logger formatter, configure MLRun with the following env variables:
+    1. "MLRUN_LOG_FORMATTER" = "custom" - change the default log formatter.
+    2. "MLRUN_LOG_FORMAT_OVERRIDE" = "> {timestamp} [{level}] Running module: {module} {message} {more}" - logger format
+        * Note that your custom format must include those 4 fields - timestamp, level, message and more
+    If the custom format is not configured properly , MLRun will use the default logger (human format).
+    """
+
+    # This attribute is used to solve an issue
+    # that causes the warning to be written numerous times(for any log generation).
+    # We want to print the errors just once, not for each logger generation.
+    fail_on_format_configuration = False  # for issues that relates to unrecognized keys
+    fail_on_missing_default_keys_key = (
+        False  # for issues that relates to missing default keys
+    )
+
+    def format(self, record) -> str:
+        more = self._resolve_more(record)
+        custom_format = config.log_format_override
+        _custom_format = None
+        current_time = datetime.datetime.now()
+        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+        try:
+            if custom_format:
+                default_keys = ["timestamp", "level", "message", "more"]
+                formatter = string.Formatter()
+                custom_format_keys = [
+                    key
+                    for _, key, _, _ in formatter.parse(custom_format)
+                    if key is not None
+                ]
+                missing_default_flags = list(
+                    set(default_keys) - set(custom_format_keys)
+                )
+
+                if (
+                    missing_default_flags
+                    and not CustomFormatter.fail_on_missing_default_keys_key
+                ):
+                    print(
+                        f'> {formatted_time} [warning] Custom loggers must '
+                        f'include those keys within the logger format, {", ".join(default_keys)} '
+                        f'your format is missing: {", ".join(missing_default_flags)}',
+                        file=sys.stderr,
+                    )
+                    CustomFormatter.fail_on_missing_default_keys_key = True
+                record_dict = record.__dict__
+                missing_format_configuraiton_keys = list(
+                    set(custom_format_keys)
+                    - set(default_keys)
+                    - set(record_dict.keys())
+                )
+                if missing_format_configuraiton_keys:
+                    if not CustomFormatter.fail_on_format_configuration:
+                        print(
+                            f"> {formatted_time} [warning] Failed to create custom logger due "
+                            f'to missing format key in the log record: {", ".join(missing_format_configuraiton_keys)}',
+                            file=sys.stderr,
+                        )
+                        CustomFormatter.fail_on_format_configuration = True
+                    _format = (
+                        f"> {self.formatTime(record, self.datefmt)} "
+                        f"[{record.levelname.lower()}] "
+                        f"{record.getMessage().rstrip()}"
+                        f"{more}"
+                    )
+                _custom_format = custom_format.format(
+                    timestamp=self.formatTime(record, self.datefmt),
+                    level=record.levelname.lower(),
+                    message=record.getMessage().rstrip(),
+                    more=more or "",
+                    **record_dict,
+                )
+                CustomFormatter.fail_on_format_configuration = True
+        except Exception as e:
+            if not CustomFormatter.fail_on_format_configuration:
+                print(
+                    f"> {formatted_time} [warning] Failed to create custom logger, "
+                    f"see Exception: {errors.err_to_str(e)}",
+                    file=sys.stderr,
+                )
+                CustomFormatter.fail_on_format_configuration = True
+        _format = _custom_format or (
+            f"> {self.formatTime(record, self.datefmt)} "
+            f"[{record.levelname.lower()}] "
+            f"{record.getMessage().rstrip()}"
+            f"{more}"
+        )
+        return _format
 
 
 class HumanReadableExtendedFormatter(HumanReadableFormatter):
@@ -272,17 +367,24 @@ class FormatterKinds(Enum):
     HUMAN = "human"
     HUMAN_EXTENDED = "human_extended"
     JSON = "json"
+    CUSTOM = "custom"
 
 
 def resolve_formatter_by_kind(
     formatter_kind: FormatterKinds,
 ) -> type[
-    typing.Union[HumanReadableFormatter, HumanReadableExtendedFormatter, JSONFormatter]
+    typing.Union[
+        HumanReadableFormatter,
+        HumanReadableExtendedFormatter,
+        JSONFormatter,
+        CustomFormatter,
+    ]
 ]:
     return {
         FormatterKinds.HUMAN: HumanReadableFormatter,
         FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter,
         FormatterKinds.JSON: JSONFormatter,
+        FormatterKinds.CUSTOM: CustomFormatter,
     }[formatter_kind]
 
 

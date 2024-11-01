@@ -19,8 +19,9 @@ import shutil
 import traceback
 from typing import Any, Union
 
+import mlrun.errors
 from mlrun.artifacts import Artifact
-from mlrun.datastore import DataItem, store_manager
+from mlrun.datastore import DataItem, get_store_resource, store_manager
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
 
@@ -302,18 +303,17 @@ class PackagersManager:
 
     def link_packages(
         self,
-        additional_artifacts: list[Artifact],
+        additional_artifact_uris: dict,
         additional_results: dict,
     ):
         """
         Link packages to each other according to the provided extra data and metrics spec keys. A future link is
         marked with ellipses (...). If no link is found, None is used and a warning is printed.
 
-        :param additional_artifacts: Additional artifacts to link (should come from an `mlrun.MLClientCtx`).
-        :param additional_results:   Additional results to link (should come from an `mlrun.MLClientCtx`).
+        :param additional_artifact_uris:    Additional artifact URIs to link (should come from an `mlrun.MLClientCtx`).
+        :param additional_results:          Additional results to link (should come from an `mlrun.MLClientCtx`).
         """
         # Join the manager's artifacts and results with the additional ones to look for a link in all of them:
-        joined_artifacts = [*additional_artifacts, *self.artifacts]
         joined_results = {**additional_results, **self.results}
 
         # Go over the artifacts and link:
@@ -324,7 +324,10 @@ class PackagersManager:
                 if artifact.spec.extra_data[key] is ...:
                     # Look for an artifact or result with this key to link it:
                     extra_data = self._look_for_extra_data(
-                        key=key, artifacts=joined_artifacts, results=joined_results
+                        key=key,
+                        artifacts=self.artifacts,
+                        artifact_uris=additional_artifact_uris,
+                        results=joined_results,
                     )
                     # Print a warning if a link is missing:
                     if extra_data is None:
@@ -715,17 +718,31 @@ class PackagersManager:
     def _look_for_extra_data(
         key: str,
         artifacts: list[Artifact],
+        artifact_uris: dict,
         results: dict,
     ) -> Union[Artifact, str, int, float, None]:
         """
         Look for an extra data item (artifact or result) by given key. If not found, None is returned.
 
-        :param key:       Key to look for.
-        :param artifacts: Artifacts to look in.
-        :param results:   Results to look in.
+        :param key:             Key to look for.
+        :param artifacts:       Artifacts to look in.
+        :param artifact_uris:   Artifacts URIs to look in.
+        :param results:         Results to look in.
 
         :return: The artifact or result with the same key or None if not found.
         """
+        artifact_uris = artifact_uris or {}
+        for _key, uri in artifact_uris.items():
+            if key == _key:
+                try:
+                    return get_store_resource(uri)
+                except mlrun.errors.MLRunNotFoundError as exc:
+                    logger.warn(
+                        f"Artifact {key=} not found when looking for extra data",
+                        exc=mlrun.errors.err_to_str(exc),
+                    )
+                    return None
+
         # Look in the artifacts:
         for artifact in artifacts:
             if key == artifact.key:

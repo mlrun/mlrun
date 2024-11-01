@@ -36,7 +36,7 @@ demos
 
 `````{div}
 
-````{grid} 3
+````{grid} 2
 :gutter: 2
 
 ```{grid-item-card} Deploy LLM using MLRun
@@ -47,10 +47,7 @@ How to copy a dataset into your cluster, deploy an LLM in the cluster, and run y
 :link: ./genai-02-model-monitor-llm.html
 Set up an effective model monitoring system that leverages LLMs to maintain high standards for deployed models.
 ```
-```{grid-item-card} Model monitoring 
-:link: ./05-model-monitoring.html
-Demonstrate MLRun Serving pipelines, MLRun model monitoring, and automated drift detection.
-```
+
 
 ````
 `````

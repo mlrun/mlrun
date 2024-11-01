@@ -21,7 +21,7 @@ Create Date: 2024-10-30 16:38:07.592754
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import sqlalchemy as sa
 from alembic import op
@@ -93,20 +93,11 @@ def upgrade():
 
     # Calculate the date of next partitioning interval
     now_utc = datetime.utcnow()
-    if partition_interval == "DAY":
-        next_partition_date = now_utc + timedelta(days=1)
-    elif partition_interval == "MONTH":
-        # Set to the first day of the next month
-        next_partition_date = (now_utc.replace(day=1) + timedelta(days=32)).replace(
-            day=1
-        )
-    else:
-        next_partition_date = now_utc + timedelta(weeks=1)
 
     partition_name, partition_value, partition_expression = (
         server.api.crud.alert_activation.AlertActivation.get_partition_info_for_datetime(
             partition_interval=partition_interval,
-            partition_datetime=next_partition_date,
+            partition_datetime=now_utc,
         )
     )
 

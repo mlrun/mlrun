@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+from datetime import timedelta
 
 import mlrun.utils.singleton
 
@@ -37,19 +38,27 @@ class AlertActivation(
 
         :return: A tuple containing:
             - partition_name: The name for the partition.
-            - partition_value: For "YEARWEEK", formatted as `YYYYWW`; for other intervals, a date string `YYYY-MM-DD`.
+            - partition_value: The "LESS THAN" value for the next partition boundary.
             - partition_expression: The SQL partition expression.
         """
         partition_name = partition_datetime.strftime(
             partition_name_format_mapping[partition_interval]
         )
 
+        if partition_interval == "DAY":
+            partition_boundary_date = partition_datetime + timedelta(days=1)
+        elif partition_interval == "MONTH":
+            # Set to the first day of the next month
+            partition_boundary_date = (
+                partition_datetime.replace(day=1) + timedelta(days=32)
+            ).replace(day=1)
+        else:
+            partition_boundary_date = partition_datetime + timedelta(weeks=1)
+
         if partition_interval == "YEARWEEK":
-            partition_value = int(
-                partition_datetime.strftime("%Y%V")
-            )  # Example: 202444 for 44th week of 2024
+            partition_value = partition_boundary_date.strftime("%Y%V")
             partition_expression = "YEARWEEK(activation_time, 1)"
         else:
-            partition_value = partition_datetime.strftime("%Y-%m-%d")
+            partition_value = partition_boundary_date.strftime("%Y-%m-%d")
             partition_expression = f"{partition_interval}(activation_time)"
         return partition_name, partition_value, partition_expression

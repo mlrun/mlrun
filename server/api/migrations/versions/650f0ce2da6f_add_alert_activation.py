@@ -31,7 +31,7 @@ import server.api.crud.alert_activation
 
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
-down_revision = "fcf2ea01f99a"
+down_revision = "dd6049a25a81"
 branch_labels = None
 depends_on = None
 

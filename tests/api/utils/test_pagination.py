@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import datetime
 import typing
 
 import pytest
@@ -28,10 +28,11 @@ from mlrun.utils import logger
 def paginated_method(
     session: sqlalchemy.orm.Session,
     total_amount: int,
+    since: typing.Optional[datetime.datetime] = None,
     page: typing.Optional[int] = None,
     page_size: typing.Optional[int] = None,
 ):
-    items = [{"name": f"item{i}"} for i in range(total_amount)]
+    items = [{"name": f"item{i}", "since": since} for i in range(total_amount)]
     if not page_size:
         return items
 
@@ -79,31 +80,36 @@ def test_paginated_method():
     """
     total_amount = 10
     page_size = 3
+    since = datetime.datetime.now()
 
-    items = paginated_method(None, total_amount, 1, page_size)
+    items = paginated_method(None, total_amount, since, 1, page_size)
     assert len(items) == page_size
     assert items[0]["name"] == "item0"
     assert items[1]["name"] == "item1"
     assert items[2]["name"] == "item2"
+    assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
-    items = paginated_method(None, total_amount, 2, page_size)
+    items = paginated_method(None, total_amount, since, 2, page_size)
     assert len(items) == page_size
     assert items[0]["name"] == "item3"
     assert items[1]["name"] == "item4"
     assert items[2]["name"] == "item5"
+    assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
-    items = paginated_method(None, total_amount, 3, page_size)
+    items = paginated_method(None, total_amount, since, 3, page_size)
     assert len(items) == page_size
     assert items[0]["name"] == "item6"
     assert items[1]["name"] == "item7"
     assert items[2]["name"] == "item8"
+    assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
-    items = paginated_method(None, total_amount, 4, page_size)
+    items = paginated_method(None, total_amount, since, 4, page_size)
     assert len(items) == 1
     assert items[0]["name"] == "item9"
+    assert items[0]["since"] == since
 
     with pytest.raises(StopIteration):
-        paginated_method(None, total_amount, 5, page_size)
+        paginated_method(None, total_amount, since, 5, page_size)
 
 
 @pytest.mark.asyncio
@@ -122,7 +128,7 @@ async def test_paginate_request(
     """
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     page_size = 3
-    method_kwargs = {"total_amount": 5}
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -131,7 +137,12 @@ async def test_paginate_request(
         db, paginated_method, auth_info, None, 1, page_size, **method_kwargs
     )
     _assert_paginated_response(
-        response, pagination_info, 1, page_size, ["item0", "item1", "item2"]
+        response,
+        pagination_info,
+        1,
+        page_size,
+        ["item0", "item1", "item2"],
+        method_kwargs["since"],
     )
 
     logger.info("Checking db cache record")
@@ -147,7 +158,12 @@ async def test_paginate_request(
         db, paginated_method, auth_info, pagination_info.page_token
     )
     _assert_paginated_response(
-        response, pagination_info, 2, page_size, ["item3", "item4"]
+        response,
+        pagination_info,
+        2,
+        page_size,
+        ["item3", "item4"],
+        method_kwargs["since"],
     )
 
     logger.info("Checking db cache record")
@@ -183,7 +199,7 @@ async def test_paginate_other_users_token(
     auth_info_1 = mlrun.common.schemas.AuthInfo(user_id="user1")
     auth_info_2 = mlrun.common.schemas.AuthInfo(user_id="user2")
     page_size = 3
-    method_kwargs = {"total_amount": 5}
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -192,7 +208,12 @@ async def test_paginate_other_users_token(
         db, paginated_method, auth_info_1, None, 1, page_size, **method_kwargs
     )
     _assert_paginated_response(
-        response, pagination_info, 1, page_size, ["item0", "item1", "item2"]
+        response,
+        pagination_info,
+        1,
+        page_size,
+        ["item0", "item1", "item2"],
+        method_kwargs["since"],
     )
 
     logger.info("Checking db cache record")
@@ -231,7 +252,7 @@ async def test_paginate_no_auth(
     Request the next page with auth info of some user, and verify that the request is successful.
     """
     page_size = 3
-    method_kwargs = {"total_amount": 5}
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -240,7 +261,12 @@ async def test_paginate_no_auth(
         db, paginated_method, None, None, 1, page_size, **method_kwargs
     )
     _assert_paginated_response(
-        response, pagination_info, 1, page_size, ["item0", "item1", "item2"]
+        response,
+        pagination_info,
+        1,
+        page_size,
+        ["item0", "item1", "item2"],
+        method_kwargs["since"],
     )
 
     logger.info("Checking db cache record")
@@ -255,7 +281,12 @@ async def test_paginate_no_auth(
         db, paginated_method, auth_info, pagination_info.page_token
     )
     _assert_paginated_response(
-        response, pagination_info, 2, page_size, ["item3", "item4"]
+        response,
+        pagination_info,
+        2,
+        page_size,
+        ["item3", "item4"],
+        method_kwargs["since"],
     )
 
     logger.info("Checking db cache record")
@@ -278,7 +309,7 @@ async def test_no_pagination(
     Request paginated method with no page and page size, and verify that all items are returned.
     """
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
-    method_kwargs = {"total_amount": 5}
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -310,7 +341,7 @@ async def test_pagination_not_supported(
     Request a method that is not supported for pagination, and verify that a NotImplementedError is raised.
     """
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
-    method_kwargs = {"total_amount": 5}
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -338,7 +369,7 @@ async def test_pagination_cache_cleanup(
     Create paginated cache records and check that they are removed when calling cleanup_pagination_cache.
     """
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
-    method_kwargs = {"total_amount": 5}
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
     page_size = 3
     token = None
 
@@ -455,7 +486,7 @@ async def test_paginate_permission_filtered_request(
     page_size = 4
     total = 20
     last_page = total // page_size
-    method_kwargs = {"total_amount": total}
+    method_kwargs = {"total_amount": total, "since": datetime.datetime.now()}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -494,7 +525,7 @@ async def test_paginate_permission_filtered_no_pagination(
     Request paginated method with no page and page size, and verify that all items are returned.
     """
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
-    method_kwargs = {"total_amount": 5}
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -549,7 +580,7 @@ async def test_paginate_permission_filtered_with_token(
 
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     page_size = 4
-    method_kwargs = {"total_amount": 20}
+    method_kwargs = {"total_amount": 20, "since": datetime.datetime.now()}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -567,7 +598,12 @@ async def test_paginate_permission_filtered_with_token(
     pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
 
     _assert_paginated_response(
-        response, pagination_info, 1, page_size, ["item0", "item1", "item2", "item3"]
+        response,
+        pagination_info,
+        1,
+        page_size,
+        ["item0", "item1", "item2", "item3"],
+        method_kwargs["since"],
     )
 
     token = pagination_info.page_token
@@ -582,6 +618,7 @@ async def test_paginate_permission_filtered_with_token(
         3,
         page_size,
         ["item4", "item7", "item8", "item9", "item10", "item11"],
+        method_kwargs["since"],
     )
 
     response, pagination_info = await paginator.paginate_permission_filtered_request(
@@ -589,7 +626,13 @@ async def test_paginate_permission_filtered_with_token(
     )
     pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
     _assert_paginated_response(
-        response, pagination_info, 5, page_size, ["item12"], last_page=True
+        response,
+        pagination_info,
+        5,
+        page_size,
+        ["item12"],
+        method_kwargs["since"],
+        last_page=True,
     )
 
 
@@ -599,11 +642,13 @@ def _assert_paginated_response(
     page,
     page_size,
     expected_items,
+    since,
     last_page=False,
 ):
     assert len(response) == len(expected_items)
     for i, item in enumerate(expected_items):
         assert response[i]["name"] == item
+        assert response[i]["since"] == since
     if not last_page:
         assert pagination_info.page_token is not None
     else:

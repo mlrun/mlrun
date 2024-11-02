@@ -30,7 +30,7 @@ import services.api.db.sqldb.models
 from mlrun.lists import ArtifactList
 from services.api.db.sqldb.db import SQLDB
 from services.api.db.sqldb.models import ArtifactV2
-from tests.conftest import new_run
+from services.api.tests.unit.conftest import new_run
 
 
 @contextmanager

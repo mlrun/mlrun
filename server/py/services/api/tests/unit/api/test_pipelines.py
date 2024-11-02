@@ -32,7 +32,6 @@ import mlrun.common.schemas
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.utils.auth.verifier
-import tests.conftest
 from mlrun.api.schemas import AuthInfo
 
 
@@ -295,7 +294,7 @@ def test_create_pipeline(
 ) -> None:
     project = "getting-started-tutorial-iguazio"
     pipeline_file_path = (
-        tests.conftest.tests_root_directory
+        services.api.tests.unit.conftest.tests_root_directory
         / "api"
         / "api"
         / "assets"

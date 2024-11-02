@@ -174,37 +174,6 @@ def patch_file_forbidden(monkeypatch):
     monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
 
 
-@pytest.fixture
-def patch_file_not_found(monkeypatch):
-    class MockV3ioObject:
-        def get(self, *args, **kwargs):
-            raise v3io.dataplane.response.HttpResponseError(
-                "error", HTTPStatus.NOT_FOUND.value
-            )
-
-        def head(self, *args, **kwargs):
-            raise v3io.dataplane.response.HttpResponseError(
-                "error", HTTPStatus.NOT_FOUND.value
-            )
-
-    class MockV3ioClient:
-        def __init__(self, *args, **kwargs):
-            self.container = self
-
-        def list(self, *args, **kwargs):
-            raise FileNotFoundError
-
-        @property
-        def object(self):
-            return MockV3ioObject()
-
-    mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)
-
-    monkeypatch.setattr(requests, "get", mock_get)
-    monkeypatch.setattr(requests, "head", mock_get)
-    monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
-
-
 def mock_failed_get_func(status_code: int):
     def mock_get(*args, **kwargs):
         mock_response = Mock()

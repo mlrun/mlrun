@@ -18,11 +18,11 @@ import pytest
 import mlrun
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
-from tests.conftest import examples_path
+from services.api.tests.unit.conftest import assets_path
 
 
 def test_compiled_function_config_nuclio_golang():
-    name = f"{examples_path}/training.py"
+    name = f"{assets_path}/training.py"
     fn = mlrun.code_to_function(
         "nuclio", filename=name, kind="nuclio", handler="my_hand"
     )
@@ -42,7 +42,7 @@ def test_compiled_function_config_nuclio_golang():
 
 
 def test_compiled_function_config_nuclio_python():
-    name = f"{examples_path}/training.py"
+    name = f"{assets_path}/training.py"
     fn = mlrun.code_to_function(
         "nuclio", filename=name, kind="nuclio", handler="my_hand"
     )
@@ -63,7 +63,7 @@ def test_compiled_function_config_nuclio_python():
 
 def test_compiled_function_config_sidecar_image_enrichment():
     mlrun.mlconf.httpdb.builder.docker_registry = "docker.io"
-    name = f"{examples_path}/training.py"
+    name = f"{assets_path}/training.py"
     fn = mlrun.code_to_function(
         "nuclio", filename=name, kind="nuclio", handler="my_hand"
     )

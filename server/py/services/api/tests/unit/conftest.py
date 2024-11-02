@@ -12,14 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import pathlib
+import shutil
 import typing
 import unittest.mock
 from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
+from http import HTTPStatus
+import os
+
+import requests
+import v3io.dataplane.response
+from aioresponses import aioresponses as aioresponses_
 
 import deepdiff
 import httpx
-import mlrun_pipelines.utils
 import pytest
 import pytest_asyncio
 import semver
@@ -30,6 +37,7 @@ import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.db.factory
 import mlrun.launcher.factory
+import mlrun.runtimes.utils
 import mlrun.utils.singleton
 import services.api.crud
 import services.api.launcher
@@ -44,6 +52,7 @@ import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
 from mlrun import mlconf
+import mlrun_pipelines.utils
 from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
@@ -51,20 +60,58 @@ from mlrun.utils import logger
 from services.api.initial_data import init_data
 from services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 
+tests_root_directory = pathlib.Path(__file__).absolute().parent
+assets_path = tests_root_directory.joinpath("assets")
+results = tests_root_directory / "test_results"
+
+os.environ["KFPMETA_OUT_DIR"] = f"{results}/kfp/"
+os.environ["KFP_ARTIFACTS_DIR"] = f"{results}/kfp/"
+
+rundb_path = f"{results}/rundb"
+logs_path = f"{results}/logs"
+out_path = f"{results}/out"
+root_path = str(pathlib.Path(tests_root_directory).parent)
+run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+
 
 @pytest.fixture(autouse=True)
 def api_config_test():
+    # recreating the test results path on each test instead of running it on conftest since
+    # it is not a threadsafe operation. if we'll run it on conftest it will be called multiple times
+    # in parallel and may cause errors.
+    shutil.rmtree(results, ignore_errors=True, onerror=None)
+    pathlib.Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
+
     services.api.utils.singletons.db.db = None
     services.api.utils.singletons.project_member.project_member = None
     services.api.utils.singletons.scheduler.scheduler = None
     services.api.utils.singletons.k8s._k8s = None
     services.api.utils.singletons.logs_dir.logs_dir = None
 
+    os.environ["MLRUN_HTTPDB__DIRPATH"] = rundb_path
+    os.environ["MLRUN_HTTPDB__LOGS_PATH"] = logs_path
+    os.environ["MLRUN_HTTPDB__PROJECTS__PERIODIC_SYNC_INTERVAL"] = "0 seconds"
+    os.environ["MLRUN_HTTPDB__PROJECTS__COUNTERS_CACHE_TTL"] = "0 seconds"
+    os.environ["MLRUN_EXEC_CONFIG"] = ""
+    mlrun.runtimes.utils.global_context.set(None)
+
+    # reload config so that values overridden by tests won't pass to other tests
+    mlrun.mlconf.reload()
+
     mlconf.nuclio_version = ""
     services.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
     services.api.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster = False
+
+    # remove the store manager cache, so it won't pass between tests
+    mlrun.datastore.store_manager._db = None
+    mlrun.datastore.store_manager._stores = {}
+
+    # no need to raise error when using nop_db
+    mlrun.mlconf.httpdb.nop_db.raise_error = False
+    # deploy status is mocked so no need to sleep
+    mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval = 0
 
     # we need to override the run db container manually because we run all unit tests in the same process in CI
     # so API is imported even when it's not needed
@@ -80,6 +127,17 @@ def api_config_test():
     yield
 
     mlrun.config._is_running_as_api = None
+    # remove singletons in case they were changed (we don't want changes to pass between tests)
+    mlrun.utils.singleton.Singleton._instances = {}
+
+    mlrun.runtimes.runtime_handler_instances_cache = {}
+
+    # TODO: update this to "sidecar" once the default mode is changed
+    mlrun.mlconf.log_collector.mode = "legacy"
+
+    # revert change of default project after project creation
+    mlrun.mlconf.default_project = "default"
+    mlrun.projects.project.pipeline_context.set(None)
 
     # reset factory container overrides
     rundb_factory._rundb_container.reset_override()
@@ -204,6 +262,46 @@ def iguazio_client(
     # inject the request param into client, so we can use it in tests
     setattr(client, "mode", request.param)
     return client
+
+# TODO: This fixture is duplicated with tests.common_fixtures.aioresponses_mock because we don't have a way to
+#  share fixtures between client and server tests. Ideally we would use pytest --import-mode importlib to run the
+#  server tests from the root directory, but that does not work ATM without changing the import path to include
+#  server.py. See https://docs.pytest.org/en/stable/explanation/goodpractices.html#conventions-for-python-test-discovery
+@pytest.fixture
+def aioresponses_mock():
+    with aioresponses_() as aior:
+        # handy function to get how many times requests were made using this specific mock
+        aior.called_times = lambda: len(list(aior.requests.values())[0])
+        yield aior
+
+def freeze(f, **kwargs):
+    """
+    Enables to override an attribute passed to a sub-function without the need to access the function directly
+    :param f: the function we want to pass the attribute to
+    :param kwargs: dictionary containing name(key) and value of the attributes to override.
+    :return: wrapped function with overridden attributes
+    """
+    frozen = kwargs
+
+    def wrapper(*args, **kwargs):
+        kwargs.update(frozen)
+        return f(*args, **kwargs)
+
+    return wrapper
+
+def run_now():
+    return datetime.datetime.now().strftime(run_time_fmt)
+
+
+def new_run(state, labels, uid=None, **kw):
+    obj = {
+        "metadata": {"name": "run-name", "labels": labels},
+        "status": {"state": state, "start_time": run_now()},
+    }
+    if uid:
+        obj["metadata"]["uid"] = uid
+    obj.update(kw)
+    return obj
 
 
 class MockedK8sHelper:
@@ -479,3 +577,99 @@ def mock_project_follower_iguazio_client(
     yield iguazio_client
 
     services.api.utils.clients.iguazio.Client = old_iguazio_client
+
+
+class MockSpecificCalls:
+    def __init__(
+        self,
+        original_function: typing.Callable,
+        call_indexes_to_mock: list[int],
+        return_value: typing.Any,
+    ):
+        self.original_function = original_function
+        self.call_indexes_to_mock = call_indexes_to_mock
+        self.return_value = return_value
+
+    calls = 0
+
+    def mock_function(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls not in self.call_indexes_to_mock:
+            return self.original_function(*args, **kwargs)
+        else:
+            return self.return_value
+
+# TODO: This fixture is duplicated with tests.common_fixtures.patch_file_forbidden because we don't have a way to
+#  share fixtures between client and server tests. Ideally we would use pytest --import-mode importlib to run the
+#  server tests from the root directory, but that does not work ATM without changing the import path to include
+#  server.py. See https://docs.pytest.org/en/stable/explanation/goodpractices.html#conventions-for-python-test-discovery
+@pytest.fixture
+def patch_file_forbidden(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
+
+        def head(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.FORBIDDEN.value
+            )
+
+    class MockV3ioClient:
+        def __init__(self, *args, **kwargs):
+            self.container = self
+
+        def list(self, *args, **kwargs):
+            raise RuntimeError("Permission denied")
+
+        @property
+        def object(self):
+            return MockV3ioObject()
+
+    mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
+
+    monkeypatch.setattr(requests, "get", mock_get)
+    monkeypatch.setattr(requests, "head", mock_get)
+    monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
+
+@pytest.fixture
+def patch_file_not_found(monkeypatch):
+    class MockV3ioObject:
+        def get(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
+
+        def head(self, *args, **kwargs):
+            raise v3io.dataplane.response.HttpResponseError(
+                "error", HTTPStatus.NOT_FOUND.value
+            )
+
+    class MockV3ioClient:
+        def __init__(self, *args, **kwargs):
+            self.container = self
+
+        def list(self, *args, **kwargs):
+            raise FileNotFoundError
+
+        @property
+        def object(self):
+            return MockV3ioObject()
+
+    mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)
+
+    monkeypatch.setattr(requests, "get", mock_get)
+    monkeypatch.setattr(requests, "head", mock_get)
+    monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
+
+def mock_failed_get_func(status_code: int):
+    def mock_get(*args, **kwargs):
+        mock_response = unittest.mock.Mock()
+        mock_response.status_code = status_code
+        mock_response.raise_for_status = unittest.mock.Mock(
+            side_effect=requests.HTTPError("Error", response=mock_response)
+        )
+        return mock_response
+
+    return mock_get

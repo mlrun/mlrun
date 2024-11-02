@@ -32,8 +32,8 @@ docstring-code-format = true
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
 testpaths = [
-    "tests/*/test_*.py",
-    "tests/test_*.py",
+#    "tests/*/test_*.py",
+#    "tests/test_*.py",
     "server/py/*/tests/unit/test_*.py",
     "server/py/*/tests/unit/*/test_*.py",
 ]

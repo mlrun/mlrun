@@ -452,7 +452,8 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
 .PHONY: test
-test: clean ## Run mlrun tests
+test: ## Run mlrun tests
+	$(MAKE) -C server/py test && \
 	python \
 		-X faulthandler \
 		-m pytest -v \

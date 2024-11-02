@@ -21,6 +21,7 @@ import json
 import typing
 import unittest.mock
 
+import aioresponses
 import deepdiff
 import fastapi
 import httpx
@@ -36,13 +37,13 @@ import mlrun.config
 import mlrun.errors
 import services.api.utils.clients.iguazio
 from services.api.utils.asyncio import maybe_coroutine
-from tests.common_fixtures import aioresponses_mock
+from services.api.tests.unit.conftest import aioresponses_mock
 
 
 def patch_restful_request(
     is_client_sync: bool,
     requests_mock: requests_mock_package.Mocker,
-    aioresponses_mock: aioresponses_mock,
+    aioresponses_mock,
     method: str,
     url: str,
     callback: typing.Optional[typing.Callable] = None,

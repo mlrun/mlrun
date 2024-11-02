@@ -20,11 +20,11 @@ MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKE
 GO_VERSION=$(shell grep -m1 'go ' go.work | cut -d' ' -f2)
 GOPATH ?= $(shell go env GOPATH)
 OS_NAME = $(shell uname)
-DOCKER_IMAGES = log-collector
 KUBECONFIG := $(if $(KUBECONFIG),$(KUBECONFIG),$(HOME)/.kube/config)
 
 CI_BIN_DIR=$(shell pwd)/.bin
 GO_WORKSPACES ?= $(shell go work edit -json | jq -c -r '[.Use[].DiskPath] | map_values("./" + . + "/...")[]')
+DOCKER_IMAGES = log-collector
 
 #
 # Build

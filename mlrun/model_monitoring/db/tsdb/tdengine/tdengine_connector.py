@@ -486,8 +486,8 @@ class TDEngineConnector(TSDBConnector):
     def get_last_request(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -529,8 +529,8 @@ class TDEngineConnector(TSDBConnector):
     def get_drift_status(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -564,8 +564,8 @@ class TDEngineConnector(TSDBConnector):
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -600,8 +600,8 @@ class TDEngineConnector(TSDBConnector):
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -638,8 +638,8 @@ class TDEngineConnector(TSDBConnector):
     def get_error_count(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -670,8 +670,8 @@ class TDEngineConnector(TSDBConnector):
     def get_avg_latency(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]

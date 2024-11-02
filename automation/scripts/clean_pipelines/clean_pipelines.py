@@ -26,6 +26,58 @@ from mlrun_pipelines.models import PipelineRun
 import mlrun
 
 
+def delete_project_old_pipelines(
+    context: mlrun.MLClientCtx,
+    project_name: str,
+    end_date: str,
+    start_date: str = "",
+    dry_run: bool = True,
+    target_path: str = "",
+) -> None:
+    """
+    Delete old pipeline runs associated with a specific project.
+
+    This function retrieves all pipeline runs for the given project, filters them based on the
+    provided date range, and deletes both the runs .
+
+    :param context: The context object to log results.
+    :param project_name: Name of the project for which to delete old pipelines.
+    :param end_date: The cutoff date for deleting pipeline runs. All runs created on or before
+                     this date will be considered for deletion.
+    :param start_date: (Optional) The start date for filtering pipeline runs. If provided, only
+                       runs created on or after this date will be considered for deletion.
+                       Defaults to an empty string, which means no start date filtering.
+    :param dry_run: If True, perform a dry run (only log what would be deleted).
+    :param target_path: The artifact path where the deletion results dataset will be saved.
+                          Defaults to the MLRun default artifact path.
+
+    """
+    # Validate and convert dates
+    end_date = validate_and_convert_date(end_date)
+    start_date = "" if not start_date else validate_and_convert_date(start_date)
+
+    # get KFP client
+    kfp_client = get_kfp_client()
+
+    # Generate filter and query runs
+    query_filter = get_list_runs_filter(project_name, end_date, start_date)
+
+    # Query and filter runs
+    runs, experiments_ids = query_and_filter_runs(
+        kfp_client, project_name, query_filter
+    )
+    if not dry_run:
+        # Delete runs
+        delete_runs(context, kfp_client, runs, target_path)
+
+        # Find and delete empty experiments
+        delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
+
+    else:
+        mlrun.utils.logger.info(f"Dry run: {len(runs)} runs would be deleted")
+        context.log_result(key="runs_to_be_deleted", value=runs)
+
+
 def validate_and_convert_date(date_input: str) -> str:
     """
     Converts any recognizable date string into a standardized RFC 3339 format.
@@ -41,40 +93,26 @@ def validate_and_convert_date(date_input: str) -> str:
             local_tz = pytz.timezone("UTC")
             dt_object = local_tz.localize(dt_object)
 
+        # Convert the datetime object to an RFC 3339-compliant string.
+        # RFC 3339 requires timestamps to be in ISO 8601 format with a 'Z' suffix for UTC time.
+        # The isoformat() method adds a "+00:00" suffix for UTC by default,
+        # so we replace it with "Z" to ensure compliance.
         formatted_date = dt_object.isoformat().replace("+00:00", "Z")
-        if not formatted_date.endswith("Z"):
-            formatted_date += "Z"
+        formatted_date = formatted_date.rstrip("Z") + "Z"
 
         return formatted_date
     except (ValueError, OverflowError) as e:
         raise ValueError(
-            f"Invalid date format: {date_input}. Please provide a valid date."
+            f"Invalid date format: {date_input}."
+            f" Date format must adhere to the RFC 3339 standard (e.g., 'YYYY-MM-DDTHH:MM:SSZ' for UTC)."
         ) from e
 
 
 def get_kfp_client(
-    kfp_url=mlrun.mlconf.kfp_url, namespace: str = "default-tenant"
+    kfp_url=mlrun.mlconf.kfp_url, namespace: str = mlrun.mlconf.namespace
 ) -> Client:
     kfp_client = mlrun_pipelines.utils.get_client(kfp_url, namespace)
     return kfp_client
-
-
-def get_experiment_name(kfp_client: Client, experiment_id: str) -> str:
-    experiment = kfp_client.get_experiment(experiment_id=experiment_id)
-    return experiment.name if experiment else ""
-
-
-def filter_out_non_related_runs(
-    project_name: str, runs: list[PipelineRun]
-) -> list[PipelineRun]:
-    project_runs = []
-    for run in runs:
-        run_project = mlrun_pipelines.mixins.PipelineProviderMixin().resolve_project_from_workflow_manifest(
-            run.workflow_manifest()
-        )
-        if run_project == project_name:
-            project_runs.append(run)
-    return project_runs
 
 
 def get_list_runs_filter(project_name: str, end_date: str, start_date: str) -> str:
@@ -106,31 +144,6 @@ def get_list_runs_filter(project_name: str, end_date: str, start_date: str) -> s
     return json.dumps(filters)
 
 
-def list_pipelines_runs(
-    kfp_client: Client, query_filter: str, page_token: str = "", sort_by: str = ""
-) -> list[PipelineRun]:
-    runs = []
-    counter = 0
-    while page_token is not None:
-        # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.
-        # When we have a token from previous call, we will strip out the filter and use the token to continue
-        # (the token contains the details of the filter that was used to create it)
-        response = kfp_client.list_runs(
-            page_token=page_token,
-            page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
-            sort_by=sort_by if page_token == "" else "",
-            filter=query_filter if page_token == "" else "",
-        )
-        runs.extend([PipelineRun(run) for run in response.runs or []])
-        page_token = response.next_page_token
-        if counter % 50 == 0:
-            mlrun.utils.logger.info(
-                "Collecting pipelines runs:", runs_count=(10000 * counter)
-            )
-        counter += 1
-    return runs
-
-
 def query_and_filter_runs(
     kfp_client: Client, project_name: str, query_filter: str
 ) -> tuple[list[tuple[str, str]], set]:
@@ -144,9 +157,8 @@ def query_and_filter_runs(
     runs = list_pipelines_runs(kfp_client, query_filter)
 
     # Filter out non project-related runs if project was provided
-    project_runs = (
-        filter_out_non_related_runs(project_name, runs) if project_name != "*" else runs
-    )
+    project_runs = filter_project_runs(project_name, runs)
+
     if project_name == "*":
         project_names = [
             mlrun_pipelines.mixins.PipelineProviderMixin().resolve_project_from_workflow_manifest(
@@ -169,18 +181,44 @@ def query_and_filter_runs(
     return runs, experiment_ids
 
 
-def find_empty_experiments(
-    kfp_client: Client, experiments_ids: set
-) -> list[tuple[str, str]]:
-    # Find empty experiments
-    empty_experiment_ids = []
-    for experiment_id in experiments_ids:
-        runs = kfp_client.list_runs(experiment_id=experiment_id)
+def list_pipelines_runs(
+    kfp_client: Client, query_filter: str, page_token: str = "", sort_by: str = ""
+) -> list[PipelineRun]:
+    runs = []
+    batch_size = 1000  # Adjust batch size for progress updates
+    while page_token is not None:
+        # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.
+        # When we have a token from previous call, we will strip out the filter and use the token to continue
+        # (the token contains the details of the filter that was used to create it)
+        response = kfp_client.list_runs(
+            page_token=page_token,
+            page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
+            sort_by=sort_by if page_token == "" else "",
+            filter=query_filter if page_token == "" else "",
+        )
+        runs.extend([PipelineRun(run) for run in response.runs or []])
+        page_token = response.next_page_token
 
-        if not runs.total_size:
-            experiment_name = get_experiment_name(kfp_client, experiment_id)
-            empty_experiment_ids.append((experiment_id, experiment_name))
-    return empty_experiment_ids
+        if len(runs) % batch_size == 0:
+            mlrun.utils.logger.info(f"Collected {len(runs)} pipeline runs so far.")
+    return runs
+
+
+def filter_project_runs(
+    project_name: str, runs: list[PipelineRun]
+) -> list[PipelineRun]:
+    # If project_name is "*", return all runs without filtering
+    if project_name == "*":
+        return runs
+
+    project_runs = []
+    for run in runs:
+        run_project = mlrun_pipelines.mixins.PipelineProviderMixin().resolve_project_from_workflow_manifest(
+            run.workflow_manifest()
+        )
+        if run_project == project_name:
+            project_runs.append(run)
+    return project_runs
 
 
 def delete_runs(
@@ -232,42 +270,50 @@ def delete_empty_experiments(
     )
 
 
-def log_results(
+def find_empty_experiments(
+    kfp_client: Client, experiments_ids: set
+) -> list[tuple[str, str]]:
+    # Find empty experiments
+    empty_experiment_ids = []
+    for experiment_id in experiments_ids:
+        runs = kfp_client.list_runs(experiment_id=experiment_id)
+
+        if not runs.total_size:
+            experiment_name = get_experiment_name(kfp_client, experiment_id)
+            empty_experiment_ids.append((experiment_id, experiment_name))
+    return empty_experiment_ids
+
+
+def get_experiment_name(kfp_client: Client, experiment_id: str) -> str:
+    experiment = kfp_client.get_experiment(experiment_id=experiment_id)
+    return experiment.name if experiment else ""
+
+
+def delete_items(
     context: mlrun.MLClientCtx,
-    deleted_items: list[tuple[str, str]],
-    failed_items: list[tuple[str, str, Exception, str]],
+    items: list[tuple[str, str]],
+    delete_func: typing.Callable[[str], None],
     target_path: str,
     item_type: str = "run",
-):
-    # Log results
-    context.log_result(
-        key=f"{item_type}s_deleted_count",
-        value=len(deleted_items),
-    )
+) -> None:
+    """
+    A generic function to delete items such as runs or experiments and log the results.
 
-    # Log successfully deleted items as a dataset
-    if deleted_items:
-        df_succeeded = pd.DataFrame(deleted_items, columns=["Name", "ID"])
-        context.log_dataset(
-            key=f"{item_type}s_deleted_details",
-            df=df_succeeded,
-            target_path=target_path,
-        )
+    :param context: The context object to log results.
+    :param items: A list of tuples, where each tuple contains the item ID and name to be deleted.
+    :param delete_func: The function responsible for deleting each item.
+                        It should take an ID as its argument.
+    :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
+    :param item_type: The type of items being deleted (used for logging).
+                      Defaults to "run".
+    """
+    total = len(items)
 
-    # Log the count of failed deletions
-    num_failed = len(failed_items)
-    context.log_result(key=f"{item_type}s_failed_count", value=num_failed)
+    context.log_result(key=f"{item_type}s_total", value=total)
+    mlrun.utils.logger.info(f"Deleting {total} {item_type}s")
 
-    # Log details of failed deletions if there are any
-    if failed_items:
-        df_failed = pd.DataFrame(
-            failed_items, columns=["Name", "ID", "Exception", "Reason"]
-        )
-        context.log_dataset(
-            key=f"{item_type}s_failed_details",
-            df=df_failed,
-            target_path=target_path,
-        )
+    deleted, failed = perform_deletion(items, delete_func, total, item_type)
+    log_results(context, deleted, failed, target_path, item_type)
 
 
 def perform_deletion(
@@ -313,80 +359,39 @@ def perform_deletion(
     return deleted_items, failed_items
 
 
-def delete_items(
+def log_results(
     context: mlrun.MLClientCtx,
-    items: list[tuple[str, str]],
-    delete_func: typing.Callable[[str], None],
+    deleted_items: list[tuple[str, str]],
+    failed_items: list[tuple[str, str, Exception, str]],
     target_path: str,
     item_type: str = "run",
-) -> None:
-    """
-    A generic function to delete items such as runs or experiments and log the results.
-
-    :param context: The context object to log results.
-    :param items: A list of tuples, where each tuple contains the item ID and name to be deleted.
-    :param delete_func: The function responsible for deleting each item.
-                        It should take an ID as its argument.
-    :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
-    :param item_type: The type of items being deleted (used for logging).
-                      Defaults to "run".
-    """
-    total = len(items)
-
-    context.log_result(key=f"{item_type}s_total", value=total)
-    mlrun.utils.logger.info(f"Deleting {total} {item_type}s")
-
-    deleted, failed = perform_deletion(items, delete_func, total, item_type)
-    log_results(context, deleted, failed, target_path, item_type)
-
-
-def delete_project_old_pipelines(
-    context: mlrun.MLClientCtx,
-    project_name: str,
-    end_date: str,
-    start_date: str = "",
-    dry_run: bool = True,
-    target_path: str = "",
-) -> None:
-    """
-    Delete old pipeline runs associated with a specific project.
-
-    This function retrieves all pipeline runs for the given project, filters them based on the
-    provided date range, and deletes both the runs .
-
-    :param context: The context object to log results.
-    :param project_name: Name of the project for which to delete old pipelines.
-    :param end_date: The cutoff date for deleting pipeline runs. All runs created on or before
-                     this date will be considered for deletion.
-    :param start_date: (Optional) The start date for filtering pipeline runs. If provided, only
-                       runs created on or after this date will be considered for deletion.
-                       Defaults to an empty string, which means no start date filtering.
-    :param dry_run: If True, perform a dry run (only log what would be deleted).
-    :param target_path: The artifact path where the deletion results dataset will be saved.
-                          Defaults to the MLRun default artifact path.
-
-    """
-    # Validate and convert dates
-    end_date = validate_and_convert_date(end_date)
-    start_date = "" if not start_date else validate_and_convert_date(start_date)
-
-    # get KFP client
-    kfp_client = get_kfp_client()
-
-    # Generate filter and query runs
-    query_filter = get_list_runs_filter(project_name, end_date, start_date)
-
-    # Query and filter runs
-    runs, experiments_ids = query_and_filter_runs(
-        kfp_client, project_name, query_filter
+):
+    # Log results
+    context.log_result(
+        key=f"{item_type}s_deleted_count",
+        value=len(deleted_items),
     )
-    if not dry_run:
-        # Delete runs
-        delete_runs(context, kfp_client, runs, target_path)
 
-        # Find and delete empty experiments
-        delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
+    # Log successfully deleted items as a dataset
+    if deleted_items:
+        df_succeeded = pd.DataFrame(deleted_items, columns=["Name", "ID"])
+        context.log_dataset(
+            key=f"{item_type}s_deleted_details",
+            df=df_succeeded,
+            target_path=target_path,
+        )
 
-    else:
-        mlrun.utils.logger.info(f"Dry run: {len(runs)} runs would be deleted")
-        context.log_result(key="runs_to_be_deleted", value=runs)
+    # Log the count of failed deletions
+    num_failed = len(failed_items)
+    context.log_result(key=f"{item_type}s_failed_count", value=num_failed)
+
+    # Log details of failed deletions if there are any
+    if failed_items:
+        df_failed = pd.DataFrame(
+            failed_items, columns=["Name", "ID", "Exception", "Reason"]
+        )
+        context.log_dataset(
+            key=f"{item_type}s_failed_details",
+            df=df_failed,
+            target_path=target_path,
+        )

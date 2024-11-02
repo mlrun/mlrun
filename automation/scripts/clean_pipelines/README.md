@@ -4,6 +4,8 @@ This script is designed to delete old pipeline runs associated with a specific M
 with flexible date filtering.
 You can use this as an MLRun function to automate pipeline cleanup tasks.
 
+**Warning**: This script performs destructive actions by permanently deleting pipeline runs.
+Please review the filtering criteria carefully and use with caution to avoid accidental data loss.
 ## Usage
 
 ### Step 1: Set up the project

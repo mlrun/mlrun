@@ -16,6 +16,8 @@ from collections.abc import Generator
 from tempfile import NamedTemporaryFile
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 from mlrun.common.db.sql_session import _init_engine
 from mlrun.config import config
@@ -32,6 +34,14 @@ def db() -> Generator:
     dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
     config.httpdb.dsn = dsn
     _init_engine()
+
+    # SQLite foreign keys constraint must be enabled manually to allow cascade deletions on DB level
+    @event.listens_for(Engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     # memory sqldb removes itself when all sessions closed, this session will keep it up until the end of the test
     db_session = create_session()
     try:

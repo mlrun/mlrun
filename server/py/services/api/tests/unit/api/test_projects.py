@@ -664,11 +664,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    services.api.utils.singletons.db.get_db().delete_functions = unittest.mock.Mock()
-    services.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
-    services.api.utils.singletons.db.get_db().delete_feature_vector = (
-        unittest.mock.Mock()
-    )
+    services.api.utils.singletons.db.get_db()._delete_multi_objects = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
         f"projects/{project_name}",
@@ -678,17 +674,17 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert len(
-        services.api.utils.singletons.db.get_db().delete_functions.call_args.args[2]
-    ) == len(distinct_function_names)
-    assert (
-        services.api.utils.singletons.db.get_db().delete_feature_set.call_count
-        == len(distinct_feature_set_names)
-    )
-    assert (
-        services.api.utils.singletons.db.get_db().delete_feature_vector.call_count
-        == len(distinct_feature_vector_names)
-    )
+    deleted_from_tables = [
+        call_args.kwargs["main_table"]
+        for call_args in services.api.utils.singletons.db.get_db()._delete_multi_objects.call_args_list
+    ]
+    assert Function in deleted_from_tables
+    assert FeatureSet in deleted_from_tables
+    assert FeatureVector in deleted_from_tables
+    for (
+        call_args
+    ) in services.api.utils.singletons.db.get_db()._delete_multi_objects.call_args_list:
+        assert "main_table_identifier_values" not in call_args.kwargs
 
 
 def test_delete_project_deletion_strategy_check_external_resource(

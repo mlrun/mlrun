@@ -131,9 +131,9 @@ class _DummyStream:
     def __init__(self, event_list=None, **kwargs):
         self.event_list = event_list or []
 
-    def push(self, data):
+    def push(self, data, **kwargs):
         if not isinstance(data, list):
             data = [data]
         for item in data:
-            logger.info(f"dummy stream got event: {item}")
+            logger.info(f"dummy stream got event: {item}, kwargs={kwargs}")
             self.event_list.append(item)

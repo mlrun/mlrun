@@ -46,7 +46,7 @@ compile-schemas-local: cleanup compile-schemas-go compile-schemas-python
 compile-schemas-dockerized: schemas-compiler
 	@echo Compiling schemas in docker container
 	docker run \
-		-v $(CURDIR):/app \
+		-v $(dir $(CURDIR)):/app \
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		make compile-schemas-local
 
@@ -58,9 +58,11 @@ compile-schemas-go: cleanup
 	mkdir -p proto/build/go
 	mv proto/tmp/proto/build/* proto/build/go
 	rm -rf proto/tmp
+	mkdir -p ../go/mlrun-go/pkg/proto/build
+	cp -RL proto/build/go/* ../go/mlrun-go/pkg/proto/build
 
 .PHONY: compile-schemas-python
-compile-schemas-python: cleanup
+compile-schemas-python:
 	@echo Compiling python schemas
 	python3 -m grpc_tools.protoc --proto_path=. --python_out=proto/build/ --grpc_python_out=proto/build/ proto/*.proto
 	@echo Fixing Python GRPC Dir and Imports
@@ -69,3 +71,4 @@ compile-schemas-python: cleanup
 .PHONY: cleanup
 cleanup:
 	rm -rf proto/build/
+	rm -rf ../go/mlrun-go/pkg/proto/build/

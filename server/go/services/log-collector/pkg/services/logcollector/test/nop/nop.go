@@ -17,7 +17,7 @@ package nop
 import (
 	"context"
 
-	"github.com/mlrun/mlrun/proto/build/log_collector"
+	"github.com/mlrun/mlrun-go/pkg/proto/build/log_collector"
 
 	"google.golang.org/grpc"
 )

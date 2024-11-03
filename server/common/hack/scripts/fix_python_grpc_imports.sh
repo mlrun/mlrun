@@ -23,6 +23,8 @@ get_os() {
   echo "${os}"
 }
 
+mv proto/build/proto proto/build/py
+
 SED_REGEX='s/from proto import/from \. import/g'
 OS=$(get_os)
 SCHEMA_FILES=$(find proto/build/ -name '*pb2_grpc.py')

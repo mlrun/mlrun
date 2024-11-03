@@ -18,9 +18,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/mlrun/mlrun/pkg/common"
-	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
+	"github.com/mlrun/mlrun-go/pkg/common"
 
+	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 )

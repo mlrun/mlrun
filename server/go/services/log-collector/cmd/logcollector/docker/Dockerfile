@@ -21,11 +21,19 @@ WORKDIR /app
 
 # copy `go.mod` for definitions and `go.sum` to invalidate the next layer
 # in case of a change in the dependencies
-COPY go.mod go.sum /app/
+COPY mlrun-go/go.mod mlrun-go/go.sum ./mlrun-go/
+COPY services/log-collector/go.mod services/log-collector/go.sum ./services/log-collector/
+
+RUN echo "go ${GO_VERSION}\n use(\n\t mlrun-go \n\t services/log-collector \n)" > go.work && \
+    cat go.work && \
+    go work sync
 
 RUN go mod download
 
-ADD . /app/
+COPY mlrun-go/ ./mlrun-go/
+COPY services/log-collector/ ./services/log-collector/
+
+WORKDIR /app/services/log-collector
 
 # build
 RUN GOOS=linux \
@@ -49,7 +57,7 @@ FROM gcr.io/iguazio/alpine:3.20
 # Upgrade OS packages
 RUN apk -U upgrade
 
-COPY --from=build-binary /app/main /main
+COPY --from=build-binary /app/services/log-collector/main /main
 COPY --from=install-health-probe /app/grpc_health_probe /grpc_health_probe
 
 EXPOSE 8080

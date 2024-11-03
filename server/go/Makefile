@@ -58,29 +58,22 @@ pull-log-collector:
 .PHONY: schemas-compiler
 schemas-compiler:
 	$(MAKE) -C ../common schemas-compiler
+
 #
 # Protobuf
 #
 .PHONY: compile-schemas
-compile-schemas: compile-schemas-dockerized
+compile-schemas:
 	$(MAKE) -C ../common compile-schemas
 
-.PHONY: compile-schemas-local
-compile-schemas-local: cleanup
-	$(MAKE) -C ../common compile-schemas-local
 
-.PHONY: compile-schemas-dockerized
-compile-schemas-dockerized: schemas-compiler
-	$(MAKE) -C ../common compile-schemas-dockerized
+.PHONY: compile-schemas-local
+compile-schemas-local:
+	$(MAKE) -C ../common compile-schemas-local
 
 .PHONY: compile-schemas-go
 compile-schemas-go:
 	$(MAKE) -C ../common compile-schemas-go
-
-.PHONY: cleanup
-cleanup:
-	$(MAKE) -C ../common cleanup
-
 
 #
 # Test

@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mlrun/mlrun/pkg/common"
-	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
+	"github.com/mlrun/mlrun-go/pkg/common"
 
+	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore"
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"

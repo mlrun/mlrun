@@ -286,10 +286,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # using freeze enables us to set the now attribute when calling the sub-function
             # _update_run_updated_time without the need to call the function directly
             original_update_run_updated_time = (
-                server.api.utils.singletons.db.get_db()._update_run_updated_time
+                services.api.utils.singletons.db.get_db()._update_run_updated_time
             )
             services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-                tests.conftest.freeze(
+                services.api.tests.unit.conftest.freeze(
                     original_update_run_updated_time,
                     now=now_date()
                     + timedelta(
@@ -297,36 +297,36 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                     ),
                 )
             )
-            server.api.crud.Runs().store_run(
+            services.api.crud.Runs().store_run(
                 db, self.run, self.run_uid, project=self.project
             )
-            server.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            services.api.utils.singletons.db.get_db()._update_run_updated_time = (
                 original_update_run_updated_time
             )
             # Mocking pod that is still in non-terminal state
             self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-                # using freeze enables us to set the now attribute when calling the sub-function
-                # _update_run_updated_time without the need to call the function directly
-                original_update_run_updated_time = (
-                    services.api.utils.singletons.db.get_db()._update_run_updated_time
+            # using freeze enables us to set the now attribute when calling the sub-function
+            # _update_run_updated_time without the need to call the function directly
+            original_update_run_updated_time = (
+                services.api.utils.singletons.db.get_db()._update_run_updated_time
+            )
+            services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+                services.api.tests.unit.conftest.freeze(
+                    original_update_run_updated_time,
+                    now=now_date()
+                    + timedelta(
+                        seconds=interval_time_to_add_to_run_update_time,
+                    ),
                 )
-                services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-                    services.api.tests.unit.conftest.freeze(
-                        original_update_run_updated_time,
-                        now=now_date()
-                        + timedelta(
-                            seconds=interval_time_to_add_to_run_update_time,
-                        ),
-                    )
-                )
-                services.api.crud.Runs().store_run(
-                    db, self.run, self.run_uid, project=self.project
-                )
-                services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-                    original_update_run_updated_time
-                )
-                # Mocking pod that is still in non-terminal state
-                self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+            )
+            services.api.crud.Runs().store_run(
+                db, self.run, self.run_uid, project=self.project
+            )
+            services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+                original_update_run_updated_time
+            )
+            # Mocking pod that is still in non-terminal state
+            self._mock_list_namespaced_pods(list_namespaced_pods_calls)
 
             # Triggering monitor cycle
             for i in range(monitor_cycles):
@@ -484,7 +484,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking that update occurred before debounced period
         debounce_period = config.monitoring.runs.interval
         services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-            tests.conftest.freeze(
+            services.api.tests.unit.conftest.freeze(
                 original_update_run_updated_time,
                 now=now_date() - timedelta(seconds=float(2 * debounce_period)),
             )

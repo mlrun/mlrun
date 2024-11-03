@@ -49,11 +49,12 @@ while ! docker exec migration-db mysql --user=root --password=pass -e "status" >
 	times=$(( times + 1 ))
 done
 
-export PYTHONPATH=$ROOT_DIR/server/py
+export PYTHONPATH=${ROOT}/server/py
 
 python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
+		--import-mode importlib \
 		-rf \
-		${ROOT_DIR}/server/py/services/api/migrations/tests/*
+		"${ROOT_DIR}"/server/py/services/api/migrations/tests/*

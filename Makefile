@@ -453,7 +453,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 
 .PHONY: test
 test: ## Run mlrun tests
-	$(MAKE) -C server/py test && \
+	$(MAKE) -C server/py test; server_test_status=$$?; \
 	python \
 		-X faulthandler \
 		-m pytest -v \
@@ -464,7 +464,9 @@ test: ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
 		--forked \
-		-rf
+		-rf \
+		tests; client_test_status=$$?; \
+    exit $$(($$server_test_status | $$client_test_status))
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
@@ -498,8 +500,8 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
 
 .PHONY: test-migrations
-test-migrations: clean ## Run mlrun db migrations tests
-	./automation/scripts/test_migration_mysql.sh
+test-migrations: ## Run mlrun db migrations tests
+	$(MAKE) -C server/py test-migrations
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container

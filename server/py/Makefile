@@ -28,3 +28,7 @@ test: clean ## Run mlrun server tests
 		--forked \
 		--ignore=services/api/migrations \
 		-rf
+
+.PHONY: test-migrations
+test-migrations: clean ## Run mlrun db migrations tests
+	../../automation/scripts/test_migration_mysql.sh

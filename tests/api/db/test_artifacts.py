@@ -1181,7 +1181,7 @@ class TestArtifacts:
 
     @pytest.mark.parametrize("limit", [None, 6])
     def test_list_artifacts_returns_elements_by_order_updated_field(
-            self, db: DBInterface, db_session: Session, limit
+        self, db: DBInterface, db_session: Session, limit
     ):
         project = "artifact_project"
 
@@ -1196,7 +1196,7 @@ class TestArtifacts:
 
         expected_count = limit or number_of_artifacts
         assert (
-                len(artifacts) == expected_count
+            len(artifacts) == expected_count
         ), f"Expected {expected_count} results, got {len(artifacts)}"
 
         start_index = number_of_artifacts - 1
@@ -1208,7 +1208,7 @@ class TestArtifacts:
         for artifact, expected_name in zip(artifacts, expected_names):
             artifact_name = artifact["metadata"]["key"]
             assert (
-                    artifact_name == expected_name
+                artifact_name == expected_name
             ), f"Expected {expected_name}, got {artifact_name}"
 
     def test_list_artifacts_with_limit_and_page_size(

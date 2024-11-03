@@ -130,7 +130,7 @@ async def test_list_functions_with_pagination(
         },
     )
 
-    tests.api.api.utils.assert_pagination_info(
+    services.api.tests.unit.api.utils.assert_pagination_info(
         response=response,
         expected_page=1,
         expected_results_count=page_size,
@@ -149,7 +149,7 @@ async def test_list_functions_with_pagination(
         },
     )
 
-    tests.api.api.utils.assert_pagination_info(
+    services.api.tests.unit.api.utils.assert_pagination_info(
         response=response,
         expected_page=2,
         expected_results_count=page_size,
@@ -166,7 +166,7 @@ async def test_list_functions_with_pagination(
         },
     )
 
-    tests.api.api.utils.assert_pagination_info(
+    services.api.tests.unit.api.utils.assert_pagination_info(
         response=response,
         expected_page=3,
         expected_results_count=5,

@@ -23,7 +23,7 @@ ARG PROTOC_GEN_GO_VERSION=v1.28
 ARG PROTOC_GEN_GO_GRPC_VERSION=v1.2
 ARG GRPCIO_TOOLS_VERSION="~=1.59.0"
 
-WORKDIR /app/common
+WORKDIR /app
 
 RUN apk --no-cache upgrade && apk add --no-cache protoc build-base linux-headers jq
 

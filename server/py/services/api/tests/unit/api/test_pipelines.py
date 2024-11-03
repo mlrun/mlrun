@@ -296,7 +296,6 @@ def test_create_pipeline(
     pipeline_file_path = (
         services.api.tests.unit.conftest.tests_root_directory
         / "api"
-        / "api"
         / "assets"
         / "pipelines.yaml"
     )

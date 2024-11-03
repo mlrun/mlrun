@@ -484,7 +484,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking that update occurred before debounced period
         debounce_period = config.monitoring.runs.interval
         services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-            services.api.tests.unit.conftest.freeze(
+            tests.conftest.freeze(
                 original_update_run_updated_time,
                 now=now_date() - timedelta(seconds=float(2 * debounce_period)),
             )

@@ -21,7 +21,6 @@ import json
 import typing
 import unittest.mock
 
-import aioresponses
 import deepdiff
 import fastapi
 import httpx
@@ -36,8 +35,8 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import services.api.utils.clients.iguazio
-from services.api.utils.asyncio import maybe_coroutine
 from services.api.tests.unit.conftest import aioresponses_mock
+from services.api.utils.asyncio import maybe_coroutine
 
 
 def patch_restful_request(

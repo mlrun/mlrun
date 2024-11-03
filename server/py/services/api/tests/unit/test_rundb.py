@@ -27,9 +27,9 @@ from mlrun.config import config
 from mlrun.db.base import RunDBInterface
 from services.api.initial_data import init_data
 from services.api.rundb import sqldb
+from services.api.tests.unit.conftest import new_run, run_now
 from services.api.utils.singletons.db import initialize_db
 from services.api.utils.singletons.logs_dir import initialize_logs_dir
-from services.api.tests.unit.conftest import new_run, run_now
 
 dbs = [
     "sql",

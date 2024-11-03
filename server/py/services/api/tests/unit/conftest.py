@@ -12,25 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import os
 import pathlib
 import shutil
 import typing
 import unittest.mock
 from collections.abc import Generator
-from tempfile import NamedTemporaryFile, TemporaryDirectory
 from http import HTTPStatus
-import os
-
-import requests
-import v3io.dataplane.response
-from aioresponses import aioresponses as aioresponses_
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 import deepdiff
 import httpx
+
+# Importing here since mlrun_pipelines imports mlconf and it causes circular import
+import mlrun_pipelines.utils  # noqa
 import pytest
 import pytest_asyncio
+import requests
 import semver
 import sqlalchemy.orm
+import v3io.dataplane.response
+from aioresponses import aioresponses as aioresponses_
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -54,7 +56,6 @@ import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
 from mlrun import mlconf
-import mlrun_pipelines.utils
 from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
@@ -272,6 +273,7 @@ def iguazio_client(
     setattr(client, "mode", request.param)
     return client
 
+
 # TODO: This fixture is duplicated with tests.common_fixtures.aioresponses_mock because we don't have a way to
 #  share fixtures between client and server tests. Ideally we would use pytest --import-mode importlib to run the
 #  server tests from the root directory, but that does not work ATM without changing the import path to include
@@ -282,6 +284,7 @@ def aioresponses_mock():
         # handy function to get how many times requests were made using this specific mock
         aior.called_times = lambda: len(list(aior.requests.values())[0])
         yield aior
+
 
 def freeze(f, **kwargs):
     """
@@ -297,6 +300,7 @@ def freeze(f, **kwargs):
         return f(*args, **kwargs)
 
     return wrapper
+
 
 def run_now():
     return datetime.datetime.now().strftime(run_time_fmt)
@@ -608,6 +612,7 @@ class MockSpecificCalls:
         else:
             return self.return_value
 
+
 # TODO: This fixture is duplicated with tests.common_fixtures.patch_file_forbidden because we don't have a way to
 #  share fixtures between client and server tests. Ideally we would use pytest --import-mode importlib to run the
 #  server tests from the root directory, but that does not work ATM without changing the import path to include
@@ -642,6 +647,7 @@ def patch_file_forbidden(monkeypatch):
     monkeypatch.setattr(requests, "head", mock_get)
     monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
 
+
 @pytest.fixture
 def patch_file_not_found(monkeypatch):
     class MockV3ioObject:
@@ -671,6 +677,7 @@ def patch_file_not_found(monkeypatch):
     monkeypatch.setattr(requests, "get", mock_get)
     monkeypatch.setattr(requests, "head", mock_get)
     monkeypatch.setattr(v3io.dataplane, "Client", MockV3ioClient)
+
 
 def mock_failed_get_func(status_code: int):
     def mock_get(*args, **kwargs):

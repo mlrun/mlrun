@@ -288,6 +288,7 @@ def test_log_artifact(
         generate_target_path
     )
 
+    monkeypatch.setenv("V3IO_ACCESS_KEY", "123")
     monkeypatch.setattr(
         mlrun.datastore.DataItem,
         "upload",

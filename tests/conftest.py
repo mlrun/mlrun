@@ -35,6 +35,7 @@ root_path = str(Path(tests_root_directory).parent)
 examples_path = Path(tests_root_directory).parent.joinpath("examples")
 pytest_plugins = ["tests.common_fixtures"]
 
+
 def check_docker():
     if not platform.startswith("linux"):
         return False

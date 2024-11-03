@@ -664,7 +664,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    services.api.utils.singletons.db.get_db()._delete_multi_objects = unittest.mock.Mock()
+    services.api.utils.singletons.db.get_db()._delete_multi_objects = (
+        unittest.mock.Mock()
+    )
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
         f"projects/{project_name}",

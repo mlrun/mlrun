@@ -1758,9 +1758,7 @@ class BaseRuntimeHandler(ABC):
             run = {}
         if not run and search_run:
             try:
-                # Session may be stale at this point since runs are being created in the background
-                # populate_existing ensures we get an up-to-date version of the run
-                run = db.read_run(db_session, uid, project, populate_existing=True)
+                run = db.read_run(db_session, uid, project)
             except mlrun.errors.MLRunNotFoundError:
                 run = {}
         if not run:
@@ -1779,7 +1777,19 @@ class BaseRuntimeHandler(ABC):
                 }
             }
             if search_run:
-                db.store_run(db_session, run, uid, project)
+                try:
+                    # It shouldn't really be possible that there is a runtime resource for a run and no run as:
+                    # 1. The run is created before the runtime resources.
+                    # 2. The runtime resources are deleted before the run can be.
+                    # Therefore, this means there is some DB isolation level issues here, so we do a best effort create
+                    # or get.
+                    run = db.create_or_get_run(db_session, run, uid, project)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to create or get run, ignoring..",
+                        uid=uid,
+                        exc=err_to_str(exc),
+                    )
 
         return run
 

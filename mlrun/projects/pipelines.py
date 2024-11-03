@@ -593,13 +593,13 @@ class _KFPRunner(_PipelineRunner):
             logger.warning(
                 "Setting notifications on kfp pipeline runner uses old notification behavior. "
                 "Notifications will only be sent if you wait for pipeline completion. "
-                "To use the new notification behavior, use the remote pipeline runner."
+                "Some of the features (like setting message or severity level) are not supported."
             )
             # for start message, fallback to old notification behavior
             for notification in notifications or []:
-                project.notifiers.add_notification(
-                    notification.kind, notification.params
-                )
+                params = notification.params
+                params.update(notification.secret_params)
+                project.notifiers.add_notification(notification.kind, params)
 
         run_id = _run_pipeline(
             workflow_handler,
@@ -1081,7 +1081,7 @@ def load_and_run(
     # extract "start" notification if exists
     start_notifications = [
         notification
-        for notification in context.get_notifications()
+        for notification in context.get_notifications(unmask_secret_params=True)
         if "running" in notification.when
     ]
 

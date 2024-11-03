@@ -32,10 +32,14 @@ Model monitoring is currently in Tech Preview status. Migrating from 1.7.0 to la
 
 ```{toctree}
 :maxdepth: 1
-
-../model-monitoring/index
-../model-monitoring/model-monitoring-flow
-../model-monitoring/monitoring-models
 ../model-monitoring/applications
-../concepts/alerts
+../model-monitoring/monitoring-models
+../model-monitoring/monitoring-models-grafana
+../model-monitoring/index
 ```
+
+**See also**
+
+- {ref}`genai-02-mm-llm`
+- {ref}`realtime-monitor-drift-tutor`
+- [Demo: Large Language Model Monitoring](https://github.com/mlrun/demo-monitoring-and-feedback-loop)

@@ -354,6 +354,9 @@ The resulting configuration for the function is:
 {"region": "us-central1", "zone": "us-east1", "gpu": "true", "arch": "amd64"}
 ```
 
+```{admonition} Tip
+Be sure that the node selectors you are configuring are compatible with the available nodes in your cluster. Incompatible node selectors are not validated at the project level and could result in scheduling issues when running functions.
+```
 ### Overriding node selectors
 
 You can override and ignore node selectors defined at the project level or service level from the function level 
@@ -365,31 +368,33 @@ The zone label from the project level is completely removed, and the resulting c
 ```
 {"gpu": "true", "arch": "amd64"}
 ```
-### Preventing conflicts
+### Preventing and resolving conflicts
 
 If your function run is stuck with the status `pending`, it's possible that the "specified" node selector does not exist. There are three 
 levels of node selectors in MLRun: function, project, and service. At runtime, the system combines these selectors and applies the resolved 
 configuration to the pod.
 
-How to Investigate:
+**How to Investigate:**
 1. Check the Configuration Files: Look in the `function.yaml` and `project.yaml` files to see if there are any node selector settings.
 2. Review Node Selectors in the UI: Go to **Projects > Jobs and Workflows > Monitor Jobs > Overview > Node Selector**. This shows the node selector 
 that was ultimately defined for the run after combining the function, project, and service settings.
 3. Check Pod Errors in the UI: Go to **Projects > Jobs and Workflows > Monitor Job > Pods**, where you can see the pod details. If no nodes are found 
 that match the specified node selector, the error is displayed here.
+> For Nuclio functions (Nuclio, serving, and application runtimes) the final resolved node selector is displayed in the Nuclio UI. It is not visible on MLRun function spec since it may be further enriched by Nuclio (See {ref}node-selector-runtimes section for more information).
 
-Resolving Conflicts:</br>
+**Resolving Conflicts**:</br>
 If the node selectors from the function, project, or service levels, conflict or result in an impossible combination, you can resolve 
 the issue by specifying the conflicting node selector key with an empty string value on your function. Be cautious with this approach 
 and consult your project admin before making changes to ensure it won’t cause other issues.
 
 
+(node-selector-runtimes)=
 ### Runtimes
 Each runtime type is handled individually, with specific behaviors defined for Nuclio and Spark. These special behaviors ensure 
 that each runtime type is handled according to its unique requirements.
 
 - Nuclio: For all runtime types, the node selector is applied to the run object that was created as a result of the execution.
-Since Nuclio doesn't have a runtime object in the same way as other runtimes, the final merged node selector (derived 
+Since Nuclio doesn't have a run object in the same way as other runtimes, the final merged node selector (derived 
 from the MLRun config level, project level, and function level) is passed directly to the Nuclio config.
 This merged node selector becomes the function configuration for Nuclio, and Nuclio itself performs a similar operation, 
 merging it with the Nuclio service level config.
@@ -519,5 +524,11 @@ State thresholds are not supported for Nuclio/serving runtimes (since they have 
 You can set the log level for individual functions. 
 - To set the log level in the function itself: `context.logger.set_logger_level(level="WARN")`
 - To set the log level outside the function, using an environment variable: `func.set_env(name="MLRUN_LOG_LEVEL",value="WARN")`
-- To set the log level for a Nuclio function (Remote, Serving or Application runtime): `func.set_config(key="spec.loggerSinks", value=[{"level":"warning"}])`
+- To set the log level for a Nuclio function (Remote, Serving or Application runtime): `func.set_config(key="spec.loggerSinks", value=[{"level":"warn"}])`
+
+Valid values:
+- error 
+- warn
+- info
+- debug
 

@@ -106,6 +106,6 @@ class PipelineProviderMixin:
             ).get("status", {})
             for node in workflow_status.get("nodes", {}).values():
                 # The "DAG" node is the parent node of the pipeline so we skip it for getting the detailed error
-                if node["type"] != "DAG":
+                if node["type"] not in ["DAG", "Skipped"]:
                     if message := node.get("message"):
                         return message

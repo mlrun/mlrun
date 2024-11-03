@@ -1046,7 +1046,7 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
         expected_page=1,
         expected_results_count=page_size,
         expected_page_size=page_size,
-        expected_first_result_name="artifact-0",
+        expected_first_result_name="artifact-24",
         entity_name="artifacts",
         entity_identifier_name="key",
     )
@@ -1059,12 +1059,14 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
         },
     )
 
+    # Artifact results are returned in descending order based on the updated date.
+    # The first artifact will be the most recently updated (artifact-24).
     tests.api.api.utils.assert_pagination_info(
         response=response,
         expected_page=2,
         expected_results_count=page_size,
         expected_page_size=page_size,
-        expected_first_result_name="artifact-10",
+        expected_first_result_name="artifact-14",
         entity_name="artifacts",
         entity_identifier_name="key",
     )
@@ -1081,7 +1083,7 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
         expected_page=3,
         expected_results_count=5,
         expected_page_size=page_size,
-        expected_first_result_name="artifact-20",
+        expected_first_result_name="artifact-4",
         entity_name="artifacts",
         entity_identifier_name="key",
     )

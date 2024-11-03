@@ -1509,9 +1509,9 @@ class SQLDB(DBInterface):
             )
 
         if limit:
-            # Order the query before applying the limit
-            query = query.order_by(ArtifactV2.updated.desc())
-            query = query.limit(limit)
+            # Order the results before applying the limit to ensure that the limit is applied to the correctly
+            # ordered results.
+            query = query.order_by(ArtifactV2.updated.desc()).limit(limit)
 
         # limit operation loads all the results before performing the actual limiting,
         # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
@@ -1523,7 +1523,10 @@ class SQLDB(DBInterface):
 
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
-        outer_query = outer_query.order_by(ArtifactV2.updated.desc())
+        if not limit:
+            # When a limit is applied, the results are ordered before limiting, so no additional ordering is needed.
+            # If no limit is specified, ensure the results are ordered after all filtering and joins have been applied.
+            outer_query = outer_query.order_by(ArtifactV2.updated.desc())
 
         results = outer_query.all()
         if not attach_tags:

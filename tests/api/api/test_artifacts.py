@@ -1025,7 +1025,6 @@ def test_list_artifacts_returns_elements_by_order_updated_field(
         )
         assert resp.status_code == HTTPStatus.OK.value
 
-    # Make the request
     params = {"limit": limit} if limit else {}
     response = unversioned_client.get(
         LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT), params=params
@@ -1038,11 +1037,12 @@ def test_list_artifacts_returns_elements_by_order_updated_field(
         len(results) == expected_count
     ), f"Expected {expected_count} results, got {len(results)}"
 
-    # Determine expected names
-    start_index = number_of_artifacts - 1 if not limit else number_of_artifacts - limit
-    expected_names = [f"artifact-{i}" for i in range(start_index, number_of_artifacts)]
+    start_index = number_of_artifacts - 1
+    expected_names = [
+        f"artifact-{i}" for i in range(start_index, start_index - expected_count, -1)
+    ]
 
-    for artifact, expected_name in zip(results, reversed(expected_names)):
+    for artifact, expected_name in zip(results, expected_names):
         artifact_name = artifact["metadata"]["key"]
         assert (
             artifact_name == expected_name

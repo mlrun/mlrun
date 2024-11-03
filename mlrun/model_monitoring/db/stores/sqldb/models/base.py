@@ -135,7 +135,6 @@ class ApplicationResultBaseTable(BaseModel):
     result_kind = Column(ResultData.RESULT_KIND, String(40))
     result_value = Column(ResultData.RESULT_VALUE, Float)
     result_extra_data = Column(ResultData.RESULT_EXTRA_DATA, Text)
-    current_stats = Column(ResultData.CURRENT_STATS, Text)
 
 
 class ApplicationMetricsBaseTable(BaseModel):

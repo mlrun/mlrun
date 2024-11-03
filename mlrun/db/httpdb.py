@@ -1162,8 +1162,11 @@ class HTTPRunDB(RunDBInterface):
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
-        resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
-        values = ArtifactList(resp.json()["artifacts"])
+        responses = self.paginated_api_call(
+            "GET", endpoint_path, error, params=params, version="v2"
+        )
+        paginated_responses = self.process_paginated_responses(responses, "artifacts")
+        values = ArtifactList(paginated_responses)
         values.tag = tag
         return values
 

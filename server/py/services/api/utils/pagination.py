@@ -62,6 +62,7 @@ class PaginatedMethods:
         # TODO: add methods when they implement pagination
         services.api.crud.Runs().list_runs,
         services.api.crud.Functions().list_functions,
+        services.api.crud.Artifacts().list_artifacts,
     ]
     _method_map = {
         method.__name__: {

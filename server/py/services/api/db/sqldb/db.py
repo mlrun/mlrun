@@ -764,7 +764,9 @@ class SQLDB(DBInterface):
         most_recent: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: int = None,
-    ):
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> typing.Union[list, ArtifactList]:
         project = project or config.default_project
 
         if best_iteration and iter is not None:
@@ -789,6 +791,8 @@ class SQLDB(DBInterface):
             most_recent=most_recent,
             attach_tags=not as_records,
             limit=limit,
+            page=page,
+            page_size=page_size,
         )
         if as_records:
             return artifact_records
@@ -1427,6 +1431,8 @@ class SQLDB(DBInterface):
         attach_tags: bool = False,
         limit: int = None,
         with_entities: list[Any] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> typing.Union[list[Any],]:
         """
         Find artifacts by the given filters.
@@ -1449,6 +1455,8 @@ class SQLDB(DBInterface):
         :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
         :param limit: Maximum number of artifacts to return
         :param with_entities: List of columns to return
+        :param page: The page number to query.
+        :param page_size: The page size to query.
 
         :return: May return:
             1. a list of tuples of (ArtifactV2, tag_name)
@@ -1459,6 +1467,11 @@ class SQLDB(DBInterface):
             message = "Category and Kind filters can't be given together"
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
+
+        if limit and page_size:
+            raise mlrun.errors.MLRunConflictError(
+                "'page_size' and 'limit' are conflicting, only one can be specified."
+            )
 
         # create a sub query that gets only the artifact IDs
         # apply all filters and limits
@@ -1527,6 +1540,8 @@ class SQLDB(DBInterface):
             # When a limit is applied, the results are ordered before limiting, so no additional ordering is needed.
             # If no limit is specified, ensure the results are ordered after all filtering and joins have been applied.
             outer_query = outer_query.order_by(ArtifactV2.updated.desc())
+
+        outer_query = self._paginate_query(outer_query, page, page_size)
 
         results = outer_query.all()
         if not attach_tags:
@@ -1890,7 +1905,7 @@ class SQLDB(DBInterface):
         tag: typing.Optional[str] = None,
         labels: list[str] = None,
         hash_key: typing.Optional[str] = None,
-        format_: str = mlrun.common.formatters.FunctionFormat.full,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
         since: datetime = None,

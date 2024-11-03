@@ -52,8 +52,11 @@ def connector() -> Iterator[TDEngineConnector]:
         drop_database(connection)
 
 
+@pytest.mark.parametrize(("with_result_extra_data"), [False, True])
 @pytest.mark.skipif(not is_tdengine_defined(), reason="TDEngine is not defined")
-def test_write_application_event(connector: TDEngineConnector) -> None:
+def test_write_application_event(
+    connector: TDEngineConnector, with_result_extra_data: bool
+) -> None:
     endpoint_id = "1"
     app_name = "my_app"
     result_name = "my_Result"
@@ -71,9 +74,7 @@ def test_write_application_event(connector: TDEngineConnector) -> None:
         "end_infer_time": end_infer_time,
         "result_status": result_status,
         # make sure we can write apostrophes (ML-7535)
-        "current_stats": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
-        # TODO: add this back when extra data is supported (ML-7460)
-        # "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
+        "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,
     }
     connector.create_tables()
@@ -92,6 +93,7 @@ def test_write_application_event(connector: TDEngineConnector) -> None:
             ),
         ],
         type="results",
+        with_result_extra_data=with_result_extra_data,
     )
     assert len(read_back_results) == 1
     read_back_result = read_back_results[0]
@@ -104,6 +106,8 @@ def test_write_application_event(connector: TDEngineConnector) -> None:
     assert read_back_values.timestamp == end_infer_time
     assert read_back_values.value == result_value
     assert read_back_values.status == result_status
+    if with_result_extra_data:
+        assert read_back_values.extra_data == data["result_extra_data"]
 
     # ML-8062
     connector.delete_tsdb_resources()

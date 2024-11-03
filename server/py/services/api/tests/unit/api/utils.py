@@ -78,6 +78,37 @@ async def create_project_async(
     return resp
 
 
+def assert_pagination_info(
+    response,
+    expected_page: int,
+    expected_results_count: int,
+    expected_page_size: int,
+    expected_first_result_name: str,
+    entity_name: str,
+    entity_identifier_name: str,
+):
+    assert response.status_code == HTTPStatus.OK.value
+
+    pagination = response.json().get("pagination")
+    assert (
+        pagination.get("page") == expected_page
+    ), f"Expected page {expected_page}, got {pagination.get('page')}"
+    assert (
+        pagination.get("page-size") == expected_page_size
+    ), f"Expected page size {expected_page_size}, got {pagination.get('page-size')}"
+
+    results = response.json().get(entity_name, [])
+    assert (
+        len(results) == expected_results_count
+    ), f"Expected {expected_results_count} results, got {len(results)}"
+
+    if results:
+        first_result_identifier = results[0]["metadata"].get(entity_identifier_name)
+        assert (
+            first_result_identifier == expected_first_result_name
+        ), f"Expected first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
+
+
 def _create_project_obj(
     project_name,
     artifact_path,

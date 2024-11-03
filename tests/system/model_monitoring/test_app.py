@@ -764,8 +764,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         self._test_artifacts(ep_id=ep_id)
         self._test_api(ep_id=ep_id)
-        if _DefaultDataDriftAppData in self.apps_data:
-            self._test_model_endpoint_stats(ep_id=ep_id)
+        # TODO: uncomment the following 2 lines once the new API for getting model endpoint stats is implemented
+        # if _DefaultDataDriftAppData in self.apps_data:
+        # self._test_model_endpoint_stats(ep_id=ep_id)
         self._test_error_alert()
 
 

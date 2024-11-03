@@ -24,9 +24,12 @@ class NotificationBase:
         self,
         name: str = None,
         params: dict[str, str] = None,
+        default_params: dict[str, str] = None,
     ):
         self.name = name
         self.params = params or {}
+        default_params = default_params or {}
+        self.params = self.fill_default_params(self.params, default_params)
 
     @classmethod
     def validate_params(cls, params):
@@ -58,6 +61,12 @@ class NotificationBase:
         params: dict[str, str],
     ) -> None:
         self.params = params or {}
+
+    @classmethod
+    def fill_default_params(cls, params: dict, default_params: dict):
+        returned_params = default_params.copy()
+        returned_params.update(params)
+        return returned_params
 
     def _get_html(
         self,

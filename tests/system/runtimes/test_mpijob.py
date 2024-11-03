@@ -40,7 +40,9 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
         )
         mpijob_function.spec.replicas = replicas
 
-        mpijob_run = mpijob_function.run(returns=["reduced_result", "rank_0_result"])
+        mpijob_run = mpijob_function.run(
+            returns=["reduced_result", "rank_0_result"], schedule="0 * * * *"
+        )
         assert mpijob_run.status.state == RunStates.completed
 
         reduced_result = mpijob_run.status.results["reduced_result"]

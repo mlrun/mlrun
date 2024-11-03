@@ -45,6 +45,13 @@ class NotificationKind(mlrun.common.types.StrEnum):
     slack: str = "slack"
     """**webhook** - The slack webhook to which to send the notification."""
 
+    mail: str = "mail"
+    """
+    **to_email** - The target mail\n
+    **subject** - The subject of the mail\n
+    **body** - The body of the mail\n
+    """
+
     webhook: str = "webhook"
     """
     **url** - The webhook url to which to send the notification.\n

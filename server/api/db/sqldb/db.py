@@ -1468,6 +1468,11 @@ class SQLDB(DBInterface):
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
 
+        if limit and page_size:
+            raise mlrun.errors.MLRunConflictError(
+                "'page_size' and 'limit' are conflicting, only one can be specified."
+            )
+
         # create a sub query that gets only the artifact IDs
         # apply all filters and limits
         query = session.query(ArtifactV2).with_entities(

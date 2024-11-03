@@ -72,7 +72,6 @@ RUN python -m pip install \
     -r docs-requirements.txt
 
 COPY . .
-ENV PYTHONPATH=${ROOT}:${ROOT}/server/py
 
 RUN pip install -e .[complete] &&\
     pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common &&\

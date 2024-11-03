@@ -31,6 +31,7 @@ docstring-code-format = true
 
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
+pythonpath = "./server/py" # This allows running server side tests from the project root directory
 python_files = [
     "tests/*/test_*.py",
     "tests/test_*.py",

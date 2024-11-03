@@ -24,8 +24,8 @@ import mlrun.common.schemas
 import services.api.main
 import services.api.tests.unit.api.utils
 import services.api.utils.singletons.scheduler
-from services.api.tests.unit.conftest import aioresponses_mock
 from services.api.utils.singletons.db import get_db
+from tests.common_fixtures import aioresponses_mock
 
 ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
 
@@ -155,7 +155,7 @@ def test_list_schedules(
 async def test_redirection_from_worker_to_chief_create_schedule(
     db: sqlalchemy.orm.Session,
     async_client: httpx.AsyncClient,
-    aioresponses_mock,
+    aioresponses_mock: aioresponses_mock,
     method: str,
     body: dict,
     expected_status: int,

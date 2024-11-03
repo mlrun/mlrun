@@ -23,9 +23,9 @@ from sqlalchemy.orm import Session
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import services.api.crud
-import services.api.tests.unit.conftest
 import services.api.utils.helpers
 import services.api.utils.runtimes
+import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
@@ -289,7 +289,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 services.api.utils.singletons.db.get_db()._update_run_updated_time
             )
             services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-                services.api.tests.unit.conftest.freeze(
+                tests.conftest.freeze(
                     original_update_run_updated_time,
                     now=now_date()
                     + timedelta(
@@ -311,7 +311,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 services.api.utils.singletons.db.get_db()._update_run_updated_time
             )
             services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-                services.api.tests.unit.conftest.freeze(
+                tests.conftest.freeze(
                     original_update_run_updated_time,
                     now=now_date()
                     + timedelta(
@@ -461,9 +461,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             services.api.utils.singletons.db.get_db()._update_run_updated_time
         )
         services.api.utils.singletons.db.get_db()._update_run_updated_time = (
-            services.api.tests.unit.conftest.freeze(
-                original_update_run_updated_time, now=now_date()
-            )
+            tests.conftest.freeze(original_update_run_updated_time, now=now_date())
         )
         services.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project

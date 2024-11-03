@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import traceback
+import typing
+from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -34,6 +36,8 @@ out_path = f"{results}/out"
 root_path = str(Path(tests_root_directory).parent)
 examples_path = Path(tests_root_directory).parent.joinpath("examples")
 pytest_plugins = ["tests.common_fixtures"]
+
+run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def check_docker():
@@ -87,6 +91,37 @@ def wait_for_server(url, timeout_sec):
     return False
 
 
+def run_now():
+    return datetime.now().strftime(run_time_fmt)
+
+
+def new_run(state, labels, uid=None, **kw):
+    obj = {
+        "metadata": {"name": "run-name", "labels": labels},
+        "status": {"state": state, "start_time": run_now()},
+    }
+    if uid:
+        obj["metadata"]["uid"] = uid
+    obj.update(kw)
+    return obj
+
+
+def freeze(f, **kwargs):
+    """
+    Enables to override an attribute passed to a sub-function without the need to access the function directly
+    :param f: the function we want to pass the attribute to
+    :param kwargs: dictionary containing name(key) and value of the attributes to override.
+    :return: wrapped function with overridden attributes
+    """
+    frozen = kwargs
+
+    def wrapper(*args, **kwargs):
+        kwargs.update(frozen)
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
 def exec_mlrun(args, cwd=None, op="run"):
     cmd = [executable, "-m", "mlrun", op] + args
     out = run(cmd, capture_output=True, cwd=cwd)
@@ -96,3 +131,24 @@ def exec_mlrun(args, cwd=None, op="run"):
         print(traceback.format_exc())
         raise Exception(out.stderr.decode("utf-8"))
     return out.stdout.decode("utf-8")
+
+
+class MockSpecificCalls:
+    def __init__(
+        self,
+        original_function: typing.Callable,
+        call_indexes_to_mock: list[int],
+        return_value: typing.Any,
+    ):
+        self.original_function = original_function
+        self.call_indexes_to_mock = call_indexes_to_mock
+        self.return_value = return_value
+
+    calls = 0
+
+    def mock_function(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls not in self.call_indexes_to_mock:
+            return self.original_function(*args, **kwargs)
+        else:
+            return self.return_value

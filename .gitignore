@@ -15,7 +15,7 @@ __pycache__/
 .hypothesis/
 
 # Test results and temporary test files
-test_results/
+tests/test_results/
 tests/temp*
 tests/*.pkl
 tests/project.yaml

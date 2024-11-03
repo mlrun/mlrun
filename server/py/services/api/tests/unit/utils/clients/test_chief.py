@@ -31,7 +31,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import services.api.utils.clients.chief
-from services.api.tests.unit.conftest import aioresponses_mock
+from tests.common_fixtures import aioresponses_mock
 
 
 @pytest.fixture()

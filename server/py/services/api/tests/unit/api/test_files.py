@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 # fixtures for test, aren't used directly so we need to ignore the lint here
 import mlrun
 import services.api.api.endpoints.files
-from services.api.tests.unit.conftest import (  # noqa: F401
+from tests.common_fixtures import (  # noqa: F401
     patch_file_forbidden,
     patch_file_not_found,
 )

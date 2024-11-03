@@ -453,7 +453,6 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 
 .PHONY: test
 test: ## Run mlrun tests
-	$(MAKE) -C server/py test; server_test_status=$$?; \
 	python \
 		-X faulthandler \
 		-m pytest -v \
@@ -463,10 +462,9 @@ test: ## Run mlrun tests
 		--ignore=tests/integration \
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
+		--ignore=server/py/services/api/migrations \
 		--forked \
-		-rf \
-		tests; client_test_status=$$?; \
-    exit $$(($$server_test_status | $$client_test_status))
+		-rf
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
@@ -501,7 +499,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: ## Run mlrun db migrations tests
-	$(MAKE) -C server/py test-migrations
+	./automation/scripts/test_migration_mysql.sh
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -705,7 +703,7 @@ ifndef MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH
 endif
 	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 $(MLRUN_BC_TESTS_BASE_CODE_PATH)/server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json && \
 	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible

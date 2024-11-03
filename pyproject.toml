@@ -46,6 +46,7 @@ asyncio_mode = "auto"
 [tool.importlinter]
 root_packages = [
     "mlrun",
+    "tests",
     "server.py.services",
 ]
 include_external_packages = true
@@ -91,6 +92,7 @@ name = "MLRun should not directly import kfp [use mlrun_pipelines instead]"
 type = "forbidden"
 source_modules = [
     "mlrun",
+    "services",
     "server.py.services",
 ]
 forbidden_modules = [
@@ -102,5 +104,21 @@ name = "MLRun server may import mlrun but not the way around"
 type = "layers"
 layers = [
     "server.py.services",
+    "services",
     "mlrun",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun tests shouldn't import server code"
+type = "forbidden"
+source_modules = [
+    "tests",
+]
+forbidden_modules = [
+    "services",
+    "server.py.services",
+]
+# Ignore integration tests until we have service specific integration tests infrastructure
+ignore_imports = [
+    "tests.integration.sdk_api.alerts.test_alerts -> services ",
 ]

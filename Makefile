@@ -452,7 +452,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
 .PHONY: test
-test: ## Run mlrun tests
+test: clean ## Run mlrun tests
 	python \
 		-X faulthandler \
 		-m pytest -v \
@@ -498,7 +498,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
 
 .PHONY: test-migrations
-test-migrations: ## Run mlrun db migrations tests
+test-migrations: clean ## Run mlrun db migrations tests
 	./automation/scripts/test_migration_mysql.sh
 
 .PHONY: test-system-dockerized

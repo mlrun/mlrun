@@ -37,13 +37,13 @@ import services.api.api.utils
 import services.api.crud
 import services.api.main
 import services.api.tests.unit.api.utils
-import services.api.tests.unit.conftest
 import services.api.utils.builder
 import services.api.utils.clients.chief
 import services.api.utils.clients.iguazio
 import services.api.utils.functions
 import services.api.utils.singletons.db
 import services.api.utils.singletons.k8s
+import tests.conftest
 
 PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
@@ -359,7 +359,7 @@ async def test_multiple_store_function_race_condition(
     """
     await services.api.tests.unit.api.utils.create_project_async(async_client, PROJECT)
     # Make the get function method to return None on the first two calls, and then use the original function
-    get_function_mock = services.api.tests.unit.conftest.MockSpecificCalls(
+    get_function_mock = tests.conftest.MockSpecificCalls(
         services.api.utils.singletons.db.get_db()._get_class_instance_by_uid,
         [1, 2],
         None,

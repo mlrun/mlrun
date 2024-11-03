@@ -55,6 +55,5 @@ python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--import-mode importlib \
 		-rf \
 		"${ROOT_DIR}"/server/py/services/api/migrations/tests/*

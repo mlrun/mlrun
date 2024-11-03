@@ -67,6 +67,7 @@ def create_workdir(root_dir="/tmp"):
 def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
+    env["PYTHONPATH"] = str(project_dir_path / "server" / "py")
     env["MLRUN_HTTPDB__PORT"] = str(port)
     env["MLRUN_HTTPDB__DSN"] = (
         f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"

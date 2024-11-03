@@ -2417,27 +2417,6 @@ class SQLDB(DBInterface):
             main_table_identifier_values=names,
         )
 
-    def align_schedule_labels(self, session: Session):
-        schedules_update = []
-        for db_schedule in self.list_schedules(session=session, as_records=True):
-            schedule_record = self._transform_schedule_record_to_scheme(db_schedule)
-            db_schedule_labels = {
-                label.name: label.value for label in db_schedule.labels
-            }
-            merged_labels = (
-                server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
-                    labels=db_schedule_labels,
-                    scheduled_object=schedule_record.scheduled_object,
-                )
-            )
-            self._update_schedule_body(
-                schedule=db_schedule,
-                scheduled_object=schedule_record.scheduled_object,
-                labels=merged_labels,
-            )
-            schedules_update.append(db_schedule)
-        self._upsert(session, schedules_update)
-
     def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing project schedules from db", project=project)
         self._delete_multi_objects(

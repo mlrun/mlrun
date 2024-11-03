@@ -29,6 +29,11 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 import server.api.crud.secrets
 import server.api.rundb.sqldb
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasureFile,
+    delete_model_monitoring_stats_folder,
+)
 from mlrun.utils import logger
 
 
@@ -147,10 +152,26 @@ class ModelEndpoints:
             )
         )
         model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
-
+        if (
+            model_endpoint.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        ):
+            # Create model monitoring stats files:
+            cls._create_model_monitoring_stats_files(model_endpoint=model_endpoint)
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
         return model_endpoint
+
+    @classmethod
+    def _create_model_monitoring_stats_files(
+        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
+    ):
+        ModelMonitoringCurrentStatsFile.from_model_endpoint(
+            model_endpoint=model_endpoint
+        ).create()
+        ModelMonitoringDriftMeasureFile.from_model_endpoint(
+            model_endpoint=model_endpoint
+        ).create()
 
     def patch_model_endpoint(
         self,
@@ -586,6 +607,8 @@ class ModelEndpoints:
             model_monitoring_applications=model_monitoring_applications,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+        # Delete model monitoring stats folder.
+        delete_model_monitoring_stats_folder(project=project_name)
         logger.debug(
             "Successfully deleted model monitoring endpoints resources",
             project_name=project_name,

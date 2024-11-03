@@ -240,7 +240,6 @@ class ModelMonitoringWriter(StepToDict):
                 )
                 file_object.create(data)
 
-
     def do(self, event: _RawEvent) -> None:
         event, kind = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)

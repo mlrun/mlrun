@@ -24,6 +24,7 @@ from mlrun.common.schemas.model_monitoring.constants import StatsKind
 from mlrun.model_monitoring.helpers import (
     get_monitoring_current_stats_data,
     get_monitoring_drift_measures_data,
+    get_monitoring_stats_directory_path,
 )
 from mlrun.utils import logger
 
@@ -53,7 +54,7 @@ class ModelMonitoringJsonFile(AbstractContextManager):
             self._data = data
             self._item.put(json.dumps(self._data))
         else:
-            self._item.put(self.INITIAL_CONTENT)
+            self._item.put(json.dumps(self.INITIAL_CONTENT))
 
     def delete(self) -> None:
         """Delete json file if it exists"""
@@ -133,4 +134,17 @@ class ModelMonitoringDriftMeasureFile(ModelMonitoringJsonFile):
         return cls(
             project=model_endpoint.metadata.project,
             endpoint_id=model_endpoint.metadata.uid,
+        )
+
+
+def delete_model_monitoring_stats_folder(project: str) -> None:
+    """Delete the model monitoring schedules folder of the project"""
+    folder = get_monitoring_stats_directory_path(project)
+    fs = mlrun.datastore.store_manager.object(folder).store.filesystem
+    if fs and fs.exists(folder):
+        logger.debug("Deleting model monitoring stats folder", folder=folder)
+        fs.rm(folder, recursive=True)
+    elif fs is None:  # In-memory store
+        raise mlrun.errors.MLRunValueError(
+            "Cannot delete a folder without a file-system"
         )

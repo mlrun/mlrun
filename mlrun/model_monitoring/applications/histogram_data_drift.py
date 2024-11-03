@@ -238,10 +238,15 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             stats.append(
                 mm_results._ModelMonitoringApplicationStats(
                     name=stats_type.value,
-                    stats=metrics_per_feature.T.to_dict()
-                    | {metric.name: metric.value for metric in metrics}
-                    if stats_type == StatsKind.DRIFT_MEASURES
-                    else monitoring_context.sample_df_stats,
+                    stats={
+                        "data": metrics_per_feature.T.to_dict()
+                        | {metric.name: metric.value for metric in metrics}
+                        if stats_type == StatsKind.DRIFT_MEASURES
+                        else monitoring_context.sample_df_stats,
+                        "timestamp": monitoring_context.end_infer_time.isoformat(
+                            sep=" ", timespec="microseconds"
+                        ),
+                    },
                 )
             )
         return stats

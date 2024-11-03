@@ -23,9 +23,6 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 import deepdiff
 import httpx
-
-# Importing here since mlrun_pipelines imports mlconf and it causes circular import
-import mlrun_pipelines.utils  # noqa
 import pytest
 import pytest_asyncio
 import requests
@@ -62,6 +59,9 @@ from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 from services.api.initial_data import init_data
 from services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
+
+# Importing here since mlrun_pipelines imports mlconf and it causes circular import
+import mlrun_pipelines.utils  # isort:skip
 
 tests_root_directory = pathlib.Path(__file__).absolute().parent
 assets_path = tests_root_directory.joinpath("assets")

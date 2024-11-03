@@ -3035,8 +3035,11 @@ class SQLDB(DBInterface):
         for result in schedules_pending_count_per_project:
             project_name, schedule_name, kind = result
             if kind == mlrun_constants.MLRunInternalLabels.workflow:
+                # We check the workflow label because the schedule kind
+                # is not used properly (not setting pipelines kind for workflow schedules)
+                # TODO: fix the schedule kind to be pipeline when scheduling workflows
                 project_to_schedule_pending_workflows_count[project_name] += 1
-            elif kind == mlrun.common.schemas.ScheduleKinds.job:
+            else:
                 project_to_schedule_pending_jobs_count[project_name] += 1
 
         return (

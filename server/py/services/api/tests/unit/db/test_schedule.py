@@ -85,7 +85,7 @@ def test_calculate_schedules_counters(db: DBInterface, db_session: Session):
         project="project1",
         name="job1",
         labels={
-            mlrun_constants.MLRunInternalLabels.kind: mlrun.runtimes.RuntimeKinds.job
+            mlrun_constants.MLRunInternalLabels.kind: mlrun.runtimes.RuntimeKinds.spark
         },
         kind=mlrun.common.schemas.ScheduleKinds.job,
         cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
@@ -112,5 +112,5 @@ def test_calculate_schedules_counters(db: DBInterface, db_session: Session):
     assert counters == (
         {"project1": 1, "project2": 3},  # total schedule count per project
         {"project1": 1},  # pending jobs count per project
-        {"project2": 3},
-    )  # pending pipelines count per project
+        {"project2": 3},  # pending pipelines count per project
+    )

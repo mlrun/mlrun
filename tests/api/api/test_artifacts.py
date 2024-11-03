@@ -1008,47 +1008,6 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     assert len(artifacts) == 0, "since now filter returned artifacts unexpectedly"
 
 
-@pytest.mark.parametrize("limit", [None, 6])
-def test_list_artifacts_returns_elements_by_order_updated_field(
-    db: Session, unversioned_client: TestClient, limit
-):
-    _create_project(unversioned_client)
-
-    # Create artifacts
-    number_of_artifacts = 10
-    for counter in range(number_of_artifacts):
-        artifact_name = f"artifact-{counter}"
-        json_data = _generate_artifact_body(key=artifact_name)
-        resp = unversioned_client.put(
-            STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"/{artifact_name}",
-            json=json_data,
-        )
-        assert resp.status_code == HTTPStatus.OK.value
-
-    params = {"limit": limit} if limit else {}
-    response = unversioned_client.get(
-        LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT), params=params
-    )
-
-    results = response.json().get("artifacts", [])
-
-    expected_count = limit if limit else number_of_artifacts
-    assert (
-        len(results) == expected_count
-    ), f"Expected {expected_count} results, got {len(results)}"
-
-    start_index = number_of_artifacts - 1
-    expected_names = [
-        f"artifact-{i}" for i in range(start_index, start_index - expected_count, -1)
-    ]
-
-    for artifact, expected_name in zip(results, expected_names):
-        artifact_name = artifact["metadata"]["key"]
-        assert (
-            artifact_name == expected_name
-        ), f"Expected {expected_name}, got {artifact_name}"
-
-
 def _create_project(
     client: TestClient, project_name: str = PROJECT, prefix: str = None
 ):

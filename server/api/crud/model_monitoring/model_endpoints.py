@@ -344,8 +344,14 @@ class ModelEndpoints:
         )
         if model_endpoint_store:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
-
             logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
+        # Delete stats files
+        ModelMonitoringCurrentStatsFile(
+            project=project, endpoint_id=endpoint_id
+        ).delete()
+        ModelMonitoringDriftMeasureFile(
+            project=project, endpoint_id=endpoint_id
+        ).delete()
 
     def get_model_endpoint(
         self,

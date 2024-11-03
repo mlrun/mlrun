@@ -89,7 +89,7 @@ test-integration-local: compile-schemas-local
 .PHONY: test-unit-dockerized
 test-unit-dockerized: schemas-compiler
 	docker run \
-		--volume $(shell dirname $(PWD)):/app \
+		--volume $(dir $(CURDIR)):/app \
 		--workdir /app/go \
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		make test-unit-local
@@ -99,7 +99,7 @@ test-integration-dockerized: schemas-compiler
 	MLRUN_TEST_KUBECONFIG=$(if $(MLRUN_TEST_KUBECONFIG),$(MLRUN_TEST_KUBECONFIG),$(KUBECONFIG)) \
 	docker run \
 		--network host \
-		--volume $(shell dirname $(PWD)):/app \
+		--volume $(dir $(CURDIR)):/app \
 		--volume $(MLRUN_TEST_KUBECONFIG)/:/kubeconfig \
 		--env MINIKUBE_HOME=$(MINIKUBE_HOME) \
 		--env KUBECONFIG=/kubeconfig \

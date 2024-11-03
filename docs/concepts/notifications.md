@@ -16,15 +16,7 @@ MLRun supports configuring notifications on jobs and scheduled jobs. This sectio
 
 
 ## The notification object
-The notification object's schema is:
-- `kind`: str - notification kind (slack, git, etc...)
-- `when`: list[str] - run states on which to send the notification (completed, error, running)
-- `name`: str - notification name
-- `message`: str - notification message
-- `severity`: str - notification severity (info, warning, error, debug)
-- `params`: dict - notification parameters (See definitions in [Notification Kinds](#notification-params-and-secrets))
-- `secret_params`: dict - secret data notification parameters (See definitions in [Notification Params and Secrets](#notification-kinds))
-- `condition`: str - jinja template for a condition that determines whether the notification is sent or not (See [Notification Conditions](#notification-conditions))
+See {py:class}`~module-mlrun.common.schemas.notification`.
 
 
 ## Local vs. remote
@@ -33,7 +25,7 @@ Usually, a local run sends locally, and a remote run sends remotely.
 However, there are several special cases where the notification is sent locally either way.
 These cases are:
 - Local or KFP Engine Pipelines: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
-  notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently. See [Configuring Notifications For Pipelines](#configuring-notifications-for-pipelines For Pipelines for more details.)
+  notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently. See [Configuring Notifications For Pipelines](#configuring-notifications-for-pipelines) for more details.
 - Dask: Dask runs are always local (against a remote Dask cluster), so the notifications are sent locally as well.
 
 > **Disclaimer:** Notifications of local runs aren't persisted.
@@ -51,34 +43,7 @@ It's essential to utilize `secret_params` exclusively for handling sensitive inf
 
 ## Notification kinds
 
-Currently, the supported notification kinds and their params are as follows:
-
-- `slack`:
-  - `webhook`: The slack webhook to which to send the notification.
-- `git`:
-  - `token`: The git token to use for the git notification.
-  - `repo`: The git repo to which to send the notification.
-  - `issue`: The git issue to which to send the notification.
-  - `merge_request`: In GitLab (as opposed to GitHub), merge requests and issues are separate entities. 
-                     If using merge request, the issue will be ignored, and vice versa.
-  - `server`: The git server to which to send the notification.
-  - `gitlab`: (bool) Whether the git server is GitLab or not.
-- `webhook`:
-  - `url`: The webhook url to which to send the notification.
-  - `method`: The http method to use when sending the notification (GET, POST, PUT, etc...).
-  - `headers`: (dict) The http headers to send with the notification.
-  - `override_body`: (dict) The body to send with the notification. If not specified, the body will be a dict with the 
-                     `name`, `message`, `severity`, and the `runs` list of the completed runs. You can also add the run's details using: `"override_body": {"message":"Run Completed {{ runs }}"`.
-					 Results would look like 
-					 ```
-					 {
-                       "message": "Run Completed [{'project': 'my-project', 'name': 'my-function', 'host': <run-host>, 'status': {'state': 'completed', 'results': <run-results>}}]"
-                     }
-					 ```
-  - `verify_ssl`: (bool) Whether SSL certificates are validated during HTTP requests or not,
-                  The default is set to `True`.
-- `console` (no params, local only)
-- `ipython` (no params, local only)
+See {py:class}`~mlrun.common.schemas.notification.NotificationKind`.
 
 ## Configuring notifications for runs
 

@@ -1194,7 +1194,7 @@ class TestArtifacts:
 
         artifacts = db.list_artifacts(db_session, project=project, limit=limit)
 
-        expected_count = limit if limit else number_of_artifacts
+        expected_count = limit or number_of_artifacts
         assert (
             len(artifacts) == expected_count
         ), f"Expected {expected_count} results, got {len(artifacts)}"

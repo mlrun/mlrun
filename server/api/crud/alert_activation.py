@@ -29,7 +29,7 @@ class AlertActivation(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     @staticmethod
-    def get_partition_info_for_datetime(partition_interval, partition_datetime):
+    def get_partition_info(partition_interval, partition_datetime):
         """
         Generates partition details for a specified interval and datetime.
 

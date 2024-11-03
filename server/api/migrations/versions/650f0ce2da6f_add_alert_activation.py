@@ -95,7 +95,7 @@ def upgrade():
     now_utc = datetime.utcnow()
 
     partition_name, partition_value, partition_expression = (
-        server.api.crud.alert_activation.AlertActivation.get_partition_info_for_datetime(
+        server.api.crud.alert_activation.AlertActivation.get_partition_info(
             partition_interval=partition_interval,
             partition_datetime=now_utc,
         )

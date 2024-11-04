@@ -27,7 +27,12 @@ __all__ = [
 ]
 
 from .operations import build_function, deploy_function, run_function  # noqa
-from .pipelines import project_loader, load_and_run_workflow, pipeline_context  # noqa
+from .pipelines import (
+    project_loader,
+    load_and_run_workflow,
+    load_and_run,
+    pipeline_context,
+)  # noqa
 from .project import (
     MlrunProject,
     ProjectMetadata,

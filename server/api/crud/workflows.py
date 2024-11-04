@@ -278,7 +278,6 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         source, save, is_context = LoadRunner._validate_source(project, "")
 
         parameters = {
-            "load_only": True,
             "dirty": save,
         }
 
@@ -478,7 +477,6 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             engine=workflow_request.spec.engine,
             local=workflow_request.spec.run_local,
             subpath=project.spec.subpath,
-            load_only=False,
             url=url or source,
         )
 

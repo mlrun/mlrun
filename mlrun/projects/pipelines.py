@@ -984,6 +984,40 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
+def load_and_run(
+    context: mlrun.execution.MLClientCtx,
+    url: str = None,
+    project_name: str = "",
+    init_git: bool = None,
+    subpath: str = None,
+    clone: bool = False,
+    workflow_name: str = None,
+    workflow_path: str = None,
+    workflow_arguments: dict[str, typing.Any] = None,
+    artifact_path: str = None,
+    workflow_handler: typing.Union[str, typing.Callable] = None,
+    namespace: str = None,
+    sync: bool = False,
+    dirty: bool = False,
+    engine: str = None,
+    local: bool = None,
+    schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
+    cleanup_ttl: int = None,
+    wait_for_completion: bool = False,
+    project_context: str = None,
+    load_only: bool = None,
+):
+    """
+    This function serves as an alias to `load_and_run_workflow`,
+    allowing to continue using `load_and_run` without modifying existing workflows or exported runs.
+    This approach ensures backward compatibility,
+    while directing all new calls to the updated `load_and_run_workflow` function.
+    """
+    args = locals().copy()
+    args.pop("load_only")
+    load_and_run_workflow(**args)
+
+
 def load_and_run_workflow(
     context: mlrun.execution.MLClientCtx,
     url: str = None,
@@ -991,7 +1025,6 @@ def load_and_run_workflow(
     init_git: bool = None,
     subpath: str = None,
     clone: bool = False,
-    save: bool = True,
     workflow_name: str = None,
     workflow_path: str = None,
     workflow_arguments: dict[str, typing.Any] = None,
@@ -1017,7 +1050,6 @@ def load_and_run_workflow(
     :param init_git:            if True, will git init the context dir
     :param subpath:             project subpath (within the archive)
     :param clone:               if True, always clone (delete any existing content)
-    :param save:                whether to save the created project and artifact in the DB
     :param workflow_name:       name of the workflow
     :param workflow_path:       url to a workflow file, if not a project workflow
     :param workflow_arguments:  kubeflow pipelines arguments (parameters)
@@ -1057,10 +1089,6 @@ def load_and_run_workflow(
     project = mlrun.get_or_create_project(
         context=project_context or f"./{project_name}",
         name=project_name,
-        init_git=init_git,
-        subpath=subpath,
-        clone=clone,
-        save=save,
     )
 
     # extract "start" notification if exists

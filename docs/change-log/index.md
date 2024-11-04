@@ -129,7 +129,7 @@
 |ML-6065|Fixed serving graphs when working with Kafka.|
 |ML-6068|Feature-store Redis-target is now created by default with the project/feature-set in the path.|
 |ML-6194|When running a remote workflow, the client side does not need to contain workflow local files.|
-|ML-6249|Reduction in the time that feature sets with a large number of entities take to query (and no longer timeout).|
+|ML-6249|Reduced the time that feature sets with a large number of entities take to query (and no longer timeout).|
 |ML-6253|The `project.build_function()`now passes the `requirements_file parameter` when the  engine is not `kfp`.|
 |ML-6602/6556|You can now specify a UID when running `artifacts.get_model`.|
 |ML-6800|Resolved spiking of CPU and memory of mlrun-api service.|
@@ -148,13 +148,13 @@
 |ML-7358|MLRun client now validates SSL certificates by default.|
 |ML-7367|Updated OS packages for MLRun UI.|
 |ML-7404/7405|Documentation: Added the minimum Nuclio version for supporting [`disable_default_http_trigger`](../cheat-sheet.html#serving-nuclio-triggers).|
-|ML-7416|An error message is displayed upon workflow failure in the "Monitor workflows" tab.|
+|ML-7416|An error message is now displayed upon workflow failure in the "Monitor workflows" tab.|
 |ML-7599|Fixed mlrun-api vulnerabilities.|
 |ML-7613|The pipeline SDK output now displays the logs in addition to the graph animation, and it also raises a warning when a client uses notifications with `engine=kfp`.|
 |ML-7655|The "filter by label" in the Models page is now case insensitive.|
 |ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines.|
-|ML-7674|Change MLClientCtx.log_level() to correctly reflect the context logger log level.|
-|ML-7706|Change `sync_functions` to be "best effort" when scheduling workflows or running remote workflows.|
+|ML-7674|Modified MLClientCtx.log_level() to change the context logger log level|
+|ML-7706|Changed `sync_functions` to be "best effort" when scheduling workflows or running remote workflows.|
 |ML-7796|New `project.run()` parameter {py:meth}`workflow_runner_node_selector <mlrun.projects.MlrunProject.run>` that defines the node selector for the workflow runner pod when using a remote engine.|
 |ML-7907|Fixed an issue with RabbitMQ event path when using Model serving functions.|
 |ML-8027|Resolved issue of MLRun taking too long to start. |

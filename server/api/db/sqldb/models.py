@@ -899,7 +899,7 @@ with warnings.catch_warnings():
         number_of_events = Column(Integer, nullable=False)
 
         def get_identifier_string(self) -> str:
-            return f"{self.id}"
+            return f"{self.project}/{self.name}/{self.id}"
 
 
 # Must be after all table definitions

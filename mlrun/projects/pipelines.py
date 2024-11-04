@@ -984,38 +984,14 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
-def load_and_run(
-    context: mlrun.execution.MLClientCtx,
-    url: str = None,
-    project_name: str = "",
-    init_git: bool = None,
-    subpath: str = None,
-    clone: bool = False,
-    workflow_name: str = None,
-    workflow_path: str = None,
-    workflow_arguments: dict[str, typing.Any] = None,
-    artifact_path: str = None,
-    workflow_handler: typing.Union[str, typing.Callable] = None,
-    namespace: str = None,
-    sync: bool = False,
-    dirty: bool = False,
-    engine: str = None,
-    local: bool = None,
-    schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-    cleanup_ttl: int = None,
-    wait_for_completion: bool = False,
-    project_context: str = None,
-    load_only: bool = None,
-):
+def load_and_run(*args, **kwargs):
     """
     This function serves as an alias to `load_and_run_workflow`,
     allowing to continue using `load_and_run` without modifying existing workflows or exported runs.
     This approach ensures backward compatibility,
     while directing all new calls to the updated `load_and_run_workflow` function.
     """
-    args = locals().copy()
-    args.pop("load_only")
-    load_and_run_workflow(**args)
+    load_and_run_workflow(kwargs.pop("load_only", None))
 
 
 def load_and_run_workflow(

@@ -28,7 +28,7 @@ from alembic import op
 from sqlalchemy.dialects import mysql
 
 import mlrun.common.schemas.alert
-import server.api.crud.alert_activation
+import services.api.crud.alert_activation
 
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
@@ -96,7 +96,7 @@ def upgrade():
     now_utc = datetime.utcnow()
 
     partition_name, partition_value, partition_expression = (
-        server.api.crud.alert_activation.AlertActivation.get_partition_info(
+        services.api.crud.alert_activation.AlertActivation.get_partition_info(
             partition_interval=partition_interval,
             partition_datetime=now_utc,
         )

@@ -17,7 +17,7 @@ from datetime import datetime
 
 import pytest
 
-import server.api.crud.alert_activation
+import services.api.crud.alert_activation
 
 
 @pytest.mark.parametrize(
@@ -87,7 +87,7 @@ def test_get_partition_info_for_datetime(
     """
     # Get actual values from the function
     partition_name, partition_value, partition_expression = (
-        server.api.crud.alert_activation.AlertActivation().get_partition_info(
+        services.api.crud.alert_activation.AlertActivation().get_partition_info(
             partition_interval,
             partition_datetime,
         )

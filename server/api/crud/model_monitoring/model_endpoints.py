@@ -30,14 +30,14 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 import server.api.crud.secrets
 import server.api.rundb.sqldb
-from mlrun.model_monitoring.db._stats import (
-    ModelMonitoringCurrentStatsFile,
-    ModelMonitoringDriftMeasureFile,
-    delete_model_monitoring_stats_folder,
-)
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFile,
     delete_model_monitoring_schedules_folder,
+)
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasuresFile,
+    delete_model_monitoring_stats_folder,
 )
 from mlrun.utils import logger
 
@@ -177,7 +177,7 @@ class ModelEndpoints:
         ModelMonitoringCurrentStatsFile.from_model_endpoint(
             model_endpoint=model_endpoint
         ).create()
-        ModelMonitoringDriftMeasureFile.from_model_endpoint(
+        ModelMonitoringDriftMeasuresFile.from_model_endpoint(
             model_endpoint=model_endpoint
         ).create()
 
@@ -358,7 +358,7 @@ class ModelEndpoints:
         ModelMonitoringCurrentStatsFile(
             project=project, endpoint_id=endpoint_id
         ).delete()
-        ModelMonitoringDriftMeasureFile(
+        ModelMonitoringDriftMeasuresFile(
             project=project, endpoint_id=endpoint_id
         ).delete()
 

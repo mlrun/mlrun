@@ -30,10 +30,11 @@ from mlrun.common.schemas.model_monitoring.constants import (
     WriterEvent,
     WriterEventKind,
 )
+from mlrun.common.schemas.model_monitoring.constants import HistogramDataDriftApplicationConstants
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,
-    ModelMonitoringDriftMeasureFile,
+    ModelMonitoringDriftMeasuresFile,
 )
 from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
@@ -229,7 +230,7 @@ class ModelMonitoringWriter(StepToDict):
                 )
                 file_object.create(data)
         elif stat_kind == StatsKind.DRIFT_MEASURES.value:
-            with ModelMonitoringDriftMeasureFile(
+            with ModelMonitoringDriftMeasuresFile(
                 self.project, endpoint_id
             ) as file_object:
                 logger.info(

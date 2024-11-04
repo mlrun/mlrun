@@ -97,9 +97,6 @@ class _PushToMonitoringWriter(StepToDict):
                     mm_constant.WriterEventKind.RESULT
                 )
                 writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
-                data[mm_constant.ResultData.CURRENT_STATS] = json.dumps(
-                    application_context.sample_df_stats  # TODO: Roy remove this from event types and than from here
-                )
             elif isinstance(result, _ModelMonitoringApplicationStats):
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.STATS

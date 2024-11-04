@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from dataclasses import dataclass
 from typing import Final, Optional, Protocol, Union, cast
 
@@ -25,7 +24,6 @@ import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 import mlrun.model_monitoring.features_drift_table as mm_drift_table
 from mlrun.common.schemas.model_monitoring.constants import (
-    EventFieldType,
     HistogramDataDriftApplicationConstants,
     ResultKindApp,
     ResultStatusApp,

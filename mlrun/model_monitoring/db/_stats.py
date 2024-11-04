@@ -115,7 +115,7 @@ class ModelMonitoringCurrentStatsFile(ModelMonitoringJsonFile):
         )
 
 
-class ModelMonitoringDriftMeasureFile(ModelMonitoringJsonFile):
+class ModelMonitoringDriftMeasuresFile(ModelMonitoringJsonFile):
     def __init__(self, project: str, endpoint_id: str) -> None:
         """
         Initialize File object specific for drift measures.
@@ -130,7 +130,7 @@ class ModelMonitoringDriftMeasureFile(ModelMonitoringJsonFile):
     @classmethod
     def from_model_endpoint(
         cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
-    ) -> "ModelMonitoringDriftMeasureFile":
+    ) -> "ModelMonitoringDriftMeasuresFile":
         return cls(
             project=model_endpoint.metadata.project,
             endpoint_id=model_endpoint.metadata.uid,

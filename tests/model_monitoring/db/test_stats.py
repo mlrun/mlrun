@@ -20,8 +20,9 @@ import pytest
 import mlrun
 from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,
-    ModelMonitoringDriftMeasureFile,
+    ModelMonitoringDriftMeasuresFile,
 )
+from tests.assets.log_function import features
 
 
 @pytest.fixture(autouse=True)
@@ -40,22 +41,25 @@ def current_stats_file() -> Iterator[ModelMonitoringCurrentStatsFile]:
     yield file
     file.delete()
 
+
 @pytest.fixture
 def current_stats() -> dict:
-    current_stats_dictionary = {}
+    current_stats_dictionary = features
     return current_stats_dictionary
 
 
 @pytest.fixture
 def drift_measures_file() -> Iterator[ModelMonitoringCurrentStatsFile]:
-    file = ModelMonitoringDriftMeasureFile(project="stats-test", endpoint_id="1")
+    file = ModelMonitoringDriftMeasuresFile(project="stats-test", endpoint_id="1")
     file.create()
     yield file
     file.delete()
 
+
 def drift_measure() -> dict:
-    drift_measure_dictionary = {}
+    drift_measure_dictionary = features
     return drift_measure_dictionary
+
 
 def test_create_current_stats_file():
     file = ModelMonitoringCurrentStatsFile(
@@ -71,7 +75,7 @@ def test_create_current_stats_file():
 
 
 def test_create_drift_measure_file():
-    file = ModelMonitoringDriftMeasureFile(
+    file = ModelMonitoringDriftMeasuresFile(
         project="project-a", endpoint_id="fdshgffjt5"
     )
     file.create()
@@ -93,18 +97,25 @@ def test_delete_current_stats_file():
 
 
 def test_delete_drift_measure_file():
-    file = ModelMonitoringDriftMeasureFile(
+    file = ModelMonitoringDriftMeasuresFile(
         project="project-b", endpoint_id="dgfgdgrth6346"
     )
     file.create()
     file.delete()
     assert not file._fs.exists(file._path), "The current stats file was not deleted"
 
-def test_current_stats(current_stats_file: ModelMonitoringCurrentStatsFile, current_stats: dict):
-    current_stats_file.create(data=current_stats)
-    assert json.dumps(current_stats) == current_stats_file._item.get().decode(), "Wrong fetched data from current stats file"
 
-def test_drift_measure(drift_measures_file: ModelMonitoringDriftMeasureFile, drift_measures: dict):
+def test_current_stats(
+    current_stats_file: ModelMonitoringCurrentStatsFile, current_stats: dict
+):
+    current_stats_file.create(data=current_stats)
+    assert (
+        json.dumps(current_stats) == current_stats_file._item.get().decode()
+    ), "Wrong fetched data from current stats file"
+
+
+def test_drift_measure(
+    drift_measures_file: ModelMonitoringDriftMeasuresFile, drift_measures: dict
+):
     drift_measures_file.create(data=drift_measures)
     assert json.dumps(drift_measures) == drift_measures_file._item.get().decode()
-

@@ -662,7 +662,6 @@ def _start_periodic_partition_management():
     )
 
 
-
 async def _start_periodic_stop_logs():
     if config.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.legacy:
         logger.info(

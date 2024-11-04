@@ -234,4 +234,3 @@ class PartitionInterval(StrEnum):
         if interval and cls.is_valid(interval):
             return cls[interval]
         return None
-

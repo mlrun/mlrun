@@ -239,7 +239,9 @@ def test_get_partition_expression_and_interval(
             "get_partition_expression_for_table",
         ) as mocked_get_partition_expression_for_table,
     ):
-        mocked_get_partition_expression_for_table.return_value = mocked_partition_expression
+        mocked_get_partition_expression_for_table.return_value = (
+            mocked_partition_expression
+        )
         partition_expression, partition_interval = (
             services.api.crud.alert_activation.AlertActivation().get_partition_expression_and_interval(db)
         )

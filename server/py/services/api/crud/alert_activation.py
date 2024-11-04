@@ -198,11 +198,9 @@ class AlertActivation(
 
     def get_partition_expression_and_interval(self, session: Session):
         # Retrieve the partition function from the database
-        partition_expression = (
-            services.api.utils.singletons.db.get_db().get_partition_expression_for_table(
-                session,
-                table_name=self.table_name,
-            )
+        partition_expression = services.api.utils.singletons.db.get_db().get_partition_expression_for_table(
+            session,
+            table_name=self.table_name,
         )
 
         partition_function = partition_expression[
@@ -212,6 +210,7 @@ class AlertActivation(
             partition_function
         )
         return partition_expression, partition_interval
+
     @property
     def table_name(self) -> str:
         return "alert_activation"

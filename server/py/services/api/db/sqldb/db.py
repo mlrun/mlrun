@@ -5462,7 +5462,6 @@ class SQLDB(DBInterface):
         result = session.execute(statement)
         return result.scalar()
 
-
     @staticmethod
     def _transform_alert_template_schema_to_record(
         alert_template: mlrun.common.schemas.AlertTemplate,

@@ -25,6 +25,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    PrimaryKeyConstraint,
     String,
     Table,
     UniqueConstraint,
@@ -38,7 +39,6 @@ from services.api.utils.db.sql_types import SQLTypesUtil
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-
 
 _tagged = None
 _labeled = None
@@ -868,6 +868,38 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.key}"
+
+    class AlertActivation(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "alert_activation"
+        __table_args__ = (
+            PrimaryKeyConstraint("activation_time", "id", name="_alert_activation_uc"),
+            Index("ix_alert_activation_project_name", "project", "name"),
+            Index("ix_alert_activation_activation_time", "activation_time"),
+        )
+
+        id = Column(Integer)
+        activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
+        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        data = Column(JSON)
+        entity_id = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        entity_kind = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        event_kind = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        number_of_events = Column(Integer, nullable=False)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}/{self.id}"
 
 
 # Must be after all table definitions

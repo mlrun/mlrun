@@ -200,3 +200,17 @@ class AlertTemplate(
             or self.reset_policy != other.reset_policy
             or self.criteria != other.criteria
         )
+
+
+class PartitionInterval(StrEnum):
+    DAY = "DAY"
+    MONTH = "MONTH"
+    YEARWEEK = "YEARWEEK"
+
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        return value in cls._value2member_map_
+
+    @classmethod
+    def valid_intervals(cls) -> list:
+        return list(cls._value2member_map_.keys())

@@ -14,7 +14,6 @@
 #
 
 from datetime import timedelta
-from typing import Tuple
 
 import mlrun.utils.singleton
 
@@ -31,7 +30,7 @@ class AlertActivation(
     @staticmethod
     def get_partition_info(
         partition_interval, partition_datetime
-    ) -> Tuple[str, str, str]:
+    ) -> tuple[str, str, str]:
         """
         Generates partition details for a specified interval and datetime.
 

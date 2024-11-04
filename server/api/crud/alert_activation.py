@@ -17,7 +17,6 @@ from datetime import datetime, timedelta
 
 import mlrun.utils.singleton
 
-valid_partition_intervals = ["DAY", "YEARWEEK", "MONTH"]
 partition_name_format_mapping = {
     "MONTH": "%Y%m",  # Format as 'YYYYMM' (year and month)
     "DAY": "%Y%m%d",  # Format as 'YYYYMMDD' (year, month, day)
@@ -60,19 +59,16 @@ class AlertActivation(
 
         if partition_interval == "DAY":
             partition_boundary_date = partition_datetime + timedelta(days=1)
-            partition_value = partition_boundary_date.strftime(
-                partition_name_format_mapping["DAY"]
-            )
-            partition_expression = "DAY(activation_time)"
         elif partition_interval == "MONTH":
             partition_boundary_date = (
                 partition_datetime.replace(day=1) + timedelta(days=32)
             ).replace(day=1)
-            partition_value = partition_boundary_date.strftime(
-                partition_name_format_mapping["MONTH"]
-            )
-            partition_expression = "MONTH(activation_time)"
         else:
             raise ValueError(f"Unsupported partition interval: {partition_interval}")
+
+        partition_value = partition_boundary_date.strftime(
+            partition_name_format_mapping[partition_interval]
+        )
+        partition_expression = f"{partition_interval}(activation_time)"
 
         return partition_name, partition_value, partition_expression

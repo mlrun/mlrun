@@ -14,6 +14,7 @@
 #
 
 from datetime import timedelta
+from typing import Tuple
 
 import mlrun.utils.singleton
 

@@ -26,10 +26,17 @@ class NotificationBase:
         params: dict[str, str] = None,
         default_params: dict[str, str] = None,
     ):
+        """
+        Initialize the notification object.
+
+        :param name: The name of the notification object.
+        :param params: The parameters of the notification object.
+        :param default_params: The default parameters of the notification object.
+                                If one of the params is not provided, the default from this dict will be used.
+        """
         self.name = name
         self.params = params or {}
-        default_params = default_params or {}
-        self.params = self.fill_default_params(self.params, default_params)
+        self.params = self.enrich_default_params(self.params, default_params)
 
     @classmethod
     def validate_params(cls, params):
@@ -63,7 +70,8 @@ class NotificationBase:
         self.params = params or {}
 
     @classmethod
-    def fill_default_params(cls, params: dict, default_params: dict):
+    def enrich_default_params(cls, params: dict, default_params: dict = None) -> dict:
+        default_params = default_params or {}
         returned_params = default_params.copy()
         returned_params.update(params)
         return returned_params

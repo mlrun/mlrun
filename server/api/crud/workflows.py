@@ -352,7 +352,7 @@ class WorkflowRunners(
                 ).get_notification()
 
                 default_params = default_notification_params.get(notification.kind, {})
-                notification.params = notification_type.fill_default_params(
+                notification.params = notification_type.enrich_default_params(
                     notification.params, default_params
                 )
 

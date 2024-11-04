@@ -23,6 +23,8 @@ import mlrun.utils.helpers
 
 from .base import NotificationBase
 
+DEFAULT_SMTP_PORT = 587
+
 
 class MailNotification(NotificationBase):
     """
@@ -35,7 +37,7 @@ class MailNotification(NotificationBase):
         "sender_address",
         "username",
         "password",
-        "to_email",
+        "email_address",
     ]
 
     @classmethod
@@ -61,7 +63,7 @@ class MailNotification(NotificationBase):
 
     @staticmethod
     async def _send_async_email(
-        to_email,
+        email_address,
         sender_address,
         server_host,
         server_port,
@@ -75,7 +77,7 @@ class MailNotification(NotificationBase):
         # Create the email message
         message = EmailMessage()
         message["From"] = sender_address
-        message["To"] = to_email
+        message["To"] = email_address
         message["Subject"] = subject
         message.set_content(body)
 
@@ -97,6 +99,8 @@ class MailNotification(NotificationBase):
         if type(params["use_tls"]) is str:
             params["use_tls"] = json.loads(params.get("use_tls", "true"))
 
+        params.setdefault("server_port", DEFAULT_SMTP_PORT)
+
         default_mail_address = params.pop("default_email_address", None)
-        params.setdefault("to_email", default_mail_address)
+        params.setdefault("email_address", default_mail_address)
         return params

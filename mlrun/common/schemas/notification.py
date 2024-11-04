@@ -47,7 +47,7 @@ class NotificationKind(mlrun.common.types.StrEnum):
 
     mail: str = "mail"
     """
-    **to_email** - The target mail\n
+    **email_address** - The target mails\n
     **subject** - The subject of the mail\n
     **body** - The body of the mail\n
     """

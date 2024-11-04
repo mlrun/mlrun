@@ -185,3 +185,13 @@ class AlertNotificationPusher(_NotificationPusherBase):
             project,
             mask_params=False,
         )
+
+
+def get_notifications_default_params():
+    return {
+        NotificationTypes.console: {},
+        NotificationTypes.git: {},
+        NotificationTypes.ipython: {},
+        NotificationTypes.slack: {},
+        NotificationTypes.webhook: {},
+    }

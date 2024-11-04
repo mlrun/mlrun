@@ -100,8 +100,13 @@ class NotificationPusher(_NotificationPusherBase):
         "aborted": "{resource} aborted",
     }
 
-    def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
+    def __init__(
+        self,
+        runs: typing.Union[mlrun.lists.RunList, list],
+        default_notification_params: dict = None,
+    ):
         self._runs = runs
+        self._default_notification_params = default_notification_params or {}
         self._sync_notifications: list[
             tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
         ] = []
@@ -221,6 +226,12 @@ class NotificationPusher(_NotificationPusherBase):
         params.update(notification_object.secret_params)
         params.update(notification_object.params)
         notification = notification_type.get_notification()(name, params)
+        default_params = self._default_notification_params.get(
+            notification_type.value, {}
+        )
+        notification.params = notification.fill_default_params(
+            notification.params, default_params
+        )
         if notification.is_async:
             self._async_notifications.append((notification, run, notification_object))
         else:

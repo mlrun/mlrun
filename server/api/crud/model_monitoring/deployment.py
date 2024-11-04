@@ -21,7 +21,6 @@ from pathlib import Path
 
 import fastapi
 import nuclio
-import nuclio.utils
 import sqlalchemy.orm
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool

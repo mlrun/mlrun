@@ -190,22 +190,14 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
                 ]
             ),
         )
+
         status = self._value_classifier.value_to_status(value)
+
         return mm_results.ModelMonitoringApplicationResult(
             name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
             value=value,
             kind=ResultKindApp.data_drift,
             status=status,
-            extra_data={
-                EventFieldType.CURRENT_STATS: json.dumps(
-                    monitoring_context.sample_df_stats
-                ),
-                EventFieldType.DRIFT_MEASURES: json.dumps(
-                    metrics_per_feature.T.to_dict()
-                    | {metric.name: metric.value for metric in metrics}
-                ),
-                EventFieldType.DRIFT_STATUS: status.value,
-            },
         )
 
     @staticmethod

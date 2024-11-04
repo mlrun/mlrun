@@ -1211,6 +1211,13 @@ class TestArtifacts:
                 artifact_name == expected_name
             ), f"Expected {expected_name}, got {artifact_name}"
 
+    def test_list_artifacts_with_limit_and_page_size(
+        self, db: DBInterface, db_session: Session
+    ):
+        project = "artifact_project"
+        with pytest.raises(mlrun.errors.MLRunConflictError):
+            db.list_artifacts(db_session, project=project, limit=10, page_size=5)
+
     def test_iterations_with_latest_tag(self, db: DBInterface, db_session: Session):
         project = "artifact_project"
         artifact_key = "artifact_key"

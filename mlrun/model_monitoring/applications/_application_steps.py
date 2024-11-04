@@ -90,13 +90,13 @@ class _PushToMonitoringWriter(StepToDict):
                 sep=" ", timespec="microseconds"
             ),
         }
-        # TODO: add two events in here for stats
         for result in application_results:
             data = result.to_dict()
             if isinstance(result, ModelMonitoringApplicationResult):
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.RESULT
                 )
+                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
                 data[mm_constant.ResultData.CURRENT_STATS] = json.dumps(
                     application_context.sample_df_stats  # TODO: Roy remove this from event types and than from here
                 )
@@ -117,9 +117,7 @@ class _PushToMonitoringWriter(StepToDict):
 
     def _lazy_init(self):
         if self.output_stream is None:
-            self.output_stream = mlrun.datastore.get_stream_pusher(
-                self.stream_uri,
-            )
+            self.output_stream = mlrun.datastore.get_stream_pusher(self.stream_uri)
 
 
 class _PrepareMonitoringEvent(StepToDict):

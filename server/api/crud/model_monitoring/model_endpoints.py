@@ -21,6 +21,7 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.datastore
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
@@ -33,6 +34,10 @@ from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,
     ModelMonitoringDriftMeasureFile,
     delete_model_monitoring_stats_folder,
+)
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFile,
+    delete_model_monitoring_schedules_folder,
 )
 from mlrun.utils import logger
 
@@ -115,7 +120,7 @@ class ModelEndpoints:
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
                 model_endpoint.spec.monitoring_mode
-                == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+                == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
             ):
                 monitoring_feature_set = cls.create_monitoring_feature_set(
                     features=features,
@@ -152,10 +157,13 @@ class ModelEndpoints:
             )
         )
         model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
+
         if (
             model_endpoint.spec.monitoring_mode
             == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
         ):
+            # Create model monitoring schedules file
+            ModelMonitoringSchedulesFile.from_model_endpoint(model_endpoint).create()
             # Create model monitoring stats files:
             cls._create_model_monitoring_stats_files(model_endpoint=model_endpoint)
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
@@ -344,6 +352,7 @@ class ModelEndpoints:
         )
         if model_endpoint_store:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
+
             logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
         # Delete stats files
         ModelMonitoringCurrentStatsFile(
@@ -352,6 +361,8 @@ class ModelEndpoints:
         ModelMonitoringDriftMeasureFile(
             project=project, endpoint_id=endpoint_id
         ).delete()
+
+        ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id).delete()
 
     def get_model_endpoint(
         self,
@@ -615,6 +626,10 @@ class ModelEndpoints:
         )
         # Delete model monitoring stats folder.
         delete_model_monitoring_stats_folder(project=project_name)
+
+        # Delete model monitoring schedules folder
+        delete_model_monitoring_schedules_folder(project_name)
+
         logger.debug(
             "Successfully deleted model monitoring endpoints resources",
             project_name=project_name,

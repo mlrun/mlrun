@@ -84,7 +84,6 @@ def upgrade():
     # ### end Alembic commands ###
 
     partition_interval = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
-    valid_partition_intervals = ["DAY", "YEARWEEK", "MONTH"]
 
     # Validate the partition interval
     if not mlrun.common.schemas.alert.PartitionInterval.is_valid(partition_interval):

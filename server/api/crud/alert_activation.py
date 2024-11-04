@@ -15,12 +15,8 @@
 
 from datetime import datetime, timedelta
 
+import mlrun.common.schemas.alert
 import mlrun.utils.singleton
-
-partition_name_format_mapping = {
-    "MONTH": "%Y%m",  # Format as 'YYYYMM' (year and month)
-    "DAY": "%Y%m%d",  # Format as 'YYYYMMDD' (year, month, day)
-}
 
 
 class AlertActivation(
@@ -42,7 +38,7 @@ class AlertActivation(
             - partition_value: The "LESS THAN" value for the next partition boundary.
             - partition_expression: The SQL partition expression.
         """
-        if partition_interval == "YEARWEEK":
+        if partition_interval == mlrun.common.schemas.alert.PartitionInterval.YEARWEEK:
             year, week, _ = partition_datetime.isocalendar()
             partition_name = f"{year}{week:02d}"
 
@@ -53,22 +49,20 @@ class AlertActivation(
             partition_expression = "YEARWEEK(activation_time, 1)"
             return partition_name, partition_value, partition_expression
 
-        partition_name = partition_datetime.strftime(
-            partition_name_format_mapping[partition_interval]
-        )
-
-        if partition_interval == "DAY":
+        if partition_interval == mlrun.common.schemas.alert.PartitionInterval.DAY:
+            partition_name = partition_datetime.strftime("%Y%m%d")
             partition_boundary_date = partition_datetime + timedelta(days=1)
-        elif partition_interval == "MONTH":
+            # Format as 'YYYYMMDD' (year, month, day)
+            partition_value = partition_boundary_date.strftime("%Y%m%d")
+        elif partition_interval == mlrun.common.schemas.alert.PartitionInterval.MONTH:
+            partition_name = partition_datetime.strftime("%Y%m")
             partition_boundary_date = (
                 partition_datetime.replace(day=1) + timedelta(days=32)
             ).replace(day=1)
+            # Format as 'YYYYMM' (year and month)
+            partition_value = partition_boundary_date.strftime("%Y%m")
         else:
             raise ValueError(f"Unsupported partition interval: {partition_interval}")
-
-        partition_value = partition_boundary_date.strftime(
-            partition_name_format_mapping[partition_interval]
-        )
         partition_expression = f"{partition_interval}(activation_time)"
 
         return partition_name, partition_value, partition_expression

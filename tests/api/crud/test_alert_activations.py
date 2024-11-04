@@ -27,14 +27,14 @@ import server.api.crud.alert_activation
             "DAY",
             datetime(2024, 10, 30),
             "20241030",
-            "2024-10-31",
+            "20241031",
             "DAY(activation_time)",
         ),
         (
             "MONTH",
             datetime(2024, 10, 30),
             "202410",
-            "2024-11-01",
+            "202411",
             "MONTH(activation_time)",
         ),
         (
@@ -42,6 +42,34 @@ import server.api.crud.alert_activation
             datetime(2024, 10, 30),
             "202444",
             "202445",
+            "YEARWEEK(activation_time, 1)",
+        ),
+        (
+            "YEARWEEK",
+            datetime(2023, 1, 1),
+            "202252",
+            "202301",
+            "YEARWEEK(activation_time, 1)",
+        ),
+        (
+            "YEARWEEK",
+            datetime(2024, 12, 31),
+            "202501",
+            "202502",
+            "YEARWEEK(activation_time, 1)",
+        ),
+        (
+            "YEARWEEK",
+            datetime(2024, 1, 1),
+            "202401",
+            "202402",
+            "YEARWEEK(activation_time, 1)",
+        ),
+        (
+            "YEARWEEK",
+            datetime(2024, 6, 15),
+            "202424",
+            "202425",
             "YEARWEEK(activation_time, 1)",
         ),
     ],
@@ -53,6 +81,10 @@ def test_get_partition_info_for_datetime(
     expected_partition_value,
     expected_expression,
 ):
+    """
+    To test from MySQL, use following code:
+    `SELECT YEARWEEK('2024-12-31', 1) AS `yearweek_value`;`
+    """
     # Get actual values from the function
     partition_name, partition_value, partition_expression = (
         server.api.crud.alert_activation.AlertActivation().get_partition_info(

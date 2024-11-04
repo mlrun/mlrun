@@ -19,7 +19,6 @@ import mlrun.utils.singleton
 
 valid_partition_intervals = ["DAY", "YEARWEEK", "MONTH"]
 partition_name_format_mapping = {
-    "YEARWEEK": "%Y%V",  # ISO week number (for weeks starting Monday)
     "MONTH": "%Y%m",  # Format as 'YYYYMM' (year and month)
     "DAY": "%Y%m%d",  # Format as 'YYYYMMDD' (year, month, day)
 }
@@ -29,7 +28,9 @@ class AlertActivation(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     @staticmethod
-    def get_partition_info(partition_interval, partition_datetime):
+    def get_partition_info(
+        partition_interval, partition_datetime
+    ) -> Tuple[str, str, str]:
         """
         Generates partition details for a specified interval and datetime.
 
@@ -41,24 +42,36 @@ class AlertActivation(
             - partition_value: The "LESS THAN" value for the next partition boundary.
             - partition_expression: The SQL partition expression.
         """
+        if partition_interval == "YEARWEEK":
+            year, week, _ = partition_datetime.isocalendar()
+            partition_name = f"{year}{week:02d}"
+
+            next_week = partition_datetime + timedelta(weeks=1)
+            next_year, next_week_num, _ = next_week.isocalendar()
+            partition_value = f"{next_year}{next_week_num:02d}"
+
+            partition_expression = "YEARWEEK(activation_time, 1)"
+            return partition_name, partition_value, partition_expression
+
         partition_name = partition_datetime.strftime(
             partition_name_format_mapping[partition_interval]
         )
 
         if partition_interval == "DAY":
             partition_boundary_date = partition_datetime + timedelta(days=1)
+            partition_value = partition_boundary_date.strftime(
+                partition_name_format_mapping["DAY"]
+            )
+            partition_expression = "DAY(activation_time)"
         elif partition_interval == "MONTH":
-            # Set to the first day of the next month
             partition_boundary_date = (
                 partition_datetime.replace(day=1) + timedelta(days=32)
             ).replace(day=1)
+            partition_value = partition_boundary_date.strftime(
+                partition_name_format_mapping["MONTH"]
+            )
+            partition_expression = "MONTH(activation_time)"
         else:
-            partition_boundary_date = partition_datetime + timedelta(weeks=1)
+            raise ValueError(f"Unsupported partition interval: {partition_interval}")
 
-        if partition_interval == "YEARWEEK":
-            partition_value = partition_boundary_date.strftime("%Y%V")
-            partition_expression = "YEARWEEK(activation_time, 1)"
-        else:
-            partition_value = partition_boundary_date.strftime("%Y-%m-%d")
-            partition_expression = f"{partition_interval}(activation_time)"
         return partition_name, partition_value, partition_expression

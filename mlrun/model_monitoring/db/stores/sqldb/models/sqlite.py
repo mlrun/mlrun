@@ -18,7 +18,6 @@ from .base import (
     ApplicationMetricsBaseTable,
     ApplicationResultBaseTable,
     ModelEndpointsBaseTable,
-    MonitoringSchedulesBaseTable,
 )
 
 Base = declarative_base()
@@ -33,8 +32,4 @@ class ApplicationResultTable(Base, ApplicationResultBaseTable):
 
 
 class ApplicationMetricsTable(Base, ApplicationMetricsBaseTable):
-    pass
-
-
-class MonitoringSchedulesTable(Base, MonitoringSchedulesBaseTable):
     pass

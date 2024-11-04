@@ -236,7 +236,9 @@ class DBInterface(ABC):
         producer_uri: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: int = None,
-    ):
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+    ) -> typing.Union[list, mlrun.lists.ArtifactList]:
         pass
 
     @abstractmethod
@@ -354,7 +356,7 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
-        format_: str = None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         page: int = None,
         page_size: int = None,
         since: datetime.datetime = None,
@@ -1040,6 +1042,7 @@ class DBInterface(ABC):
         alert_name: str,
         alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
+        force_reset: bool = False,
     ):
         pass
 

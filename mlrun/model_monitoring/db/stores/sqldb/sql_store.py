@@ -14,7 +14,6 @@
 
 import datetime
 import typing
-import uuid
 
 import pandas as pd
 import sqlalchemy
@@ -77,7 +76,6 @@ class SQLStoreBase(StoreBase):
         self._init_model_endpoints_table()
         self._init_application_results_table()
         self._init_application_metrics_table()
-        self._init_monitoring_schedules_table()
 
     def _init_model_endpoints_table(self):
         self.model_endpoints_table = (
@@ -105,14 +103,6 @@ class SQLStoreBase(StoreBase):
         )
         self._tables[mm_schemas.FileTargetKind.APP_METRICS] = (
             self.application_metrics_table
-        )
-
-    def _init_monitoring_schedules_table(self):
-        self.MonitoringSchedulesTable = mlrun.model_monitoring.db.stores.sqldb.models._get_monitoring_schedules_table(
-            connection_string=self._sql_connection_string
-        )
-        self._tables[mm_schemas.FileTargetKind.MONITORING_SCHEDULES] = (
-            self.MonitoringSchedulesTable
         )
 
     def _write(self, table_name: str, event: dict[str, typing.Any]) -> None:
@@ -429,79 +419,6 @@ class SQLStoreBase(StoreBase):
             criteria.append(table.application_name == application_name)
         return criteria
 
-    def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
-        """
-        Get the last analyzed time for the provided model endpoint and application.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param application_name: Registered application name.
-
-        :return: Timestamp as a Unix time.
-        :raise:  MLRunNotFoundError if last analyzed value is not found.
-        """
-        monitoring_schedule_record = self._get(
-            table=self.MonitoringSchedulesTable,
-            criteria=self._get_filter_criteria(
-                table=self.MonitoringSchedulesTable,
-                endpoint_id=endpoint_id,
-                application_name=application_name,
-            ),
-        )
-        if not monitoring_schedule_record:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"No last analyzed value has been found for {application_name} "
-                f"that processes model endpoint {endpoint_id}"
-            )
-        return monitoring_schedule_record.last_analyzed
-
-    def update_last_analyzed(
-        self, endpoint_id: str, application_name: str, last_analyzed: int
-    ):
-        """
-        Update the last analyzed time for the provided model endpoint and application.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param application_name: Registered application name.
-        :param last_analyzed:    Timestamp as a Unix time that represents the last analyzed time of a certain
-                                 application and model endpoint.
-        """
-        criteria = self._get_filter_criteria(
-            table=self.MonitoringSchedulesTable,
-            endpoint_id=endpoint_id,
-            application_name=application_name,
-        )
-        monitoring_schedule_record = self._get(
-            table=self.MonitoringSchedulesTable, criteria=criteria
-        )
-        if not monitoring_schedule_record:
-            # Add a new record with last analyzed value
-            self._write(
-                table_name=mm_schemas.FileTargetKind.MONITORING_SCHEDULES,
-                event={
-                    mm_schemas.SchedulingKeys.UID: uuid.uuid4().hex,
-                    mm_schemas.SchedulingKeys.APPLICATION_NAME: application_name,
-                    mm_schemas.SchedulingKeys.ENDPOINT_ID: endpoint_id,
-                    mm_schemas.SchedulingKeys.LAST_ANALYZED: last_analyzed,
-                },
-            )
-
-        self._update(
-            attributes={mm_schemas.SchedulingKeys.LAST_ANALYZED: last_analyzed},
-            table=self.MonitoringSchedulesTable,
-            criteria=criteria,
-        )
-
-    def _delete_last_analyzed(
-        self, endpoint_id: str, application_name: typing.Optional[str] = None
-    ) -> None:
-        criteria = self._get_filter_criteria(
-            table=self.MonitoringSchedulesTable,
-            endpoint_id=endpoint_id,
-            application_name=application_name,
-        )
-        # Delete the model endpoint record using sqlalchemy ORM
-        self._delete(table=self.MonitoringSchedulesTable, criteria=criteria)
-
     def _delete_application_result(
         self, endpoint_id: str, application_name: typing.Optional[str] = None
     ) -> None:
@@ -593,8 +510,6 @@ class SQLStoreBase(StoreBase):
                 endpoint_id=endpoint_id,
                 project=self.project,
             )
-            # Delete last analyzed records
-            self._delete_last_analyzed(endpoint_id=endpoint_id)
 
             # Delete application results and metrics records
             self._delete_application_result(endpoint_id=endpoint_id)

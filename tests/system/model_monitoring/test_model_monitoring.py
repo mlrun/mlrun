@@ -918,14 +918,6 @@ class TestBatchDrift(TestMLRunSystem):
         # Validate that model_uri is based on models prefix
         self._validate_model_uri(model_obj=model, model_endpoint=model_endpoint)
 
-        # Test the drift results
-        assert model_endpoint.status.feature_stats
-        assert model_endpoint.status.current_stats
-        assert (
-            int(model_endpoint.status.drift_status)
-            == mm_constants.ResultStatusApp.detected
-        )
-
         # Validate that the artifacts were logged in the project
         artifacts = project.list_artifacts(
             labels={

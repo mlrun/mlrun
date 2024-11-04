@@ -47,7 +47,6 @@ class _TDEngineColumn(mlrun.common.types.StrEnum):
     BINARY_40 = _TDEngineColumnType("BINARY", 40)
     BINARY_64 = _TDEngineColumnType("BINARY", 64)
     BINARY_1000 = _TDEngineColumnType("BINARY", 1000)
-    BINARY_10000 = _TDEngineColumnType("BINARY", 10000)
 
 
 def values_to_column(values, column_type):
@@ -62,7 +61,7 @@ def values_to_column(values, column_type):
         return taosws.binary_to_column(values)
     if column_type == _TDEngineColumn.BINARY_64:
         return taosws.binary_to_column(values)
-    if column_type == _TDEngineColumn.BINARY_10000:
+    if column_type == _TDEngineColumn.BINARY_1000:
         return taosws.binary_to_column(values)
 
     raise mlrun.errors.MLRunInvalidArgumentError(
@@ -268,6 +267,7 @@ class AppResultTable(TDEngineSchema):
             mm_schemas.WriterEvent.START_INFER_TIME: _TDEngineColumn.TIMESTAMP,
             mm_schemas.ResultData.RESULT_VALUE: _TDEngineColumn.FLOAT,
             mm_schemas.ResultData.RESULT_STATUS: _TDEngineColumn.INT,
+            mm_schemas.ResultData.RESULT_EXTRA_DATA: _TDEngineColumn.BINARY_1000,
         }
         tags = {
             mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
@@ -304,7 +304,7 @@ class Predictions(TDEngineSchema):
         columns = {
             mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,
             mm_schemas.EventFieldType.LATENCY: _TDEngineColumn.FLOAT,
-            mm_schemas.EventKeyMetrics.CUSTOM_METRICS: _TDEngineColumn.BINARY_10000,
+            mm_schemas.EventKeyMetrics.CUSTOM_METRICS: _TDEngineColumn.BINARY_1000,
         }
         tags = {
             mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,

@@ -17,6 +17,7 @@ import datetime
 
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.config
@@ -97,7 +98,7 @@ class Functions(
         hash_key: str = None,
         page: int = None,
         page_size: int = None,
-        format_: str = None,
+        format_: mlrun.common.formatters.FunctionFormat = None,
         since: datetime.datetime = None,
         until: datetime.datetime = None,
     ) -> list:

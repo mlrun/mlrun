@@ -442,6 +442,7 @@ def tsdb_df() -> pd.DataFrame:
                 -1.0,
                 0.06563064,
                 "2024-04-02 17:59:28.000000+00:00",
+                "",
             ),
             (
                 pd.Timestamp("2024-04-02 18:00:28", tz="UTC"),
@@ -452,6 +453,7 @@ def tsdb_df() -> pd.DataFrame:
                 0.0,
                 0.04651495,
                 "2024-04-02 17:59:28.000000+00:00",
+                "{'extra_data': 'some data'}",
             ),
         ],
         index="time",
@@ -464,6 +466,7 @@ def tsdb_df() -> pd.DataFrame:
             "result_status",
             "result_value",
             "start_infer_time",
+            "result_extra_data",
         ],
     )
 
@@ -508,8 +511,9 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
         yield
 
 
+@pytest.mark.parametrize(("with_result_extra_data"), [False, True])
 @pytest.mark.usefixtures("_mock_frames_client")
-def test_read_results_data() -> None:
+def test_read_results_data(with_result_extra_data: bool) -> None:
     tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
     data = tsdb_connector.read_metrics_data(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
@@ -538,11 +542,16 @@ def test_read_results_data() -> None:
                 type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
             ),
         ],
+        with_result_extra_data=with_result_extra_data,
     )
     assert len(data) == 3
     counter = Counter([type(values) for values in data])
     assert counter[ModelEndpointMonitoringResultValues] == 2
     assert counter[ModelEndpointMonitoringMetricNoData] == 1
+    if with_result_extra_data:
+        assert data[0].values[0].extra_data == "{'extra_data': 'some data'}"
+    else:
+        assert data[0].values[0].extra_data == ""
 
 
 @pytest.mark.usefixtures("_mock_frames_client_predictions")

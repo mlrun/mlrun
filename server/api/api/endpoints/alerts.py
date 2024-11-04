@@ -36,6 +36,7 @@ async def store_alert(
     project: str,
     name: str,
     alert_data: mlrun.common.schemas.AlertConfig,
+    force_reset: bool = False,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> mlrun.common.schemas.AlertConfig:
@@ -71,6 +72,7 @@ async def store_alert(
         project,
         name,
         alert_data,
+        force_reset,
     )
 
 

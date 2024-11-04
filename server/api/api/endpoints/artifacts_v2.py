@@ -22,6 +22,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
+import server.api.utils.pagination
 import server.api.utils.singletons.project_member
 from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.utils import logger
@@ -158,6 +159,9 @@ async def list_artifacts(
     limit: int = Query(None),
     since: str = None,
     until: str = None,
+    page: int = Query(None, gt=0),
+    page_size: int = Query(None, alias="page-size", gt=0),
+    page_token: str = Query(None, alias="page-token"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -167,13 +171,28 @@ async def list_artifacts(
         auth_info,
     )
 
-    artifacts = await run_in_threadpool(
-        server.api.crud.Artifacts().list_artifacts,
+    paginator = server.api.utils.pagination.Paginator()
+
+    async def _filter_artifacts(_artifacts):
+        return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            _artifacts,
+            artifact_project_and_resource_name_extractor,
+            auth_info,
+        )
+
+    artifacts, page_info = await paginator.paginate_permission_filtered_request(
         db_session,
-        project,
-        name,
-        tag,
-        labels,
+        server.api.crud.Artifacts().list_artifacts,
+        _filter_artifacts,
+        auth_info,
+        token=page_token,
+        page=page,
+        page_size=page_size,
+        project=project,
+        name=name,
+        tag=tag,
+        labels=labels,
         since=mlrun.utils.datetime_from_iso(since),
         until=mlrun.utils.datetime_from_iso(until),
         kind=kind,
@@ -185,15 +204,9 @@ async def list_artifacts(
         producer_uri=producer_uri,
         limit=limit,
     )
-
-    artifacts = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        artifacts,
-        artifact_project_and_resource_name_extractor,
-        auth_info,
-    )
     return {
         "artifacts": artifacts,
+        "pagination": page_info,
     }
 
 

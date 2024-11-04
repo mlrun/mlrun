@@ -14,7 +14,7 @@
 
 import typing
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import pydantic
@@ -131,6 +131,7 @@ class TSDBConnector(ABC):
         end: datetime,
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: typing.Literal["metrics", "results"],
+        with_result_extra_data: bool,
     ) -> typing.Union[
         list[
             typing.Union[
@@ -149,11 +150,13 @@ class TSDBConnector(ABC):
         Read metrics OR results from the TSDB and return as a list.
 
         :param endpoint_id: The model endpoint identifier.
-        :param start:       The start time of the query.
-        :param end:         The end time of the query.
-        :param metrics:     The list of metrics to get the values for.
-        :param type:        "metrics" or "results" - the type of each item in metrics.
-        :return:            A list of result values or a list of metric values.
+        :param start:                  The start time of the query.
+        :param end:                    The end time of the query.
+        :param metrics:                The list of metrics to get the values for.
+        :param type:                   "metrics" or "results" - the type of each item in metrics.
+        :param with_result_extra_data: Whether to include the extra data in the results, relevant only when
+                                       `type="results"`.
+        :return:                        A list of result values or a list of metric values.
         """
 
     @abstractmethod
@@ -193,8 +196,8 @@ class TSDBConnector(ABC):
     def get_last_request(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
@@ -212,8 +215,8 @@ class TSDBConnector(ABC):
     def get_drift_status(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the app-results TSDB table and returns the highest status among all
@@ -232,8 +235,8 @@ class TSDBConnector(ABC):
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoint.
@@ -250,8 +253,8 @@ class TSDBConnector(ABC):
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct results metadata from the app-results TSDB table for a specified model endpoint.
@@ -268,8 +271,8 @@ class TSDBConnector(ABC):
     def get_error_count(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the error TSDB table and returns the error count for each specified endpoint.
@@ -286,8 +289,8 @@ class TSDBConnector(ABC):
     def get_avg_latency(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
@@ -419,6 +422,7 @@ class TSDBConnector(ABC):
                                 sub_df.index,
                                 sub_df[mm_schemas.ResultData.RESULT_VALUE],
                                 sub_df[mm_schemas.ResultData.RESULT_STATUS],
+                                sub_df[mm_schemas.ResultData.RESULT_EXTRA_DATA],
                             )
                         ),  # pyright: ignore[reportArgumentType]
                     )
@@ -448,23 +452,19 @@ class TSDBConnector(ABC):
 
     @staticmethod
     def _get_start_end(
-        start: typing.Union[str, datetime],
-        end: typing.Union[str, datetime],
-        delta_start: int = 0,
-        delta_end: int = 0,
+        start: typing.Union[datetime, None],
+        end: typing.Union[datetime, None],
     ) -> tuple[datetime, datetime]:
         """
         static utils function for tsdb start end format
-        :param start:       Either '0', 'now', None or datetime, None is handled as datetime.min
-        :param end:         Either '0' or 'now', None or datetime, None is handled as datetime.now(tz=timezone.utc)
-        :param delta_start: Hours to add to start time only for str or None
-        :param delta_end:   Hours to add to end time only for str or None
+        :param start:       Either None or datetime, None is handled as datetime.min(tz=timezone.utc)
+        :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
         :return:            start datetime, end datetime
         """
-        if not isinstance(start, datetime):
-            start = datetime.min if start in ["0", None] else mlrun.utils.datetime_now()
-            start = start + timedelta(hours=delta_start)
-        if not isinstance(end, datetime):
-            end = datetime.min if end in ["0"] else mlrun.utils.datetime_now()
-            end = end + timedelta(hours=delta_end)
+        start = start or mlrun.utils.datetime_min()
+        end = end or mlrun.utils.datetime_now()
+        if not (isinstance(start, datetime) and isinstance(end, datetime)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both start and end must be datetime objects"
+            )
         return start, end

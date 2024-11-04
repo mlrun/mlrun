@@ -15,6 +15,7 @@
 import inspect
 import typing
 
+import orjson
 import pydantic
 import sqlalchemy.orm
 
@@ -61,6 +62,7 @@ class PaginatedMethods:
         # TODO: add methods when they implement pagination
         server.api.crud.Runs().list_runs,
         server.api.crud.Functions().list_functions,
+        server.api.crud.Artifacts().list_artifacts,
     ]
     _method_map = {
         method.__name__: {
@@ -226,7 +228,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                     f"Token {token} not found in pagination cache"
                 )
             method = PaginatedMethods.get_method(pagination_cache_record.function)
-            method_kwargs = pagination_cache_record.kwargs
+            method_kwargs = orjson.loads(pagination_cache_record.kwargs)
             page = page or pagination_cache_record.current_page + 1
             page_size = pagination_cache_record.page_size
             user = pagination_cache_record.user
@@ -238,9 +240,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
         # upsert pagination cache record to update last_accessed time or create a new record
         method_schema = PaginatedMethods.get_method_schema(method.__name__)
-        serialized_kwargs = method_schema(**method_kwargs).dict()
-        del serialized_kwargs["page"]
-        del serialized_kwargs["page_size"]
+        kwargs_schema = method_schema(**method_kwargs)
+        kwargs_schema.page = None
+        kwargs_schema.page_size = None
         self._logger.debug(
             "Storing pagination cache record",
             method=method.__name__,
@@ -253,6 +255,6 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             method=method,
             current_page=page,
             page_size=page_size,
-            kwargs=serialized_kwargs,
+            kwargs=kwargs_schema.json(exclude_none=True),
         )
-        return token, page, page_size, method, serialized_kwargs
+        return token, page, page_size, method, kwargs_schema.dict(exclude_none=True)

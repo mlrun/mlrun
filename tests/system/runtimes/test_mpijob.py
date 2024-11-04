@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+import pytest
+
 import mlrun
 import tests.system.base
 from mlrun.common.runtimes.constants import RunStates
@@ -22,6 +24,7 @@ from mlrun.common.runtimes.constants import RunStates
 class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
     project_name = "does-not-exist-mpijob"
 
+    @pytest.mark.smoke
     def test_mpijob_run(self):
         """
         Run the `handler` function in mpijob_function.py as an OpenMPI job and validate it ran properly (see the

@@ -26,7 +26,6 @@ from .base import (
     ApplicationMetricsBaseTable,
     ApplicationResultBaseTable,
     ModelEndpointsBaseTable,
-    MonitoringSchedulesBaseTable,
 )
 
 Base = declarative_base()
@@ -83,21 +82,9 @@ class ApplicationResultTable(
     result_extra_data = Column(
         ResultData.RESULT_EXTRA_DATA, sqlalchemy.dialects.mysql.MEDIUMTEXT
     )
-    current_stats = Column(
-        ResultData.CURRENT_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT
-    )
 
 
 class ApplicationMetricsTable(
     Base, _ApplicationResultOrMetric, ApplicationMetricsBaseTable
 ):
     pass
-
-
-class MonitoringSchedulesTable(Base, MonitoringSchedulesBaseTable):
-    @declared_attr
-    def endpoint_id(self):
-        return Column(
-            String(40),
-            ForeignKey(f"{EventFieldType.MODEL_ENDPOINTS}.{EventFieldType.UID}"),
-        )

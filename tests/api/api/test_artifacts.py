@@ -27,6 +27,7 @@ import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.utils
 import server.api.db.sqldb.models
+import tests.api.api.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
 PROJECT = "prj"
@@ -1006,6 +1007,96 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 0, "since now filter returned artifacts unexpectedly"
+
+
+def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestClient):
+    """
+    Test list artifacts with pagination.
+    Create 25 artifacts, request the first page, then use token to request 2nd and 3rd pages.
+    3rd page will contain only 5 artifacts instead of 10.
+    The 4th request with the token will return 404 as the token is now expired.
+    Requesting the 4th page without token will return 0 artifacts.
+    """
+    _create_project(unversioned_client)
+
+    # Create artifacts
+    number_of_artifacts = 25
+    for counter in range(number_of_artifacts):
+        artifact_name = f"artifact-{counter}"
+        json = _generate_artifact_body(key=artifact_name)
+        resp = unversioned_client.put(
+            STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"/{artifact_name}",
+            json=json,
+        )
+        assert resp.status_code == HTTPStatus.OK.value
+
+    page_size = 10
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    response = unversioned_client.get(
+        artifact_path,
+        params={
+            "page": 1,
+            "page-size": page_size,
+        },
+    )
+
+    # Artifact results are returned in descending order based on the updated date.
+    # The first artifact will be the most recently updated (artifact-24).
+    tests.api.api.utils.assert_pagination_info(
+        response=response,
+        expected_page=1,
+        expected_results_count=page_size,
+        expected_page_size=page_size,
+        expected_first_result_name="artifact-24",
+        entity_name="artifacts",
+        entity_identifier_name="key",
+    )
+    page_token = response.json()["pagination"]["page-token"]
+
+    response = unversioned_client.get(
+        artifact_path,
+        params={
+            "page-token": page_token,
+        },
+    )
+
+    tests.api.api.utils.assert_pagination_info(
+        response=response,
+        expected_page=2,
+        expected_results_count=page_size,
+        expected_page_size=page_size,
+        expected_first_result_name="artifact-14",
+        entity_name="artifacts",
+        entity_identifier_name="key",
+    )
+
+    response = unversioned_client.get(
+        artifact_path,
+        params={
+            "page-token": page_token,
+        },
+    )
+
+    tests.api.api.utils.assert_pagination_info(
+        response=response,
+        expected_page=3,
+        expected_results_count=5,
+        expected_page_size=page_size,
+        expected_first_result_name="artifact-4",
+        entity_name="artifacts",
+        entity_identifier_name="key",
+    )
+
+    response = unversioned_client.get(
+        artifact_path,
+        params={
+            "page-token": page_token,
+        },
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    assert response.json()["pagination"]["page-token"] is None
 
 
 def _create_project(

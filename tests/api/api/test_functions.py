@@ -129,7 +129,17 @@ async def test_list_functions_with_pagination(
             "page-size": page_size,
         },
     )
-    _assert_pagination_info(response, 1, page_size, page_size, "function-name-0")
+
+    tests.api.api.utils.assert_pagination_info(
+        response=response,
+        expected_page=1,
+        expected_results_count=page_size,
+        expected_page_size=page_size,
+        expected_first_result_name="function-name-0",
+        entity_name="funcs",
+        entity_identifier_name="name",
+    )
+
     page_token = response.json()["pagination"]["page-token"]
 
     response = await async_client.get(
@@ -138,7 +148,16 @@ async def test_list_functions_with_pagination(
             "page-token": page_token,
         },
     )
-    _assert_pagination_info(response, 2, page_size, page_size, "function-name-10")
+
+    tests.api.api.utils.assert_pagination_info(
+        response=response,
+        expected_page=2,
+        expected_results_count=page_size,
+        expected_page_size=page_size,
+        expected_first_result_name="function-name-10",
+        entity_name="funcs",
+        entity_identifier_name="name",
+    )
 
     response = await async_client.get(
         f"projects/{PROJECT}/functions",
@@ -146,7 +165,16 @@ async def test_list_functions_with_pagination(
             "page-token": page_token,
         },
     )
-    _assert_pagination_info(response, 3, 5, page_size, "function-name-20")
+
+    tests.api.api.utils.assert_pagination_info(
+        response=response,
+        expected_page=3,
+        expected_results_count=5,
+        expected_page_size=page_size,
+        expected_first_result_name="function-name-20",
+        entity_name="funcs",
+        entity_identifier_name="name",
+    )
 
     response = await async_client.get(
         f"projects/{PROJECT}/functions",
@@ -156,20 +184,6 @@ async def test_list_functions_with_pagination(
     )
     assert response.status_code == HTTPStatus.OK.value
     assert response.json()["pagination"]["page-token"] is None
-
-
-def _assert_pagination_info(
-    response,
-    expected_page,
-    expected_results_count,
-    expected_page_size,
-    expected_first_result_name,
-):
-    assert response.status_code == HTTPStatus.OK.value
-    assert response.json()["pagination"]["page"] == expected_page
-    assert response.json()["pagination"]["page-size"] == expected_page_size
-    assert len(response.json()["funcs"]) == expected_results_count
-    assert response.json()["funcs"][0]["metadata"]["name"] == expected_first_result_name
 
 
 @pytest.mark.asyncio

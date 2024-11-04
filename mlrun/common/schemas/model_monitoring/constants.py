@@ -136,7 +136,6 @@ class ResultData(MonitoringStrEnum):
     RESULT_KIND = "result_kind"
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
-    CURRENT_STATS = "current_stats"
 
 
 class EventLiveStats:
@@ -196,13 +195,6 @@ class ModelMonitoringStoreKinds:
     EVENTS = "events"
 
 
-class SchedulingKeys:
-    LAST_ANALYZED = "last_analyzed"
-    ENDPOINT_ID = "endpoint_id"
-    APPLICATION_NAME = "application_name"
-    UID = "uid"
-
-
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
@@ -218,7 +210,7 @@ class FileTargetKind:
     ERRORS = "errors"
 
 
-class ModelMonitoringMode(str, Enum):
+class ModelMonitoringMode(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 

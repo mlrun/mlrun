@@ -200,7 +200,7 @@ def get_or_create_ctx(
     event=None,
     spec: Optional[dict] = None,
     with_env: bool = True,
-    rundb: str = "",
+    rundb: Union[str, "mlrun.db.RunDBInterface"] = "",
     project: str = "",
     upload_artifacts: bool = False,
     labels: Optional[dict] = None,
@@ -306,7 +306,7 @@ def get_or_create_ctx(
     out = rundb or mlconf.dbpath or environ.get("MLRUN_DBPATH")
     if out:
         autocommit = True
-        logger.info(f"logging run results to: {out}")
+        logger.info(f"Logging run results to: {out}")
 
     newspec["metadata"]["project"] = (
         newspec["metadata"].get("project") or project or mlconf.default_project

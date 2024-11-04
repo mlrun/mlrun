@@ -21,6 +21,7 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.datastore
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
@@ -29,6 +30,10 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 import server.api.crud.secrets
 import server.api.rundb.sqldb
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFile,
+    delete_model_monitoring_schedules_folder,
+)
 from mlrun.utils import logger
 
 
@@ -110,7 +115,7 @@ class ModelEndpoints:
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
                 model_endpoint.spec.monitoring_mode
-                == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+                == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
             ):
                 monitoring_feature_set = cls.create_monitoring_feature_set(
                     features=features,
@@ -147,6 +152,13 @@ class ModelEndpoints:
             )
         )
         model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
+
+        if (
+            model_endpoint.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        ):
+            # Create model monitoring schedules file
+            ModelMonitoringSchedulesFile.from_model_endpoint(model_endpoint).create()
 
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
@@ -325,6 +337,8 @@ class ModelEndpoints:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
             logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
+
+        ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id).delete()
 
     def get_model_endpoint(
         self,
@@ -586,6 +600,10 @@ class ModelEndpoints:
             model_monitoring_applications=model_monitoring_applications,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+
+        # Delete model monitoring schedules folder
+        delete_model_monitoring_schedules_folder(project_name)
+
         logger.debug(
             "Successfully deleted model monitoring endpoints resources",
             project_name=project_name,

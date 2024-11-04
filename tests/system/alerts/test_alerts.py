@@ -40,13 +40,14 @@ class TestAlerts(TestMLRunSystem):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
+    @pytest.mark.smoke
     def test_job_failure_alert(self):
         """
         validate that an alert is sent in case a job fails
         """
         self.project.set_function(
             name="test-func",
-            func="assets/function.py",
+            func=str(self.assets_path / "function.py"),
             handler="handler",
             image="mlrun/mlrun" if self.image is None else self.image,
             kind="job",
@@ -103,7 +104,6 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
                         {"threshold": 0.3}
                     ),
-                    mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
         }
@@ -123,7 +123,6 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
                         {"threshold": 0.7}
                     ),
-                    mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
         }
@@ -143,7 +142,6 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
                         {"threshold": 0.4}
                     ),
-                    mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
         }
@@ -163,7 +161,6 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
                         {"threshold": 0.4}
                     ),
-                    mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
         }
@@ -282,7 +279,7 @@ class TestAlerts(TestMLRunSystem):
 
         self.project.set_function(
             name="test-func",
-            func="assets/function.py",
+            func=str(self.assets_path / "function.py"),
             handler="handler",
             image="mlrun/mlrun" if self.image is None else self.image,
             kind="job",

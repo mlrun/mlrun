@@ -74,16 +74,6 @@ context.log_artifact(
 )
 ```
 
-```{caution}
-Since each new artifact is saved in the artifact-manager store (in memory), it is not recommended
-to store a new artifact on each application run. Instead you can:
-
-- Override artifacts by using the same key.
-- Save artifacts with a unique key in special occasions, e.g., when a drift is detected.
-
-<!-- ML-7347 -->
-```
-
 ## Evidently-based application
 
 To create an Evidently based model monitoring application, import the following class:

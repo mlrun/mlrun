@@ -23,6 +23,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.errors
+import mlrun.lists
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
@@ -144,8 +145,8 @@ class Artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str = None,
-        name: str = "",
-        tag: str = "",
+        name: typing.Optional[str] = None,
+        tag: typing.Optional[str] = None,
         labels: list[str] = None,
         since: datetime.datetime = None,
         until: datetime.datetime = None,
@@ -157,6 +158,8 @@ class Artifacts(
         producer_id: str = None,
         producer_uri: str = None,
         limit: int = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -177,6 +180,8 @@ class Artifacts(
             producer_uri=producer_uri,
             format_=format_,
             limit=limit,
+            page=page,
+            page_size=page_size,
         )
         return artifacts
 

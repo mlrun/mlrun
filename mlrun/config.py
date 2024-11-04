@@ -49,6 +49,7 @@ _load_lock = Lock()
 _none_type = type(None)
 default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
+
 default_config = {
     "namespace": "",  # default kubernetes namespace
     "kubernetes": {
@@ -101,6 +102,9 @@ default_config = {
     "log_level": "INFO",
     # log formatter (options: human | human_extended | json)
     "log_formatter": "human",
+    # custom logger format, workes only with log_formatter: custom
+    # Note that your custom format must include those 4 fields - timestamp, level, message and more
+    "log_format_override": None,
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
@@ -532,8 +536,55 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
-        "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
+        "serving_stream": {
+            "v3io": {
+                "shard_count": 2,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 2,
+                "max_replicas": 2,
+            },
+            "kafka": {
+                "partition_count": 8,
+                "replication_factor": 1,
+                "num_workers": 2,
+                "min_replicas": 1,
+                "max_replicas": 4,
+            },
+        },
+        "application_stream_args": {
+            "v3io": {
+                "shard_count": 1,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 1,
+                "replication_factor": 1,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
+        "writer_stream_args": {
+            "v3io": {
+                "shard_count": 1,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 1,
+                # TODO: add retention period configuration
+                "replication_factor": 1,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -556,6 +607,10 @@ default_config = {
         "tsdb_connection": "",
         # See mlrun.common.schemas.model_monitoring.constants.StreamKind for available options
         "stream_connection": "",
+        "tdengine": {
+            "timeout": 10,
+            "retries": 1,
+        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -747,7 +802,6 @@ default_config = {
     },
     "notifications": {"smtp": {"config_secret_name": "mlrun-smtp-config"}},
 }
-
 _is_running_as_api = None
 
 
@@ -1143,9 +1197,9 @@ class Config:
 
     def get_model_monitoring_file_target_path(
         self,
-        project: str = "",
-        kind: str = "",
-        target: str = "online",
+        project: str,
+        kind: str,
+        target: typing.Literal["online", "offline"] = "online",
         artifact_path: typing.Optional[str] = None,
         function_name: typing.Optional[str] = None,
         **kwargs,

@@ -14,7 +14,6 @@
 
 import datetime
 import string
-import time
 import unittest.mock
 from collections.abc import Iterator
 from pathlib import Path
@@ -262,37 +261,6 @@ class TestSQLStore:
             event=event
         )
 
-    @staticmethod
-    def test_sql_last_analyzed_result(
-        event: _AppResultEvent,
-        new_sql_store: SQLStoreBase,
-        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ):
-        # Write mock model endpoint to DB
-        new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
-
-        # Try to get last analyzed value, we expect it to be empty
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            new_sql_store.get_last_analyzed(
-                endpoint_id=_mock_random_endpoint.metadata.uid,
-                application_name=event[WriterEvent.APPLICATION_NAME],
-            )
-
-        # Let's ingest a dummy epoch time record and validate it has been stored as expected
-        epoch_time = int(time.time())
-        new_sql_store.update_last_analyzed(
-            endpoint_id=_mock_random_endpoint.metadata.uid,
-            application_name=event[WriterEvent.APPLICATION_NAME],
-            last_analyzed=epoch_time,
-        )
-
-        last_analyzed = new_sql_store.get_last_analyzed(
-            endpoint_id=_mock_random_endpoint.metadata.uid,
-            application_name=event[WriterEvent.APPLICATION_NAME],
-        )
-
-        assert last_analyzed == epoch_time
-
     @classmethod
     def test_get_metrics(
         cls,
@@ -340,31 +308,6 @@ class TestMonitoringSchedules:
         store._create_tables_if_not_exist()
         return store
 
-    @staticmethod
-    def test_unique_last_analyzed_per_app(sqlite_store: SQLStoreBase) -> None:
-        endpoint_id = "ep-abc123"
-        app1_name = "app-A"
-        app1_last_analyzed = 1716720842
-        app2_name = "app-B"
-
-        sqlite_store.update_last_analyzed(
-            endpoint_id=endpoint_id,
-            application_name=app1_name,
-            last_analyzed=app1_last_analyzed,
-        )
-
-        assert (
-            sqlite_store.get_last_analyzed(
-                endpoint_id=endpoint_id, application_name=app1_name
-            )
-            == app1_last_analyzed
-        )
-
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            sqlite_store.get_last_analyzed(
-                endpoint_id=endpoint_id, application_name=app2_name
-            )
-
 
 @pytest.mark.parametrize(
     ("connection_string", "expected_table"),
@@ -387,15 +330,15 @@ def test_get_app_metrics_table(
 
 
 @pytest.mark.parametrize(
-    "time",
+    "time_var",
     [
         datetime.datetime.now(tz=ZoneInfo("Asia/Jerusalem")),
         "2020-05-22T08:59:54.279435+00:00",
     ],
 )
-def test_convert_to_datetime(time: Union[str, datetime.datetime]) -> None:
+def test_convert_to_datetime(time_var: Union[str, datetime.datetime]) -> None:
     time_key = "time"
-    event = {time_key: time}
+    event = {time_key: time_var}
     SQLStoreBase._convert_to_datetime(event=event, key=time_key)
     new_time = event[time_key]
     assert isinstance(new_time, datetime.datetime)

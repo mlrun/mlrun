@@ -55,6 +55,9 @@ class TDEngineConnector(TSDBConnector):
         self._connection = None
         self._init_super_tables()
 
+        self._timeout = mlrun.mlconf.model_endpoint_monitoring.tdengine.timeout
+        self._retries = mlrun.mlconf.model_endpoint_monitoring.tdengine.retries
+
     @property
     def connection(self) -> TDEngineConnection:
         if not self._connection:
@@ -65,7 +68,11 @@ class TDEngineConnector(TSDBConnector):
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
         conn = TDEngineConnection(self._tdengine_connection_string)
-        conn.run(statements=f"CREATE DATABASE IF NOT EXISTS {self.database}")
+        conn.run(
+            statements=f"CREATE DATABASE IF NOT EXISTS {self.database}",
+            timeout=self._timeout,
+            retries=self._retries,
+        )
         conn.prefix_statements = [f"USE {self.database}"]
         logger.debug("Connected to TDEngine", project=self.project)
         return conn
@@ -91,7 +98,11 @@ class TDEngineConnector(TSDBConnector):
         """Create TDEngine supertables."""
         for table in self.tables:
             create_table_query = self.tables[table]._create_super_table_query()
-            self.connection.run(statements=create_table_query)
+            self.connection.run(
+                statements=create_table_query,
+                timeout=self._timeout,
+                retries=self._retries,
+            )
 
     def write_application_event(
         self,
@@ -115,7 +126,6 @@ class TDEngineConnector(TSDBConnector):
             table_name = (
                 f"{table_name}_{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
-            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
         else:
             # Write a new metric
@@ -147,7 +157,9 @@ class TDEngineConnector(TSDBConnector):
             statements=[
                 create_table_sql,
                 insert_statement,
-            ]
+            ],
+            timeout=self._timeout,
+            retries=self._retries,
         )
 
     @staticmethod
@@ -243,13 +255,19 @@ class TDEngineConnector(TSDBConnector):
             get_subtable_names_query = self.tables[table]._get_subtables_query(
                 values={mm_schemas.EventFieldType.PROJECT: self.project}
             )
-            subtables = self.connection.run(query=get_subtable_names_query).data
+            subtables = self.connection.run(
+                query=get_subtable_names_query,
+                timeout=self._timeout,
+                retries=self._retries,
+            ).data
             drop_statements = []
             for subtable in subtables:
                 drop_statements.append(
                     self.tables[table]._drop_subtable_query(subtable=subtable[0])
                 )
-            self.connection.run(statements=drop_statements)
+            self.connection.run(
+                statements=drop_statements, timeout=self._timeout, retries=self._retries
+            )
         logger.debug(
             "Deleted all project resources using the TDEngine connector",
             project=self.project,
@@ -339,7 +357,9 @@ class TDEngineConnector(TSDBConnector):
         )
         logger.debug("Querying TDEngine", query=full_query)
         try:
-            query_result = self.connection.run(query=full_query)
+            query_result = self.connection.run(
+                query=full_query, timeout=self._timeout, retries=self._retries
+            )
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"
@@ -356,6 +376,7 @@ class TDEngineConnector(TSDBConnector):
         end: datetime,
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: typing.Literal["metrics", "results"],
+        with_result_extra_data: bool = False,
     ) -> typing.Union[
         list[
             typing.Union[
@@ -373,6 +394,12 @@ class TDEngineConnector(TSDBConnector):
         timestamp_column = mm_schemas.WriterEvent.END_INFER_TIME
         columns = [timestamp_column, mm_schemas.WriterEvent.APPLICATION_NAME]
         if type == "metrics":
+            if with_result_extra_data:
+                logger.warning(
+                    "The 'with_result_extra_data' parameter is not supported for metrics, just for results",
+                    project=self.project,
+                    endpoint_id=endpoint_id,
+                )
             table = mm_schemas.TDEngineSuperTables.METRICS
             name = mm_schemas.MetricData.METRIC_NAME
             columns += [name, mm_schemas.MetricData.METRIC_VALUE]
@@ -386,6 +413,8 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.ResultData.RESULT_STATUS,
                 mm_schemas.ResultData.RESULT_KIND,
             ]
+            if with_result_extra_data:
+                columns.append(mm_schemas.ResultData.RESULT_EXTRA_DATA)
             df_handler = self.df_to_results_values
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -421,6 +450,10 @@ class TDEngineConnector(TSDBConnector):
             endpoint_id=endpoint_id,
             is_empty=df.empty,
         )
+
+        if not with_result_extra_data and type == "results":
+            # Set the extra data to an empty string if it's not requested
+            df[mm_schemas.ResultData.RESULT_EXTRA_DATA] = ""
 
         return df_handler(df=df, metrics=metrics, project=self.project)
 
@@ -486,8 +519,8 @@ class TDEngineConnector(TSDBConnector):
     def get_last_request(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -529,8 +562,8 @@ class TDEngineConnector(TSDBConnector):
     def get_drift_status(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -564,8 +597,8 @@ class TDEngineConnector(TSDBConnector):
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -600,8 +633,8 @@ class TDEngineConnector(TSDBConnector):
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -638,8 +671,8 @@ class TDEngineConnector(TSDBConnector):
     def get_error_count(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -670,8 +703,8 @@ class TDEngineConnector(TSDBConnector):
     def get_avg_latency(
         self,
         endpoint_ids: typing.Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]

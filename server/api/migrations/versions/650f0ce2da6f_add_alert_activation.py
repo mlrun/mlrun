@@ -89,7 +89,8 @@ def upgrade():
     # Validate the partition interval
     if not mlrun.common.schemas.alert.PartitionInterval.is_valid(partition_interval):
         raise ValueError(
-            f"Partition interval can only be one of the following: {mlrun.common.schemas.alert.PartitionInterval.valid_intervals()}"
+            f"Partition interval can only be one of the following: "
+            f"{mlrun.common.schemas.alert.PartitionInterval.valid_intervals()}"
         )
 
     # Calculate the date of next partitioning interval

@@ -258,6 +258,9 @@ async def move_api_to_online():
                 == "enabled"
             ):
                 _start_periodic_project_summaries_calculation()
+
+            _start_periodic_partition_management()
+
             if config.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
                 await _start_periodic_logs_collection()
             if config.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -640,6 +643,24 @@ def _start_periodic_project_summaries_calculation():
             services.api.db.session.run_async_function_with_new_db_session,
             services.api.crud.projects.Projects().refresh_project_resources_counters_cache,
         )
+
+
+def _start_periodic_partition_management():
+    retention_weeks = config.crud.alert_activations.retention_weeks
+    logger.info(
+        "Starting periodic partition management for alert_activations",
+        retention_weeks=retention_weeks,
+    )
+    interval_in_seconds = retention_weeks * 7 * 24 * 60 * 60
+    run_function_periodically(
+        interval_in_seconds,
+        server.api.crud.AlertActivation().create_and_drop_partitions.__name__,
+        False,
+        server.api.db.session.run_async_function_with_new_db_session,
+        server.api.crud.AlertActivation().create_and_drop_partitions,
+        retention_weeks=retention_weeks,
+    )
+
 
 
 async def _start_periodic_stop_logs():

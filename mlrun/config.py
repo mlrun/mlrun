@@ -134,6 +134,9 @@ default_config = {
         "resources": {
             "delete_crd_resources_timeout": "5 minutes",
         },
+        "alert_activations": {
+            "retention_weeks": 14,
+        },
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)

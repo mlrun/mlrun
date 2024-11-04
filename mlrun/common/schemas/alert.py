@@ -214,3 +214,24 @@ class PartitionInterval(StrEnum):
     @classmethod
     def valid_intervals(cls) -> list:
         return list(cls._value2member_map_.keys())
+
+    @classmethod
+    def from_function(cls, partition_function: str):
+        """
+        Returns the corresponding PartitionInterval for a given partition function,
+        or None if the function is not mapped.
+
+        :param partition_function: The partition function to map to an interval.
+        :return: PartitionInterval corresponding to the function, or None if no match is found.
+        """
+        partition_function_to_partitions_interval = {
+            "DAY": "DAY",
+            "DAYOFMONTH": "DAY",
+            "MONTH": "MONTH",
+            "YEARWEEK": "YEARWEEK",
+        }
+        interval = partition_function_to_partitions_interval.get(partition_function)
+        if interval and cls.is_valid(interval):
+            return cls[interval]
+        return None
+

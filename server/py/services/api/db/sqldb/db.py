@@ -5385,6 +5385,85 @@ class SQLDB(DBInterface):
         ]
 
     @staticmethod
+    def create_partitions(
+        session: Session,
+        table_name: str,
+        partitioning_information_list: list[tuple[str, str, str]],
+    ):
+        """
+        Creates partitions in the specified database table.
+
+        :param session: SQLAlchemy session for database connection.
+        :param table_name: Name of the table where partitions will be created.
+        :param partitioning_information_list: List of tuples, each containing:
+            - partition_name: The name for the partition.
+            - partition_value: The "LESS THAN" boundary value for the partition.
+            - partition_expression: The SQL partition expression.
+        """
+        alter_table_template = f"""
+            ALTER TABLE {table_name}
+            PARTITION BY RANGE ({partitioning_information_list[0][2]}) (
+                {", ".join([
+            f"PARTITION p{partition_name} VALUES LESS THAN ({partition_value})"
+            for partition_name, partition_value, _ in partitioning_information_list
+        ])}
+            );
+        """
+
+        # Execute the partitioning SQL
+        session.execute(text(alter_table_template))
+        session.commit()
+
+    @staticmethod
+    def drop_partitions(session: Session, table_name: str, cutoff_partition_name: str):
+        """
+        Execute the drop operation for partitions older than the cutoff partition name.
+
+        :param session: SQLAlchemy session.
+        :param table_name: The name of the table with partitions.
+        :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
+        """
+        # Query partitions older than cutoff_partition_name
+        partitions_to_drop = session.execute(
+            text("""
+            SELECT GROUP_CONCAT(PARTITION_NAME) AS partitions 
+            FROM information_schema.PARTITIONS 
+            WHERE TABLE_SCHEMA = 'your_database_name'
+              AND TABLE_NAME = :table_name
+              AND PARTITION_NAME < :cutoff_partition_name
+        """),
+            {"table_name": table_name, "cutoff_partition_name": cutoff_partition_name},
+        ).scalar()
+
+        # Only proceed if there are partitions to drop
+        if partitions_to_drop:
+            drop_sql = f"ALTER TABLE {table_name} DROP PARTITION {partitions_to_drop}"
+            session.execute(text(drop_sql))
+            session.commit()
+
+    @staticmethod
+    def get_partition_expression_for_table(
+        session: Session,
+        table_name: str,
+    ) -> str:
+        """
+        Returns partitioning expression for alert_activations table
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table.
+
+        Output examples:
+        - month(`activation_time`)
+        - dayofmonth(`activation_time`)
+        - yearweek(`activation_time`, 1)
+        """
+        statement = text(
+            f"SELECT PARTITION_EXPRESSION FROM information_schema.PARTITIONS WHERE TABLE_NAME = '{table_name}'"
+        )
+        result = session.execute(statement)
+        return result.scalar()
+
+
+    @staticmethod
     def _transform_alert_template_schema_to_record(
         alert_template: mlrun.common.schemas.AlertTemplate,
     ) -> AlertTemplate:

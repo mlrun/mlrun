@@ -35,19 +35,20 @@ from mlrun.utils.notifications.notification.webhook import WebhookNotification
 @pytest.mark.parametrize(
     "notification_kind", mlrun.common.schemas.notification.NotificationKind
 )
-@pytest.mark.parametrize("params, default_params, expected_params",
+@pytest.mark.parametrize(
+    "params, default_params, expected_params",
     [
         (
             {"webhook": "some-webhook"},
             {"webhook": "some-default"},
-            {"webhook": "some-webhook"}
+            {"webhook": "some-webhook"},
         ),
         (
             {"webhook": "some-webhook"},
             {"hello": "world"},
-            {"webhook": "some-webhook", "hello": "world"}
+            {"webhook": "some-webhook", "hello": "world"},
         ),
-    ]
+    ],
 )
 def test_load_notification(notification_kind, params, default_params, expected_params):
     run_uid = "test-run-uid"
@@ -74,7 +75,9 @@ def test_load_notification(notification_kind, params, default_params, expected_p
         notification_kind: default_params,
     }
     notification_pusher = (
-        mlrun.utils.notifications.notification_pusher.NotificationPusher([run], default_params)
+        mlrun.utils.notifications.notification_pusher.NotificationPusher(
+            [run], default_params
+        )
     )
     notification_pusher._load_notification(run, notification)
     loaded_notifications = (

@@ -5426,10 +5426,9 @@ class SQLDB(DBInterface):
         # Query partitions older than cutoff_partition_name
         partitions_to_drop = session.execute(
             text("""
-            SELECT GROUP_CONCAT(PARTITION_NAME) AS partitions 
-            FROM information_schema.PARTITIONS 
-            WHERE TABLE_SCHEMA = 'your_database_name'
-              AND TABLE_NAME = :table_name
+            SELECT GROUP_CONCAT(PARTITION_NAME) AS partitions
+            FROM information_schema.PARTITIONS
+            WHERE TABLE_NAME = :table_name
               AND PARTITION_NAME < :cutoff_partition_name
         """),
             {"table_name": table_name, "cutoff_partition_name": cutoff_partition_name},

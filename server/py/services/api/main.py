@@ -649,15 +649,15 @@ def _start_periodic_partition_management():
     retention_days = config.crud.alert_activations.retention_days
     logger.info(
         "Starting periodic partition management for alert_activations",
-        retention_weeks=retention_weeks,
+        retention_days=retention_days,
     )
     interval_in_seconds = retention_days * 24 * 60 * 60
     run_function_periodically(
         interval_in_seconds,
-        server.api.crud.AlertActivation().create_and_drop_partitions.__name__,
+        services.api.crud.AlertActivation().create_and_drop_partitions.__name__,
         False,
-        server.api.db.session.run_async_function_with_new_db_session,
-        server.api.crud.AlertActivation().create_and_drop_partitions,
+        services.api.db.session.run_async_function_with_new_db_session,
+        services.api.crud.AlertActivation().create_and_drop_partitions,
         retention_days=retention_days,
     )
 

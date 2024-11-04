@@ -73,14 +73,14 @@ class AlertActivation(
     def create_and_drop_partitions(
         self,
         session: Session,
-        retention_weeks: int,
+        retention_days: int,
     ) -> None:
         """
-        Creates partitions for the future based on the specified retention weeks
+        Creates partitions for the future based on the specified retention days
         and drops old partitions that are older than the retention period.
 
         :param session: SQLAlchemy session for database operations.
-        :param retention_weeks: The number of weeks to retain partitions.
+        :param retention_days: The number of days to retain partitions.
         """
 
         # Retrieve the partition expression and interval from the database.
@@ -89,16 +89,16 @@ class AlertActivation(
         )
 
         # Ensure partitions for double the retention time.
-        ensure_partitions_weeks = 2 * retention_weeks
+        ensure_partitions_days = 2 * retention_days
 
         # Calculate the number of future partitions to create based on the partition interval.
         if partition_interval == "DAY":
-            partition_number = ensure_partitions_weeks * 7
+            partition_number = ensure_partitions_days
         elif partition_interval == "MONTH":
             # Average number days in a month is 30.44
-            partition_number = int(ensure_partitions_weeks * 7 / 30.44)
+            partition_number = int(ensure_partitions_days / 30.44)
         elif partition_interval == "YEARWEEK":
-            partition_number = ensure_partitions_weeks
+            partition_number = int(ensure_partitions_days / 7)
         else:
             raise ValueError(f"Unsupported partition interval: {partition_interval}")
 
@@ -106,7 +106,7 @@ class AlertActivation(
         self.create_partitions(session, partition_number)
 
         # Drop old partitions that exceed the retention period.
-        self.drop_old_partitions(session, retention_weeks)
+        self.drop_partitions(session, retention_days)
 
     def create_partitions(
         self,
@@ -145,56 +145,33 @@ class AlertActivation(
             partitioning_information_list=partitioning_information_list,
         )
 
-    def drop_old_partitions(
+    def drop_partitions(
         self,
         session: Session,
-        retention_weeks: int,
+        retention_days: int,
     ):
         """
         Drop partitions older than the specified retention period.
 
         :param session: SQLAlchemy session.
-        :param retention_weeks: Retention period in weeks.
+        :param retention_days: Retention period in days.
         """
         _, partition_interval = self.get_partition_expression_and_interval(session)
 
         # Calculate the cutoff date for partition retention
-        cutoff_date = datetime.now() - timedelta(weeks=retention_weeks)
+        cutoff_date = datetime.now() - timedelta(days=retention_days)
 
         # Generate cutoff partition name based on the interval
-        cutoff_partition_name = self.generate_cutoff_partition_name(
-            cutoff_date, partition_interval
+        cutoff_partition_name, _, _ = self.get_partition_info(
+            partition_interval, cutoff_date
         )
 
         # Drop partitions that are older than the cutoff
         services.api.utils.singletons.db.get_db().drop_partitions(
             session,
             self.table_name,
-            cutoff_partition_name,
+            f"p{cutoff_partition_name}",
         )
-
-    @staticmethod
-    def generate_cutoff_partition_name(
-        cutoff_date: datetime,
-        partition_interval: str,
-    ) -> str:
-        """
-        Generate the cutoff partition name based on the cutoff date and interval.
-
-        :param cutoff_date: The date used to determine the partition cutoff.
-        :param partition_interval: The partition interval type, e.g., "DAY", "MONTH", "YEARWEEK".
-
-        :return: The cutoff partition name.
-        """
-        if partition_interval == "DAY":
-            return f"p{cutoff_date.strftime('%Y%m%d')}"
-        elif partition_interval == "MONTH":
-            return f"p{cutoff_date.strftime('%Y%m')}"
-        elif partition_interval == "YEARWEEK":
-            year, week, _ = cutoff_date.isocalendar()
-            return f"p{year}{week:02d}"
-        else:
-            raise ValueError("Unsupported partition interval")
 
     def get_partition_expression_and_interval(self, session: Session):
         # Retrieve the partition function from the database

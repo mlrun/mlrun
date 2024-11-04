@@ -135,7 +135,7 @@ default_config = {
             "delete_crd_resources_timeout": "5 minutes",
         },
         "alert_activations": {
-            "retention_weeks": 14,
+            "retention_days": 14 * 7,  # days
         },
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
@@ -1041,6 +1041,19 @@ class Config:
                 f"is not allowed for iguazio version: {igz_version} < 3.5.1"
             )
 
+    @staticmethod
+    def validate_alert_activation_retention():
+        if config.crud.alert_activations.retention_days < 7 and not os.getenv(
+            "PARTITION_INTERVAL"
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Partition interval must be greater than a week"
+            )
+        elif config.crud.alert_activations.retention_days > 53 * 7:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Partition interval must be less than a year"
+            )
+
     def resolve_chief_api_url(self) -> str:
         if self.httpdb.clusterization.chief.url:
             return self.httpdb.clusterization.chief.url
@@ -1379,6 +1392,7 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
+    config.validate_alert_activation_retention()
 
 
 def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):

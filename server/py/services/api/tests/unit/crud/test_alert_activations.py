@@ -103,17 +103,19 @@ def test_get_partition_info_for_datetime(
 
 
 @pytest.mark.parametrize(
-    "partition_interval, retention_weeks, test_date, expected_cutoff_name",
+    "partition_interval, retention_days, test_date, expected_cutoff_name",
     [
-        ("DAY", 4, datetime(2024, 1, 1), "p20231204"),
-        ("MONTH", 6, datetime(2024, 7, 15), "p202406"),
-        ("YEARWEEK", 12, datetime(2024, 6, 1), "p202410"),
+        ("DAY", 4 * 7, datetime(2024, 1, 1), "p20231204"),
+        ("DAY", 1, datetime(2024, 1, 1), "p20231231"),
+        ("MONTH", 6 * 7, datetime(2024, 7, 15), "p202406"),
+        ("YEARWEEK", 12 * 7, datetime(2024, 6, 1), "p202410"),
+        ("YEARWEEK", 14 * 7, datetime(2024, 6, 1), "p202408"),
     ],
 )
 def test_drop_old_partitions(
     db: sqlalchemy.orm.Session,
     partition_interval,
-    retention_weeks,
+    retention_days,
     test_date,
     expected_cutoff_name,
 ):
@@ -137,8 +139,8 @@ def test_drop_old_partitions(
         )
         mocked_db_drop_partitions.return_value = None
 
-        services.api.crud.alert_activation.AlertActivation().drop_old_partitions(
-            db, retention_weeks
+        services.api.crud.alert_activation.AlertActivation().drop_partitions(
+            db, retention_days
         )
 
         mocked_db_drop_partitions.assert_called_once_with(

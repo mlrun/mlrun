@@ -37,10 +37,7 @@ def initialize_db(override_db=None):
         db = override_db
         return
 
-    dsn = config.httpdb.dsn
-    masked_dsn = _mask_dsn(dsn)
-
-    logger.info("Creating sql db", dsn=masked_dsn)
+    logger.info("Creating sql db", dsn=_mask_dsn(config.httpdb.dsn))
 
     db = SQLDB(config.httpdb.dsn)
     # set the run db path to the sql db dsn

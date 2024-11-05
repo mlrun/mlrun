@@ -263,8 +263,6 @@ class PartitionInterval(StrEnum):
             return (current_datetime.replace(day=1) + timedelta(days=32)).replace(day=1)
         elif self == PartitionInterval.YEARWEEK:
             return current_datetime + timedelta(weeks=1)
-        else:
-            raise ValueError("Unsupported partition interval")
 
     def get_partition_name(self, current_datetime: datetime) -> str:
         if self == PartitionInterval.DAY:
@@ -274,8 +272,6 @@ class PartitionInterval(StrEnum):
         elif self == PartitionInterval.YEARWEEK:
             year, week, _ = current_datetime.isocalendar()
             return f"{year}{week:02d}"
-        else:
-            raise ValueError("Unsupported partition interval")
 
     def get_partition_expression(self):
         if self == PartitionInterval.YEARWEEK:
@@ -292,5 +288,3 @@ class PartitionInterval(StrEnum):
             return int(days / 30.44)
         elif self == PartitionInterval.YEARWEEK:
             return int(days / 7)
-        else:
-            raise ValueError(f"Unsupported partition interval: {partition_interval}")

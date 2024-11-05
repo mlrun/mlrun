@@ -75,7 +75,7 @@ def test_create_current_stats_file():
     file_content = file._item.get().decode()
     file.delete()
     assert (
-        file_content == "{}",
+        file_content == {},
         "Current stats file should be empty on creation expected '{}'",
     )
 

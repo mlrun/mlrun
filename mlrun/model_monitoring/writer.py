@@ -21,6 +21,7 @@ import mlrun.common.schemas.alert as alert_objects
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
+    HistogramDataDriftApplicationConstants,
     MetricData,
     ResultData,
     ResultKindApp,
@@ -30,7 +31,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     WriterEvent,
     WriterEventKind,
 )
-from mlrun.common.schemas.model_monitoring.constants import HistogramDataDriftApplicationConstants
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,

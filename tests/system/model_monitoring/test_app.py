@@ -46,6 +46,10 @@ from mlrun.model_monitoring.applications import (
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasuresFile,
+)
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
@@ -58,8 +62,6 @@ from .assets.application import (
 from .assets.custom_evidently_app import (
     CustomEvidentlyMonitoringApp,
 )
-from mlrun.model_monitoring.db._stats import ModelMonitoringCurrentStatsFile, ModelMonitoringDriftMeasuresFile
-from ...model_monitoring.db.test_stats import drift_measure
 
 
 @dataclass
@@ -283,8 +285,8 @@ class _V3IORecordsChecker:
         error_count: float = None,
     ) -> None:
         cls._test_parquet(ep_id, inputs, outputs)
-        # cls._test_results_kv_record(ep_id)
-        # cls._test_metrics_kv_record(ep_id)
+        cls._test_results_kv_record(ep_id)
+        cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
 
     @classmethod
@@ -377,9 +379,9 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-9"
+    project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/royi313/mlrun:1.8.0"
+    image: typing.Optional[str] = None
     error_count = 10
 
     @classmethod
@@ -664,21 +666,29 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert ep.status.feature_stats.keys() == set(
             ep.spec.feature_names
         ), "The endpoint's feature stats keys are not the same as the feature names"
-        ep_current_stats = ast.literal_eval(ModelMonitoringCurrentStatsFile.from_model_endpoint(ep)._item.get().decode())
-        ep_drift_measures = ast.literal_eval(ModelMonitoringDriftMeasuresFile.from_model_endpoint(ep)._item.get().decode())
-        assert set(ep_current_stats.keys()) == set(
+        ep_current_stats = ast.literal_eval(
+            json.loads(
+                ModelMonitoringCurrentStatsFile.from_model_endpoint(ep)._item.get()
+            )
+        )
+        ep_drift_measures = ast.literal_eval(
+            json.loads(
+                ModelMonitoringDriftMeasuresFile.from_model_endpoint(ep)._item.get()
+            )
+        )
+        assert set(ep_current_stats["data"].keys()) == set(
             ep.status.feature_stats.keys()
         ), "The endpoint's current stats is different than expected"
 
-        assert ep.status.drift_status, "The general drift status is empty"
+        assert ep_drift_measures, "The general drift status is empty"
         assert ep_drift_measures, "The drift measures are empty"
 
         for measure in ["hellinger_mean", "kld_mean", "tvd_mean"]:
             assert isinstance(
-                ep.status.drift_measures.pop(measure, None), float
+                ep_drift_measures["data"].pop(measure, None), float
             ), f"Expected '{measure}' in drift measures"
 
-        drift_table = pd.DataFrame.from_dict(ep_drift_measures, orient="index")
+        drift_table = pd.DataFrame.from_dict(ep_drift_measures["data"], orient="index")
         assert set(drift_table.columns) == {
             "hellinger",
             "kld",
@@ -689,7 +699,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The feature names are not as expected"
 
         assert (
-            ep_current_stats["sepal_length_cm"]["count"] == cls.num_events
+            ep_current_stats["data"]["sepal_length_cm"]["count"] == cls.num_events
         ), "Different number of events than expected"
 
     @classmethod

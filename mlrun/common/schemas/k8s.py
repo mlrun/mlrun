@@ -20,9 +20,9 @@ import mlrun.common.types
 
 
 class ResourceSpec(pydantic.BaseModel):
-    cpu: typing.Optional[str]
-    memory: typing.Optional[str]
-    gpu: typing.Optional[str]
+    cpu: typing.Optional[str] = None
+    memory: typing.Optional[str] = None
+    gpu: typing.Optional[str] = None
 
 
 class Resources(pydantic.BaseModel):

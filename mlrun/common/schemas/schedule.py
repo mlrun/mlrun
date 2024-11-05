@@ -28,20 +28,20 @@ class ScheduleCronTrigger(BaseModel):
     https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     """
 
-    year: Optional[Union[int, str]]
-    month: Optional[Union[int, str]]
-    day: Optional[Union[int, str]]
-    week: Optional[Union[int, str]]
-    day_of_week: Optional[Union[int, str]]
-    hour: Optional[Union[int, str]]
-    minute: Optional[Union[int, str]]
-    second: Optional[Union[int, str]]
+    year: Optional[Union[int, str]] = None
+    month: Optional[Union[int, str]] = None
+    day: Optional[Union[int, str]] = None
+    week: Optional[Union[int, str]] = None
+    day_of_week: Optional[Union[int, str]] = None
+    hour: Optional[Union[int, str]] = None
+    minute: Optional[Union[int, str]] = None
+    second: Optional[Union[int, str]] = None
     start_date: Union[datetime, str] = None
     end_date: Union[datetime, str] = None
 
     # APScheduler also supports datetime.tzinfo type, but Pydantic doesn't - so we don't
-    timezone: Optional[str]
-    jitter: Optional[int]
+    timezone: Optional[str] = None
+    jitter: Optional[int] = None
 
     @classmethod
     def from_crontab(cls, expr, timezone=None):

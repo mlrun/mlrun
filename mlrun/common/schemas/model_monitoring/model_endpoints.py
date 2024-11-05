@@ -14,10 +14,11 @@
 
 import enum
 import json
+import typing
 from datetime import datetime
 from typing import Any, NamedTuple, Optional, TypeVar
 
-from pydantic import BaseModel, Extra, Field, constr, validator
+from pydantic import BaseModel, Extra, constr, validator
 
 # TODO: remove the unused import below after `mlrun.datastore` and `mlrun.utils` usage is removed.
 # At the moment `make lint` fails if this is removed.
@@ -48,8 +49,8 @@ class ModelMonitoringStoreKinds:
 
 
 class ModelEndpointMetadata(BaseModel):
-    project: constr(regex=PROJECT_PATTERN)
-    uid: constr(regex=MODEL_ENDPOINT_ID_PATTERN)
+    project: constr(pattern=PROJECT_PATTERN)
+    uid: constr(pattern=MODEL_ENDPOINT_ID_PATTERN)
     labels: Optional[dict] = {}
 
     class Config:
@@ -213,7 +214,7 @@ class ModelEndpointStatus(ObjectStatus):
 
 
 class ModelEndpoint(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
+    kind: typing.Literal[ObjectKind.model_endpoint] = ObjectKind.model_endpoint
     metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec = ModelEndpointSpec()
     status: ModelEndpointStatus = ModelEndpointStatus()

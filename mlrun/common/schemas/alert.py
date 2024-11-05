@@ -30,7 +30,7 @@ class EventEntityKind(StrEnum):
 class EventEntities(pydantic.BaseModel):
     kind: EventEntityKind
     project: str
-    ids: pydantic.conlist(str, min_items=1, max_items=1)
+    ids: pydantic.conlist(str, min_length=1, max_length=1)
 
 
 class EventKind(StrEnum):
@@ -153,7 +153,7 @@ class AlertConfig(pydantic.BaseModel):
     trigger: AlertTrigger
     criteria: Optional[AlertCriteria]
     reset_policy: ResetPolicy = ResetPolicy.AUTO
-    notifications: pydantic.conlist(AlertNotification, min_items=1)
+    notifications: pydantic.conlist(AlertNotification, min_length=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
 

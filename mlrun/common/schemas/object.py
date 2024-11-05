@@ -34,7 +34,7 @@ class ObjectMetadata(BaseModel):
 
 
 class ObjectStatus(BaseModel):
-    state: Optional[str]
+    state: Optional[str] = None
 
     class Config:
         extra = Extra.allow

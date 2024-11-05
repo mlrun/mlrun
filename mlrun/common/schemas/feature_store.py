@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 from typing import Optional
 
 import pydantic
@@ -62,7 +63,7 @@ class FeatureSetSpec(ObjectSpec):
 
 
 class FeatureSet(FeatureStoreBaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.feature_set, const=True)
+    kind: typing.Literal[ObjectKind.feature_set] = ObjectKind.feature_set
     metadata: ObjectMetadata
     spec: FeatureSetSpec
     status: ObjectStatus
@@ -155,7 +156,7 @@ class EntitiesOutput(FeatureStoreBaseModel):
 
 
 class FeatureVector(FeatureStoreBaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.feature_vector, const=True)
+    kind: typing.Literal[ObjectKind.feature_vector] = ObjectKind.feature_vector
     metadata: ObjectMetadata
     spec: ObjectSpec
     status: ObjectStatus

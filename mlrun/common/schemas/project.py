@@ -124,7 +124,7 @@ class ProjectSpecOut(pydantic.BaseModel):
 
 
 class Project(pydantic.BaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
+    kind: typing.Literal[ObjectKind.project] = ObjectKind.project
     metadata: ProjectMetadata
     spec: ProjectSpec = ProjectSpec()
     status: ObjectStatus = ObjectStatus()
@@ -133,7 +133,7 @@ class Project(pydantic.BaseModel):
 # The reason we have a different schema for the response model is that we don't want to validate project.spec.build in
 # the response as the validation was added late and there may be corrupted values in the DB.
 class ProjectOut(pydantic.BaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
+    kind: typing.Literal[ObjectKind.project] = ObjectKind.project
     metadata: ProjectMetadata
     spec: ProjectSpecOut = ProjectSpecOut()
     status: ObjectStatus = ObjectStatus()

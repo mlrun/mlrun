@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, Extra, Field
+from pydantic import BaseModel, Extra
 
 import mlrun.common.types
 import mlrun.config
@@ -46,11 +47,11 @@ class HubSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
     channel: str
     credentials: Optional[dict] = {}
-    object_type: HubSourceType = Field(HubSourceType.functions, const=True)
+    object_type: typing.Literal[HubSourceType.functions] = HubSourceType.functions
 
 
 class HubSource(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.hub_source, const=True)
+    kind: typing.Literal[ObjectKind.hub_source] = ObjectKind.hub_source
     metadata: HubObjectMetadata
     spec: HubSourceSpec
     status: Optional[ObjectStatus] = ObjectStatus(state="created")
@@ -94,7 +95,7 @@ class IndexedHubSource(BaseModel):
 
 # Item-related objects
 class HubItemMetadata(HubObjectMetadata):
-    source: HubSourceType = Field(HubSourceType.functions, const=True)
+    source: typing.Literal[HubSourceType.functions] = HubSourceType.functions
     version: str
     tag: Optional[str]
 
@@ -117,13 +118,13 @@ class HubItemSpec(ObjectSpec):
 
 
 class HubItem(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.hub_item, const=True)
+    kind: typing.Literal[ObjectKind.hub_item] = ObjectKind.hub_item
     metadata: HubItemMetadata
     spec: HubItemSpec
     status: ObjectStatus
 
 
 class HubCatalog(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.hub_catalog, const=True)
+    kind: typing.Literal[ObjectKind.hub_catalog] = ObjectKind.hub_catalog
     channel: str
     catalog: list[HubItem]

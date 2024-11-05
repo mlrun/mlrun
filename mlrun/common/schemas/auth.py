@@ -146,4 +146,4 @@ class AuthInfo(pydantic.BaseModel):
 
 
 class Credentials(pydantic.BaseModel):
-    access_key: typing.Optional[str]
+    access_key: typing.Optional[str] = None

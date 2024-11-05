@@ -23,7 +23,6 @@ Create Date: 2024-10-30 16:38:07.592754
 import os
 from datetime import datetime
 
-import services.api.crud.alert_activation
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
@@ -96,10 +95,9 @@ def upgrade():
     now_utc = datetime.utcnow()
 
     partition_name, partition_value, partition_expression = (
-        services.api.crud.alert_activation.AlertActivation.get_partition_info(
-            partition_interval=partition_interval,
-            partition_datetime=now_utc,
-        )
+        mlrun.common.schemas.alert.PartitionInterval(
+            partition_interval
+        ).get_partition_info(now_utc)
     )
 
     # Construct SQL for partitioning

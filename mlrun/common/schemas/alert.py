@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated, Optional, Union
 
 import pydantic
@@ -234,3 +234,63 @@ class PartitionInterval(StrEnum):
         if interval and cls.is_valid(interval):
             return cls[interval]
         return None
+
+    def get_partition_info(
+        self,
+        partition_datetime: datetime,
+    ) -> tuple[str, str, str]:
+        """
+        Generates partition details for a specified datetime.
+        :param partition_datetime: The datetime used for generating partition details.
+
+        :return: A tuple containing:
+            - partition_name: The name for the partition.
+            - partition_value: The "LESS THAN" value for the next partition boundary.
+            - partition_expression: The SQL partition expression.
+        """
+
+        partition_name = self.get_partition_name(partition_datetime)
+        partition_boundary_date = self.get_next_partition_time(partition_datetime)
+        partition_value = self.get_partition_name(partition_boundary_date)
+        partition_expression = self.get_partition_expression()
+
+        return partition_name, partition_value, partition_expression
+
+    def get_next_partition_time(self, current_datetime: datetime) -> datetime:
+        if self == PartitionInterval.DAY:
+            return current_datetime + timedelta(days=1)
+        elif self == PartitionInterval.MONTH:
+            return (current_datetime.replace(day=1) + timedelta(days=32)).replace(day=1)
+        elif self == PartitionInterval.YEARWEEK:
+            return current_datetime + timedelta(weeks=1)
+        else:
+            raise ValueError("Unsupported partition interval")
+
+    def get_partition_name(self, current_datetime: datetime) -> str:
+        if self == PartitionInterval.DAY:
+            return current_datetime.strftime("%Y%m%d")
+        elif self == PartitionInterval.MONTH:
+            return current_datetime.strftime("%Y%m")
+        elif self == PartitionInterval.YEARWEEK:
+            year, week, _ = current_datetime.isocalendar()
+            return f"{year}{week:02d}"
+        else:
+            raise ValueError("Unsupported partition interval")
+
+    def get_partition_expression(self):
+        if self == PartitionInterval.YEARWEEK:
+            return "YEARWEEK(activation_time, 1)"
+        else:
+            return f"{self}(activation_time)"
+
+    def get_number_of_partitions(self, days: int) -> int:
+        # Calculate the number partitions based on given number of days
+        if self == PartitionInterval.DAY:
+            return days
+        elif self == PartitionInterval.MONTH:
+            # Average number days in a month is 30.44
+            return int(days / 30.44)
+        elif self == PartitionInterval.YEARWEEK:
+            return int(days / 7)
+        else:
+            raise ValueError(f"Unsupported partition interval: {partition_interval}")

@@ -19,6 +19,7 @@ from datetime import datetime
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.schemas.alert
 import services.api.crud.alert_activation
 import services.api.db.sqldb
 
@@ -90,8 +91,9 @@ def test_get_partition_info_for_datetime(
     """
     # Get actual values from the function
     partition_name, partition_value, partition_expression = (
-        services.api.crud.alert_activation.AlertActivation().get_partition_info(
-            partition_interval,
+        mlrun.common.schemas.alert.PartitionInterval(
+            partition_interval
+        ).get_partition_info(
             partition_datetime,
         )
     )
@@ -135,7 +137,7 @@ def test_drop_old_partitions(
 
         mocked_get_partition_expression_and_interval.return_value = (
             "",
-            partition_interval,
+            mlrun.common.schemas.alert.PartitionInterval(partition_interval),
         )
         mocked_db_drop_partitions.return_value = None
 
@@ -207,7 +209,7 @@ def test_create_partitions(
         # Mock return values for partition interval and info retrieval
         mocked_get_partition_expression_and_interval.return_value = (
             "",
-            partition_interval,
+            mlrun.common.schemas.alert.PartitionInterval(partition_interval),
         )
 
         services.api.crud.alert_activation.AlertActivation().create_partitions(

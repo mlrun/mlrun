@@ -25,51 +25,6 @@ import services.api.db.sqldb.db
 class AlertActivation(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    @staticmethod
-    def get_partition_info(
-        partition_interval: str,
-        partition_datetime: datetime,
-    ) -> tuple[str, str, str]:
-        """
-        Generates partition details for a specified interval and datetime.
-
-        :param partition_interval: The partitioning interval type, e.g., "DAY", "MONTH", or "YEARWEEK".
-        :param partition_datetime: The datetime used for generating partition details.
-
-        :return: A tuple containing:
-            - partition_name: The name for the partition.
-            - partition_value: The "LESS THAN" value for the next partition boundary.
-            - partition_expression: The SQL partition expression.
-        """
-        if partition_interval == mlrun.common.schemas.alert.PartitionInterval.YEARWEEK:
-            year, week, _ = partition_datetime.isocalendar()
-            partition_name = f"{year}{week:02d}"
-
-            next_week = partition_datetime + timedelta(weeks=1)
-            next_year, next_week_num, _ = next_week.isocalendar()
-            partition_value = f"{next_year}{next_week_num:02d}"
-
-            partition_expression = "YEARWEEK(activation_time, 1)"
-            return partition_name, partition_value, partition_expression
-
-        if partition_interval == mlrun.common.schemas.alert.PartitionInterval.DAY:
-            partition_name = partition_datetime.strftime("%Y%m%d")
-            partition_boundary_date = partition_datetime + timedelta(days=1)
-            # Format as 'YYYYMMDD' (year, month, day)
-            partition_value = partition_boundary_date.strftime("%Y%m%d")
-        elif partition_interval == mlrun.common.schemas.alert.PartitionInterval.MONTH:
-            partition_name = partition_datetime.strftime("%Y%m")
-            partition_boundary_date = (
-                partition_datetime.replace(day=1) + timedelta(days=32)
-            ).replace(day=1)
-            # Format as 'YYYYMM' (year and month)
-            partition_value = partition_boundary_date.strftime("%Y%m")
-        else:
-            raise ValueError(f"Unsupported partition interval: {partition_interval}")
-        partition_expression = f"{partition_interval}(activation_time)"
-
-        return partition_name, partition_value, partition_expression
-
     def create_and_drop_partitions(
         self,
         session: Session,
@@ -89,18 +44,9 @@ class AlertActivation(
         )
 
         # Ensure partitions for double the retention time.
-        ensure_partitions_days = 2 * retention_days
-
-        # Calculate the number of future partitions to create based on the partition interval.
-        if partition_interval == mlrun.common.schemas.alert.PartitionInterval.DAY:
-            partition_number = ensure_partitions_days
-        elif partition_interval == mlrun.common.schemas.alert.PartitionInterval.MONTH:
-            # Average number days in a month is 30.44
-            partition_number = int(ensure_partitions_days / 30.44)
-        elif partition_interval == mlrun.common.schemas.alert.PartitionIntervalYEARWEEK:
-            partition_number = int(ensure_partitions_days / 7)
-        else:
-            raise ValueError(f"Unsupported partition interval: {partition_interval}")
+        partition_number = partition_interval.get_number_of_partitions(
+            days=2 * retention_days
+        )
 
         # Create the calculated number of partitions.
         self.create_partitions(session, partition_number)
@@ -120,29 +66,16 @@ class AlertActivation(
 
         partitioning_information_list = []
         current_datetime = datetime.now()
+
         for _ in range(partition_number):
-            # Generate partition information for the current interval
-            partition_name, partition_value, partition_expression = (
-                self.get_partition_info(partition_interval, current_datetime)
-            )
             partitioning_information_list.append(
-                (partition_name, partition_value, partition_expression)
+                partition_interval.get_partition_info(current_datetime)
             )
 
             # Move to the next interval based on the partition_interval
-            if partition_interval == mlrun.common.schemas.alert.PartitionInterval.DAY:
-                current_datetime += timedelta(days=1)
-            elif (
-                partition_interval == mlrun.common.schemas.alert.PartitionInterval.MONTH
-            ):
-                current_datetime = (
-                    current_datetime.replace(day=1) + timedelta(days=32)
-                ).replace(day=1)
-            elif (
+            current_datetime = mlrun.common.schemas.alert.PartitionInterval(
                 partition_interval
-                == mlrun.common.schemas.alert.PartitionInterval.YEARWEEK
-            ):
-                current_datetime += timedelta(weeks=1)
+            ).get_next_partition_time(current_datetime=current_datetime)
 
         services.api.utils.singletons.db.get_db().create_partitions(
             session=session,
@@ -167,9 +100,7 @@ class AlertActivation(
         cutoff_date = datetime.now() - timedelta(days=retention_days)
 
         # Generate cutoff partition name based on the interval
-        cutoff_partition_name, _, _ = self.get_partition_info(
-            partition_interval, cutoff_date
-        )
+        cutoff_partition_name = partition_interval.get_partition_name(cutoff_date)
 
         # Drop partitions that are older than the cutoff
         services.api.utils.singletons.db.get_db().drop_partitions(
@@ -178,7 +109,9 @@ class AlertActivation(
             f"p{cutoff_partition_name}",
         )
 
-    def get_partition_expression_and_interval(self, session: Session):
+    def get_partition_expression_and_interval(
+        self, session: Session
+    ) -> tuple[str, mlrun.common.schemas.alert.PartitionInterval]:
         # Retrieve the partition function from the database
         partition_expression = services.api.utils.singletons.db.get_db().get_partition_expression_for_table(
             session,

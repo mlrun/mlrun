@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
+
 import mlrun.db
+import services.api.utils.db.mysql
 from mlrun.common.db.sql_session import create_session
 from mlrun.config import config
 from mlrun.utils import logger
@@ -33,7 +36,9 @@ def initialize_db(override_db=None):
     if override_db:
         db = override_db
         return
-    logger.info("Creating sql db", dst=config.httpdb.dsn)
+
+    logger.info("Creating sql db", dsn=_mask_dsn(config.httpdb.dsn))
+
     db = SQLDB(config.httpdb.dsn)
     # set the run db path to the sql db dsn
     mlrun.db.get_or_set_dburl(config.httpdb.dsn)
@@ -44,3 +49,17 @@ def initialize_db(override_db=None):
         db.initialize(db_session)
     finally:
         db_session.close()
+
+
+def _mask_dsn(dsn):
+    match = re.match(services.api.utils.db.mysql.MySQLUtil.dsn_regex, dsn)
+    if match:
+        # Mask the username and password
+        masked_dsn = dsn.replace(match.group("username"), "***")
+        if match.group("password"):
+            masked_dsn = masked_dsn.replace(match.group("password"), "***")
+    else:
+        # If regex fails, use the original DSN
+        masked_dsn = dsn
+
+    return masked_dsn

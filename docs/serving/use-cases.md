@@ -4,14 +4,14 @@
 <!-- ## Data preparation, ## Model serving -->
 
 **In this section**
-* [Data and feature engineering](#Data-and-feature-engineering-using-the-feature-store)
+* [Data and feature engineering](#data-and-feature-engineering-using-the-feature-store)
 * [Example of a simple model serving router](#example-of-a-simple-model-serving-router)
 * [Example of advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
-* [Example of NLP processing pipeline with real-time streaming](#example-of-nlp-processing-pipeline-with-real-time-streaming)
+* [Example of NLP processing pipeline with real-time streaming](#example-of-an-nlp-processing-pipeline-with-real-time-streaming)
 
 In addition to the examples in this section, see the:
-- [Distributed (multi-function) pipeline example](./distributed-graph.html) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
-- [Advanced model serving graph notebook example](./graph-example.html) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
+- [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
+- [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
 - [MLRun demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including fraud prevention using the Iguazio feature store, a mask detection demo, and converting existing ML code to an MLRun project.
 
 ## Data and feature engineering (using the feature store)
@@ -24,7 +24,7 @@ and native user code. Iguazio’s solution uses a unique multi-model database, s
 through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
 resulting in better accuracy and simpler integration.
 
-Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.html).
+Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.md).
 
 ## Example of a simple model serving router
 
@@ -51,7 +51,7 @@ fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 The serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
 To invoke the model, to use following url: `<function-host>/v2/models/model1/infer`.
 
-See the [**serving protocol specification**](./model-api.html) for details.
+See the [**serving protocol specification**](./model-api.md) for details.
 
 ```{note}
 Model url is either an MLRun model store object (starts with `store://`) or URL of a model directory 
@@ -72,9 +72,9 @@ You can implement your own model serving or data processing classes. All you nee
 
 You can override additional methods: `preprocess`, `validate`, `postprocess`, `explain`.<br>
 You can add custom API endpoints by adding the method `op_xx(event)` (which can be invoked by
-calling the `<model-url>/xx`, where operation = xx). See [model class API](https://docs.mlrun.org/en/latest/api/mlrun.model.html).
+calling the `<model-url>/xx`, where operation = xx). See {py:class}`~mlrun.model`.
 
-For an example of writing the minimal serving functions, see [Minimal sklearn serving function example](./custom-model-serving-class.html#minimal-sklearn-serving-function-example).
+For an example of writing the minimal serving functions, see [Minimal sklearn serving function example](./custom-model-serving-class.md#minimal-sklearn-serving-function-example).
 
 See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb) that 
 tests one or more classifier models against a held-out dataset.
@@ -85,7 +85,7 @@ MLRun serving graphs can host advanced pipelines that handle event/data processi
  or any custom task. The following example demonstrates an asynchronous pipeline that pre-processes data, 
 passes the data into a model ensemble, and finishes off with post processing. 
 
-**For a complete example, see the [Advanced graph example notebook](./graph-example.html).**
+**For a complete example, see the [Advanced graph example notebook](./graph-example.ipynb).**
 
 Create a new function of type serving from code and set the graph topology to `async flow`.
 
@@ -150,14 +150,14 @@ And deploy the graph as a real-time Nuclio serverless function with one command:
 If you test a Nuclio function that has a serving graph with the async engine via the Nuclio UI, the UI might not display the logs in the output.
 ```
 
-## Example of an NLP processing pipeline with real-time streaming 
+## Example of an NLP processing pipeline with real-time streaming
 
 In some cases it's useful to split your processing to multiple functions and use 
 streaming protocols to connect those functions. In this example the data 
 processing is in the first function/container and the NLP processing is in the second function. 
 In this example the GPU contained in the second function.
 
-See the [full notebook example](./distributed-graph.html).
+See the [full notebook example](./distributed-graph.ipynb).
 
 ```python
 # define a new real-time serving function (from code) with an async graph

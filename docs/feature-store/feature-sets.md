@@ -11,9 +11,9 @@ The feature set object contains the following information:
 - **Metadata** &mdash; General information which is helpful for search and organization. Examples are project, name, owner, last update, description, labels, etc.
 - **Key attributes** &mdash; Entity, timestamp key (optional), label column.
 - **Features** &mdash; The list of features along with their schema, metadata, validation policies and statistics.
-- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.). See the [source descriptions](./sources-targets.html#sources).
+- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.). See the [source descriptions](./sources-targets.md#sources).
 - **Transformation** &mdash; The data transformation pipeline (e.g. aggregation, enrichment etc.).
-- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. See the [target descriptions](./sources-targets.html#targets).
+- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. See the [target descriptions](./sources-targets.md#targets).
 - **Function** &mdash; The type (storey, pandas, spark) and attributes of the data pipeline serverless functions.
 
 **In this section**
@@ -22,7 +22,7 @@ The feature set object contains the following information:
 - [Add transformations](#add-transformations)
 
 **See also**:
-- [Verify a feature set with a small dataset by inferring data](../data-prep/ingest-data-fs.html#verify-a-feature-set-with-a-small-dataset-by-inferring-data)
+- [Verify a feature set with a small dataset by inferring data](../data-prep/ingest-data-fs.md#verify-a-feature-set-with-a-small-dataset-by-inferring-data)
 - {ref}`Ingest data using the feature store <ingest-data-fs>`
 
 
@@ -44,10 +44,10 @@ Avoid using timestamps or bool as entities.
    - spark &mdash; Good for simple batch transformations
    - pandas &mdash; Good for simple batch transformations
    - storey &mdash; Default. Stream processing engine that can handle complex workflows and real-time sources. (Some advanced functionalities are in the Beta state.)</br>
-   See more about [transformations](./transformations.html#built-in-transformations).
+   See more about [transformations](./transformations.md#built-in-transformations).
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
 * **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other feature sets . It looks like: `{"<my_column_name>":Entity, ...}`. If the feature_set relations is None, the join is done based on feature_set entities. Relevant only for Dask and storey (local) engines.
-   See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 
+   See more about joins in [Using joins in an offline feature vector](./feature-vectors.md#using-joins-in-an-offline-feature-vector). 
    
 Example:
 ```python
@@ -86,7 +86,7 @@ resp = vector.get_offline_features(entity_timestamp_column="timestamp", with_ind
 ```
 
 
-## Add transformations 
+## Add transformations
 
 Define the data processing steps using a transformations graph (DAG).
 
@@ -96,7 +96,7 @@ The MLRun feature store supports three processing engines (storey, pandas, spark
 
 The data pipeline is defined using MLRun graph (DAG) language. Graph steps can be pre-defined operators 
 (such as aggregate, filter, encode, map, join, impute, etc.) or custom python classes/functions. 
-Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
+Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.md).
 
 The results from the transformation pipeline are stored in one or more material targets.  Data for offline 
 access, such as training, is usually stored in Parquet files. Data for online access such as serving is stored 

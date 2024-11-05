@@ -33,7 +33,7 @@ UI, where the full graph can be seen and specific step properties can be observe
 <br><img src="../_static/images/mlrun-ui-feature-set-graph.png" alt="ui-feature-set-graph" width="800"/><br>
 
 For a full end-to-end example of feature-store and usage of the functionality described in this page, refer
-to the [feature store example](./basic-demo.html).
+to the [feature store example](./basic-demo.ipynb).
 
 **In this section**
 - [Aggregations](#aggregations)
@@ -149,14 +149,14 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 
 ## Built-in transformations
 
-MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/available-steps.html) that can be 
+MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/available-steps.md) that can be 
 applied as steps in the feature-set's internal execution graph. To add steps to the graph, 
 reference them from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 
 list of existing functions). The transformations are also accessible directly from the `storey` module.
 
-See the [built-in steps](../serving/available-steps.html).
+See the [built-in steps](../serving/available-steps.md).
 
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 
@@ -219,7 +219,7 @@ steps. When implementing custom transformations, the code has to support all eng
 
 ```{admonition} Note
 The vast majority of MLRun's built-in transformations support all engines. The support matrix is available 
-[here](../serving/available-steps.html#data-transformation-steps).
+[here](../feature-store/transformations.md#data-transformation-steps).
 ```
 
 The following are the main differences between transformation steps executing on different engines:

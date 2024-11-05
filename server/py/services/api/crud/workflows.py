@@ -344,6 +344,17 @@ class WorkflowRunners(
                 for notification in workflow_request.notifications or []
             ]
 
+        default_notification_params = (
+            services.api.utils.notification_pusher.get_notifications_default_params()
+        )
+        for notification in notifications:
+            notification_type = NotificationTypes(notification.kind).get_notification()
+
+            default_params = default_notification_params.get(notification.kind, {})
+            notification.params = notification_type.enrich_default_params(
+                notification.params, default_params
+            )
+
         source = workflow_request.source if workflow_request else ""
         source, save, is_context = self._validate_source(project, source, load_only)
         run_object = RunObject(

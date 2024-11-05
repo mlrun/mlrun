@@ -187,7 +187,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
         )
 
 
-def get_notifications_default_params():
+def resolve_notifications_default_params():
     return {
         NotificationTypes.console: {},
         NotificationTypes.git: {},

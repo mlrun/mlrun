@@ -889,7 +889,7 @@ def _push_terminal_run_notifications(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
     default_notification_params = (
-        services.api.utils.notification_pusher.get_notifications_default_params()
+        services.api.utils.notification_pusher.resolve_notifications_default_params()
     )
     services.api.utils.notification_pusher.RunNotificationPusher(
         unmasked_runs, default_notification_params

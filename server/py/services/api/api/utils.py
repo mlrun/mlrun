@@ -46,6 +46,7 @@ import services.api.utils.auth.verifier
 import services.api.utils.background_tasks
 import services.api.utils.clients.iguazio
 import services.api.utils.helpers
+import services.api.utils.notification_pusher
 import services.api.utils.singletons.k8s
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
@@ -475,7 +476,8 @@ def validate_and_mask_notification_list(
         # validate notification schema
         mlrun.common.schemas.Notification(**notification_object.to_dict())
 
-        notification_object.validate_notification_params()
+        default_notification_params = services.api.utils.notification_pusher.resolve_notifications_default_params()
+        notification_object.validate_notification_params(default_notification_params)
 
         notification_objects.append(notification_object)
 

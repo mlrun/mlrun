@@ -225,10 +225,9 @@ class NotificationPusher(_NotificationPusherBase):
         params = {}
         params.update(notification_object.secret_params)
         params.update(notification_object.params)
-        notification = notification_type.get_notification()(name, params)
         default_params = self._default_params.get(notification_type.value, {})
-        notification.params = notification.enrich_default_params(
-            notification.params, default_params
+        notification = notification_type.get_notification()(
+            name, params, default_params
         )
         if notification.is_async:
             self._async_notifications.append((notification, run, notification_object))

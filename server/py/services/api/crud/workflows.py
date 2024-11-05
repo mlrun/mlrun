@@ -27,7 +27,6 @@ import services.api.utils.notification_pusher
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
 from mlrun.utils import template_artifact_path
-from mlrun.utils.notifications import NotificationTypes
 
 
 class WorkflowRunners(
@@ -343,17 +342,6 @@ class WorkflowRunners(
                 mlrun.model.Notification.from_dict(notification.dict())
                 for notification in workflow_request.notifications or []
             ]
-
-        default_notification_params = (
-            services.api.utils.notification_pusher.get_notifications_default_params()
-        )
-        for notification in notifications:
-            notification_type = NotificationTypes(notification.kind).get_notification()
-
-            default_params = default_notification_params.get(notification.kind, {})
-            notification.params = notification_type.enrich_default_params(
-                notification.params, default_params
-            )
 
         source = workflow_request.source if workflow_request else ""
         source, save, is_context = self._validate_source(project, source, load_only)

@@ -6,7 +6,7 @@ MLRun supports configuring notifications on jobs and scheduled jobs. This sectio
 
 - [The notification object](#the-notification-object)
 - [Local vs. remote](#local-vs-remote)
-- [Notification parameters and secrets](#notification-params-and-secrets)
+- [Notification parameters and secrets](#notification-parameters-and-secrets)
 - [Notification kinds](#notification-kinds)
 - [Configuring notifications for runs](#configuring-notifications-for-runs)
 - [Configuring notifications for pipelines](#configuring-notifications-for-pipelines)

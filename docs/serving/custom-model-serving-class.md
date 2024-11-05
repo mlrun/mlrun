@@ -25,7 +25,7 @@ calling the `<model-url>/xx` (operation = `xx`).
 * [`load()` method](#load-method)
 * [`predict()` method](#predict-method)
 * [`explain()` method](#explain-method)
-* [pre/post and validate hooks](#pre-post-and-validate-hooks)
+* [pre/post and validate hooks](#prepost-and-validate-hooks)
 * [Models, routers and graphs](#models-routers-and-graphs)
 * [Creating a model serving function (service)](#creating-a-model-serving-function-service)
 * [Model monitoring](#model-monitoring)
@@ -91,7 +91,7 @@ the function/model deployment.
 ## `predict()` method
 
 The predict method is called when you access the `/infer` or `/predict` URL suffix (operation).
-The method accepts the request object (as dict), see [Model server API](model-api.html#infer-predict).
+The method accepts the request object (as dict), see [Model server API](model-api.md#infer--predict).
 And it should return the specified response object.
 
 ## `explain()` method
@@ -146,7 +146,7 @@ fn = code_to_function("my-function", kind="serving")
 fn.add_model("m1", model_path="<model-artifact/dir>", class_name="MyClass", x=100)
 ``` 
 
-See [`.add_model()`](../api/mlrun.runtimes.html#mlrun.runtimes.ServingRuntime.add_model) docstring for help and parameters.
+See ({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`)) docstring for help and parameters.
 
 See the full [Model Server example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb).
 

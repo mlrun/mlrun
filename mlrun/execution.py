@@ -799,7 +799,7 @@ class MLClientCtx:
         :param key:             Artifact key or artifact class ()
         :param body:            Will use the body as the artifact content
         :param model_file:      Path to the local model file we upload (see also model_dir)
-                                or to a model file data url (e.g. http://host/path/model.pkl)
+                                or to a model file data url (e.g. `http://host/path/model.pkl`)
         :param model_dir:       Path to the local dir holding the model file and extra files
         :param artifact_path:   Target artifact path (when not using the default)
                                 to define a subpath under the default location use:

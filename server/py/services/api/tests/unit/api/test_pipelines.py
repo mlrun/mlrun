@@ -23,15 +23,15 @@ import fastapi.testclient
 import kfp_server_api.models
 import mlrun_pipelines.utils
 import pytest
+import services.api.crud
+import services.api.tests.unit.conftest
+import services.api.utils.auth.verifier
 import sqlalchemy.orm
 from httpx import BasicAuth
 from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.formatters
 import mlrun.common.schemas
-import services.api.crud
-import services.api.tests.unit.conftest
-import services.api.utils.auth.verifier
 from mlrun.api.schemas import AuthInfo
 
 

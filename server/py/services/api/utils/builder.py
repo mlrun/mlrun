@@ -21,6 +21,8 @@ from collections import defaultdict
 from os import path
 from urllib.parse import urlparse
 
+import services.api.utils.helpers
+import services.api.utils.singletons.k8s
 from kubernetes import client
 
 import mlrun.common.constants
@@ -30,8 +32,6 @@ import mlrun.errors
 import mlrun.model
 import mlrun.runtimes.utils
 import mlrun.utils
-import services.api.utils.helpers
-import services.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.utils.helpers import remove_image_protocol_prefix
 

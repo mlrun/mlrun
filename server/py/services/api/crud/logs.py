@@ -18,18 +18,18 @@ import shutil
 import typing
 from http import HTTPStatus
 
+import services.api.api.utils
+import services.api.utils.clients.log_collector as log_collector
+import services.api.utils.singletons.k8s
 from fastapi.concurrency import run_in_threadpool
+from services.api.constants import LogSources
+from services.api.utils.singletons.db import get_db
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.api.utils
-import services.api.utils.clients.log_collector as log_collector
-import services.api.utils.singletons.k8s
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.utils import logger
-from services.api.constants import LogSources
-from services.api.utils.singletons.db import get_db
 
 
 class Logs(

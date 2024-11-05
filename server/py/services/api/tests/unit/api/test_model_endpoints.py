@@ -20,11 +20,11 @@ from typing import Optional
 
 import deepdiff
 import pytest
+import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring.helpers
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-import services.api.crud.model_monitoring.deployment
-import services.api.crud.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 from mlrun.model_monitoring.db.stores import StoreBase

@@ -13,9 +13,8 @@
 # limitations under the License.
 #
 
-from fastapi import APIRouter, Depends
-
 import services.api.api.deps
+from fastapi import APIRouter, Depends
 
 from . import config, memory_reports
 

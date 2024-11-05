@@ -19,13 +19,13 @@ import typing
 
 import requests.adapters
 import requests.auth
+import services.api.utils.projects.remotes.follower as project_follower
 import sqlalchemy.orm
 
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
-import services.api.utils.projects.remotes.follower as project_follower
 from mlrun.utils import logger
 
 

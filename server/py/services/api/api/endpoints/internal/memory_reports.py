@@ -13,9 +13,9 @@
 # limitations under the License.
 #
 import fastapi
+import services.api.utils.memory_reports
 
 import mlrun.common.schemas
-import services.api.utils.memory_reports
 
 router = fastapi.APIRouter(prefix="/memory-reports")
 

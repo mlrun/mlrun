@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import services.api.api.endpoints.feature_store
+import services.api.crud
+import services.api.utils.auth.verifier
+import services.api.utils.singletons.project_member
 from fastapi import APIRouter, Depends, Query
+from services.api.api import deps
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.feature_store
-import services.api.api.endpoints.feature_store
-import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
 )
 from mlrun.utils import run_in_threadpool
-from services.api.api import deps
 
 router = APIRouter(prefix="/v2/projects/{project}")
 

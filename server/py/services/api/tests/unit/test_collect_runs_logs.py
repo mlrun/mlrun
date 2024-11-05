@@ -18,18 +18,18 @@ import unittest.mock
 import deepdiff
 import fastapi.testclient
 import pytest
-import sqlalchemy.orm.session
-
-import mlrun.common.runtimes.constants
-import mlrun.config
 import services.api.crud
 import services.api.main
 import services.api.utils.clients.log_collector
 import services.api.utils.singletons.db
+import sqlalchemy.orm.session
 from services.api.tests.unit.utils.clients.test_log_collector import (
     BaseLogCollectorResponse,
     ListRunsResponse,
 )
+
+import mlrun.common.runtimes.constants
+import mlrun.config
 
 
 class TestCollectRunSLogs:

@@ -16,13 +16,13 @@ import unittest.mock
 from datetime import datetime, timezone
 
 import pytest
+import services.api.db.sqldb.helpers
+import services.api.initial_data
+from services.api.db.base import DBInterface
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.model
-import services.api.db.sqldb.helpers
-import services.api.initial_data
-from services.api.db.base import DBInterface
 
 
 def test_list_runs_name_filter(db: DBInterface, db_session: Session):

@@ -20,13 +20,6 @@ import typing
 
 import dateutil.parser
 import pymysql.err
-import sqlalchemy.exc
-import sqlalchemy.orm
-
-import mlrun.artifacts
-import mlrun.artifacts.base
-import mlrun.common.formatters
-import mlrun.common.schemas
 import services.api.constants
 import services.api.crud.pagination_cache
 import services.api.db.sqldb.db
@@ -36,6 +29,16 @@ import services.api.utils.db.alembic
 import services.api.utils.db.backup
 import services.api.utils.db.mysql
 import services.api.utils.scheduler
+import sqlalchemy.exc
+import sqlalchemy.orm
+from services.api.db.init_db import init_db
+from services.api.db.session import close_session, create_session
+from services.api.db.sqldb.models import ProjectSummary
+
+import mlrun.artifacts
+import mlrun.artifacts.base
+import mlrun.common.formatters
+import mlrun.common.schemas
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
@@ -44,9 +47,6 @@ from mlrun.utils import (
     is_link_artifact,
     logger,
 )
-from services.api.db.init_db import init_db
-from services.api.db.session import close_session, create_session
-from services.api.db.sqldb.models import ProjectSummary
 
 
 def init_data(

@@ -13,8 +13,9 @@
 # limitations under the License.
 #
 
-import mlrun.common.schemas
 import services.api.utils.events.base as base_events
+
+import mlrun.common.schemas
 
 
 class NopClient(base_events.BaseEventClient):

@@ -14,15 +14,15 @@
 #
 import typing
 
-import sqlalchemy.orm
-
-import mlrun.common.schemas
-import mlrun.utils.singleton
 import services.api.api.utils
 import services.api.db.sqldb.db
 import services.api.utils.scheduler
 import services.api.utils.singletons.db
 import services.api.utils.singletons.scheduler
+import sqlalchemy.orm
+
+import mlrun.common.schemas
+import mlrun.utils.singleton
 
 
 class Notifications(

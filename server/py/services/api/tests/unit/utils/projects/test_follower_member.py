@@ -19,12 +19,6 @@ import unittest.mock
 import deepdiff
 import mlrun_pipelines.utils
 import pytest
-import sqlalchemy.orm
-
-import mlrun.common.formatters
-import mlrun.common.schemas
-import mlrun.config
-import mlrun.errors
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.utils.background_tasks
@@ -32,6 +26,12 @@ import services.api.utils.projects.follower
 import services.api.utils.projects.remotes.leader
 import services.api.utils.singletons.db
 import services.api.utils.singletons.project_member
+import sqlalchemy.orm
+
+import mlrun.common.formatters
+import mlrun.common.schemas
+import mlrun.config
+import mlrun.errors
 from mlrun.utils import logger
 
 

@@ -18,21 +18,21 @@ import os
 import unittest
 import unittest.mock
 
+import services.api.api.endpoints.functions
+import services.api.runtime_handlers.daskjob
 from dask import distributed
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from mlrun_pipelines.mounts import auto_mount
+from services.api.tests.unit.conftest import K8sSecretsMock
+from services.api.tests.unit.runtimes.base import TestRuntimeBase
 from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
-import services.api.api.endpoints.functions
-import services.api.runtime_handlers.daskjob
 from mlrun import mlconf
 from mlrun.runtimes.utils import generate_resources
-from services.api.tests.unit.conftest import K8sSecretsMock
-from services.api.tests.unit.runtimes.base import TestRuntimeBase
 
 
 class TestDaskRuntime(TestRuntimeBase):

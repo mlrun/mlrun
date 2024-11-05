@@ -17,6 +17,10 @@ import json
 import typing
 import uuid
 
+import services.api
+import services.api.utils.events.events_factory as events_factory
+import services.api.utils.singletons.k8s
+
 import mlrun.common
 import mlrun.common.schemas
 import mlrun.common.secrets
@@ -25,9 +29,6 @@ import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
 import mlrun.utils.vault
-import services.api
-import services.api.utils.events.events_factory as events_factory
-import services.api.utils.singletons.k8s
 from mlrun.config import config as mlconf
 from mlrun.utils import logger
 

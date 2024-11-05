@@ -14,14 +14,14 @@
 #
 import typing
 
+import services.api.db.session
+import services.api.utils.auth.verifier
 import uvicorn.protocols.utils
 from fastapi import Request
 from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.schemas
-import services.api.db.session
-import services.api.utils.auth.verifier
 
 
 def get_db_session() -> typing.Generator[Session, None, None]:

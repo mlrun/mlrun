@@ -15,11 +15,11 @@
 import datetime
 import typing
 
+import services.api.utils.singletons.db
 import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.utils.singletons.db
 from mlrun import mlconf
 
 

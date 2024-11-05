@@ -16,12 +16,12 @@ from collections.abc import Iterator
 from unittest.mock import Mock, patch
 
 import pytest
+from services.api.crud.model_monitoring.model_endpoints import ModelEndpoints
 from sqlalchemy.orm import Session as DBSession
 from v3io.dataplane.response import HttpResponseError
 
 import mlrun.common.schemas
 from mlrun.artifacts import ModelArtifact
-from services.api.crud.model_monitoring.model_endpoints import ModelEndpoints
 
 
 @pytest.fixture

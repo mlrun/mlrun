@@ -21,13 +21,13 @@ import kubernetes.client as k8s_client
 import kubernetes.client.rest as k8s_client_rest
 import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
 import pytest
+import services.api.runtime_handlers.mpijob
+import services.api.utils.singletons.k8s
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.runtimes
-import services.api.runtime_handlers.mpijob
-import services.api.utils.singletons.k8s
 from mlrun.common.schemas import SecretEventActions
 
 

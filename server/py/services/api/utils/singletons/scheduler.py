@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from mlrun.common.db.sql_session import create_session
 from services.api.utils.scheduler import Scheduler
+
+from mlrun.common.db.sql_session import create_session
 
 # TODO: something nicer
 scheduler: Scheduler = None

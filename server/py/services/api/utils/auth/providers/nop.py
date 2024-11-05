@@ -14,9 +14,10 @@
 #
 import typing
 
+import services.api.utils.auth.providers.base as auth
+
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.utils.auth.providers.base as auth
 
 
 class Provider(

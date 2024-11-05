@@ -18,11 +18,12 @@ from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
+import services.api.tests.unit.api.utils
 from fastapi.testclient import TestClient
+from services.api.crud.feature_store import FeatureStore
 from sqlalchemy.orm import Session
 
 import mlrun.feature_store.feature_set
-import services.api.tests.unit.api.utils
 from mlrun.common.schemas.feature_store import (
     FeatureSet,
     FeatureSetSpec,
@@ -30,7 +31,6 @@ from mlrun.common.schemas.feature_store import (
     ObjectStatus,
 )
 from mlrun.common.schemas.object import ObjectStatusState
-from services.api.crud.feature_store import FeatureStore
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,

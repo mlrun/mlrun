@@ -13,13 +13,13 @@
 # limitations under the License.
 #
 import fastapi
+import services.api.api.deps
+import services.api.crud
+import services.api.utils.auth.verifier
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
-import services.api.api.deps
-import services.api.crud
-import services.api.utils.auth.verifier
 
 router = fastapi.APIRouter()
 

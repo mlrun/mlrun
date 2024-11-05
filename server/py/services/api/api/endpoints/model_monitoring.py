@@ -18,17 +18,17 @@ from typing import Annotated, Optional
 
 import fastapi
 import semver
-from fastapi import APIRouter, Depends, Header, Path, Query
-from sqlalchemy.orm import Session
-
-import mlrun.common.schemas
 import services.api.api.utils
 import services.api.utils.auth.verifier
 import services.api.utils.clients.chief
+from fastapi import APIRouter, Depends, Header, Path, Query
 from services.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api import deps
 from services.api.api.endpoints.nuclio import process_model_monitoring_secret
 from services.api.crud.model_monitoring.deployment import MonitoringDeployment
+from sqlalchemy.orm import Session
+
+import mlrun.common.schemas
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
 

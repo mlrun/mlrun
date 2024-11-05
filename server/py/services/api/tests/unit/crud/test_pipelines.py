@@ -16,11 +16,11 @@ import json
 
 import mlrun_pipelines
 import mlrun_pipelines.common.helpers
+import services.api.crud
 
 import mlrun.errors
 import mlrun.run
 import mlrun.utils.helpers
-import services.api.crud
 
 
 def test_resolve_pipeline_project():

@@ -15,14 +15,14 @@
 import abc
 import typing
 
+import services.api.crud
+import services.api.utils.clients.log_collector
 import sqlalchemy.orm
 
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.singleton
-import services.api.crud
-import services.api.utils.clients.log_collector
 
 
 class Member(abc.ABC):

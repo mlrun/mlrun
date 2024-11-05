@@ -17,11 +17,11 @@ import http
 import deepdiff
 import pytest
 import requests_mock as requests_mock_package
+import services.api.utils.clients.nuclio
 
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import services.api.utils.clients.nuclio
 
 
 @pytest.fixture()

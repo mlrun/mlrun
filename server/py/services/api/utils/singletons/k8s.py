@@ -20,6 +20,7 @@ import typing
 
 import kubernetes.client.rest as k8s_client_rest
 import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
+import services.api.runtime_handlers
 from kubernetes import client, config
 
 import mlrun
@@ -32,7 +33,6 @@ import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
-import services.api.runtime_handlers
 from mlrun.utils import logger
 from mlrun.utils.helpers import run_with_retry, to_non_empty_values_dict
 

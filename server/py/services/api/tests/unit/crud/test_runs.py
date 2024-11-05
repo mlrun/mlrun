@@ -17,6 +17,11 @@ import uuid
 
 import deepdiff
 import pytest
+import services.api.crud
+import services.api.runtime_handlers
+import services.api.tests.unit.conftest
+import services.api.utils.clients.log_collector
+import services.api.utils.singletons.k8s
 import sqlalchemy.orm
 from kubernetes import client as k8s_client
 
@@ -24,11 +29,6 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
-import services.api.crud
-import services.api.runtime_handlers
-import services.api.tests.unit.conftest
-import services.api.utils.clients.log_collector
-import services.api.utils.singletons.k8s
 
 
 class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):

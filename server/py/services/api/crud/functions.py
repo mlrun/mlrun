@@ -15,6 +15,9 @@
 
 import datetime
 
+import services.api.api.utils
+import services.api.runtime_handlers
+import services.api.utils.singletons.db
 import sqlalchemy.orm
 
 import mlrun.common.formatters
@@ -23,9 +26,6 @@ import mlrun.common.types
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
-import services.api.api.utils
-import services.api.runtime_handlers
-import services.api.utils.singletons.db
 
 
 class Functions(

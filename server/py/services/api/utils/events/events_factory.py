@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import mlrun.common.schemas
-import mlrun.utils.singleton
 import services.api.utils.events.base
 import services.api.utils.events.iguazio
 import services.api.utils.events.nop
+
+import mlrun.common.schemas
+import mlrun.utils.singleton
 
 
 class EventsFactory:

@@ -20,21 +20,21 @@ from typing import Optional
 import deepdiff
 import fastapi.testclient
 import pytest
+import services.api.crud
+import services.api.utils.clients.chief
 from kubernetes import client
+from services.api.constants import LogSources
+from services.api.runtime_handlers import get_runtime_handler
+from services.api.utils.singletons.db import get_db
+from services.api.utils.singletons.k8s import get_k8s_helper
 from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
-import services.api.crud
-import services.api.utils.clients.chief
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_test_logger, now_date
-from services.api.constants import LogSources
-from services.api.runtime_handlers import get_runtime_handler
-from services.api.utils.singletons.db import get_db
-from services.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_test_logger(name="test-runtime-handlers")
 

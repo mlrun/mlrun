@@ -16,24 +16,24 @@ import asyncio
 from http import HTTPStatus
 from typing import Optional
 
+import services.api.crud
+import services.api.utils.auth.verifier
+import services.api.utils.singletons.project_member
 from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from mlrun_pipelines.mounts import v3io_cred
+from services.api.api import deps
+from services.api.api.utils import log_and_raise, parse_reference
 from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.feature_store
-import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
 from mlrun.model import DataSource, DataTargetBase
-from services.api.api import deps
-from services.api.api.utils import log_and_raise, parse_reference
 
 router = APIRouter(prefix="/projects/{project}")
 

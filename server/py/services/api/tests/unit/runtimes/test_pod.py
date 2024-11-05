@@ -15,11 +15,11 @@
 import deepdiff
 import kubernetes
 import pytest
+from services.api.tests.unit.runtimes.base import TestRuntimeBase
 
 import mlrun
 import mlrun.errors
 import mlrun.runtimes.pod
-from services.api.tests.unit.runtimes.base import TestRuntimeBase
 
 
 class TestKubeResource(TestRuntimeBase):

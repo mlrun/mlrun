@@ -17,9 +17,10 @@ import http
 import re
 import typing
 
+import services.api.utils.clients.protocols.grpc
+
 import mlrun.errors
 import mlrun.utils.singleton
-import services.api.utils.clients.protocols.grpc
 from mlrun.config import config
 from mlrun.utils import logger
 

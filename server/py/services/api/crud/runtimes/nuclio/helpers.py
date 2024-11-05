@@ -15,12 +15,12 @@
 import urllib.parse
 
 import semver
-
-import mlrun
-import mlrun.runtimes
 import services.api.utils.clients.nuclio
 import services.api.utils.runtimes.nuclio
 import services.api.utils.singletons.k8s
+
+import mlrun
+import mlrun.runtimes
 from mlrun.utils import logger
 
 

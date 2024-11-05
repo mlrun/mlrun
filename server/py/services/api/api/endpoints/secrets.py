@@ -15,15 +15,15 @@
 from http import HTTPStatus
 
 import fastapi
+import services.api.api.deps
+import services.api.crud
+import services.api.utils.auth.verifier
+import services.api.utils.singletons.project_member
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.errors
-import services.api.api.deps
-import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
 
 router = fastapi.APIRouter()
 

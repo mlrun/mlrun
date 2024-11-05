@@ -20,8 +20,14 @@ from typing import Optional
 
 import pandas as pd
 import pytest
+import services.api.utils.clients.iguazio
 from fastapi.testclient import TestClient
 from pytest import fail
+from services.api.crud.model_monitoring.grafana import (
+    parse_query_parameters,
+    validate_query_parameters,
+)
+from services.api.tests.unit.api.test_model_endpoints import _mock_random_endpoint
 from sqlalchemy.orm import Session
 from v3io.dataplane import RaiseForStatus
 from v3io_frames import CreateError
@@ -30,16 +36,10 @@ from v3io_frames import frames_pb2 as fpb2
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants
 import mlrun.model_monitoring.db.stores
-import services.api.utils.clients.iguazio
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
-from services.api.crud.model_monitoring.grafana import (
-    parse_query_parameters,
-    validate_query_parameters,
-)
-from services.api.tests.unit.api.test_model_endpoints import _mock_random_endpoint
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
 TEST_PROJECT = "test3"

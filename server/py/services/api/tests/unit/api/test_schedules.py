@@ -17,14 +17,14 @@ import http
 import fastapi.testclient
 import httpx
 import pytest
-import sqlalchemy.orm
-
-import mlrun
-import mlrun.common.schemas
 import services.api.main
 import services.api.tests.unit.api.utils
 import services.api.utils.singletons.scheduler
+import sqlalchemy.orm
 from services.api.utils.singletons.db import get_db
+
+import mlrun
+import mlrun.common.schemas
 from tests.common_fixtures import aioresponses_mock
 
 ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX

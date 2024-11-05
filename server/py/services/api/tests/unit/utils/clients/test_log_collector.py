@@ -17,11 +17,11 @@ import unittest.mock
 
 import deepdiff
 import pytest
+import services.api.utils.clients.log_collector
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
-import services.api.utils.clients.log_collector
 
 
 class BaseLogCollectorResponse:

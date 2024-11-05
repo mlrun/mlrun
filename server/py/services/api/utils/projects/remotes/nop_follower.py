@@ -15,12 +15,12 @@
 import typing
 
 import mergedeep
+import services.api.utils.projects.remotes.follower as project_follower
 import sqlalchemy.orm
 
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
-import services.api.utils.projects.remotes.follower as project_follower
 
 
 class Member(project_follower.Member):

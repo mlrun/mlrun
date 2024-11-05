@@ -15,10 +15,11 @@
 
 import typing
 
-import mlrun.config
 import services.api.utils.projects.follower
 import services.api.utils.projects.leader
 import services.api.utils.projects.member
+
+import mlrun.config
 
 # TODO: something nicer
 project_member: typing.Optional[services.api.utils.projects.member.Member] = None

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from mlrun.runtimes import RuntimeKinds
 from services.api.runtime_handlers.base import BaseRuntimeHandler
 from services.api.runtime_handlers.daskjob import DaskRuntimeHandler, get_dask_resource
 from services.api.runtime_handlers.kubejob import (
@@ -23,6 +22,8 @@ from services.api.runtime_handlers.mpijob import resolve_mpijob_crd_version
 from services.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
 from services.api.runtime_handlers.remotesparkjob import RemoteSparkRuntimeHandler
 from services.api.runtime_handlers.sparkjob.spark3job import Spark3RuntimeHandler
+
+from mlrun.runtimes import RuntimeKinds
 
 runtime_handler_instances_cache = {}
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}

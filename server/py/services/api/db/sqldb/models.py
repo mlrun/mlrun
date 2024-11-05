@@ -18,6 +18,7 @@ import warnings
 from datetime import datetime, timezone
 
 import orjson
+from services.api.utils.db.sql_types import SQLTypesUtil
 from sqlalchemy import (
     BOOLEAN,
     JSON,
@@ -35,7 +36,6 @@ from sqlalchemy.orm import relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
-from services.api.utils.db.sql_types import SQLTypesUtil
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter

@@ -16,17 +16,17 @@
 import datetime
 import re
 
-import sqlalchemy.orm
-
-import mlrun.common.schemas
-import mlrun.utils.singleton
 import services.api.api.utils
 import services.api.utils.helpers
 import services.api.utils.lru_cache
 import services.api.utils.singletons.db
+import sqlalchemy.orm
+from services.api.utils.notification_pusher import AlertNotificationPusher
+
+import mlrun.common.schemas
+import mlrun.utils.singleton
 from mlrun.config import config as mlconfig
 from mlrun.utils import logger
-from services.api.utils.notification_pusher import AlertNotificationPusher
 
 
 class Alerts(

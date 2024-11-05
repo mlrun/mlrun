@@ -19,12 +19,12 @@ import unittest.mock
 import deepdiff
 import fastapi.testclient
 import pytest
+import services.api.crud
+import services.api.tests.unit.conftest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
-import services.api.crud
-import services.api.tests.unit.conftest
 
 
 def test_store_project_secrets_verifications(

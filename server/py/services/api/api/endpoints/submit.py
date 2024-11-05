@@ -16,19 +16,19 @@ from http import HTTPStatus
 from typing import Optional
 
 import fastapi.concurrency
+import services.api.api.utils
+import services.api.utils.auth.verifier
+import services.api.utils.clients.chief
+import services.api.utils.singletons.project_member
 from fastapi import APIRouter, Depends, Header, Request
+from services.api.api import deps
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.utils.helpers
-import services.api.api.utils
-import services.api.utils.auth.verifier
-import services.api.utils.clients.chief
-import services.api.utils.singletons.project_member
 from mlrun.utils import logger
-from services.api.api import deps
 
 router = APIRouter()
 

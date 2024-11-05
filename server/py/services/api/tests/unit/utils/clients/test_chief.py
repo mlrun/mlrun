@@ -23,6 +23,7 @@ import aiohttp.web
 import fastapi.encoders
 import pytest
 import pytest_asyncio
+import services.api.utils.clients.chief
 import starlette.datastructures
 from aiohttp import ClientConnectorError
 from aiohttp.test_utils import TestClient, TestServer
@@ -30,7 +31,6 @@ from aiohttp.test_utils import TestClient, TestServer
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import services.api.utils.clients.chief
 from tests.common_fixtures import aioresponses_mock
 
 

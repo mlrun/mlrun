@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from sqlalchemy.orm import Session
-
 import services.api.db.sqldb.models
 import services.api.initial_data
 from services.api.db.base import DBInterface
+from sqlalchemy.orm import Session
 
 
 def test_data_migration_rename_marketplace_kind_to_hub(

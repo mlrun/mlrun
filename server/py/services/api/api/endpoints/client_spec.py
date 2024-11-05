@@ -14,12 +14,12 @@
 #
 import typing
 
-from fastapi import APIRouter, Depends, Header
-
-import mlrun.common.schemas
 import services.api.api.utils
 import services.api.crud
 import services.api.utils.helpers
+from fastapi import APIRouter, Depends, Header
+
+import mlrun.common.schemas
 
 router = APIRouter()
 

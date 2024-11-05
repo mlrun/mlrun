@@ -16,20 +16,20 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
-from kubernetes import client as k8s_client
-from sqlalchemy.orm import Session
-
-import mlrun.common.constants as mlrun_constants
-import mlrun.common.schemas
 import services.api.runtime_handlers.mpijob
 import services.api.utils.helpers
-from mlrun.common.runtimes.constants import PodPhases, RunStates
-from mlrun.runtimes import RuntimeKinds
+from fastapi.testclient import TestClient
+from kubernetes import client as k8s_client
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
 from services.api.utils.singletons.db import get_db
 from services.api.utils.singletons.k8s import get_k8s_helper
+from sqlalchemy.orm import Session
+
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
+from mlrun.common.runtimes.constants import PodPhases, RunStates
+from mlrun.runtimes import RuntimeKinds
 
 
 class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):

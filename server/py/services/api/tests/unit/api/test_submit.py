@@ -20,20 +20,20 @@ from http import HTTPStatus
 import fastapi.testclient
 import pandas as pd
 import pytest
-import sqlalchemy.orm
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-
-import mlrun
-import mlrun.common.constants as mlrun_constants
 import services.api.main
 import services.api.tests.unit.api.utils
 import services.api.utils.auth.verifier
 import services.api.utils.clients.chief
 import services.api.utils.singletons.k8s
+import sqlalchemy.orm
+from fastapi.testclient import TestClient
+from services.api.tests.unit.conftest import K8sSecretsMock
+from sqlalchemy.orm import Session
+
+import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
-from services.api.tests.unit.conftest import K8sSecretsMock
 
 ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
 DEFAULT_FUNCTION_OUTPUT_PATH = "/some/fictive/path/to/make/everybody/happy"

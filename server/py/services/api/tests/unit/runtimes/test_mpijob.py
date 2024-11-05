@@ -16,6 +16,8 @@ import unittest.mock
 
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
+from services.api.tests.unit.runtimes.base import TestRuntimeBase
+from services.api.utils.singletons.k8s import get_k8s_helper
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
@@ -23,8 +25,6 @@ import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
-from services.api.tests.unit.runtimes.base import TestRuntimeBase
-from services.api.utils.singletons.k8s import get_k8s_helper
 
 
 class TestMpiV1Runtime(TestRuntimeBase):

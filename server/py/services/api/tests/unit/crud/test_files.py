@@ -16,10 +16,10 @@ import unittest.mock
 
 import fastapi.testclient
 import pytest
+import services.api.crud
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-import services.api.crud
 
 
 @pytest.mark.parametrize(

@@ -20,11 +20,11 @@ import aioresponses
 import deepdiff
 import pytest
 import pytest_asyncio
+import services.api.utils.auth.providers.opa
 
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import services.api.utils.auth.providers.opa
 
 
 @pytest.fixture()

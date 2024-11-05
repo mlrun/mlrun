@@ -14,15 +14,15 @@
 #
 from fastapi.testclient import TestClient
 from kubernetes import client
+from services.api.runtime_handlers import get_runtime_handler
+from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
+from services.api.utils.singletons.db import get_db
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.runtimes import RuntimeKinds
-from services.api.runtime_handlers import get_runtime_handler
-from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
-from services.api.utils.singletons.db import get_db
 
 
 class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):

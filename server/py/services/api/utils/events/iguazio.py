@@ -14,10 +14,10 @@
 #
 
 import igz_mgmt.schemas.events
-
-import mlrun.common.schemas
 import services.api.utils.clients.iguazio
 import services.api.utils.events.base as base_events
+
+import mlrun.common.schemas
 from mlrun.utils import logger
 
 PROJECT_AUTH_SECRET_CREATED = "Security.Project.AuthSecret.Created"

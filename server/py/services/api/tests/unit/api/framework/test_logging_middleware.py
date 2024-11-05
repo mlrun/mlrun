@@ -21,11 +21,11 @@ import pydantic
 import pytest
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.testclient import TestClient
+from services.api.main import app
 from sqlalchemy.orm import Session
 
 from mlrun.utils import logger
 from mlrun.utils.logger import Logger, create_logger
-from services.api.main import app
 
 
 class Handled1Error(Exception):

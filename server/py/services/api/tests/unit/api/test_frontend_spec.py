@@ -17,15 +17,15 @@ import unittest.mock
 
 import deepdiff
 import fastapi.testclient
+import services.api.api.utils
+import services.api.utils.builder
+import services.api.utils.clients.iguazio
+import services.api.utils.runtimes.nuclio
 import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
-import services.api.api.utils
-import services.api.utils.builder
-import services.api.utils.clients.iguazio
-import services.api.utils.runtimes.nuclio
 from mlrun.config import config as mlconf
 
 

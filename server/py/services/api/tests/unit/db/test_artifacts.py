@@ -19,6 +19,9 @@ import unittest.mock
 
 import deepdiff
 import pytest
+import services.api.db.sqldb.models
+import services.api.initial_data
+from services.api.db.base import DBInterface
 from sqlalchemy import distinct, select
 from sqlalchemy.orm import Session
 
@@ -26,14 +29,11 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
-import services.api.db.sqldb.models
-import services.api.initial_data
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import PlotArtifact, PlotlyArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
-from services.api.db.base import DBInterface
 
 
 class TestArtifacts:

@@ -23,17 +23,6 @@ import httpx
 import pytest
 import pytest_asyncio
 import semver
-import sqlalchemy.orm
-from fastapi.testclient import TestClient
-from sqlalchemy import event
-from sqlalchemy.engine import Engine
-
-import mlrun.common.schemas
-import mlrun.common.secrets
-import mlrun.db.factory
-import mlrun.launcher.factory
-import mlrun.runtimes.utils
-import mlrun.utils.singleton
 import services.api.crud
 import services.api.launcher
 import services.api.rundb.sqldb
@@ -46,13 +35,24 @@ import services.api.utils.singletons.k8s
 import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
+import sqlalchemy.orm
+from fastapi.testclient import TestClient
+from services.api.initial_data import init_data
+from services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
+import mlrun.common.schemas
+import mlrun.common.secrets
+import mlrun.db.factory
+import mlrun.launcher.factory
+import mlrun.runtimes.utils
+import mlrun.utils.singleton
 from mlrun import mlconf
 from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
-from services.api.initial_data import init_data
-from services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 
 # Importing here since mlrun_pipelines imports mlconf and it causes circular import
 import mlrun_pipelines.utils  # isort:skip

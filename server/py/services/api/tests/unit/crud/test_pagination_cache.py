@@ -15,9 +15,9 @@
 
 import time
 
+import services.api.crud
 import sqlalchemy.orm
 
-import services.api.crud
 from mlrun import mlconf
 from mlrun.utils import logger
 

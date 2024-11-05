@@ -18,12 +18,6 @@ import typing
 from http import HTTPStatus
 
 import semver
-import sqlalchemy.orm
-from fastapi import APIRouter, Depends, Header, Request, Response
-from fastapi.concurrency import run_in_threadpool
-
-import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import services.api.api.utils
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
@@ -33,13 +27,19 @@ import services.api.utils.auth.verifier
 import services.api.utils.clients.async_nuclio
 import services.api.utils.clients.chief
 import services.api.utils.singletons.project_member
+import sqlalchemy.orm
+from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi.concurrency import run_in_threadpool
+from services.api import MINIMUM_CLIENT_VERSION_FOR_MM
+from services.api.api import deps
+from services.api.crud.secrets import Secrets, SecretsClientType
+
+import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
-from services.api import MINIMUM_CLIENT_VERSION_FOR_MM
-from services.api.api import deps
-from services.api.crud.secrets import Secrets, SecretsClientType
 
 router = APIRouter()
 

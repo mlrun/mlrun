@@ -14,6 +14,10 @@
 from copy import deepcopy
 from typing import Optional, Union
 
+import services.api.api.utils
+import services.api.crud
+import services.api.runtime_handlers
+import services.api.utils.helpers
 from dependency_injector import containers, providers
 
 import mlrun.common.constants as mlrun_constants
@@ -31,10 +35,6 @@ import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
-import services.api.api.utils
-import services.api.crud
-import services.api.runtime_handlers
-import services.api.utils.helpers
 
 
 class ServerSideLauncher(launcher.BaseLauncher):

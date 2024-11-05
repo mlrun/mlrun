@@ -16,10 +16,6 @@
 import http
 
 import fastapi
-import sqlalchemy.orm
-from fastapi.concurrency import run_in_threadpool
-
-import mlrun.common.schemas
 import services.api.api.deps
 import services.api.api.utils
 import services.api.crud
@@ -27,8 +23,12 @@ import services.api.utils.auth.verifier
 import services.api.utils.background_tasks
 import services.api.utils.clients.chief
 import services.api.utils.helpers
-from mlrun.utils import logger
+import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 from services.api.utils.singletons.project_member import get_project_member
+
+import mlrun.common.schemas
+from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 

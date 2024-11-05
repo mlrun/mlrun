@@ -14,22 +14,22 @@
 #
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.orm import Session
-
-import mlrun.common.formatters
-import mlrun.common.schemas
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.singletons.project_member
-from mlrun.config import config
-from mlrun.utils import logger
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from services.api.api import deps
 from services.api.api.utils import (
     artifact_project_and_resource_name_extractor,
     log_and_raise,
 )
+from sqlalchemy.orm import Session
+
+import mlrun.common.formatters
+import mlrun.common.schemas
+from mlrun.config import config
+from mlrun.utils import logger
 
 router = APIRouter()
 

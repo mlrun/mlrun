@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
+
 import mlrun.common.constants as mlrun_constants
 import mlrun.runtimes
 from mlrun.runtimes.base import RuntimeClassMode
-from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
 
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):

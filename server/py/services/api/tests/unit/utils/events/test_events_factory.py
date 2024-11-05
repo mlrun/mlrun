@@ -13,12 +13,12 @@
 # limitations under the License.
 #
 import pytest
-
-import mlrun.common.schemas
 import services.api.utils.events.base
 import services.api.utils.events.events_factory
 import services.api.utils.events.iguazio
 import services.api.utils.events.nop
+
+import mlrun.common.schemas
 
 
 @pytest.mark.parametrize(

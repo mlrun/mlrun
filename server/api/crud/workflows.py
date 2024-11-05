@@ -348,7 +348,7 @@ class WorkflowRunners(
             )
             for notification in notifications:
                 notification_type = NotificationTypes(
-                    notification.kind or NotificationTypes.console
+                    notification.kind
                 ).get_notification()
 
                 default_params = default_notification_params.get(notification.kind, {})

@@ -14,6 +14,7 @@
 
 import asyncio
 import typing
+from copy import deepcopy
 
 import mlrun.common.schemas
 import mlrun.lists
@@ -27,12 +28,11 @@ class NotificationBase:
         default_params: dict[str, str] = None,
     ):
         """
-        Initialize the notification object.
+        NotificationBase is the base class for all notification types.
 
-        :param name: The name of the notification object.
-        :param params: The parameters of the notification object.
-        :param default_params: The default parameters of the notification object.
-                                If one of the params is not provided, the default from this dict will be used.
+        :param name: The name of the notification.
+        :param params: The parameters of the notification.
+        :param default_params: The default parameters of the notification. Used for server-side enrichment purposes.
         """
         self.name = name
         self.params = params or {}
@@ -72,7 +72,7 @@ class NotificationBase:
     @classmethod
     def enrich_default_params(cls, params: dict, default_params: dict = None) -> dict:
         default_params = default_params or {}
-        returned_params = default_params.copy()
+        returned_params = deepcopy(default_params)
         returned_params.update(params)
         return returned_params
 

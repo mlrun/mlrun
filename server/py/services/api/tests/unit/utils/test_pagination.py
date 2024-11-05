@@ -16,12 +16,12 @@ import datetime
 import typing
 
 import pytest
-import services.api.crud
-import services.api.db.sqldb.models
-import services.api.utils.pagination
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import services.api.crud
+import services.api.db.sqldb.models
+import services.api.utils.pagination
 from mlrun.utils import logger
 
 

@@ -20,16 +20,16 @@ from unittest import mock
 
 import deepdiff
 import pytest
-import services.api.db.sqldb.models
-from services.api.db.sqldb.db import SQLDB
-from services.api.db.sqldb.models import ArtifactV2
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.formatters
 import mlrun.common.schemas
+import services.api.db.sqldb.models
 from mlrun.lists import ArtifactList
+from services.api.db.sqldb.db import SQLDB
+from services.api.db.sqldb.models import ArtifactV2
 from tests.conftest import new_run
 
 

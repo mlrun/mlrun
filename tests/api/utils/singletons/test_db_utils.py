@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import pytest
-import services.api.utils.singletons.db
+
+import server.api.utils.singletons.db
 
 
 @pytest.mark.parametrize(
@@ -34,5 +35,5 @@ import services.api.utils.singletons.db
     ],
 )
 def test_masked_dsn(dsn, expected_masked_dsn):
-    masked_dsn = services.api.utils.singletons.db._mask_dsn(dsn)
+    masked_dsn = server.api.utils.singletons.db._mask_dsn(dsn)
     assert masked_dsn == expected_masked_dsn

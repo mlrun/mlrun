@@ -17,11 +17,10 @@ import hashlib
 import json
 import unittest.mock
 
+import mlrun.common.schemas.notification
 import services.api.api.utils
 import services.api.constants
 import services.api.crud
-
-import mlrun.common.schemas.notification
 
 
 def test_notification_params_masking_on_run(monkeypatch):

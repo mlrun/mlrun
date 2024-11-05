@@ -17,14 +17,6 @@ import traceback
 import typing
 
 import humanfriendly
-import services.api.crud
-import services.api.db.session
-import services.api.utils.clients.nuclio
-import services.api.utils.periodic
-import services.api.utils.projects.member
-import services.api.utils.projects.member as project_member
-import services.api.utils.projects.remotes.follower
-import services.api.utils.projects.remotes.nop_follower
 import sqlalchemy.orm
 
 import mlrun.common.formatters
@@ -35,6 +27,14 @@ import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
+import services.api.crud
+import services.api.db.session
+import services.api.utils.clients.nuclio
+import services.api.utils.periodic
+import services.api.utils.projects.member
+import services.api.utils.projects.member as project_member
+import services.api.utils.projects.remotes.follower
+import services.api.utils.projects.remotes.nop_follower
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 

@@ -16,12 +16,12 @@ import http
 import typing
 
 import fastapi
-import services.api.initial_data
-import services.api.utils.background_tasks
-import services.api.utils.clients.chief
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
+import services.api.initial_data
+import services.api.utils.background_tasks
+import services.api.utils.clients.chief
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()

@@ -14,16 +14,16 @@
 import abc
 import time
 
-import services.api.utils.singletons.k8s
 from kubernetes import client
-from services.api.runtime_handlers import KubeRuntimeHandler
 
 import mlrun.k8s_utils
 import mlrun.utils.helpers
+import services.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.runtimes.mpijob import AbstractMPIJobRuntime
 from mlrun.utils import logger
+from services.api.runtime_handlers import KubeRuntimeHandler
 
 
 class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):

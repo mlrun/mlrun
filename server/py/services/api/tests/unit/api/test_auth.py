@@ -15,10 +15,10 @@
 import http
 
 import fastapi.testclient
-import services.api.utils.auth.verifier
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import services.api.utils.auth.verifier
 
 
 def test_verify_authorization(

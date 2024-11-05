@@ -16,6 +16,7 @@
 from datetime import datetime
 
 import pytest
+
 import services.api.crud.alert_activation
 
 

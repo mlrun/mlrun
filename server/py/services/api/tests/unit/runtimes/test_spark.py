@@ -22,13 +22,13 @@ import deepdiff
 import fastapi.testclient
 import kubernetes
 import pytest
-import services.api.tests.unit.runtimes.base
-import services.api.utils.singletons.k8s
 import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
+import services.api.tests.unit.runtimes.base
+import services.api.utils.singletons.k8s
 from mlrun.datastore import ParquetTarget
 from mlrun.feature_store import RunConfig
 from mlrun.feature_store.retrieval.job import _default_merger_handler

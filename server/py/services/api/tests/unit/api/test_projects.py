@@ -28,6 +28,17 @@ import kubernetes.client
 import mergedeep
 import mlrun_pipelines.common.models
 import pytest
+import sqlalchemy.orm
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+import mlrun.artifacts.dataset
+import mlrun.artifacts.model
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
+import mlrun.common.runtimes.constants
+import mlrun.common.schemas
+import mlrun.errors
 import services.api.api.utils
 import services.api.crud
 import services.api.main
@@ -40,8 +51,6 @@ import services.api.utils.singletons.db
 import services.api.utils.singletons.k8s
 import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
-import sqlalchemy.orm
-from fastapi.testclient import TestClient
 from services.api.db.sqldb.models import (
     ArtifactV2,
     Entity,
@@ -54,15 +63,6 @@ from services.api.db.sqldb.models import (
     Schedule,
     _classes,
 )
-from sqlalchemy.orm import Session
-
-import mlrun.artifacts.dataset
-import mlrun.artifacts.model
-import mlrun.common.constants as mlrun_constants
-import mlrun.common.formatters
-import mlrun.common.runtimes.constants
-import mlrun.common.schemas
-import mlrun.errors
 
 ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"

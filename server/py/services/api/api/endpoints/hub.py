@@ -17,10 +17,6 @@ import mimetypes
 from http import HTTPStatus
 from typing import Optional
 
-import services.api.api.deps
-import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.db
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -28,6 +24,10 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.schemas
 import mlrun.common.schemas.hub
+import services.api.api.deps
+import services.api.crud
+import services.api.utils.auth.verifier
+import services.api.utils.singletons.db
 
 router = APIRouter(prefix="/hub/sources")
 

@@ -18,12 +18,12 @@ from contextlib import nullcontext as does_not_raise
 
 import fastapi.concurrency
 import pytest
-import services.api.crud
-import services.api.tests.unit.conftest
 import sqlalchemy.orm
 
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.alert as alert_objects
+import services.api.crud
+import services.api.tests.unit.conftest
 
 
 @pytest.fixture

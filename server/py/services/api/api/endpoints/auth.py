@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 import fastapi
-import services.api.api.deps
-import services.api.utils.auth.verifier
 
 import mlrun.common.schemas
+import services.api.api.deps
+import services.api.utils.auth.verifier
 
 router = fastapi.APIRouter()
 

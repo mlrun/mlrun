@@ -15,11 +15,7 @@
 import datetime
 from typing import Optional, Union
 
-import services.api.crud
-import services.api.db.session
 from dependency_injector import containers, providers
-from services.api.db.base import DBError
-from services.api.db.sqldb.db import SQLDB
 from sqlalchemy.exc import SQLAlchemyError
 
 import mlrun.alerts
@@ -29,8 +25,12 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
+import services.api.crud
+import services.api.db.session
 from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
+from services.api.db.base import DBError
+from services.api.db.sqldb.db import SQLDB
 
 # This class is a proxy for the real implementation that sits under services.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)

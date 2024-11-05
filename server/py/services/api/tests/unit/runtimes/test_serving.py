@@ -21,17 +21,17 @@ from http import HTTPStatus
 import deepdiff
 import nuclio
 import pytest
-import services.api.api.utils
-import services.api.crud
-import services.api.crud.runtimes.nuclio.function
 from fastapi.testclient import TestClient
-from services.api.rundb.sqldb import SQLRunDB
-from services.api.utils.singletons.k8s import get_k8s_helper
 from sqlalchemy.orm import Session
 
 import mlrun.config
+import services.api.api.utils
+import services.api.crud
+import services.api.crud.runtimes.nuclio.function
 from mlrun import mlconf, new_function
 from mlrun.runtimes.nuclio.function import NuclioStatus
+from services.api.rundb.sqldb import SQLRunDB
+from services.api.utils.singletons.k8s import get_k8s_helper
 
 from .assets.serving_child_functions import *  # noqa
 

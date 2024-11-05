@@ -19,13 +19,13 @@ from http import HTTPStatus
 
 import deepdiff
 import pytest
-import services.api.crud
-import services.api.tests.unit.conftest
 import yaml
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import services.api.crud
+import services.api.tests.unit.conftest
 from mlrun.config import config
 
 

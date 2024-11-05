@@ -18,17 +18,17 @@ from datetime import datetime
 
 import fastapi.testclient
 import pytest
-import services.api.api.endpoints.operations
-import services.api.crud
-import services.api.initial_data
-import services.api.utils.background_tasks
-import services.api.utils.singletons.scheduler
 import sqlalchemy.orm
 
 import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
+import services.api.api.endpoints.operations
+import services.api.crud
+import services.api.initial_data
+import services.api.utils.background_tasks
+import services.api.utils.singletons.scheduler
 from mlrun.utils import logger
 
 

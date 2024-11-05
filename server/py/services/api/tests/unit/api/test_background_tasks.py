@@ -26,15 +26,15 @@ import httpx
 import pytest
 import pytest_asyncio
 import requests
+import sqlalchemy.orm
+
+import mlrun.common.schemas
 import services.api.api.deps
 import services.api.utils.auth.verifier
 import services.api.utils.background_tasks
 import services.api.utils.clients.chief
-import sqlalchemy.orm
-from services.api import main
-
-import mlrun.common.schemas
 from mlrun.utils import logger
+from services.api import main
 
 test_router = fastapi.APIRouter()
 

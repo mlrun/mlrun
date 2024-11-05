@@ -16,11 +16,11 @@ import os.path
 import unittest.mock
 
 import pytest
-import services.api.crud
-import services.api.tests.unit.conftest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import services.api.crud
+import services.api.tests.unit.conftest
 
 
 class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):

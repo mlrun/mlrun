@@ -19,13 +19,13 @@ from uuid import uuid4
 
 import deepdiff
 import pytest
-import services.api.api.endpoints.feature_store
-import services.api.tests.unit.api.utils
-import services.api.utils.auth.verifier
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import services.api.api.endpoints.feature_store
+import services.api.tests.unit.api.utils
+import services.api.utils.auth.verifier
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,

@@ -13,9 +13,8 @@
 # limitations under the License.
 #
 
-from services.api.db.sqldb.models import Base
-
 from mlrun.common.db.sql_session import get_engine
+from services.api.db.sqldb.models import Base
 
 
 def init_db() -> None:

@@ -15,18 +15,18 @@ import os
 import typing
 
 import kubernetes
-import services.api.db.base as api_db_base
-import services.api.utils.singletons.k8s
 import sqlalchemy.orm
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 from packaging.version import parse as parse_version
-from services.api.runtime_handlers import BaseRuntimeHandler
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import services.api.db.base as api_db_base
+import services.api.utils.singletons.k8s
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
+from services.api.runtime_handlers import BaseRuntimeHandler
 
 
 class KubeRuntimeHandler(BaseRuntimeHandler):

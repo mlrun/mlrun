@@ -27,6 +27,16 @@ from pathlib import Path
 
 import kubernetes.client
 import semver
+import sqlalchemy.orm
+from fastapi import BackgroundTasks, HTTPException
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
+
+import mlrun.common.schemas
+import mlrun.errors
+import mlrun.runtimes.pod
+import mlrun.utils.helpers
+import mlrun.utils.notifications.notification_pusher
 import services.api.constants
 import services.api.crud
 import services.api.crud.runtimes.nuclio
@@ -37,9 +47,12 @@ import services.api.utils.background_tasks
 import services.api.utils.clients.iguazio
 import services.api.utils.helpers
 import services.api.utils.singletons.k8s
-import sqlalchemy.orm
-from fastapi import BackgroundTasks, HTTPException
-from fastapi.concurrency import run_in_threadpool
+from mlrun.common.helpers import parse_versioned_object_uri
+from mlrun.config import config
+from mlrun.errors import err_to_str
+from mlrun.run import import_function, new_function
+from mlrun.runtimes.utils import enrich_function_from_dict
+from mlrun.utils import get_in, logger
 from services.api.crud.runtimes.nuclio import delete_nuclio_functions_in_batches
 from services.api.db.sqldb.db import SQLDB
 from services.api.rundb.sqldb import SQLRunDB
@@ -47,19 +60,6 @@ from services.api.utils.singletons.db import get_db
 from services.api.utils.singletons.logs_dir import get_logs_dir
 from services.api.utils.singletons.project_member import get_project_member
 from services.api.utils.singletons.scheduler import get_scheduler
-from sqlalchemy.orm import Session
-
-import mlrun.common.schemas
-import mlrun.errors
-import mlrun.runtimes.pod
-import mlrun.utils.helpers
-import mlrun.utils.notifications.notification_pusher
-from mlrun.common.helpers import parse_versioned_object_uri
-from mlrun.config import config
-from mlrun.errors import err_to_str
-from mlrun.run import import_function, new_function
-from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, logger
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):

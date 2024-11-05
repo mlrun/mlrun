@@ -15,11 +15,6 @@
 import itertools
 import typing
 
-import services.api.api.utils
-import services.api.crud.model_monitoring.deployment
-import services.api.crud.model_monitoring.helpers
-import services.api.crud.secrets
-import services.api.rundb.sqldb
 import sqlalchemy.orm
 
 import mlrun.artifacts
@@ -30,6 +25,11 @@ import mlrun.datastore
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
+import services.api.api.utils
+import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring.helpers
+import services.api.crud.secrets
+import services.api.rundb.sqldb
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFile,
     delete_model_monitoring_schedules_folder,

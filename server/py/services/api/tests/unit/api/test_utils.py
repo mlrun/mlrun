@@ -20,15 +20,23 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import kubernetes.client
 import pytest
+import sqlalchemy.orm
+from deepdiff import DeepDiff
+from fastapi.testclient import TestClient
+from kubernetes.client.models import V1ConfigMap, V1ObjectMeta
+from sqlalchemy.orm import Session
+
+import mlrun
+import mlrun.common.schemas
+import mlrun.k8s_utils
+import mlrun.runtimes.pod
 import services.api.crud
 import services.api.tests.unit.api.utils
 import services.api.tests.unit.conftest
 import services.api.utils.auth.verifier
 import services.api.utils.clients.iguazio
-import sqlalchemy.orm
-from deepdiff import DeepDiff
-from fastapi.testclient import TestClient
-from kubernetes.client.models import V1ConfigMap, V1ObjectMeta
+from mlrun.common.schemas import SecurityContextEnrichmentModes
+from mlrun.utils import logger
 from services.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
@@ -39,14 +47,6 @@ from services.api.api.utils import (
     get_scheduler,
 )
 from services.api.crud.runtimes.nuclio import delete_nuclio_functions_in_batches
-from sqlalchemy.orm import Session
-
-import mlrun
-import mlrun.common.schemas
-import mlrun.k8s_utils
-import mlrun.runtimes.pod
-from mlrun.common.schemas import SecurityContextEnrichmentModes
-from mlrun.utils import logger
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.

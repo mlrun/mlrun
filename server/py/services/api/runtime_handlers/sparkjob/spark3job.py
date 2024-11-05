@@ -18,15 +18,13 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Optional
 
-import services.api.utils.singletons.k8s
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
-from services.api.db.base import DBInterface
-from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.utils.regex
+import services.api.utils.singletons.k8s
 from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.runtimes import RuntimeClassMode, Spark3Runtime
 from mlrun.utils import (
@@ -37,6 +35,8 @@ from mlrun.utils import (
     verify_field_regex,
     verify_list_and_update_in,
 )
+from services.api.db.base import DBInterface
+from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
 
 _sparkjob_template = {
     "apiVersion": "sparkoperator.k8s.io/v1beta2",

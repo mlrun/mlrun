@@ -17,14 +17,14 @@ import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
 import pytest
-import services.api.launcher
-import services.api.tests.unit.api.utils
-import services.api.utils.clients.iguazio
 from fastapi.testclient import TestClient
 
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
+import services.api.launcher
+import services.api.tests.unit.api.utils
+import services.api.utils.clients.iguazio
 
 
 @pytest.mark.parametrize(

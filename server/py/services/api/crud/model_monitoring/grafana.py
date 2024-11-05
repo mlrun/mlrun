@@ -17,17 +17,17 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-import services.api.utils.auth.verifier
 from fastapi.concurrency import run_in_threadpool
-from services.api.utils.singletons.project_member import get_project_member
 from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import services.api.utils.auth.verifier
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import config, logger
 from mlrun.utils.v3io_clients import get_frames_client
+from services.api.utils.singletons.project_member import get_project_member
 
 
 def grafana_list_projects(

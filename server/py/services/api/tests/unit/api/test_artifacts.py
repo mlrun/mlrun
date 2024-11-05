@@ -20,14 +20,14 @@ from http import HTTPStatus
 
 import deepdiff
 import pytest
-import services.api.db.sqldb.models
-import services.api.tests.unit.api.utils
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.utils
+import services.api.db.sqldb.models
+import services.api.tests.unit.api.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
 PROJECT = "prj"

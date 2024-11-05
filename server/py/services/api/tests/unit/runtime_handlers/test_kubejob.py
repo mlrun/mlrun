@@ -16,23 +16,23 @@ import unittest.mock
 from datetime import datetime, timedelta, timezone
 
 import pytest
-import services.api.crud
-import services.api.utils.helpers
-import services.api.utils.runtimes
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
-from services.api.runtime_handlers import get_runtime_handler
-from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
-from services.api.utils.singletons.db import get_db
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import services.api.crud
+import services.api.utils.helpers
+import services.api.utils.runtimes
 import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import now_date
+from services.api.runtime_handlers import get_runtime_handler
+from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
+from services.api.utils.singletons.db import get_db
 
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):

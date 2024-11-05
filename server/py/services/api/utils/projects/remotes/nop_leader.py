@@ -15,11 +15,10 @@
 import datetime
 import typing
 
-import services.api.utils.projects.remotes.leader as project_leader
-import services.api.utils.singletons.project_member
-
 import mlrun.common.schemas
 import mlrun.errors
+import services.api.utils.projects.remotes.leader as project_leader
+import services.api.utils.singletons.project_member
 
 
 class Member(project_leader.Member):

@@ -15,6 +15,7 @@
 
 
 import pytest
+
 import services.api.utils.db.mysql
 
 

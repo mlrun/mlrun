@@ -23,7 +23,6 @@ import mlrun_pipelines.common.ops
 import mlrun_pipelines.mixins
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
-import services.api.api.utils
 import sqlalchemy.orm
 
 import mlrun
@@ -33,6 +32,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import services.api.api.utils
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 

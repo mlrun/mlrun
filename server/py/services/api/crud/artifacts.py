@@ -15,7 +15,6 @@
 import datetime
 import typing
 
-import services.api.utils.singletons.db
 import sqlalchemy.orm
 
 import mlrun.artifacts.base
@@ -27,6 +26,7 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import services.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 

@@ -14,7 +14,6 @@
 #
 import typing
 
-import services.api.utils.singletons.db
 import sqlalchemy.orm
 
 import mlrun.common.formatters
@@ -22,6 +21,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
+import services.api.utils.singletons.db
 
 
 class FeatureStore(

@@ -16,13 +16,13 @@ import random
 import unittest.mock
 from http import HTTPStatus
 
-import services.api.api.endpoints.workflows
-import services.api.crud
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import services.api.api.endpoints.workflows
+import services.api.crud
 
 PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"

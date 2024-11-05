@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import services.api.utils.singletons.k8s
-from services.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
-
 import mlrun.common.constants as mlrun_constants
 import mlrun.k8s_utils
 import mlrun.utils.helpers
+import services.api.utils.singletons.k8s
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from mlrun.config import config
+from services.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
 
 cached_mpijob_crd_version = None
 

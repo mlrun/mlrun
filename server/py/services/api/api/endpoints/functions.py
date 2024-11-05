@@ -18,6 +18,24 @@ from http import HTTPStatus
 from typing import Optional
 
 import kubernetes.client
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    Query,
+    Request,
+    Response,
+)
+from fastapi.concurrency import run_in_threadpool
+from kubernetes.client.rest import ApiException
+from sqlalchemy.orm import Session
+
+import mlrun.common.constants
+import mlrun.common.formatters
+import mlrun.common.model_monitoring
+import mlrun.common.model_monitoring.helpers
+import mlrun.common.schemas
 import services.api.api.utils
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
@@ -31,36 +49,18 @@ import services.api.utils.helpers
 import services.api.utils.pagination
 import services.api.utils.singletons.k8s
 import services.api.utils.singletons.project_member
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Depends,
-    Header,
-    Query,
-    Request,
-    Response,
-)
-from fastapi.concurrency import run_in_threadpool
-from kubernetes.client.rest import ApiException
-from services.api.api import deps
-from services.api.api.endpoints.nuclio import (
-    _get_api_gateways_urls_for_function,
-    _handle_nuclio_deploy_status,
-)
-from services.api.utils.singletons.scheduler import get_scheduler
-from sqlalchemy.orm import Session
-
-import mlrun.common.constants
-import mlrun.common.formatters
-import mlrun.common.model_monitoring
-import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
+from services.api.api import deps
+from services.api.api.endpoints.nuclio import (
+    _get_api_gateways_urls_for_function,
+    _handle_nuclio_deploy_status,
+)
+from services.api.utils.singletons.scheduler import get_scheduler
 
 router = APIRouter()
 

@@ -15,19 +15,19 @@
 
 from http import HTTPStatus
 
+from fastapi import APIRouter, Depends
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
+
+import mlrun
+import mlrun.common.schemas
 import services.api.api.deps
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.singletons.db
 import services.api.utils.singletons.project_member
-from fastapi import APIRouter, Depends
-from fastapi.concurrency import run_in_threadpool
-from services.api.api.utils import log_and_raise
-from sqlalchemy.orm import Session
-
-import mlrun
-import mlrun.common.schemas
 from mlrun.datastore.datastore_profile import DatastoreProfile as DSProfile
+from services.api.api.utils import log_and_raise
 
 router = APIRouter()
 

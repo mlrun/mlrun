@@ -14,14 +14,13 @@
 #
 import re
 
-import services.api.utils.db.mysql
-from services.api.db.base import DBInterface
-from services.api.db.sqldb.db import SQLDB
-
 import mlrun.db
+import server.api.utils.db.mysql
 from mlrun.common.db.sql_session import create_session
 from mlrun.config import config
 from mlrun.utils import logger
+from services.api.db.base import DBInterface
+from services.api.db.sqldb.db import SQLDB
 
 # TODO: something nicer
 db: DBInterface = None
@@ -53,7 +52,7 @@ def initialize_db(override_db=None):
 
 
 def _mask_dsn(dsn):
-    match = re.match(services.api.utils.db.mysql.MySQLUtil.dsn_regex, dsn)
+    match = re.match(server.api.utils.db.mysql.MySQLUtil.dsn_regex, dsn)
     if match:
         # Mask the username and password
         masked_dsn = dsn.replace(match.group("username"), "***")

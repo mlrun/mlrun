@@ -16,6 +16,17 @@
 import http
 
 import fastapi
+from fastapi import (
+    APIRouter,
+    Depends,
+    Request,
+)
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
+
+import mlrun.common.model_monitoring
+import mlrun.common.model_monitoring.helpers
+import mlrun.common.schemas
 import services.api.api.utils
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
@@ -28,20 +39,9 @@ import services.api.utils.functions
 import services.api.utils.pagination
 import services.api.utils.singletons.k8s
 import services.api.utils.singletons.project_member
-from fastapi import (
-    APIRouter,
-    Depends,
-    Request,
-)
-from fastapi.concurrency import run_in_threadpool
+from mlrun.utils import logger
 from services.api.api import deps
 from services.api.utils.singletons.scheduler import get_scheduler
-from sqlalchemy.orm import Session
-
-import mlrun.common.model_monitoring
-import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas
-from mlrun.utils import logger
 
 router = APIRouter()
 

@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 
-import services.api.utils.singletons.k8s
 import sqlalchemy.orm
 
 import mlrun.utils.singleton
+import services.api.utils.singletons.k8s
 from mlrun.datastore.datastore_profile import DatastoreProfile as DSProfile
 
 from .secrets import Secrets

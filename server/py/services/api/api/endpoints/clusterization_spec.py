@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 import fastapi
-import services.api.crud
-import services.api.utils.clients.chief
 
 import mlrun.common.schemas
+import services.api.crud
+import services.api.utils.clients.chief
 
 router = fastapi.APIRouter()
 

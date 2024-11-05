@@ -16,14 +16,14 @@ import typing
 import unittest.mock
 
 import pytest
-import services.api.utils.projects.leader
-import services.api.utils.projects.remotes.follower
-import services.api.utils.singletons.project_member
 import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+import services.api.utils.projects.leader
+import services.api.utils.projects.remotes.follower
+import services.api.utils.singletons.project_member
 from mlrun.utils import logger
 
 

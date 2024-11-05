@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import services.api.crud
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import services.api.crud
 
 
 def test_set_function_deletion_task_id_updates_correctly(db: sqlalchemy.orm.Session):

@@ -23,6 +23,14 @@ import httpx
 import kubernetes.client.rest
 import nuclio
 import pytest
+import sqlalchemy.orm
+
+import mlrun.artifacts.dataset
+import mlrun.artifacts.model
+import mlrun.common.constants
+import mlrun.common.model_monitoring.helpers
+import mlrun.common.schemas
+import mlrun.errors
 import services.api.api.endpoints.functions
 import services.api.api.endpoints.nuclio
 import services.api.api.utils
@@ -35,14 +43,6 @@ import services.api.utils.clients.iguazio
 import services.api.utils.functions
 import services.api.utils.singletons.db
 import services.api.utils.singletons.k8s
-import sqlalchemy.orm
-
-import mlrun.artifacts.dataset
-import mlrun.artifacts.model
-import mlrun.common.constants
-import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas
-import mlrun.errors
 import tests.conftest
 
 PROJECT = "project-name"

@@ -17,14 +17,14 @@ import http
 import typing
 
 import fastapi
-import services.api.api.deps
-import services.api.crud
-import services.api.utils.auth.verifier
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun
 import mlrun.common.schemas
+import services.api.api.deps
+import services.api.crud
+import services.api.utils.auth.verifier
 
 router = fastapi.APIRouter(prefix="/projects/{project}/runtime-resources")
 

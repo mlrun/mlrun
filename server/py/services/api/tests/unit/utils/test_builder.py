@@ -21,9 +21,6 @@ from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import pytest
-import services.api.api.utils
-import services.api.utils.builder
-import services.api.utils.singletons.k8s
 from kubernetes import client
 
 import mlrun
@@ -31,6 +28,9 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.version
+import services.api.api.utils
+import services.api.utils.builder
+import services.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 

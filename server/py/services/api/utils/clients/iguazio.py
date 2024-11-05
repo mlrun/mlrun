@@ -29,8 +29,6 @@ import httpx
 import humanfriendly
 import igz_mgmt.schemas.manual_events
 import requests.adapters
-import services.api.utils.helpers
-import services.api.utils.projects.remotes.leader as project_leader
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
@@ -38,6 +36,8 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import services.api.utils.helpers
+import services.api.utils.projects.remotes.leader as project_leader
 from mlrun.utils import get_in, logger
 
 

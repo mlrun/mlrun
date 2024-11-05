@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import services.api.db.sqldb.db
-import services.api.utils.singletons.db
 import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
+import services.api.db.sqldb.db
+import services.api.utils.singletons.db
 
 kind_to_function_names = {
     "artifact": {

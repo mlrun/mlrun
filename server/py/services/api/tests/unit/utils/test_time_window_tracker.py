@@ -14,10 +14,9 @@
 #
 import time
 
+import mlrun.common.db.sql_session
 import services.api.db.base
 import services.api.utils.time_window_tracker
-
-import mlrun.common.db.sql_session
 
 
 def test_time_window_tracker(db: services.api.db.base.DBInterface):

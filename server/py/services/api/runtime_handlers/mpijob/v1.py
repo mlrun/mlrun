@@ -16,7 +16,6 @@ import typing
 from datetime import datetime
 
 from kubernetes import client
-from services.api.runtime_handlers.mpijob.abstract import AbstractMPIJobRuntimeHandler
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.k8s_utils
@@ -25,6 +24,7 @@ from mlrun import mlconf
 from mlrun.common.runtimes.constants import RunStates
 from mlrun.runtimes.mpijob import MpiRuntimeV1
 from mlrun.utils import update_in
+from services.api.runtime_handlers.mpijob.abstract import AbstractMPIJobRuntimeHandler
 
 
 class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):

@@ -16,11 +16,7 @@ import typing
 from typing import Optional, Union
 
 import semver
-import services.api.utils.singletons.k8s
 from kubernetes.client.rest import ApiException
-from services.api.common.runtime_handlers import get_resource_labels
-from services.api.db.base import DBInterface
-from services.api.runtime_handlers import BaseRuntimeHandler
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
@@ -31,9 +27,13 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.utils
 import mlrun.utils.regex
+import services.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
+from services.api.common.runtime_handlers import get_resource_labels
+from services.api.db.base import DBInterface
+from services.api.runtime_handlers import BaseRuntimeHandler
 
 
 def get_dask_resource():

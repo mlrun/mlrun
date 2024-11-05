@@ -15,7 +15,6 @@
 import json
 import typing
 
-import services.api.crud.secrets
 import sqlalchemy.orm
 
 import mlrun.common.model_monitoring.helpers
@@ -24,6 +23,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores
+import services.api.crud.secrets
 
 
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:

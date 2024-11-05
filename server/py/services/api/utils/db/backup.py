@@ -20,7 +20,6 @@ import subprocess
 import typing
 
 import services.api.utils.db.mysql
-
 from mlrun import mlconf
 from mlrun.utils import logger
 

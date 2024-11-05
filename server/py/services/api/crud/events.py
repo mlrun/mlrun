@@ -14,11 +14,11 @@
 #
 import datetime
 
-import services.api.api.utils
-import services.api.utils.singletons.db
 import sqlalchemy.orm
 
 import mlrun.utils.singleton
+import services.api.api.utils
+import services.api.utils.singletons.db
 from mlrun.utils import logger
 
 

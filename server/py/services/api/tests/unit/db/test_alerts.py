@@ -15,11 +15,11 @@
 
 from datetime import datetime, timezone
 
-from services.api.db.base import DBInterface
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.model
+from services.api.db.base import DBInterface
 
 
 def test_store_alert_created_time(db: DBInterface, db_session: Session):

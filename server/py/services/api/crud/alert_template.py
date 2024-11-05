@@ -13,12 +13,12 @@
 # limitations under the License.
 #
 
-import services.api.api.utils
-import services.api.utils.helpers
-import services.api.utils.singletons.db
 import sqlalchemy.orm
 
 import mlrun.utils.singleton
+import services.api.api.utils
+import services.api.utils.helpers
+import services.api.utils.singletons.db
 
 
 class AlertTemplates(

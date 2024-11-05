@@ -15,7 +15,6 @@
 import http
 
 import pytest
-import services.api.utils.clients.async_nuclio
 from aioresponses import aioresponses as aioresponses_
 
 import mlrun.common.constants
@@ -23,6 +22,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.runtimes.nuclio.api_gateway
+import services.api.utils.clients.async_nuclio
 
 
 @pytest.fixture()

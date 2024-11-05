@@ -16,18 +16,18 @@ import mimetypes
 from http import HTTPStatus
 
 import fastapi
+from fastapi.concurrency import run_in_threadpool
+
+import mlrun
+import mlrun.common.schemas
 import services.api.api.deps
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.singletons.k8s
-from fastapi.concurrency import run_in_threadpool
-from services.api.api.utils import get_obj_path, get_secrets, log_and_raise
-
-import mlrun
-import mlrun.common.schemas
 from mlrun.datastore import store_manager
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+from services.api.api.utils import get_obj_path, get_secrets, log_and_raise
 
 router = fastapi.APIRouter()
 

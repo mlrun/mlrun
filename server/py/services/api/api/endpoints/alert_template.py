@@ -16,15 +16,15 @@
 from http import HTTPStatus
 
 import semver
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
-from services.api.api import deps
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import services.api.utils.auth.verifier
+import services.api.utils.singletons.project_member
 from mlrun.utils import logger
+from services.api.api import deps
 
 router = APIRouter(prefix="/alert-templates")
 

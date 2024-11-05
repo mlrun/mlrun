@@ -20,8 +20,8 @@ import unittest.mock
 import alembic
 import alembic.config
 import pytest
-import services.api.utils.db.alembic
 
+import services.api.utils.db.alembic
 from mlrun import mlconf
 
 

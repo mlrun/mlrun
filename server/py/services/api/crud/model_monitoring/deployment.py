@@ -21,13 +21,6 @@ from pathlib import Path
 
 import fastapi
 import nuclio
-import services.api.api.endpoints.nuclio
-import services.api.api.utils
-import services.api.crud.model_monitoring.helpers
-import services.api.db.session
-import services.api.utils.background_tasks
-import services.api.utils.functions
-import services.api.utils.singletons.k8s
 import sqlalchemy.orm
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
@@ -42,6 +35,13 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
+import services.api.api.endpoints.nuclio
+import services.api.api.utils
+import services.api.crud.model_monitoring.helpers
+import services.api.db.session
+import services.api.utils.background_tasks
+import services.api.utils.functions
+import services.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter

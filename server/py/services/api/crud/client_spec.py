@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import services.api.runtime_handlers.mpijob
-import services.api.utils.runtimes.nuclio
-
 import mlrun.common.schemas
 import mlrun.utils.singleton
+import services.api.runtime_handlers.mpijob
+import services.api.utils.runtimes.nuclio
 from mlrun.config import Config, config, default_config
 
 

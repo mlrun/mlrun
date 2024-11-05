@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import services.api.utils.clients.nuclio
-
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.utils import logger

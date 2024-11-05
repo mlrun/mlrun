@@ -16,14 +16,14 @@ import asyncio
 from http import HTTPStatus
 from typing import Union
 
-import services.api.crud.model_monitoring.grafana
-import services.api.crud.model_monitoring.helpers
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.concurrency import run_in_threadpool
-from services.api.api import deps
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas.model_monitoring.grafana
+import services.api.crud.model_monitoring.grafana
+import services.api.crud.model_monitoring.helpers
+from services.api.api import deps
 
 router = APIRouter(prefix="/grafana-proxy/model-endpoints")
 

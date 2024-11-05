@@ -22,6 +22,17 @@ import typing
 
 import fastapi
 import fastapi.concurrency
+import sqlalchemy.orm
+from fastapi.exception_handlers import http_exception_handler
+
+import mlrun.common.runtimes.constants
+import mlrun.common.schemas
+import mlrun.common.schemas.alert as alert_objects
+import mlrun.errors
+import mlrun.lists
+import mlrun.utils
+import mlrun.utils.notifications
+import mlrun.utils.version
 import services.api.api.utils
 import services.api.constants
 import services.api.crud
@@ -33,8 +44,10 @@ import services.api.utils.clients.chief
 import services.api.utils.clients.log_collector
 import services.api.utils.notification_pusher
 import services.api.utils.time_window_tracker
-import sqlalchemy.orm
-from fastapi.exception_handlers import http_exception_handler
+from mlrun.config import config
+from mlrun.errors import err_to_str
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
+from mlrun.utils import logger
 from services.api.api.api import api_router, api_v2_router
 from services.api.db.session import close_session, create_session
 from services.api.runtime_handlers import get_runtime_handler
@@ -55,19 +68,6 @@ from services.api.utils.singletons.scheduler import (
     get_scheduler,
     start_scheduler,
 )
-
-import mlrun.common.runtimes.constants
-import mlrun.common.schemas
-import mlrun.common.schemas.alert as alert_objects
-import mlrun.errors
-import mlrun.lists
-import mlrun.utils
-import mlrun.utils.notifications
-import mlrun.utils.version
-from mlrun.config import config
-from mlrun.errors import err_to_str
-from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
-from mlrun.utils import logger
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"

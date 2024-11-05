@@ -18,14 +18,14 @@ import unittest.mock
 
 import deepdiff
 import fastapi.testclient
-import services.api.api.endpoints.runtime_resources
-import services.api.crud
-import services.api.runtime_handlers
-import services.api.utils.auth.verifier
 import sqlalchemy.orm
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import services.api.api.endpoints.runtime_resources
+import services.api.crud
+import services.api.runtime_handlers
+import services.api.utils.auth.verifier
 
 
 def test_list_runtimes_resources_opa_filtering(

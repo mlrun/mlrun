@@ -17,16 +17,15 @@ import os
 import traceback
 from http import HTTPStatus
 
+import mlrun.common.schemas
 import services.api.api.utils
 import services.api.launcher
-from services.api.api.endpoints.nuclio import _deploy_nuclio_runtime
-from services.api.utils.builder import build_runtime
-
-import mlrun.common.schemas
 from mlrun.errors import err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import logger
+from services.api.api.endpoints.nuclio import _deploy_nuclio_runtime
+from services.api.utils.builder import build_runtime
 
 
 def build_function(

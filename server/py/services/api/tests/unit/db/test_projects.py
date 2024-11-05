@@ -18,13 +18,13 @@ import unittest.mock
 import deepdiff
 import pytest
 import sqlalchemy.orm
-from services.api.db.base import DBInterface
-from services.api.db.sqldb.models import Project
 
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+from services.api.db.base import DBInterface
+from services.api.db.sqldb.models import Project
 
 
 def test_get_project(

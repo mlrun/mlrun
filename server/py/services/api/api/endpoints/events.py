@@ -15,17 +15,17 @@
 
 from http import HTTPStatus
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
+
+import mlrun.common.schemas
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.clients.chief
 import services.api.utils.singletons.project_member
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.concurrency import run_in_threadpool
-from services.api.api import deps
-from sqlalchemy.orm import Session
-
-import mlrun.common.schemas
 from mlrun.utils import logger
+from services.api.api import deps
 
 router = APIRouter()
 

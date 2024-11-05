@@ -14,20 +14,20 @@
 #
 from http import HTTPStatus
 
-import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.pagination
-import services.api.utils.singletons.project_member
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
-from services.api.api import deps
-from services.api.api.utils import artifact_project_and_resource_name_extractor
 from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import services.api.crud
+import services.api.utils.auth.verifier
+import services.api.utils.pagination
+import services.api.utils.singletons.project_member
 from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.utils import logger
+from services.api.api import deps
+from services.api.api.utils import artifact_project_and_resource_name_extractor
 
 router = APIRouter()
 

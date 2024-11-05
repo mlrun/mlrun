@@ -19,8 +19,6 @@ import unittest.mock
 
 import fastapi.testclient
 import kubernetes
-import services.api.api.endpoints.client_spec
-import services.api.crud.client_spec
 import sqlalchemy.orm
 
 import mlrun
@@ -28,6 +26,8 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils.version
+import services.api.api.endpoints.client_spec
+import services.api.crud.client_spec
 
 
 def test_client_spec(

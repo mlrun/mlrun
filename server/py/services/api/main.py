@@ -853,7 +853,7 @@ def _cleanup_runtimes():
 
 
 def _push_terminal_run_notifications(
-    db: server.api.db.base.DBInterface, db_session, last_update_time
+    db: services.api.db.base.DBInterface, db_session, last_update_time
 ):
     """
     Get all runs with notification configs which became terminal since the last call to the function

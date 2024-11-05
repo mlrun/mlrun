@@ -1121,7 +1121,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.|NA| v1.7.0|              
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.|NA  | v1.7.0|
 |ML-8110|The cross-project summary is not aligned with per project summary: In the Projects page, **Monitoring > Scheduled**, the Jobs and Total counters are incorrect.      |NA  | v1.7.0|
-
+|ML-8174| A loaded system takes a f ew minutes (±5) to calculate the statistics in the Projects Monitoring pane.|
 
 
 ## Limitations

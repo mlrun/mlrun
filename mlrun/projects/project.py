@@ -48,6 +48,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.lists
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
@@ -3800,7 +3801,9 @@ class MlrunProject(ModelObj):
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         limit: int = None,
-        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3846,8 +3849,8 @@ class MlrunProject(ModelObj):
             kind=kind,
             category=category,
             tree=tree,
-            limit=limit,
             format_=format_,
+            limit=limit,
         )
 
     def list_models(
@@ -3861,7 +3864,9 @@ class MlrunProject(ModelObj):
         best_iteration: bool = False,
         tree: str = None,
         limit: int = None,
-        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
     ):
         """List models in project, filtered by various parameters.
 

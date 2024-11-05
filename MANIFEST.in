@@ -16,7 +16,7 @@ include Dockerfile*
 include Makefile
 include README.md
 include mlrun/utils/version/version.json
-include server/api/alembic.ini
+include server/py/services/api/alembic.ini
 include *requirements.txt
 recursive-include examples *
 recursive-include hack *

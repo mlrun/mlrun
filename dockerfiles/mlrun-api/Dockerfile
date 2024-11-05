@@ -73,6 +73,7 @@ ENV UVICORN_PORT=${MLRUN_HTTPDB__PORT}
 ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE}
 
 COPY . .
+ENV PYTHONPATH=/mlrun/server/py
 
 RUN python -m pip install .[complete-api] &&\
     pip install ./pipeline-adapters/mlrun-pipelines-kfp-common &&\

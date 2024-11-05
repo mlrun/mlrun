@@ -31,9 +31,12 @@ docstring-code-format = true
 
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
+pythonpath = "./server/py" # This allows running server side tests from the project root directory
 python_files = [
     "tests/*/test_*.py",
     "tests/test_*.py",
+    "server/py/*/tests/unit/test_*.py",
+    "server/py/*/tests/unit/*/test_*.py",
 ]
 timeout = 1800  # 30 minutes per test
 log_cli = true
@@ -43,7 +46,8 @@ asyncio_mode = "auto"
 [tool.importlinter]
 root_packages = [
     "mlrun",
-    "server",
+    "tests",
+    "server.py.services",
 ]
 include_external_packages = true
 
@@ -54,7 +58,6 @@ source_modules = [
     "mlrun.common",
 ]
 forbidden_modules = [
-    "mlrun.api",
     "mlrun.artifacts",
     "mlrun.data_types",
     "mlrun.datastore",
@@ -89,7 +92,8 @@ name = "MLRun should not directly import kfp [use mlrun_pipelines instead]"
 type = "forbidden"
 source_modules = [
     "mlrun",
-    "server.api",
+    "services",
+    "server.py.services",
 ]
 forbidden_modules = [
     "kfp",
@@ -99,40 +103,22 @@ forbidden_modules = [
 name = "MLRun server may import mlrun but not the way around"
 type = "layers"
 layers = [
-    "server",
+    "server.py.services",
+    "services",
     "mlrun",
 ]
 
 [[tool.importlinter.contracts]]
-name = "MLRun should not import mlrun.api"
+name = "MLRun tests shouldn't import server code"
 type = "forbidden"
 source_modules = [
-    "server.api",
-    "mlrun.common",
-    "mlrun.artifacts",
-    "mlrun.data_types",
-    "mlrun.datastore",
-    "mlrun.db",
-    "mlrun.feature_store",
-    "mlrun.frameworks",
-    "mlrun.launcher",
-    "mlrun.model_monitoring",
-    "mlrun.package",
-    "mlrun.platforms",
-    "mlrun.projects",
-    "mlrun.runtimes",
-    "mlrun.serving",
-    "mlrun.track",
-    "mlrun.execution",
-    "mlrun.features",
-    "mlrun.k8s_utils",
-    "mlrun.lists",
-    "mlrun.model",
-    "mlrun.render",
-    "mlrun.run",
-    "mlrun.secrets",
+    "tests",
 ]
-allow_indirect_imports=false
 forbidden_modules = [
-    "mlrun.api",
+    "services",
+    "server.py.services",
+]
+# Ignore integration tests until we have service specific integration tests infrastructure
+ignore_imports = [
+    "tests.integration.sdk_api.alerts.test_alerts -> services ",
 ]

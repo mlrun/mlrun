@@ -5459,11 +5459,14 @@ class SQLDB(DBInterface):
         - dayofmonth(`activation_time`)
         - yearweek(`activation_time`, 1)
         """
-        statement = text(
-            f"SELECT PARTITION_EXPRESSION FROM information_schema.PARTITIONS WHERE TABLE_NAME = '{table_name}'"
-        )
-        result = session.execute(statement)
-        return result.scalar()
+        return session.execute(
+            text(
+                "SELECT PARTITION_EXPRESSION "
+                "FROM information_schema.PARTITIONS "
+                "WHERE TABLE_NAME = :table_name"
+            ),
+            {"table_name": table_name},
+        ).scalar()
 
     @staticmethod
     def _transform_alert_template_schema_to_record(

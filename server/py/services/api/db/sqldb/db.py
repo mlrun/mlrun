@@ -5415,7 +5415,11 @@ class SQLDB(DBInterface):
         session.commit()
 
     @staticmethod
-    def drop_partitions(session: Session, table_name: str, cutoff_partition_name: str):
+    def drop_partitions(
+        session: Session,
+        table_name: str,
+        cutoff_partition_name: str,
+    ):
         """
         Execute the drop operation for partitions older than the cutoff partition name.
 
@@ -5446,7 +5450,7 @@ class SQLDB(DBInterface):
         table_name: str,
     ) -> str:
         """
-        Returns partitioning expression for alert_activations table
+        Returns partitioning expression for a given table
         :param session: SQLAlchemy session.
         :param table_name: Name of the table.
 

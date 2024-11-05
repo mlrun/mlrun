@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from datetime import datetime, timezone
 from typing import Any, Callable, NewType
 
 import mlrun.common.model_monitoring
@@ -211,34 +212,37 @@ class ModelMonitoringWriter(StepToDict):
 
         return result_event, kind
 
-    def write_stats(self, event: _AppResultEvent):
+    def write_stats(self, event: _AppResultEvent) -> None:
+        """
+        Write to file the application stats event
+        :param event: application stats event
+        """
         endpoint_id = event[WriterEvent.ENDPOINT_ID]
         logger.debug(
             "Updating the model endpoint with stats",
             endpoint_id=endpoint_id,
         )
         stat_kind = event.get(StatsData.STATS_NAME)
-        data = event.get(StatsData.STATS)
+        data, timestamp_str = event.get(StatsData.STATS), event.get(StatsData.TIMESTAMP)
+        timestamp = datetime.fromisoformat(timestamp_str).astimezone(tz=timezone.utc)
         if stat_kind == StatsKind.CURRENT_STATS.value:
-            with ModelMonitoringCurrentStatsFile(
-                self.project, endpoint_id
-            ) as file_object:
-                logger.info(
-                    "Updating the model endpoint with metadata specific to the histogram "
-                    "data drift app Current stats",
-                    endpoint_id=endpoint_id,
-                )
-                file_object.create(data)
+            ModelMonitoringCurrentStatsFile(self.project, endpoint_id).write(
+                data, timestamp
+            )
+            logger.info(
+                "Updating the model endpoint with metadata specific to the histogram "
+                "data drift app Current stats",
+                endpoint_id=endpoint_id,
+            )
         elif stat_kind == StatsKind.DRIFT_MEASURES.value:
-            with ModelMonitoringDriftMeasuresFile(
-                self.project, endpoint_id
-            ) as file_object:
-                logger.info(
-                    "Updating the model endpoint with metadata specific to the histogram "
-                    "data drift app Drift measures",
-                    endpoint_id=endpoint_id,
-                )
-                file_object.create(data)
+            ModelMonitoringDriftMeasuresFile(self.project, endpoint_id).write(
+                data, timestamp
+            )
+            logger.info(
+                "Updating the model endpoint with metadata specific to the histogram "
+                "data drift app Drift measures",
+                endpoint_id=endpoint_id,
+            )
 
     def do(self, event: _RawEvent) -> None:
         event, kind = self._reconstruct_event(event)

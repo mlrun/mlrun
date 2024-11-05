@@ -127,7 +127,7 @@ class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
 @dataclasses.dataclass
 class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
     """
-    Class representing the stats of a custom model monitoring application.
+    Class representing the stats of histogram data drift application.
 
     :param name             (str) Enum mm_constant.StatsData str representation of the stats data kind of the event
     :param stats            (dict) Dictionary representation of the stats calculated for the event
@@ -135,6 +135,7 @@ class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
     """
 
     name: typing.Union[mm_constant.StatsData, str]
+    timestamp: str
     stats: dict = dataclasses.field(default_factory=dict)
 
     def to_dict(self):
@@ -146,4 +147,5 @@ class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
         return {
             mm_constant.StatsData.STATS_NAME: self.name,
             mm_constant.StatsData.STATS: self.stats,
+            mm_constant.StatsData.TIMESTAMP: self.timestamp,
         }

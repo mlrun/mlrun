@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -59,7 +58,8 @@ def drift_measures_file() -> Iterator[ModelMonitoringCurrentStatsFile]:
     file.delete()
 
 
-def drift_measure() -> dict:
+@pytest.fixture
+def drift_measures() -> dict:
     drift_measure_dictionary = {
         "data": features,
         "timestamp": mlrun.utils.datetime_min(),
@@ -112,14 +112,21 @@ def test_delete_drift_measure_file():
 def test_current_stats(
     current_stats_file: ModelMonitoringCurrentStatsFile, current_stats: dict
 ):
-    current_stats_file.create(data=current_stats)
+    current_stats_file.create()
+    current_stats_file.write(*current_stats.values())
+    stats_data, timestamp = current_stats_file.read()
     assert (
-        json.dumps(current_stats) == current_stats_file._item.get().decode()
+        current_stats["data"] == stats_data and current_stats["timestamp"] == timestamp
     ), "Wrong fetched data from current stats file"
 
 
 def test_drift_measure(
     drift_measures_file: ModelMonitoringDriftMeasuresFile, drift_measures: dict
 ):
-    drift_measures_file.create(data=drift_measures)
-    assert json.dumps(drift_measures) == drift_measures_file._item.get().decode()
+    drift_measures_file.create()
+    drift_measures_file.write(*drift_measures.values())
+    stats_data, timestamp = drift_measures_file.read()
+    assert (
+        drift_measures["data"] == stats_data
+        and drift_measures["timestamp"] == timestamp
+    ), "Wrong fetched data from current stats file"

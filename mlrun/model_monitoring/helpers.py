@@ -19,6 +19,8 @@ import typing
 import numpy as np
 import pandas as pd
 
+from mlrun import DataItem
+
 if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
@@ -134,7 +136,13 @@ def _get_monitoring_drift_measures_file_path(project: str, endpoint_id: str) -> 
     )
 
 
-def get_monitoring_current_stats_data(project: str, endpoint_id: str):
+def get_monitoring_current_stats_data(project: str, endpoint_id: str) -> DataItem:
+    """
+    getter for data item of current stats for project and endpoint
+    :param project: project name str
+    :param endpoint_id: endpoint id str
+    :return: DataItem
+    """
     return mlrun.datastore.store_manager.object(
         _get_monitoring_current_stats_file_path(
             project=project, endpoint_id=endpoint_id
@@ -145,6 +153,12 @@ def get_monitoring_current_stats_data(project: str, endpoint_id: str):
 def get_monitoring_drift_measures_data(
     project: str, endpoint_id: str
 ) -> mlrun.datastore.DataItem:
+    """
+    getter for data item of drift measures for project and endpoint
+    :param project: project name str
+    :param endpoint_id: endpoint id str
+    :return: DataItem
+    """
     return mlrun.datastore.store_manager.object(
         _get_monitoring_drift_measures_file_path(
             project=project, endpoint_id=endpoint_id

@@ -11,17 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import ast
 import json
-from contextlib import AbstractContextManager
-from types import TracebackType
-from typing import Optional, cast
+from datetime import datetime, timezone
+from typing import cast
 
 import fsspec
 
 import mlrun.datastore.base
 from mlrun.common.schemas.model_monitoring.constants import StatsKind
-from mlrun.errors import MLRunInvalidArgumentTypeError
 from mlrun.model_monitoring.helpers import (
     get_monitoring_current_stats_data,
     get_monitoring_drift_measures_data,
@@ -30,10 +27,7 @@ from mlrun.model_monitoring.helpers import (
 from mlrun.utils import logger
 
 
-class ModelMonitoringStatsFile(AbstractContextManager):
-    INITIAL_CONTENT = {"data": {}, "timestamp": None}
-    ENCODING = "utf-8"
-
+class ModelMonitoringStatsFile:
     """
     Initialize applications monitoring json file object.
     The JSON file stores a dictionary of registered application name as key and Unix timestamp as value.
@@ -46,32 +40,21 @@ class ModelMonitoringStatsFile(AbstractContextManager):
         self._file_type = file_type
         self._fs = cast(fsspec.AbstractFileSystem, self._item.store.filesystem)
 
-    def create(self, data: Optional[dict] = None) -> None:
+    def create(self) -> None:
         """Create a json file with initial content - an empty dictionary"""
         logger.debug(
             f"Creating model monitoring {self._file_type} file", path=self._item.url
         )
-        if data:
-            self._data = data
-            if isinstance(data, dict):
-                self._item.put(json.dumps(self._data))
-            elif isinstance(data, str) and isinstance(ast.literal_eval(data), dict):
-                self._item.put(data)
-            else:
-                raise MLRunInvalidArgumentTypeError(
-                    "cannot create file using data of type other than string or dict"
-                )
-        else:
-            self._item.put(
-                json.dumps(
-                    {
-                        "data": dict(),
-                        "timestamp": mlrun.utils.datetime_now().isoformat(
-                            sep=" ", timespec="microseconds"
-                        ),
-                    }
-                )
+        self._item.put(
+            json.dumps(
+                {
+                    "data": dict(),
+                    "timestamp": mlrun.utils.datetime_now().isoformat(
+                        sep=" ", timespec="microseconds"
+                    ),
+                }
             )
+        )
 
     def delete(self) -> None:
         """Delete json file if it exists"""
@@ -86,36 +69,32 @@ class ModelMonitoringStatsFile(AbstractContextManager):
                 path=self._item.url,
             )
 
-    def read(self) -> tuple[dict, str]:
+    def read(self) -> tuple[dict, datetime]:
         """
         Read the stats data and timestamp saved in file
         :return: tuple[dict, str] dictionary with stats data and timestamp saved in file
         """
-        json_dictionary = json.loads(self._item.get().decode())
-        return json_dictionary.get("data"), json_dictionary.get("timestamp")
-
-    def _open(self) -> None:
         try:
-            self._data = json.loads(self._item.get().decode(encoding=self.ENCODING))
-        except Exception as exc:
+            json_dictionary = json.loads(self._item.get().decode())
+            timestamp = json_dictionary.get("timestamp")
+            if timestamp is not None:
+                timestamp = datetime.fromisoformat(timestamp).astimezone(
+                    tz=timezone.utc
+                )
+            return json_dictionary.get("data"), timestamp
+        except Exception as e:
             logger.debug(
-                f"Error while trying to read data for json file {self._file_type}", exc
+                f"Model Monitoring {self._file_type} file read error: {e} file might not been created",
+                path=self._item.url,
             )
+            raise e
 
-    def _close(self) -> None:
-        self._item.put(json.dumps(self._data))
-
-    def __enter__(self) -> "ModelMonitoringStatsFile":
-        self._open()
-        return super().__enter__()
-
-    def __exit__(
-        self,
-        exc_type: Optional[type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
-    ):
-        self._close()
+    def write(self, stats: dict, timestamp: datetime) -> None:
+        content = {
+            "data": stats,
+            "timestamp": timestamp.isoformat(sep=" ", timespec="microseconds"),
+        }
+        self._item.put(json.dumps(content))
 
 
 class ModelMonitoringCurrentStatsFile(ModelMonitoringStatsFile):

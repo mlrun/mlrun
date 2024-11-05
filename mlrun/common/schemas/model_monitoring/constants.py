@@ -142,6 +142,7 @@ class ResultData(MonitoringStrEnum):
 class StatsData(MonitoringStrEnum):
     STATS_NAME = "stats_name"
     STATS = "stats"
+    TIMESTAMP = "timestamp"
 
 
 class StatsKind(MonitoringStrEnum):

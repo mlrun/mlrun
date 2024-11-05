@@ -222,21 +222,26 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         metrics: list[mm_results.ModelMonitoringApplicationMetric],
         metrics_per_feature: DataFrame,
         monitoring_context: mm_context.MonitoringApplicationContext,
-    ):
+    ) -> list[mm_results._ModelMonitoringApplicationStats]:
+        """
+        list the application calculated stats
+        :param metrics: the calculated metrics
+        :param metrics_per_feature: metric calculated per feature
+        :param monitoring_context:  context object for current monitoring application
+        :return: list of mm_results._ModelMonitoringApplicationStats for histogram data drift application
+        """
         stats = []
         for stats_type in HistogramDataDriftApplication._STATS_TYPES:
             stats.append(
                 mm_results._ModelMonitoringApplicationStats(
                     name=stats_type.value,
-                    stats={
-                        "data": metrics_per_feature.T.to_dict()
-                        | {metric.name: metric.value for metric in metrics}
-                        if stats_type == StatsKind.DRIFT_MEASURES
-                        else monitoring_context.sample_df_stats,
-                        "timestamp": monitoring_context.end_infer_time.isoformat(
-                            sep=" ", timespec="microseconds"
-                        ),
-                    },
+                    stats=metrics_per_feature.T.to_dict()
+                    | {metric.name: metric.value for metric in metrics}
+                    if stats_type == StatsKind.DRIFT_MEASURES
+                    else monitoring_context.sample_df_stats,
+                    timestamp=monitoring_context.end_infer_time.isoformat(
+                        sep=" ", timespec="microseconds"
+                    ),
                 )
             )
         return stats
@@ -333,6 +338,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         Union[
             mm_results.ModelMonitoringApplicationResult,
             mm_results.ModelMonitoringApplicationMetric,
+            mm_results._ModelMonitoringApplicationStats,
         ]
     ]:
         """

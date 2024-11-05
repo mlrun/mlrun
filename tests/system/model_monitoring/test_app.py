@@ -720,7 +720,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         # Validate alert notification
         assert alert.count == 1
 
-    @pytest.mark.parametrize("with_training_set", [True])
+    @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)
@@ -776,7 +776,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         self._test_artifacts(ep_id=ep_id)
         self._test_api(ep_id=ep_id)
-        # TODO: uncomment the following 2 lines once the new API for getting model endpoint stats is implemented
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)
         self._test_error_alert()

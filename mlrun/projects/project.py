@@ -4203,13 +4203,17 @@ class MlrunProject(ModelObj):
         mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
     def store_alert_config(
-        self, alert_data: AlertConfig, alert_name: typing.Optional[str] = None
+        self,
+        alert_data: AlertConfig,
+        alert_name: typing.Optional[str] = None,
+        force_reset: bool = False,
     ) -> AlertConfig:
         """
         Create/modify an alert.
 
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert.
+        :param force_reset: If True and the alert already exists, the alert would be reset.
         :return: the created/modified alert.
         """
         if not alert_data:
@@ -4223,7 +4227,9 @@ class MlrunProject(ModelObj):
                 project=alert_data.project,
             )
         alert_data.project = self.metadata.name
-        return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
+        return db.store_alert_config(
+            alert_name, alert_data, project=self.metadata.name, force_reset=force_reset
+        )
 
     def get_alert_config(self, alert_name: str) -> AlertConfig:
         """

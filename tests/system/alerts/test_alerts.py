@@ -104,7 +104,6 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
                         {"threshold": 0.3}
                     ),
-                    mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
         }
@@ -124,7 +123,6 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
                         {"threshold": 0.7}
                     ),
-                    mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
         }
@@ -144,7 +142,6 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
                         {"threshold": 0.4}
                     ),
-                    mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
         }
@@ -164,7 +161,6 @@ class TestAlerts(TestMLRunSystem):
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
                         {"threshold": 0.4}
                     ),
-                    mm_constants.ResultData.CURRENT_STATS: "",
                 }
             ),
         }

@@ -90,9 +90,12 @@ playground
 hack/*.env
 
 # Database and protobuf files
-server/api/db/mlrun.db
-server/api/proto/*pb2*.py
+server/py/services/api/db/mlrun.db
+server/py/services/api/proto/*pb2*.py
 
 # Temporary or backup files
 *.bak
 
+# <= 1.7.x legacy project structure
+# on >= 1.8.0, server/api has been moved to server/py/services/api
+server/api

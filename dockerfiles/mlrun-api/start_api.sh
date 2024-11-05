@@ -39,8 +39,8 @@ if [[ -n "$MLRUN_MEMRAY_LOWER"  && ( "$MLRUN_MEMRAY_LOWER" == "1" || "$MLRUN_MEM
         exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } -m server.api.main
     fi
 else
-    exec uvicorn server.api.main:app \
+    exec uvicorn services.api.main:app \
         --proxy-headers \
         --host 0.0.0.0 \
-        --log-config server/api/uvicorn_log_config.yaml
+        --log-config server/py/services/uvicorn_log_config.yaml
 fi

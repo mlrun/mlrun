@@ -28,7 +28,6 @@ from mlrun.common.schemas.model_monitoring import (
     FileTargetKind,
     MetricData,
     ResultData,
-    SchedulingKeys,
     WriterEvent,
 )
 from mlrun.utils.db import BaseModel
@@ -135,7 +134,6 @@ class ApplicationResultBaseTable(BaseModel):
     result_kind = Column(ResultData.RESULT_KIND, String(40))
     result_value = Column(ResultData.RESULT_VALUE, Float)
     result_extra_data = Column(ResultData.RESULT_EXTRA_DATA, Text)
-    current_stats = Column(ResultData.CURRENT_STATS, Text)
 
 
 class ApplicationMetricsBaseTable(BaseModel):
@@ -165,26 +163,3 @@ class ApplicationMetricsBaseTable(BaseModel):
         String(40),
     )
     metric_value = Column(MetricData.METRIC_VALUE, Float)
-
-
-class MonitoringSchedulesBaseTable(BaseModel):
-    __tablename__ = FileTargetKind.MONITORING_SCHEDULES
-
-    uid = Column(SchedulingKeys.UID, String(32), primary_key=True)
-
-    application_name = Column(
-        SchedulingKeys.APPLICATION_NAME,
-        String(40),
-        nullable=False,
-    )
-
-    endpoint_id = Column(
-        SchedulingKeys.ENDPOINT_ID,
-        String(40),
-        nullable=False,
-    )
-
-    last_analyzed = Column(
-        SchedulingKeys.LAST_ANALYZED,
-        Integer,
-    )

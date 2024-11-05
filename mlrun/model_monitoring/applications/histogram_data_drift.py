@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from dataclasses import dataclass
 from typing import Final, Optional, Protocol, Union, cast
 
@@ -25,7 +24,6 @@ import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 import mlrun.model_monitoring.features_drift_table as mm_drift_table
 from mlrun.common.schemas.model_monitoring.constants import (
-    EventFieldType,
     HistogramDataDriftApplicationConstants,
     ResultKindApp,
     ResultStatusApp,
@@ -189,21 +187,12 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         )
 
         status = self._value_classifier.value_to_status(value)
+
         return mm_results.ModelMonitoringApplicationResult(
             name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
             value=value,
             kind=ResultKindApp.data_drift,
             status=status,
-            extra_data={
-                EventFieldType.CURRENT_STATS: json.dumps(
-                    monitoring_context.sample_df_stats
-                ),
-                EventFieldType.DRIFT_MEASURES: json.dumps(
-                    metrics_per_feature.T.to_dict()
-                    | {metric.name: metric.value for metric in metrics}
-                ),
-                EventFieldType.DRIFT_STATUS: status.value,
-            },
         )
 
     @staticmethod
@@ -347,6 +336,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             monitoring_context=monitoring_context,
             metrics_per_feature=metrics_per_feature,
         )
+
         metrics_and_result = metrics + [result]
         monitoring_context.logger.debug(
             "Finished running the application", results=metrics_and_result

@@ -54,8 +54,8 @@ while ! docker exec migration-db mysql --user=root --password=pass -e "status" >
 	times=$(( times + 1 ))
 done
 
-export PYTHONPATH=$ROOT_DIR
+export PYTHONPATH=$ROOT_DIR/server/py
 
-cd ${ROOT_DIR}/server/api
+cd ${ROOT_DIR}/server/py/services/api
 alembic upgrade head
 alembic revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"

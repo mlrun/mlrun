@@ -28,7 +28,7 @@ __all__ = [
 
 from .operations import build_function, deploy_function, run_function  # noqa
 from .pipelines import (
-    project_loader,
+    import_remote_project,
     load_and_run_workflow,
     load_and_run,
     pipeline_context,

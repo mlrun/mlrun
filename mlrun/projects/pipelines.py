@@ -1047,7 +1047,7 @@ def load_and_run_workflow(
     project_context = project_context or f"./{project_name}"
 
     # Load the project to fetch files which the runner needs, such as remote source files
-    load_remote_project(
+    pull_remote_project_files(
         context=context,
         project_context=project_context,
         url=url,
@@ -1106,7 +1106,7 @@ def load_and_run_workflow(
         )
 
 
-def load_remote_project(
+def pull_remote_project_files(
     context: mlrun.execution.MLClientCtx,
     project_context: str,
     url: str,
@@ -1216,7 +1216,7 @@ def handle_workflow_completion(
         )
 
 
-def project_loader(
+def import_remote_project(
     context: mlrun.execution.MLClientCtx,
     url: str = None,
     project_name: str = "",

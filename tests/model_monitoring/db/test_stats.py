@@ -72,12 +72,11 @@ def test_create_current_stats_file():
         project="project-a", endpoint_id="fdshgffjt5"
     )
     file.create()
-    file_content = file._item.get().decode()
+    file_content_data, file_content_ts = file.read()
     file.delete()
     assert (
-        file_content == {},
-        "Current stats file should be empty on creation expected '{}'",
-    )
+        file_content_data == {}
+    ), "Current stats file should be empty on creation expected {}"
 
 
 def test_create_drift_measure_file():
@@ -88,9 +87,8 @@ def test_create_drift_measure_file():
     file_content_data, file_content_ts = file.read()
     file.delete()
     assert (
-        file_content_data == {},
-        "Current stats file should be empty on creation expected '{}'",
-    )
+        file_content_data == {}
+    ), "Current stats file should be empty on creation expected {}"
 
 
 def test_delete_current_stats_file():

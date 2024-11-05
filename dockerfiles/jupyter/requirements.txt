@@ -6,7 +6,6 @@ scikit-plot~=0.3.7
 xgboost~=1.1
 graphviz~=0.20.0
 python-dotenv~=0.17.0
-nuclio-jupyter~=0.11.0
 nbclassic>=0.2.8
 Pygments~=2.15
 wheel~=0.38

@@ -16,6 +16,7 @@
 
 from .alert_template import AlertTemplates
 from .alerts import Alerts
+from .alert_activation import AlertActivation
 from .artifacts import Artifacts
 from .client_spec import ClientSpec
 from .clusterization_spec import ClusterizationSpec

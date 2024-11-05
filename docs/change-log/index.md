@@ -157,9 +157,8 @@
 |ML-7706|Changed `sync_functions` to be "best effort" when scheduling workflows or running remote workflows.|
 |ML-7796|New `project.run()` parameter {py:meth}`workflow_runner_node_selector <mlrun.projects.MlrunProject.run>` that defines the node selector for the workflow runner pod when using a remote engine.|
 |ML-7907|Fixed an issue with RabbitMQ event path when using Model serving functions.|
-|ML-8027|Resolved issue of MLRun taking too long to start. |
+|ML-8027|Fix periodic log collection to list only runs with pods. |
 |ML-8029|Notifications with secret params now send notifications. See [Notification parameters and secrets](../concepts/notifications.html#notification-parameters-and-secrets).|
-|ML-8097|UI now displays the pod status in **Monitor Jobs** when you hover over the status symbol.|
 
 ## v1.6.4 (2 July 2024)
 

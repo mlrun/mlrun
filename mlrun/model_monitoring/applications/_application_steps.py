@@ -96,7 +96,6 @@ class _PushToMonitoringWriter(StepToDict):
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.RESULT
                 )
-                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             elif isinstance(result, _ModelMonitoringApplicationStats):
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.STATS

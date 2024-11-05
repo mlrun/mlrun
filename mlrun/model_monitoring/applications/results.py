@@ -145,5 +145,5 @@ class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
         """
         return {
             mm_constant.StatsData.STATS_NAME: self.name,
-            mm_constant.StatsData.STATS: json.dumps(self.stats),
+            mm_constant.StatsData.STATS: self.stats,
         }

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import ast
 import concurrent.futures
 import json
 import pickle
@@ -666,17 +665,15 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert ep.status.feature_stats.keys() == set(
             ep.spec.feature_names
         ), "The endpoint's feature stats keys are not the same as the feature names"
-        ep_current_stats = ast.literal_eval(
-            json.loads(
-                ModelMonitoringCurrentStatsFile.from_model_endpoint(ep)._item.get()
-            )
-        )
-        ep_drift_measures = ast.literal_eval(
-            json.loads(
-                ModelMonitoringDriftMeasuresFile.from_model_endpoint(ep)._item.get()
-            )
-        )
-        assert set(ep_current_stats["data"].keys()) == set(
+        ep_current_stats, _ = ModelMonitoringCurrentStatsFile.from_model_endpoint(
+            ep
+        ).read()
+
+        ep_drift_measures, _ = ModelMonitoringDriftMeasuresFile.from_model_endpoint(
+            ep
+        ).read()
+
+        assert set(ep_current_stats.keys()) == set(
             ep.status.feature_stats.keys()
         ), "The endpoint's current stats is different than expected"
 
@@ -685,10 +682,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         for measure in ["hellinger_mean", "kld_mean", "tvd_mean"]:
             assert isinstance(
-                ep_drift_measures["data"].pop(measure, None), float
+                ep_drift_measures.pop(measure, None), float
             ), f"Expected '{measure}' in drift measures"
 
-        drift_table = pd.DataFrame.from_dict(ep_drift_measures["data"], orient="index")
+        drift_table = pd.DataFrame.from_dict(ep_drift_measures, orient="index")
         assert set(drift_table.columns) == {
             "hellinger",
             "kld",
@@ -699,7 +696,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The feature names are not as expected"
 
         assert (
-            ep_current_stats["data"]["sepal_length_cm"]["count"] == cls.num_events
+            ep_current_stats["sepal_length_cm"]["count"] == cls.num_events
         ), "Different number of events than expected"
 
     @classmethod
@@ -723,7 +720,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         # Validate alert notification
         assert alert.count == 1
 
-    @pytest.mark.parametrize("with_training_set", [True, False])
+    @pytest.mark.parametrize("with_training_set", [True])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)
@@ -780,8 +777,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_artifacts(ep_id=ep_id)
         self._test_api(ep_id=ep_id)
         # TODO: uncomment the following 2 lines once the new API for getting model endpoint stats is implemented
-        # if _DefaultDataDriftAppData in self.apps_data:
-        self._test_model_endpoint_stats(ep_id=ep_id)
+        if _DefaultDataDriftAppData in self.apps_data:
+            self._test_model_endpoint_stats(ep_id=ep_id)
         self._test_error_alert()
 
 

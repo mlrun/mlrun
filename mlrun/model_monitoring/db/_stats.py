@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import ast
 import json
 from contextlib import AbstractContextManager
 from types import TracebackType
@@ -21,6 +21,7 @@ import fsspec
 
 import mlrun.datastore.base
 from mlrun.common.schemas.model_monitoring.constants import StatsKind
+from mlrun.errors import MLRunInvalidArgumentTypeError
 from mlrun.model_monitoring.helpers import (
     get_monitoring_current_stats_data,
     get_monitoring_drift_measures_data,
@@ -29,8 +30,8 @@ from mlrun.model_monitoring.helpers import (
 from mlrun.utils import logger
 
 
-class ModelMonitoringJsonFile(AbstractContextManager):
-    INITIAL_CONTENT = {}
+class ModelMonitoringStatsFile(AbstractContextManager):
+    INITIAL_CONTENT = {"data": {}, "timestamp": None}
     ENCODING = "utf-8"
 
     """
@@ -52,9 +53,25 @@ class ModelMonitoringJsonFile(AbstractContextManager):
         )
         if data:
             self._data = data
-            self._item.put(json.dumps(self._data))
+            if isinstance(data, dict):
+                self._item.put(json.dumps(self._data))
+            elif isinstance(data, str) and isinstance(ast.literal_eval(data), dict):
+                self._item.put(data)
+            else:
+                raise MLRunInvalidArgumentTypeError(
+                    "cannot create file using data of type other than string or dict"
+                )
         else:
-            self._item.put(json.dumps(self.INITIAL_CONTENT))
+            self._item.put(
+                json.dumps(
+                    {
+                        "data": dict(),
+                        "timestamp": mlrun.utils.datetime_now().isoformat(
+                            sep=" ", timespec="microseconds"
+                        ),
+                    }
+                )
+            )
 
     def delete(self) -> None:
         """Delete json file if it exists"""
@@ -69,6 +86,14 @@ class ModelMonitoringJsonFile(AbstractContextManager):
                 path=self._item.url,
             )
 
+    def read(self) -> tuple[dict, str]:
+        """
+        Read the stats data and timestamp saved in file
+        :return: tuple[dict, str] dictionary with stats data and timestamp saved in file
+        """
+        json_dictionary = json.loads(self._item.get().decode())
+        return json_dictionary.get("data"), json_dictionary.get("timestamp")
+
     def _open(self) -> None:
         try:
             self._data = json.loads(self._item.get().decode(encoding=self.ENCODING))
@@ -80,7 +105,7 @@ class ModelMonitoringJsonFile(AbstractContextManager):
     def _close(self) -> None:
         self._item.put(json.dumps(self._data))
 
-    def __enter__(self) -> "ModelMonitoringJsonFile":
+    def __enter__(self) -> "ModelMonitoringStatsFile":
         self._open()
         return super().__enter__()
 
@@ -93,7 +118,7 @@ class ModelMonitoringJsonFile(AbstractContextManager):
         self._close()
 
 
-class ModelMonitoringCurrentStatsFile(ModelMonitoringJsonFile):
+class ModelMonitoringCurrentStatsFile(ModelMonitoringStatsFile):
     def __init__(self, project: str, endpoint_id: str) -> None:
         """
         Initialize File object specific for current stats.
@@ -115,7 +140,7 @@ class ModelMonitoringCurrentStatsFile(ModelMonitoringJsonFile):
         )
 
 
-class ModelMonitoringDriftMeasuresFile(ModelMonitoringJsonFile):
+class ModelMonitoringDriftMeasuresFile(ModelMonitoringStatsFile):
     def __init__(self, project: str, endpoint_id: str) -> None:
         """
         Initialize File object specific for drift measures.

@@ -44,7 +44,10 @@ def current_stats_file() -> Iterator[ModelMonitoringCurrentStatsFile]:
 
 @pytest.fixture
 def current_stats() -> dict:
-    current_stats_dictionary = features
+    current_stats_dictionary = {
+        "data": features,
+        "timestamp": mlrun.utils.datetime_min(),
+    }
     return current_stats_dictionary
 
 
@@ -57,7 +60,10 @@ def drift_measures_file() -> Iterator[ModelMonitoringCurrentStatsFile]:
 
 
 def drift_measure() -> dict:
-    drift_measure_dictionary = features
+    drift_measure_dictionary = {
+        "data": features,
+        "timestamp": mlrun.utils.datetime_min(),
+    }
     return drift_measure_dictionary
 
 
@@ -79,10 +85,10 @@ def test_create_drift_measure_file():
         project="project-a", endpoint_id="fdshgffjt5"
     )
     file.create()
-    file_content = file._item.get().decode()
+    file_content_data, file_content_ts = file.read()
     file.delete()
     assert (
-        file_content == "{}",
+        file_content_data == {},
         "Current stats file should be empty on creation expected '{}'",
     )
 

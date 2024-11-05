@@ -92,12 +92,12 @@ class AlertActivation(
         ensure_partitions_days = 2 * retention_days
 
         # Calculate the number of future partitions to create based on the partition interval.
-        if partition_interval == "DAY":
+        if partition_interval == mlrun.common.schemas.alert.PartitionInterval.DAY:
             partition_number = ensure_partitions_days
-        elif partition_interval == "MONTH":
+        elif partition_interval == mlrun.common.schemas.alert.PartitionInterval.MONTH:
             # Average number days in a month is 30.44
             partition_number = int(ensure_partitions_days / 30.44)
-        elif partition_interval == "YEARWEEK":
+        elif partition_interval == mlrun.common.schemas.alert.PartitionIntervalYEARWEEK:
             partition_number = int(ensure_partitions_days / 7)
         else:
             raise ValueError(f"Unsupported partition interval: {partition_interval}")
@@ -130,13 +130,18 @@ class AlertActivation(
             )
 
             # Move to the next interval based on the partition_interval
-            if partition_interval == "DAY":
+            if partition_interval == mlrun.common.schemas.alert.PartitionInterval.DAY:
                 current_datetime += timedelta(days=1)
-            elif partition_interval == "MONTH":
+            elif (
+                partition_interval == mlrun.common.schemas.alert.PartitionInterval.MONTH
+            ):
                 current_datetime = (
                     current_datetime.replace(day=1) + timedelta(days=32)
                 ).replace(day=1)
-            elif partition_interval == "YEARWEEK":
+            elif (
+                partition_interval
+                == mlrun.common.schemas.alert.PartitionInterval.YEARWEEK
+            ):
                 current_datetime += timedelta(weeks=1)
 
         services.api.utils.singletons.db.get_db().create_partitions(

@@ -14,9 +14,9 @@
 #
 # flake8: noqa: F401  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
+from .alert_activation import AlertActivation
 from .alert_template import AlertTemplates
 from .alerts import Alerts
-from .alert_activation import AlertActivation
 from .artifacts import Artifacts
 from .client_spec import ClientSpec
 from .clusterization_spec import ClusterizationSpec

@@ -28,6 +28,7 @@ mlrun.egg-info
 **/test-google-cloud-storage.yml
 **/test-dbfs-store.yml
 **/test-redis.yml
+**/tests
 
 **/google-big-query-credentials.json
 

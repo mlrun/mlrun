@@ -62,7 +62,7 @@ The hierarchy must be:
 
 ### Add a custom hub to the MLRun database
 When you add a hub, specify `order=-1` to add it to the top of the list. 
-The list order is relevant when [loading a function](#load-function-example-omit-in-toc):
+The list order is relevant when [loading a function](#load-function-example):
 if you don't specify a hub name, MLRun starts searching for the function with the last added hub.
 If you want to add a hub but not at the top of the list, view the current list using {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_hub_source`.
 The MLRun function hub is always the last in the list (and cannot be modified). 
@@ -135,7 +135,7 @@ Partial list of parameters:
 
 See all the parameters in {py:meth}`~mlrun.projects.MlrunProject.set_function` API documentation.
 
-### Load function example  <!-- omit in toc -->
+### Load function example
 
 The `describe` function analyzes a csv or parquet file for data analysis. 
 To load the `describe` function from the MLRun function hub:

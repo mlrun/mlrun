@@ -16,16 +16,16 @@ You can also create a custom `source` to access various databases or data source
 
 | Class name                                                                                         | Description                                                   | storey | spark | pandas |
 |----------------------------------------------------------------------------------------------------| ---------------------------------                              | ---    | ---   | ---    |
-| {py:meth}`~mlrun.datastore.BigQuerySource`                                                         | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
+| {py:class}`~mlrun.datastore.BigQuerySource`                                                        | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
 | [SnowFlakeSource](#snowflake-source)                                                               | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
 | [SQLSource](#sql-source)                                                                           | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
-| {py:meth}`~mlrun.datastore.CSVSource`                                                              | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
+| {py:class}`~mlrun.datastore.CSVSource`                                                             | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
 | [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
 | [ParquetSource](#parquet-source)                                                                   | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
-| [S3/Azure source](#s3-azure-source)                                                                | Batch.                                                                 |       |      |       |
-| {py:meth}`~mlrun.datastore.HttpSource`                                                             |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
+| [S3/Azure source](#s3azure-source)                                                                 | Batch.                                                                 |       |      |       |
+| {py:class}`~mlrun.datastore.HttpSource`                                                            |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
 | [Kafka source](#kafka-source)                                                                      |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
-| {py:meth}`~mlrun.datastore.StreamSource`                                                           |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
+| {py:class}`~mlrun.datastore.StreamSource`                                                          |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## Snowflake source
 An example of SnowflakeSource ingest:
@@ -280,12 +280,12 @@ It supports low latency data retrieval based on key access, making it ideal for 
 
 The combination of a NoSQL target with the storey engine does not support features of type string with a value containing both quote (') and double-quote (").
 
-## RedisNoSql target 
+## RedisNoSql target
 
 ```{admonition} Note
 RedisNoSql target is currently in Tech Preview status.
 ```
-See also [Redis data store profile](#redis-data-store-profile).
+See also [Redis data store profile](#redisnosql-data-store-profile).
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The RedisNoSqlTarget accepts the path parameter in the form: `<redis|rediss>://<host>[:port]`

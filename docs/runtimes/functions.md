@@ -18,7 +18,7 @@ are explained in more detail in {ref}`create-and-use-functions`.
 
 Function objects are all inclusive, containing the code and all the operational aspects: ({ref}`image <images-usage>`, required packages, 
 {ref}`pod resource congifuration (replicas, CPU/GPU/memory limits, volumes, Spot vs. On-demand nodes, pod priority, node affinity) <configuring-job-resources>`, 
-[storage](../runtimes/function-storage.html), environment, metadata definitions, etc.). Each function is versioned and stored in the MLRun 
+[storage](../runtimes/function-storage.md), environment, metadata definitions, etc.). Each function is versioned and stored in the MLRun 
 database with a unique hash code, 
 and gets a new hash code upon changes.
 
@@ -26,16 +26,16 @@ You can use the MLRun auto-logging to log results and artifacts, and to automati
 while they execute, such as training a model. See {ref}`decorators-and-auto-logging`. 
 
 ## Functions and projects
-Function are members of an [**MLRun project**](../projects/project.html), a container for all your work on a particular ML application. 
+Function are members of an [**MLRun project**](../projects/project.md), a container for all your work on a particular ML application. 
 Once you register a function within a project, you can execute it in your local 
 environment or at scale on a Kubernetes cluster.
 
-The relationship between **functions**, [**workflows**](../projects/build-run-workflows-pipelines.html), and [**projects**](../projects/project.html), 
+The relationship between **functions**, [**workflows**](../projects/build-run-workflows-pipelines.md), and [**projects**](../projects/project.md), 
 is as follows:
 
 ![MLRun Function](../_static/images/mlrun_concepts_architecture.png)
 
-After the MLRun functions and workflows are created and [**registered into the project**](../projects/create-project.html), they are invoked 
+After the MLRun functions and workflows are created and [**registered into the project**](../projects/create-project.md), they are invoked 
 using the project object. 
 This workflow pairs especially well with {ref}`ci-cd-automate`.
 

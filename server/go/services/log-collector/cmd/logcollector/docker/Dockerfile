@@ -19,6 +19,9 @@ FROM gcr.io/iguazio/golang:${GO_VERSION} AS build-binary
 RUN mkdir /app
 WORKDIR /app
 
+# Build stages requires defining GO_VERSION again
+ARG GO_VERSION=1.21
+
 # copy `go.mod` for definitions and `go.sum` to invalidate the next layer
 # in case of a change in the dependencies
 COPY mlrun-go/go.mod mlrun-go/go.sum ./mlrun-go/

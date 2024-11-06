@@ -33,6 +33,7 @@ import v3io.dataplane.response
 from aioresponses import aioresponses as aioresponses_
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.datastore
@@ -285,6 +286,9 @@ class RunDBMock:
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
         limit: int = None,
     ):
         def filter_artifact(artifact):

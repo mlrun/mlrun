@@ -1,6 +1,6 @@
 go 1.21
 
 use (
-	services/log-collector
 	mlrun-go
+	services/log-collector
 )

@@ -13,8 +13,7 @@ if one of the following is true:
 
 - The code uses additional Python packages, OS packages, scripts or other configurations that need to be applied
 - The code uses different base-images or different versions of MLRun images than provided by default
-- Executed source code has changed, and the image has the code packaged in it - see
-  [here](mlrun_jobs.html#deploy-build-the-function-container) for more details on source code, and using 
+- Executed source code has changed, and the image has the code packaged in it - see how to use
   {py:func}`~mlrun.runtimes.BaseRuntime.with_code()` to avoid re-building the image when the code has changed
 - The code runs Nuclio functions, which are packaged as images (the build is triggered by MLRun and executed by 
   Nuclio)

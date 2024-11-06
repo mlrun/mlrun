@@ -57,7 +57,7 @@ class RemoteStep(storey.SendToHttp):
         """class for calling remote endpoints
 
         sync and async graph step implementation for request/resp to remote service (class shortcut = "$remote")
-        url can be an http(s) url (e.g. "https://myservice/path") or an mlrun function uri ([project/]name).
+        url can be an http(s) url (e.g. `https://myservice/path`) or an mlrun function uri ([project/]name).
         alternatively the url_expression can be specified to build the url from the event (e.g. "event['url']").
 
         example pipeline::
@@ -258,7 +258,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         """class for calling remote endpoints in parallel
 
         sync and async graph step implementation for request/resp to remote service (class shortcut = "$remote")
-        url can be an http(s) url (e.g. "https://myservice/path") or an mlrun function uri ([project/]name).
+        url can be an http(s) url (e.g. `https://myservice/path`) or an mlrun function uri ([project/]name).
         alternatively the url_expression can be specified to build the url from the event (e.g. "event['url']").
 
         example pipeline::

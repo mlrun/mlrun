@@ -153,6 +153,25 @@ endif
 update-version-file: ## Update the version file
 	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
+.PHONY: generate-dockerignore
+generate-dockerignore: ## Copies the root .dockerignore and removes the tests pattern from it
+	$(eval TARGET := dockerfiles/${DEST}/Dockerfile.dockerignore)
+	@if [ -f "$(TARGET)" ]; then \
+		temp_file=$$(mktemp) && \
+		sed '/\*\*\/tests/d' .dockerignore > $$temp_file && \
+		if cmp -s $$temp_file "$(TARGET)"; then \
+			echo "File $(TARGET) already exists and content is identical"; \
+			rm $$temp_file; \
+			exit 0; \
+		else \
+			echo "File $(TARGET) exists but content differs, updating..."; \
+			mv $$temp_file "$(TARGET)"; \
+		fi; \
+	else \
+		sed '/\*\*\/tests/d' .dockerignore > "$(TARGET)"; \
+	fi
+
+
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
 	@echo Done.
@@ -399,6 +418,7 @@ MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG)
 
 .PHONY: build-test
 build-test: compile-schemas update-version-file ## Build test docker image
+	$(MAKE) generate-dockerignore DEST=test
 	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/test/Dockerfile \
@@ -417,6 +437,7 @@ MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN
 
 .PHONY: build-test-system
 build-test-system: compile-schemas update-version-file ## Build system tests docker image
+	$(MAKE) generate-dockerignore DEST=test-system
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \

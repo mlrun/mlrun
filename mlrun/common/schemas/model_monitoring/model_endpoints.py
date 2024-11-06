@@ -366,8 +366,10 @@ def _mapping_attributes(
                 dict_to_parse[field_key] = _json_loads_if_not_none(
                     flattened_dictionary[field_key]
                 )
-            else:
+            elif flattened_dictionary[field_key] != "null":
                 dict_to_parse[field_key] = flattened_dictionary[field_key]
+            else:
+                dict_to_parse[field_key] = None
 
     return model_class.parse_obj(dict_to_parse)
 

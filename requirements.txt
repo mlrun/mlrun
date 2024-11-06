@@ -7,7 +7,7 @@ aiohttp-retry~=2.8.0
 click~=8.1
 nest-asyncio~=1.0
 ipython~=8.10
-nuclio-jupyter~=0.10.4
+nuclio-jupyter~=0.11.0
 numpy>=1.26.4, <1.27.0
 # pandas 2.2 requires sqlalchemy 2
 pandas>=1.2, <2.2

@@ -47,6 +47,7 @@ dist/
 mlrun.egg-info/
 mlrun/utils/version/version.json
 Dockerfile.mlrun-test-nb
+**/Dockerfile.dockerignore
 
 # Dask worker spaces
 dask-worker-space/

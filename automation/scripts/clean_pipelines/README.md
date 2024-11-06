@@ -38,6 +38,20 @@ func = project.set_function(
 
 The `delete_project_old_pipelines` function deletes old pipeline runs associated with a specified project.
 
+### Define the `end_date` and any other necessary parameters, for example:
+
+```python
+end_date = "2024-10-20T10:10:06Z"
+target_path = "/path/to/logs"
+
+params = {
+    "project_name": "remote-workflow-example1",
+    "end_date": end_date,
+    "target_path": target_path,
+    "dry_run": False,
+}
+
+```
 #### Function parameters:
 - **context**: The context object to log results (automatically passed by MLRun).
 - **project_name** (str): The name of the project for which to delete old pipelines.
@@ -48,19 +62,6 @@ The `delete_project_old_pipelines` function deletes old pipeline runs associated
   Defaults to the MLRun default artifact path.
 - **dry_run** (bool): If True, only log what would be deleted (default: False).
 
-### Define the `end_date` and any other necessary parameters, for example:
-
-```python
-end_date = "2024-10-20T10:10:06Z"
-target_path = "/path/to/logs"
-
-params = {
-    "project_name": "remote-workflow-example1",
-    "end_date": end_date,
-    "artifact_path": artifact_path,
-    "dry_run": False,
-}
-```
 
 ### Step 3: Build the function
 

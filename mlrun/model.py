@@ -753,11 +753,11 @@ class Notification(ModelObj):
     def validate_notification_params(self, default_notification_params=None):
         default_notification_params = default_notification_params or {}
         notification_type = mlrun.utils.notifications.NotificationTypes(self.kind)
-        notification_object = notification_type.get_notification()
+        notification_class = notification_type.get_notification()
         secret_params = self.secret_params or {}
         params = self.params or {}
         default_params = default_notification_params.get(notification_type, {})
-        params = notification_object.enrich_default_params(params, default_params)
+        params = notification_class.enrich_default_params(params, default_params)
         # if the secret_params are already masked - no need to validate
         params_secret = secret_params.get("secret", "")
         if params_secret:
@@ -772,7 +772,7 @@ class Notification(ModelObj):
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
             )
 
-        notification_object.validate_params(secret_params | params)
+        notification_class.validate_params(secret_params | params)
 
     def enrich_unmasked_secret_params_from_project_secret(self):
         """

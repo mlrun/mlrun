@@ -66,16 +66,15 @@ def delete_project_old_pipelines(
     runs, experiments_ids = _query_and_filter_runs(
         kfp_client, project_name, query_filter
     )
-    if not dry_run:
-        # Delete runs
-        _delete_runs(context, kfp_client, runs, target_path)
 
-        # Find and delete empty experiments
-        _delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
+    # Delete runs
+    _delete_runs_and_empty_experiments(
+        context, kfp_client, runs, experiments_ids, target_path, dry_run
+    )
+    _delete_runs(context, kfp_client, runs, target_path, dry_run)
 
-    else:
-        mlrun.utils.logger.info(f"Dry run: {len(runs)} runs would be deleted")
-        context.log_result(key="runs_to_be_deleted", value=runs)
+    # Find and delete empty experiments
+    _delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
 
 
 def _validate_and_convert_date(date_input: str) -> str:
@@ -156,7 +155,7 @@ def _query_and_filter_runs(
     """
     runs = _list_pipelines_runs(kfp_client, query_filter)
 
-    # Filter out non project-related runs if project was provided
+    # Filter out non-project-related runs if project was provided
     project_runs = _filter_project_runs(project_name, runs)
 
     if project_name == "*":
@@ -221,6 +220,41 @@ def _filter_project_runs(
     return project_runs
 
 
+def _delete_runs_and_empty_experiments(
+    context: mlrun.MLClientCtx,
+    kfp_client: Client,
+    runs: list[tuple[str, str]],
+    experiments_ids: set[str],
+    target_path: str,
+    dry_run: bool,
+) -> None:
+    """
+    Deletes specified pipeline runs and their corresponding empty experiments.
+
+    This function either performs an actual deletion or a dry run depending on the `dry_run` parameter.
+    If `dry_run` is True, it logs the runs that would be deleted without performing any deletion.
+    If `dry_run` is False, it deletes the provided runs and then deletes any experiments
+    that are left empty as a result.
+
+    :param context: The context object to log results.
+    :param kfp_client: The KFP client used to interact with the pipeline API.
+    :param runs: A list of tuples representing the runs to delete, where each tuple contains (run_id, run_name).
+    :param experiments_ids: A set of experiment IDs to check for emptiness after run deletion.
+    :param target_path: The artifact path where details of the deletion process (successes and failures) will be logged.
+    :param dry_run: If True, perform a dry run by logging what would be deleted without actually deleting anything.
+    """
+    if not dry_run:
+        # Delete runs
+        _delete_runs(context, kfp_client, runs, target_path)
+
+        # Find and delete empty experiments
+        _delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
+
+    else:
+        mlrun.utils.logger.info(f"Dry run: {len(runs)} runs would be deleted")
+        context.log_result(key="runs_to_be_deleted", value=runs)
+
+
 def _delete_runs(
     context: mlrun.MLClientCtx,
     kfp_client: Client,
@@ -254,7 +288,7 @@ def _delete_empty_experiments(
 
     :param context: The context object to log results.
     :param kfp_client: The KFP client used to interact with the pipeline API.
-    :param experiments_ids: List of experiment IDs to check for emptiness.
+    :param experiments_ids: Set of experiment IDs to check for emptiness.
     :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     """
     empty_experiment_ids = _find_empty_experiments(kfp_client, experiments_ids)

@@ -50,12 +50,16 @@ params = {
     "target_path": target_path,
     "dry_run": False,
 }
-
 ```
 #### Function parameters:
 - **context**: The context object to log results (automatically passed by MLRun).
 - **project_name** (str): The name of the project for which to delete old pipelines.
-- **end_date** (str): The cutoff date for deleting pipeline runs. All runs created on or before this date will be considered for deletion (format: YYYY-MM-DDTHH:MM:SSZ).
+- **end_date** (str): The cutoff date for deleting pipeline runs. All runs created on or before this date will be considered for deletion. Supported formats include:
+  - `YYYY-MM-DDTHH:MM:SSZ`
+  - `YYYY-MM-DDTHH:MM:SS`
+  - `YYYY-MM-DDTHH:MM:SS±HH:MM`
+  - `YYYY-MM-DD`
+  - `YYYY/MM/DD`
 - **start_date** (str, optional): If provided, only runs created on or after this date will be considered for deletion (default is empty, no filtering).
 - **target_path** (str, optional): The path where logs or output artifacts from the function run will be saved,
   storing details on deleted pipeline runs, making it easier to verify cleanup activity and maintain a record of deletions.

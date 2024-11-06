@@ -97,11 +97,12 @@ def upgrade():
     # Calculate the date of next partitioning interval
     now_utc = datetime.utcnow()
 
-    partition_name, partition_value, partition_expression = (
+    partition_info, partition_expression = (
         mlrun.common.schemas.partition.PartitionInterval(
             partition_interval
-        ).get_partition_info(now_utc)[0]
+        ).get_partition_info(now_utc)
     )
+    partition_name, partition_value = partition_info[0]
 
     # Construct SQL for partitioning
     partition_sql = f"""

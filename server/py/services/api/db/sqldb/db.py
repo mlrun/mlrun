@@ -5388,21 +5388,22 @@ class SQLDB(DBInterface):
     def create_partitions(
         session: Session,
         table_name: str,
-        partitioning_information_list: list[tuple[str, str, str]],
+        partition_expression: str,
+        partitioning_information_list: list[tuple[str, str]],
     ):
         """
         Creates partitions in the specified database table.
 
         :param session: SQLAlchemy session for database connection.
         :param table_name: Name of the table where partitions will be created.
+        :param partition_expression: partitioning expression for a given table.
         :param partitioning_information_list: List of tuples, each containing:
             - partition_name: The name for the partition.
             - partition_value: The "LESS THAN" boundary value for the partition.
-            - partition_expression: The SQL partition expression.
         """
         alter_table_template = f"""
             ALTER TABLE {table_name}
-            PARTITION BY RANGE ({partitioning_information_list[0][2]}) (
+            PARTITION BY RANGE ({partition_expression}) (
                 {", ".join([
             f"PARTITION p{partition_name} VALUES LESS THAN ({partition_value})"
             for partition_name, partition_value, _ in partitioning_information_list

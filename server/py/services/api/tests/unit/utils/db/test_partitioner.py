@@ -91,17 +91,17 @@ def test_get_partition_info_for_datetime(
     `SELECT YEARWEEK('2024-12-31', 1) AS `yearweek_value`;`
     """
     # Get actual values from the function
-    partition_name, partition_value, partition_expression = (
+    partition_info, partition_expression = (
         mlrun.common.schemas.partition.PartitionInterval(
             partition_interval
         ).get_partition_info(
             partition_datetime,
         )
-    )[0]
+    )
 
     # Assertions
-    assert partition_name == expected_name
-    assert partition_value == expected_partition_value
+    assert partition_info[0][0] == expected_name
+    assert partition_info[0][1] == expected_partition_value
     assert partition_expression == expected_expression
 
 
@@ -147,7 +147,7 @@ def test_drop_old_partitions(
 
 
 @pytest.mark.parametrize(
-    "partition_interval, partition_number, test_date, expected_partition_info",
+    "partition_interval, partition_number, test_date, expected_partition_info, expected_partition_expression",
     [
         # Test cases with different partition intervals and partition numbers
         (
@@ -155,28 +155,31 @@ def test_drop_old_partitions(
             3,
             datetime(2024, 1, 1),
             [
-                ("20240101", "20240102", "DAY(activation_time)"),
-                ("20240102", "20240103", "DAY(activation_time)"),
-                ("20240103", "20240104", "DAY(activation_time)"),
+                ("20240101", "20240102"),
+                ("20240102", "20240103"),
+                ("20240103", "20240104"),
             ],
+            "DAY(activation_time)",
         ),
         (
             "MONTH",
             2,
             datetime(2024, 1, 1),
             [
-                ("202401", "202402", "MONTH(activation_time)"),
-                ("202402", "202403", "MONTH(activation_time)"),
+                ("202401", "202402"),
+                ("202402", "202403"),
             ],
+            "MONTH(activation_time)",
         ),
         (
             "YEARWEEK",
             2,
             datetime(2024, 12, 31),
             [
-                ("202501", "202502", "YEARWEEK(activation_time, 1)"),
-                ("202502", "202503", "YEARWEEK(activation_time, 1)"),
+                ("202501", "202502"),
+                ("202502", "202503"),
             ],
+            "YEARWEEK(activation_time, 1)",
         ),
     ],
 )
@@ -186,6 +189,7 @@ def test_create_partitions(
     partition_number,
     test_date,
     expected_partition_info,
+    expected_partition_expression,
 ):
     with (
         unittest.mock.patch(
@@ -208,6 +212,7 @@ def test_create_partitions(
         mocked_db_create_partitions.assert_called_once_with(
             session=db,
             table_name="alert_activation",
+            partition_expression=expected_partition_expression,
             partitioning_information_list=expected_partition_info,
         )
 

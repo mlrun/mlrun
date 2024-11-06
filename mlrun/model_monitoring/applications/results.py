@@ -130,6 +130,7 @@ class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
     Class representing the stats of histogram data drift application.
 
     :param name             (str) Enum mm_constant.StatsData str representation of the stats data kind of the event
+    :param                  (str) iso format representation of the timestamp the event took place
     :param stats            (dict) Dictionary representation of the stats calculated for the event
 
     """

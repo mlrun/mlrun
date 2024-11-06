@@ -4,7 +4,7 @@
 (quick-start-tutorial)=
 
 ````{card} Make sure you start with the Quick start tutorial to understand the basics
-```{button-link} ./01-mlrun-basics.html
+```{button-link} ./01-mlrun-basics.ipynb
 :color: primary
 :shadow:
 :expand:

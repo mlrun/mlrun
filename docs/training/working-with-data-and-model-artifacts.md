@@ -3,7 +3,7 @@
 
 When running a training job, you need to pass in the data used for training, and save the resulting model. Both the data and model can be considered {ref}`artifacts <Artifacts>` in MLRun. In the context of an ML pipeline, the data is an `input` and the model is an `output`.
 
-Consider the following snippet from a pipeline in the [Build and run automated ML pipelines and CI/CD](../tutorials/04-pipeline.html#build-and-run-automated-ml-pipelines-and-ci-cd) section of the docs:
+Consider the following snippet from a pipeline in the [Build and run automated ML pipelines and CI/CD](../tutorials/04-pipeline.ipynb#build-and-run-automated-ml-pipelines-and-cicd) section of the docs:
 
 ```python
 # Ingest data
@@ -74,7 +74,7 @@ def train(context: mlrun.MLClientCtx, dataset: mlrun.DataItem):
     )
 ```
 
-Once your artifact is logged, it can be accessed throughout the rest of the pipeline. For example, for the pipeline snippet from the [Build and run automated ML pipelines and CI/CD](../tutorials/04-pipeline.html#build-and-run-automated-ml-pipelines-and-ci-cd) section of the docs, you can access your model like the following:
+Once your artifact is logged, it can be accessed throughout the rest of the pipeline. For example, for the pipeline snippet from the [Build and run automated ML pipelines and CI/CD](../tutorials/04-pipeline.ipynb#build-and-run-automated-ml-pipelines-and-cicd) section of the docs, you can access your model like the following:
 ```python
 # Train a model using the auto_trainer hub function
 train = mlrun.run_function(
@@ -148,7 +148,7 @@ def train_iris(context: MLClientCtx):
     )
 ```
 
-Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [Quick start tutorial](../tutorials/01-mlrun-basics.html) to learn how to create the project and set the artifact path. 
+Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [Quick start tutorial](../tutorials/01-mlrun-basics.ipynb) to learn how to create the project and set the artifact path. 
 
 ``` python
 from mlrun import code_to_function
@@ -238,7 +238,7 @@ run = func.run(
 Storing plots is useful to visualize the data and to show any information regarding the model performance. For example, you can store 
 scatter plots, histograms and cross-correlation of the data, and for the model store the ROC curve and confusion matrix.
 
-The following code creates a confusion matrix plot using [sklearn.metrics.plot_confusion_matrix](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.plot_confusion_matrix.html#sklearn.metrics.plot_confusion_matrix) 
+The following code creates a confusion matrix plot using [sklearn.metrics.plot_confusion_matrix](https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html#confusion-matrix) 
 and stores the plot in the artifact repository:
 
 ``` python

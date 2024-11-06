@@ -10,7 +10,7 @@ Configuring runs and functions is relevant for all supported cloud platforms.
 **In this section**
 - [Environment variables](#environment-variables)
 - [Replicas](#replicas)
-- [CPU, GPU, and memory &mdash; requests and limits for user jobs](#cpu-gpu-and-memory-requests-and-limits-for-user-jobs)
+- [CPU, GPU, and memory &mdash; requests and limits for user jobs](#cpu-gpu-and-memory--requests-and-limits-for-user-jobs)
 - [Number of workers and GPUs](#number-of-workers-and-gpus)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
@@ -65,7 +65,7 @@ the replicas and based on that provides horizontal scaling.
 See also [Kubernetes horizontal autoscale](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#how-does-a-horizontalpodautoscaler-work).
 ```
 
-See more details in [Dask](../runtimes/dask-overview.html), [MPIJob and Horovod](../runtimes/horovod.html), [Spark](../runtimes/spark-operator.html), [Nuclio](../concepts/nuclio-real-time-functions.html).
+See more details in [Dask](../runtimes/dask-overview.ipynb), [MPIJob and Horovod](../runtimes/horovod.ipynb), [Spark](../runtimes/spark-operator.ipynb), [Nuclio](../concepts/nuclio-real-time-functions.ipynb).
 
 ## CPU, GPU, and memory &mdash; requests and limits for user jobs
 
@@ -105,7 +105,7 @@ Configure requests and limits in the service's **Common Parameters** tab and in 
 ## Number of workers and GPUs
 
 For each Nuclio or serving function, MLRun creates an HTTP trigger with the default of 1 worker.  When using GPU in remote functions you must ensure 
-that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](#cpu-gpu-and-memory-requests-and-limits-for-user-jobs).
+that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](#cpu-gpu-and-memory--requests-and-limits-for-user-jobs).
 
 You can change the number of workers after you create the trigger (function object), then you need to 
 redeploy the function. Examples of changing the number of workers:
@@ -132,7 +132,7 @@ For each of the options, a name needs to be assigned to the volume, as well as a
 
 See more about [Kubernetes Volumes](https://kubernetes.io/docs/concepts/storage/volumes/).
 
-MLRun supports the concept of volume auto-mount, which automatically mounts the most commonly used type of volume to all pods, unless disabled. See more about [MLRun auto mount](../runtimes/function-storage.html).
+MLRun supports the concept of volume auto-mount, which automatically mounts the most commonly used type of volume to all pods, unless disabled. See more about [MLRun auto mount](../runtimes/function-storage.md).
 
 ### SDK configuration
 
@@ -470,7 +470,7 @@ scheduled to any existing node, and new nodes are automatically added to accommo
 Auto-scaling is a node-group configuration.
 
 ## Mounting persistent storage
-In some instances, you might need to mount a file-system to your container to persist data. This can be done with native K8s PVC's or the V3IO data layer for Iguazio clusters. See [**Attach storage to functions**](./function-storage.html) for more information on the storage options.
+In some instances, you might need to mount a file-system to your container to persist data. This can be done with native K8s PVC's or the V3IO data layer for Iguazio clusters. See [**Attach storage to functions**](./function-storage.md) for more information on the storage options.
 
 ```python
 # Mount persistent storage - V3IO

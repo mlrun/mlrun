@@ -6,10 +6,10 @@ A project is a container for all the assets, configuration, and code of a partic
 <p align="center"><img src="../_static/images/project.png" alt="mlrun-project" width="600"/></p><br>
 
 **In this section**
-- [Creating a project](#create)
-- [Adding functions, artifacts, workflow, and config](#add-elements)
-- [Pushing the project content into git or an archive](#push)
-- [Get a project from DB or create it](#get-or-create)
+- [Creating a project](#creating-a-project)
+- [Adding functions, artifacts, workflow, and config](#adding-functions-artifacts-workflow-and-config)
+- [Pushing the project content into git or an archive](#pushing-the-project-content-into-git-or-an-archive)
+- [Get a project from DB or create it](#get-a-project-from-db-or-create-it)
 - [Deleting a project](#deleting-a-project)
 
 <a id="best-prac-projs"></a>
@@ -74,8 +74,8 @@ project = mlrun.new_project(
 <a id="add-elements"></a>
 ## Adding functions, artifacts, workflow, and config
 
-Projects host [functions](../runtimes/functions.html), [workflows](../concepts/workflow-overview.html), [artifacts (files, datasets, models, etc.)](../store/artifacts.html), features, and configuration (parameters, [secrets](../secrets.html), source, etc.).
-This section explains how to add or register different project elements. For details on the feature store and its elements (sets, vectors) see the [**feature store documentation**](../feature-store/feature-store.html).
+Projects host [functions](../runtimes/functions.md), [workflows](../concepts/workflow-overview.md), [artifacts (files, datasets, models, etc.)](../store/artifacts.md), features, and configuration (parameters, [secrets](../secrets.md), source, etc.).
+This section explains how to add or register different project elements. For details on the feature store and its elements (sets, vectors) see the [**feature store documentation**](../feature-store/feature-store.md).
 
 **Adding and registering functions:**
 
@@ -110,12 +110,12 @@ project.set_function(
 )
 ```
 
-See details and examples on how to [**create and register functions**](../runtimes/create-and-use-functions.html), 
-how to [**annotate notebooks**](../runtimes/mlrun_code_annotations.html) (to be used as functions), how to [**run, build, or deploy**](./run-build-deploy.html) functions, and how to [**use them in workflows**](./build-run-workflows-pipelines.html). 
+See details and examples on how to [**create and register functions**](../runtimes/create-and-use-functions.ipynb), 
+how to [**annotate notebooks**](../runtimes/mlrun_code_annotations.ipynb) (to be used as functions), how to [**run, build, or deploy**](./run-build-deploy.md) functions, and how to [**use them in workflows**](./build-run-workflows-pipelines.md). 
 
 **Register artifacts:**
 
-[Artifacts](../store/artifacts.html) are used by functions and workflows and are referenced by a key (name) and optional tag (version).
+[Artifacts](../store/artifacts.md) are used by functions and workflows and are referenced by a key (name) and optional tag (version).
 Users can define artifact files or objects in the project spec, which are registered during project load or when calling `project.register_artifacts()`.
 To register artifacts use the {py:meth}`~mlrun.projects.MlrunProject.set_artifact`) method. See the examples:
 
@@ -138,12 +138,12 @@ project.set_artifact("model", "https://mystuff.com/models/mymodel.zip")
 Local file paths are relative to the context dir.
 ```
 
-You can delete artifacts per project. See [Deleting artifacts](../store/artifacts.html#deleting-artifacts).
+You can delete artifacts per project. See [Deleting artifacts](../store/artifacts.md#deleting-artifacts).
 
 **Registering workflows:**
 
 Projects contain one or more workflows (pipelines). The workflows can be registered using the {py:meth}`~mlrun.projects.set_workflow`) method.
-Project workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run`) method. See [**building and running workflows**](./build-run-workflows-pipelines.html) for details.
+Project workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run`) method. See [**building and running workflows**](./build-run-workflows-pipelines.md) for details.
 
 ```python
 # Add a multi-stage workflow (./myflow.py) to the project with the name 'main' and save the project
@@ -229,7 +229,7 @@ spec:
 ## Pushing the project content into git or an archive
 
 Project code, metadata, and configuration are stored and versioned in source control systems like GIT or archives (zip, tar).
-This allows [**loading an entire project**](./load-project.html) (with a specific version) into a development or production environment, or seamlessly [**integrating with CI/CD frameworks**](./ci-integration.html).
+This allows [**loading an entire project**](./load-project.md) (with a specific version) into a development or production environment, or seamlessly [**integrating with CI/CD frameworks**](./ci-integration.md).
 
 <p align="center"><img src="../_static/images/project-lifecycle.png" alt="project-lifecycle" width="700"/></p><br>
  

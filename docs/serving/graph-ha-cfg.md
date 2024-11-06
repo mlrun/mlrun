@@ -7,7 +7,7 @@ This figure illustrates a simplistic flow of an MLRun serving graph with remote 
 As explained in {ref}`serving-graph`, the serving graph is based on Nuclio functions. 
 
 **In this section**
-- [Using Nuclio with stream triggers](#using-Nuclio-with-stream-triggers)
+- [Using Nuclio with stream triggers](#using-nuclio-with-stream-triggers)
 - [Consumer function configuration](#consumer-function-configuration)
 - [Remote function retry mechanism](#remote-function-retry-mechanism)
 - [Configuration considerations](#configuration-considerations)
@@ -57,7 +57,7 @@ To set the buffer size:
 
 The default `buffer_size` is 8 (messages).
 
-## Remote function retry mechanism 
+## Remote function retry mechanism
 
 The required processing time of a remote function varies, depending on the function. The system assumes a processing 
 time in the order of seconds, which affects the default configurations. However, some functions require a longer processing time. 

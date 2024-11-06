@@ -89,7 +89,7 @@ facilities for executing pySpark code using a Spark service (which can be deploy
 as part of an Iguazio system) or through submitting the processing task to Spark-operator. The following page provides
 additional details and code-samples:
 
-- [Spark operator](../runtimes/spark-operator.html)
+- [Spark operator](../runtimes/spark-operator.ipynb)
 
 In a similar manner, Dask can be used for parallel processing of the data. To read data as a Dask `DataFrame`, use the
 following code:

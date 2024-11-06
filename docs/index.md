@@ -7,7 +7,7 @@ With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun 
 Get started with the MLRun **{ref}`Tutorials and examples <tutorials-all>`** and **{ref}`Installation and setup guide <install-setup-guide>`**.
 
 
-This page explains how MLRun addresses the [**gen AI tasks**](#genai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
+This page explains how MLRun addresses the [**gen AI tasks**](#gen-ai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#mlrun-core-components).
 
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
@@ -63,7 +63,7 @@ See the supported data stores, development tools, services, platforms, etc., sup
 
 
 Use MLRun to develop, scale, deploy, and monitor your AI model scross your enterprise. 
-[**Gen AI development workflow**](./genai/genai-flow.html) describes the different tasks and stages in detail. 
+[**Gen AI development workflow**](./genai/genai-flow.md) describes the different tasks and stages in detail. 
 
 ### Data management
 
@@ -182,7 +182,7 @@ Collect production data, metadata, and metrics to tune the model and application
 
 `````
 
-The [**MLOps development workflow**](./mlops-dev-flow.html) section describes the different tasks and stages in detail.
+The [**MLOps development workflow**](./mlops-dev-flow.md) section describes the different tasks and stages in detail.
 MLRun can be used to automate and orchestrate all the different tasks or just specific tasks (and integrate them with what you have already deployed).
 
 ### Project management and CI/CD automation
@@ -190,7 +190,7 @@ MLRun can be used to automate and orchestrate all the different tasks or just sp
 In MLRun the assets, metadata, and services (data, functions, jobs, artifacts, models, secrets, etc.) are organized into projects.
 Projects can be imported/exported as a whole, mapped to git repositories or IDE projects (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and CI/CD. 
 Project access can be restricted to a set of users and roles.
-{bdg-link-primary-line}`more... <./projects/project.html>`
+{bdg-link-primary-line}`more... <./projects/project.md>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
@@ -207,8 +207,8 @@ Project access can be restricted to a set of users and roles.
 
 ### Ingest and process data
 
-MLRun provides abstract interfaces to various offline and online [**data sources**](./store/datastore.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
-In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing.
+MLRun provides abstract interfaces to various offline and online [**data sources**](./store/datastore.md), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
+In addition, the MLRun [**Feature store**](./feature-store/feature-store.md) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing.
 {bdg-link-primary-line}`more... <./data-prep/index.html>`
 
 `````{div} full-width
@@ -229,7 +229,7 @@ train models at scale with multiple parameters, test models, track each experime
 models, etc. MLRun provides scalable built-in or custom model training services that integrate with any framework and 
 can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.
 
-{bdg-link-primary-line}`more... <./development/index.html>`
+{bdg-link-primary-line}`more... <./development/index.md>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
@@ -237,8 +237,8 @@ can work with 3rd party training/auto-ML services. You can also bring your own p
 {bdg-link-info}`Model training and tracking <./development/model-training-tracking.html>`
 {bdg-link-info}`Batch runs and workflows <./concepts/runs-workflows.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Train, compare, and register models <./tutorials/02-model-training.html>`
-{bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.html>`
+{bdg-link-primary}`Train, compare, and register models <./tutorials/02-model-training.ipynb>`
+{bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.ipynb>`
 <br> {octicon}`video` **Videos:**
 {bdg-link-warning}`Train and compare models <https://youtu.be/bZgBsmLMdQo>`
 `````
@@ -276,7 +276,6 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````
 
-<a id="core-components"></a>
 ## MLRun core components
 
 MLRun includes the following major components:

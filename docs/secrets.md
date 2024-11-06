@@ -14,7 +14,7 @@ and how much exposure they create for your secrets.
   - [Secret providers](#secret-providers)
     - [Kubernetes project secrets](#kubernetes-project-secrets)
     - [Azure Vault](#azure-vault)
-    - [Demo/Development secret providers](#demo-development-secret-providers)
+    - [Demo/Development secret providers](#demodevelopment-secret-providers)
 - [Externally managed secrets](#externally-managed-secrets)
   - [Mapping secrets to environment](#mapping-secrets-to-environment)
   - [Mapping secrets as files](#mapping-secrets-as-files)
@@ -210,7 +210,7 @@ To configure this, the following steps are needed:
 3. Assign a key vault access policy to the service principal, as described in 
    [this page](https://docs.microsoft.com/en-us/azure/key-vault/general/assign-access-policy-portal).
 4. Create a secret access key for the service principal, following the steps listed in [this page]( 
-   https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#get-tenant-and-app-id-values-for-signing-in). 
+   https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#register-an-application-with-microsoft-entra-id-and-create-a-service-principal). 
     Make sure you have access to the following three identifiers:
    
     - Directory (tenant) id

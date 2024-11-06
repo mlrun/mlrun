@@ -11,7 +11,7 @@ Click on the step names in the following sections to see the full usage.
 - [Routers](#routers)
 - [Other](#other)
 
-See also [Data transformations](../feature-store/transformations.html#data-transformation-steps).
+See also [Data transformations](../feature-store/transformations.md#data-transformation-steps).
 
 
 ## Base Operators
@@ -37,36 +37,36 @@ See also [Data transformations](../feature-store/transformations.html#data-trans
 ## External IO and data enrichment
 | Class name                                                                                                                    | Description                                                                                    |   
 |-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| [BatchHttpRequests](../api/mlrun.serving.html#mlrun.serving.remote.BatchHttpRequests)                                         | A class for calling remote endpoints in parallel.                                              | 
-| [mlrun.datastore.DataItem](../api/mlrun.datastore.html#mlrun.datastore.DataItem)                                              | Data input/output class abstracting access to various local/remote data sources.               |
+| {py:class}`~mlrun.serving.remote.BatchHttpRequests`                                                                           | A class for calling remote endpoints in parallel.                                              | 
+| {py:class}`~mlrun.datastore.DataItem`                                                                                         | Data input/output class abstracting access to various local/remote data sources.               |
 | [storey.transformations.JoinWithTable](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.JoinWithTable) | Joins each event with data from the given table.                                               |
 | JoinWithV3IOTable                                                                                                             | Joins each event with a V3IO table. Used for event augmentation.                               | 
 | [QueryByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.QueryByKey)                                 | Similar to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
-| [RemoteStep](../api/mlrun.serving.html#mlrun.serving.remote.RemoteStep)                                                       | Class for calling remote endpoints.                                                            | 
+| {py:class}`~mlrun.serving.remote.RemoteStep`                                                                                  | Class for calling remote endpoints.                                                            | 
 | [storey.transformations.SendToHttp](https://storey.readthedocs.io/en/latest/api.html#storey.transformations.SendToHttp)       | Joins each event with data from any HTTP source. Used for event augmentation.                  |
  
-
+({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`))
 ## Models
-| Class name                                     | Description                                                                                |   
-|------------------------------------------------|--------------------------------------------------------------------------------------------|
-| `mlrun.frameworks.onnx.ONNXModelServer`        | A model serving class for serving ONYX Models. A sub-class of the  V2ModelServer class.    | 
-| `mlrun.frameworks.pytorch.PyTorchModelServer`  | A model serving class for serving PyTorch Models. A sub-class of the  V2ModelServer class. |
-| `mlrun.frameworks.sklearn.SklearnModelServer`  | A model serving class for serving Sklearn Models. A sub-class of the  V2ModelServer class. |  
-| `mlrun.frameworks.tf_keras.TFKerasModelServer` | A model serving class for serving TFKeras Models. A sub-class of the V2ModelServer class.  |
-| `mlrun.frameworks.xgboost.XGBModelServer`      | A model serving class for serving XGB Models. A sub-class of the  V2ModelServer class.     | 
+| Class name                                               | Description                                                                                |   
+|----------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| {py:class}`mlrun.frameworks.onnx.ONNXModelServer`        | A model serving class for serving ONYX Models. A sub-class of the  V2ModelServer class.    | 
+| {py:class}`mlrun.frameworks.pytorch.PyTorchModelServer`  | A model serving class for serving PyTorch Models. A sub-class of the  V2ModelServer class. |
+| {py:class}`mlrun.frameworks.sklearn.SklearnModelServer`  | A model serving class for serving Sklearn Models. A sub-class of the  V2ModelServer class. |  
+| {py:class}`mlrun.frameworks.tf_keras.TFKerasModelServer` | A model serving class for serving TFKeras Models. A sub-class of the V2ModelServer class.  |
+| {py:class}`mlrun.frameworks.xgboost.XGBModelServer`      | A model serving class for serving XGB Models. A sub-class of the  V2ModelServer class.     | 
 
 ## Routers
 
-| Class name                                                                             | Description                                                                                                                                                                                                                                                                   |        
-|----------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| mlrun.serving.EnrichmentModelRouter                                                    | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
-| mlrun.serving.EnrichmentVotingEnsemble                                                 | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
-| mlrun.serving.ModelRouter                                                              | Basic model router, for calling different models per each model path.                                                                                                                                                                                                         | 
-| [mlrun.serving.VotingEnsemble](../api/mlrun.serving.html#mlrun.serving.VotingEnsemble) | An ensemble machine learning model that combines the prediction of several models.                                                                                                                                                                                            |       
+| Class name                                          | Description                                                                                                                                                                                                                                                                   |        
+|-----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| {py:class}`~mlrun.serving.EnrichmentModelRouter`    | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
+| {py:class}`~mlrun.serving.EnrichmentVotingEnsemble` | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
+| {py:class}`~mlrun.serving.ModelRouter`              | Basic model router, for calling different models per each model path.                                                                                                                                                                                                         | 
+| {py:class}`~mlrun.serving.VotingEnsemble`           | An ensemble machine learning model that combines the prediction of several models.                                                                                                                                                                                            |       
 
 
 ## Other
-| Class name                                                                                                               | Description                                                                                                   |   
-|--------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| [mlrun.feature_store.FeaturesetValidator](../api/mlrun.feature_store.html#mlrun.feature_store.steps.FeaturesetValidator) | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
-| ReduceToDataFrame                                                                                                        | Builds a pandas DataFrame from events and returns that DataFrame on flow termination.                         |
+| Class name                                                 | Description                                                                                                   |   
+|------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| {py:class}`~mlrun.feature_store.steps.FeaturesetValidator` | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
+| ReduceToDataFrame                                          | Builds a pandas DataFrame from events and returns that DataFrame on flow termination.                         |

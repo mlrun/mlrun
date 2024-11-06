@@ -11,10 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import abc
 import json
+from abc import abstractmethod
 from datetime import datetime, timezone
 from typing import cast
 
+import botocore.exceptions
 import fsspec
 
 import mlrun.datastore.base
@@ -27,9 +30,10 @@ from mlrun.model_monitoring.helpers import (
 from mlrun.utils import logger
 
 
-class ModelMonitoringStatsFile:
+class ModelMonitoringStatsFile(abc.ABC):
     """
-    Initialize applications monitoring json file object.
+    Abstract class
+    Initialize applications monitoring stats file object.
     The JSON file stores a dictionary of registered application name as key and Unix timestamp as value.
     When working with the schedules data, use this class as a context manager to read and write the data.
     """
@@ -75,26 +79,57 @@ class ModelMonitoringStatsFile:
         :return: tuple[dict, str] dictionary with stats data and timestamp saved in file
         """
         try:
-            json_dictionary = json.loads(self._item.get().decode())
-            timestamp = json_dictionary.get("timestamp")
+            content = json.loads(self._item.get().decode())
+            timestamp = content.get("timestamp")
             if timestamp is not None:
                 timestamp = datetime.fromisoformat(timestamp).astimezone(
                     tz=timezone.utc
                 )
-            return json_dictionary.get("data"), timestamp
-        except Exception as e:
-            logger.debug(
-                f"Model Monitoring {self._file_type} file read error: {e} file might not been created",
-                path=self._item.url,
+            return content.get("data"), timestamp
+        except (
+            mlrun.errors.MLRunNotFoundError,
+            # Different errors are raised for S3 or local storage, see ML-8042
+            botocore.exceptions.ClientError,
+            FileNotFoundError,
+        ) as err:
+            if (
+                isinstance(err, botocore.exceptions.ClientError)
+                # Add a log only to "NoSuchKey" errors codes - equivalent to `FileNotFoundError`
+                and err.response["Error"]["Code"] != "NoSuchKey"
+            ):
+                raise
+
+            logger.exception(
+                "The Stats file was not found. It should have been created "
+                "as a part of the model endpoint's creation",
+                path=self._path,
+                error=err,
             )
-            raise e
+            raise
 
     def write(self, stats: dict, timestamp: datetime) -> None:
+        """
+        Write stats data to file overwrite the existing file
+        :param stats: dictionary with the stats data
+        :param timestamp: datetime object with the timestamp of last entry point for the stats calculation
+        """
         content = {
             "data": stats,
             "timestamp": timestamp.isoformat(sep=" ", timespec="microseconds"),
         }
         self._item.put(json.dumps(content))
+
+    @classmethod
+    @abstractmethod
+    def from_model_endpoint(
+        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
+    ) -> "ModelMonitoringStatsFile":
+        """
+        Return ModelMonitoringStatsFile child object using ModelEndpoint metadata
+        :param model_endpoint: The current model endpoint to get a stats object for
+        :return: ModelMonitoringStatsFile child object instance
+        """
+        pass
 
 
 class ModelMonitoringCurrentStatsFile(ModelMonitoringStatsFile):

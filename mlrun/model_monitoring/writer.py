@@ -229,20 +229,15 @@ class ModelMonitoringWriter(StepToDict):
             ModelMonitoringCurrentStatsFile(self.project, endpoint_id).write(
                 data, timestamp
             )
-            logger.info(
-                "Updating the model endpoint with metadata specific to the histogram "
-                "data drift app Current stats",
-                endpoint_id=endpoint_id,
-            )
         elif stat_kind == StatsKind.DRIFT_MEASURES.value:
             ModelMonitoringDriftMeasuresFile(self.project, endpoint_id).write(
                 data, timestamp
             )
-            logger.info(
-                "Updating the model endpoint with metadata specific to the histogram "
-                "data drift app Drift measures",
-                endpoint_id=endpoint_id,
-            )
+        logger.info(
+            "Updating the model endpoint statistics",
+            endpoint_id=endpoint_id,
+            stats_kind=stat_kind,
+        )
 
     def do(self, event: _RawEvent) -> None:
         event, kind = self._reconstruct_event(event)

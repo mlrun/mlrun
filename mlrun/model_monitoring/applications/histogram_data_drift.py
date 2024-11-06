@@ -27,7 +27,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     HistogramDataDriftApplicationConstants,
     ResultKindApp,
     ResultStatusApp,
-    StatsData,
     StatsKind,
 )
 from mlrun.model_monitoring.applications import (
@@ -120,7 +119,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}
-    _STATS_TYPES: tuple[StatsData] = (StatsKind.CURRENT_STATS, StatsKind.DRIFT_MEASURES)
+    _STATS_TYPES: tuple[StatsKind] = (StatsKind.CURRENT_STATS, StatsKind.DRIFT_MEASURES)
 
     metrics: list[type[HistogramDistanceMetric]] = [
         HellingerDistance,
@@ -234,7 +233,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         for stats_type in HistogramDataDriftApplication._STATS_TYPES:
             stats.append(
                 mm_results._ModelMonitoringApplicationStats(
-                    name=stats_type.value,
+                    name=stats_type,
                     stats=metrics_per_feature.T.to_dict()
                     | {metric.name: metric.value for metric in metrics}
                     if stats_type == StatsKind.DRIFT_MEASURES

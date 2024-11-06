@@ -15,7 +15,6 @@
 import dataclasses
 import json
 import re
-import typing
 from abc import ABC, abstractmethod
 
 from pydantic import validator
@@ -129,13 +128,13 @@ class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
     """
     Class representing the stats of histogram data drift application.
 
-    :param name             (str) Enum mm_constant.StatsData str representation of the stats data kind of the event
+    :param name             (mm_constant.StatsKind) Enum mm_constant.StatsData of the stats data kind of the event
     :param                  (str) iso format representation of the timestamp the event took place
     :param stats            (dict) Dictionary representation of the stats calculated for the event
 
     """
 
-    name: typing.Union[mm_constant.StatsData, str]
+    name: mm_constant.StatsKind
     timestamp: str
     stats: dict = dataclasses.field(default_factory=dict)
 

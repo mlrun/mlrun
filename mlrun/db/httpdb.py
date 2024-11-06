@@ -1253,6 +1253,25 @@ class HTTPRunDB(RunDBInterface):
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
             for the first request.
+
+        :returns: A tuple containing the list of artifacts and an optional `page_token` for pagination.
+
+        Examples::
+
+            # Fetch first page of artifacts with page size of 5
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page_size=5
+            )
+
+            # Fetch next page using the pagination token from the previous response
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page_token=token
+            )
+
+            # Fetch artifacts for a specific page (e.g., page 3)
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page=3, page_size=5
+            )
         """
 
         return self._list_or_paginated_artifacts(

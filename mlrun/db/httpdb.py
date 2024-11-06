@@ -1075,7 +1075,9 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         producer_uri: str = None,
-        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
         limit: int = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.

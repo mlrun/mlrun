@@ -53,32 +53,32 @@ def delete_project_old_pipelines(
 
     """
     # Validate and convert dates
-    end_date = validate_and_convert_date(end_date)
-    start_date = "" if not start_date else validate_and_convert_date(start_date)
+    end_date = _validate_and_convert_date(end_date)
+    start_date = "" if not start_date else _validate_and_convert_date(start_date)
 
     # get KFP client
-    kfp_client = get_kfp_client()
+    kfp_client = _get_kfp_client()
 
     # Generate filter and query runs
-    query_filter = get_list_runs_filter(project_name, end_date, start_date)
+    query_filter = _get_list_runs_filter(project_name, end_date, start_date)
 
     # Query and filter runs
-    runs, experiments_ids = query_and_filter_runs(
+    runs, experiments_ids = _query_and_filter_runs(
         kfp_client, project_name, query_filter
     )
     if not dry_run:
         # Delete runs
-        delete_runs(context, kfp_client, runs, target_path)
+        _delete_runs(context, kfp_client, runs, target_path)
 
         # Find and delete empty experiments
-        delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
+        _delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
 
     else:
         mlrun.utils.logger.info(f"Dry run: {len(runs)} runs would be deleted")
         context.log_result(key="runs_to_be_deleted", value=runs)
 
 
-def validate_and_convert_date(date_input: str) -> str:
+def _validate_and_convert_date(date_input: str) -> str:
     """
     Converts any recognizable date string into a standardized RFC 3339 format.
     :param date_input: A date string in a recognizable format.
@@ -108,14 +108,14 @@ def validate_and_convert_date(date_input: str) -> str:
         ) from e
 
 
-def get_kfp_client(
+def _get_kfp_client(
     kfp_url=mlrun.mlconf.kfp_url, namespace: str = mlrun.mlconf.namespace
 ) -> Client:
     kfp_client = mlrun_pipelines.utils.get_client(kfp_url, namespace)
     return kfp_client
 
 
-def get_list_runs_filter(project_name: str, end_date: str, start_date: str) -> str:
+def _get_list_runs_filter(project_name: str, end_date: str, start_date: str) -> str:
     filters = {
         "predicates": [
             {
@@ -125,7 +125,7 @@ def get_list_runs_filter(project_name: str, end_date: str, start_date: str) -> s
             },
         ]
     }
-    if not project_name == "*":
+    if project_name != "*":
         filters["predicates"].append(
             {
                 "key": "name",
@@ -144,7 +144,7 @@ def get_list_runs_filter(project_name: str, end_date: str, start_date: str) -> s
     return json.dumps(filters)
 
 
-def query_and_filter_runs(
+def _query_and_filter_runs(
     kfp_client: Client, project_name: str, query_filter: str
 ) -> tuple[list[tuple[str, str]], set]:
     """
@@ -154,10 +154,10 @@ def query_and_filter_runs(
     :param project_name: Name of the project for filtering the runs.
     :param query_filter: Filter for querying the runs.
     """
-    runs = list_pipelines_runs(kfp_client, query_filter)
+    runs = _list_pipelines_runs(kfp_client, query_filter)
 
     # Filter out non project-related runs if project was provided
-    project_runs = filter_project_runs(project_name, runs)
+    project_runs = _filter_project_runs(project_name, runs)
 
     if project_name == "*":
         project_names = [
@@ -181,7 +181,7 @@ def query_and_filter_runs(
     return runs, experiment_ids
 
 
-def list_pipelines_runs(
+def _list_pipelines_runs(
     kfp_client: Client, query_filter: str, page_token: str = "", sort_by: str = ""
 ) -> list[PipelineRun]:
     runs = []
@@ -204,7 +204,7 @@ def list_pipelines_runs(
     return runs
 
 
-def filter_project_runs(
+def _filter_project_runs(
     project_name: str, runs: list[PipelineRun]
 ) -> list[PipelineRun]:
     # If project_name is "*", return all runs without filtering
@@ -221,7 +221,7 @@ def filter_project_runs(
     return project_runs
 
 
-def delete_runs(
+def _delete_runs(
     context: mlrun.MLClientCtx,
     kfp_client: Client,
     runs: list[tuple[str, str]],
@@ -235,7 +235,7 @@ def delete_runs(
     :param kfp_client: The KFP client used to interact with the pipeline API.
     :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     """
-    delete_items(
+    _delete_items(
         context,
         runs,
         lambda run_id: kfp_client._run_api.delete_run(run_id),
@@ -243,7 +243,7 @@ def delete_runs(
     )
 
 
-def delete_empty_experiments(
+def _delete_empty_experiments(
     context: mlrun.MLClientCtx,
     kfp_client: Client,
     experiments_ids: set[str],
@@ -257,9 +257,9 @@ def delete_empty_experiments(
     :param experiments_ids: List of experiment IDs to check for emptiness.
     :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     """
-    empty_experiment_ids = find_empty_experiments(kfp_client, experiments_ids)
+    empty_experiment_ids = _find_empty_experiments(kfp_client, experiments_ids)
 
-    delete_items(
+    _delete_items(
         context,
         empty_experiment_ids,
         lambda experiment_id: kfp_client._experiment_api.delete_experiment(
@@ -270,7 +270,7 @@ def delete_empty_experiments(
     )
 
 
-def find_empty_experiments(
+def _find_empty_experiments(
     kfp_client: Client, experiments_ids: set
 ) -> list[tuple[str, str]]:
     # Find empty experiments
@@ -279,17 +279,17 @@ def find_empty_experiments(
         runs = kfp_client.list_runs(experiment_id=experiment_id)
 
         if not runs.total_size:
-            experiment_name = get_experiment_name(kfp_client, experiment_id)
+            experiment_name = _get_experiment_name(kfp_client, experiment_id)
             empty_experiment_ids.append((experiment_id, experiment_name))
     return empty_experiment_ids
 
 
-def get_experiment_name(kfp_client: Client, experiment_id: str) -> str:
+def _get_experiment_name(kfp_client: Client, experiment_id: str) -> str:
     experiment = kfp_client.get_experiment(experiment_id=experiment_id)
     return experiment.name if experiment else ""
 
 
-def delete_items(
+def _delete_items(
     context: mlrun.MLClientCtx,
     items: list[tuple[str, str]],
     delete_func: typing.Callable[[str], None],
@@ -312,11 +312,11 @@ def delete_items(
     context.log_result(key=f"{item_type}s_total", value=total)
     mlrun.utils.logger.info(f"Deleting {total} {item_type}s")
 
-    deleted, failed = perform_deletion(items, delete_func, total, item_type)
-    log_results(context, deleted, failed, target_path, item_type)
+    deleted, failed = _perform_deletion(items, delete_func, total, item_type)
+    _log_results(context, deleted, failed, target_path, item_type)
 
 
-def perform_deletion(
+def _perform_deletion(
     items: list[tuple[str, str]],
     delete_func: typing.Callable[[str], None],
     total_items_amount: int,
@@ -359,7 +359,7 @@ def perform_deletion(
     return deleted_items, failed_items
 
 
-def log_results(
+def _log_results(
     context: mlrun.MLClientCtx,
     deleted_items: list[tuple[str, str]],
     failed_items: list[tuple[str, str, Exception, str]],

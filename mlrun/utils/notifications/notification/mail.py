@@ -59,10 +59,10 @@ class MailNotification(NotificationBase):
         alert: mlrun.common.schemas.AlertConfig = None,
         event_data: mlrun.common.schemas.Event = None,
     ):
-        await self._send_async_email(body=message, **self.params)
+        await self._send_email(body=message, **self.params)
 
     @staticmethod
-    async def _send_async_email(
+    async def _send_email(
         email_address,
         sender_address,
         server_host,

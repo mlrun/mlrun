@@ -65,17 +65,14 @@ class MySQLPartitioner:
         partition_number: int,
         partition_interval: mlrun.common.schemas.partition.PartitionInterval,
     ):
-        partitioning_information_list, partition_expression = (
-            partition_interval.get_partition_info(
-                start_datetime=datetime.now(),
-                partition_number=partition_number,
-            )
+        partitioning_information_list = partition_interval.get_partition_info(
+            start_datetime=datetime.now(),
+            partition_number=partition_number,
         )
 
         services.api.utils.singletons.db.get_db().create_partitions(
             session=session,
             table_name=table_name,
-            partition_expression=partition_expression,
             partitioning_information_list=partitioning_information_list,
         )
 

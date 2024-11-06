@@ -26,56 +26,49 @@ import services.api.utils.db.partitioner
 
 
 @pytest.mark.parametrize(
-    "partition_interval, partition_datetime, expected_name, expected_partition_value, expected_expression",
+    "partition_interval, partition_datetime, expected_name, expected_partition_value",
     [
         (
             "DAY",
             datetime(2024, 10, 30),
             "20241030",
             "20241031",
-            "DAY(activation_time)",
         ),
         (
             "MONTH",
             datetime(2024, 10, 30),
             "202410",
             "202411",
-            "MONTH(activation_time)",
         ),
         (
             "YEARWEEK",
             datetime(2024, 10, 30),
             "202444",
             "202445",
-            "YEARWEEK(activation_time, 1)",
         ),
         (
             "YEARWEEK",
             datetime(2023, 1, 1),
             "202252",
             "202301",
-            "YEARWEEK(activation_time, 1)",
         ),
         (
             "YEARWEEK",
             datetime(2024, 12, 31),
             "202501",
             "202502",
-            "YEARWEEK(activation_time, 1)",
         ),
         (
             "YEARWEEK",
             datetime(2024, 1, 1),
             "202401",
             "202402",
-            "YEARWEEK(activation_time, 1)",
         ),
         (
             "YEARWEEK",
             datetime(2024, 6, 15),
             "202424",
             "202425",
-            "YEARWEEK(activation_time, 1)",
         ),
     ],
 )
@@ -84,25 +77,23 @@ def test_get_partition_info_for_datetime(
     partition_datetime,
     expected_name,
     expected_partition_value,
-    expected_expression,
 ):
     """
     To test from MySQL, use following code:
     `SELECT YEARWEEK('2024-12-31', 1) AS `yearweek_value`;`
     """
     # Get actual values from the function
-    partition_info, partition_expression = (
+    partition_info = (
         mlrun.common.schemas.partition.PartitionInterval(
             partition_interval
         ).get_partition_info(
             partition_datetime,
         )
-    )
+    )[0]
 
     # Assertions
-    assert partition_info[0][0] == expected_name
-    assert partition_info[0][1] == expected_partition_value
-    assert partition_expression == expected_expression
+    assert partition_info[0] == expected_name
+    assert partition_info[1] == expected_partition_value
 
 
 @pytest.mark.parametrize(
@@ -212,7 +203,6 @@ def test_create_partitions(
         mocked_db_create_partitions.assert_called_once_with(
             session=db,
             table_name="alert_activation",
-            partition_expression=expected_partition_expression,
             partitioning_information_list=expected_partition_info,
         )
 

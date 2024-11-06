@@ -54,17 +54,16 @@ class PartitionInterval(StrEnum):
         self,
         start_datetime: datetime,
         partition_number: int = 1,
-    ) -> tuple[list[tuple[str, str]], str]:
+    ) -> list[tuple[str, str]]:
         """
         Generates partition details for a specified number of partitions starting from a given datetime.
 
         :param start_datetime: The starting datetime used for generating partition details.
         :param partition_number: The number of partitions to generate details for.
 
-        :return: A list of tuples (partition name, partition number) and partition_expression.
+        :return: A list of tuples:
             - partition_name: The name for the partition.
             - partition_value: The "LESS THAN" value for the next partition boundary.
-            - partition_expression: The SQL partition expression.
         """
         partitioning_information_list = []
         current_datetime = start_datetime
@@ -78,7 +77,7 @@ class PartitionInterval(StrEnum):
             # Move to the next interval
             current_datetime = partition_boundary_date
 
-        return partitioning_information_list, self.get_partition_expression()
+        return partitioning_information_list
 
     def get_next_partition_time(self, current_datetime: datetime) -> datetime:
         """

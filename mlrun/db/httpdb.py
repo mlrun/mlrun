@@ -381,7 +381,7 @@ class HTTPRunDB(RunDBInterface):
     @staticmethod
     def process_paginated_responses(
         responses: typing.Generator[requests.Response, None, None], key: str = "data"
-    ) -> (list[typing.Any], Union[str, None]):
+    ) -> tuple[list[typing.Any], Optional[str]]:
         """
         Processes the paginated responses and returns the combined data
         """
@@ -1215,12 +1215,40 @@ class HTTPRunDB(RunDBInterface):
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
-    ) -> (ArtifactList, Union[str, None]):
+    ) -> tuple[ArtifactList, Optional[str]]:
         """List artifacts with support for pagination and various filtering options.
 
         This method retrieves a paginated list of artifacts based on the specified filter parameters.
         Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
         will return a list of artifacts that match the filtering criteria provided.
+
+        Examples::
+
+            # Show latest version of all artifacts in project
+            latest_artifacts, token = db.paginated_list_artifacts(
+                "", tag="latest", project="iris"
+            )
+            # check different artifact versions for a specific artifact
+            result_versions, token = db.paginated_list_artifacts(
+                "results", tag="*", project="iris"
+            )
+            # Show artifacts with label filters - both uploaded and of binary type
+            result_labels, token = db.paginated_list_artifacts(
+                "results", tag="*", project="iris", labels=["uploaded", "type=binary"]
+            )
+
+            # Fetch first page of artifacts with page size of 5
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page_size=5
+            )
+            # Fetch next page using the pagination token from the previous response
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page_token=token
+            )
+            # Fetch artifacts for a specific page (e.g., page 3)
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page=3, page_size=5
+            )
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
             case-sensitive. This means that querying for ``~name`` may return artifacts named
@@ -1255,23 +1283,6 @@ class HTTPRunDB(RunDBInterface):
             for the first request.
 
         :returns: A tuple containing the list of artifacts and an optional `page_token` for pagination.
-
-        Examples::
-
-            # Fetch first page of artifacts with page size of 5
-            artifacts, token = db.paginated_list_artifacts(
-                project="my-project", page_size=5
-            )
-
-            # Fetch next page using the pagination token from the previous response
-            artifacts, token = db.paginated_list_artifacts(
-                project="my-project", page_token=token
-            )
-
-            # Fetch artifacts for a specific page (e.g., page 3)
-            artifacts, token = db.paginated_list_artifacts(
-                project="my-project", page=3, page_size=5
-            )
         """
 
         return self._list_or_paginated_artifacts(
@@ -1317,7 +1328,7 @@ class HTTPRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         return_all: bool = False,
-    ) -> (ArtifactList, Union[str, None]):
+    ) -> tuple[ArtifactList, Optional[str]]:
         """Handles both list and paginated artifact fetching."""
 
         project = project or config.default_project

@@ -3858,6 +3858,103 @@ class MlrunProject(ModelObj):
             limit=limit,
         )
 
+    def paginated_list_artifacts(
+        self,
+        name=None,
+        tag=None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since=None,
+        until=None,
+        iter: int = None,
+        best_iteration: bool = False,
+        kind: str = None,
+        category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
+        limit: int = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+    ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
+        """List artifacts with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of artifacts based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of artifacts that match the filtering criteria provided.
+
+        The returned result is an `ArtifactList` (list of dict), use `.to_objects()` to convert it to a list of
+        RunObjects, `.show()` to view graphically in Jupyter, and `.to_df()` to convert to a DataFrame.
+
+        Examples::
+
+            # Get latest version of all artifacts in project
+            latest_artifacts, token = project.paginated_list_artifacts("", tag="latest")
+            # heck different artifact versions for a specific artifact, return as objects list
+            result_versions, token = project.paginated_list_artifacts(
+                "results", tag="*"
+            ).to_objects()
+
+            # Fetch first page of artifacts with page size of 5
+            artifacts, token = project.paginated_list_artifacts("results", page_size=5)
+            # Fetch next page using the pagination token from the previous response
+            artifacts, token = project.paginated_list_artifacts("results", page_token=token)
+            # Fetch artifacts for a specific page (e.g., page 3)
+            artifacts, token = project.paginated_list_artifacts(
+                "results", page=3, page_size=5
+            )
+
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
+        :param tag: Return artifacts assigned this tag.
+        :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
+        :param since: Not in use in :py:class:`HTTPRunDB`.
+        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
+            ``None`` (default) return artifacts from all iterations.
+        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param kind: Return artifacts of the requested kind.
+        :param category: Return artifacts of the requested category.
+        :param tree: Return artifacts of the requested tree.
+        :param limit: Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of artifacts and an optional `page_token` for pagination.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.paginated_list_artifacts(
+            name,
+            self.metadata.name,
+            tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind=kind,
+            category=category,
+            tree=tree,
+            format_=format_,
+            limit=limit,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+        )
+
     def list_models(
         self,
         name=None,
@@ -3918,6 +4015,85 @@ class MlrunProject(ModelObj):
             limit=limit,
             format_=format_,
         ).to_objects()
+
+    def paginated_list_models(
+        self,
+        name=None,
+        tag=None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since=None,
+        until=None,
+        iter: int = None,
+        best_iteration: bool = False,
+        tree: str = None,
+        limit: int = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+    ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
+        """List models in project with support for pagination and various filtering options.
+
+        Examples::
+
+            # Get latest version of all models in project
+            latest_models, token = project.paginated_list_models("", tag="latest")
+            # Fetch first page of artifacts with page size of 5
+            artifacts, token = project.paginated_list_models("results", page_size=5)
+            # Fetch next page using the pagination token from the previous response
+            artifacts, token = project.paginated_list_models("results", page_token=token)
+            # Fetch artifacts for a specific page (e.g., page 3)
+            artifacts, token = project.paginated_list_models("results", page=3, page_size=5)
+
+
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
+        :param tag: Return artifacts assigned this tag.
+        :param labels: Filter model artifacts by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
+        :param since: Not in use in :py:class:`HTTPRunDB`.
+        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
+            ``None`` (default) return artifacts from all iterations.
+        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
+            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
+            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param tree: Return artifacts of the requested tree.
+        :param limit: Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of artifacts and an optional `page_token` for pagination.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.paginated_list_artifacts(
+            name,
+            self.metadata.name,
+            tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind="model",
+            tree=tree,
+            limit=limit,
+            format_=format_,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+        )
 
     def list_functions(
         self,

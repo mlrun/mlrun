@@ -750,14 +750,14 @@ class Notification(ModelObj):
                 "Notification params size exceeds max size of 1 MB"
             )
 
-    def validate_notification_params(self):
-        notification_class = mlrun.utils.notifications.NotificationTypes(
-            self.kind
-        ).get_notification()
-
+    def validate_notification_params(self, default_notification_params=None):
+        default_notification_params = default_notification_params or {}
+        notification_type = mlrun.utils.notifications.NotificationTypes(self.kind)
+        notification_class = notification_type.get_notification()
         secret_params = self.secret_params or {}
         params = self.params or {}
-
+        default_params = default_notification_params.get(notification_type, {})
+        params = notification_class.enrich_default_params(params, default_params)
         # if the secret_params are already masked - no need to validate
         params_secret = secret_params.get("secret", "")
         if params_secret:

@@ -23,6 +23,7 @@ from sqlalchemy import (
     JSON,
     Column,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     PrimaryKeyConstraint,
@@ -238,6 +239,7 @@ with warnings.catch_warnings():
                 "project",
                 "kind",
             ),
+            Index("idx_artifacts_name_uid_project", "key", "uid", "project"),
         )
 
         Label = make_label(__tablename__)
@@ -290,6 +292,7 @@ with warnings.catch_warnings():
         __tablename__ = "functions"
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
+            Index("idx_functions_name_uid_project", "name", "uid", "project"),
         )
 
         Label = make_label(__tablename__)
@@ -868,6 +871,61 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.key}"
+
+    class ModelEndpoint(Base, mlrun.utils.db.HasStruct):
+        __tablename__ = "model_endpoints"
+        __table_args__ = (
+            UniqueConstraint("project", "name", "uid", name="_mep_uc_2"),
+            ForeignKeyConstraint(
+                ("function_name", "function_uid", "project"),
+                ["functions.name", "functions.uid", "functions.project"],
+                name="_mep_function_constraint",
+            ),
+            ForeignKeyConstraint(
+                ("model_uid", "project", "model_name"),
+                ["artifacts_v2.uid", "artifacts_v2.project", "artifacts_v2.key"],
+                name="_mep_model_constraint",
+            ),
+        )
+
+        id = Column(Integer, primary_key=True)
+        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        endpoint_type = Column(Integer, nullable=False)
+        project = Column(String(255, collation=SQLTypesUtil.collation()))
+        function_name = Column(String(255, collation=SQLTypesUtil.collation()))
+        function_uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        model_uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        model_name = Column(String(255, collation=SQLTypesUtil.collation()))
+        body = Column(SQLTypesUtil.blob())
+
+        created = Column(
+            SQLTypesUtil.timestamp(),
+            default=datetime.now(timezone.utc),
+        )
+        updated = Column(
+            SQLTypesUtil.timestamp(),
+            default=datetime.now(timezone.utc),
+        )
+        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        function = relationship(
+            "Function",
+            cascade="save-update",
+            single_parent=True,
+        )
+        model = relationship(
+            "ArtifactV2",
+            cascade="save-update",
+            single_parent=True,
+        )
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)  # for versioning (latest and empty tags only)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+        tags = relationship(Tag, cascade="all, delete-orphan")
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}_{self.name}_{self.created}"
 
     class AlertActivation(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_activation"

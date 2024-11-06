@@ -16,6 +16,7 @@ import asyncio
 import collections
 import functools
 import hashlib
+import json
 import pathlib
 import re
 import typing
@@ -27,6 +28,7 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
+import sqlalchemy
 from sqlalchemy import (
     Column,
     MetaData,
@@ -59,12 +61,14 @@ from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
 )
+from mlrun.common.schemas.model_monitoring import EndpointType, ModelEndpointSchema
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
     fill_function_hash,
+    fill_model_endpoint_hash,
     fill_object_hash,
     generate_artifact_uri,
     generate_object_uri,
@@ -102,6 +106,7 @@ from services.api.db.sqldb.models import (
     Function,
     HubSource,
     Log,
+    ModelEndpoint,
     PaginationCache,
     Project,
     ProjectSummary,
@@ -2540,7 +2545,6 @@ class SQLDB(DBInterface):
                 cls=cls,
                 project=project,
                 main_table_identifier=main_table_identifier,
-                main_table_identifier_values_count=len(main_table_identifier_values),
             )
 
             # The select is mandatory for sqlalchemy 1.4 because
@@ -3253,6 +3257,7 @@ class SQLDB(DBInterface):
         )
 
     def delete_project_related_resources(self, session: Session, name: str):
+        self.delete_model_endpoints(session, project=name)
         self._delete_project_artifacts(session, project=name)
         self._delete_project_logs(session, name)
         self.delete_run_notifications(session, project=name)
@@ -3405,6 +3410,26 @@ class SQLDB(DBInterface):
             if feature_set_tag_uid:
                 feature_set.metadata.tag = computed_tag
             return feature_set
+        else:
+            return None
+
+    def _get_model_endpoint(
+        self,
+        session,
+        project: str,
+        name: str,
+        uid: str = None,
+    ) -> typing.Union[ModelEndpoint, None]:
+        if uid:
+            mep_record = self._get_class_instance_by_uid(
+                session, ModelEndpoint, name, project, uid
+            )
+        else:
+            mep_record = self._get_class_latest_instance(
+                session, ModelEndpoint, name, project
+            )
+        if mep_record:
+            return mep_record
         else:
             return None
 
@@ -4635,6 +4660,15 @@ class SQLDB(DBInterface):
         query = self._query(session, cls, name=name, project=project, uid=uid)
         return query.one_or_none()
 
+    def _get_class_latest_instance(self, session, cls, name, project):
+        query = (
+            session.query(cls)
+            .join(cls.Tag)
+            .filter(cls.project == project, cls.name == name, cls.Tag.name == "latest")
+        )
+
+        return query.one_or_none()
+
     def _get_run(
         self,
         session,
@@ -4815,6 +4849,146 @@ class SQLDB(DBInterface):
         query = self._paginate_query(query, page, page_size)
         return query
 
+    def _find_model_endpoints(
+        self,
+        session: Session,
+        project: str,
+        name: str,
+        function_name: str,
+        model_name: str,
+        top_level: bool,
+        labels: list[str],
+        start: datetime,
+        end: datetime,
+        uids: list[str],
+        latest_only: bool,
+        page: int,
+        page_size: int,
+    ) -> sqlalchemy.orm.query.Query:
+        """
+        Query model_endpoints from the DB by the given filters.
+
+        :param session: The DB session.
+        :param project: The project of the model endpoint to query.
+        :param name: The name of the model endpoint to query.
+        :param function_name: The function name of the model endpoint to query.
+        :param model_name: The model name of the model endpoint to query.
+        :param labels: The labels of the model endpoint to query.
+        :param start: Filter model endpoint that were created after this time
+        :param end: Filter model endpoints that were crated before this time
+        :param uids : The uids of the model endpoint to query.
+        :param latest_only: If true, then return only the latest model endpoint.
+        :param page: The page number to query.
+        :param page_size: The page size to query.
+        """
+        query = session.query(ModelEndpoint)
+        query = query.filter(ModelEndpoint.project == project)
+
+        model_endpoints_table = (
+            ModelEndpoint.__table__  # pyright: ignore[reportAttributeAccessIssue]
+        )
+        # Apply filters
+        if name:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.NAME,
+                filtered_values=[name],
+            )
+        if function_name:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.FUNCTION_NAME,
+                filtered_values=[function_name],
+            )
+
+        if uids:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.UID,
+                filtered_values=uids,
+                combined=False,
+            )
+
+        if top_level:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.ENDPOINT_TYPE,
+                filtered_values=EndpointType.top_level_list(),
+                combined=False,
+            )
+
+        if model_name:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.MODEL_NAME,
+                filtered_values=[model_name],
+                combined=False,
+            )
+
+        if start or end:
+            start = start or datetime.min
+            end = end or datetime.max
+            query = query.filter(
+                and_(ModelEndpoint.created >= start, ModelEndpoint.created <= end)
+            )
+
+        if latest_only:
+            query = query.join(
+                ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
+            )
+        else:
+            query = query.outerjoin(
+                ModelEndpoint.Tag, ModelEndpoint.id == ModelEndpoint.Tag.obj_id
+            )
+
+        labels = label_set(labels)
+        query = self._add_labels_filter(session, query, ModelEndpoint, labels)
+        query = self._paginate_query(query, page, page_size)
+        return query
+
+    @staticmethod
+    def _filter_values(
+        query: sqlalchemy.orm.query.Query,
+        cls: sqlalchemy.Table,
+        key_filter: str,
+        filtered_values: list,
+        combined=True,
+    ) -> sqlalchemy.orm.query.Query:
+        """Filtering the SQL query object according to the provided filters.
+
+        :param query:                 SQLAlchemy ORM query object. Includes the SELECT statements generated by the ORM
+                                      for getting the model endpoint data from the SQL table.
+        :param cls :                  SQLAlchemy table object that represents the relevant table.
+        :param key_filter:            Key column to filter by.
+        :param filtered_values:       List of values to filter the query the result.
+        :param combined:              If true, then apply AND operator on the filtered values list. Otherwise, apply OR
+                                      operator.
+
+        return:                      SQLAlchemy ORM query object that represents the updated query with the provided
+                                     filters.
+        """
+
+        if combined and len(filtered_values) > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Can't apply combined policy with multiple values"
+            )
+
+        if not combined:
+            return query.filter(cls.c[key_filter].in_(filtered_values))
+
+        # Generating a tuple with the relevant filters
+        filter_query = []
+        for _filter in filtered_values:
+            filter_query.append(cls.c[key_filter] == _filter)
+
+        # Apply AND operator on the SQL query object with the filters tuple
+        return query.filter(sqlalchemy.and_(*filter_query))
+
     def _delete(self, session, cls, **kw):
         query = session.query(cls).filter_by(**kw)
         for obj in query:
@@ -4874,6 +5048,7 @@ class SQLDB(DBInterface):
         project: str = "",
         name: str = "",
         key: str = "",
+        uid: str = "",
         commit: bool = True,
     ):
         filters = []
@@ -4883,6 +5058,8 @@ class SQLDB(DBInterface):
             filters.append(cls.name == name)
         if key:
             filters.append(cls.key == key)
+        if uid:
+            filters.append(cls.uid == uid)
         query = session.query(cls.Label).join(cls).filter(*filters)
 
         for label in query:
@@ -4937,6 +5114,101 @@ class SQLDB(DBInterface):
         feature_vector_resp.metadata.tag = tag
         feature_vector_resp.metadata.created = feature_vector_record.created
         return feature_vector_resp
+
+    def _transform_model_endpoint_model_to_schema(
+        self,
+        model_endpoint_record: ModelEndpoint,
+        format_: mlrun.common.formatters.ModelEndpointFormat = mlrun.common.formatters.ModelEndpointFormat.full,
+    ) -> mlrun.common.schemas.ModelEndpointV2:
+        model_endpoint_full_dict = model_endpoint_record.struct
+        model_endpoint_full_dict[ModelEndpointSchema.UPDATED] = (
+            model_endpoint_record.updated
+        )
+        model_endpoint_full_dict[ModelEndpointSchema.CREATED] = (
+            model_endpoint_record.created
+        )
+
+        model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
+            model_endpoint_record, model_endpoint_full_dict
+        )
+        model_endpoint_full_dict = self._fill_model_endpoint_with_model_data(
+            model_endpoint_record, model_endpoint_full_dict
+        )
+
+        model_endpoint_full_dict = (
+            mlrun.common.formatters.ModelEndpointFormat.format_obj(
+                model_endpoint_full_dict, format_
+            )
+        )
+        model_endpoint_resp = mlrun.common.schemas.ModelEndpointV2.from_flat_dict(
+            model_endpoint_full_dict
+        )
+
+        # TODO : add the following data
+        # next step in status : operative data
+        # from tsdb - latency, drift_status, error_count, last_request
+        # from json - current_stats, drift_measures
+
+        return model_endpoint_resp
+
+    @staticmethod
+    def _fill_model_endpoint_with_function_data(
+        model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
+    ) -> dict:
+        if model_endpoint_record.function:
+            function_full_dict = model_endpoint_record.function.struct
+            model_endpoint_full_dict[ModelEndpointSchema.STATE] = (
+                function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
+            )
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = (
+                f"{model_endpoint_record.project}/{function_full_dict.get('metadata', {}).get('hash')}"
+            )
+        return model_endpoint_full_dict
+
+    @staticmethod
+    def _fill_model_endpoint_with_model_data(
+        model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
+    ) -> dict:
+        if model_endpoint_record.model:
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = (
+                model_endpoint_record.model.key
+            )
+            try:
+                model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = (
+                    model_endpoint_record.model.tags[0].name
+                )
+            except IndexError:
+                model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = ""
+            model_artifact_uri = generate_artifact_uri(
+                project=model_endpoint_record.project,
+                key=model_endpoint_record.model.key,
+                iter=model_endpoint_record.model.full_object.get("metadata", {}).get(
+                    "iter"
+                ),
+                tree=model_endpoint_record.model.full_object.get("metadata", {}).get(
+                    "tree"
+                ),
+            )
+
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = (
+                mlrun.datastore.get_store_uri(
+                    kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+                )
+            )
+
+            model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS] = (
+                model_endpoint_record.model.full_object.get(
+                    "spec", {}
+                ).get(ModelEndpointSchema.FEATURE_STATS, {})
+            )
+            if not isinstance(
+                model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS], dict
+            ):
+                model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS] = (
+                    json.loads(model_endpoint_full_dict["feature_stats"])
+                )
+
+        return model_endpoint_full_dict
 
     def _transform_project_record_to_schema(
         self, session: Session, project_record: Project
@@ -6099,6 +6371,162 @@ class SQLDB(DBInterface):
                 f"Time window tracker record not found: key={key}"
             )
         return time_window_tracker_record
+
+    def store_model_endpoint(
+        self,
+        session,
+        model_endpoint: mlrun.common.schemas.ModelEndpointV2,
+        name: str,
+        project: str,
+    ) -> str:
+        logger.debug(
+            "Storing Model Endpoint to DB",
+            name=name,
+            project=project,
+            metadata=model_endpoint.metadata,
+        )
+        body_name = model_endpoint.metadata.name
+        if body_name and body_name != name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Conflict between requested name and name in MEP body, MEP name is {name} while body_name is"
+                f" {body_name}"
+            )
+        body_project = model_endpoint.metadata.project
+        if body_project and body_project != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Conflict between requested project and project in MEP body, MEP project is {project} "
+                f"while body_project is {body_project}"
+            )
+
+        created_time = datetime.now(timezone.utc)
+        uid = fill_model_endpoint_hash(
+            model_endpoint, created_time.isoformat(sep=" ", timespec="microseconds")
+        )
+
+        mep = ModelEndpoint(
+            name=name,
+            project=project,
+            uid=uid,
+            created=created_time,
+            function_name=model_endpoint.spec.function_name,
+            function_uid=model_endpoint.spec.function_uid,
+            model_uid=model_endpoint.spec.model_uid,
+            model_name=model_endpoint.spec.model_name,
+            updated=created_time,
+            endpoint_type=model_endpoint.metadata.endpoint_type,
+        )
+
+        update_labels(mep, model_endpoint.metadata.labels)
+        mep.struct = model_endpoint.flat_dict(exclude=model_endpoint._operative_data())
+        self._upsert(session, [mep])
+        self.tag_objects_v2(session, [mep], project, "latest")
+        return uid
+
+    def get_model_endpoint(
+        self,
+        session,
+        project: str,
+        name: str,
+        uid: typing.Optional[str] = None,
+    ) -> mlrun.common.schemas.ModelEndpointV2:
+        mep_record = self._get_model_endpoint(session, project, name, uid)
+        if not mep_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Model Endpoint not found in project {project} with name {name}"
+            )
+        return self._transform_model_endpoint_model_to_schema(mep_record)
+
+    def update_model_endpoint(
+        self,
+        session,
+        project: str,
+        name: str,
+        attributes: dict,
+        uid: typing.Optional[str] = None,
+    ) -> str:
+        mep_record = self._get_model_endpoint(session, project, name, uid)
+        updated = datetime.now(timezone.utc)
+        if mep_record:
+            struct = mep_record.struct
+            for key, val in attributes.items():
+                update_in(struct, key, val)
+            mep_record.struct = struct
+            mep_record.updated = updated
+            self._upsert(session, [mep_record])
+            return mep_record.uid
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Model Endpoint not found in project {project} with name {name}"
+            )
+
+    def list_model_endpoints(
+        self,
+        session,
+        project: str,
+        name: typing.Optional[str] = None,
+        function_name: typing.Optional[str] = None,
+        model_name: typing.Optional[str] = None,
+        top_level: typing.Optional[bool] = None,
+        labels: typing.Optional[list[str]] = None,
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
+        uids: typing.Optional[list[str]] = None,
+        latest_only: bool = False,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> list[mlrun.common.schemas.ModelEndpointV2]:
+        model_endpoints: list[mlrun.common.schemas.ModelEndpointV2] = []
+        for mep_record in self._find_model_endpoints(
+            session=session,
+            name=name,
+            project=project,
+            labels=labels,
+            function_name=function_name,
+            model_name=model_name,
+            top_level=top_level,
+            start=start,
+            end=end,
+            uids=uids,
+            latest_only=latest_only,
+            page=page,
+            page_size=page_size,
+        ):
+            model_endpoints.append(
+                self._transform_model_endpoint_model_to_schema(mep_record)
+            )
+        return model_endpoints
+
+    def delete_model_endpoint(
+        self,
+        session,
+        project: str,
+        name: str,
+        uid: str,
+    ) -> None:
+        logger.debug(
+            "Removing model endpoint from db", project=project, name=name, uid=uid
+        )
+        if uid != "*":
+            self._delete(session, ModelEndpoint, project=project, name=name, uid=uid)
+        else:
+            self._delete(session, ModelEndpoint, project=project, name=name)
+
+    def delete_model_endpoints(
+        self,
+        session: Session,
+        project: str,
+        names: typing.Optional[typing.Union[str, list[str]]] = None,
+    ) -> None:
+        logger.debug("Removing model endpoints from db", project=project, name=names)
+
+        self._delete_multi_objects(
+            session=session,
+            main_table=ModelEndpoint,
+            related_tables=[ModelEndpoint.Tag, ModelEndpoint.Label],
+            project=project,
+            main_table_identifier=ModelEndpoint.name if names else None,
+            main_table_identifier_values=names,
+        )
 
     # ---- Utils ----
     def delete_table_records(

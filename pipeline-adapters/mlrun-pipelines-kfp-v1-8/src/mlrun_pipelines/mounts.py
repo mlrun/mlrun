@@ -15,7 +15,6 @@
 import os
 
 import semver
-from mlrun_pipelines.common.imports import kfp
 from mlrun_pipelines.common.mounts import _enrich_and_validate_v3io_mounts
 from mlrun_pipelines.imports import ContainerOp
 

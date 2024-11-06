@@ -25,7 +25,6 @@ import mlrun_pipelines.utils
 import pytest
 import sqlalchemy.orm
 from httpx import BasicAuth
-from mlrun_pipelines.imports import kfp
 from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.formatters

@@ -154,7 +154,7 @@ update-version-file: ## Update the version file
 	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: generate-dockerignore
-generate-dockerignore: ## Copies the root .dockerignore and alters it
+generate-dockerignore: ## Copies the root .dockerignore and removes the tests pattern from it
 	$(eval TARGET := dockerfiles/${DEST}/Dockerfile.dockerignore)
 	@if [ -f "$(TARGET)" ]; then \
 		temp_file=$$(mktemp) && \

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import concurrent.futures
 import json
 import pickle
@@ -45,6 +44,10 @@ from mlrun.model_monitoring.applications import (
 )
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
+)
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasuresFile,
 )
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
@@ -662,18 +665,27 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert ep.status.feature_stats.keys() == set(
             ep.spec.feature_names
         ), "The endpoint's feature stats keys are not the same as the feature names"
-        assert set(ep.status.current_stats.keys()) == set(
+        ep_current_stats, _ = ModelMonitoringCurrentStatsFile.from_model_endpoint(
+            ep
+        ).read()
+
+        ep_drift_measures, _ = ModelMonitoringDriftMeasuresFile.from_model_endpoint(
+            ep
+        ).read()
+
+        assert set(ep_current_stats.keys()) == set(
             ep.status.feature_stats.keys()
         ), "The endpoint's current stats is different than expected"
-        assert ep.status.drift_status, "The general drift status is empty"
-        assert ep.status.drift_measures, "The drift measures are empty"
+
+        assert ep_drift_measures, "The general drift status is empty"
+        assert ep_drift_measures, "The drift measures are empty"
 
         for measure in ["hellinger_mean", "kld_mean", "tvd_mean"]:
             assert isinstance(
-                ep.status.drift_measures.pop(measure, None), float
+                ep_drift_measures.pop(measure, None), float
             ), f"Expected '{measure}' in drift measures"
 
-        drift_table = pd.DataFrame.from_dict(ep.status.drift_measures, orient="index")
+        drift_table = pd.DataFrame.from_dict(ep_drift_measures, orient="index")
         assert set(drift_table.columns) == {
             "hellinger",
             "kld",
@@ -684,7 +696,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The feature names are not as expected"
 
         assert (
-            ep.status.current_stats["sepal_length_cm"]["count"] == cls.num_events
+            ep_current_stats["sepal_length_cm"]["count"] == cls.num_events
         ), "Different number of events than expected"
 
     @classmethod
@@ -764,9 +776,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         self._test_artifacts(ep_id=ep_id)
         self._test_api(ep_id=ep_id)
-        # TODO: uncomment the following 2 lines once the new API for getting model endpoint stats is implemented
-        # if _DefaultDataDriftAppData in self.apps_data:
-        # self._test_model_endpoint_stats(ep_id=ep_id)
+        if _DefaultDataDriftAppData in self.apps_data:
+            self._test_model_endpoint_stats(ep_id=ep_id)
         self._test_error_alert()
 
 

@@ -20,6 +20,7 @@ from .base import NotificationBase
 from .console import ConsoleNotification
 from .git import GitNotification
 from .ipython import IPythonNotification
+from .mail import MailNotification
 from .slack import SlackNotification
 from .webhook import WebhookNotification
 
@@ -29,6 +30,7 @@ class NotificationTypes(str, enum.Enum):
     git = NotificationKind.git.value
     ipython = NotificationKind.ipython.value
     slack = NotificationKind.slack.value
+    mail = NotificationKind.mail.value
     webhook = NotificationKind.webhook.value
 
     def get_notification(self) -> type[NotificationBase]:
@@ -37,6 +39,7 @@ class NotificationTypes(str, enum.Enum):
             self.git: GitNotification,
             self.ipython: IPythonNotification,
             self.slack: SlackNotification,
+            self.mail: MailNotification,
             self.webhook: WebhookNotification,
         }.get(self)
 
@@ -64,5 +67,6 @@ class NotificationTypes(str, enum.Enum):
             cls.git,
             cls.ipython,
             cls.slack,
+            cls.mail,
             cls.webhook,
         ]

@@ -22,6 +22,7 @@ import mlrun.model
 import mlrun.utils.helpers
 import services.api.api.utils
 import services.api.constants
+import services.api.utils.singletons.k8s
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification import NotificationBase, NotificationTypes
 from mlrun.utils.notifications.notification_pusher import (
@@ -197,5 +198,13 @@ def resolve_notifications_default_params():
         NotificationTypes.git: {},
         NotificationTypes.ipython: {},
         NotificationTypes.slack: {},
+        NotificationTypes.mail: _get_mail_notification_default_params(),
         NotificationTypes.webhook: {},
     }
+
+
+def _get_mail_notification_default_params():
+    smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
+    return services.api.utils.singletons.k8s.get_k8s_helper().read_secret_data(
+        smtp_config_secret_name
+    )

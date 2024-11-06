@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import kfp.dsl
+from mlrun_pipelines.imports import kfp
 
 import mlrun
 

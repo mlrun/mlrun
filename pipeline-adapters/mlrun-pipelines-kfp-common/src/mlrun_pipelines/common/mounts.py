@@ -14,12 +14,12 @@
 import os
 from collections import namedtuple
 
-import mlrun.errors
-
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 
 def _enrich_and_validate_v3io_mounts(remote="", volume_mounts=None, user=""):
+    import mlrun.errors
+
     if remote and not volume_mounts:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "volume_mounts must be specified when remote is given"

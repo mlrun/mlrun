@@ -17,7 +17,7 @@ import typing
 
 from kubernetes import client
 from mlrun_pipelines.helpers import new_pipe_metadata
-from mlrun_pipelines.imports import Client, compiler, kfp  # noqa: F401
+from mlrun_pipelines.imports import compiler, kfp  # noqa: F401
 
 
 def apply_kfp(modify, cop, runtime):
@@ -80,7 +80,7 @@ def compile_pipeline(
 
 def get_client(
     url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
-) -> Client:
+) -> kfp.Client:
     if url or namespace:
-        return Client(host=url, namespace=namespace)
-    return Client()
+        return kfp.Client(host=url, namespace=namespace)
+    return kfp.Client()

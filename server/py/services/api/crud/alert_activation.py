@@ -14,36 +14,12 @@
 #
 
 
-from sqlalchemy.orm import Session
-
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.partition
 import mlrun.utils.singleton
-import services.api.utils.db.partitioner
 
 
 class AlertActivation(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    def create_and_drop_partitions(
-        self,
-        session: Session,
-        retention_days: int,
-    ) -> None:
-        """
-        Creates partitions for the future based on the specified retention days
-        and drops old partitions that are older than the retention period.
-
-        :param session: SQLAlchemy session for database operations.
-        :param retention_days: The number of days to retain partitions.
-        """
-
-        services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions(
-            session=session,
-            retention_days=retention_days,
-            table_name=self.table_name,
-        )
-
-    @property
-    def table_name(self) -> str:
-        return "alert_activation"
+    pass

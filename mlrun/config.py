@@ -135,7 +135,7 @@ default_config = {
             "delete_crd_resources_timeout": "5 minutes",
         },
         "alert_activations": {
-            "retention_days": 14 * 7,  # days
+            "retention_days": 14 * 7,
         },
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
@@ -1047,11 +1047,11 @@ class Config:
             "PARTITION_INTERVAL"
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Partition interval must be greater than a week"
+                "Alert activation partition interval must be greater than a week"
             )
         elif config.crud.alert_activations.retention_days > 53 * 7:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Partition interval must be less than a year"
+                "Alert activation partition interval must be less than a year"
             )
 
     def resolve_chief_api_url(self) -> str:

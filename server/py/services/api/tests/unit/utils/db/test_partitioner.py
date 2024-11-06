@@ -20,8 +20,9 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas.alert
-import services.api.crud.alert_activation
+import mlrun.common.schemas.partition
 import services.api.db.sqldb
+import services.api.utils.db.partitioner
 
 
 @pytest.mark.parametrize(
@@ -91,12 +92,12 @@ def test_get_partition_info_for_datetime(
     """
     # Get actual values from the function
     partition_name, partition_value, partition_expression = (
-        mlrun.common.schemas.alert.PartitionInterval(
+        mlrun.common.schemas.partition.PartitionInterval(
             partition_interval
         ).get_partition_info(
             partition_datetime,
         )
-    )
+    )[0]
 
     # Assertions
     assert partition_name == expected_name
@@ -112,6 +113,7 @@ def test_get_partition_info_for_datetime(
         ("MONTH", 6 * 7, datetime(2024, 7, 15), "p202406"),
         ("YEARWEEK", 12 * 7, datetime(2024, 6, 1), "p202410"),
         ("YEARWEEK", 14 * 7, datetime(2024, 6, 1), "p202408"),
+        ("YEARWEEK", 14 * 7, datetime(2024, 6, 1), "p202408"),
     ],
 )
 def test_drop_old_partitions(
@@ -123,26 +125,20 @@ def test_drop_old_partitions(
 ):
     with (
         unittest.mock.patch(
-            "services.api.crud.alert_activation.datetime"
+            "services.api.utils.db.partitioner.datetime"
         ) as mock_datetime,
-        unittest.mock.patch.object(
-            services.api.crud.alert_activation.AlertActivation,
-            "get_partition_expression_and_interval",
-        ) as mocked_get_partition_expression_and_interval,
         unittest.mock.patch.object(
             services.api.utils.singletons.db.get_db(), "drop_partitions"
         ) as mocked_db_drop_partitions,
     ):
         mock_datetime.now.return_value = test_date
-
-        mocked_get_partition_expression_and_interval.return_value = (
-            "",
-            mlrun.common.schemas.alert.PartitionInterval(partition_interval),
-        )
         mocked_db_drop_partitions.return_value = None
 
-        services.api.crud.alert_activation.AlertActivation().drop_partitions(
-            db, retention_days
+        services.api.utils.db.partitioner.MySQLPartitioner().drop_partitions(
+            db,
+            "alert_activation",
+            retention_days,
+            mlrun.common.schemas.partition.PartitionInterval(partition_interval),
         )
 
         mocked_db_drop_partitions.assert_called_once_with(
@@ -193,27 +189,19 @@ def test_create_partitions(
 ):
     with (
         unittest.mock.patch(
-            "services.api.crud.alert_activation.datetime"
+            "services.api.utils.db.partitioner.datetime"
         ) as mock_datetime,
-        unittest.mock.patch.object(
-            services.api.crud.alert_activation.AlertActivation,
-            "get_partition_expression_and_interval",
-        ) as mocked_get_partition_expression_and_interval,
         unittest.mock.patch.object(
             services.api.utils.singletons.db.get_db(),
             "create_partitions",
         ) as mocked_db_create_partitions,
     ):
         mock_datetime.now.return_value = test_date
-
-        # Mock return values for partition interval and info retrieval
-        mocked_get_partition_expression_and_interval.return_value = (
-            "",
-            mlrun.common.schemas.alert.PartitionInterval(partition_interval),
-        )
-
-        services.api.crud.alert_activation.AlertActivation().create_partitions(
-            db, partition_number
+        services.api.utils.db.partitioner.MySQLPartitioner().create_partitions(
+            db,
+            "alert_activation",
+            partition_number,
+            mlrun.common.schemas.partition.PartitionInterval(partition_interval),
         )
 
         # Verify that create_partitions was called with the expected partition information
@@ -232,7 +220,7 @@ def test_create_partitions(
         ("yearweek(`activation_time`, 1)", "YEARWEEK"),
     ],
 )
-def test_get_partition_expression_and_interval(
+def test_get_interval(
     db: sqlalchemy.orm.Session,
     mocked_partition_expression,
     expected_partition_interval,
@@ -246,9 +234,10 @@ def test_get_partition_expression_and_interval(
         mocked_get_partition_expression_for_table.return_value = (
             mocked_partition_expression
         )
-        partition_expression, partition_interval = (
-            services.api.crud.alert_activation.AlertActivation().get_partition_expression_and_interval(db)
+        partition_interval = (
+            services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval(
+                db,
+                "alert_activation",
+            )
         )
-
-        assert partition_expression == mocked_partition_expression
         assert partition_interval == expected_partition_interval

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Annotated, Optional, Union
 
 import pydantic
@@ -200,91 +200,3 @@ class AlertTemplate(
             or self.reset_policy != other.reset_policy
             or self.criteria != other.criteria
         )
-
-
-class PartitionInterval(StrEnum):
-    DAY = "DAY"
-    MONTH = "MONTH"
-    YEARWEEK = "YEARWEEK"
-
-    @classmethod
-    def is_valid(cls, value: str) -> bool:
-        return value in cls._value2member_map_
-
-    @classmethod
-    def valid_intervals(cls) -> list:
-        return list(cls._value2member_map_.keys())
-
-    @classmethod
-    def from_function(cls, partition_function: str):
-        """
-        Returns the corresponding PartitionInterval for a given partition function,
-        or None if the function is not mapped.
-
-        :param partition_function: The partition function to map to an interval.
-        :return: PartitionInterval corresponding to the function, or None if no match is found.
-        """
-        partition_function_to_partitions_interval = {
-            "DAY": "DAY",
-            "DAYOFMONTH": "DAY",
-            "MONTH": "MONTH",
-            "YEARWEEK": "YEARWEEK",
-        }
-        interval = partition_function_to_partitions_interval.get(partition_function)
-        if interval and cls.is_valid(interval):
-            return cls[interval]
-        return None
-
-    def get_partition_info(
-        self,
-        partition_datetime: datetime,
-    ) -> tuple[str, str, str]:
-        """
-        Generates partition details for a specified datetime.
-        :param partition_datetime: The datetime used for generating partition details.
-
-        :return: A tuple containing:
-            - partition_name: The name for the partition.
-            - partition_value: The "LESS THAN" value for the next partition boundary.
-            - partition_expression: The SQL partition expression.
-        """
-
-        partition_name = self.get_partition_name(partition_datetime)
-        partition_boundary_date = self.get_next_partition_time(partition_datetime)
-        partition_value = self.get_partition_name(partition_boundary_date)
-        partition_expression = self.get_partition_expression()
-
-        return partition_name, partition_value, partition_expression
-
-    def get_next_partition_time(self, current_datetime: datetime) -> datetime:
-        if self == PartitionInterval.DAY:
-            return current_datetime + timedelta(days=1)
-        elif self == PartitionInterval.MONTH:
-            return (current_datetime.replace(day=1) + timedelta(days=32)).replace(day=1)
-        elif self == PartitionInterval.YEARWEEK:
-            return current_datetime + timedelta(weeks=1)
-
-    def get_partition_name(self, current_datetime: datetime) -> str:
-        if self == PartitionInterval.DAY:
-            return current_datetime.strftime("%Y%m%d")
-        elif self == PartitionInterval.MONTH:
-            return current_datetime.strftime("%Y%m")
-        elif self == PartitionInterval.YEARWEEK:
-            year, week, _ = current_datetime.isocalendar()
-            return f"{year}{week:02d}"
-
-    def get_partition_expression(self):
-        if self == PartitionInterval.YEARWEEK:
-            return "YEARWEEK(activation_time, 1)"
-        else:
-            return f"{self}(activation_time)"
-
-    def get_number_of_partitions(self, days: int) -> int:
-        # Calculate the number partitions based on given number of days
-        if self == PartitionInterval.DAY:
-            return days
-        elif self == PartitionInterval.MONTH:
-            # Average number days in a month is 30.44
-            return int(days / 30.44)
-        elif self == PartitionInterval.YEARWEEK:
-            return int(days / 7)

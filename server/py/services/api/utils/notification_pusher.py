@@ -32,6 +32,7 @@ from mlrun.utils.notifications.notification_pusher import (
 
 mail_notification_default_params = None
 
+
 class RunNotificationPusher(NotificationPusher):
     def _prepare_notification_args(
         self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification
@@ -210,7 +211,9 @@ def _get_mail_notification_default_params():
         return mail_notification_default_params
 
     smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
-    mail_notification_default_params = services.api.utils.singletons.k8s.get_k8s_helper().read_secret_data(
-        smtp_config_secret_name
+    mail_notification_default_params = (
+        services.api.utils.singletons.k8s.get_k8s_helper().read_secret_data(
+            smtp_config_secret_name
+        )
     )
     return mail_notification_default_params

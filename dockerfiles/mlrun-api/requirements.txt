@@ -13,5 +13,5 @@ pymysql~=1.0
 alembic~=1.9
 timelength~=1.1
 memray~=1.12; sys_platform != 'win32'
-mlrun-pipelines-kfp-common~=0.2.1
-mlrun-pipelines-kfp-v1-8[kfp]~=0.2.0
+mlrun-pipelines-kfp-common @ file:///mlrun/pipeline-adapters/mlrun-pipelines-kfp-common
+mlrun-pipelines-kfp-v1-8 @ file:///mlrun/pipeline-adapters/mlrun-pipelines-kfp-v1-8

@@ -15,6 +15,8 @@
 import json
 import re
 import subprocess
+import sys
+import threading
 
 import click
 
@@ -283,29 +285,83 @@ class PackageTester:
 
     def _run_command(self, command, run_in_venv=False, env=None, raise_on_error=True):
         if run_in_venv:
+            # Prepend the command to activate the virtual environment
             command = f". test-venv/bin/activate && {command}"
+
+        # Initialize variables to capture output
+        stdout_capture = []
+        stderr_capture = []
+
         try:
-            process = subprocess.run(
+            # Start the subprocess with stdout and stderr as pipes
+            process = subprocess.Popen(
                 command,
                 env=env,
                 shell=True,
-                check=True,
-                capture_output=True,
-                encoding="utf-8",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,  # Equivalent to encoding='utf-8' and universal_newlines=True
+                bufsize=1,  # Line-buffered
             )
-        except subprocess.CalledProcessError as exc:
+
+            # Define a function to read a stream and handle output
+            def read_stream(stream, capture, write_func):
+                for line in iter(stream.readline, ""):
+                    write_func(line)  # Write the line as-is, including newline
+                    capture.append(line)
+                stream.close()
+
+            # Create threads to read stdout and stderr
+            stdout_thread = threading.Thread(
+                target=read_stream,
+                args=(process.stdout, stdout_capture, sys.stdout.write),
+            )
+            stderr_thread = threading.Thread(
+                target=read_stream,
+                args=(process.stderr, stderr_capture, sys.stderr.write),
+            )
+
+            # Start the threads
+            stdout_thread.start()
+            stderr_thread.start()
+
+            # Wait for the subprocess to finish
+            process.wait()
+
+            # Wait for threads to finish reading
+            stdout_thread.join()
+            stderr_thread.join()
+
+            # Combine the captured output
+            stdout = "".join(stdout_capture)
+            stderr = "".join(stderr_capture)
+
+            if process.returncode != 0:
+                if raise_on_error:
+                    logger.warning(
+                        "Command failed",
+                        extra={
+                            "stdout": stdout,
+                            "stderr": stderr,
+                            "return_code": process.returncode,
+                            "cmd": command,
+                        },
+                    )
+                    raise subprocess.CalledProcessError(
+                        returncode=process.returncode,
+                        cmd=command,
+                        output=stdout,
+                        stderr=stderr,
+                    )
+                return process.returncode, stdout, stderr
+
+            return process.returncode, stdout, stderr
+
+        except Exception as exc:
+            logger.error("An error occurred while running the command", exc_info=True)
             if raise_on_error:
-                logger.warning(
-                    "Command failed",
-                    stdout=exc.stdout,
-                    stderr=exc.stderr,
-                    return_code=exc.returncode,
-                    cmd=exc.cmd,
-                    args=exc.args,
-                )
                 raise
-            return exc.returncode, exc.stdout, exc.stderr
-        return process.returncode, process.stdout, process.stderr
+            return None, None, str(exc)
 
 
 @click.group()

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from datetime import datetime, timezone
 from typing import Any, Callable, NewType
 
 import mlrun.common.model_monitoring
@@ -21,14 +22,21 @@ import mlrun.common.schemas.alert as alert_objects
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
+    HistogramDataDriftApplicationConstants,
     MetricData,
     ResultData,
     ResultKindApp,
     ResultStatusApp,
+    StatsData,
+    StatsKind,
     WriterEvent,
     WriterEventKind,
 )
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasuresFile,
+)
 from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -189,6 +197,8 @@ class ModelMonitoringWriter(StepToDict):
             expected_keys.extend(MetricData.list())
         elif kind == WriterEventKind.RESULT:
             expected_keys.extend(ResultData.list())
+        elif kind == WriterEventKind.STATS:
+            expected_keys.extend(StatsData.list())
         else:
             raise _WriterEventValueError(
                 f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}"
@@ -197,14 +207,49 @@ class ModelMonitoringWriter(StepToDict):
         if missing_keys:
             raise _WriterEventValueError(
                 f"The received event misses some keys compared to the expected "
-                f"monitoring application event schema: {missing_keys}"
+                f"monitoring application event schema: {missing_keys} for event kind {kind}"
             )
 
         return result_event, kind
 
+    def write_stats(self, event: _AppResultEvent) -> None:
+        """
+        Write to file the application stats event
+        :param event: application stats event
+        """
+        endpoint_id = event[WriterEvent.ENDPOINT_ID]
+        logger.debug(
+            "Updating the model endpoint with stats",
+            endpoint_id=endpoint_id,
+        )
+        stat_kind = event.get(StatsData.STATS_NAME)
+        data, timestamp_str = event.get(StatsData.STATS), event.get(StatsData.TIMESTAMP)
+        timestamp = datetime.fromisoformat(timestamp_str).astimezone(tz=timezone.utc)
+        if stat_kind == StatsKind.CURRENT_STATS.value:
+            ModelMonitoringCurrentStatsFile(self.project, endpoint_id).write(
+                data, timestamp
+            )
+        elif stat_kind == StatsKind.DRIFT_MEASURES.value:
+            ModelMonitoringDriftMeasuresFile(self.project, endpoint_id).write(
+                data, timestamp
+            )
+        logger.info(
+            "Updating the model endpoint statistics",
+            endpoint_id=endpoint_id,
+            stats_kind=stat_kind,
+        )
+
     def do(self, event: _RawEvent) -> None:
         event, kind = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
+        if (
+            kind == WriterEventKind.STATS
+            and event[WriterEvent.APPLICATION_NAME]
+            == HistogramDataDriftApplicationConstants.NAME
+        ):
+            self.write_stats(event)
+            logger.info("Model monitoring writer finished handling event")
+            return
         self._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
         self._app_result_store.write_application_event(event=event.copy(), kind=kind)
 

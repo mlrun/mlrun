@@ -26,7 +26,11 @@ from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
 from .context import MonitoringApplicationContext
-from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult
+from .results import (
+    ModelMonitoringApplicationMetric,
+    ModelMonitoringApplicationResult,
+    _ModelMonitoringApplicationStats,
+)
 
 
 class _PushToMonitoringWriter(StepToDict):
@@ -61,7 +65,9 @@ class _PushToMonitoringWriter(StepToDict):
         event: tuple[
             list[
                 Union[
-                    ModelMonitoringApplicationResult, ModelMonitoringApplicationMetric
+                    ModelMonitoringApplicationResult,
+                    ModelMonitoringApplicationMetric,
+                    _ModelMonitoringApplicationStats,
                 ]
             ],
             MonitoringApplicationContext,
@@ -90,18 +96,15 @@ class _PushToMonitoringWriter(StepToDict):
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.RESULT
                 )
-                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
+            elif isinstance(result, _ModelMonitoringApplicationStats):
+                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
+                    mm_constant.WriterEventKind.STATS
+                )
             else:
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.METRIC
                 )
-                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
-
-            writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                mm_constant.WriterEventKind.RESULT
-                if isinstance(result, ModelMonitoringApplicationResult)
-                else mm_constant.WriterEventKind.METRIC
-            )
+            writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             logger.info(
                 f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
             )

@@ -48,11 +48,11 @@ class Service(ABC):
         self._add_exception_handlers()
 
     @abstractmethod
-    def _register_routes(self):
+    async def move_service_to_online(self):
         pass
 
     @abstractmethod
-    async def move_service_to_online(self):
+    def _register_routes(self):
         pass
 
     def _initialize_app(self):

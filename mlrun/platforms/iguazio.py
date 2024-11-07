@@ -104,32 +104,32 @@ class OutputStream:
         self._mock = mock
         self._mock_queue = []
 
+    def create_stream(self):
+        # this import creates an import loop via the utils module, so putting it in execution path
+        from mlrun.utils.helpers import logger
+
+        logger.debug(
+            "Creating output stream",
+            endpoint=self._endpoint,
+            container=self._container,
+            stream_path=self._stream_path,
+            shards=self._shards,
+            retention_in_hours=self._retention_in_hours,
+        )
+        response = self._v3io_client.stream.create(
+            container=self._container,
+            stream_path=self._stream_path,
+            shard_count=self._shards or 1,
+            retention_period_hours=self._retention_in_hours or 24,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+        )
+        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+            response.raise_for_status([409, 204])
+
     def _lazy_init(self):
         if self._create and not self._mock:
-            # this import creates an import loop via the utils module, so putting it in execution path
-            from mlrun.utils.helpers import logger
-
             self._create = False
-
-            logger.debug(
-                "Creating output stream",
-                endpoint=self._endpoint,
-                container=self._container,
-                stream_path=self._stream_path,
-                shards=self._shards,
-                retention_in_hours=self._retention_in_hours,
-            )
-            response = self._v3io_client.stream.create(
-                container=self._container,
-                stream_path=self._stream_path,
-                shard_count=self._shards or 1,
-                retention_period_hours=self._retention_in_hours or 24,
-                raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            )
-            if not (
-                response.status_code == 400 and "ResourceInUse" in str(response.body)
-            ):
-                response.raise_for_status([409, 204])
+            self.create_stream()
 
     def push(self, data, partition_key=None):
         self._lazy_init()

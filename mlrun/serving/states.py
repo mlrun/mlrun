@@ -839,6 +839,8 @@ class QueueStep(BaseStep):
                 retention_in_hours=self.retention_in_hours,
                 **self.options,
             )
+            if hasattr(self._stream, "create_stream"):
+                self._stream.create_stream()
         self._set_error_handler()
 
     @property
@@ -1247,8 +1249,8 @@ class FlowStep(BaseStep):
                     links[next_step.function] = step
         return links
 
-    def init_queues(self):
-        """init/create the streams used in this flow"""
+    def create_queue_streams(self):
+        """create the streams used in this flow"""
         for step in self.get_children():
             if step.kind == StepKinds.queue:
                 step.init_object(self.context, None)

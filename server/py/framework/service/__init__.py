@@ -95,7 +95,6 @@ class Service(ABC):
         )
 
         await self._custom_setup_service()
-        await self._start_periodic_functions()
 
         if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
             await self.move_service_to_online()

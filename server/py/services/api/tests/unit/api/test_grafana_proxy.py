@@ -30,11 +30,12 @@ from v3io_frames import frames_pb2 as fpb2
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants
 import mlrun.model_monitoring.db.stores
-import services.api.utils.clients.iguazio
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+
+import services.api.utils.clients.iguazio
 from services.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,

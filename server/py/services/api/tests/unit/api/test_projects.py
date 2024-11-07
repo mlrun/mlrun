@@ -39,9 +39,9 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+
 import services.api.api.utils
 import services.api.crud
-import services.api.main
 import services.api.tests.unit.conftest
 import services.api.tests.unit.utils.clients.test_log_collector
 import services.api.utils.auth.verifier
@@ -51,6 +51,7 @@ import services.api.utils.singletons.db
 import services.api.utils.singletons.k8s
 import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
+from services.api.daemon import daemon
 from services.api.db.sqldb.models import (
     ArtifactV2,
     Entity,
@@ -65,7 +66,7 @@ from services.api.db.sqldb.models import (
     _classes,
 )
 
-ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 LIST_FUNCTION_API = "projects/{project}/functions"
 

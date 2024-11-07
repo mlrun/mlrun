@@ -21,6 +21,7 @@ from sqlalchemy.engine import Engine
 
 from mlrun.common.db.sql_session import _init_engine
 from mlrun.config import config
+
 from services.api.db.session import close_session, create_session
 from services.api.db.sqldb.db import SQLDB
 from services.api.initial_data import init_data

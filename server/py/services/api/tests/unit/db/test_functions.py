@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.errors
+
 from services.api.db.base import DBInterface
 from services.api.db.sqldb.models import Function
 

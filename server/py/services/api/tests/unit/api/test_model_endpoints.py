@@ -23,11 +23,12 @@ import pytest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-import services.api.crud.model_monitoring.deployment
-import services.api.crud.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 from mlrun.model_monitoring.db.stores import StoreBase
+
+import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring.helpers
 
 TEST_PROJECT = "test-model-endpoints"
 # Set a default v3io access key env variable

@@ -15,10 +15,11 @@
 import re
 
 import mlrun.db
-import services.api.utils.db.mysql
 from mlrun.common.db.sql_session import create_session
 from mlrun.config import config
 from mlrun.utils import logger
+
+import services.api.utils.db.mysql
 from services.api.db.base import DBInterface
 from services.api.db.sqldb.db import SQLDB
 

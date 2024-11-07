@@ -80,6 +80,12 @@ for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
         generated_pytest_parameters.append((authentication_method, True))
 
 
+def pop_env():
+    for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
+        for env_var in env_vars:
+            os.environ.pop(env_var, None)
+
+
 # Apply parametrization to all tests in this file. Skip test if auth method is not configured.
 @pytest.mark.skipif(
     not config.get("env", {}).get("AZURE_CONTAINER"),
@@ -113,19 +119,14 @@ class TestAzureBlob:
 
     @classmethod
     def teardown_class(cls):
+        store_manager.reset_secrets()
+        pop_env()
         test_dir = f"{cls.bucket_name}/{cls.test_dir}"
         if not cls._azure_fs:
             return
         if cls._azure_fs.exists(test_dir):
             cls._azure_fs.delete(test_dir, recursive=True)
             logger.debug("test directory has been deleted.")
-
-    def teardown_method(self, method):
-        for auth, auth_list in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
-            if auth.startswith("env"):
-                for env_parameter in auth_list:
-                    if config["env"].get(env_parameter, None):
-                        os.environ[env_parameter] = config["env"].get(env_parameter)
 
     @classmethod
     def create_fs(cls, storage_options):
@@ -144,15 +145,10 @@ class TestAzureBlob:
         self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
         self.object_url = f"{self.run_dir_url}{self.object_file}"
 
-    def pop_env(self):
-        for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
-            for env_var in env_vars:
-                os.environ.pop(env_var, None)
-
     def setup_before_test(self, use_datastore_profile, auth_method, fake_secrets=False):
         store_manager.reset_secrets()
         self.storage_options = {}
-        self.pop_env()
+        pop_env()
         self.build_object_url(use_datastore_profile)
         test_params = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
 
@@ -443,7 +439,7 @@ class TestAzureBlob:
 
     @pytest.mark.parametrize("use_datastore_profile", [True, False])
     def test_empty_credential_rm(self, use_datastore_profile):
-        self.pop_env()
+        pop_env()
         self.build_object_url(use_datastore_profile)
         if use_datastore_profile:
             profile = DatastoreProfileAzureBlob(name=self.profile_name)
@@ -451,3 +447,34 @@ class TestAzureBlob:
         data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises(ValueError):
             data_item.delete()
+
+
+class TestAnonymousAccessAzureBlob:
+    account_name = "pandemicdatalake"
+
+    @pytest.fixture(autouse=True)
+    def setup_before_each_test(self):
+        pop_env()
+        store_manager.reset_secrets()
+        os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = self.account_name
+
+    def teardown_class(self):
+        store_manager.reset_secrets()
+        pop_env()
+
+    def test_load_object_into_dask_dataframe(self):
+        # Load a parquet file from Azure Open Datasets
+
+        data_item = mlrun.datastore.store_manager.object(
+            "az://public/curated/covid-19/ecdc_cases/latest/ecdc_cases.parquet"
+        )
+        ddf = data_item.as_df(df_module=dd)
+        assert isinstance(ddf, dd.DataFrame)
+
+    def test_load_object_into_dask_dataframe_using_wasbs_url(self):
+        # Load a parquet file from Azure Open Datasets
+        data_item = mlrun.run.get_dataitem(
+            "wasbs://public@dummyaccount/curated/covid-19/ecdc_cases/latest/ecdc_cases.parquet"
+        )
+        ddf = data_item.as_df(df_module=dd)
+        assert isinstance(ddf, dd.DataFrame)

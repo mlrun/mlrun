@@ -20,12 +20,13 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.config import config as mlconfig
+from mlrun.utils import logger
+
 import services.api.api.utils
 import services.api.utils.helpers
 import services.api.utils.lru_cache
 import services.api.utils.singletons.db
-from mlrun.config import config as mlconfig
-from mlrun.utils import logger
 from services.api.utils.notification_pusher import AlertNotificationPusher
 
 

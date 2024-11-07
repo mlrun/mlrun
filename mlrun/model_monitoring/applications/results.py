@@ -121,3 +121,31 @@ class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
             mm_constant.MetricData.METRIC_NAME: self.name,
             mm_constant.MetricData.METRIC_VALUE: self.value,
         }
+
+
+@dataclasses.dataclass
+class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
+    """
+    Class representing the stats of histogram data drift application.
+
+    :param name             (mm_constant.StatsKind) Enum mm_constant.StatsData of the stats data kind of the event
+    :param                  (str) iso format representation of the timestamp the event took place
+    :param stats            (dict) Dictionary representation of the stats calculated for the event
+
+    """
+
+    name: mm_constant.StatsKind
+    timestamp: str
+    stats: dict = dataclasses.field(default_factory=dict)
+
+    def to_dict(self):
+        """
+        Convert the object to a dictionary format suitable for writing.
+
+        :returns:    (dict) Dictionary representation of the result.
+        """
+        return {
+            mm_constant.StatsData.STATS_NAME: self.name,
+            mm_constant.StatsData.STATS: self.stats,
+            mm_constant.StatsData.TIMESTAMP: self.timestamp,
+        }

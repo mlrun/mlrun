@@ -19,10 +19,11 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+from mlrun.utils import logger
+
 import services.api.crud
 import services.api.db.sqldb.models
 import services.api.utils.pagination
-from mlrun.utils import logger
 
 
 def paginated_method(

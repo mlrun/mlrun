@@ -16,6 +16,7 @@
 import pytest
 
 import mlrun
+
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
 from services.api.tests.unit.conftest import assets_path

@@ -22,12 +22,13 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+from mlrun.utils import logger
+
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.background_tasks
 import services.api.utils.pagination
 import services.api.utils.singletons.project_member
-from mlrun.utils import logger
 from services.api.api import deps
 from services.api.api.utils import log_and_raise
 

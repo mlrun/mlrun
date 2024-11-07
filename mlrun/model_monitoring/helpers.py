@@ -101,6 +101,71 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
+def get_monitoring_stats_directory_path(
+    project: str,
+    kind: str = mm_constants.FileTargetKind.STATS,
+) -> str:
+    """
+    Get model monitoring stats target for the current project and kind. The stats target path is based on the
+    project artifact path. If project artifact path is not defined, the stats target path will be based on MLRun
+    artifact path.
+    :param project:     Project object.
+    :param kind:        indicate the kind of the stats path
+    :return:            Monitoring stats target path.
+    """
+    stats_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project,
+        kind=kind,
+    )
+    return stats_path
+
+
+def _get_monitoring_current_stats_file_path(project: str, endpoint_id: str) -> str:
+    return os.path.join(
+        get_monitoring_stats_directory_path(project),
+        f"{endpoint_id}_current_stats.json",
+    )
+
+
+def _get_monitoring_drift_measures_file_path(project: str, endpoint_id: str) -> str:
+    return os.path.join(
+        get_monitoring_stats_directory_path(project),
+        f"{endpoint_id}_drift_measures.json",
+    )
+
+
+def get_monitoring_current_stats_data(
+    project: str, endpoint_id: str
+) -> mlrun.datastore.DataItem:
+    """
+    getter for data item of current stats for project and endpoint
+    :param project: project name str
+    :param endpoint_id: endpoint id str
+    :return: DataItem
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_current_stats_file_path(
+            project=project, endpoint_id=endpoint_id
+        )
+    )
+
+
+def get_monitoring_drift_measures_data(
+    project: str, endpoint_id: str
+) -> mlrun.datastore.DataItem:
+    """
+    getter for data item of drift measures for project and endpoint
+    :param project: project name str
+    :param endpoint_id: endpoint id str
+    :return: DataItem
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_drift_measures_file_path(
+            project=project, endpoint_id=endpoint_id
+        )
+    )
+
+
 def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -> str:
     """Get endpoint store connection string from the project secret. If wasn't set, take it from the system
     configurations.

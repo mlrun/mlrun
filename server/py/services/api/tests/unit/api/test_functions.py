@@ -31,11 +31,12 @@ import mlrun.common.constants
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
+import tests.conftest
+
 import services.api.api.endpoints.functions
 import services.api.api.endpoints.nuclio
 import services.api.api.utils
 import services.api.crud
-import services.api.main
 import services.api.tests.unit.api.utils
 import services.api.utils.builder
 import services.api.utils.clients.chief
@@ -43,10 +44,10 @@ import services.api.utils.clients.iguazio
 import services.api.utils.functions
 import services.api.utils.singletons.db
 import services.api.utils.singletons.k8s
-import tests.conftest
+from services.api.daemon import daemon
 
 PROJECT = "project-name"
-ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 
 
@@ -86,6 +87,41 @@ def test_build_status_pod_not_found(
             },
         )
         assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+
+@pytest.mark.asyncio
+async def test_list_functions_for_all_projects(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    project_1 = PROJECT + "-1"
+    project_2 = PROJECT + "-2"
+    services.api.tests.unit.api.utils.create_project(client, project_1)
+    services.api.tests.unit.api.utils.create_project(client, project_2)
+
+    number_of_functions = 10
+    for project in [project_1, project_2]:
+        for counter in range(number_of_functions):
+            function_name = f"{project}-function-name-{counter}"
+            function = {
+                "kind": "job",
+                "metadata": {
+                    "name": function_name,
+                    "project": project,
+                    "tag": "function-tag",
+                },
+                "spec": {"image": "mlrun/mlrun"},
+            }
+
+            post_function_response = client.post(
+                f"projects/{project}/functions/{function_name}",
+                json=function,
+            )
+
+            assert post_function_response.status_code == HTTPStatus.OK.value
+
+    response = client.get("projects/*/functions")
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["funcs"]) == number_of_functions * 2
 
 
 @pytest.mark.asyncio

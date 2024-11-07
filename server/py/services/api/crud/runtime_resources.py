@@ -22,6 +22,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils.singleton
+
 import services.api.runtime_handlers
 import services.api.utils.singletons.db
 

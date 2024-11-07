@@ -21,11 +21,12 @@ import sqlalchemy.orm
 import mlrun
 import mlrun.common.db.sql_session
 import mlrun.common.schemas
+from mlrun.config import config
+
 import services.api.db.init_db
 import services.api.db.sqldb.db
 import services.api.initial_data
 import services.api.utils.singletons.db
-from mlrun.config import config
 
 
 def test_add_data_version_empty_db():

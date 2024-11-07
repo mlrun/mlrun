@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+
 import services.api.utils.clients.log_collector
 
 

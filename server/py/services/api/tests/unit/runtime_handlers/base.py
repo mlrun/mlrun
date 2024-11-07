@@ -27,10 +27,11 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
-import services.api.crud
-import services.api.utils.clients.chief
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_test_logger, now_date
+
+import services.api.crud
+import services.api.utils.clients.chief
 from services.api.constants import LogSources
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.utils.singletons.db import get_db

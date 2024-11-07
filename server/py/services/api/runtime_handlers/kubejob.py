@@ -22,10 +22,11 @@ from packaging.version import parse as parse_version
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
-import services.api.db.base as api_db_base
-import services.api.utils.singletons.k8s
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
+
+import services.api.db.base as api_db_base
+import services.api.utils.singletons.k8s
 from services.api.runtime_handlers import BaseRuntimeHandler
 
 

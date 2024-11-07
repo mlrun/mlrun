@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import datetime
 import typing
 from abc import ABC, abstractmethod
@@ -430,7 +431,7 @@ class DBInterface(ABC):
         labels: dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        next_run_time: datetime = None,
+        next_run_time: datetime.datetime = None,
     ):
         pass
 
@@ -897,7 +898,7 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        last_updated: datetime,
+        last_updated: datetime.datetime,
         count: typing.Optional[int] = None,
         active: bool = False,
         obj: typing.Optional[dict] = None,
@@ -1018,7 +1019,7 @@ class DBInterface(ABC):
         key: str = None,
         user: str = None,
         function: str = None,
-        last_accessed_before: datetime = None,
+        last_accessed_before: datetime.datetime = None,
         order_by: Optional[mlrun.common.schemas.OrderType] = None,
         as_query: bool = False,
     ):

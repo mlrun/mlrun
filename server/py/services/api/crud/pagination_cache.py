@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import typing
 
@@ -50,7 +50,7 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         key: str = None,
         user: str = None,
         function: str = None,
-        last_accessed_before: datetime = None,
+        last_accessed_before: datetime.datetime = None,
         order_by: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,

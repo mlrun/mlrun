@@ -3876,7 +3876,7 @@ class MlrunProject(ModelObj):
         The returned result is an `ArtifactList` (list of dict), use `.to_objects()` to convert it to a list of
         RunObjects, `.show()` to view graphically in Jupyter, and `.to_df()` to convert to a DataFrame.
 
-        For detailed information about the parameters, refer to the `list_artifacts` method:
+        For detailed information about the parameters, refer to the list_artifacts method:
             See :py:func:`~list_artifacts` for more details.
 
         Examples::
@@ -3989,7 +3989,7 @@ class MlrunProject(ModelObj):
         Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
         will return a list of artifacts that match the filtering criteria provided.
 
-        For detailed information about the parameters, refer to the `list_models` method:
+        For detailed information about the parameters, refer to the list_models method:
             See :py:func:`~list_models` for more details.
 
         Examples::

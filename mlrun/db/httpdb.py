@@ -1209,7 +1209,7 @@ class HTTPRunDB(RunDBInterface):
         Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
         will return a list of artifacts that match the filtering criteria provided.
 
-        For detailed information about the parameters, refer to the `list_artifacts` method:
+        For detailed information about the parameters, refer to the list_artifacts method:
             See :py:func:`~list_artifacts` for more details.
 
         Examples::

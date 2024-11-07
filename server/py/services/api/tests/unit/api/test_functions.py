@@ -37,7 +37,6 @@ import services.api.api.endpoints.functions
 import services.api.api.endpoints.nuclio
 import services.api.api.utils
 import services.api.crud
-import services.api.main
 import services.api.tests.unit.api.utils
 import services.api.utils.builder
 import services.api.utils.clients.chief
@@ -45,9 +44,10 @@ import services.api.utils.clients.iguazio
 import services.api.utils.functions
 import services.api.utils.singletons.db
 import services.api.utils.singletons.k8s
+from services.api.daemon import daemon
 
 PROJECT = "project-name"
-ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 
 

@@ -29,14 +29,14 @@ import mlrun.common.constants as mlrun_constants
 from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
 
-import services.api.main
 import services.api.tests.unit.api.utils
 import services.api.utils.auth.verifier
 import services.api.utils.clients.chief
 import services.api.utils.singletons.k8s
+from services.api.daemon import daemon
 from services.api.tests.unit.conftest import K8sSecretsMock
 
-ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 DEFAULT_FUNCTION_OUTPUT_PATH = "/some/fictive/path/to/make/everybody/happy"
 
 

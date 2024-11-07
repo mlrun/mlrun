@@ -548,9 +548,8 @@ class Service(framework.service.Service):
                 services.api.crud.projects.Projects().refresh_project_resources_counters_cache,
             )
 
-
-    def _start_periodic_partition_management():
-        for table_name, retention_days in config.object_retentions.items():
+    def _start_periodic_partition_management(self):
+        for table_name, retention_days in mlconf.object_retentions.items():
             logger.info(
                 f"Starting periodic partition management for table {table_name}",
                 retention_days=retention_days,
@@ -558,14 +557,14 @@ class Service(framework.service.Service):
             interval_in_seconds = retention_days * 24 * 60 * 60
             run_function_periodically(
                 interval_in_seconds,
-                f"{_manage_partitions.__name__}_{table_name}",
+                f"{self._manage_partitions.__name__}_{table_name}",
                 False,
-                _manage_partitions,
+                self._manage_partitions,
                 table_name=table_name,
                 retention_days=retention_days,
             )
 
-
+    @staticmethod
     async def _manage_partitions(table_name, retention_days):
         await fastapi.concurrency.run_in_threadpool(
             services.api.db.session.run_function_with_new_db_session,
@@ -980,4 +979,4 @@ if __name__ == "__main__":
 
     import services.api.apiuvicorn as uvicorn
 
-    uvicorn.run(logger, httpdb_config=mlconf.httpdb)
+    uvicorn.run(logger, httpdb_config=config.httpdb)

@@ -39,7 +39,6 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications.notification_pusher
 import services.api.constants
 import services.api.crud
-import services.api.crud.runtimes.nuclio
 import services.api.db.base
 import services.api.db.session
 import services.api.utils.auth.verifier
@@ -712,7 +711,7 @@ def _mask_v3io_access_key_env_var(
             username = v3io_username
         if not username:
             if services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
-                # auth_info should always has username, sanity
+                # auth_info should always have username, sanity
                 if not auth_info.username:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "Username is missing from auth info"

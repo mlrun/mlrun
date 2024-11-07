@@ -15,11 +15,11 @@
 
 import sqlalchemy.orm
 
+import mlrun.common.schemas
 import mlrun.utils.singleton
+import services.api.crud
 import services.api.utils.singletons.k8s
 from mlrun.datastore.datastore_profile import DatastoreProfile as DSProfile
-
-from .secrets import Secrets
 
 
 class DatastoreProfiles(
@@ -42,7 +42,7 @@ class DatastoreProfiles(
             DSProfile.generate_secret_key(profile_name, project): profile_secret_json
         }
 
-        Secrets().store_project_secrets(
+        services.api.crud.Secrets().store_project_secrets(
             project,
             mlrun.common.schemas.SecretsData(
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,

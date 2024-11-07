@@ -16,6 +16,7 @@ import collections
 import traceback
 import typing
 
+import framework.utils.periodic
 import humanfriendly
 import sqlalchemy.orm
 
@@ -30,7 +31,6 @@ import mlrun.utils.singleton
 import services.api.crud
 import services.api.db.session
 import services.api.utils.clients.nuclio
-import services.api.utils.periodic
 import services.api.utils.projects.member
 import services.api.utils.projects.member as project_member
 import services.api.utils.projects.remotes.follower
@@ -186,7 +186,7 @@ class Member(
                 "Starting periodic projects sync",
                 interval=self._periodic_sync_interval_seconds,
             )
-            services.api.utils.periodic.run_function_periodically(
+            framework.utils.periodic.run_function_periodically(
                 self._periodic_sync_interval_seconds,
                 self._sync_projects.__name__,
                 False,
@@ -194,9 +194,7 @@ class Member(
             )
 
     def _stop_periodic_sync(self):
-        services.api.utils.periodic.cancel_periodic_function(
-            self._sync_projects.__name__
-        )
+        framework.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
     def _sync_projects(self):
         db_session = services.api.db.session.create_session()

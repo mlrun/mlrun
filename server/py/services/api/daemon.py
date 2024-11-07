@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,4 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+import framework.service
+
+import services.api.main
+
+
+class Daemon(framework.service.Daemon):
+    def __init__(self, service_cls: framework.service.Service.__class__):
+        self._service = service_cls()
+
+    def initialize(self):
+        self._service.initialize()
+
+
+daemon = Daemon(service_cls=services.api.main.Service)
+daemon.initialize()
+app = daemon.app

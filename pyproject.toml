@@ -48,6 +48,7 @@ root_packages = [
     "mlrun",
     "tests",
     "server.py.services",
+    "server.py.framework",
 ]
 include_external_packages = true
 
@@ -121,4 +122,14 @@ forbidden_modules = [
 # Ignore integration tests until we have service specific integration tests infrastructure
 ignore_imports = [
     "tests.integration.sdk_api.alerts.test_alerts -> services ",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun common server code should not import specific services"
+type = "forbidden"
+source_modules = [
+    "server.py.framework",
+]
+forbidden_modules = [
+    "services",
 ]

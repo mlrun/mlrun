@@ -36,7 +36,6 @@ import services.api.runtime_handlers
 import services.api.utils.builder
 import services.api.utils.clients.async_nuclio
 import services.api.utils.clients.iguazio
-import services.api.utils.helpers
 import services.api.utils.singletons.k8s
 from mlrun.utils import logger
 

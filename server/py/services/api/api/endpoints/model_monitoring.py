@@ -25,9 +25,9 @@ import mlrun.common.schemas
 import services.api.api.utils
 import services.api.utils.auth.verifier
 import services.api.utils.clients.chief
-from services.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api import deps
 from services.api.api.endpoints.nuclio import process_model_monitoring_secret
+from services.api.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.crud.model_monitoring.deployment import MonitoringDeployment
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")

@@ -37,8 +37,8 @@ from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_pre
 from mlrun.config import config
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
-from services.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api import deps
+from services.api.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.crud.secrets import Secrets, SecretsClientType
 
 router = APIRouter()

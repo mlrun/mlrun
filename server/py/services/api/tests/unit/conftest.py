@@ -62,8 +62,9 @@ tests_root_directory = pathlib.Path(__file__).absolute().parent
 assets_path = tests_root_directory.joinpath("assets")
 
 if str(tests_root_directory) in os.getcwd():
-    # If this is the top level conftest - we need to explicitly declare the base common fixtures
-    # make pytest use them. If this is not the top level conftest then providing pytest_plugins is not allowed.
+    # If this is the top level conftest - we need to explicitly declare the base common fixtures to
+    # make pytest use them. If this is not the top level conftest (e.g. when running the tests from the project root)
+    # then providing pytest_plugins is not allowed.
     pytest_plugins = [
         "tests.common_fixtures",
     ]

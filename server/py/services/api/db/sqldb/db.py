@@ -5676,7 +5676,7 @@ class SQLDB(DBInterface):
             ADD PARTITION (
                 {", ".join([
             f"PARTITION p{partition_name} VALUES LESS THAN ({partition_value})"
-            for partition_name, partition_value, _ in partitioning_information_list
+            for partition_name, partition_value in partitioning_information_list
         ])}
             );
         """

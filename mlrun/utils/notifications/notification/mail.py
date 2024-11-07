@@ -63,15 +63,15 @@ class MailNotification(NotificationBase):
 
     @staticmethod
     async def _send_email(
-        email_address,
-        sender_address,
-        server_host,
-        server_port,
-        username,
-        password,
-        use_tls,
-        subject="",
-        body="",
+        email_address: str,
+        sender_address: str,
+        server_host: str,
+        server_port: int,
+        username: str,
+        password: str,
+        use_tls: bool,
+        subject: str = "",
+        body: str = "",
         **kwargs,
     ):
         # Create the email message

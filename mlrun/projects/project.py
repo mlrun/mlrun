@@ -4029,6 +4029,7 @@ class MlrunProject(ModelObj):
         return db.paginated_list_artifacts(
             *args,
             project=self.metadata.name,
+            kind=mlrun.artifacts.model.ModelArtifact.kind,
             page=page,
             page_size=page_size,
             page_token=page_token,

@@ -21,13 +21,14 @@ import fastapi
 import fastapi.concurrency
 import fastapi.exception_handlers
 
-import framework.middlewares
-import framework.utils.periodic
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.version
 from mlrun import mlconf
+
+import framework.middlewares
+import framework.utils.periodic
 
 
 class Service(ABC):

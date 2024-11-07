@@ -27,10 +27,11 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.utils
 import mlrun.utils.regex
-import services.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
+
+import services.api.utils.singletons.k8s
 from services.api.common.runtime_handlers import get_resource_labels
 from services.api.db.base import DBInterface
 from services.api.runtime_handlers import BaseRuntimeHandler

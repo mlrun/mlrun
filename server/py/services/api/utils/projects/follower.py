@@ -16,7 +16,6 @@ import datetime
 import traceback
 import typing
 
-import framework.utils.periodic
 import humanfriendly
 import mergedeep
 import pytz
@@ -30,6 +29,10 @@ import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
+from mlrun.errors import err_to_str
+from mlrun.utils import logger
+
+import framework.utils.periodic
 import services.api.crud
 import services.api.db.session
 import services.api.utils.auth.verifier
@@ -39,8 +42,6 @@ import services.api.utils.helpers
 import services.api.utils.projects.member as project_member
 import services.api.utils.projects.remotes.leader
 import services.api.utils.projects.remotes.nop_leader
-from mlrun.errors import err_to_str
-from mlrun.utils import logger
 
 
 class Member(

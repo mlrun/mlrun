@@ -19,11 +19,12 @@ import fastapi.concurrency
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+from mlrun.utils.helpers import tag_name_regex_as_string
+
 import services.api.api.deps
 import services.api.crud.tags
 import services.api.utils.auth.verifier
 import services.api.utils.singletons.project_member
-from mlrun.utils.helpers import tag_name_regex_as_string
 
 router = fastapi.APIRouter(prefix="/projects/{project}/tags")
 

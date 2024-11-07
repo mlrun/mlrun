@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
+
 from services.api.tests.unit.conftest import K8sSecretsMock
 
 project = "prj"

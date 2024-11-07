@@ -36,9 +36,10 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.utils import get_in, logger
+
 import services.api.utils.helpers
 import services.api.utils.projects.remotes.leader as project_leader
-from mlrun.utils import get_in, logger
 
 
 class JobStates:

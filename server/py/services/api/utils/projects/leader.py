@@ -16,7 +16,6 @@ import collections
 import traceback
 import typing
 
-import framework.utils.periodic
 import humanfriendly
 import sqlalchemy.orm
 
@@ -28,6 +27,10 @@ import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
+from mlrun.errors import err_to_str
+from mlrun.utils import logger
+
+import framework.utils.periodic
 import services.api.crud
 import services.api.db.session
 import services.api.utils.clients.nuclio
@@ -35,8 +38,6 @@ import services.api.utils.projects.member
 import services.api.utils.projects.member as project_member
 import services.api.utils.projects.remotes.follower
 import services.api.utils.projects.remotes.nop_follower
-from mlrun.errors import err_to_str
-from mlrun.utils import logger
 
 
 class Member(

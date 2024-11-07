@@ -20,12 +20,7 @@ import typing
 
 import fastapi
 import fastapi.concurrency
-import framework.service
 import sqlalchemy.orm
-from framework.utils.periodic import (
-    cancel_periodic_function,
-    run_function_periodically,
-)
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -35,6 +30,11 @@ import mlrun.lists
 import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
+from mlrun import mlconf
+from mlrun.errors import err_to_str
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
+
+import framework.service
 import services.api.api.utils
 import services.api.constants
 import services.api.crud
@@ -45,9 +45,10 @@ import services.api.utils.clients.chief
 import services.api.utils.clients.log_collector
 import services.api.utils.notification_pusher
 import services.api.utils.time_window_tracker
-from mlrun import mlconf
-from mlrun.errors import err_to_str
-from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
+from framework.utils.periodic import (
+    cancel_periodic_function,
+    run_function_periodically,
+)
 from services.api.api.api import api_router, api_v2_router
 from services.api.db.session import close_session, create_session
 from services.api.runtime_handlers import get_runtime_handler
@@ -71,9 +72,6 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
-    def __init__(self):
-        super().__init__()
-
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class
         self.app.include_router(api_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX)
@@ -950,7 +948,8 @@ if __name__ == "__main__":
     # __main__.py on mlrun client and mlrun integration tests.
     # mlrun container image will run the server using uvicorn directly.
     # see /dockerfiles/mlrun-api/Dockerfile for more details.
-    import services.api.apiuvicorn as uvicorn
     from mlrun.utils import logger
+
+    import services.api.apiuvicorn as uvicorn
 
     uvicorn.run(logger, httpdb_config=mlconf.httpdb)

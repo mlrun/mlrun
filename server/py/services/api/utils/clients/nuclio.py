@@ -25,8 +25,9 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
-import services.api.utils.projects.remotes.follower as project_follower
 from mlrun.utils import logger
+
+import services.api.utils.projects.remotes.follower as project_follower
 
 
 class Client(

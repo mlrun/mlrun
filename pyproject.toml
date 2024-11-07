@@ -15,6 +15,10 @@ extend-select = [
 ]
 explicit-preview-rules = true
 
+[tool.ruff.lint.isort]
+known-first-party = ["mlrun"]
+known-local-folder = ["services", "framework"]
+
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
 
@@ -94,7 +98,9 @@ type = "forbidden"
 source_modules = [
     "mlrun",
     "services",
+    "framework",
     "server.py.services",
+    "server.py.framework",
 ]
 forbidden_modules = [
     "kfp",
@@ -106,6 +112,7 @@ type = "layers"
 layers = [
     "server.py.services",
     "services",
+    "framework",
     "mlrun",
 ]
 
@@ -117,7 +124,9 @@ source_modules = [
 ]
 forbidden_modules = [
     "services",
+    "framework",
     "server.py.services",
+    "server.py.framework",
 ]
 # Ignore integration tests until we have service specific integration tests infrastructure
 ignore_imports = [

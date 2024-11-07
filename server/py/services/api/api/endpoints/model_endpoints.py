@@ -29,11 +29,12 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 import mlrun.utils.helpers
+from mlrun.errors import MLRunConflictError
+from mlrun.utils import logger
+
 import services.api.api.deps
 import services.api.crud
 import services.api.utils.auth.verifier
-from mlrun.errors import MLRunConflictError
-from mlrun.utils import logger
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 

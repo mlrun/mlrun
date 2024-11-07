@@ -14,10 +14,11 @@
 from logging.config import fileConfig
 
 from alembic import context
-from services.api.db.sqldb import models
 from sqlalchemy import engine_from_config, pool
 
 from mlrun import mlconf
+
+from services.api.db.sqldb import models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -13,9 +13,6 @@
 # limitations under the License.
 #
 
-
-import mlrun.common.schemas.alert
-import mlrun.common.schemas.partition
 import mlrun.utils.singleton
 
 

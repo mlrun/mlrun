@@ -655,9 +655,16 @@ def _start_periodic_partition_management():
     interval_in_seconds = retention_days * 24 * 60 * 60
     run_function_periodically(
         interval_in_seconds,
-        services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions.__name__,
+        _manage_partitions.__name__,
         False,
-        services.api.db.session.run_async_function_with_new_db_session,
+        _manage_partitions,
+        retention_days,
+    )
+
+
+async def _manage_partitions(retention_days):
+    await fastapi.concurrency.run_in_threadpool(
+        services.api.db.session.run_function_with_new_db_session,
         services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions,
         table_name="alert_activation",
         retention_days=retention_days,

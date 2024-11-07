@@ -269,9 +269,7 @@ class SQLRunDB(RunDBInterface):
         page_token: Optional[str] = None,
         **kwargs,
     ):
-        return self._transform_db_error(
-            services.api.crud.Artifacts().list_artifacts, self.session, *args
-        )
+        raise NotImplementedError()
 
     def del_artifact(
         self,

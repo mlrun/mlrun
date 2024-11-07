@@ -550,7 +550,7 @@ class Service(framework.service.Service):
 
     def _start_periodic_partition_management(self):
         for table_name, retention_days in mlconf.object_retentions.items():
-            logger.info(
+            self._logger.info(
                 f"Starting periodic partition management for table {table_name}",
                 retention_days=retention_days,
             )

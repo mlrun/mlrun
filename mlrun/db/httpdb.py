@@ -370,7 +370,7 @@ class HTTPRunDB(RunDBInterface):
                     # which parameters to use.
                     response = _api_call({"page-token": page_token})
                 except mlrun.errors.MLRunNotFoundError:
-                    # pagination token expired
+                    # pagination token expired, we've reached the last page
                     break
 
                 yield response

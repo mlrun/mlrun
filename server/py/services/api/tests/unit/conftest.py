@@ -57,6 +57,11 @@ from services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 # Importing here since mlrun_pipelines imports mlconf and it causes circular import
 import mlrun_pipelines.utils  # isort:skip
 
+# Explicitly declare common fixtures allow pytest to find them regardless of CWD
+pytest_plugins = [
+    "tests.common_fixtures",
+]
+
 tests_root_directory = pathlib.Path(__file__).absolute().parent
 assets_path = tests_root_directory.joinpath("assets")
 

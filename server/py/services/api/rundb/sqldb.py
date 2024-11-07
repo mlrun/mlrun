@@ -263,42 +263,16 @@ class SQLRunDB(RunDBInterface):
 
     def paginated_list_artifacts(
         self,
-        name=None,
-        project=None,
-        tag=None,
-        labels=None,
-        since=None,
-        until=None,
-        iter: int = None,
-        best_iteration: bool = False,
-        kind: str = None,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
-        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        limit: int = None,
+        *args,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
+        **kwargs,
     ):
-        if category and isinstance(category, str):
-            category = mlrun.common.schemas.ArtifactCategories(category)
-
         return self._transform_db_error(
             services.api.crud.Artifacts().list_artifacts,
             self.session,
-            project,
-            name,
-            tag,
-            labels,
-            since,
-            until,
-            iter=iter,
-            best_iteration=best_iteration,
-            kind=kind,
-            category=category,
-            producer_id=tree,
-            format_=format_,
-            limit=limit,
+            *args,
             page=page,
             page_size=page_size,
         )

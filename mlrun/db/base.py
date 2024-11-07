@@ -152,22 +152,11 @@ class RunDBInterface(ABC):
     @abstractmethod
     def paginated_list_artifacts(
         self,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        tag: Optional[str] = "",
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since=None,
-        until=None,
-        iter: int = None,
-        best_iteration: bool = False,
-        kind: str = None,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
-        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        limit: int = None,
+        *args,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
+        **kwargs,
     ):
         pass
 

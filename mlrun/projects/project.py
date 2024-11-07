@@ -3911,7 +3911,12 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.paginated_list_artifacts(
-            *args, page=page, page_size=page_size, page_token=page_token, **kwargs
+            *args,
+            project=self.metadata.name,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            **kwargs,
         )
 
     def list_models(
@@ -4023,6 +4028,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.paginated_list_artifacts(
             *args,
+            project=self.metadata.name,
             page=page,
             page_size=page_size,
             page_token=page_token,

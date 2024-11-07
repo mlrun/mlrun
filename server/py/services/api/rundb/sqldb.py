@@ -261,22 +261,6 @@ class SQLRunDB(RunDBInterface):
             limit=limit,
         )
 
-    def paginated_list_artifacts(
-        self,
-        *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
-        **kwargs,
-    ):
-        return self._transform_db_error(
-            services.api.crud.Artifacts().list_artifacts,
-            self.session,
-            *args,
-            page=page,
-            page_size=page_size,
-        )
-
     def del_artifact(
         self,
         key,

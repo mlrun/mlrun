@@ -1197,25 +1197,11 @@ class HTTPRunDB(RunDBInterface):
 
     def paginated_list_artifacts(
         self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        iter: int = None,
-        best_iteration: bool = False,
-        kind: str = None,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
-        producer_uri: str = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: int = None,
+        *args,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
+        **kwargs,
     ) -> tuple[ArtifactList, Optional[str]]:
         """List artifacts with support for pagination and various filtering options.
 
@@ -1223,20 +1209,10 @@ class HTTPRunDB(RunDBInterface):
         Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
         will return a list of artifacts that match the filtering criteria provided.
 
-        Examples::
+        For detailed information about the parameters, refer to the `list_artifacts` method:
+            See :py:func:`~list_artifacts` for more details.
 
-            # Show latest version of all artifacts in project
-            latest_artifacts, token = db.paginated_list_artifacts(
-                tag="latest", project="iris"
-            )
-            # check different artifact versions for a specific artifact
-            result_versions, token = db.paginated_list_artifacts(
-                "results", tag="*", project="iris"
-            )
-            # Show artifacts with label filters - both uploaded and of binary type
-            result_labels, token = db.paginated_list_artifacts(
-                "results", tag="*", project="iris", labels=["uploaded", "type=binary"]
-            )
+        Examples::
 
             # Fetch first page of artifacts with page size of 5
             artifacts, token = db.paginated_list_artifacts(
@@ -1251,33 +1227,18 @@ class HTTPRunDB(RunDBInterface):
                 project="my-project", page=3, page_size=5
             )
 
-        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
-            case-sensitive. This means that querying for ``~name`` may return artifacts named
-            ``my_Name_1`` or ``surname``.
-        :param project: Project name.
-        :param tag: Return artifacts assigned this tag.
-        :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :param since: Return artifacts updated after this date (as datetime object).
-        :param until: Return artifacts updated before this date (as datetime object).
-        :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
-            ``None`` (default) return artifacts from all iterations.
-        :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
-            artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
-            from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
-        :param kind: Return artifacts of the requested kind.
-        :param category: Return artifacts of the requested category.
-        :param tree: Return artifacts of the requested tree.
-        :param producer_uri: Return artifacts produced by the requested producer URI. Producer URI usually
-            points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
-            is a workflow id (artifact was created as part of a workflow).
-        :param format_: The format in which to return the artifacts. Default is 'full'.
-        :param limit: Maximum number of artifacts to return.
+            # Automatically iterate over all pages without explicitly specifying the page number
+            artifacts = []
+            token = None
+            while True:
+                page_artifacts, token = db.paginated_list_artifacts(
+                    project="my-project", page_token=token, page_size=5
+                )
+                artifacts.extend(page_artifacts)
+                if not token:  # If no token is returned, we've reached the last page
+                    break
+            print(f"Total artifacts retrieved: {len(artifacts)}")
+
         :param page: The page number to retrieve. If not provided, the next page will be retrieved.
         :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
         :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
@@ -1287,24 +1248,12 @@ class HTTPRunDB(RunDBInterface):
         """
 
         return self._list_artifacts(
-            name=name,
-            project=project,
-            tag=tag,
-            labels=labels,
-            since=since,
-            until=until,
-            iter=iter,
-            best_iteration=best_iteration,
-            kind=kind,
-            category=category,
-            tree=tree,
-            producer_uri=producer_uri,
-            format_=format_,
-            limit=limit,
+            *args,
             page=page,
             page_size=page_size,
             page_token=page_token,
             return_all=False,
+            **kwargs,
         )
 
     def _list_artifacts(

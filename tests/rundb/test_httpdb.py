@@ -903,6 +903,18 @@ def test_paginated_list_artifacts(create_server):
     assert artifacts[0]["metadata"].get("key") == "artifact_1"
     assert token is None
 
+    # Automatically iterate over all pages without explicitly specifying the page number
+    artifacts = []
+    token = None
+    while True:
+        page_artifacts, token = db.paginated_list_artifacts(
+            project=project_name, page_token=token, page_size=page_size
+        )
+        artifacts.extend(page_artifacts)
+        if not token:  # If no token is returned, we've reached the last page
+            break
+    assert len(artifacts) == num_artifacts
+
 
 def _generate_project_and_artifact(project: str = "newproj", tag: str = None):
     proj_obj = mlrun.new_project(project)

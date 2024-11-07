@@ -52,8 +52,8 @@ import services.api.utils.singletons.k8s
 import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
+from services.api.daemon import app, daemon
 from services.api.initial_data import init_data
-from services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 
 # Importing here since mlrun_pipelines imports mlconf and it causes circular import
 import mlrun_pipelines.utils  # isort:skip
@@ -135,7 +135,7 @@ def db() -> typing.Iterator[sqlalchemy.orm.Session]:
 
 def set_base_url_for_test_client(
     client: typing.Union[httpx.AsyncClient, TestClient],
-    prefix: str = BASE_VERSIONED_API_PREFIX,
+    prefix: str = daemon.service.BASE_VERSIONED_SERVICE_PREFIX,
 ):
     client.base_url = client.base_url.join(prefix)
 
@@ -167,7 +167,9 @@ def unversioned_client(db) -> Generator:
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
         with TestClient(app) as unversioned_test_client:
-            set_base_url_for_test_client(unversioned_test_client, API_PREFIX)
+            set_base_url_for_test_client(
+                unversioned_test_client, daemon.service.SERVICE_PREFIX
+            )
             yield unversioned_test_client
 
 

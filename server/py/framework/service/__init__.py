@@ -51,6 +51,10 @@ class Service(ABC):
     def _register_routes(self):
         pass
 
+    @abstractmethod
+    async def move_service_to_online(self):
+        pass
+
     def _initialize_app(self):
         # Initializes fastAPI app - each service register the routers they implement
         # API gateway registers all routers, alerts service registers alert router
@@ -67,6 +71,7 @@ class Service(ABC):
         )
 
     # https://fastapi.tiangolo.com/advanced/events/
+
     @contextlib.asynccontextmanager
     async def lifespan(self, app_: fastapi.FastAPI):
         await self._setup_service()
@@ -93,12 +98,9 @@ class Service(ABC):
         await self._start_periodic_functions()
 
         if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
-            await self._move_service_to_online()
+            await self.move_service_to_online()
 
     async def _custom_setup_service(self):
-        pass
-
-    async def _move_service_to_online(self):
         pass
 
     async def _teardown_service(self):
@@ -189,5 +191,5 @@ class Daemon(ABC):
         return self._service.app
 
     @property
-    def service(self):
+    def service(self) -> Service:
         return self._service

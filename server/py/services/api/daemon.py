@@ -22,6 +22,10 @@ class Daemon(framework.service.Daemon):
     def initialize(self):
         self._service.initialize()
 
+    @property
+    def service(self) -> services.api.main.Service:
+        return self._service
+
 
 daemon = Daemon(service_cls=services.api.main.Service)
 daemon.initialize()

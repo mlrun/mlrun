@@ -113,7 +113,7 @@ class Service(framework.service.Service):
         ):
             services.api.initial_data.init_data()
 
-    async def _move_service_to_online(self):
+    async def move_service_to_online(self):
         self._logger.info("Moving api to online")
 
         # scheduler is needed on both workers and chief
@@ -693,7 +693,7 @@ class Service(framework.service.Service):
             self._logger.info(
                 "Chief reached online state! Switching worker state to online"
             )
-            await self._move_service_to_online()
+            await self.move_service_to_online()
             self._logger.info("Worker state reached online")
 
         else:

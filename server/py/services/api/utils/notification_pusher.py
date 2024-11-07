@@ -185,3 +185,17 @@ class AlertNotificationPusher(_NotificationPusherBase):
             project,
             mask_params=False,
         )
+
+
+def resolve_notifications_default_params():
+    # TODO: After implementing make running notification send from the server side (ML-8069),
+    #       we should move all the notifications classes from the client to the server and also
+    #       create new function on the NotificationBase class for resolving the default params.
+    #       After that we can remove this function.
+    return {
+        NotificationTypes.console: {},
+        NotificationTypes.git: {},
+        NotificationTypes.ipython: {},
+        NotificationTypes.slack: {},
+        NotificationTypes.webhook: {},
+    }

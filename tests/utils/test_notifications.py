@@ -29,7 +29,22 @@ from mlrun.utils.notifications.notification.webhook import WebhookNotification
 @pytest.mark.parametrize(
     "notification_kind", mlrun.common.schemas.notification.NotificationKind
 )
-def test_load_notification(notification_kind):
+@pytest.mark.parametrize(
+    "params, default_params, expected_params",
+    [
+        (
+            {"webhook": "some-webhook"},
+            {"webhook": "some-default"},
+            {"webhook": "some-webhook"},
+        ),
+        (
+            {"webhook": "some-webhook"},
+            {"hello": "world"},
+            {"webhook": "some-webhook", "hello": "world"},
+        ),
+    ],
+)
+def test_load_notification(notification_kind, params, default_params, expected_params):
     run_uid = "test-run-uid"
     notification_name = "test-notification-name"
     when_state = "completed"
@@ -39,6 +54,7 @@ def test_load_notification(notification_kind):
             "when": when_state,
             "status": "pending",
             "name": notification_name,
+            "params": params,
         }
     )
     run = mlrun.model.RunObject.from_dict(
@@ -49,8 +65,13 @@ def test_load_notification(notification_kind):
         }
     )
 
+    default_params = {
+        notification_kind: default_params,
+    }
     notification_pusher = (
-        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+        mlrun.utils.notifications.notification_pusher.NotificationPusher(
+            [run], default_params
+        )
     )
     notification_pusher._load_notification(run, notification)
     loaded_notifications = (
@@ -58,6 +79,7 @@ def test_load_notification(notification_kind):
         + notification_pusher._async_notifications
     )
     assert len(loaded_notifications) == 1
+    assert loaded_notifications[0][0].params == expected_params
     assert loaded_notifications[0][0].name == notification_name
 
 

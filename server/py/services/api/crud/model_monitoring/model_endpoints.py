@@ -34,6 +34,11 @@ from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFile,
     delete_model_monitoring_schedules_folder,
 )
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasuresFile,
+    delete_model_monitoring_stats_folder,
+)
 from mlrun.utils import logger
 
 
@@ -159,10 +164,22 @@ class ModelEndpoints:
         ):
             # Create model monitoring schedules file
             ModelMonitoringSchedulesFile.from_model_endpoint(model_endpoint).create()
-
+            # Create model monitoring stats files:
+            cls._create_model_monitoring_stats_files(model_endpoint=model_endpoint)
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
         return model_endpoint
+
+    @classmethod
+    def _create_model_monitoring_stats_files(
+        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
+    ):
+        ModelMonitoringCurrentStatsFile.from_model_endpoint(
+            model_endpoint=model_endpoint
+        ).create()
+        ModelMonitoringDriftMeasuresFile.from_model_endpoint(
+            model_endpoint=model_endpoint
+        ).create()
 
     def patch_model_endpoint(
         self,
@@ -337,6 +354,13 @@ class ModelEndpoints:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
             logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
+        # Delete stats files
+        ModelMonitoringCurrentStatsFile(
+            project=project, endpoint_id=endpoint_id
+        ).delete()
+        ModelMonitoringDriftMeasuresFile(
+            project=project, endpoint_id=endpoint_id
+        ).delete()
 
         ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id).delete()
 
@@ -600,6 +624,8 @@ class ModelEndpoints:
             model_monitoring_applications=model_monitoring_applications,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+        # Delete model monitoring stats folder.
+        delete_model_monitoring_stats_folder(project=project_name)
 
         # Delete model monitoring schedules folder
         delete_model_monitoring_schedules_folder(project_name)

@@ -13,10 +13,18 @@
 # limitations under the License.
 #
 
-from .artifact import ArtifactFormat  # noqa
-from .function import FunctionFormat  # noqa
-from .pipeline import PipelineFormat  # noqa
-from .project import ProjectFormat  # noqa
-from .run import RunFormat  # noqa
-from .feature_set import FeatureSetFormat  # noqa
-from .model_endpoint import ModelEndpointFormat  # noqa
+import typing
+
+import mlrun.common.types
+
+from .base import ObjectFormat
+
+
+class ModelEndpointFormat(ObjectFormat, mlrun.common.types.StrEnum):
+    full = "full"
+
+    @staticmethod
+    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+        return {
+            ModelEndpointFormat.full: None,
+        }[_format]

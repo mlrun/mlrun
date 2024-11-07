@@ -40,6 +40,7 @@ import requests
 import yaml
 from mlrun_pipelines.models import PipelineNodeWrapper
 
+import mlrun.artifacts.model
 import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.runtimes.constants
@@ -3813,7 +3814,7 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Get latest version of all artifacts in project
-            latest_artifacts = project.list_artifacts("", tag="latest")
+            latest_artifacts = project.list_artifacts(tag="latest")
             # check different artifact versions for a specific artifact, return as objects list
             result_versions = project.list_artifacts("results", tag="*").to_objects()
 
@@ -3890,7 +3891,7 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Get latest version of all artifacts in project
-            latest_artifacts, token = project.paginated_list_artifacts("", tag="latest")
+            latest_artifacts, token = project.paginated_list_artifacts(tag="latest")
             # heck different artifact versions for a specific artifact, return as objects list
             result_versions, token = project.paginated_list_artifacts(
                 "results", tag="*"
@@ -3975,7 +3976,7 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Get latest version of all models in project
-            latest_models = project.list_models("", tag="latest")
+            latest_models = project.list_models(tag="latest")
 
 
         :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
@@ -4010,7 +4011,7 @@ class MlrunProject(ModelObj):
             until=until,
             iter=iter,
             best_iteration=best_iteration,
-            kind="model",
+            kind=mlrun.artifacts.model.ModelArtifact.kind,
             tree=tree,
             limit=limit,
             format_=format_,
@@ -4039,7 +4040,7 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Get latest version of all models in project
-            latest_models, token = project.paginated_list_models("", tag="latest")
+            latest_models, token = project.paginated_list_models(tag="latest")
             # Fetch first page of artifacts with page size of 5
             artifacts, token = project.paginated_list_models("results", page_size=5)
             # Fetch next page using the pagination token from the previous response
@@ -4086,7 +4087,7 @@ class MlrunProject(ModelObj):
             until=until,
             iter=iter,
             best_iteration=best_iteration,
-            kind="model",
+            kind=mlrun.artifacts.model.ModelArtifact.kind,
             tree=tree,
             limit=limit,
             format_=format_,

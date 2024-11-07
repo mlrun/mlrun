@@ -319,7 +319,7 @@ class HTTPRunDB(RunDBInterface):
 
         Depending on the `return_all` parameter:
         - If `return_all` is `True`, fetches and yields all pages of results.
-        - If `return_all` is `False`, fetches and yields only the first page of results.
+        - If `return_all` is False, only a single page of results is fetched and yielded.
 
         :param method: The HTTP method (GET, POST, etc.).
         :param path: The API endpoint path.
@@ -357,7 +357,7 @@ class HTTPRunDB(RunDBInterface):
 
         response = _api_call(page_params)
 
-        # Yield the first page of results
+        # Yield only a single page of results
         yield response
 
         if return_all:
@@ -1138,7 +1138,7 @@ class HTTPRunDB(RunDBInterface):
         Examples::
 
             # Show latest version of all artifacts in project
-            latest_artifacts = db.list_artifacts("", tag="latest", project="iris")
+            latest_artifacts = db.list_artifacts(tag="latest", project="iris")
             # check different artifact versions for a specific artifact
             result_versions = db.list_artifacts("results", tag="*", project="iris")
             # Show artifacts with label filters - both uploaded and of binary type
@@ -1175,7 +1175,7 @@ class HTTPRunDB(RunDBInterface):
         :param limit:           Maximum number of artifacts to return.
         """
 
-        artifacts, _ = self._list_or_paginated_artifacts(
+        artifacts, _ = self._list_artifacts(
             name=name,
             project=project,
             tag=tag,
@@ -1226,7 +1226,7 @@ class HTTPRunDB(RunDBInterface):
 
             # Show latest version of all artifacts in project
             latest_artifacts, token = db.paginated_list_artifacts(
-                "", tag="latest", project="iris"
+                tag="latest", project="iris"
             )
             # check different artifact versions for a specific artifact
             result_versions, token = db.paginated_list_artifacts(
@@ -1285,7 +1285,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: A tuple containing the list of artifacts and an optional `page_token` for pagination.
         """
 
-        return self._list_or_paginated_artifacts(
+        return self._list_artifacts(
             name=name,
             project=project,
             tag=tag,
@@ -1306,7 +1306,7 @@ class HTTPRunDB(RunDBInterface):
             return_all=False,
         )
 
-    def _list_or_paginated_artifacts(
+    def _list_artifacts(
         self,
         name: Optional[str] = None,
         project: Optional[str] = None,
@@ -1329,7 +1329,7 @@ class HTTPRunDB(RunDBInterface):
         page_token: Optional[str] = None,
         return_all: bool = False,
     ) -> tuple[ArtifactList, Optional[str]]:
-        """Handles both list and paginated artifact fetching."""
+        """Handles list artifacts, both paginated and not."""
 
         project = project or config.default_project
         labels = self._parse_labels(labels)

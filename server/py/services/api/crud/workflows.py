@@ -23,6 +23,7 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 import services.api.api.utils
 import services.api.constants
+import services.api.utils.notification_pusher
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
 from mlrun.utils import template_artifact_path

@@ -29,6 +29,46 @@ class MonitoringStrEnum(StrEnum):
         return list(map(lambda c: c.value, cls))
 
 
+class ModelEndpointSchema(MonitoringStrEnum):
+    # metadata
+    UID = "uid"
+    PROJECT = "project"
+    ENDPOINT_TYPE = "endpoint_type"
+    NAME = "name"
+    CREATED = "created"
+    UPDATED = "updated"
+    LABELS = "labels"
+
+    # spec
+    FUNCTION_NAME = "function_name"
+    FUNCTION_UID = "function_uid"
+    MODEL_NAME = "model_name"
+    MODEL_TAG = "model_tag"
+    MODEL_CLASS = "model_class"
+    MODEL_UID = "model_uid"
+    FEATURE_NAMES = "feature_names"
+    LABEL_NAMES = "label_names"
+
+    # status
+    STATE = "state"
+    MONITORING_MODE = "monitoring_mode"
+    MONITORING_FEATURE_SET_URI = "monitoring_feature_set_uri"
+    CHILDREN = "children"
+    CHILDREN_UIDS = "children_uids"
+    FIRST_REQUEST = "first_request"
+    FUNCTION_URI = "function_uri"
+    MODEL_URI = "model_uri"
+
+    # status - operative
+    LAST_REQUEST = "last_request"
+    DRIFT_STATUS = "drift_status"
+    AVG_LATENCY = "avg_latency"
+    ERROR_COUNT = "error_count"
+    FEATURE_STATS = "feature_stats"
+    CURRENT_STATS = "current_stats"
+    DRIFT_MEASURES = "drift_measures"
+
+
 class EventFieldType:
     FUNCTION_URI = "function_uri"
     FUNCTION = "function"
@@ -116,13 +156,14 @@ class WriterEvent(MonitoringStrEnum):
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
-    EVENT_KIND = "event_kind"  # metric or result
+    EVENT_KIND = "event_kind"  # metric or result or stats
     DATA = "data"
 
 
 class WriterEventKind(MonitoringStrEnum):
     METRIC = "metric"
     RESULT = "result"
+    STATS = "stats"
 
 
 class MetricData(MonitoringStrEnum):
@@ -136,6 +177,17 @@ class ResultData(MonitoringStrEnum):
     RESULT_KIND = "result_kind"
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
+
+
+class StatsData(MonitoringStrEnum):
+    STATS_NAME = "stats_name"
+    STATS = "stats"
+    TIMESTAMP = "timestamp"
+
+
+class StatsKind(MonitoringStrEnum):
+    CURRENT_STATS = "current_stats"
+    DRIFT_MEASURES = "drift_measures"
 
 
 class EventLiveStats:
@@ -208,6 +260,7 @@ class FileTargetKind:
     MONITORING_SCHEDULES = "monitoring_schedules"
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
+    STATS = "stats"
 
 
 class ModelMonitoringMode(StrEnum):
@@ -219,6 +272,11 @@ class EndpointType(IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
+    BATCH_EP = 4  # endpoint that is representing an offline batch endpoint
+
+    @classmethod
+    def top_level_list(cls):
+        return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP]
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):
@@ -358,7 +416,6 @@ class SpecialApps:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
-
 
 V3IO_MODEL_MONITORING_DB = "v3io"
 

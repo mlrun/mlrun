@@ -30,8 +30,9 @@ class IPythonNotification(NotificationBase):
         self,
         name: str = None,
         params: dict[str, str] = None,
+        default_params: dict[str, str] = None,
     ):
-        super().__init__(name, params)
+        super().__init__(name, params, default_params)
         self._ipython = None
         try:
             import IPython

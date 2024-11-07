@@ -222,11 +222,12 @@ async def list_functions(
     if project is None:
         project = config.default_project
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
-    )
+    if project != "*":
+        await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            project,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
 
     paginator = services.api.utils.pagination.Paginator()
 

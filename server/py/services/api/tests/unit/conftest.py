@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import os
 import pathlib
 import typing
 import unittest.mock
@@ -57,13 +58,15 @@ from services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 # Importing here since mlrun_pipelines imports mlconf and it causes circular import
 import mlrun_pipelines.utils  # isort:skip
 
-# Explicitly declare common fixtures allow pytest to find them regardless of CWD
-pytest_plugins = [
-    "tests.common_fixtures",
-]
-
 tests_root_directory = pathlib.Path(__file__).absolute().parent
 assets_path = tests_root_directory.joinpath("assets")
+
+if str(tests_root_directory) in os.getcwd():
+    # If this is the top level conftest - we need to explicitly declare the base common fixtures
+    # make pytest use them. If this is not the top level conftest then providing pytest_plugins is not allowed.
+    pytest_plugins = [
+        "tests.common_fixtures",
+    ]
 
 
 @pytest.fixture(autouse=True)

@@ -5671,16 +5671,34 @@ class SQLDB(DBInterface):
             - partition_name: The name for the partition.
             - partition_value: The "LESS THAN" boundary value for the partition.
         """
+        query = text("""
+            SELECT PARTITION_DESCRIPTION
+            FROM INFORMATION_SCHEMA.PARTITIONS
+            WHERE TABLE_NAME = :table_name
+        """)
+
+        existing_partition_values = {
+            row["PARTITION_DESCRIPTION"]
+            for row in session.execute(query, {"table_name": table_name})
+        }
+
+        # Filter partitions to add only those that are not in the table
+        new_partitions = [
+            f"PARTITION p{partition_name} VALUES LESS THAN ({partition_value})"
+            for partition_name, partition_value in partitioning_information_list
+            if str(partition_value) not in existing_partition_values
+        ]
+
+        if not new_partitions:
+            return
+
         alter_table_template = f"""
             ALTER TABLE {table_name}
             ADD PARTITION (
-                {", ".join([
-            f"PARTITION p{partition_name} VALUES LESS THAN ({partition_value})"
-            for partition_name, partition_value in partitioning_information_list
-        ])}
+                {", ".join(new_partitions)}
             );
         """
-        # Execute the partitioning SQL
+
         session.execute(text(alter_table_template))
         session.commit()
 

@@ -4819,7 +4819,9 @@ class SQLDB(DBInterface):
         :param page_size: The page size to query.
         """
         query = session.query(Function, Function.Tag.name)
-        query = query.filter(Function.project == project)
+
+        if project != "*":
+            query = query.filter(Function.project == project)
 
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))

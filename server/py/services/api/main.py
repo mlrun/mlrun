@@ -979,4 +979,4 @@ if __name__ == "__main__":
 
     import services.api.apiuvicorn as uvicorn
 
-    uvicorn.run(logger, httpdb_config=config.httpdb)
+    uvicorn.run(logger, httpdb_config=mlconf.httpdb)

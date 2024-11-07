@@ -89,6 +89,41 @@ def test_build_status_pod_not_found(
 
 
 @pytest.mark.asyncio
+async def test_list_functions_for_all_projects(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    project_1 = PROJECT + "-1"
+    project_2 = PROJECT + "-2"
+    services.api.tests.unit.api.utils.create_project(client, project_1)
+    services.api.tests.unit.api.utils.create_project(client, project_2)
+
+    number_of_functions = 10
+    for project in [project_1, project_2]:
+        for counter in range(number_of_functions):
+            function_name = f"{project}-function-name-{counter}"
+            function = {
+                "kind": "job",
+                "metadata": {
+                    "name": function_name,
+                    "project": project,
+                    "tag": "function-tag",
+                },
+                "spec": {"image": "mlrun/mlrun"},
+            }
+
+            post_function_response = client.post(
+                f"projects/{project}/functions/{function_name}",
+                json=function,
+            )
+
+            assert post_function_response.status_code == HTTPStatus.OK.value
+
+    response = client.get("projects/*/functions")
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["funcs"]) == number_of_functions * 2
+
+
+@pytest.mark.asyncio
 async def test_list_functions_with_pagination(
     db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
 ):

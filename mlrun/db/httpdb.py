@@ -331,7 +331,7 @@ class HTTPRunDB(RunDBInterface):
         :param timeout: Timeout for the request.
         :param version: API version, optional.
         :param return_all: If `True`, fetches all pages and returns them in one shot. If `False`, returns only
-        the requested page or the next page.
+            the requested page or the next page.
         """
 
         def _api_call(_params):
@@ -940,10 +940,11 @@ class HTTPRunDB(RunDBInterface):
             )
         error = "list runs"
         _path = self._path_of("runs", project)
-        responses, _ = self.paginated_api_call(
+        responses = self.paginated_api_call(
             "GET", _path, error, params=params, return_all=True
         )
-        return RunList(self.process_paginated_responses(responses, "runs"))
+        paginated_responses, _ = self.process_paginated_responses(responses, "runs")
+        return RunList(paginated_responses)
 
     def del_runs(
         self,
@@ -1532,10 +1533,11 @@ class HTTPRunDB(RunDBInterface):
         }
         error = "list functions"
         path = f"projects/{project}/functions"
-        responses, _ = self.paginated_api_call(
+        responses = self.paginated_api_call(
             "GET", path, error, params=params, return_all=True
         )
-        return self.process_paginated_responses(responses, "funcs")
+        paginated_responses, _ = self.process_paginated_responses(responses, "funcs")
+        return paginated_responses
 
     def list_runtime_resources(
         self,

@@ -30,8 +30,6 @@ from sqlalchemy.dialects import mysql
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.partition
 
-import services.api.crud.alert_activation
-
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
 down_revision = "dd6049a25a81"

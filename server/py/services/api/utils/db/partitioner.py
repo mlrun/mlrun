@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas.partition
 import mlrun.utils.singleton
+
 import services.api.db.sqldb.db
 
 

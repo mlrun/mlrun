@@ -808,16 +808,13 @@ class Service(framework.service.Service):
             for run in runs
         ]
 
-    self.logger.debug(
-        "Got terminal runs with configured notifications", runs_amount=len(runs)
-    )
-    default_notification_params = (
-        services.api.utils.notification_pusher.resolve_notifications_default_params()
-    )
-    services.api.utils.notification_pusher.RunNotificationPusher(
-        unmasked_runs, default_notification_params
-    ).push()
-
+        self._logger.debug(
+            "Got terminal runs with configured notifications", runs_amount=len(runs)
+        )
+        default_notification_params = services.api.utils.notification_pusher.resolve_notifications_default_params()
+        services.api.utils.notification_pusher.RunNotificationPusher(
+            unmasked_runs, default_notification_params
+        ).push()
 
     def _generate_event_on_failed_runs(
         self, db: services.api.db.base.DBInterface, db_session, last_update_time

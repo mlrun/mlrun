@@ -134,9 +134,9 @@ default_config = {
         "resources": {
             "delete_crd_resources_timeout": "5 minutes",
         },
-        "alert_activations": {
-            "retention_days": 14 * 7,
-        },
+    },
+    "object_retentions": {
+        "alert_activation": 14 * 7,  # days
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
@@ -849,6 +849,22 @@ class Config:
         name = self.__class__.__name__
         return f"{name}({self._cfg!r})"
 
+    def __iter__(self):
+        if isinstance(self._cfg, Mapping):
+            return self._cfg.__iter__()
+
+    def items(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self._cfg.items())
+
+    def keys(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self.data.keys())
+
+    def values(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self.data.values())
+
     def update(self, cfg, skip_errors=False):
         for key, value in cfg.items():
             if hasattr(self, key):
@@ -1041,18 +1057,16 @@ class Config:
                 f"is not allowed for iguazio version: {igz_version} < 3.5.1"
             )
 
-    @staticmethod
-    def validate_alert_activation_retention():
-        if config.crud.alert_activations.retention_days < 7 and not os.getenv(
-            "PARTITION_INTERVAL"
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Alert activation partition interval must be greater than a week"
-            )
-        elif config.crud.alert_activations.retention_days > 53 * 7:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Alert activation partition interval must be less than a year"
-            )
+    def validate_object_retentions(self):
+        for table_name, retention_days in self.object_retentions.items():
+            if retention_days < 7 and not os.getenv("PARTITION_INTERVAL"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{table_name} partition interval must be greater than a week"
+                )
+            elif retention_days > 53 * 7:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{table_name} partition interval must be less than a year"
+                )
 
     def resolve_chief_api_url(self) -> str:
         if self.httpdb.clusterization.chief.url:
@@ -1392,7 +1406,7 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
-    config.validate_alert_activation_retention()
+    config.validate_object_retentions()
 
 
 def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):

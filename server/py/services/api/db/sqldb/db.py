@@ -5699,8 +5699,8 @@ class SQLDB(DBInterface):
             );
         """
 
+        # No commit needed here, as DDL commands in MySQL cause an implicit commit
         session.execute(text(alter_table_template))
-        session.commit()
 
     @staticmethod
     def drop_partitions(
@@ -5715,22 +5715,38 @@ class SQLDB(DBInterface):
         :param table_name: The name of the table with partitions.
         :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
         """
-        # Query partitions older than cutoff_partition_name
+
+        # Retrieve partitions to drop as a list
         partitions_to_drop = session.execute(
             text("""
-            SELECT GROUP_CONCAT(PARTITION_NAME) AS partitions
+            SELECT PARTITION_NAME
             FROM information_schema.PARTITIONS
             WHERE TABLE_NAME = :table_name
               AND PARTITION_NAME < :cutoff_partition_name
-        """),
+            """),
             {"table_name": table_name, "cutoff_partition_name": cutoff_partition_name},
-        ).scalar()
+        ).fetchall()
 
         # Only proceed if there are partitions to drop
         if partitions_to_drop:
-            drop_sql = f"ALTER TABLE {table_name} DROP PARTITION {partitions_to_drop}"
+            # Aggregate partition names into a comma-separated string for the SQL query
+            partitions_to_drop_str = ", ".join(
+                [f"{partition[0]}" for partition in partitions_to_drop]
+            )
+
+            # Formulate the DROP PARTITION SQL statement
+            drop_sql = (
+                f"ALTER TABLE {table_name} DROP PARTITION {partitions_to_drop_str}"
+            )
+
+            # Log the partitions to be dropped for reference
+            logger.debug(
+                f"Dropping partitions for table {table_name}: {partitions_to_drop_str}"
+            )
+
+            # Execute the DROP PARTITION statement
+            # No commit needed here, as DDL commands in MySQL cause an implicit commit
             session.execute(text(drop_sql))
-            session.commit()
 
     @staticmethod
     def get_partition_expression_for_table(

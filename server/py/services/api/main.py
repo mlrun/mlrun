@@ -647,26 +647,27 @@ def _start_periodic_project_summaries_calculation():
 
 
 def _start_periodic_partition_management():
-    retention_days = config.crud.alert_activations.retention_days
-    logger.info(
-        "Starting periodic partition management for alert activations",
-        retention_days=retention_days,
-    )
-    interval_in_seconds = retention_days * 24 * 60 * 60
-    run_function_periodically(
-        interval_in_seconds,
-        _manage_partitions.__name__,
-        False,
-        _manage_partitions,
-        retention_days,
-    )
+    for table_name, retention_days in config.object_retentions.items():
+        logger.info(
+            f"Starting periodic partition management for table {table_name}",
+            retention_days=retention_days,
+        )
+        interval_in_seconds = retention_days * 24 * 60 * 60
+        run_function_periodically(
+            interval_in_seconds,
+            f"{_manage_partitions.__name__}_{table_name}",
+            False,
+            _manage_partitions,
+            table_name=table_name,
+            retention_days=retention_days,
+        )
 
 
-async def _manage_partitions(retention_days):
+async def _manage_partitions(table_name, retention_days):
     await fastapi.concurrency.run_in_threadpool(
         services.api.db.session.run_function_with_new_db_session,
         services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions,
-        table_name="alert_activation",
+        table_name=table_name,
         retention_days=retention_days,
     )
 

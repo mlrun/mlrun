@@ -116,7 +116,7 @@
 |ML-3680|Function specs that are modified before running the workflow are now saved.|
 |ML-3804|A serving step with no class now inherits parameters from the function spec. |
 |ML-4442|You can now add monitoring after a model is deployed (`set_tracking()` was not set on the serving function).|
-|ML-4490|Documentation: Added caveat that [MLRun does not support decompressing large Kubeflow pipeline graphs.](../runtimes/dask-pipeline.html#define-and-save-a-pipeline).|
+|ML-4490|Documentation: Added caveat that [MLRun does not support decompressing large Kubeflow pipeline graphs.](../runtimes/dask-pipeline.ipynb#define-and-save-a-pipeline).|
 |ML-4636|A local run that was created via `get_or_create_ctx` can be marked as complete using `commit()` method.|
 |ML-4846|CE: `V3IO_ACCESS_KEY` is no longer required for Parquet target.|
 |ML-4934|Modifying the parameters of a serving-function (for example changing `default_batch_intervals`) that is configured for model-monitoring tracking does not require a specific workflow. |

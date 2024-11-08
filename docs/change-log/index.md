@@ -116,13 +116,13 @@
 |ML-3680|Function specs that are modified before running the workflow are now saved.|
 |ML-3804|A serving step with no class now inherits parameters from the function spec. |
 |ML-4442|You can now add monitoring after a model is deployed (`set_tracking()` was not set on the serving function).|
-|ML-4490|Documentation: Added caveat that [MLRun does not support decompressing large Kubeflow pipeline graphs.](../runtimes/dask-pipeline.ipynb#define-and-save-a-pipeline).|
+|ML-4490|Documentation: Added caveat that [MLRun does not support decompressing large Kubeflow pipeline graphs](../runtimes/dask-pipeline.ipynb#define-and-save-a-pipeline).|
 |ML-4636|A local run that was created via `get_or_create_ctx` can be marked as complete using `commit()` method.|
 |ML-4846|CE: `V3IO_ACCESS_KEY` is no longer required for Parquet target.|
 |ML-4934|Modifying the parameters of a serving-function (for example changing `default_batch_intervals`) that is configured for model-monitoring tracking does not require a specific workflow. |
 |ML-5079|You can now update git remote with `project.create_remote()`.| 
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
-|ML-5627|Documentation: Added details about [labels](../api/mlrun.feature_store/index.html#mlrun.feature_store.Feature).|
+|ML-5627|Documentation: Added details about {py:class}`labels <mlrun.feature_store.Feature>`.|
 |ML-5774|UI: Improved speed of querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
 |ML-6065|Fixed serving graphs when working with Kafka.|
@@ -142,11 +142,11 @@
 |ML-7226|Exception now raised when using use KFP engine with `pass schedule` argument, which is not supported with the KFP engine.|
 |ML-7232|The run state now indicates when a pod fails on OOM.|
 |ML-7256|Deleting artifact by UID deletes only the artifact with the given UID.|
-|ML-7290|Nuclio functions deployed by MLRun: At the Nuclio service level, node selectors are added by Nuclio. In cases where there is overlap between the node selectors specified at the MLRun service level and those applied by Nuclio, the node selectors from the MLRun side take precedence to prevent any conflicts. See [node selection](../runtimes/configuring-job-resources.html#node-selection).|
+|ML-7290|Nuclio functions deployed by MLRun: At the Nuclio service level, node selectors are added by Nuclio. In cases where there is overlap between the node selectors specified at the MLRun service level and those applied by Nuclio, the node selectors from the MLRun side take precedence to prevent any conflicts. See [node selection](../runtimes/configuring-job-resources.md#node-selection).|
 |ML-7335|Serving functions now support up to 4500 models and the size of the serving specification to 1 MB.|
 |ML-7358|MLRun client now validates SSL certificates by default.|
 |ML-7367|Updated OS packages for MLRun UI.|
-|ML-7404/7405|Documentation: Added the minimum Nuclio version for supporting [`disable_default_http_trigger`](../cheat-sheet.html#serving-nuclio-triggers).|
+|ML-7404/7405|Documentation: Added the minimum Nuclio version for supporting [`disable_default_http_trigger`](../cheat-sheet.md#servingnuclio-triggers).|
 |ML-7416|An error message is now displayed upon workflow failure in the "Monitor workflows" tab.|
 |ML-7599|Fixed mlrun-api vulnerabilities.|
 |ML-7613|The pipeline SDK output now displays the logs in addition to the graph animation, and it also raises a warning when a client uses notifications with `engine=kfp`.|
@@ -157,7 +157,7 @@
 |ML-7796|New `project.run()` parameter {py:meth}`workflow_runner_node_selector <mlrun.projects.MlrunProject.run>` that defines the node selector for the workflow runner pod when using a remote engine.|
 |ML-7907|Fixed an issue with RabbitMQ event path when using Model serving functions.|
 |ML-8027|Fix periodic log collection to list only runs with pods. |
-|ML-8029|Notifications with secret params now send notifications. See [Notification parameters and secrets](../concepts/notifications.html#notification-parameters-and-secrets).|
+|ML-8029|Notifications with secret params now send notifications. See [Notification parameters and secrets](../concepts/notifications.md#notification-parameters-and-secrets).|
 
 ## v1.6.4 (2 July 2024)
 
@@ -1135,7 +1135,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | You can build your own images with newer CUDA for a later release of PyTorch. |                 v1.5.0|   
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
-|ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.html#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
+|ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Upgrade the client to v1.6.0 or higher. | v1.6.0 |
 |ML-8115|Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
 |ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|

@@ -2961,13 +2961,18 @@ class SQLDB(DBInterface):
             .exists()
         )
 
-        query = session.query(
-            Schedule.project.label("project_name"),
-            Schedule.name.label("schedule_name"),
-            case([(workflow_label_exists, True)], else_=False).label(
-                "has_workflow_label"
-            ),
-        ).filter(Schedule.next_run_time < next_day).filter(Schedule.next_run_time >= datetime.now(timezone.utc)).all()
+        query = (
+            session.query(
+                Schedule.project.label("project_name"),
+                Schedule.name.label("schedule_name"),
+                case([(workflow_label_exists, True)], else_=False).label(
+                    "has_workflow_label"
+                ),
+            )
+            .filter(Schedule.next_run_time < next_day)
+            .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
+            .all()
+        )
 
         project_to_schedule_pending_jobs_count = collections.defaultdict(int)
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)

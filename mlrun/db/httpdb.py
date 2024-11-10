@@ -1259,73 +1259,6 @@ class HTTPRunDB(RunDBInterface):
             **kwargs,
         )
 
-    def _list_artifacts(
-        self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        iter: int = None,
-        best_iteration: bool = False,
-        kind: str = None,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
-        producer_uri: str = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: int = None,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
-        return_all: bool = False,
-    ) -> tuple[ArtifactList, Optional[str]]:
-        """Handles list artifacts, both paginated and not."""
-
-        project = project or config.default_project
-        labels = self._parse_labels(labels)
-
-        params = {
-            "name": name,
-            "tag": tag,
-            "label": labels,
-            "iter": iter,
-            "best-iteration": best_iteration,
-            "kind": kind,
-            "category": category,
-            "tree": tree,
-            "format": format_,
-            "producer_uri": producer_uri,
-            "since": datetime_to_iso(since),
-            "until": datetime_to_iso(until),
-            "limit": limit,
-            "page": page,
-            "page-size": page_size,
-            "page-token": page_token,
-        }
-
-        error = "list artifacts"
-        endpoint_path = f"projects/{project}/artifacts"
-
-        # Fetch the responses, either one page or all based on `return_all`
-        responses = self.paginated_api_call(
-            "GET",
-            endpoint_path,
-            error,
-            params=params,
-            version="v2",
-            return_all=return_all,
-        )
-        paginated_responses, token = self.process_paginated_responses(
-            responses, "artifacts"
-        )
-
-        values = ArtifactList(paginated_responses)
-        values.tag = tag
-        return values, token
-
     def del_artifacts(
         self,
         name: Optional[str] = None,
@@ -4643,6 +4576,73 @@ class HTTPRunDB(RunDBInterface):
                 "Invalid labels format. Must be a dictionary of strings, a list of strings, "
                 "or a comma-separated string."
             ) from exc
+
+    def _list_artifacts(
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        iter: int = None,
+        best_iteration: bool = False,
+        kind: str = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
+        producer_uri: str = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ) -> tuple[ArtifactList, Optional[str]]:
+        """Handles list artifacts, both paginated and not."""
+
+        project = project or config.default_project
+        labels = self._parse_labels(labels)
+
+        params = {
+            "name": name,
+            "tag": tag,
+            "label": labels,
+            "iter": iter,
+            "best-iteration": best_iteration,
+            "kind": kind,
+            "category": category,
+            "tree": tree,
+            "format": format_,
+            "producer_uri": producer_uri,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
+            "limit": limit,
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
+        }
+
+        error = "list artifacts"
+        endpoint_path = f"projects/{project}/artifacts"
+
+        # Fetch the responses, either one page or all based on `return_all`
+        responses = self.paginated_api_call(
+            "GET",
+            endpoint_path,
+            error,
+            params=params,
+            version="v2",
+            return_all=return_all,
+        )
+        paginated_responses, token = self.process_paginated_responses(
+            responses, "artifacts"
+        )
+
+        values = ArtifactList(paginated_responses)
+        values.tag = tag
+        return values, token
 
 
 def _as_json(obj):

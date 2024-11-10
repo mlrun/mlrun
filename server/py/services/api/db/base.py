@@ -242,17 +242,6 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def paginated_list_artifacts(
-        self,
-        *args,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
-        page_token: typing.Optional[str] = None,
-        **kwargs,
-    ):
-        pass
-
-    @abstractmethod
     def list_artifacts_for_producer_id(
         self,
         session,

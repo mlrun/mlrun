@@ -2977,66 +2977,39 @@ class SQLDB(DBInterface):
 
         next_day = datetime.now(timezone.utc) + timedelta(hours=24)
 
-        schedules_pending_count_per_project = (
-            session.query(
-                Schedule.project,
-                Schedule.name,
-                # The logic here is the following:
-                # If the schedule has a label with the name "workflow" then we take the value of that label
-                # name. Otherwise, we take the value of the label with the name "kind".
-                # The reason for that is that for schedule workflow we have both workflow label and kind label
-                # with job, and on schedule job we have only kind label with job and because of that we first
-                # want to check for workflow label and if it doesn't exist then we take the kind label.
-                func.coalesce(
-                    func.max(
-                        case(
-                            [
-                                (
-                                    Schedule.Label.name
-                                    == mlrun_constants.MLRunInternalLabels.workflow,
-                                    Schedule.Label.name,
-                                )
-                            ],
-                            else_=None,
-                        )
-                    ),
-                    func.max(
-                        case(
-                            [
-                                (
-                                    Schedule.Label.name
-                                    == mlrun_constants.MLRunInternalLabels.kind,
-                                    Schedule.Label.value,
-                                )
-                            ],
-                            else_=None,
-                        )
-                    ),
-                ).label("preferred_label_value"),
+        # We check the workflow label because the schedule kind
+        # is not used properly (not setting pipelines kind for workflow schedules)
+        # TODO: fix the schedule kind to be pipeline when scheduling workflows
+        workflow_label_exists = (
+            select(Schedule.Label.parent)
+            .where(
+                (Schedule.Label.parent == Schedule.id)
+                & (Schedule.Label.name == mlrun_constants.MLRunInternalLabels.workflow)
             )
-            .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
+            .exists()
+        )
+
+        query = (
+            session.query(
+                Schedule.project.label("project_name"),
+                Schedule.name.label("schedule_name"),
+                case([(workflow_label_exists, True)], else_=False).label(
+                    "has_workflow_label"
+                ),
+            )
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
-            .filter(
-                Schedule.Label.name.in_(
-                    [
-                        mlrun_constants.MLRunInternalLabels.workflow,
-                        mlrun_constants.MLRunInternalLabels.kind,
-                    ]
-                )
-            )
-            .group_by(Schedule.project, Schedule.name)
             .all()
         )
 
         project_to_schedule_pending_jobs_count = collections.defaultdict(int)
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)
 
-        for result in schedules_pending_count_per_project:
-            project_name, schedule_name, kind = result
-            if kind == mlrun_constants.MLRunInternalLabels.workflow:
+        for result in query:
+            project_name, schedule_name, is_workflow = result
+            if is_workflow:
                 project_to_schedule_pending_workflows_count[project_name] += 1
-            elif kind == mlrun.common.schemas.ScheduleKinds.job:
+            else:
                 project_to_schedule_pending_jobs_count[project_name] += 1
 
         return (

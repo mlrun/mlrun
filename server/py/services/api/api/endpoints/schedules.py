@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from http import HTTPStatus
+from typing import Optional
 
 import fastapi
 from fastapi import APIRouter, Depends, Response
@@ -140,7 +141,7 @@ async def update_schedule(
 @router.get("", response_model=mlrun.common.schemas.SchedulesOutput)
 async def list_schedules(
     project: str,
-    name: str = None,
+    name: Optional[str] = None,
     # TODO: Remove _labels in 1.9.0
     _labels: str = fastapi.Query(
         None,

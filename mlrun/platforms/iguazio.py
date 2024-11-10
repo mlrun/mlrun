@@ -15,6 +15,7 @@
 import json
 import os
 import urllib
+from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -250,7 +251,9 @@ class KafkaOutputStream:
 
 
 class V3ioStreamClient:
-    def __init__(self, url: str, shard_id: int = 0, seek_to: str = None, **kwargs):
+    def __init__(
+        self, url: str, shard_id: int = 0, seek_to: Optional[str] = None, **kwargs
+    ):
         endpoint, stream_path = parse_path(url)
         seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]
         seek_to = seek_to or "LATEST"

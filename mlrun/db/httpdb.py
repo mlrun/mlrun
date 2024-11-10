@@ -171,7 +171,7 @@ class HTTPRunDB(RunDBInterface):
         return f"{cls}({self.base_url!r})"
 
     @staticmethod
-    def get_api_path_prefix(version: str = None) -> str:
+    def get_api_path_prefix(version: Optional[str] = None) -> str:
         """
         :param version: API version to use, None (the default) will mean to use the default value from mlrun.config,
          for un-versioned api set an empty string.
@@ -184,7 +184,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return api_version_path
 
-    def get_base_api_url(self, path: str, version: str = None) -> str:
+    def get_base_api_url(self, path: str, version: Optional[str] = None) -> str:
         path_prefix = self.get_api_path_prefix(version)
         url = f"{self.base_url}/{path_prefix}/{path}"
         return url
@@ -1082,7 +1082,7 @@ class HTTPRunDB(RunDBInterface):
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
         iter=None,
     ):
         """Delete an artifact.
@@ -1123,16 +1123,16 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
-        iter: int = None,
+        iter: Optional[int] = None,
         best_iteration: bool = False,
-        kind: str = None,
+        kind: Optional[str] = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
-        producer_uri: str = None,
+        tree: Optional[str] = None,
+        producer_uri: Optional[str] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: int = None,
+        limit: Optional[int] = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1497,7 +1497,7 @@ class HTTPRunDB(RunDBInterface):
         kind: Optional[str] = None,
         object_id: Optional[str] = None,
         force: bool = False,
-        grace_period: int = None,
+        grace_period: Optional[int] = None,
     ) -> mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput:
         """Delete all runtime resources which are in terminal state.
 
@@ -1609,7 +1609,7 @@ class HTTPRunDB(RunDBInterface):
     def list_schedules(
         self,
         project: str,
-        name: str = None,
+        name: Optional[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
         include_last_run: bool = False,
     ) -> mlrun.common.schemas.SchedulesOutput:
@@ -1851,7 +1851,9 @@ class HTTPRunDB(RunDBInterface):
         return text, last_log_timestamp, deploy_status_text_kind
 
     def start_function(
-        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+        self,
+        func_url: Optional[str] = None,
+        function: "mlrun.runtimes.BaseRuntime" = None,
     ) -> mlrun.common.schemas.BackgroundTask:
         """Execute a function remotely, Used for ``dask`` functions.
 
@@ -2093,14 +2095,14 @@ class HTTPRunDB(RunDBInterface):
     def list_pipelines(
         self,
         project: str,
-        namespace: str = None,
+        namespace: Optional[str] = None,
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
         format_: Union[
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.metadata_only,
-        page_size: int = None,
+        page_size: Optional[int] = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         """Retrieve a list of KFP pipelines. This function can be invoked to get all pipelines from all projects,
         by specifying ``project=*``, in which case pagination can be used and the various sorting and pagination
@@ -2142,12 +2144,12 @@ class HTTPRunDB(RunDBInterface):
     def get_pipeline(
         self,
         run_id: str,
-        namespace: str = None,
+        namespace: Optional[str] = None,
         timeout: int = 30,
         format_: Union[
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
-        project: str = None,
+        project: Optional[str] = None,
     ):
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
@@ -2215,7 +2217,11 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     def get_feature_set(
-        self, name: str, project: str = "", tag: str = None, uid: str = None
+        self,
+        name: str,
+        project: str = "",
+        tag: Optional[str] = None,
+        uid: Optional[str] = None,
     ) -> FeatureSet:
         """Retrieve a ~mlrun.feature_store.FeatureSet` object. If both ``tag`` and ``uid`` are not specified, then
         the object tagged ``latest`` will be retrieved.
@@ -2238,7 +2244,7 @@ class HTTPRunDB(RunDBInterface):
         project: Optional[str] = None,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        entities: list[str] = None,
+        entities: Optional[list[str]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> list[dict]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
@@ -2282,7 +2288,7 @@ class HTTPRunDB(RunDBInterface):
         project: Optional[str] = None,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        entities: list[str] = None,
+        entities: Optional[list[str]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> dict[str, list[dict]]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
@@ -2636,7 +2642,11 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()
 
     def get_feature_vector(
-        self, name: str, project: str = "", tag: str = None, uid: str = None
+        self,
+        name: str,
+        project: str = "",
+        tag: Optional[str] = None,
+        uid: Optional[str] = None,
     ) -> FeatureVector:
         """Return a specific feature-vector referenced by its tag or uid. If none are provided, ``latest`` tag will
         be used."""
@@ -3132,7 +3142,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         """Create project-context secrets using either ``vault`` or ``kubernetes`` provider.
         When using with Vault, this will create needed Vault structures for storing secrets in project-context, and
@@ -3176,11 +3186,11 @@ class HTTPRunDB(RunDBInterface):
     def list_project_secrets(
         self,
         project: str,
-        token: str = None,
+        token: Optional[str] = None,
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: list[str] = None,
+        secrets: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.SecretsData:
         """Retrieve project-context secrets from Vault.
 
@@ -3223,7 +3233,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        token: str = None,
+        token: Optional[str] = None,
     ) -> mlrun.common.schemas.SecretKeysData:
         """Retrieve project-context secret keys from Vault or Kubernetes.
 
@@ -3269,7 +3279,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: list[str] = None,
+        secrets: Optional[list[str]] = None,
     ):
         """Delete project-context secrets from Kubernetes.
 
@@ -3295,7 +3305,7 @@ class HTTPRunDB(RunDBInterface):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         """Create user-context secret in Vault. Please refer to :py:func:`create_project_secrets` for more details
         and status of this functionality.
@@ -3657,7 +3667,7 @@ class HTTPRunDB(RunDBInterface):
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: list[str] = None,
+        user_application_list: Optional[list[str]] = None,
     ) -> bool:
         """
         Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -3930,8 +3940,8 @@ class HTTPRunDB(RunDBInterface):
     def get_hub_catalog(
         self,
         source_name: str,
-        version: str = None,
-        tag: str = None,
+        version: Optional[str] = None,
+        tag: Optional[str] = None,
         force_refresh: bool = False,
     ):
         """
@@ -3961,7 +3971,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         source_name: str,
         item_name: str,
-        version: str = None,
+        version: Optional[str] = None,
         tag: str = "latest",
         force_refresh: bool = False,
     ):
@@ -3991,7 +4001,7 @@ class HTTPRunDB(RunDBInterface):
         source_name: str,
         item_name: str,
         asset_name: str,
-        version: str = None,
+        version: Optional[str] = None,
         tag: str = "latest",
     ):
         """
@@ -4124,7 +4134,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         run_uid: str,
-        notifications: list[mlrun.model.Notification] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
     ):
         """
         Set notifications on a run. This will override any existing notifications on the run.
@@ -4150,7 +4160,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         schedule_name: str,
-        notifications: list[mlrun.model.Notification] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
     ):
         """
         Set notifications on a schedule. This will override any existing notifications on the schedule.
@@ -4176,7 +4186,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         notification_objects: list[mlrun.model.Notification],
         run_uid: str,
-        project: str = None,
+        project: Optional[str] = None,
         mask_params: bool = True,
     ):
         """
@@ -4210,7 +4220,7 @@ class HTTPRunDB(RunDBInterface):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
-        notifications: list[mlrun.model.Notification] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
     ) -> mlrun.common.schemas.WorkflowResponse:
         """
         Submitting workflow for a remote execution.
@@ -4585,16 +4595,16 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
-        iter: int = None,
+        iter: Optional[int] = None,
         best_iteration: bool = False,
-        kind: str = None,
+        kind: Optional[str] = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
-        producer_uri: str = None,
+        tree: Optional[str] = None,
+        producer_uri: Optional[str] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: int = None,
+        limit: Optional[int] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,

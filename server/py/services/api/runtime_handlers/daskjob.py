@@ -99,7 +99,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         namespace: str,
-        label_selector: str = None,
+        label_selector: Optional[str] = None,
         group_by: Optional[
             mlrun.common.schemas.ListRuntimeResourcesGroupByField
         ] = None,
@@ -196,9 +196,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         db_session: Session,
         namespace: str,
         deleted_resources: list[dict],
-        label_selector: str = None,
+        label_selector: Optional[str] = None,
         force: bool = False,
-        grace_period: int = None,
+        grace_period: Optional[int] = None,
         resource_deletion_grace_period: typing.Optional[int] = None,
     ):
         """
@@ -240,8 +240,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 def deploy_function(
     function: mlrun.runtimes.DaskCluster,
     secrets=None,
-    client_version: str = None,
-    client_python_version: str = None,
+    client_version: Optional[str] = None,
+    client_python_version: Optional[str] = None,
 ):
     _validate_dask_related_libraries_installed()
 
@@ -303,7 +303,10 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
 
 
 def enrich_dask_cluster(
-    function, secrets, client_version: str = None, client_python_version: str = None
+    function,
+    secrets,
+    client_version: Optional[str] = None,
+    client_python_version: Optional[str] = None,
 ):
     from dask.distributed import Client, default_client  # noqa: F401
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401

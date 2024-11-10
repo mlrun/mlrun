@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Union
+from typing import Optional, Union
 
 from torch import Tensor
 from torch.nn import Module
@@ -116,7 +116,7 @@ class CallbacksHandler:
         optimizer: Optimizer,
         metric_functions: list[PyTorchTypes.MetricFunctionType],
         scheduler,
-        callbacks: list[str] = None,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_setup' method of every callback in the callbacks list. If the list is 'None' (not given), all
@@ -145,7 +145,7 @@ class CallbacksHandler:
             scheduler=scheduler,
         )
 
-    def on_run_begin(self, callbacks: list[str] = None) -> bool:
+    def on_run_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_run_begin' method of every callback in the callbacks list. If the list is 'None' (not given), all
         callbacks will be called.
@@ -159,7 +159,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_run_end(self, callbacks: list[str] = None) -> bool:
+    def on_run_end(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_run_end' method of every callback in the callbacks list. If the list is 'None' (not given), all
         callbacks will be called.
@@ -173,7 +173,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_epoch_begin(self, epoch: int, callbacks: list[str] = None) -> bool:
+    def on_epoch_begin(self, epoch: int, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_epoch_begin' method of every callback in the callbacks list. If the list is 'None' (not given), all
         callbacks will be called.
@@ -189,7 +189,7 @@ class CallbacksHandler:
             epoch=epoch,
         )
 
-    def on_epoch_end(self, epoch: int, callbacks: list[str] = None) -> bool:
+    def on_epoch_end(self, epoch: int, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_epoch_end' method of every callback in the callbacks list. If the list is 'None' (not given), all
         callbacks will be called.
@@ -205,7 +205,7 @@ class CallbacksHandler:
             epoch=epoch,
         )
 
-    def on_train_begin(self, callbacks: list[str] = None) -> bool:
+    def on_train_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_train_begin' method of every callback in the callbacks list. If the list is 'None' (not given), all
         callbacks will be called.
@@ -219,7 +219,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_train_end(self, callbacks: list[str] = None) -> bool:
+    def on_train_end(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_train_end' method of every callback in the callbacks list. If the list is 'None' (not given), all
         callbacks will be called.
@@ -233,7 +233,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_validation_begin(self, callbacks: list[str] = None) -> bool:
+    def on_validation_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_validation_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -251,7 +251,7 @@ class CallbacksHandler:
         self,
         loss_value: PyTorchTypes.MetricValueType,
         metric_values: list[float],
-        callbacks: list[str] = None,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_validation_end' method of every callback in the callbacks list. If the list is 'None' (not given),
@@ -271,7 +271,7 @@ class CallbacksHandler:
         )
 
     def on_train_batch_begin(
-        self, batch: int, x, y_true: Tensor, callbacks: list[str] = None
+        self, batch: int, x, y_true: Tensor, callbacks: Optional[list[str]] = None
     ) -> bool:
         """
         Call the 'on_train_batch_begin' method of every callback in the callbacks list. If the list is 'None'
@@ -298,7 +298,7 @@ class CallbacksHandler:
         x,
         y_pred: Tensor,
         y_true: Tensor,
-        callbacks: list[str] = None,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_train_batch_end' method of every callback in the callbacks list. If the list is 'None' (not given),
@@ -322,7 +322,7 @@ class CallbacksHandler:
         )
 
     def on_validation_batch_begin(
-        self, batch: int, x, y_true: Tensor, callbacks: list[str] = None
+        self, batch: int, x, y_true: Tensor, callbacks: Optional[list[str]] = None
     ) -> bool:
         """
         Call the 'on_validation_batch_begin' method of every callback in the callbacks list. If the list is 'None'
@@ -349,7 +349,7 @@ class CallbacksHandler:
         x,
         y_pred: Tensor,
         y_true: Tensor,
-        callbacks: list[str] = None,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_validation_batch_end' method of every callback in the callbacks list. If the list is 'None'
@@ -375,7 +375,7 @@ class CallbacksHandler:
     def on_inference_begin(
         self,
         x,
-        callbacks: list[str] = None,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_inference_begin' method of every callback in the callbacks list. If the list is 'None' (not given),
@@ -396,7 +396,7 @@ class CallbacksHandler:
         self,
         y_pred: Tensor,
         y_true: Tensor,
-        callbacks: list[str] = None,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_inference_end' method of every callback in the callbacks list. If the list is 'None' (not given),
@@ -415,7 +415,7 @@ class CallbacksHandler:
             y_true=y_true,
         )
 
-    def on_train_loss_begin(self, callbacks: list[str] = None) -> bool:
+    def on_train_loss_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_train_loss_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -430,7 +430,9 @@ class CallbacksHandler:
         )
 
     def on_train_loss_end(
-        self, loss_value: PyTorchTypes.MetricValueType, callbacks: list[str] = None
+        self,
+        loss_value: PyTorchTypes.MetricValueType,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_train_loss_end' method of every callback in the callbacks list. If the list is 'None' (not given),
@@ -447,7 +449,7 @@ class CallbacksHandler:
             loss_value=loss_value,
         )
 
-    def on_validation_loss_begin(self, callbacks: list[str] = None) -> bool:
+    def on_validation_loss_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_validation_loss_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -462,7 +464,9 @@ class CallbacksHandler:
         )
 
     def on_validation_loss_end(
-        self, loss_value: PyTorchTypes.MetricValueType, callbacks: list[str] = None
+        self,
+        loss_value: PyTorchTypes.MetricValueType,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_validation_loss_end' method of every callback in the callbacks list. If the list is 'None'
@@ -479,7 +483,7 @@ class CallbacksHandler:
             loss_value=loss_value,
         )
 
-    def on_train_metrics_begin(self, callbacks: list[str] = None) -> bool:
+    def on_train_metrics_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_train_metrics_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -496,7 +500,7 @@ class CallbacksHandler:
     def on_train_metrics_end(
         self,
         metric_values: list[PyTorchTypes.MetricValueType],
-        callbacks: list[str] = None,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_train_metrics_end' method of every callback in the callbacks list. If the list is 'None'
@@ -513,7 +517,9 @@ class CallbacksHandler:
             metric_values=metric_values,
         )
 
-    def on_validation_metrics_begin(self, callbacks: list[str] = None) -> bool:
+    def on_validation_metrics_begin(
+        self, callbacks: Optional[list[str]] = None
+    ) -> bool:
         """
         Call the 'on_validation_metrics_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -530,7 +536,7 @@ class CallbacksHandler:
     def on_validation_metrics_end(
         self,
         metric_values: list[PyTorchTypes.MetricValueType],
-        callbacks: list[str] = None,
+        callbacks: Optional[list[str]] = None,
     ) -> bool:
         """
         Call the 'on_validation_metrics_end' method of every callback in the callbacks list. If the list is 'None'
@@ -547,7 +553,7 @@ class CallbacksHandler:
             metric_values=metric_values,
         )
 
-    def on_backward_begin(self, callbacks: list[str] = None) -> bool:
+    def on_backward_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_backward_begin' method of every callback in the callbacks list. If the list is 'None' (not given),
         all callbacks will be called.
@@ -561,7 +567,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_backward_end(self, callbacks: list[str] = None) -> bool:
+    def on_backward_end(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_backward_end' method of every callback in the callbacks list. If the list is 'None' (not given),
         all callbacks will be called.
@@ -575,7 +581,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_optimizer_step_begin(self, callbacks: list[str] = None) -> bool:
+    def on_optimizer_step_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_optimizer_step_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -589,7 +595,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_optimizer_step_end(self, callbacks: list[str] = None) -> bool:
+    def on_optimizer_step_end(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_optimizer_step_end' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -603,7 +609,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_scheduler_step_begin(self, callbacks: list[str] = None) -> bool:
+    def on_scheduler_step_begin(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_scheduler_step_begin' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.
@@ -617,7 +623,7 @@ class CallbacksHandler:
             callbacks=self._parse_names(names=callbacks),
         )
 
-    def on_scheduler_step_end(self, callbacks: list[str] = None) -> bool:
+    def on_scheduler_step_end(self, callbacks: Optional[list[str]] = None) -> bool:
         """
         Call the 'on_scheduler_step_end' method of every callback in the callbacks list. If the list is 'None'
         (not given), all callbacks will be called.

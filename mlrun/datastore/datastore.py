@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
 from urllib.parse import urlparse
 
 from mergedeep import merge
@@ -183,7 +184,12 @@ class StoreManager:
         return resource, target or ""
 
     def object(
-        self, url, key="", project="", allow_empty_resources=None, secrets: dict = None
+        self,
+        url,
+        key="",
+        project="",
+        allow_empty_resources=None,
+        secrets: Optional[dict] = None,
     ) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):
@@ -205,7 +211,7 @@ class StoreManager:
         )
 
     def get_or_create_store(
-        self, url, secrets: dict = None, project_name=""
+        self, url, secrets: Optional[dict] = None, project_name=""
     ) -> (DataStore, str, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path

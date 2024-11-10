@@ -65,7 +65,7 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 
 
 def parse_monitoring_stream_path(
-    stream_uri: str, project: str, function_name: str = None
+    stream_uri: str, project: str, function_name: typing.Optional[str] = None
 ):
     if stream_uri.startswith("kafka://"):
         if "?topic" in stream_uri:

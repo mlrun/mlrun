@@ -317,7 +317,7 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 def enrich_function_object(
     project: mlrun.common.schemas.Project,
     function: mlrun.runtimes.BaseRuntime,
-    decorator: typing.Callable = None,
+    decorator: typing.Optional[typing.Callable] = None,
     copy_function: bool = True,
     try_auto_mount: bool = True,
 ) -> mlrun.runtimes.BaseRuntime:
@@ -380,7 +380,7 @@ class _PipelineRunStatus:
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
         state: mlrun_pipelines.common.models.RunStatuses = "",
-        exc: Exception = None,
+        exc: typing.Optional[Exception] = None,
     ):
         """
         :param run_id:      unique id of the pipeline run
@@ -453,7 +453,7 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: list[mlrun.model.Notification] = None,
+        notifications: typing.Optional[list[mlrun.model.Notification]] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -463,7 +463,7 @@ class _PipelineRunner(abc.ABC):
         run: "_PipelineRunStatus",
         project: typing.Optional["mlrun.projects.MlrunProject"] = None,
         timeout: typing.Optional[int] = None,
-        expected_statuses: list[str] = None,
+        expected_statuses: typing.Optional[list[str]] = None,
     ):
         pass
 
@@ -577,7 +577,7 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: list[mlrun.model.Notification] = None,
+        notifications: typing.Optional[list[mlrun.model.Notification]] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -641,7 +641,7 @@ class _KFPRunner(_PipelineRunner):
         run: "_PipelineRunStatus",
         project: typing.Optional["mlrun.projects.MlrunProject"] = None,
         timeout: typing.Optional[int] = None,
-        expected_statuses: list[str] = None,
+        expected_statuses: typing.Optional[list[str]] = None,
     ):
         project_name = project.metadata.name if project else ""
         logger.info(
@@ -686,7 +686,7 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
-        notifications: list[mlrun.model.Notification] = None,
+        notifications: typing.Optional[list[mlrun.model.Notification]] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -763,13 +763,13 @@ class _RemoteRunner(_PipelineRunner):
         cls,
         project: "mlrun.projects.MlrunProject",
         workflow_spec: WorkflowSpec,
-        name: str = None,
-        workflow_handler: typing.Union[str, typing.Callable] = None,
+        name: typing.Optional[str] = None,
+        workflow_handler: typing.Optional[typing.Union[str, typing.Callable]] = None,
         secrets: mlrun.secrets.SecretsStore = None,
-        artifact_path: str = None,
-        namespace: str = None,
-        source: str = None,
-        notifications: list[mlrun.model.Notification] = None,
+        artifact_path: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
+        source: typing.Optional[str] = None,
+        notifications: typing.Optional[list[mlrun.model.Notification]] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
@@ -890,7 +890,7 @@ class _RemoteRunner(_PipelineRunner):
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-        inner_engine: type[_PipelineRunner] = None,
+        inner_engine: typing.Optional[type[_PipelineRunner]] = None,
     ):
         inner_engine = inner_engine or _KFPRunner
         if inner_engine.engine == _KFPRunner.engine:
@@ -986,27 +986,27 @@ def github_webhook(request):
 
 def load_and_run(
     context: mlrun.execution.MLClientCtx,
-    url: str = None,
+    url: typing.Optional[str] = None,
     project_name: str = "",
-    init_git: bool = None,
-    subpath: str = None,
+    init_git: typing.Optional[bool] = None,
+    subpath: typing.Optional[str] = None,
     clone: bool = False,
     save: bool = True,
-    workflow_name: str = None,
-    workflow_path: str = None,
-    workflow_arguments: dict[str, typing.Any] = None,
-    artifact_path: str = None,
-    workflow_handler: typing.Union[str, typing.Callable] = None,
-    namespace: str = None,
+    workflow_name: typing.Optional[str] = None,
+    workflow_path: typing.Optional[str] = None,
+    workflow_arguments: typing.Optional[dict[str, typing.Any]] = None,
+    artifact_path: typing.Optional[str] = None,
+    workflow_handler: typing.Optional[typing.Union[str, typing.Callable]] = None,
+    namespace: typing.Optional[str] = None,
     sync: bool = False,
     dirty: bool = False,
-    engine: str = None,
-    local: bool = None,
+    engine: typing.Optional[str] = None,
+    local: typing.Optional[bool] = None,
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-    cleanup_ttl: int = None,
+    cleanup_ttl: typing.Optional[int] = None,
     load_only: bool = False,
     wait_for_completion: bool = False,
-    project_context: str = None,
+    project_context: typing.Optional[str] = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.

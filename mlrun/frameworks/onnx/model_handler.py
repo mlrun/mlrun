@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import os
-from typing import Union
+from typing import Optional, Union
 
 import onnx
 import onnxoptimizer
@@ -35,8 +35,8 @@ class ONNXModelHandler(ModelHandler):
     def __init__(
         self,
         model: onnx.ModelProto = None,
-        model_path: str = None,
-        model_name: str = None,
+        model_path: Optional[str] = None,
+        model_name: Optional[str] = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
     ):
@@ -70,7 +70,7 @@ class ONNXModelHandler(ModelHandler):
 
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     def save(
-        self, output_path: str = None, **kwargs
+        self, output_path: Optional[str] = None, **kwargs
     ) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -106,7 +106,9 @@ class ONNXModelHandler(ModelHandler):
         # Load the ONNX model:
         self._model = onnx.load(self._model_file)
 
-    def optimize(self, optimizations: list[str] = None, fixed_point: bool = False):
+    def optimize(
+        self, optimizations: Optional[list[str]] = None, fixed_point: bool = False
+    ):
         """
         Use ONNX optimizer to optimize the ONNX model. The optimizations supported can be seen by calling
         'onnxoptimizer.get_available_passes()'

@@ -310,7 +310,7 @@ class KubeResourceSpec(FunctionSpec):
         return self._termination_grace_period_seconds
 
     def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False
     ) -> typing.Any:
         """
         Serialize a field to a dict, list, or primitive type.
@@ -322,7 +322,7 @@ class KubeResourceSpec(FunctionSpec):
         return super()._serialize_field(struct, field_name, strip)
 
     def _enrich_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False
     ) -> typing.Any:
         k8s_api = k8s_client.ApiClient()
         if strip:
@@ -381,9 +381,9 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_limits(
         self,
         resources_field_name,
-        mem: str = None,
-        cpu: str = None,
-        gpus: int = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        gpus: typing.Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -431,8 +431,8 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_requests(
         self,
         resources_field_name,
-        mem: str = None,
-        cpu: str = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
         patch: bool = False,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
@@ -457,9 +457,9 @@ class KubeResourceSpec(FunctionSpec):
 
     def with_limits(
         self,
-        mem: str = None,
-        cpu: str = None,
-        gpus: int = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        gpus: typing.Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -475,7 +475,12 @@ class KubeResourceSpec(FunctionSpec):
         """
         self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type, patch=patch)
 
-    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+    def with_requests(
+        self,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        patch: bool = False,
+    ):
         """
         Set requested (desired) pod cpu/memory resources
 
@@ -1051,7 +1056,11 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         self.spec.env.append(new_var)
         return self
 
-    def set_envs(self, env_vars: dict = None, file_path: str = None):
+    def set_envs(
+        self,
+        env_vars: typing.Optional[dict] = None,
+        file_path: typing.Optional[str] = None,
+    ):
         """set pod environment var from key/value dict or .env file
 
         :param env_vars:  dict with env key/values
@@ -1075,7 +1084,9 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         return self
 
     def set_image_pull_configuration(
-        self, image_pull_policy: str = None, image_pull_secret_name: str = None
+        self,
+        image_pull_policy: typing.Optional[str] = None,
+        image_pull_secret_name: typing.Optional[str] = None,
     ):
         """
         Configure the image pull parameters for the runtime.
@@ -1124,9 +1135,9 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
     def with_limits(
         self,
-        mem: str = None,
-        cpu: str = None,
-        gpus: int = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        gpus: typing.Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -1142,7 +1153,12 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         """
         self.spec.with_limits(mem, cpu, gpus, gpu_type, patch=patch)
 
-    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+    def with_requests(
+        self,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        patch: bool = False,
+    ):
         """
         Set requested (desired) pod cpu/memory resources
 

@@ -103,7 +103,7 @@ class NotificationPusher(_NotificationPusherBase):
     def __init__(
         self,
         runs: typing.Union[mlrun.lists.RunList, list],
-        default_params: dict = None,
+        default_params: typing.Optional[dict] = None,
     ):
         self._runs = runs
         self._default_params = default_params or {}
@@ -369,7 +369,7 @@ class NotificationPusher(_NotificationPusherBase):
         run_uid: str,
         project: str,
         notification: mlrun.model.Notification,
-        status: str = None,
+        status: typing.Optional[str] = None,
         sent_time: typing.Optional[datetime.datetime] = None,
         reason: typing.Optional[str] = None,
     ):
@@ -524,7 +524,7 @@ class NotificationPusher(_NotificationPusherBase):
 
 
 class CustomNotificationPusher(_NotificationPusherBase):
-    def __init__(self, notification_types: list[str] = None):
+    def __init__(self, notification_types: typing.Optional[list[str]] = None):
         notifications = {
             notification_type: NotificationTypes(notification_type).get_notification()()
             for notification_type in notification_types
@@ -553,7 +553,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
             mlrun.common.schemas.NotificationSeverity, str
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
-        custom_html: str = None,
+        custom_html: typing.Optional[str] = None,
     ):
         def sync_push():
             for notification_type, notification in self._sync_notifications.items():
@@ -575,7 +575,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
     def add_notification(
         self,
         notification_type: str,
-        params: dict[str, str] = None,
+        params: typing.Optional[dict[str, str]] = None,
     ):
         if notification_type in self._async_notifications:
             self._async_notifications[notification_type].load_notification(params)
@@ -600,7 +600,9 @@ class CustomNotificationPusher(_NotificationPusherBase):
         else:
             logger.warning(f"No notification of type {notification_type} in project")
 
-    def edit_notification(self, notification_type: str, params: dict[str, str] = None):
+    def edit_notification(
+        self, notification_type: str, params: typing.Optional[dict[str, str]] = None
+    ):
         self.remove_notification(notification_type)
         self.add_notification(notification_type, params)
 
@@ -630,8 +632,8 @@ class CustomNotificationPusher(_NotificationPusherBase):
     def push_pipeline_start_message(
         self,
         project: str,
-        commit_id: str = None,
-        pipeline_id: str = None,
+        commit_id: typing.Optional[str] = None,
+        pipeline_id: typing.Optional[str] = None,
         has_workflow_url: bool = False,
     ):
         message = f"Workflow started in project {project}"
@@ -659,7 +661,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
         self,
         runs: typing.Union[mlrun.lists.RunList, list],
         push_all: bool = False,
-        state: str = None,
+        state: typing.Optional[str] = None,
     ):
         """
         push a structured table with run results to notification targets

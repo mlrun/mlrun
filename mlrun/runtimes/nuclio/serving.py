@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 def new_v2_model_server(
     name,
     model_class: str,
-    models: dict = None,
+    models: Optional[dict] = None,
     filename="",
     protocol="",
     image="",
@@ -356,12 +356,12 @@ class ServingRuntime(RemoteRuntime):
     def add_model(
         self,
         key: str,
-        model_path: str = None,
-        class_name: str = None,
-        model_url: str = None,
-        handler: str = None,
-        router_step: str = None,
-        child_function: str = None,
+        model_path: Optional[str] = None,
+        class_name: Optional[str] = None,
+        model_url: Optional[str] = None,
+        handler: Optional[str] = None,
+        router_step: Optional[str] = None,
+        child_function: Optional[str] = None,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -509,7 +509,7 @@ class ServingRuntime(RemoteRuntime):
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )
 
-    def _deploy_function_refs(self, builder_env: dict = None):
+    def _deploy_function_refs(self, builder_env: Optional[dict] = None):
         """set metadata and deploy child functions"""
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
@@ -583,7 +583,7 @@ class ServingRuntime(RemoteRuntime):
         tag="",
         verbose=False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
-        builder_env: dict = None,
+        builder_env: Optional[dict] = None,
         force_build: bool = False,
     ):
         """deploy model serving function to a local/remote cluster

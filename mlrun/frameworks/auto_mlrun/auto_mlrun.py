@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import mlrun
 from mlrun.artifacts import get_model
@@ -261,7 +261,7 @@ class AutoMLRun:
 
     @staticmethod
     def _get_framework(
-        model: CommonTypes.ModelType = None, model_path: str = None
+        model: CommonTypes.ModelType = None, model_path: Optional[str] = None
     ) -> Union[tuple[str, dict]]:
         """
         Try to get the framework from the model or model path provided. The framework can be read from the model path
@@ -320,12 +320,16 @@ class AutoMLRun:
     @staticmethod
     def load_model(
         model_path: str,
-        model_name: str = None,
+        model_name: Optional[str] = None,
         context: mlrun.MLClientCtx = None,
-        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-        custom_objects_directory: str = None,
-        framework: str = None,
+        modules_map: Optional[
+            Union[dict[str, Union[None, str, list[str]]], str]
+        ] = None,
+        custom_objects_map: Optional[
+            Union[dict[str, Union[str, list[str]]], str]
+        ] = None,
+        custom_objects_directory: Optional[str] = None,
+        framework: Optional[str] = None,
         **kwargs,
     ) -> ModelHandler:
         """
@@ -417,14 +421,18 @@ class AutoMLRun:
     @staticmethod
     def apply_mlrun(
         model: CommonTypes.ModelType = None,
-        model_name: str = None,
+        model_name: Optional[str] = None,
         tag: str = "",
-        model_path: str = None,
-        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-        custom_objects_directory: str = None,
+        model_path: Optional[str] = None,
+        modules_map: Optional[
+            Union[dict[str, Union[None, str, list[str]]], str]
+        ] = None,
+        custom_objects_map: Optional[
+            Union[dict[str, Union[str, list[str]]], str]
+        ] = None,
+        custom_objects_directory: Optional[str] = None,
         context: mlrun.MLClientCtx = None,
-        framework: str = None,
+        framework: Optional[str] = None,
         auto_log: bool = True,
         **kwargs,
     ) -> ModelHandler:

@@ -206,13 +206,13 @@ async def delete_function(
 
 @router.get("/projects/{project}/functions")
 async def list_functions(
-    project: str = None,
-    name: str = None,
-    tag: str = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
     labels: list[str] = Query([], alias="label"),
-    hash_key: str = None,
-    since: str = None,
-    until: str = None,
+    hash_key: Optional[str] = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -721,8 +721,8 @@ def _parse_start_function_body(db_session, data):
 async def _start_function_wrapper(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,
-    client_version: str = None,
-    client_python_version: str = None,
+    client_version: Optional[str] = None,
+    client_python_version: Optional[str] = None,
 ):
     await run_in_threadpool(
         _start_function,
@@ -736,8 +736,8 @@ async def _start_function_wrapper(
 def _start_function(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,
-    client_version: str = None,
-    client_python_version: str = None,
+    client_version: Optional[str] = None,
+    client_python_version: Optional[str] = None,
 ):
     db_session = services.api.db.session.create_session()
     try:

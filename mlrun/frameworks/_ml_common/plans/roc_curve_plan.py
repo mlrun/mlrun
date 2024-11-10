@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -35,13 +35,13 @@ class ROCCurvePlan(MLPlotPlan):
 
     def __init__(
         self,
-        pos_label: Union[str, int] = None,
+        pos_label: Optional[Union[str, int]] = None,
         sample_weight: np.ndarray = None,
         drop_intermediate: bool = True,
         average: str = "macro",
-        max_fpr: float = None,
+        max_fpr: Optional[float] = None,
         multi_class: str = "raise",
-        labels: list[str] = None,
+        labels: Optional[list[str]] = None,
     ):
         """
         Initialize a receiver operating characteristic plan with the given configuration.

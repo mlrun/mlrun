@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 import mlrun
 
 from ..._ml_common.loggers import MLRunLogger
@@ -33,8 +35,8 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
-        dynamic_hyperparameters: list[str] = None,
-        static_hyperparameters: list[str] = None,
+        dynamic_hyperparameters: Optional[list[str]] = None,
+        static_hyperparameters: Optional[list[str]] = None,
         logging_frequency: int = 100,
     ):
         """

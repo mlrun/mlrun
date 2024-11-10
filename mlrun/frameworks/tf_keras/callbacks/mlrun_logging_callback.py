@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -50,16 +50,19 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_handler: TFKerasModelHandler,
         log_model_tag: str = "",
-        log_model_labels: dict[str, TFKerasTypes.TrackableType] = None,
-        log_model_parameters: dict[str, TFKerasTypes.TrackableType] = None,
-        log_model_extra_data: dict[
-            str, Union[TFKerasTypes.TrackableType, Artifact]
+        log_model_labels: Optional[dict[str, TFKerasTypes.TrackableType]] = None,
+        log_model_parameters: Optional[dict[str, TFKerasTypes.TrackableType]] = None,
+        log_model_extra_data: Optional[
+            dict[str, Union[TFKerasTypes.TrackableType, Artifact]]
         ] = None,
-        dynamic_hyperparameters: dict[
-            str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
+        dynamic_hyperparameters: Optional[
+            dict[
+                str,
+                Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]],
+            ]
         ] = None,
-        static_hyperparameters: dict[
-            str, Union[TFKerasTypes, list[Union[str, int]]]
+        static_hyperparameters: Optional[
+            dict[str, Union[TFKerasTypes, list[Union[str, int]]]]
         ] = None,
         auto_log: bool = False,
     ):
@@ -116,7 +119,7 @@ class MLRunLoggingCallback(LoggingCallback):
         # Store the model handler:
         self._model_handler = model_handler
 
-    def on_train_end(self, logs: dict = None):
+    def on_train_end(self, logs: Optional[dict] = None):
         """
         Called at the end of training, logging the model and the summaries of this run.
 
@@ -125,7 +128,7 @@ class MLRunLoggingCallback(LoggingCallback):
         """
         self._end_run()
 
-    def on_test_end(self, logs: dict = None):
+    def on_test_end(self, logs: Optional[dict] = None):
         """
         Called at the end of evaluation or validation. Will be called on each epoch according to the validation
         per epoch configuration. The recent evaluation / validation results will be summarized and logged. If the logger
@@ -141,7 +144,7 @@ class MLRunLoggingCallback(LoggingCallback):
             self._logger.log_epoch_to_context(epoch=1)
             self._end_run()
 
-    def on_epoch_end(self, epoch: int, logs: dict = None):
+    def on_epoch_end(self, epoch: int, logs: Optional[dict] = None):
         """
         Called at the end of an epoch, logging the dynamic hyperparameters and results of this epoch via the stored
         context.

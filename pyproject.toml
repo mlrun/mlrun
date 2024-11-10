@@ -12,6 +12,7 @@ extend-select = [
     "UP",  # pyupgrade
     "CPY", # flake8-copyright
     "B006", # mutable default arguments
+    "RUF013",  # forbid implicit `Optional` type hints
 ]
 explicit-preview-rules = true
 

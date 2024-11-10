@@ -405,8 +405,8 @@ class Spark3JobSpec(KubeResourceSpec):
     def _verify_and_set_requests(
         self,
         resources_field_name,
-        mem: str = None,
-        cpu: str = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
         patch: bool = False,
     ):
         # Spark operator uses JVM notation for memory, so we must verify it separately
@@ -774,7 +774,11 @@ class Spark3Runtime(KubejobRuntime):
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
             )
 
-    def with_cores(self, executor_cores: int = None, driver_cores: int = None):
+    def with_cores(
+        self,
+        executor_cores: typing.Optional[int] = None,
+        driver_cores: typing.Optional[int] = None,
+    ):
         """
         Allows to configure spark.executor.cores and spark.driver.cores parameters. The values must be integers
         greater than or equal to 1. If a parameter is not specified, it defaults to 1.
@@ -853,7 +857,7 @@ class Spark3Runtime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
-        builder_env: dict = None,
+        builder_env: typing.Optional[dict] = None,
         show_on_failure: bool = False,
         force_build: bool = False,
     ):
@@ -944,7 +948,10 @@ class Spark3Runtime(KubejobRuntime):
         )
 
     def with_executor_requests(
-        self, mem: str = None, cpu: str = None, patch: bool = False
+        self,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        patch: bool = False,
     ):
         """
         set executor pod required cpu/memory/gpu resources
@@ -954,8 +961,8 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_executor_limits(
         self,
-        cpu: str = None,
-        gpus: int = None,
+        cpu: typing.Optional[str] = None,
+        gpus: typing.Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -970,7 +977,10 @@ class Spark3Runtime(KubejobRuntime):
         )
 
     def with_driver_requests(
-        self, mem: str = None, cpu: str = None, patch: bool = False
+        self,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        patch: bool = False,
     ):
         """
         set driver pod required cpu/memory/gpu resources
@@ -980,8 +990,8 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_driver_limits(
         self,
-        cpu: str = None,
-        gpus: int = None,
+        cpu: typing.Optional[str] = None,
+        gpus: typing.Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):

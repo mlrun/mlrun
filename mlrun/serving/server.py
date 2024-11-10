@@ -196,7 +196,7 @@ class GraphServer(ModelObj):
     def test(
         self,
         path: str = "/",
-        body: Union[str, bytes, dict] = None,
+        body: Optional[Union[str, bytes, dict]] = None,
         method: str = "",
         headers: Optional[str] = None,
         content_type: Optional[str] = None,

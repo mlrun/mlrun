@@ -86,7 +86,7 @@ def raise_for_status(
         requests.Response,
         aiohttp.ClientResponse,
     ],
-    message: str = None,
+    message: typing.Optional[str] = None,
 ):
     """
     Raise a specific MLRunSDK error depending on the given response status code.
@@ -107,7 +107,7 @@ def raise_for_status(
             raise MLRunHTTPError(error_message, response=response) from exc
 
 
-def err_for_status_code(status_code: int, message: str = None):
+def err_for_status_code(status_code: int, message: typing.Optional[str] = None):
     """
     Return a specific MLRunSDK error depending on the given response status code.
     If no specific error exists, returns an MLRunHTTPError.

@@ -33,12 +33,12 @@ class V2ModelServer(StepToDict):
     def __init__(
         self,
         context=None,
-        name: str = None,
-        model_path: str = None,
+        name: Optional[str] = None,
+        model_path: Optional[str] = None,
         model=None,
         protocol=None,
-        input_path: str = None,
-        result_path: str = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         shard_by_endpoint: Optional[bool] = None,
         **kwargs,
     ):

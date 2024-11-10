@@ -21,8 +21,8 @@ import mlrun.runtimes
 from mlrun.utils import logger
 
 import framework.utils.clients.nuclio
+import framework.utils.runtimes.nuclio
 import framework.utils.singletons.k8s
-import services.api.utils.runtimes.nuclio
 
 
 def resolve_function_http_trigger(function_spec):
@@ -200,7 +200,7 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     try:
         parsed_min_version = semver.VersionInfo.parse(min_version)
         parsed_max_version = semver.VersionInfo.parse(max_version)
-        nuclio_version = services.api.utils.runtimes.nuclio.resolve_nuclio_version()
+        nuclio_version = framework.utils.runtimes.nuclio.resolve_nuclio_version()
         parsed_current_version = semver.VersionInfo.parse(nuclio_version)
     except ValueError:
         logger.warning(

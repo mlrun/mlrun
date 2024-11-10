@@ -147,6 +147,4 @@ ignore_imports = [
     "server.py.framework.api.utils -> services",
     "server.py.framework.rundb.sqldb -> services",
     "server.py.framework.utils.projects.* -> services",
-    # This one imports runtime handlers which will be moved to framework once it is needed in other services
-    "server.py.framework.utils.singletons.k8s -> services",
 ]

@@ -26,8 +26,8 @@ from mlrun.config import config as mlconf
 
 import framework.api.utils
 import framework.utils.clients.iguazio
+import framework.utils.runtimes.nuclio
 import services.api.utils.builder
-import services.api.utils.runtimes.nuclio
 
 
 def test_get_frontend_spec(

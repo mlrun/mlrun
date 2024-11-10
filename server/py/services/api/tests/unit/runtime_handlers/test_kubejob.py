@@ -29,9 +29,9 @@ from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import now_date
 
 import framework.utils.helpers
+import framework.utils.runtimes.runtimes
 import framework.utils.singletons.db
 import services.api.crud
-import services.api.utils.runtimes
 from framework.utils.singletons.db import get_db
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase

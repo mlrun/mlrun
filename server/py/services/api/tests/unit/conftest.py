@@ -43,13 +43,13 @@ from mlrun.utils import logger
 
 import framework.utils.clients.iguazio
 import framework.utils.projects.remotes.leader as project_leader
+import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
 import services.api.crud
 import services.api.launcher
 import services.api.runtime_handlers.mpijob
-import services.api.utils.runtimes.nuclio
 import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.scheduler
 from services.api.daemon import app, daemon

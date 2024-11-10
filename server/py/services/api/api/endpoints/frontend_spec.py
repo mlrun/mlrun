@@ -26,8 +26,8 @@ from mlrun.platforms import is_iguazio_session_cookie
 
 import framework.api.deps
 import framework.utils.clients.iguazio
+import framework.utils.runtimes.nuclio
 import services.api.utils.builder
-import services.api.utils.runtimes.nuclio
 from framework.api.utils import get_allowed_path_prefixes_list
 
 router = fastapi.APIRouter()
@@ -135,7 +135,7 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 
     if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
-        services.api.utils.runtimes.nuclio.resolve_nuclio_version()
+        framework.utils.runtimes.nuclio.resolve_nuclio_version()
     ) >= semver.VersionInfo.parse("1.7.8"):
         nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.enabled
 

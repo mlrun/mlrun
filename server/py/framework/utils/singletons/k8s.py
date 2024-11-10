@@ -35,7 +35,7 @@ import mlrun.runtimes.pod
 from mlrun.utils import logger
 from mlrun.utils.helpers import run_with_retry, to_non_empty_values_dict
 
-import services.api.runtime_handlers
+import framework.utils.runtimes.mpijob
 
 _k8s = None
 
@@ -355,7 +355,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def get_logger_pods(self, project, uid, run_kind, namespace=""):
         namespace = self.resolve_namespace(namespace)
-        mpijob_crd_version = services.api.runtime_handlers.resolve_mpijob_crd_version()
+        mpijob_crd_version = (
+            framework.utils.runtimes.mpijob.resolve_mpijob_crd_version()
+        )
         mpijob_role_label = (
             mlrun.common.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
                 mpijob_crd_version

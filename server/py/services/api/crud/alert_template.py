@@ -18,7 +18,6 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.utils.singleton
 
-import framework.api.utils
 import framework.utils.helpers
 import framework.utils.singletons.db
 

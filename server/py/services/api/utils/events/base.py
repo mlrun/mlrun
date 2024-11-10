@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import abc
+from typing import Optional
 
 import mlrun.common.schemas
 
@@ -42,7 +43,7 @@ class BaseEventClient:
         self,
         project: str,
         secret_name: str,
-        secret_keys: list[str] = None,
+        secret_keys: Optional[list[str]] = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
     ):
         """

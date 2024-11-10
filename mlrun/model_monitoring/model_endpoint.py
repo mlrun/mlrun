@@ -14,7 +14,7 @@
 #
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 import mlrun.model
 from mlrun.common.model_monitoring.helpers import FeatureStats
@@ -104,7 +104,9 @@ class ModelEndpoint(mlrun.model.ModelObj):
         )
 
     @classmethod
-    def from_flat_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+    def from_flat_dict(
+        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+    ):
         new_obj = cls()
         new_obj._metadata = mlrun.model.VersionedObjMetadata().from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields

@@ -68,11 +68,11 @@ async def get_project_background_task(
 )
 async def list_project_background_tasks(
     project: str,
-    state: str = None,
-    created_from: str = None,
-    created_to: str = None,
-    last_update_time_from: str = None,
-    last_update_time_to: str = None,
+    state: typing.Optional[str] = None,
+    created_from: typing.Optional[str] = None,
+    created_to: typing.Optional[str] = None,
+    last_update_time_from: typing.Optional[str] = None,
+    last_update_time_to: typing.Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         services.api.api.deps.authenticate_request
     ),

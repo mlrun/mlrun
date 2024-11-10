@@ -221,7 +221,7 @@ def verify_field_regex(
 
 
 def validate_builder_source(
-    source: str, pull_at_runtime: bool = False, workdir: str = None
+    source: str, pull_at_runtime: bool = False, workdir: Optional[str] = None
 ):
     if pull_at_runtime or not source:
         return
@@ -357,8 +357,8 @@ def verify_field_list_of_type(
 def verify_dict_items_type(
     name: str,
     dictionary: dict,
-    expected_keys_types: list = None,
-    expected_values_types: list = None,
+    expected_keys_types: Optional[list] = None,
+    expected_values_types: Optional[list] = None,
 ):
     if dictionary:
         if not isinstance(dictionary, dict):
@@ -375,7 +375,7 @@ def verify_dict_items_type(
             ) from exc
 
 
-def verify_list_items_type(list_, expected_types: list = None):
+def verify_list_items_type(list_, expected_types: Optional[list] = None):
     if list_ and expected_types:
         list_items_types = set(map(type, list_))
         expected_types = set(expected_types)
@@ -823,7 +823,9 @@ def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
 
 
 def enrich_image_url(
-    image_url: str, client_version: str = None, client_python_version: str = None
+    image_url: str,
+    client_version: Optional[str] = None,
+    client_python_version: Optional[str] = None,
 ) -> str:
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
@@ -863,7 +865,7 @@ def enrich_image_url(
 
 
 def resolve_image_tag_suffix(
-    mlrun_version: str = None, python_version: str = None
+    mlrun_version: Optional[str] = None, python_version: Optional[str] = None
 ) -> str:
     """
     resolves what suffix should be appended to the image tag
@@ -1212,7 +1214,7 @@ def get_function(function, namespaces, reload_modules: bool = False):
 def get_handler_extended(
     handler_path: str,
     context=None,
-    class_args: dict = None,
+    class_args: Optional[dict] = None,
     namespaces=None,
     reload_modules: bool = False,
 ):
@@ -1723,7 +1725,7 @@ def merge_dicts_with_precedence(*dicts: dict) -> dict:
 def validate_component_version_compatibility(
     component_name: typing.Literal["iguazio", "nuclio", "mlrun-client"],
     *min_versions: str,
-    mlrun_client_version: str = None,
+    mlrun_client_version: Optional[str] = None,
 ):
     """
     :param component_name: Name of the component to validate compatibility for.
@@ -1840,9 +1842,8 @@ def _reload(module, max_recursion_depth):
 def run_with_retry(
     retry_count: int,
     func: typing.Callable,
-    retry_on_exceptions: typing.Union[
-        type[Exception],
-        tuple[type[Exception]],
+    retry_on_exceptions: Optional[
+        typing.Union[type[Exception], tuple[type[Exception]]]
     ] = None,
     *args,
     **kwargs,

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from typing import Optional
 
 
 def base_requirements() -> list[str]:
@@ -115,7 +116,9 @@ def _extract_package_from_egg(line: str) -> str:
     return line
 
 
-def _load_dependencies_from_file(path: str, parent_dir: str = None) -> list[str]:
+def _load_dependencies_from_file(
+    path: str, parent_dir: Optional[str] = None
+) -> list[str]:
     """Load dependencies from requirements file"""
     parent_dir = parent_dir or os.path.dirname(__file__)
     with open(f"{parent_dir}/{path}") as fp:
@@ -127,10 +130,10 @@ def _load_dependencies_from_file(path: str, parent_dir: str = None) -> list[str]
 
 
 def _get_extra_dependencies(
-    include: list[str] = None,
-    exclude: list[str] = None,
-    base_deps: list[str] = None,
-    extras_require: dict[str, list[str]] = None,
+    include: Optional[list[str]] = None,
+    exclude: Optional[list[str]] = None,
+    base_deps: Optional[list[str]] = None,
+    extras_require: Optional[dict[str, list[str]]] = None,
 ) -> list[str]:
     """Get list of dependencies for given extras categories
 

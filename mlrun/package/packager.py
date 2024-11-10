@@ -14,7 +14,7 @@
 #
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
@@ -144,9 +144,9 @@ class Packager(ABC):
     def pack(
         self,
         obj: Any,
-        key: str = None,
-        artifact_type: str = None,
-        configurations: dict = None,
+        key: Optional[str] = None,
+        artifact_type: Optional[str] = None,
+        configurations: Optional[dict] = None,
     ) -> Union[tuple[Artifact, dict], dict]:
         """
         Pack an object as the given artifact type using the provided configurations.
@@ -165,8 +165,8 @@ class Packager(ABC):
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: str = None,
-        instructions: dict = None,
+        artifact_type: Optional[str] = None,
+        instructions: Optional[dict] = None,
     ) -> Any:
         """
         Unpack the data item's artifact by the provided type using the given instructions.
@@ -180,7 +180,10 @@ class Packager(ABC):
         pass
 
     def is_packable(
-        self, obj: Any, artifact_type: str = None, configurations: dict = None
+        self,
+        obj: Any,
+        artifact_type: Optional[str] = None,
+        configurations: Optional[dict] = None,
     ) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
@@ -212,7 +215,7 @@ class Packager(ABC):
         return True
 
     def is_unpackable(
-        self, data_item: DataItem, type_hint: type, artifact_type: str = None
+        self, data_item: DataItem, type_hint: type, artifact_type: Optional[str] = None
     ) -> bool:
         """
         Check if this packager can unpack an input according to the user-given type hint and the provided artifact type.
@@ -315,7 +318,7 @@ class Packager(ABC):
         )
 
     def get_data_item_local_path(
-        self, data_item: DataItem, add_to_future_clearing_path: bool = None
+        self, data_item: DataItem, add_to_future_clearing_path: Optional[bool] = None
     ) -> str:
         """
         Get the local path to the item handled by the data item provided. The local path can be the same as the data

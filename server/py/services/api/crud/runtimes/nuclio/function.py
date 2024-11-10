@@ -47,9 +47,9 @@ SERVING_SPEC_MAX_LENGTH = 1048576
 def deploy_nuclio_function(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     auth_info: mlrun.common.schemas.AuthInfo = None,
-    client_version: str = None,
-    builder_env: dict = None,
-    client_python_version: str = None,
+    client_version: typing.Optional[str] = None,
+    builder_env: typing.Optional[dict] = None,
+    client_python_version: typing.Optional[str] = None,
 ):
     """Deploys a nuclio function.
 
@@ -256,8 +256,8 @@ def pure_nuclio_deployed_restricted():
 
 def _compile_function_config(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
-    client_version: str = None,
-    client_python_version: str = None,
+    client_version: typing.Optional[str] = None,
+    client_python_version: typing.Optional[str] = None,
     builder_env=None,
     auth_info=None,
 ):

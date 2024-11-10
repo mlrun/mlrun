@@ -74,7 +74,10 @@ class ModelObj:
 
     @mlrun.utils.filter_warnings("ignore", FutureWarning)
     def to_dict(
-        self, fields: list = None, exclude: list = None, strip: bool = False
+        self,
+        fields: Optional[list] = None,
+        exclude: Optional[list] = None,
+        strip: bool = False,
     ) -> dict:
         """
         Convert the object to a dict
@@ -141,7 +144,7 @@ class ModelObj:
         self._apply_enrichment_before_to_dict_completion(struct, strip=strip)
         return struct
 
-    def _resolve_initial_to_dict_fields(self, fields: list = None) -> list:
+    def _resolve_initial_to_dict_fields(self, fields: Optional[list] = None) -> list:
         """
         Resolve fields to be used in to_dict method.
         If fields is None, use `_dict_fields` attribute of the object.
@@ -184,7 +187,7 @@ class ModelObj:
         self,
         struct: dict,
         method: typing.Callable,
-        fields: typing.Union[list, set] = None,
+        fields: Optional[typing.Union[list, set]] = None,
         strip: bool = False,
     ) -> dict:
         for field_name in fields:
@@ -196,14 +199,14 @@ class ModelObj:
         return struct
 
     def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
     ) -> typing.Any:
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
         # the fields to save.
         return getattr(self, field_name, None)
 
     def _enrich_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
     ) -> typing.Any:
         # We first try to pull from struct because the field might have been already serialized and if not,
         # we pull from self
@@ -215,7 +218,9 @@ class ModelObj:
         return struct
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+    def from_dict(
+        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+    ):
         """create an object from a python dictionary"""
         struct = {} if struct is None else struct
         deprecated_fields = deprecated_fields or {}
@@ -430,7 +435,7 @@ class Credentials(ModelObj):
 
     def __init__(
         self,
-        access_key: str = None,
+        access_key: Optional[str] = None,
     ):
         self.access_key = access_key
 
@@ -500,7 +505,7 @@ class ImageBuilder(ModelObj):
         origin_filename=None,
         with_mlrun=None,
         auto_build=None,
-        requirements: list = None,
+        requirements: Optional[list] = None,
         extra_args=None,
         builder_env=None,
         source_code_target_dir=None,
@@ -549,7 +554,7 @@ class ImageBuilder(ModelObj):
         self,
         image="",
         base_image=None,
-        commands: list = None,
+        commands: Optional[list] = None,
         secret=None,
         source=None,
         extra=None,
@@ -973,7 +978,7 @@ class RunSpec(ModelObj):
         self.node_selector = node_selector or {}
 
     def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
     ) -> Optional[str]:
         # We pull the field from self and not from struct because it was excluded from the struct
         if field_name == "handler":
@@ -1275,9 +1280,9 @@ class RunStatus(ModelObj):
         last_update=None,
         iterations=None,
         ui_url=None,
-        reason: str = None,
-        notifications: dict[str, Notification] = None,
-        artifact_uris: dict[str, str] = None,
+        reason: Optional[str] = None,
+        notifications: Optional[dict[str, Notification]] = None,
+        artifact_uris: Optional[dict[str, str]] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1296,7 +1301,9 @@ class RunStatus(ModelObj):
         self._artifact_uris = artifact_uris or {}
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+    def from_dict(
+        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+    ):
         deprecated_fields = {
             # Set artifacts as deprecated for lazy loading
             "artifacts": "artifact_uris"
@@ -1925,7 +1932,7 @@ class EntrypointParam(ModelObj):
         default=None,
         doc="",
         required=None,
-        choices: list = None,
+        choices: Optional[list] = None,
     ):
         self.name = name
         self.type = type
@@ -2120,12 +2127,12 @@ class DataSource(ModelObj):
 
     def __init__(
         self,
-        name: str = None,
-        path: str = None,
-        attributes: dict[str, object] = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
+        name: Optional[str] = None,
+        path: Optional[str] = None,
+        attributes: Optional[dict[str, object]] = None,
+        key_field: Optional[str] = None,
+        time_field: Optional[str] = None,
+        schedule: Optional[str] = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
     ):
@@ -2147,7 +2154,7 @@ class DataSource(ModelObj):
         self._secrets = secrets
 
     def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
     ) -> typing.Any:
         value = super()._serialize_field(struct, field_name, strip)
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
@@ -2179,7 +2186,9 @@ class DataTargetBase(ModelObj):
     ]
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+    def from_dict(
+        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+    ):
         return super().from_dict(struct, fields=fields)
 
     def get_path(self):
@@ -2195,10 +2204,10 @@ class DataTargetBase(ModelObj):
 
     def __init__(
         self,
-        kind: str = None,
+        kind: Optional[str] = None,
         name: str = "",
         path=None,
-        attributes: dict[str, str] = None,
+        attributes: Optional[dict[str, str]] = None,
         after_step=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,
@@ -2206,8 +2215,8 @@ class DataTargetBase(ModelObj):
         time_partitioning_granularity: Optional[str] = None,
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
-        storage_options: dict[str, str] = None,
-        schema: dict[str, Any] = None,
+        storage_options: Optional[dict[str, str]] = None,
+        schema: Optional[dict[str, Any]] = None,
         credentials_prefix=None,
     ):
         self.name = name
@@ -2263,7 +2272,7 @@ class DataTarget(DataTargetBase):
 
     def __init__(
         self,
-        kind: str = None,
+        kind: Optional[str] = None,
         name: str = "",
         path=None,
         online=None,
@@ -2292,12 +2301,12 @@ class DataTarget(DataTargetBase):
 class VersionedObjMetadata(ModelObj):
     def __init__(
         self,
-        name: str = None,
-        tag: str = None,
-        uid: str = None,
-        project: str = None,
-        labels: dict[str, str] = None,
-        annotations: dict[str, str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        uid: Optional[str] = None,
+        project: Optional[str] = None,
+        labels: Optional[dict[str, str]] = None,
+        annotations: Optional[dict[str, str]] = None,
         updated=None,
     ):
         self.name = name

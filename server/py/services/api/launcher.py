@@ -71,7 +71,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        hyperparams: dict[str, list] = None,
+        hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
@@ -196,7 +196,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         out_path=None,
         artifact_path=None,
         workdir=None,
-        notifications: list[mlrun.model.Notification] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
     ):
         run = super()._enrich_run(

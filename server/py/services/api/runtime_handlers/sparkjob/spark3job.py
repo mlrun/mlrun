@@ -561,9 +561,9 @@ with ctx:
         db_session: Session,
         namespace: str,
         deleted_resources: list[dict],
-        label_selector: str = None,
+        label_selector: Optional[str] = None,
         force: bool = False,
-        grace_period: int = None,
+        grace_period: Optional[int] = None,
         resource_deletion_grace_period: typing.Optional[int] = None,
     ):
         """

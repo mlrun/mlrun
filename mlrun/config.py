@@ -1378,7 +1378,9 @@ def _validate_config(config):
     config.verify_security_context_enrichment_mode_is_allowed()
 
 
-def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+def _verify_gpu_requests_and_limits(
+    requests_gpu: typing.Optional[str] = None, limits_gpu: typing.Optional[str] = None
+):
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if requests_gpu and not limits_gpu:
         raise mlrun.errors.MLRunConflictError(
@@ -1391,7 +1393,7 @@ def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = 
         )
 
 
-def _convert_resources_to_str(config: dict = None):
+def _convert_resources_to_str(config: typing.Optional[dict] = None):
     resources_types = ["cpu", "memory", "gpu"]
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):

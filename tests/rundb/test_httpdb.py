@@ -24,6 +24,7 @@ from socket import socket
 from subprocess import DEVNULL, PIPE, Popen, run
 from sys import executable
 from tempfile import mkdtemp
+from typing import Optional
 from uuid import uuid4
 
 import deepdiff
@@ -857,7 +858,7 @@ def test_add_tag_and_delete_untagged_artifacts(create_server):
     assert artifacts[0]["metadata"]["tag"] == "latest"
 
 
-def _generate_project_and_artifact(project: str = "newproj", tag: str = None):
+def _generate_project_and_artifact(project: str = "newproj", tag: Optional[str] = None):
     proj_obj = mlrun.new_project(project)
 
     logged_artifact = proj_obj.log_artifact(

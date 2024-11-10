@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import inspect
+from typing import Optional
 
 from mlrun.utils import get_in, update_in
 
@@ -55,7 +56,12 @@ class StepToDict:
         "kwargs",
     ]
 
-    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
+    def to_dict(
+        self,
+        fields: Optional[list] = None,
+        exclude: Optional[list] = None,
+        strip: bool = False,
+    ):
         """convert the step object to a python dictionary"""
         fields = fields or getattr(self, "_dict_fields", None)
         if not fields:
@@ -105,5 +111,10 @@ class MonitoringApplicationToDict(StepToDict):
 class RouterToDict(StepToDict):
     _STEP_KIND = "router"
 
-    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
+    def to_dict(
+        self,
+        fields: Optional[list] = None,
+        exclude: Optional[list] = None,
+        strip: bool = False,
+    ):
         return super().to_dict(exclude=["routes"], strip=strip)

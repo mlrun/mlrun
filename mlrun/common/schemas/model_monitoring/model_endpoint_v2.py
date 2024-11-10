@@ -34,7 +34,9 @@ class ModelEndpointParser(abc.ABC, BaseModel):
         return []
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: list = None):
+    def from_flat_dict(
+        cls, endpoint_dict: dict, json_parse_values: Optional[list] = None
+    ):
         """Create a `ModelEndpointMetadata` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.

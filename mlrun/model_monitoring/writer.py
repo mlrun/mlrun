@@ -14,7 +14,7 @@
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Callable, NewType
+from typing import Any, Callable, NewType, Optional
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
@@ -112,7 +112,7 @@ class ModelMonitoringWriter(StepToDict):
     def __init__(
         self,
         project: str,
-        secret_provider: Callable = None,
+        secret_provider: Optional[Callable] = None,
     ) -> None:
         self.project = project
         self.name = project  # required for the deployment process

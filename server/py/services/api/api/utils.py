@@ -1216,7 +1216,7 @@ async def _delete_project(
     auth_info: mlrun.common.schemas.AuthInfo,
     wait_for_project_deletion: bool,
     background_task_name: str,
-    model_monitoring_access_key: str = None,
+    model_monitoring_access_key: typing.Optional[str] = None,
 ):
     force_delete = False
     project_name = project.metadata.name

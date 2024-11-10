@@ -144,8 +144,8 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     def _create_project(
         self,
         client: fastapi.testclient.TestClient,
-        project_name: str = None,
-        default_function_node_selector: dict = None,
+        project_name: typing.Optional[str] = None,
+        default_function_node_selector: typing.Optional[dict] = None,
     ):
         services.api.tests.unit.api.utils.create_project(
             client=client,

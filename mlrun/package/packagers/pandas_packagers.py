@@ -17,7 +17,7 @@ import os
 import pathlib
 import tempfile
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 
@@ -56,7 +56,7 @@ class _Formatter(ABC):
     @classmethod
     @abstractmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read the dataframe from the given file path.
@@ -173,7 +173,7 @@ class _ParquetFormatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read the dataframe from the given parquet file path.
@@ -221,7 +221,7 @@ class _CSVFormatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read the dataframe from the given csv file path.
@@ -275,7 +275,7 @@ class _H5Formatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read the dataframe from the given h5 file path.
@@ -332,7 +332,7 @@ class _XMLFormatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read the dataframe from the given xml file path.
@@ -391,7 +391,7 @@ class _XLSXFormatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read the dataframe from the given xlsx file path.
@@ -449,7 +449,7 @@ class _HTMLFormatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read dataframes from the given html file path.
@@ -510,7 +510,7 @@ class _JSONFormatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read dataframes from the given json file path.
@@ -565,7 +565,7 @@ class _FeatherFormatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read dataframes from the given feather file path.
@@ -620,7 +620,7 @@ class _ORCFormatter(_Formatter):
 
     @classmethod
     def read(
-        cls, file_path: str, unflatten_kwargs: dict = None, **read_kwargs
+        cls, file_path: str, unflatten_kwargs: Optional[dict] = None, **read_kwargs
     ) -> pd.DataFrame:
         """
         Read dataframes from the given orc file path.
@@ -730,7 +730,7 @@ class PandasDataFramePackager(DefaultPackager):
         self,
         obj: pd.DataFrame,
         key: str,
-        file_format: str = None,
+        file_format: Optional[str] = None,
         flatten: bool = True,
         **to_kwargs,
     ) -> tuple[Artifact, dict]:
@@ -785,8 +785,8 @@ class PandasDataFramePackager(DefaultPackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: str = None,
-        read_kwargs: dict = None,
+        file_format: Optional[str] = None,
+        read_kwargs: Optional[dict] = None,
     ) -> pd.DataFrame:
         """
         Unpack a pandas dataframe from file.
@@ -883,7 +883,7 @@ class PandasSeriesPackager(PandasDataFramePackager):
         self,
         obj: pd.Series,
         key: str,
-        file_format: str = None,
+        file_format: Optional[str] = None,
         flatten: bool = True,
         **to_kwargs,
     ) -> tuple[Artifact, dict]:
@@ -919,9 +919,9 @@ class PandasSeriesPackager(PandasDataFramePackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: str = None,
-        read_kwargs: dict = None,
-        column_name: Union[str, int] = None,
+        file_format: Optional[str] = None,
+        read_kwargs: Optional[dict] = None,
+        column_name: Optional[Union[str, int]] = None,
     ) -> pd.Series:
         """
         Unpack a pandas series from file.

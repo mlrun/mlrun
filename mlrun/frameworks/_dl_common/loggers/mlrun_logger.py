@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import itertools
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -144,9 +144,9 @@ class MLRunLogger(Logger):
         self,
         model_handler: DLModelHandler,
         tag: str = "",
-        labels: dict[str, DLTypes.TrackableType] = None,
-        parameters: dict[str, DLTypes.TrackableType] = None,
-        extra_data: dict[str, Union[DLTypes.TrackableType, Artifact]] = None,
+        labels: Optional[dict[str, DLTypes.TrackableType]] = None,
+        parameters: Optional[dict[str, DLTypes.TrackableType]] = None,
+        extra_data: Optional[dict[str, Union[DLTypes.TrackableType, Artifact]]] = None,
     ):
         """
         Log the run, summarizing the validation metrics and dynamic hyperparameters across all epochs. If 'update' is

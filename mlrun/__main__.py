@@ -1248,10 +1248,10 @@ def show_or_set_config(
         }
         for key, value in env_dict.items():
             if value:
-                dotenv.set_key(filename, key, value, quote_mode="")
+                dotenv.set_key(filename, key, value, quote_mode="always")
         if env_vars:
             for key, value in list2dict(env_vars).items():
-                dotenv.set_key(filename, key, value, quote_mode="")
+                dotenv.set_key(filename, key, value, quote_mode="always")
         if env_file:
             # if its not the default file print the usage details
             print(

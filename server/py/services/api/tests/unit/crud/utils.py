@@ -18,17 +18,18 @@ import mlrun.common.schemas.alert as alert_objects
 
 
 def generate_alert_data(
-    project,
-    name,
-    entity,
-    summary,
-    trigger,
-    description=None,
-    severity=alert_objects.AlertSeverity.LOW,
-    notifications=None,
-    criteria=None,
-    reset_policy=alert_objects.ResetPolicy.AUTO,
+    project: str,
+    name: str,
+    entity: alert_objects.EventEntities,
+    summary: str,
+    event_kind: alert_objects.EventKind,
+    description: str = None,
+    severity: alert_objects.AlertSeverity = alert_objects.AlertSeverity.LOW,
+    notifications: list[alert_objects.Notification] = None,
+    criteria: alert_objects.AlertCriteria = None,
+    reset_policy: alert_objects.ResetPolicy = alert_objects.ResetPolicy.AUTO,
 ):
+    trigger = alert_objects.AlertTrigger(events=[event_kind])
     if notifications is None:
         notification = mlrun.common.schemas.Notification(
             kind="slack",

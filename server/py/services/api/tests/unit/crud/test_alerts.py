@@ -50,14 +50,13 @@ async def test_process_event_no_cache(
         ids=[123],
     )
     event_kind = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
-    alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
 
     alert_data = services.api.tests.unit.crud.utils.generate_alert_data(
         project=project,
         name=alert_name,
         entity=alert_entity,
         summary=alert_summary,
-        trigger=alert_trigger,
+        event_kind=event_kind,
         reset_policy=alert_reset_policy,
     )
 
@@ -110,14 +109,13 @@ async def test_validate_alert_name(
         ids=[123],
     )
     event_kind = alert_objects.EventKind.FAILED
-    alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
 
     alert_data = services.api.tests.unit.crud.utils.generate_alert_data(
         project=project,
         name=alert_name,
         entity=alert_entity,
         summary=alert_summary,
-        trigger=alert_trigger,
+        event_kind=event_kind,
     )
     with expectation:
         services.api.crud.Alerts().store_alert(
@@ -252,14 +250,13 @@ async def test_alert_reset_with_fields_updates(
         ids=[123],
     )
     event_kind = alert_objects.EventKind.FAILED
-    alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
 
     alert_data = services.api.tests.unit.crud.utils.generate_alert_data(
         project=project,
         name=alert_name,
         entity=alert_entity,
         summary=alert_summary,
-        trigger=alert_trigger,
+        event_kind=event_kind,
         reset_policy=alert_reset_policy,
     )
 

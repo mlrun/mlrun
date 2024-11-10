@@ -91,6 +91,7 @@ from framework.db.sqldb.helpers import (
     update_labels,
 )
 from framework.db.sqldb.models import (
+    AlertActivation,
     AlertConfig,
     AlertState,
     AlertTemplate,
@@ -5886,6 +5887,83 @@ class SQLDB(DBInterface):
 
         if commit:
             session.commit()
+
+    def store_alert_activation(
+        self,
+        session,
+        alert_data: mlrun.common.schemas.AlertConfig,
+        event_data: mlrun.common.schemas.Event,
+        notifications_states: list[mlrun.common.schemas.NotificationState],
+    ):
+        extra_data = {
+            "notifications": [
+                notification.dict() for notification in notifications_states
+            ],
+            "criteria": alert_data.criteria.dict() if alert_data.criteria else None,
+        }
+
+        # For JOB entities, construct entity_id as "name.uid" format
+        if alert_data.entities.kind == mlrun.common.schemas.alert.EventEntityKind.JOB:
+            run_name = alert_data.entities.ids[0]
+            run_uid = event_data.value_dict.get("uid")
+            entity_id = f"{run_name}.{run_uid}"
+        else:
+            entity_id = alert_data.entities.ids[0]
+
+        alert_activation_record = AlertActivation(
+            id=alert_data.id,
+            name=alert_data.name,
+            project=alert_data.project,
+            activation_time=event_data.timestamp,
+            entity_id=entity_id,
+            entity_kind=alert_data.entities.kind,
+            event_kind=event_data.kind,
+            severity=alert_data.severity,
+            number_of_events=alert_data.criteria.count,
+            data=extra_data,
+        )
+
+        self._upsert(session, [alert_activation_record])
+
+    def list_alerts_activations(
+        self, session: Session, project: str = None
+    ) -> list[mlrun.common.schemas.AlertActivation]:
+        # add filters later
+        query = self._query(session, AlertActivation)
+
+        if project and project != "*":
+            query = query.filter(AlertActivation.project == project)
+
+        alert_activations = list(
+            map(self._transform_alert_activation_record_to_scheme, query.all())
+        )
+
+        return alert_activations
+
+    @staticmethod
+    def _transform_alert_activation_record_to_scheme(
+        alert_activation_record: AlertActivation,
+    ) -> mlrun.common.schemas.AlertActivation:
+        if alert_activation_record is None:
+            return None
+
+        alert_activation = mlrun.common.schemas.AlertActivation(
+            id=alert_activation_record.id,
+            name=alert_activation_record.name,
+            project=alert_activation_record.project,
+            severity=alert_activation_record.severity,
+            activation_time=alert_activation_record.activation_time.replace(
+                tzinfo=timezone.utc
+            ),
+            entity_id=alert_activation_record.entity_id,
+            entity_kind=alert_activation_record.entity_kind,
+            event_kind=alert_activation_record.event_kind,
+            number_of_events=alert_activation_record.number_of_events,
+            notifications=alert_activation_record.data.get("notifications", []),
+            criteria=alert_activation_record.data.get("criteria"),
+        )
+
+        return alert_activation
 
     # ---- Background Tasks ----
 

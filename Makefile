@@ -775,3 +775,12 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
 	done;
     MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG)
 endif
+
+
+.PHONY: update-mlrun-api-deps
+update-api-deps: ## Update mlrun-api locked requirements file
+	uv pip compile \
+	requirements.txt \
+	extras-requirements.txt \
+	dockerfiles/mlrun-api/requirements.txt \
+	-U -o dockerfiles/mlrun-api/locked-requirements.txt

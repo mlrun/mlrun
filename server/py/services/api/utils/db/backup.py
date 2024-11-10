@@ -22,7 +22,7 @@ import typing
 from mlrun import mlconf
 from mlrun.utils import logger
 
-import services.api.utils.db.mysql
+import framework.utils.db.mysql
 
 
 class DBBackupUtil:
@@ -99,7 +99,7 @@ class DBBackupUtil:
         backup_path = self._get_backup_file_path(backup_file_name)
 
         logger.debug("Backing up mysql DB data", backup_path=backup_path)
-        dsn_data = services.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
+        dsn_data = framework.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysqldump --single-transaction --routines --triggers "
             f"--max_allowed_packet={mlconf.httpdb.db.backup.max_allowed_packet} "
@@ -121,7 +121,7 @@ class DBBackupUtil:
             "Loading mysql DB backup data",
             backup_path=backup_path,
         )
-        dsn_data = services.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
+        dsn_data = framework.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysql "
             f"-h {dsn_data['host']} "

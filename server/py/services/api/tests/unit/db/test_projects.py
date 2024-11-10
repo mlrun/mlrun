@@ -24,8 +24,8 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 
-from services.api.db.base import DBInterface
-from services.api.db.sqldb.models import Project
+from framework.db.base import DBInterface
+from framework.db.sqldb.models import Project
 
 
 def test_get_project(

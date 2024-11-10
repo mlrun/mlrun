@@ -21,17 +21,17 @@ from enum import Enum
 
 import dotenv
 import kubernetes.client as k8s_client
-import mlrun_pipelines.mounts
-from mlrun_pipelines.mixins import KfpAdapterMixin
 
 import mlrun.common.constants
 import mlrun.errors
 import mlrun.utils.regex
+import mlrun_pipelines.mounts
 from mlrun.common.schemas import (
     NodeSelectorOperator,
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
+from mlrun_pipelines.mixins import KfpAdapterMixin
 
 from ..config import config as mlconf
 from ..k8s_utils import (

@@ -23,9 +23,9 @@ import sqlalchemy.orm.session
 import mlrun.common.runtimes.constants
 import mlrun.config
 
+import framework.utils.clients.log_collector
+import framework.utils.singletons.db
 import services.api.crud
-import services.api.utils.clients.log_collector
-import services.api.utils.singletons.db
 from services.api.daemon import daemon
 from services.api.tests.unit.utils.clients.test_log_collector import (
     BaseLogCollectorResponse,
@@ -44,7 +44,7 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -54,7 +54,7 @@ class TestCollectRunSLogs:
                     db, project_name, uid=run_uid, name=run_uid, iteration=i, kind="job"
                 )
 
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[False],
             only_uids=False,
@@ -64,22 +64,22 @@ class TestCollectRunSLogs:
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+        framework.utils.singletons.db.get_db().update_runs_requested_logs = (
             unittest.mock.Mock()
         )
-        services.api.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(
+        framework.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(
             return_value=runs
         )
 
         await daemon.service._initiate_logs_collection(self.start_log_limit)
 
         assert (
-            services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            framework.utils.singletons.db.get_db().update_runs_requested_logs.call_count
             == 1
         )
         assert (
             deepdiff.DeepDiff(
-                services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
+                framework.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
                     1
                 ]["uids"],
                 run_uids,
@@ -94,9 +94,9 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[False],
             only_uids=False,
@@ -106,14 +106,14 @@ class TestCollectRunSLogs:
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+        framework.utils.singletons.db.get_db().update_runs_requested_logs = (
             unittest.mock.Mock()
         )
 
         await daemon.service._initiate_logs_collection(self.start_log_limit)
 
         assert (
-            services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            framework.utils.singletons.db.get_db().update_runs_requested_logs.call_count
             == 0
         )
 
@@ -129,7 +129,7 @@ class TestCollectRunSLogs:
             self.start_log_limit
         )
 
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -145,7 +145,7 @@ class TestCollectRunSLogs:
                     state=mlrun.common.runtimes.constants.RunStates.completed,
                 )
 
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[False],
             only_uids=False,
@@ -155,10 +155,10 @@ class TestCollectRunSLogs:
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+        framework.utils.singletons.db.get_db().update_runs_requested_logs = (
             unittest.mock.Mock()
         )
-        services.api.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(
+        framework.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(
             return_value=runs
         )
 
@@ -167,12 +167,12 @@ class TestCollectRunSLogs:
         )
 
         assert (
-            services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            framework.utils.singletons.db.get_db().update_runs_requested_logs.call_count
             == 1
         )
         assert (
             deepdiff.DeepDiff(
-                services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
+                framework.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
                     1
                 ]["uids"],
                 run_uids,
@@ -197,7 +197,7 @@ class TestCollectRunSLogs:
             self.start_log_limit
         )
 
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         new_uid = "new_uid"
@@ -227,7 +227,7 @@ class TestCollectRunSLogs:
         )
 
         # verify that we have 2 runs
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[False],
             only_uids=False,
@@ -240,13 +240,13 @@ class TestCollectRunSLogs:
         monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
         update_runs_requested_logs_mock = unittest.mock.Mock()
         monkeypatch.setattr(
-            services.api.utils.singletons.db.get_db(),
+            framework.utils.singletons.db.get_db(),
             "update_runs_requested_logs",
             update_runs_requested_logs_mock,
         )
         list_runs_mock = unittest.mock.Mock(return_value=[new_run])
         monkeypatch.setattr(
-            services.api.utils.singletons.db.get_db(),
+            framework.utils.singletons.db.get_db(),
             "list_runs",
             list_runs_mock,
         )
@@ -272,7 +272,7 @@ class TestCollectRunSLogs:
             self.start_log_limit
         )
 
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         num_of_runs = int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) * 2
@@ -288,7 +288,7 @@ class TestCollectRunSLogs:
             )
 
         # verify that we have 1000 runs
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[False],
             only_uids=False,
@@ -305,7 +305,7 @@ class TestCollectRunSLogs:
         monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
         update_runs_requested_logs_mock = unittest.mock.Mock()
         monkeypatch.setattr(
-            services.api.utils.singletons.db.get_db(),
+            framework.utils.singletons.db.get_db(),
             "update_runs_requested_logs",
             update_runs_requested_logs_mock,
         )
@@ -315,7 +315,7 @@ class TestCollectRunSLogs:
             ]
         )
         monkeypatch.setattr(
-            services.api.utils.singletons.db.get_db(),
+            framework.utils.singletons.db.get_db(),
             "list_runs",
             list_runs_mock,
         )
@@ -356,7 +356,7 @@ class TestCollectRunSLogs:
         client: fastapi.testclient.TestClient,
         monkeypatch,
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         success_uid = "success_uid"
@@ -373,7 +373,7 @@ class TestCollectRunSLogs:
             )
 
         # verify that we have 2 runs
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[False],
             only_uids=False,
@@ -402,13 +402,13 @@ class TestCollectRunSLogs:
         monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
         update_runs_requested_logs_mock = unittest.mock.Mock()
         monkeypatch.setattr(
-            services.api.utils.singletons.db.get_db(),
+            framework.utils.singletons.db.get_db(),
             "update_runs_requested_logs",
             update_runs_requested_logs_mock,
         )
         list_runs_mock = unittest.mock.Mock(return_value=runs)
         monkeypatch.setattr(
-            services.api.utils.singletons.db.get_db(),
+            framework.utils.singletons.db.get_db(),
             "list_runs",
             list_runs_mock,
         )
@@ -424,7 +424,7 @@ class TestCollectRunSLogs:
     async def test_collect_logs_with_runs_fails(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
         run_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -434,7 +434,7 @@ class TestCollectRunSLogs:
                     db, project_name, uid=run_uid, name=run_uid, iteration=i, kind="job"
                 )
 
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[False],
             only_uids=False,
@@ -444,14 +444,14 @@ class TestCollectRunSLogs:
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(False, "some error")
         )
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+        framework.utils.singletons.db.get_db().update_runs_requested_logs = (
             unittest.mock.Mock()
         )
 
         await daemon.service._initiate_logs_collection(self.start_log_limit)
 
         assert (
-            services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            framework.utils.singletons.db.get_db().update_runs_requested_logs.call_count
             == 0
         )
 
@@ -459,7 +459,7 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_success_local_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -474,7 +474,7 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_success_job_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -489,7 +489,7 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_success_dask_kind(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -512,7 +512,7 @@ class TestCollectRunSLogs:
     async def test_start_log_for_run_failure(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(False, "some error")
         )
@@ -527,7 +527,7 @@ class TestCollectRunSLogs:
     async def test_stop_logs(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -582,7 +582,7 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
 
@@ -611,11 +611,11 @@ class TestCollectRunSLogs:
         run_uids_log_collected = run_uids[1:]
 
         # update requested logs field to True
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs(
+        framework.utils.singletons.db.get_db().update_runs_requested_logs(
             db, run_uids, True
         )
 
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[True],
             only_uids=False,
@@ -649,11 +649,11 @@ class TestCollectRunSLogs:
         )
 
         # update requested logs field to False for one run
-        services.api.utils.singletons.db.get_db().update_runs_requested_logs(
+        framework.utils.singletons.db.get_db().update_runs_requested_logs(
             db, [run_uids[1]], False
         )
 
-        runs = services.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+        runs = framework.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
             requested_logs_modes=[True],
             only_uids=False,

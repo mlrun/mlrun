@@ -19,9 +19,9 @@ from sqlalchemy.orm import Session
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 
-from services.api.db.base import DBInterface
-from services.api.db.sqldb.db import SQLDB
-from services.api.db.sqldb.models import Schedule
+from framework.db.base import DBInterface
+from framework.db.sqldb.db import SQLDB
+from framework.db.sqldb.models import Schedule
 
 
 def test_delete_schedules(db: DBInterface, db_session: Session):

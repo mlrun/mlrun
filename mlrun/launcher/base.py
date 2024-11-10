@@ -18,8 +18,6 @@ import os
 import uuid
 from typing import Any, Callable, Optional, Union
 
-import mlrun_pipelines.common.ops
-
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -27,6 +25,7 @@ import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
 import mlrun.utils.regex
+import mlrun_pipelines.common.ops
 from mlrun.utils import logger
 
 run_modes = ["pass"]

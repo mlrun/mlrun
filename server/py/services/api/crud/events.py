@@ -16,11 +16,11 @@ import datetime
 
 import sqlalchemy.orm
 
+import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
-import services.api.api.utils
-import services.api.utils.singletons.db
+import services.api.crud
 
 
 class Events(

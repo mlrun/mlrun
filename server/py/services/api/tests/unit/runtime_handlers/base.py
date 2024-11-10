@@ -31,11 +31,10 @@ from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_test_logger, now_date
 
 import services.api.crud
-import services.api.utils.clients.chief
-from services.api.constants import LogSources
+from framework.constants import LogSources
+from framework.utils.singletons.db import get_db
+from framework.utils.singletons.k8s import get_k8s_helper
 from services.api.runtime_handlers import get_runtime_handler
-from services.api.utils.singletons.db import get_db
-from services.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_test_logger(name="test-runtime-handlers")
 

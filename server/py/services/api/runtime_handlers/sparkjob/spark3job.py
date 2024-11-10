@@ -35,8 +35,8 @@ from mlrun.utils import (
     verify_list_and_update_in,
 )
 
-import services.api.utils.singletons.k8s
-from services.api.db.base import DBInterface
+import framework.utils.singletons.k8s
+from framework.db.base import DBInterface
 from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
 
 _sparkjob_template = {
@@ -351,7 +351,7 @@ with ctx:
         code: Optional[str] = None,
     ):
         namespace = meta.namespace
-        k8s = services.api.utils.singletons.k8s.get_k8s_helper()
+        k8s = framework.utils.singletons.k8s.get_k8s_helper()
         namespace = k8s.resolve_namespace(namespace)
         if code:
             k8s_config_map = k8s_client.V1ConfigMap()
@@ -578,7 +578,7 @@ with ctx:
             )
             uids.append(uid)
 
-        config_maps = services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map(
+        config_maps = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
@@ -587,7 +587,7 @@ with ctx:
                     mlrun_constants.MLRunInternalLabels.uid, None
                 )
                 if force or uid in uids:
-                    services.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
+                    framework.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
                         config_map.metadata.name,
                         namespace,
                         grace_period_seconds=resource_deletion_grace_period,

@@ -34,31 +34,31 @@ from mlrun import mlconf
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 
+import framework.api.utils
+import framework.constants
+import framework.db.base
 import framework.service
-import services.api.api.utils
-import services.api.constants
+import framework.utils.clients.chief
+import framework.utils.clients.log_collector
+import framework.utils.notification_pusher
 import services.api.crud
-import services.api.db.base
 import services.api.initial_data
 import services.api.runtime_handlers
-import services.api.utils.clients.chief
-import services.api.utils.clients.log_collector
-import services.api.utils.notification_pusher
 import services.api.utils.time_window_tracker
+from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
     cancel_periodic_function,
     run_function_periodically,
 )
-from services.api.api.api import api_router, api_v2_router
-from services.api.db.session import close_session, create_session
-from services.api.runtime_handlers import get_runtime_handler
-from services.api.utils.singletons.db import get_db, initialize_db
-from services.api.utils.singletons.k8s import get_k8s_helper
-from services.api.utils.singletons.logs_dir import initialize_logs_dir
-from services.api.utils.singletons.project_member import (
+from framework.utils.singletons.db import get_db, initialize_db
+from framework.utils.singletons.k8s import get_k8s_helper
+from framework.utils.singletons.project_member import (
     get_project_member,
     initialize_project_member,
 )
+from services.api.api.api import api_router, api_v2_router
+from services.api.runtime_handlers import get_runtime_handler
+from services.api.utils.singletons.logs_dir import initialize_logs_dir
 from services.api.utils.singletons.scheduler import (
     ensure_scheduler,
     get_scheduler,
@@ -454,7 +454,7 @@ class Service(framework.service.Service):
         # this is to prevent opening too many connections to many connections
         async with start_logs_limit:
             logs_collector_client = (
-                services.api.utils.clients.log_collector.LogCollectorClient()
+                framework.utils.clients.log_collector.LogCollectorClient()
             )
             run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
             project_name = run.get("metadata", {}).get("project", None)
@@ -528,7 +528,7 @@ class Service(framework.service.Service):
                 interval,
                 services.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
                 False,
-                services.api.db.session.run_function_with_new_db_session,
+                framework.db.session.run_function_with_new_db_session,
                 services.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
             )
 
@@ -542,7 +542,7 @@ class Service(framework.service.Service):
                 interval,
                 services.api.crud.projects.Projects().refresh_project_resources_counters_cache.__name__,
                 False,
-                services.api.db.session.run_async_function_with_new_db_session,
+                framework.db.session.run_async_function_with_new_db_session,
                 services.api.crud.projects.Projects().refresh_project_resources_counters_cache,
             )
 
@@ -577,7 +577,7 @@ class Service(framework.service.Service):
         """
         self._logger.debug("Listing runs currently being log collected")
         log_collector_client = (
-            services.api.utils.clients.log_collector.LogCollectorClient()
+            framework.utils.clients.log_collector.LogCollectorClient()
         )
         run_uids_in_progress = []
         failed_listing = False
@@ -657,7 +657,7 @@ class Service(framework.service.Service):
             )
 
         try:
-            chief_client = services.api.utils.clients.chief.Client()
+            chief_client = framework.utils.clients.chief.Client()
             clusterization_spec = await chief_client.get_clusterization_spec(
                 return_fastapi_response=False, raise_on_failure=True
             )
@@ -713,7 +713,7 @@ class Service(framework.service.Service):
         self,
     ):
         stale_runs = await fastapi.concurrency.run_in_threadpool(
-            services.api.db.session.run_function_with_new_db_session,
+            framework.db.session.run_function_with_new_db_session,
             self._monitor_runs_and_push_terminal_notifications,
         )
         await self._abort_stale_runs(stale_runs)
@@ -774,7 +774,7 @@ class Service(framework.service.Service):
             close_session(db_session)
 
     def _push_terminal_run_notifications(
-        self, db: services.api.db.base.DBInterface, db_session, last_update_time
+        self, db: framework.db.base.DBInterface, db_session, last_update_time
     ):
         """
         Get all runs with notification configs which became terminal since the last call to the function
@@ -800,7 +800,7 @@ class Service(framework.service.Service):
         # Unmasking the run parameters from secrets before handing them over to the notification handler
         # as importing the `Secrets` crud in the notification handler will cause a circular import
         unmasked_runs = [
-            services.api.api.utils.unmask_notification_params_secret_on_task(
+            framework.api.utils.unmask_notification_params_secret_on_task(
                 db, db_session, run
             )
             for run in runs
@@ -809,13 +809,15 @@ class Service(framework.service.Service):
         self._logger.debug(
             "Got terminal runs with configured notifications", runs_amount=len(runs)
         )
-        default_notification_params = services.api.utils.notification_pusher.resolve_notifications_default_params()
-        services.api.utils.notification_pusher.RunNotificationPusher(
+        default_notification_params = (
+            framework.utils.notification_pusher.resolve_notifications_default_params()
+        )
+        framework.utils.notification_pusher.RunNotificationPusher(
             unmasked_runs, default_notification_params
         ).push()
 
     def _generate_event_on_failed_runs(
-        self, db: services.api.db.base.DBInterface, db_session, last_update_time
+        self, db: framework.db.base.DBInterface, db_session, last_update_time
     ):
         """
         Send an event on the runs that ended with error state since the last call to the function
@@ -862,10 +864,10 @@ class Service(framework.service.Service):
             async with semaphore:
                 # mark abort as internal, it doesn't have a background task
                 stale_run["new_background_task_id"] = (
-                    services.api.constants.internal_abort_task_id
+                    framework.constants.internal_abort_task_id
                 )
                 await fastapi.concurrency.run_in_threadpool(
-                    services.api.db.session.run_function_with_new_db_session,
+                    framework.db.session.run_function_with_new_db_session,
                     services.api.crud.Runs().abort_run,
                     **stale_run,
                 )
@@ -931,7 +933,7 @@ class Service(framework.service.Service):
                 run_uids, chunk_size
             ):
                 try:
-                    await services.api.utils.clients.log_collector.LogCollectorClient().stop_logs(
+                    await framework.utils.clients.log_collector.LogCollectorClient().stop_logs(
                         project_name, chunked_run_uids
                     )
                 except Exception as exc:

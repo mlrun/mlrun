@@ -17,7 +17,7 @@ import mlrun.utils.helpers
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from mlrun.config import config
 
-import services.api.utils.singletons.k8s
+import framework.utils.singletons.k8s
 from services.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
 
 cached_mpijob_crd_version = None
@@ -58,7 +58,7 @@ def _resolve_mpijob_crd_version_best_effort():
     if not mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
         return None
 
-    k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+    k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
     namespace = k8s_helper.resolve_namespace()
 
     # try resolving according to mpi-operator that's running

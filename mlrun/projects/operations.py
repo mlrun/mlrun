@@ -16,13 +16,12 @@ import typing
 import warnings
 from typing import Optional, Union
 
-import mlrun_pipelines.common.models
-import mlrun_pipelines.models
-
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.function
 import mlrun.common.schemas.workflow
+import mlrun_pipelines.common.models
+import mlrun_pipelines.models
 from mlrun.utils import hub_prefix
 
 from .pipelines import enrich_function_object, pipeline_context

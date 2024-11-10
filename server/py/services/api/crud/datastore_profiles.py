@@ -19,8 +19,9 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.datastore.datastore_profile import DatastoreProfile as DSProfile
 
+import framework.utils.singletons.db
+import framework.utils.singletons.k8s
 import services.api.crud
-import services.api.utils.singletons.k8s
 
 
 class DatastoreProfiles(
@@ -28,7 +29,7 @@ class DatastoreProfiles(
 ):
     @staticmethod
     def _in_k8s():
-        k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
         return (
             k8s_helper is not None and k8s_helper.is_running_inside_kubernetes_cluster()
         )
@@ -78,7 +79,7 @@ class DatastoreProfiles(
         project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
-        services.api.utils.singletons.db.get_db().store_datastore_profile(
+        framework.utils.singletons.db.get_db().store_datastore_profile(
             session, profile_name, profile_public_json, project
         )
         if profile_secret_json:
@@ -90,9 +91,9 @@ class DatastoreProfiles(
         self,
         session: sqlalchemy.orm.Session,
         project: str = None,
-    ) -> dict:
+    ) -> list:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_datastore_profiles(
+        return framework.utils.singletons.db.get_db().list_datastore_profiles(
             session, project
         )
 
@@ -104,7 +105,7 @@ class DatastoreProfiles(
     ):
         project = project or mlrun.mlconf.default_project
         # Delete public part of the secret
-        services.api.utils.singletons.db.get_db().delete_datastore_profile(
+        framework.utils.singletons.db.get_db().delete_datastore_profile(
             session, profile_name, project
         )
         # Delete private part of the secret
@@ -117,6 +118,6 @@ class DatastoreProfiles(
         project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().get_datastore_profile(
+        return framework.utils.singletons.db.get_db().get_datastore_profile(
             session, profile_name, project
         )

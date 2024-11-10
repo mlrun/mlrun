@@ -29,11 +29,11 @@ import mlrun.common.schemas
 import mlrun.errors
 from mlrun.config import config
 
+import framework.utils.auth.verifier
+import framework.utils.background_tasks
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
-from services.api.db.sqldb.models import Run
-from services.api.utils.singletons.db import get_db
+from framework.db.sqldb.models import Run
+from framework.utils.singletons.db import get_db
 
 RUNS_API_ENDPOINT = "/projects/{project}/runs"
 
@@ -612,7 +612,9 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
 
 
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
-    services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.AsyncMock()
+    framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.AsyncMock()
+    )
 
     # delete runs from specific project
     project = "some-project"
@@ -637,8 +639,8 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
 
 
 def test_delete_runs_without_permissions(db: Session, client: TestClient):
-    services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunUnauthorizedError()
+    framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError())
     )
 
     # try delete runs with no permission to project (project doesn't contain any runs)

@@ -20,8 +20,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.errors
 
-from services.api.db.base import DBInterface
-from services.api.db.sqldb.models import Function
+from framework.db.base import DBInterface
+from framework.db.sqldb.models import Function
 
 
 def test_store_function_default_to_latest(db: DBInterface, db_session: Session):

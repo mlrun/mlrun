@@ -26,9 +26,6 @@ import requests
 import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
-from mlrun_pipelines.common.mounts import VolumeMount
-from mlrun_pipelines.common.ops import deploy_op
-from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -50,6 +47,9 @@ from mlrun.runtimes.base import FunctionStatus, RunError
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
 from mlrun.runtimes.utils import get_item_name, log_std
 from mlrun.utils import get_in, logger, update_in
+from mlrun_pipelines.common.mounts import VolumeMount
+from mlrun_pipelines.common.ops import deploy_op
+from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 
 
 def validate_nuclio_version_compatibility(*min_versions):

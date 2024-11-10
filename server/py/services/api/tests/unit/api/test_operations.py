@@ -29,7 +29,6 @@ from mlrun.utils import logger
 import services.api.api.endpoints.operations
 import services.api.crud
 import services.api.initial_data
-import services.api.utils.background_tasks
 import services.api.utils.singletons.scheduler
 
 

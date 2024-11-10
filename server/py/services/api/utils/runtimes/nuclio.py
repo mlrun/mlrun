@@ -16,7 +16,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
-import services.api.utils.clients.nuclio
+import framework.utils.clients.nuclio
 
 
 # if nuclio version specified on mlrun config set it likewise,
@@ -27,7 +27,7 @@ import services.api.utils.clients.nuclio
 def resolve_nuclio_version():
     if not config.nuclio_version and config.nuclio_dashboard_url:
         try:
-            nuclio_client = services.api.utils.clients.nuclio.Client()
+            nuclio_client = framework.utils.clients.nuclio.Client()
             config.nuclio_version = nuclio_client.get_dashboard_version()
         except Exception as exc:
             logger.warning("Failed to resolve nuclio version", exc=err_to_str(exc))

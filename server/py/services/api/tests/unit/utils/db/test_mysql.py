@@ -16,7 +16,7 @@
 
 import pytest
 
-import services.api.utils.db.mysql
+import framework.utils.db.mysql
 
 
 @pytest.mark.parametrize(
@@ -51,5 +51,5 @@ def test_get_mysql_dsn_data(
     http_dsn: str, expected_output: dict, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setenv("MLRUN_HTTPDB__DSN", http_dsn)
-    dns_data = services.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
+    dns_data = framework.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
     assert dns_data == expected_output

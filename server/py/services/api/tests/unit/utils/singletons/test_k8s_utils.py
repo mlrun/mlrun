@@ -28,8 +28,8 @@ import mlrun.common.schemas
 import mlrun.runtimes
 from mlrun.common.schemas import SecretEventActions
 
+import framework.utils.singletons.k8s
 import services.api.runtime_handlers.mpijob
-import services.api.utils.singletons.k8s
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def k8s_helper():
         "services.api.utils.singletons.k8s.K8sHelper._init_k8s_config",
         return_value=None,
     ):
-        k8s_helper = services.api.utils.singletons.k8s.K8sHelper(
+        k8s_helper = framework.utils.singletons.k8s.K8sHelper(
             namespace="test-namespace",
             silent=True,
         )

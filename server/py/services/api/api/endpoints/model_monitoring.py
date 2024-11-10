@@ -23,12 +23,11 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 
-import services.api.api.utils
-import services.api.utils.auth.verifier
-import services.api.utils.clients.chief
-from services.api.api import deps
+import framework.api.utils
+import framework.utils.auth.verifier
+from framework.api import deps
+from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api.endpoints.nuclio import process_model_monitoring_secret
-from services.api.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.crud.model_monitoring.deployment import MonitoringDeployment
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
@@ -62,12 +61,12 @@ async def _verify_authorization(
         < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
         and "unstable" not in client_version
     ):
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             http.HTTPStatus.BAD_REQUEST.value,
             reason=f"Model monitoring is supported from client version {MINIMUM_CLIENT_VERSION_FOR_MM}. "
             f"Please upgrade your client accordingly.",
         )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
         project_name=project,
         resource_name=mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.APPLICATION_CONTROLLER,

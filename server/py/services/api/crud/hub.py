@@ -25,8 +25,8 @@ import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.datastore import store_manager
 
-import services.api.utils.singletons.db
-import services.api.utils.singletons.k8s
+import framework.utils.singletons.db
+import framework.utils.singletons.k8s
 from .secrets import Secrets, SecretsClientType
 
 # Using a complex separator, as it's less likely someone will use it in a real secret name
@@ -191,7 +191,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         tag: Optional[str] = None,
         version: Optional[str] = None,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
-        hub_sources = services.api.utils.singletons.db.get_db().list_hub_sources(
+        hub_sources = framework.utils.singletons.db.get_db().list_hub_sources(
             db_session
         )
         return self.filter_hub_sources(hub_sources, item_name, tag, version)
@@ -236,7 +236,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _in_k8s():
-        k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
         return (
             k8s_helper is not None and k8s_helper.is_running_inside_kubernetes_cluster()
         )

@@ -21,7 +21,7 @@ import mlrun.feature_store as fstore
 import mlrun.utils.helpers
 from mlrun import errors
 
-from services.api.db.base import DBInterface
+from framework.db.base import DBInterface
 
 
 def _create_feature_set(name):

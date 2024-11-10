@@ -20,9 +20,9 @@ import mlrun
 import mlrun.runtimes
 from mlrun.utils import logger
 
-import services.api.utils.clients.nuclio
+import framework.utils.clients.nuclio
+import framework.utils.singletons.k8s
 import services.api.utils.runtimes.nuclio
-import services.api.utils.singletons.k8s
 
 
 def resolve_function_http_trigger(function_spec):
@@ -223,10 +223,10 @@ def compile_nuclio_archive_config(
     secrets = {}
     if (
         project
-        and services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
+        and framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
     ):
         secrets = (
-            services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(
+            framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(
                 project
             )
         )

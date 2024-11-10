@@ -28,7 +28,6 @@ from urllib.parse import urlparse
 import pydantic
 import requests
 import semver
-from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
 import mlrun.common.constants
@@ -45,6 +44,7 @@ import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
+from mlrun_pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
 from ..config import config

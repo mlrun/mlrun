@@ -22,11 +22,11 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 from mlrun.utils import logger
 
+import framework.utils.auth.verifier
+import framework.utils.clients.chief
+import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.clients.chief
-import services.api.utils.singletons.project_member
-from services.api.api import deps
+from framework.api import deps
 
 router = APIRouter(prefix="/projects/{project}/alerts")
 
@@ -42,24 +42,26 @@ async def store_alert(
     db_session: Session = Depends(deps.get_db_session),
 ) -> mlrun.common.schemas.AlertConfig:
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.alert,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.create,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
     )
 
     if (
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         data = await request.json()
         return await chief_client.store_alert(
             project=project, name=name, request=request, json=data
@@ -88,18 +90,20 @@ async def get_alert(
     db_session: Session = Depends(deps.get_db_session),
 ) -> mlrun.common.schemas.AlertConfig:
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.alert,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     return await run_in_threadpool(
@@ -114,12 +118,12 @@ async def list_alerts(
     db_session: Session = Depends(deps.get_db_session),
 ) -> list[mlrun.common.schemas.AlertConfig]:
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -129,7 +133,7 @@ async def list_alerts(
         services.api.crud.Alerts().list_alerts, db_session, project
     )
 
-    alerts = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.alert,
         alerts,
         lambda alert: (
@@ -154,25 +158,27 @@ async def delete_alert(
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.alert,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
 
     if (
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         return await chief_client.delete_alert(
             project=project, name=name, request=request
         )
@@ -193,24 +199,26 @@ async def reset_alert(
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.alert,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.update,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
     )
 
     if (
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         return await chief_client.reset_alert(
             project=project, name=name, request=request
         )

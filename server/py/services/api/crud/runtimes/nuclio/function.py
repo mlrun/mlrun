@@ -33,12 +33,12 @@ import mlrun.runtimes.pod
 import mlrun.utils
 from mlrun.utils import logger
 
+import framework.utils.clients.async_nuclio
+import framework.utils.clients.iguazio
+import framework.utils.singletons.k8s
 import services.api.crud.runtimes.nuclio.helpers
 import services.api.runtime_handlers
 import services.api.utils.builder
-import services.api.utils.clients.async_nuclio
-import services.api.utils.clients.iguazio
-import services.api.utils.singletons.k8s
 
 # Configmap objects on Kubernetes have 1Mb size limit
 SERVING_SPEC_MAX_LENGTH = 1048576
@@ -187,11 +187,11 @@ async def delete_nuclio_functions_in_batches(
     function_names: list[str],
 ):
     async def delete_function(
-        nuclio_client: services.api.utils.clients.iguazio.AsyncClient,
+        nuclio_client: framework.utils.clients.iguazio.AsyncClient,
         project: str,
         function: str,
         _semaphore: asyncio.Semaphore,
-        k8s_helper_: services.api.utils.singletons.k8s.K8sHelper,
+        k8s_helper_: framework.utils.singletons.k8s.K8sHelper,
     ) -> typing.Optional[tuple[str, str]]:
         async with _semaphore:
             try:
@@ -213,8 +213,8 @@ async def delete_nuclio_functions_in_batches(
     semaphore = asyncio.Semaphore(max_concurrent_deletions)
     failed_requests = []
 
-    async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
-        k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+    async with framework.utils.clients.async_nuclio.Client(auth_info) as client:
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
         tasks = [
             delete_function(client, project_name, function_name, semaphore, k8s_helper)
             for function_name in function_names
@@ -311,7 +311,7 @@ def _compile_function_config(
             function_name = mlrun.runtimes.nuclio.function.get_fullname(
                 function.metadata.name, project, tag
             )
-            k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+            k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
             confmap_name = k8s_helper.ensure_configmap(
                 mlrun.common.constants.MLRUN_SERVING_CONF,
                 function_name,
@@ -433,7 +433,7 @@ def _resolve_env_vars(function):
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
-    if services.api.utils.singletons.k8s.get_k8s_helper(
+    if framework.utils.singletons.k8s.get_k8s_helper(
         silent=True
     ).is_running_inside_kubernetes_cluster():
         _add_secrets_config_to_function_spec(function)

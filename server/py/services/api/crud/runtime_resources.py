@@ -23,8 +23,8 @@ import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils.singleton
 
+import framework.utils.singletons.db
 import services.api.runtime_handlers
-import services.api.utils.singletons.db
 
 
 class RuntimeResources(
@@ -125,7 +125,7 @@ class RuntimeResources(
             runtime_handler = services.api.runtime_handlers.get_runtime_handler(kind)
             if object_id:
                 runtime_handler.delete_runtime_object_resources(
-                    services.api.utils.singletons.db.get_db(),
+                    framework.utils.singletons.db.get_db(),
                     db_session,
                     object_id,
                     label_selector,
@@ -134,7 +134,7 @@ class RuntimeResources(
                 )
             else:
                 runtime_handler.delete_resources(
-                    services.api.utils.singletons.db.get_db(),
+                    framework.utils.singletons.db.get_db(),
                     db_session,
                     label_selector,
                     force,

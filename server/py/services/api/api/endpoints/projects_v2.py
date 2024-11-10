@@ -22,14 +22,14 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.common.schemas
 from mlrun.utils import logger
 
-import services.api.api.deps
-import services.api.api.utils
+import framework.api.deps
+import framework.api.utils
+import framework.utils.auth.verifier
+import framework.utils.background_tasks
+import framework.utils.clients.chief
+import framework.utils.helpers
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
-import services.api.utils.clients.chief
-import services.api.utils.helpers
-from services.api.utils.singletons.project_member import get_project_member
+from framework.utils.singletons.project_member import get_project_member
 
 router = fastapi.APIRouter()
 
@@ -51,10 +51,10 @@ async def delete_project(
         alias=mlrun.common.schemas.HeaderNames.deletion_strategy,
     ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
     # check if project exists
@@ -77,14 +77,14 @@ async def delete_project(
             project=name,
             deletion_strategy=deletion_strategy,
         )
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         return await chief_client.delete_project(
             name=name, request=request, api_version="v2"
         )
 
     # usually the CRUD for delete project will check permissions, however, since we are running the crud in a background
     # task, we need to check permissions here. skip permission check if the request is from the leader.
-    if not services.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
         skip_permission_check = False
         if project.status.state == mlrun.common.schemas.ProjectState.archived:
             try:
@@ -99,10 +99,12 @@ async def delete_project(
                 skip_permission_check = True
 
         if not skip_permission_check:
-            await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-                name,
-                mlrun.common.schemas.AuthorizationAction.delete,
-                auth_info,
+            await (
+                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                    name,
+                    mlrun.common.schemas.AuthorizationAction.delete,
+                    auth_info,
+                )
             )
 
     # we need to implement the verify_project_is_empty, since we don't want
@@ -119,7 +121,7 @@ async def delete_project(
             return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
     task, task_name = await run_in_threadpool(
-        services.api.api.utils.get_or_create_project_deletion_background_task,
+        framework.api.utils.get_or_create_project_deletion_background_task,
         project,
         deletion_strategy,
         db_session,
@@ -129,6 +131,6 @@ async def delete_project(
         background_tasks.add_task(task)
 
     response.status_code = http.HTTPStatus.ACCEPTED.value
-    return services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+    return framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
         task_name
     )

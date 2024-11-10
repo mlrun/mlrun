@@ -28,12 +28,13 @@ from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import now_date
 
+import framework.utils.helpers
+import framework.utils.singletons.db
 import services.api.crud
-import services.api.utils.helpers
 import services.api.utils.runtimes
+from framework.utils.singletons.db import get_db
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
-from services.api.utils.singletons.db import get_db
 
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
@@ -287,9 +288,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # using freeze enables us to set the now attribute when calling the sub-function
             # _update_run_updated_time without the need to call the function directly
             original_update_run_updated_time = (
-                services.api.utils.singletons.db.get_db()._update_run_updated_time
+                framework.utils.singletons.db.get_db()._update_run_updated_time
             )
-            services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            framework.utils.singletons.db.get_db()._update_run_updated_time = (
                 tests.conftest.freeze(
                     original_update_run_updated_time,
                     now=now_date()
@@ -301,7 +302,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             services.api.crud.Runs().store_run(
                 db, self.run, self.run_uid, project=self.project
             )
-            services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            framework.utils.singletons.db.get_db()._update_run_updated_time = (
                 original_update_run_updated_time
             )
             # Mocking pod that is still in non-terminal state
@@ -309,9 +310,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             # using freeze enables us to set the now attribute when calling the sub-function
             # _update_run_updated_time without the need to call the function directly
             original_update_run_updated_time = (
-                services.api.utils.singletons.db.get_db()._update_run_updated_time
+                framework.utils.singletons.db.get_db()._update_run_updated_time
             )
-            services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            framework.utils.singletons.db.get_db()._update_run_updated_time = (
                 tests.conftest.freeze(
                     original_update_run_updated_time,
                     now=now_date()
@@ -323,7 +324,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             services.api.crud.Runs().store_run(
                 db, self.run, self.run_uid, project=self.project
             )
-            services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+            framework.utils.singletons.db.get_db()._update_run_updated_time = (
                 original_update_run_updated_time
             )
             # Mocking pod that is still in non-terminal state
@@ -459,15 +460,15 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking the SDK updating the Run's state to terminal state
         self.run["status"]["state"] = RunStates.completed
         original_update_run_updated_time = (
-            services.api.utils.singletons.db.get_db()._update_run_updated_time
+            framework.utils.singletons.db.get_db()._update_run_updated_time
         )
-        services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
             tests.conftest.freeze(original_update_run_updated_time, now=now_date())
         )
         services.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
-        services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
             original_update_run_updated_time
         )
 
@@ -484,7 +485,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # Mocking that update occurred before debounced period
         debounce_period = config.monitoring.runs.interval
-        services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
             tests.conftest.freeze(
                 original_update_run_updated_time,
                 now=now_date() - timedelta(seconds=float(2 * debounce_period)),
@@ -493,7 +494,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         services.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
-        services.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        framework.utils.singletons.db.get_db()._update_run_updated_time = (
             original_update_run_updated_time
         )
 
@@ -591,7 +592,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pending_scheduled_pod.status.start_time = datetime.now(
             timezone.utc
         ) - timedelta(
-            seconds=services.api.utils.helpers.time_string_to_seconds(
+            seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
             )
         )
@@ -629,7 +630,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             PodPhases.running,
         )
         running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
-            seconds=services.api.utils.helpers.time_string_to_seconds(
+            seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
         )
@@ -665,7 +666,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         image_pull_backoff_pod.status.start_time = datetime.now(
             timezone.utc
         ) - timedelta(
-            seconds=services.api.utils.helpers.time_string_to_seconds(
+            seconds=framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
             )
         )

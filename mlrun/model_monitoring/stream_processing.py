@@ -51,7 +51,7 @@ class EventStreamProcessor:
         parquet_target: str,
         aggregate_windows: typing.Optional[list[str]] = None,
         aggregate_period: str = "5m",
-        model_monitoring_access_key: str = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ):
         # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
@@ -85,7 +85,7 @@ class EventStreamProcessor:
         v3io_access_key: typing.Optional[str] = None,
         v3io_framesd: typing.Optional[str] = None,
         v3io_api: typing.Optional[str] = None,
-        model_monitoring_access_key: str = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ):
         # Get the V3IO configurations
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd

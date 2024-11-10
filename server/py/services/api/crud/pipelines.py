@@ -256,7 +256,7 @@ class Pipelines(
         run_name: str,
         content_type: str,
         data: bytes,
-        arguments: dict = None,
+        arguments: typing.Optional[dict] = None,
     ):
         if arguments is None:
             arguments = {}

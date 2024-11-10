@@ -42,7 +42,7 @@ class AsyncClientWithRetry(RetryClient):
         retry_on_exception: bool = True,
         raise_for_status: bool = True,
         blacklisted_methods: typing.Optional[list[str]] = None,
-        logger: logging.Logger = None,
+        logger: Optional[logging.Logger] = None,
         *args,
         **kwargs,
     ):

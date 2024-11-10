@@ -17,7 +17,7 @@ import os
 import uuid
 import warnings
 from copy import deepcopy
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import yaml
@@ -301,7 +301,7 @@ class MLClientCtx:
             )
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
-    def get_store_resource(self, url, secrets: dict = None):
+    def get_store_resource(self, url, secrets: Optional[dict] = None):
         """Get mlrun data resource (feature set/vector, artifact, item) from url.
 
         Example::
@@ -322,7 +322,7 @@ class MLClientCtx:
             data_store_secrets=secrets,
         )
 
-    def get_dataitem(self, url, secrets: dict = None):
+    def get_dataitem(self, url, secrets: Optional[dict] = None):
         """Get mlrun dataitem from url
 
         Example::
@@ -690,7 +690,7 @@ class MLClientCtx:
         db_key=None,
         target_path="",
         extra_data=None,
-        label_column: str = None,
+        label_column: Optional[str] = None,
         **kwargs,
     ):
         """Log a dataset artifact and optionally upload it to datastore
@@ -771,12 +771,12 @@ class MLClientCtx:
         artifact_path=None,
         upload=True,
         labels=None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
-        feature_vector: str = None,
-        feature_weights: list = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list] = None,
         training_set=None,
-        label_column: Union[str, list] = None,
+        label_column: Optional[Union[str, list]] = None,
         extra_data=None,
         db_key=None,
         **kwargs,
@@ -904,7 +904,12 @@ class MLClientCtx:
         if completed and not self.iteration:
             mlrun.runtimes.utils.global_context.set(None)
 
-    def set_state(self, execution_state: str = None, error: str = None, commit=True):
+    def set_state(
+        self,
+        execution_state: Optional[str] = None,
+        error: Optional[str] = None,
+        commit=True,
+    ):
         """
         Modify and store the execution state or mark an error and update the run state accordingly.
         This method allows to set the run state to 'completed' in the DB which is discouraged.

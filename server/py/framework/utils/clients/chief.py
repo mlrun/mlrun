@@ -277,8 +277,8 @@ class Client(
         method,
         path,
         request: fastapi.Request = None,
-        json: dict = None,
-        version: str = None,
+        json: typing.Optional[dict] = None,
+        version: typing.Optional[str] = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
@@ -299,7 +299,7 @@ class Client(
 
     @staticmethod
     def _resolve_request_kwargs_from_request(
-        request: fastapi.Request = None, json: dict = None, **kwargs
+        request: fastapi.Request = None, json: typing.Optional[dict] = None, **kwargs
     ) -> dict:
         request_kwargs = {}
         if request:
@@ -363,7 +363,7 @@ class Client(
         self,
         method,
         path,
-        version: str = None,
+        version: typing.Optional[str] = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:

@@ -16,7 +16,7 @@ import os
 import shutil
 import tempfile
 import zipfile
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import pytest
 
@@ -49,24 +49,27 @@ class PackagerA(Packager):
         return ["result"]
 
     def is_packable(
-        self, obj: Any, artifact_type: str = None, configurations: dict = None
+        self,
+        obj: Any,
+        artifact_type: Optional[str] = None,
+        configurations: Optional[dict] = None,
     ) -> bool:
         return type(obj) is self.PACKABLE_OBJECT_TYPE and artifact_type == "result"
 
     def pack(
         self,
         obj: str,
-        key: str = None,
-        artifact_type: str = None,
-        configurations: dict = None,
+        key: Optional[str] = None,
+        artifact_type: Optional[str] = None,
+        configurations: Optional[dict] = None,
     ) -> dict:
         return {f"{key}_from_PackagerA": obj}
 
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: str = None,
-        instructions: dict = None,
+        artifact_type: Optional[str] = None,
+        instructions: Optional[dict] = None,
     ) -> str:
         pass
 
@@ -151,17 +154,17 @@ class PackagerC(PackagerA):
     def pack(
         self,
         obj: float,
-        key: str = None,
-        artifact_type: str = None,
-        configurations: dict = None,
+        key: Optional[str] = None,
+        artifact_type: Optional[str] = None,
+        configurations: Optional[dict] = None,
     ) -> dict:
         return {key: round(obj, configurations["n_round"])}
 
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: str = None,
-        instructions: dict = None,
+        artifact_type: Optional[str] = None,
+        instructions: Optional[dict] = None,
     ) -> float:
         return data_item.key * 2
 

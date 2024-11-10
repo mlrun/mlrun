@@ -41,7 +41,7 @@ router = APIRouter(prefix="/projects/{project}/pipelines")
 @router.get("", response_model=mlrun.common.schemas.PipelinesOutput)
 async def list_pipelines(
     project: str,
-    namespace: str = None,
+    namespace: typing.Optional[str] = None,
     sort_by: str = "",
     page_token: str = "",
     filter_: str = Query("", alias="filter"),

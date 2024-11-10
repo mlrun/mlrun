@@ -242,12 +242,12 @@ class SQLStoreBase(StoreBase):
 
     def list_model_endpoints(
         self,
-        model: str = None,
-        function: str = None,
-        labels: list[str] = None,
-        top_level: bool = None,
-        uids: list = None,
-        include_stats: bool = None,
+        model: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
+        top_level: typing.Optional[bool] = None,
+        uids: typing.Optional[list] = None,
+        include_stats: typing.Optional[bool] = None,
     ) -> list[dict[str, typing.Any]]:
         # Generate an empty model endpoints that will be filled afterwards with model endpoint dictionaries
         endpoint_list = []

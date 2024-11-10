@@ -15,6 +15,7 @@
 import asyncio
 import http
 import unittest.mock
+from typing import Optional
 
 import deepdiff
 import fastapi.testclient
@@ -463,7 +464,7 @@ def _mock_runtime_handlers_delete_resources(
     def _assert_delete_resources_label_selector(
         db,
         db_session,
-        label_selector: str = None,
+        label_selector: Optional[str] = None,
         force: bool = False,
         grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
     ):

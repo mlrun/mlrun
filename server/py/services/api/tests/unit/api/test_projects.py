@@ -20,6 +20,7 @@ import json.decoder
 import os
 import unittest.mock
 from http import HTTPStatus
+from typing import Optional
 from uuid import uuid4
 
 import deepdiff
@@ -1705,7 +1706,7 @@ def _assert_db_resources_in_project(
 
 
 def _list_project_names_and_assert(
-    client: TestClient, expected_names: list[str], params: dict = None
+    client: TestClient, expected_names: list[str], params: Optional[dict] = None
 ):
     params = params or {}
     params["format"] = mlrun.common.formatters.ProjectFormat.name_only
@@ -1725,7 +1726,9 @@ def _list_project_names_and_assert(
 
 
 def _assert_project_response(
-    expected_project: mlrun.common.schemas.Project, response, extra_exclude: dict = None
+    expected_project: mlrun.common.schemas.Project,
+    response,
+    extra_exclude: Optional[dict] = None,
 ):
     project = mlrun.common.schemas.Project(**response.json())
     _assert_project(expected_project, project, extra_exclude)
@@ -1765,7 +1768,7 @@ def _assert_project_summary(
 def _assert_project(
     expected_project: mlrun.common.schemas.Project,
     project: mlrun.common.schemas.Project,
-    extra_exclude: dict = None,
+    extra_exclude: Optional[dict] = None,
 ):
     exclude = {"id": ..., "metadata": {"created"}, "status": {"state"}}
     if extra_exclude:
@@ -1863,7 +1866,7 @@ def _create_schedule(
     client: TestClient,
     project_name,
     cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
-    labels: dict = None,
+    labels: Optional[dict] = None,
 ):
     if not labels:
         labels = {}

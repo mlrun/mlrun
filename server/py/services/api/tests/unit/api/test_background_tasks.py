@@ -48,7 +48,7 @@ async def create_project_background_task(
     project: str,
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    timeout: int = None,
+    timeout: typing.Optional[int] = None,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         framework.api.deps.get_db_session
     ),
@@ -81,7 +81,7 @@ async def create_project_background_task(
 def create_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    project: str = None,
+    project: typing.Optional[str] = None,
 ):
     function = bump_counter
     if failed_task:

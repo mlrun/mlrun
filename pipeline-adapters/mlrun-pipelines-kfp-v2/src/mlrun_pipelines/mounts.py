@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import os
+from typing import Optional
 
 import mlrun
 from mlrun.config import config
@@ -93,7 +94,7 @@ def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pip
     return _mount_pvc
 
 
-def set_env_variables(env_vars_dict: dict[str, str] = None, **kwargs):
+def set_env_variables(env_vars_dict: Optional[dict[str, str]] = None, **kwargs):
     """
     Modifier function to apply a set of environment variables to a runtime. Variables may be passed
     as either a dictionary of name-value pairs, or as arguments to the function.

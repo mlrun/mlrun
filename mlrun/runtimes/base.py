@@ -553,9 +553,9 @@ class BaseRuntime(ModelObj):
 
     def _update_run_state(
         self,
-        resp: dict = None,
+        resp: Optional[dict] = None,
         task: RunObject = None,
-        err: Union[Exception, str] = None,
+        err: Optional[Union[Exception, str]] = None,
         run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> typing.Optional[dict]:
         """update the task state in the DB"""
@@ -644,7 +644,10 @@ class BaseRuntime(ModelObj):
         return updates
 
     def full_image_path(
-        self, image=None, client_version: str = None, client_python_version: str = None
+        self,
+        image=None,
+        client_version: Optional[str] = None,
+        client_python_version: Optional[str] = None,
     ):
         image = image or self.spec.image or ""
 
@@ -669,16 +672,16 @@ class BaseRuntime(ModelObj):
         handler=None,
         name: str = "",
         project: str = "",
-        params: dict = None,
+        params: Optional[dict] = None,
         hyperparams=None,
         selector="",
         hyper_param_options: HyperParamOptions = None,
-        inputs: dict = None,
-        outputs: list = None,
+        inputs: Optional[dict] = None,
+        outputs: Optional[list] = None,
         workdir: str = "",
         artifact_path: str = "",
         image: str = "",
-        labels: dict = None,
+        labels: Optional[dict] = None,
         use_db=True,
         verbose=None,
         scrape_metrics=False,

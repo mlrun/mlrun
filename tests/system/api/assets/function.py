@@ -13,9 +13,10 @@
 # limitations under the License.
 #
 import os
+from typing import Optional
 
 
-def secret_test_function(context, secrets: list = None):
+def secret_test_function(context, secrets: Optional[list] = None):
     """Validate that given secrets exists
 
     :param context: the MLRun context

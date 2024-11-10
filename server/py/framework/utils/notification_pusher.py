@@ -171,7 +171,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
         alert_id: int,
         project: str,
         notification: mlrun.common.schemas.Notification,
-        status: str = None,
+        status: typing.Optional[str] = None,
         sent_time: typing.Optional[datetime.datetime] = None,
     ):
         db = mlrun.get_run_db()

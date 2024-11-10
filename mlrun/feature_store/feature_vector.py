@@ -212,7 +212,7 @@ class JoinGraph(ModelObj):
 
     def __init__(
         self,
-        name: str = None,
+        name: typing.Optional[str] = None,
         first_feature_set: Union[str, FeatureSet] = None,
     ):
         """
@@ -318,7 +318,10 @@ class JoinGraph(ModelObj):
         return self._join_operands(other_operand, JoinGraph.first_join_type)
 
     def _init_all_join_keys(
-        self, feature_set_objects, vector, entity_rows_keys: list[str] = None
+        self,
+        feature_set_objects,
+        vector,
+        entity_rows_keys: typing.Optional[list[str]] = None,
     ):
         for step in self.steps:
             step.init_join_keys(feature_set_objects, vector, entity_rows_keys)
@@ -371,11 +374,11 @@ class JoinGraph(ModelObj):
 class _JoinStep(ModelObj):
     def __init__(
         self,
-        name: str = None,
-        left_step_name: str = None,
-        right_step_name: str = None,
-        left_feature_set_names: Union[str, list[str]] = None,
-        right_feature_set_name: str = None,
+        name: typing.Optional[str] = None,
+        left_step_name: typing.Optional[str] = None,
+        right_step_name: typing.Optional[str] = None,
+        left_feature_set_names: typing.Optional[Union[str, list[str]]] = None,
+        right_feature_set_name: typing.Optional[str] = None,
         join_type: str = "inner",
         asof_join: bool = False,
     ):
@@ -399,7 +402,7 @@ class _JoinStep(ModelObj):
         self,
         feature_set_objects: ObjectList,
         vector,
-        entity_rows_keys: list[str] = None,
+        entity_rows_keys: typing.Optional[list[str]] = None,
     ):
         if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
             entity_rows_keys
@@ -479,7 +482,7 @@ class FeatureVector(ModelObj):
         description=None,
         with_indexes=None,
         join_graph: JoinGraph = None,
-        relations: dict[str, dict[str, Union[Entity, str]]] = None,
+        relations: typing.Optional[dict[str, dict[str, Union[Entity, str]]]] = None,
     ):
         """Feature vector, specify selected features, their metadata and material views
 
@@ -727,21 +730,21 @@ class FeatureVector(ModelObj):
     def get_offline_features(
         self,
         entity_rows=None,
-        entity_timestamp_column: str = None,
+        entity_timestamp_column: typing.Optional[str] = None,
         target: DataTargetBase = None,
         run_config: RunConfig = None,
-        drop_columns: list[str] = None,
-        start_time: Union[str, datetime] = None,
-        end_time: Union[str, datetime] = None,
+        drop_columns: typing.Optional[list[str]] = None,
+        start_time: typing.Optional[Union[str, datetime]] = None,
+        end_time: typing.Optional[Union[str, datetime]] = None,
         with_indexes: bool = False,
         update_stats: bool = False,
-        engine: str = None,
-        engine_args: dict = None,
-        query: str = None,
-        order_by: Union[str, list[str]] = None,
-        spark_service: str = None,
-        timestamp_for_filtering: Union[str, dict[str, str]] = None,
-        additional_filters: list = None,
+        engine: typing.Optional[str] = None,
+        engine_args: typing.Optional[dict] = None,
+        query: typing.Optional[str] = None,
+        order_by: typing.Optional[Union[str, list[str]]] = None,
+        spark_service: typing.Optional[str] = None,
+        timestamp_for_filtering: typing.Optional[Union[str, dict[str, str]]] = None,
+        additional_filters: typing.Optional[list] = None,
     ):
         """retrieve offline feature vector results
 
@@ -831,9 +834,9 @@ class FeatureVector(ModelObj):
         self,
         run_config: RunConfig = None,
         fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-        impute_policy: dict = None,
+        impute_policy: typing.Optional[dict] = None,
         update_stats: bool = False,
-        entity_keys: list[str] = None,
+        entity_keys: typing.Optional[list[str]] = None,
     ):
         """initialize and return online feature vector service api,
         returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -915,8 +918,8 @@ class OnlineVectorService:
         vector,
         graph,
         index_columns,
-        impute_policy: dict = None,
-        requested_columns: list[str] = None,
+        impute_policy: typing.Optional[dict] = None,
+        requested_columns: typing.Optional[list[str]] = None,
     ):
         self.vector = vector
         self.impute_policy = impute_policy or {}

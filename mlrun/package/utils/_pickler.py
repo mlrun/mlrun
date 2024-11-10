@@ -19,7 +19,7 @@ import sys
 import tempfile
 import warnings
 from types import ModuleType
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
@@ -34,7 +34,7 @@ class Pickler:
 
     @staticmethod
     def pickle(
-        obj: Any, pickle_module_name: str, output_path: str = None
+        obj: Any, pickle_module_name: str, output_path: Optional[str] = None
     ) -> tuple[str, dict[str, Union[str, None]]]:
         """
         Pickle an object using the given module. The pickled object will be saved to file to the given output path.
@@ -91,10 +91,10 @@ class Pickler:
     def unpickle(
         pickle_path: str,
         pickle_module_name: str,
-        object_module_name: str = None,
-        python_version: str = None,
-        pickle_module_version: str = None,
-        object_module_version: str = None,
+        object_module_name: Optional[str] = None,
+        python_version: Optional[str] = None,
+        pickle_module_version: Optional[str] = None,
+        object_module_version: Optional[str] = None,
     ) -> Any:
         """
         Unpickle an object using the given instructions. Warnings may be raised in case any of the versions are

@@ -434,7 +434,7 @@ def new_function(
     mode: Optional[str] = None,
     handler: Optional[str] = None,
     source: Optional[str] = None,
-    requirements: Union[str, list[str]] = None,
+    requirements: Optional[Union[str, list[str]]] = None,
     kfp: Optional[bool] = None,
     requirements_file: str = "",
 ):
@@ -909,10 +909,10 @@ def _run_pipeline(
 def wait_for_pipeline_completion(
     run_id,
     timeout=60 * 60,
-    expected_statuses: list[str] = None,
+    expected_statuses: Optional[list[str]] = None,
     namespace=None,
     remote=True,
-    project: str = None,
+    project: Optional[str] = None,
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -1004,7 +1004,7 @@ def get_pipeline(
     format_: Union[
         str, mlrun.common.formatters.PipelineFormat
     ] = mlrun.common.formatters.PipelineFormat.summary,
-    project: str = None,
+    project: Optional[str] = None,
     remote: bool = True,
 ):
     """Get Pipeline status

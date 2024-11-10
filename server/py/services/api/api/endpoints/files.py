@@ -14,6 +14,7 @@
 #
 import mimetypes
 from http import HTTPStatus
+from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -107,7 +108,7 @@ def _get_files(
     size: int,
     offset: int,
     auth_info: mlrun.common.schemas.AuthInfo,
-    secrets: dict = None,
+    secrets: Optional[dict] = None,
     project: str = "",
 ):
     if size > mlrun.mlconf.artifacts.limits.max_chunk_size:

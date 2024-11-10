@@ -48,13 +48,13 @@ class ExcecutionParams:
     def __init__(
         self,
         registry_url: str,
-        registry_secret_name: str = None,
-        chart_version: str = None,
-        mlrun_version: str = None,
-        override_mlrun_api_image: str = None,
-        override_mlrun_log_collector_image: str = None,
-        override_mlrun_ui_image: str = None,
-        override_jupyter_image: str = None,
+        registry_secret_name: typing.Optional[str] = None,
+        chart_version: typing.Optional[str] = None,
+        mlrun_version: typing.Optional[str] = None,
+        override_mlrun_api_image: typing.Optional[str] = None,
+        override_mlrun_log_collector_image: typing.Optional[str] = None,
+        override_mlrun_ui_image: typing.Optional[str] = None,
+        override_jupyter_image: typing.Optional[str] = None,
         disable_pipelines: bool = False,
         force_enable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
@@ -62,9 +62,9 @@ class ExcecutionParams:
         disable_log_collector: bool = False,
         devel: bool = False,
         minikube: bool = False,
-        sqlite: str = None,
+        sqlite: typing.Optional[str] = None,
         upgrade: bool = False,
-        custom_values: list[str] = None,
+        custom_values: typing.Optional[list[str]] = None,
     ):
         self.registry_url = registry_url
         self.registry_secret_name = registry_secret_name
@@ -95,10 +95,10 @@ class CommunityEditionDeployer:
         self,
         namespace: str,
         log_level: str = "info",
-        log_file: str = None,
-        remote: str = None,
-        remote_ssh_username: str = None,
-        remote_ssh_password: str = None,
+        log_file: typing.Optional[str] = None,
+        remote: typing.Optional[str] = None,
+        remote_ssh_username: typing.Optional[str] = None,
+        remote_ssh_password: typing.Optional[str] = None,
     ) -> None:
         self._debug = log_level == "debug"
         self._log_file_handler = None
@@ -139,15 +139,15 @@ class CommunityEditionDeployer:
     def deploy(
         self,
         registry_url: str,
-        registry_username: str = None,
-        registry_password: str = None,
-        registry_secret_name: str = None,
-        chart_version: str = None,
-        mlrun_version: str = None,
-        override_mlrun_api_image: str = None,
-        override_mlrun_log_collector_image: str = None,
-        override_mlrun_ui_image: str = None,
-        override_jupyter_image: str = None,
+        registry_username: typing.Optional[str] = None,
+        registry_password: typing.Optional[str] = None,
+        registry_secret_name: typing.Optional[str] = None,
+        chart_version: typing.Optional[str] = None,
+        mlrun_version: typing.Optional[str] = None,
+        override_mlrun_api_image: typing.Optional[str] = None,
+        override_mlrun_log_collector_image: typing.Optional[str] = None,
+        override_mlrun_ui_image: typing.Optional[str] = None,
+        override_jupyter_image: typing.Optional[str] = None,
         disable_pipelines: bool = False,
         force_enable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
@@ -156,9 +156,9 @@ class CommunityEditionDeployer:
         skip_registry_validation: bool = False,
         devel: bool = False,
         minikube: bool = False,
-        sqlite: str = None,
+        sqlite: typing.Optional[str] = None,
         upgrade: bool = False,
-        custom_values: list[str] = None,
+        custom_values: typing.Optional[list[str]] = None,
     ) -> None:
         """
         Deploy MLRun CE stack.
@@ -236,7 +236,7 @@ class CommunityEditionDeployer:
     def delete(
         self,
         skip_uninstall: bool = False,
-        sqlite: str = None,
+        sqlite: typing.Optional[str] = None,
         cleanup_registry_secret: bool = True,
         cleanup_volumes: bool = False,
         cleanup_namespace: bool = False,
@@ -310,9 +310,9 @@ class CommunityEditionDeployer:
 
     def patch_minikube_images(
         self,
-        mlrun_api_image: str = None,
-        mlrun_ui_image: str = None,
-        jupyter_image: str = None,
+        mlrun_api_image: typing.Optional[str] = None,
+        mlrun_ui_image: typing.Optional[str] = None,
+        jupyter_image: typing.Optional[str] = None,
     ) -> None:
         """
         Patch the MLRun CE stack images in minikube.
@@ -337,9 +337,9 @@ class CommunityEditionDeployer:
     def _prepare_prerequisites(
         self,
         registry_url: str,
-        registry_username: str = None,
-        registry_password: str = None,
-        registry_secret_name: str = None,
+        registry_username: typing.Optional[str] = None,
+        registry_password: typing.Optional[str] = None,
+        registry_secret_name: typing.Optional[str] = None,
         skip_registry_validation: bool = False,
         minikube: bool = False,
     ) -> None:
@@ -546,7 +546,7 @@ class CommunityEditionDeployer:
         registry_url: str,
         registry_username: str,
         registry_password: str,
-        registry_secret_name: str = None,
+        registry_secret_name: typing.Optional[str] = None,
     ) -> None:
         """
         Create a registry credentials secret.
@@ -707,9 +707,9 @@ class CommunityEditionDeployer:
     def _run_command(
         self,
         command: str,
-        args: list = None,
-        workdir: str = None,
-        stdin: str = None,
+        args: typing.Optional[list] = None,
+        workdir: typing.Optional[str] = None,
+        stdin: typing.Optional[str] = None,
         live: bool = True,
     ) -> (str, str, int):
         if self._remote:
@@ -739,11 +739,11 @@ class CommunityEditionDeployer:
 
 def run_command(
     command: str,
-    args: list = None,
-    workdir: str = None,
-    stdin: str = None,
+    args: typing.Optional[list] = None,
+    workdir: typing.Optional[str] = None,
+    stdin: typing.Optional[str] = None,
     live: bool = True,
-    log_file_handler: typing.IO[str] = None,
+    log_file_handler: typing.Optional[typing.IO[str]] = None,
 ) -> (str, str, int):
     if workdir:
         command = f"cd {workdir}; " + command
@@ -772,11 +772,11 @@ def run_command(
 def run_command_remotely(
     ssh_client: paramiko.SSHClient,
     command: str,
-    args: list = None,
-    workdir: str = None,
-    stdin: str = None,
+    args: typing.Optional[list] = None,
+    workdir: typing.Optional[str] = None,
+    stdin: typing.Optional[str] = None,
     live: bool = True,
-    log_file_handler: typing.IO[str] = None,
+    log_file_handler: typing.Optional[typing.IO[str]] = None,
 ) -> (str, str, int):
     if workdir:
         command = f"cd {workdir}; " + command
@@ -798,7 +798,7 @@ def run_command_remotely(
 
 def _handle_command_stdout(
     stdout_stream: typing.Union[typing.IO[bytes], paramiko.channel.ChannelFile],
-    log_file_handler: typing.IO[str] = None,
+    log_file_handler: typing.Optional[typing.IO[str]] = None,
     live: bool = True,
     remote: bool = False,
 ) -> str:

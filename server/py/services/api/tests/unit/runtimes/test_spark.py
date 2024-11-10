@@ -104,9 +104,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         expected_executor_volume_mounts: typing.Optional[list] = None,
         expected_driver_java_options=None,
         expected_executor_java_options=None,
-        expected_driver_resources: dict = None,
-        expected_executor_resources: dict = None,
-        expected_cores: dict = None,
+        expected_driver_resources: typing.Optional[dict] = None,
+        expected_executor_resources: typing.Optional[dict] = None,
+        expected_cores: typing.Optional[dict] = None,
         expected_code: typing.Optional[str] = None,
     ):
         if assert_create_custom_object_called:

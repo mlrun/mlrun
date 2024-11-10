@@ -26,7 +26,7 @@ _MODEL_MONITORING_DATABASE = "mlrun_model_monitoring"
 
 
 class _TDEngineColumnType:
-    def __init__(self, data_type: str, length: int = None):
+    def __init__(self, data_type: str, length: Optional[int] = None):
         self.data_type = data_type
         self.length = length
 
@@ -166,7 +166,7 @@ class TDEngineSchema:
         table: str,
         start: datetime.datetime,
         end: datetime.datetime,
-        columns_to_filter: list[str] = None,
+        columns_to_filter: Optional[list[str]] = None,
         filter_query: Optional[str] = None,
         interval: Optional[str] = None,
         limit: int = 0,
@@ -175,7 +175,7 @@ class TDEngineSchema:
         timestamp_column: str = "time",
         database: str = _MODEL_MONITORING_DATABASE,
         group_by: Optional[Union[list[str], str]] = None,
-        preform_agg_funcs_columns: list[str] = None,
+        preform_agg_funcs_columns: Optional[list[str]] = None,
         order_by: Optional[str] = None,
         desc: Optional[bool] = None,
     ) -> str:

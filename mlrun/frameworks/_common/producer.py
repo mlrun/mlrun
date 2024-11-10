@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 import mlrun
 from mlrun.artifacts import Artifact
 
@@ -28,7 +30,7 @@ class Producer:
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        plans: list[Plan] = None,
+        plans: Optional[list[Plan]] = None,
     ):
         """
         Initialize a producer with the given plans. The producer will log the produced artifacts using the given

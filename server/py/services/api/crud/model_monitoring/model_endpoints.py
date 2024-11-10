@@ -369,7 +369,7 @@ class ModelEndpoints:
         self,
         project: str,
         endpoint_id: str,
-        metrics: list[str] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
@@ -432,14 +432,14 @@ class ModelEndpoints:
     def list_model_endpoints(
         self,
         project: str,
-        model: str = None,
-        function: str = None,
-        labels: list[str] = None,
-        metrics: list[str] = None,
+        model: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
         top_level: bool = False,
-        uids: list[str] = None,
+        uids: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects, wrapped in `ModelEndpointList` object. Each `ModelEndpoint`
@@ -778,7 +778,7 @@ class ModelEndpoints:
     @staticmethod
     def _add_real_time_metrics(
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
-        metrics: list[str] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
     ) -> mlrun.common.schemas.ModelEndpoint:

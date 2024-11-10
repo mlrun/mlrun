@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-
 __all__ = [
     "get_version",
     "set_environment",
@@ -29,6 +27,7 @@ __all__ = [
 ]
 
 from os import environ, path
+from typing import Optional
 
 import dotenv
 
@@ -89,12 +88,12 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
 
 
 def set_environment(
-    api_path: str = None,
+    api_path: Optional[str] = None,
     artifact_path: str = "",
-    access_key: str = None,
-    username: str = None,
-    env_file: str = None,
-    mock_functions: str = None,
+    access_key: Optional[str] = None,
+    username: Optional[str] = None,
+    env_file: Optional[str] = None,
+    mock_functions: Optional[str] = None,
 ):
     """set and test default config for: api path, artifact_path and project
 

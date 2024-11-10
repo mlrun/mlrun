@@ -67,9 +67,9 @@ class Member(abc.ABC):
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
-        owner: str = None,
+        owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
@@ -79,8 +79,8 @@ class Member(abc.ABC):
     def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,
-        owner: str = None,
-        labels: list[str] = None,
+        owner: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:

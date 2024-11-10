@@ -26,11 +26,12 @@ from sqlalchemy.orm import Session
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
+from mlrun.config import config
+from mlrun.utils import logger
+
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.singletons.k8s
-from mlrun.config import config
-from mlrun.utils import logger
 from services.api.api import deps
 from services.api.api.utils import log_and_raise
 

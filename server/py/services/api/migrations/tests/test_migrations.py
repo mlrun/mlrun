@@ -26,10 +26,11 @@ from pytest_alembic.tests import (  # noqa
     test_up_down_consistency,
     test_upgrade,
 )
-from services.api.db.sqldb.models import Run
 from sqlalchemy.orm import sessionmaker
 
 import mlrun
+
+from services.api.db.sqldb.models import Run
 
 log = logging.getLogger(__name__)
 

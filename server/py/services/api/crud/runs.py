@@ -29,6 +29,8 @@ import mlrun.lists
 import mlrun.runtimes
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.utils import logger
+
 import services.api.api.utils
 import services.api.constants
 import services.api.db.session
@@ -36,7 +38,6 @@ import services.api.runtime_handlers
 import services.api.utils.background_tasks
 import services.api.utils.clients.log_collector
 import services.api.utils.singletons.db
-from mlrun.utils import logger
 
 
 class Runs(

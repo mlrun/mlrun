@@ -19,6 +19,7 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.utils.events.events_factory

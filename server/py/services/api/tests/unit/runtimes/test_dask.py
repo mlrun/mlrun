@@ -27,10 +27,11 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
-import services.api.api.endpoints.functions
-import services.api.runtime_handlers.daskjob
 from mlrun import mlconf
 from mlrun.runtimes.utils import generate_resources
+
+import services.api.api.endpoints.functions
+import services.api.runtime_handlers.daskjob
 from services.api.tests.unit.conftest import K8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 

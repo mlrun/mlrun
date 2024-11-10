@@ -22,11 +22,11 @@ import mlrun.common.schemas.hub
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-import services.api.utils.singletons.db
-import services.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.datastore import store_manager
 
+import services.api.utils.singletons.db
+import services.api.utils.singletons.k8s
 from .secrets import Secrets, SecretsClientType
 
 # Using a complex separator, as it's less likely someone will use it in a real secret name

@@ -30,8 +30,9 @@ from aiohttp.test_utils import TestClient, TestServer
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import services.api.utils.clients.chief
 from tests.common_fixtures import aioresponses_mock
+
+import services.api.utils.clients.chief
 
 
 @pytest.fixture()

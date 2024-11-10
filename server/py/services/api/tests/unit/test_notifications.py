@@ -18,6 +18,7 @@ import json
 import unittest.mock
 
 import mlrun.common.schemas.notification
+
 import services.api.api.utils
 import services.api.constants
 import services.api.crud

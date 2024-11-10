@@ -34,9 +34,10 @@ from requests.cookies import cookiejar_from_dict
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+from tests.common_fixtures import aioresponses_mock
+
 import services.api.utils.clients.iguazio
 from services.api.utils.asyncio import maybe_coroutine
-from tests.common_fixtures import aioresponses_mock
 
 
 def patch_restful_request(

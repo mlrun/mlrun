@@ -14,9 +14,10 @@
 #
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.config import Config, config, default_config
+
 import services.api.runtime_handlers.mpijob
 import services.api.utils.runtimes.nuclio
-from mlrun.config import Config, config, default_config
 
 
 class ClientSpec(

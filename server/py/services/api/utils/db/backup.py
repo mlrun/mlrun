@@ -19,9 +19,10 @@ import shutil
 import subprocess
 import typing
 
-import services.api.utils.db.mysql
 from mlrun import mlconf
 from mlrun.utils import logger
+
+import services.api.utils.db.mysql
 
 
 class DBBackupUtil:

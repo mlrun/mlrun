@@ -21,6 +21,7 @@ from v3io.dataplane.response import HttpResponseError
 
 import mlrun.common.schemas
 from mlrun.artifacts import ModelArtifact
+
 from services.api.crud.model_monitoring.model_endpoints import ModelEndpoints
 
 

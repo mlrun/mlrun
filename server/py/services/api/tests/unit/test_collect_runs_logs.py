@@ -22,10 +22,11 @@ import sqlalchemy.orm.session
 
 import mlrun.common.runtimes.constants
 import mlrun.config
+
 import services.api.crud
-import services.api.main
 import services.api.utils.clients.log_collector
 import services.api.utils.singletons.db
+from services.api.daemon import daemon
 from services.api.tests.unit.utils.clients.test_log_collector import (
     BaseLogCollectorResponse,
     ListRunsResponse,
@@ -70,7 +71,7 @@ class TestCollectRunSLogs:
             return_value=runs
         )
 
-        await services.api.main._initiate_logs_collection(self.start_log_limit)
+        await daemon.service._initiate_logs_collection(self.start_log_limit)
 
         assert (
             services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
@@ -109,7 +110,7 @@ class TestCollectRunSLogs:
             unittest.mock.Mock()
         )
 
-        await services.api.main._initiate_logs_collection(self.start_log_limit)
+        await daemon.service._initiate_logs_collection(self.start_log_limit)
 
         assert (
             services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
@@ -124,7 +125,7 @@ class TestCollectRunSLogs:
     ):
         # run the loop once to initialize the time window tracker and set it to the current time before completing the
         # following runs. (this simulates the first ever startup of the server before any runs are created)
-        await services.api.main._verify_log_collection_started_on_startup(
+        await daemon.service._verify_log_collection_started_on_startup(
             self.start_log_limit
         )
 
@@ -161,7 +162,7 @@ class TestCollectRunSLogs:
             return_value=runs
         )
 
-        await services.api.main._verify_log_collection_started_on_startup(
+        await daemon.service._verify_log_collection_started_on_startup(
             self.start_log_limit
         )
 
@@ -192,7 +193,7 @@ class TestCollectRunSLogs:
 
         # run the loop once to initialize the time window tracker and set it to the current time before completing the
         # following runs. (this simulates the first ever startup of the server before any runs are created)
-        await services.api.main._verify_log_collection_started_on_startup(
+        await daemon.service._verify_log_collection_started_on_startup(
             self.start_log_limit
         )
 
@@ -250,7 +251,7 @@ class TestCollectRunSLogs:
             list_runs_mock,
         )
 
-        await services.api.main._verify_log_collection_started_on_startup(
+        await daemon.service._verify_log_collection_started_on_startup(
             self.start_log_limit
         )
 
@@ -267,7 +268,7 @@ class TestCollectRunSLogs:
     ):
         # run the loop once to initialize the time window tracker and set it to the current time before completing the
         # following runs. (this simulates the first ever startup of the server before any runs are created)
-        await services.api.main._verify_log_collection_started_on_startup(
+        await daemon.service._verify_log_collection_started_on_startup(
             self.start_log_limit
         )
 
@@ -319,7 +320,7 @@ class TestCollectRunSLogs:
             list_runs_mock,
         )
 
-        await services.api.main._verify_log_collection_started_on_startup(
+        await daemon.service._verify_log_collection_started_on_startup(
             self.start_log_limit
         )
 
@@ -413,7 +414,7 @@ class TestCollectRunSLogs:
         )
 
         for i in range(3):
-            await services.api.main._initiate_logs_collection(self.start_log_limit)
+            await daemon.service._initiate_logs_collection(self.start_log_limit)
 
         assert update_runs_requested_logs_mock.call_count == 2
         # verify that `failure_uid` is also updated in the second call
@@ -447,7 +448,7 @@ class TestCollectRunSLogs:
             unittest.mock.Mock()
         )
 
-        await services.api.main._initiate_logs_collection(self.start_log_limit)
+        await daemon.service._initiate_logs_collection(self.start_log_limit)
 
         assert (
             services.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
@@ -463,7 +464,7 @@ class TestCollectRunSLogs:
             return_value=BaseLogCollectorResponse(True, "")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project")
-        run_uid = await services.api.main._start_log_for_run(
+        run_uid = await daemon.service._start_log_for_run(
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid == uid
@@ -478,7 +479,7 @@ class TestCollectRunSLogs:
             return_value=BaseLogCollectorResponse(True, "")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project", kind="job")
-        run_uid = await services.api.main._start_log_for_run(
+        run_uid = await daemon.service._start_log_for_run(
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid == uid
@@ -500,7 +501,7 @@ class TestCollectRunSLogs:
         _, _, uid, _, run = _create_new_run(
             db, "some-project", kind="dask", function=function
         )
-        run_uid = await services.api.main._start_log_for_run(
+        run_uid = await daemon.service._start_log_for_run(
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid == uid
@@ -516,7 +517,7 @@ class TestCollectRunSLogs:
             return_value=BaseLogCollectorResponse(False, "some error")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project", kind="job")
-        run_uid = await services.api.main._start_log_for_run(
+        run_uid = await daemon.service._start_log_for_run(
             run, self.start_log_limit, raise_on_error=False
         )
         assert run_uid is None
@@ -551,7 +552,7 @@ class TestCollectRunSLogs:
                 if run_uid not in run_uids:
                     run_uids.append(run_uid)
 
-        await services.api.main._stop_logs_for_runs(
+        await daemon.service._stop_logs_for_runs(
             runs, chunk_size=stop_logs_run_uids_chunk_size
         )
 
@@ -626,7 +627,7 @@ class TestCollectRunSLogs:
             return_value=ListRunsResponse(run_uids=run_uids_log_collected)
         )
 
-        await services.api.main._verify_log_collection_stopped_on_startup()
+        await daemon.service._verify_log_collection_stopped_on_startup()
 
         assert log_collector._call_stream.call_count == 1
         assert log_collector._call_stream.call_args[0][0] == "ListRunsInProgress"
@@ -664,7 +665,7 @@ class TestCollectRunSLogs:
             return_value=ListRunsResponse(run_uids=run_uids_log_collected)
         )
 
-        await services.api.main._verify_log_collection_stopped_on_startup()
+        await daemon.service._verify_log_collection_stopped_on_startup()
 
         assert log_collector._call.call_count == 2
         assert log_collector._call.call_args[0][0] == "StopLogs"

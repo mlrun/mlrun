@@ -14,7 +14,6 @@
 #
 
 import pytest
-import services.api.constants
 
 import mlrun
 import mlrun.alerts
@@ -23,6 +22,8 @@ import mlrun.common.schemas.alert as alert_objects
 import mlrun.utils
 import tests.integration.sdk_api.base
 from mlrun.utils import logger
+
+import services.api.constants
 
 
 class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):

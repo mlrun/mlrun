@@ -31,14 +31,14 @@ import mlrun.errors
 import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 import mlrun.utils
+from mlrun.utils import logger
+
 import services.api.crud.runtimes.nuclio.helpers
 import services.api.runtime_handlers
 import services.api.utils.builder
 import services.api.utils.clients.async_nuclio
 import services.api.utils.clients.iguazio
-import services.api.utils.helpers
 import services.api.utils.singletons.k8s
-from mlrun.utils import logger
 
 # Configmap objects on Kubernetes have 1Mb size limit
 SERVING_SPEC_MAX_LENGTH = 1048576

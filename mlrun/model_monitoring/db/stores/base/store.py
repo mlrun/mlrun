@@ -115,34 +115,6 @@ class StoreBase(ABC):
         """
         pass
 
-    @abstractmethod
-    def write_application_event(
-        self,
-        event: dict[str, typing.Any],
-        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ) -> None:
-        """
-        Write a new event in the target table.
-
-        :param event: An event dictionary that represents the application result, should be corresponded to the
-                      schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
-                      object.
-        :param kind: The type of the event, can be either "result" or "metric".
-        """
-
-    @abstractmethod
-    def get_model_endpoint_metrics(
-        self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
-    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
-        """
-        Get the model monitoring results and metrics of the requested model endpoint.
-
-        :param: endpoint_id: The model endpoint identifier.
-        :param: type:        The type of the requested metrics ("result" or "metric").
-
-        :return:             A list of the available metrics.
-        """
-
     @staticmethod
     def _validate_labels(
         endpoint_dict: dict,

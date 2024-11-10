@@ -21,9 +21,10 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+from mlrun.utils import logger
+
 import services.api.utils.auth.verifier
 import services.api.utils.singletons.project_member
-from mlrun.utils import logger
 from services.api.api import deps
 
 router = APIRouter(prefix="/alert-templates")

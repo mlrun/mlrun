@@ -26,9 +26,10 @@ from sqlalchemy.orm import Session
 import mlrun.artifacts
 import mlrun.common.schemas
 import mlrun.utils
+from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
+
 import services.api.db.sqldb.models
 import services.api.tests.unit.api.utils
-from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
 PROJECT = "prj"
 KEY = "some-key"

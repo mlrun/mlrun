@@ -349,6 +349,16 @@ class SQLRunDB(RunDBInterface):
             until=until,
         )
 
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        raise NotImplementedError()
+
     def list_artifact_tags(
         self,
         project=None,

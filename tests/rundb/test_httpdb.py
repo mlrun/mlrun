@@ -860,13 +860,13 @@ def test_add_tag_and_delete_untagged_artifacts(create_server):
 
 def test_paginated_list_artifacts(create_server):
     _, db = _configure_run_db_server(create_server)
-    project_name = "artifact-project"
+    project_name = "my-project"
     project = mlrun.new_project(project_name)
 
     num_artifacts = 10
     page_size = 4
     for i in range(num_artifacts):
-        artifact_key = f"artifact_{i}"
+        artifact_key = f"artifact-{i}"
         project.log_artifact(
             artifact_key,
             body=b"some data",
@@ -877,7 +877,7 @@ def test_paginated_list_artifacts(create_server):
         project=project_name, page_size=page_size
     )
     assert len(artifacts) == page_size
-    assert artifacts[0]["metadata"].get("key") == "artifact_9"
+    assert artifacts[0]["metadata"].get("key") == "artifact-9"
     assert token is not None
 
     # Second request using the token from the first response
@@ -885,7 +885,7 @@ def test_paginated_list_artifacts(create_server):
         project=project_name, page_token=token
     )
     assert len(artifacts) == page_size
-    assert artifacts[0]["metadata"].get("key") == "artifact_5"
+    assert artifacts[0]["metadata"].get("key") == "artifact-5"
     assert token is not None
 
     # Third request, expecting fewer artifacts (last page)
@@ -893,7 +893,7 @@ def test_paginated_list_artifacts(create_server):
         project=project_name, page_token=token
     )
     assert len(artifacts) == 2
-    assert artifacts[0]["metadata"].get("key") == "artifact_1"
+    assert artifacts[0]["metadata"].get("key") == "artifact-1"
     assert token is None
 
     # Retrieve specific page (Page 3)
@@ -901,7 +901,7 @@ def test_paginated_list_artifacts(create_server):
         project=project_name, page_size=page_size, page=3
     )
     assert len(artifacts) == 2
-    assert artifacts[0]["metadata"].get("key") == "artifact_1"
+    assert artifacts[0]["metadata"].get("key") == "artifact-1"
     assert token is None
 
     # Automatically iterate over all pages without explicitly specifying the page number
@@ -915,6 +915,64 @@ def test_paginated_list_artifacts(create_server):
         if not token:  # If no token is returned, we've reached the last page
             break
     assert len(artifacts) == num_artifacts
+
+
+def test_paginated_list_functions(create_server):
+    _, db = _configure_run_db_server(create_server)
+    project_name = "my-project"
+    proj_obj = mlrun.new_project(project_name, save=False)
+    db.create_project(proj_obj)
+
+    num_functions = 10
+    page_size = 4
+    for i in range(num_functions):
+        name = f"function-{i}"
+        func = {"fid": i}
+        db.store_function(func, name, project_name)
+
+    # First request (Page 1)
+    functions, token = db.paginated_list_functions(
+        project=project_name, page_size=page_size
+    )
+    assert len(functions) == page_size
+    assert functions[0]["metadata"].get("name") == "function-0"
+    assert token is not None
+
+    # Second request using the token from the first response
+    functions, token = db.paginated_list_functions(
+        project=project_name, page_token=token
+    )
+    assert len(functions) == page_size
+    assert functions[0]["metadata"].get("name") == "function-4"
+    assert token is not None
+
+    # Third request, expecting fewer functions (last page)
+    functions, token = db.paginated_list_functions(
+        project=project_name, page_token=token
+    )
+    assert len(functions) == 2
+    assert functions[0]["metadata"].get("name") == "function-8"
+    assert token is None
+
+    # Retrieve specific page (Page 3)
+    functions, token = db.paginated_list_functions(
+        project=project_name, page_size=page_size, page=3
+    )
+    assert len(functions) == 2
+    assert functions[0]["metadata"].get("name") == "function-8"
+    assert token is None
+
+    # Automatically iterate over all pages without explicitly specifying the page number
+    functions = []
+    token = None
+    while True:
+        page_functions, token = db.paginated_list_functions(
+            project=project_name, page_token=token, page_size=page_size
+        )
+        functions.extend(page_functions)
+        if not token:  # If no token is returned, we've reached the last page
+            break
+    assert len(functions) == num_functions
 
 
 def _generate_project_and_artifact(project: str = "newproj", tag: Optional[str] = None):

@@ -1407,6 +1407,96 @@ class HTTPRunDB(RunDBInterface):
         :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
         """
+        functions, _ = self._list_functions(
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            since=since,
+            until=until,
+            return_all=True,
+        )
+        return functions
+
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[list[dict], Optional[str]]:
+        """List functions with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of functions based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of functions that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_functions method:
+            See :py:func:`~list_functions` for more details.
+
+        Examples::
+
+            # Fetch first page of functions with page size of 5
+            functions, token = db.paginated_list_functions(
+                project="my-project", page_size=5
+            )
+            # Fetch next page using the pagination token from the previous response
+            functions, token = db.paginated_list_functions(
+                project="my-project", page_token=token
+            )
+            # Fetch functions for a specific page (e.g., page 3)
+            functions, token = db.paginated_list_functions(
+                project="my-project", page=3, page_size=5
+            )
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            functions = []
+            token = None
+            while True:
+                page_functions, token = db.paginated_list_functions(
+                    project="my-project", page_token=token, page_size=5
+                )
+                functions.extend(page_functions)
+
+                # If token is None and page_functions is empty, we've reached the end (no more functions).
+                # If token is None and page_functions is not empty, we've fetched the last page of functions.
+                if not token:
+                    break
+            print(f"Total functions retrieved: {len(functions)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of functions objects (as dictionary) and an optional
+            `page_token` for pagination.
+        """
+        return self._list_functions(
+            *args,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            return_all=False,
+            **kwargs,
+        )
+
+    def _list_functions(
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ) -> tuple[list, Optional[str]]:
+        """Handles list functions, both paginated and not."""
+
         project = project or config.default_project
         labels = self._parse_labels(labels)
         params = {
@@ -1415,14 +1505,21 @@ class HTTPRunDB(RunDBInterface):
             "label": labels,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
         }
         error = "list functions"
         path = f"projects/{project}/functions"
+
+        # Fetch the responses, either one page or all based on `return_all`
         responses = self.paginated_api_call(
-            "GET", path, error, params=params, return_all=True
+            "GET", path, error, params=params, return_all=return_all
         )
-        paginated_responses, _ = self.process_paginated_responses(responses, "funcs")
-        return paginated_responses
+        paginated_responses, token = self.process_paginated_responses(
+            responses, "funcs"
+        )
+        return paginated_responses, token
 
     def list_runtime_resources(
         self,

@@ -229,6 +229,16 @@ class NopDB(RunDBInterface):
     ):
         return []
 
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        return [], None
+
     def tag_objects(
         self,
         project: str,

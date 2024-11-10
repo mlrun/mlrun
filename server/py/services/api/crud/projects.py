@@ -26,6 +26,8 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.utils import logger, retry_until_successful
+
 import services.api.crud
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio
@@ -36,7 +38,6 @@ import services.api.utils.events.events_factory as events_factory
 import services.api.utils.projects.remotes.follower as project_follower
 import services.api.utils.singletons.db
 import services.api.utils.singletons.scheduler
-from mlrun.utils import logger, retry_until_successful
 from services.api.utils.singletons.k8s import get_k8s_helper
 
 

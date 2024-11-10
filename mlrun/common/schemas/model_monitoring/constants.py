@@ -255,8 +255,6 @@ class FileTargetKind:
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
-    APP_RESULTS = "app_results"
-    APP_METRICS = "app_metrics"
     MONITORING_SCHEDULES = "monitoring_schedules"
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"

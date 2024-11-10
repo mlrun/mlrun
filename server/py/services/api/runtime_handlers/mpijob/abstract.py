@@ -18,11 +18,12 @@ from kubernetes import client
 
 import mlrun.k8s_utils
 import mlrun.utils.helpers
-import services.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.runtimes.mpijob import AbstractMPIJobRuntime
 from mlrun.utils import logger
+
+import services.api.utils.singletons.k8s
 from services.api.runtime_handlers import KubeRuntimeHandler
 
 

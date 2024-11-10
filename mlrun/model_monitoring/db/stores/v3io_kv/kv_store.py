@@ -15,7 +15,6 @@
 import json
 import typing
 from dataclasses import dataclass
-from http import HTTPStatus
 
 import v3io.dataplane
 import v3io.dataplane.output
@@ -34,14 +33,6 @@ fields_to_encode_decode = [
     mm_schemas.EventFieldType.CURRENT_STATS,
 ]
 
-_METRIC_FIELDS: list[str] = [
-    mm_schemas.WriterEvent.APPLICATION_NAME.value,
-    mm_schemas.MetricData.METRIC_NAME.value,
-    mm_schemas.MetricData.METRIC_VALUE.value,
-    mm_schemas.WriterEvent.START_INFER_TIME.value,
-    mm_schemas.WriterEvent.END_INFER_TIME.value,
-]
-
 
 class SchemaField(typing.TypedDict):
     name: str
@@ -54,37 +45,6 @@ class SchemaParams:
     key: str
     fields: list[SchemaField]
 
-
-_RESULT_SCHEMA: list[SchemaField] = [
-    SchemaField(
-        name=mm_schemas.ResultData.RESULT_NAME,
-        type=mm_schemas.GrafanaColumnType.STRING,
-        nullable=False,
-    )
-]
-
-_METRIC_SCHEMA: list[SchemaField] = [
-    SchemaField(
-        name=mm_schemas.WriterEvent.APPLICATION_NAME,
-        type=mm_schemas.GrafanaColumnType.STRING,
-        nullable=False,
-    ),
-    SchemaField(
-        name=mm_schemas.MetricData.METRIC_NAME,
-        type=mm_schemas.GrafanaColumnType.STRING,
-        nullable=False,
-    ),
-]
-
-
-_KIND_TO_SCHEMA_PARAMS: dict[mm_schemas.WriterEventKind, SchemaParams] = {
-    mm_schemas.WriterEventKind.RESULT: SchemaParams(
-        key=mm_schemas.WriterEvent.APPLICATION_NAME, fields=_RESULT_SCHEMA
-    ),
-    mm_schemas.WriterEventKind.METRIC: SchemaParams(
-        key="metric_id", fields=_METRIC_SCHEMA
-    ),
-}
 
 _EXCLUDE_SCHEMA_FILTER_EXPRESSION = '__name!=".#schema"'
 
@@ -339,85 +299,6 @@ class KVStoreBase(StoreBase):
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
 
-    @staticmethod
-    def _get_results_table_path(endpoint_id: str) -> str:
-        return endpoint_id
-
-    @staticmethod
-    def _get_metrics_table_path(endpoint_id: str) -> str:
-        return f"{endpoint_id}_metrics"
-
-    def write_application_event(
-        self,
-        event: dict[str, typing.Any],
-        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ) -> None:
-        """
-        Write a new application event in the target table.
-
-        :param event: An event dictionary that represents the application result, should be corresponded to the
-                      schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
-                      object.
-        :param kind: The type of the event, can be either "result" or "metric".
-        """
-
-        container = self.get_v3io_monitoring_apps_container(project_name=self.project)
-        endpoint_id = event.pop(mm_schemas.WriterEvent.ENDPOINT_ID)
-
-        if kind == mm_schemas.WriterEventKind.METRIC:
-            table_path = self._get_metrics_table_path(endpoint_id)
-            key = f"{event[mm_schemas.WriterEvent.APPLICATION_NAME]}.{event[mm_schemas.MetricData.METRIC_NAME]}"
-            attributes = {event_key: event[event_key] for event_key in _METRIC_FIELDS}
-        elif kind == mm_schemas.WriterEventKind.RESULT:
-            table_path = self._get_results_table_path(endpoint_id)
-            key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
-            metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
-            attributes = {metric_name: self._encode_field(json.dumps(event))}
-        else:
-            raise ValueError(f"Invalid {kind = }")
-
-        self.client.kv.update(
-            container=container,
-            table_path=table_path,
-            key=key,
-            attributes=attributes,
-        )
-
-        schema_file = self.client.kv.new_cursor(
-            container=container,
-            table_path=table_path,
-            filter_expression='__name==".#schema"',
-        )
-
-        if not schema_file.all():
-            logger.info(
-                "Generating a new V3IO KV schema file",
-                container=container,
-                table_path=table_path,
-            )
-            self._generate_kv_schema(
-                container=container, table_path=table_path, kind=kind
-            )
-        logger.info("Updated V3IO KV successfully", key=key)
-
-    def _generate_kv_schema(
-        self, *, container: str, table_path: str, kind: mm_schemas.WriterEventKind
-    ) -> None:
-        """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
-        schema_params = _KIND_TO_SCHEMA_PARAMS[kind]
-        res = self.client.kv.create_schema(
-            container=container,
-            table_path=table_path,
-            key=schema_params.key,
-            fields=schema_params.fields,
-        )
-        if res.status_code != HTTPStatus.OK:
-            raise mlrun.errors.MLRunBadRequestError(
-                f"Couldn't infer schema for endpoint {table_path} which is required for Grafana dashboards"
-            )
-        else:
-            logger.info("Generated V3IO KV schema successfully", table_path=table_path)
-
     def _generate_tsdb_paths(self) -> tuple[str, str]:
         """Generate a short path to the TSDB resources and a filtered path for the frames object
         :return: A tuple of:
@@ -581,96 +462,3 @@ class KVStoreBase(StoreBase):
     @staticmethod
     def _get_monitoring_schedules_container(project_name: str) -> str:
         return f"users/pipelines/{project_name}/monitoring-schedules/functions"
-
-    def _extract_results_from_items(
-        self, app_items: list[dict[str, str]]
-    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
-        """Assuming .#schema items are filtered out"""
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
-        for app_item in app_items:
-            app_name = app_item.pop("__name")
-            for result_name in app_item:
-                metrics.append(
-                    mm_schemas.ModelEndpointMonitoringMetric(
-                        project=self.project,
-                        app=app_name,
-                        type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
-                        name=result_name,
-                        full_name=mm_schemas.model_endpoints._compose_full_name(
-                            project=self.project, app=app_name, name=result_name
-                        ),
-                    )
-                )
-        return metrics
-
-    def _extract_metrics_from_items(
-        self, result_items: list[dict[str, str]]
-    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
-        logger.debug("Result items", result_items=result_items)
-        for result_item in result_items:
-            app = result_item[mm_schemas.WriterEvent.APPLICATION_NAME]
-            name = result_item[mm_schemas.MetricData.METRIC_NAME]
-            metrics.append(
-                mm_schemas.ModelEndpointMonitoringMetric(
-                    project=self.project,
-                    app=app,
-                    type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-                    name=name,
-                    full_name=mm_schemas.model_endpoints._compose_full_name(
-                        project=self.project,
-                        app=app,
-                        name=name,
-                        type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-                    ),
-                )
-            )
-        return metrics
-
-    def get_model_endpoint_metrics(
-        self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
-    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
-        """Get model monitoring results and metrics on the endpoint"""
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
-        container = self.get_v3io_monitoring_apps_container(self.project)
-        if type == mm_schemas.ModelEndpointMonitoringMetricType.METRIC:
-            table_path = self._get_metrics_table_path(endpoint_id)
-            items_extractor = self._extract_metrics_from_items
-        elif type == mm_schemas.ModelEndpointMonitoringMetricType.RESULT:
-            table_path = self._get_results_table_path(endpoint_id)
-            items_extractor = self._extract_results_from_items
-        else:
-            raise ValueError(f"Invalid metric {type = }")
-
-        def scan(
-            marker: typing.Optional[str] = None,
-        ) -> v3io.dataplane.response.Response:
-            # TODO: Use AIO client: `v3io.aio.dataplane.client.Client`
-            return self.client.kv.scan(
-                container=container,
-                table_path=table_path,
-                marker=marker,
-                filter_expression=_EXCLUDE_SCHEMA_FILTER_EXPRESSION,
-            )
-
-        try:
-            response = scan()
-        except v3io.dataplane.response.HttpResponseError as err:
-            if err.status_code == HTTPStatus.NOT_FOUND:
-                logger.warning(
-                    f"Attempt getting {type}s - no data. Check the "
-                    "project name, endpoint, or wait for the applications to start.",
-                    container=container,
-                    table_path=table_path,
-                )
-                return []
-            raise
-
-        while True:
-            output = typing.cast(v3io.dataplane.output.GetItemsOutput, response.output)
-            metrics.extend(items_extractor(output.items))
-            if output.last:
-                break
-            response = scan(marker=output.next_marker)
-
-        return metrics

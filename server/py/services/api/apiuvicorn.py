@@ -30,7 +30,7 @@ def run(logger, httpdb_config):
         debug=httpdb_config.debug,
     )
     uvicorn.run(
-        "services.api.main:app",
+        "services.api.daemon:app",
         host="0.0.0.0",
         port=httpdb_config.port,
         access_log=False,

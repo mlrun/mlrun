@@ -23,6 +23,7 @@ Create Date: 2021-09-30 10:55:51.956636
 import sqlalchemy as sa
 import sqlalchemy.dialects.mysql
 from alembic import op
+
 from services.api.utils.db.sql_types import SQLTypesUtil
 
 # revision identifiers, used by Alembic.

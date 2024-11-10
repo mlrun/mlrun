@@ -22,9 +22,10 @@ Create Date: 2022-01-08 19:28:45.141873
 
 import datetime
 
-import services.api.utils.db.sql_types
 import sqlalchemy as sa
 from alembic import op
+
+import services.api.utils.db.sql_types
 
 # revision identifiers, used by Alembic.
 revision = "b86f5b53f3d7"

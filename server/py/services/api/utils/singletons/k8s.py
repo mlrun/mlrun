@@ -32,9 +32,10 @@ import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
-import services.api.runtime_handlers
 from mlrun.utils import logger
 from mlrun.utils.helpers import run_with_retry, to_non_empty_values_dict
+
+import services.api.runtime_handlers
 
 _k8s = None
 

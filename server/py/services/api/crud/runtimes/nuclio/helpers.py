@@ -18,10 +18,11 @@ import semver
 
 import mlrun
 import mlrun.runtimes
+from mlrun.utils import logger
+
 import services.api.utils.clients.nuclio
 import services.api.utils.runtimes.nuclio
 import services.api.utils.singletons.k8s
-from mlrun.utils import logger
 
 
 def resolve_function_http_trigger(function_spec):

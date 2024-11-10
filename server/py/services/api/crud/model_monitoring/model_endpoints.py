@@ -21,15 +21,11 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.datastore
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
-import services.api.api.utils
-import services.api.crud.model_monitoring.deployment
-import services.api.crud.model_monitoring.helpers
-import services.api.crud.secrets
-import services.api.rundb.sqldb
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFile,
     delete_model_monitoring_schedules_folder,
@@ -40,6 +36,12 @@ from mlrun.model_monitoring.db._stats import (
     delete_model_monitoring_stats_folder,
 )
 from mlrun.utils import logger
+
+import services.api.api.utils
+import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring.helpers
+import services.api.crud.secrets
+import services.api.rundb.sqldb
 
 
 class ModelEndpoints:
@@ -634,6 +636,47 @@ class ModelEndpoints:
             "Successfully deleted model monitoring endpoints resources",
             project_name=project_name,
         )
+
+    @staticmethod
+    def get_model_endpoints_metrics(
+        project: str,
+        endpoint_id: str,
+        type: str,
+    ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        """
+        Get the metrics for a given model endpoint.
+
+        :param project:     The name of the project.
+        :param endpoint_id: The unique id of the model endpoint.
+        :param type:        metric or result.
+
+        :return: A dictionary of metrics.
+        """
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=project
+                ),
+            )
+        except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+            logger.debug(
+                f"Failed to list model endpoint {type}s because tsdb connection is not defined."
+                " Returning an empty list of metrics",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return []
+
+        if type == "metric":
+            df = tsdb_connector.get_metrics_metadata(endpoint_id=endpoint_id)
+        elif type == "result":
+            df = tsdb_connector.get_results_metadata(endpoint_id=endpoint_id)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Type must be either 'metric' or 'result'"
+            )
+
+        return tsdb_connector.df_to_metrics_list(df=df, type=type, project=project)
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(

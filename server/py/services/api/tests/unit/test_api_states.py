@@ -20,12 +20,13 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+from mlrun.utils import logger
+
 import services.api.initial_data
 import services.api.utils.auth.verifier
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
 import services.api.utils.db.mysql
-from mlrun.utils import logger
 
 
 def test_offline_state(

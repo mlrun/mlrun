@@ -16,7 +16,6 @@
 from fastapi import APIRouter, Depends
 
 import services.api.api.deps
-
 from . import config, memory_reports
 
 internal_router = APIRouter(

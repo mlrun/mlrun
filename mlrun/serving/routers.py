@@ -491,6 +491,7 @@ class VotingEnsemble(ParallelRun):
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         format_response_with_col_name_flag: bool = False,
         prediction_col_name: str = "prediction",
+        shard_by_endpoint: typing.Optional[bool] = None,
         **kwargs,
     ):
         """Voting Ensemble
@@ -580,6 +581,8 @@ class VotingEnsemble(ParallelRun):
                               `{id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}`
                               the prediction_col_name should be `prediction`.
                               by default, `prediction`
+        :param shard_by_endpoint: whether to use the endpoint as the partition/sharding key when writing to model
+                                  monitoring stream. Defaults to True.
         :param kwargs:        extra arguments
         """
         super().__init__(
@@ -606,6 +609,7 @@ class VotingEnsemble(ParallelRun):
         self.prediction_col_name = prediction_col_name or "prediction"
         self.format_response_with_col_name_flag = format_response_with_col_name_flag
         self.model_endpoint_uid = None
+        self.shard_by_endpoint = shard_by_endpoint
 
     def post_init(self, mode="sync"):
         server = getattr(self.context, "_server", None) or getattr(
@@ -907,7 +911,12 @@ class VotingEnsemble(ParallelRun):
         if self._model_logger and self.log_router:
             if "id" not in request:
                 request["id"] = response.body["id"]
-            self._model_logger.push(start, request, response.body)
+            partition_key = (
+                self.model_endpoint_uid if self.shard_by_endpoint is not False else None
+            )
+            self._model_logger.push(
+                start, request, response.body, partition_key=partition_key
+            )
         event.body = _update_result_body(
             self._result_path, original_body, response.body if response else None
         )

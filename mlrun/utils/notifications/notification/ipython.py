@@ -28,9 +28,9 @@ class IPythonNotification(NotificationBase):
 
     def __init__(
         self,
-        name: str = None,
-        params: dict[str, str] = None,
-        default_params: dict[str, str] = None,
+        name: typing.Optional[str] = None,
+        params: typing.Optional[dict[str, str]] = None,
+        default_params: typing.Optional[dict[str, str]] = None,
     ):
         super().__init__(name, params, default_params)
         self._ipython = None
@@ -53,7 +53,7 @@ class IPythonNotification(NotificationBase):
             mlrun.common.schemas.NotificationSeverity, str
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
-        custom_html: str = None,
+        custom_html: typing.Optional[str] = None,
         alert: mlrun.common.schemas.AlertConfig = None,
         event_data: mlrun.common.schemas.Event = None,
     ):

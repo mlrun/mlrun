@@ -60,7 +60,7 @@ from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip
 def new_model_server(
     name,
     model_class: str,
-    models: dict = None,
+    models: typing.Optional[dict] = None,
     filename="",
     protocol="",
     image="",

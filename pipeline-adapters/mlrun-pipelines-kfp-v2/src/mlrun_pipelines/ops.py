@@ -14,6 +14,7 @@
 #
 
 import os
+from typing import Optional
 
 import mlrun_pipelines.common.ops
 from kfp import dsl
@@ -152,8 +153,8 @@ def add_annotations(
     task: dsl.PipelineTask,
     kind: str,
     function,
-    func_url: str = None,
-    project: str = None,
+    func_url: Optional[str] = None,
+    project: Optional[str] = None,
 ):
     # TODO: remove this warning as soon as KFP SDK >=2.7.0 is available for MLRun SDK
     if not hasattr(kfp_k8s, "add_pod_annotation"):

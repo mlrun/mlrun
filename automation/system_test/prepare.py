@@ -70,25 +70,25 @@ class SystemTestPreparer:
 
     def __init__(
         self,
-        mlrun_version: str = None,
-        override_image_registry: str = None,
-        mlrun_commit: str = None,
-        mlrun_ui_version: str = None,
-        data_cluster_ip: str = None,
-        data_cluster_ssh_username: str = None,
-        data_cluster_ssh_password: str = None,
-        github_access_token: str = None,
-        provctl_download_url: str = None,
-        provctl_download_s3_access_key: str = None,
-        provctl_download_s3_key_id: str = None,
-        username: str = None,
-        access_key: str = None,
-        iguazio_version: str = None,
-        slack_webhook_url: str = None,
+        mlrun_version: typing.Optional[str] = None,
+        override_image_registry: typing.Optional[str] = None,
+        mlrun_commit: typing.Optional[str] = None,
+        mlrun_ui_version: typing.Optional[str] = None,
+        data_cluster_ip: typing.Optional[str] = None,
+        data_cluster_ssh_username: typing.Optional[str] = None,
+        data_cluster_ssh_password: typing.Optional[str] = None,
+        github_access_token: typing.Optional[str] = None,
+        provctl_download_url: typing.Optional[str] = None,
+        provctl_download_s3_access_key: typing.Optional[str] = None,
+        provctl_download_s3_key_id: typing.Optional[str] = None,
+        username: typing.Optional[str] = None,
+        access_key: typing.Optional[str] = None,
+        iguazio_version: typing.Optional[str] = None,
+        slack_webhook_url: typing.Optional[str] = None,
         debug: bool = False,
-        branch: str = None,
-        mlrun_dbpath: str = None,
-        kubeconfig_content: str = None,
+        branch: typing.Optional[str] = None,
+        mlrun_dbpath: typing.Optional[str] = None,
+        kubeconfig_content: typing.Optional[str] = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -176,15 +176,15 @@ class SystemTestPreparer:
     def _run_command(
         self,
         command: str,
-        args: list = None,
-        workdir: str = None,
-        stdin: str = None,
+        args: typing.Optional[list] = None,
+        workdir: typing.Optional[str] = None,
+        stdin: typing.Optional[str] = None,
         live: bool = True,
         suppress_errors: bool = False,
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
-        suppress_error_strings: list = None,
+        suppress_error_strings: typing.Optional[list] = None,
     ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -268,9 +268,9 @@ class SystemTestPreparer:
     def _run_command_remotely(
         self,
         command: str,
-        args: list = None,
-        workdir: str = None,
-        stdin: str = None,
+        args: typing.Optional[list] = None,
+        workdir: typing.Optional[str] = None,
+        stdin: typing.Optional[str] = None,
         live: bool = True,
         detach: bool = False,
         verbose: bool = True,
@@ -465,8 +465,8 @@ class SystemTestPreparer:
         command_name: str,
         max_retries: int = 60,
         interval: int = 10,
-        suppress_error_strings: list = None,
-        ps_verification: str = None,
+        suppress_error_strings: typing.Optional[list] = None,
+        ps_verification: typing.Optional[str] = None,
     ):
         def exec_ps_verification():
             if ps_verification:
@@ -862,11 +862,11 @@ def env(
 
 def run_command(
     command: str,
-    args: list = None,
-    workdir: str = None,
-    stdin: str = None,
+    args: typing.Optional[list] = None,
+    workdir: typing.Optional[str] = None,
+    stdin: typing.Optional[str] = None,
     live: bool = True,
-    log_file_handler: typing.IO[str] = None,
+    log_file_handler: typing.Optional[typing.IO[str]] = None,
 ) -> (str, str, int):
     if workdir:
         command = f"cd {workdir}; " + command
@@ -894,7 +894,7 @@ def run_command(
 
 def _handle_command_stdout(
     stdout_stream: typing.IO[bytes],
-    log_file_handler: typing.IO[str] = None,
+    log_file_handler: typing.Optional[typing.IO[str]] = None,
     live: bool = True,
 ) -> str:
     def _write_to_log_file(text: bytes):

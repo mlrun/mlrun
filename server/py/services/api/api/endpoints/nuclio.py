@@ -412,7 +412,7 @@ def create_model_monitoring_stream(
     stream_path: str,
     shard_count: int,
     retention_period_hours: int,
-    access_key: str = None,
+    access_key: typing.Optional[str] = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
@@ -706,7 +706,10 @@ async def _get_api_gateways_urls_for_function(
 
 
 def _is_nuclio_deploy_status_changed(
-    previous_status: dict, new_status: dict, new_state: str, new_nuclio_name: str = None
+    previous_status: dict,
+    new_status: dict,
+    new_state: str,
+    new_nuclio_name: typing.Optional[str] = None,
 ) -> bool:
     # get relevant fields from the new status
     new_container_image = new_status.get("containerImage", "")

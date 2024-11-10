@@ -187,12 +187,12 @@ class KVStoreBase(StoreBase):
 
     def list_model_endpoints(
         self,
-        model: str = None,
-        function: str = None,
-        labels: list[str] = None,
-        top_level: bool = None,
-        uids: list = None,
-        include_stats: bool = None,
+        model: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
+        top_level: typing.Optional[bool] = None,
+        uids: typing.Optional[list] = None,
+        include_stats: typing.Optional[bool] = None,
     ) -> list[dict[str, typing.Any]]:
         # # Initialize an empty model endpoints list
         endpoint_list = []
@@ -355,8 +355,8 @@ class KVStoreBase(StoreBase):
     @staticmethod
     def _build_kv_cursor_filter_expression(
         project: str,
-        function: str = None,
-        model: str = None,
+        function: typing.Optional[str] = None,
+        model: typing.Optional[str] = None,
         top_level: bool = False,
     ) -> str:
         """

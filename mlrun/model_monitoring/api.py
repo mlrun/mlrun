@@ -45,7 +45,7 @@ def get_or_create_model_endpoint(
     endpoint_id: str = "",
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
-    sample_set_statistics: dict[str, typing.Any] = None,
+    sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     drift_threshold: typing.Optional[float] = None,
     possible_drift_threshold: typing.Optional[float] = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.disabled,
@@ -234,7 +234,7 @@ def record_results(
 def _model_endpoint_validations(
     model_endpoint: ModelEndpoint,
     model_path: str = "",
-    sample_set_statistics: dict[str, typing.Any] = None,
+    sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
 ) -> None:
     """
     Validate that provided model endpoint configurations match the stored fields of the provided `ModelEndpoint`
@@ -387,7 +387,7 @@ def _generate_model_endpoint(
 
 def get_sample_set_statistics(
     sample_set: DatasetType = None,
-    model_artifact_feature_stats: dict = None,
+    model_artifact_feature_stats: typing.Optional[dict] = None,
     sample_set_columns: typing.Optional[list] = None,
     sample_set_drop_columns: typing.Optional[list] = None,
     sample_set_label_columns: typing.Optional[list] = None,
@@ -445,9 +445,9 @@ def get_sample_set_statistics(
 
 def read_dataset_as_dataframe(
     dataset: DatasetType,
-    feature_columns: typing.Union[str, list[str]] = None,
-    label_columns: typing.Union[str, list[str]] = None,
-    drop_columns: typing.Union[str, list[str], int, list[int]] = None,
+    feature_columns: typing.Optional[typing.Union[str, list[str]]] = None,
+    label_columns: typing.Optional[typing.Union[str, list[str]]] = None,
+    drop_columns: typing.Optional[typing.Union[str, list[str], int, list[int]]] = None,
 ) -> tuple[pd.DataFrame, list[str]]:
     """
     Parse the given dataset into a DataFrame and drop the columns accordingly. In addition, the label columns will be

@@ -36,7 +36,7 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self,
         object_type: str,
         sample_size: int = 1,
-        start_index: int = None,
+        start_index: typing.Optional[int] = None,
         create_graph: bool = False,
         max_depth: int = 3,
     ) -> list[dict[str, typing.Any]]:

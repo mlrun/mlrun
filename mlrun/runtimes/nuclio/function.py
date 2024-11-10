@@ -554,7 +554,7 @@ class RemoteRuntime(KubeResource):
         tag="",
         verbose=False,
         auth_info: AuthInfo = None,
-        builder_env: dict = None,
+        builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
     ):
         """Deploy the nuclio function to the cluster
@@ -693,7 +693,9 @@ class RemoteRuntime(KubeResource):
         super().with_priority_class(name)
 
     def with_service_type(
-        self, service_type: str, add_templated_ingress_host_mode: str = None
+        self,
+        service_type: str,
+        add_templated_ingress_host_mode: typing.Optional[str] = None,
     ):
         """
         Enables to control the service type of the pod and the addition of templated ingress host
@@ -887,13 +889,13 @@ class RemoteRuntime(KubeResource):
     def invoke(
         self,
         path: str,
-        body: typing.Union[str, bytes, dict] = None,
-        method: str = None,
-        headers: dict = None,
+        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
+        method: typing.Optional[str] = None,
+        headers: typing.Optional[dict] = None,
         dashboard: str = "",
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
-        mock: bool = None,
+        mock: typing.Optional[bool] = None,
         **http_client_kwargs,
     ):
         """Invoke the remote (live) function and return the results
@@ -995,8 +997,8 @@ class RemoteRuntime(KubeResource):
 
     def with_sidecar(
         self,
-        name: str = None,
-        image: str = None,
+        name: typing.Optional[str] = None,
+        image: typing.Optional[str] = None,
         ports: typing.Optional[typing.Union[int, list[int]]] = None,
         command: typing.Optional[str] = None,
         args: typing.Optional[list[str]] = None,

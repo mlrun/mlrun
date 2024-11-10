@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import os
+from typing import Optional
 
 
-def packages(exclude_packages: list[str] = None) -> list[str]:
+def packages(exclude_packages: Optional[list[str]] = None) -> list[str]:
     """Get list of project packages"""
     _exclude_packages = set(exclude_packages or [])
     all_packages = _flatten_packages(
@@ -24,7 +25,7 @@ def packages(exclude_packages: list[str] = None) -> list[str]:
     return list(sorted(all_packages.difference(_exclude_packages)))
 
 
-def _get_package_dict(starting_path, exclude: list[str] = None) -> dict:
+def _get_package_dict(starting_path, exclude: Optional[list[str]] = None) -> dict:
     """Get hierarchical dict of packages from starting path"""
     package_dict = {}
     exclude = exclude or ["__pycache__"]

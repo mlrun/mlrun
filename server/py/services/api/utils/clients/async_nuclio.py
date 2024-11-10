@@ -15,6 +15,7 @@
 import copy
 import urllib.parse
 from http import HTTPStatus
+from typing import Optional
 
 import aiohttp
 
@@ -70,13 +71,13 @@ class Client:
             ).replace_nuclio_names_with_mlrun_names()
         return parsed_api_gateways
 
-    async def api_gateway_exists(self, name: str, project_name: str = None):
+    async def api_gateway_exists(self, name: str, project_name: Optional[str] = None):
         # enrich api gateway name with project prefix
         name = generate_api_gateway_name(project_name, name)
 
         return name in await self.list_api_gateways(project_name=project_name)
 
-    async def get_api_gateway(self, name: str, project_name: str = None):
+    async def get_api_gateway(self, name: str, project_name: Optional[str] = None):
         headers = {}
 
         # enrich api gateway name with project prefix
@@ -126,7 +127,7 @@ class Client:
             json=body,
         )
 
-    async def delete_api_gateway(self, name: str, project_name: str = None):
+    async def delete_api_gateway(self, name: str, project_name: Optional[str] = None):
         headers = {}
 
         # enrich api gateway name with project prefix
@@ -142,7 +143,7 @@ class Client:
             json={"metadata": {"name": name}},
         )
 
-    async def delete_function(self, name: str, project_name: str = None):
+    async def delete_function(self, name: str, project_name: Optional[str] = None):
         # this header allows nuclio to delete function along with its api gateways
         headers = {NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER: "true"}
 

@@ -220,9 +220,9 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
         db: api_db_base.DBInterface,
         db_session: sqlalchemy.orm.Session,
         namespace: str,
-        label_selector: str = None,
+        label_selector: typing.Optional[str] = None,
         force: bool = False,
-        grace_period: int = None,
+        grace_period: typing.Optional[int] = None,
         resource_deletion_grace_period: typing.Optional[int] = None,
     ) -> list[dict]:
         # override the grace period for the deletion of the pods

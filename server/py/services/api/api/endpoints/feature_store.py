@@ -194,7 +194,7 @@ async def get_feature_set(
 async def delete_feature_set(
     project: str,
     name: str,
-    reference: str = None,
+    reference: Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -225,9 +225,9 @@ async def delete_feature_set(
 )
 async def list_feature_sets(
     project: str,
-    name: str = None,
-    state: str = None,
-    tag: str = None,
+    name: Optional[str] = None,
+    state: Optional[str] = None,
+    tag: Optional[str] = None,
     entities: list[str] = Query(None, alias="entity"),
     features: list[str] = Query(None, alias="feature"),
     labels: list[str] = Query(None, alias="label"),
@@ -471,8 +471,8 @@ async def ingest_feature_set(
 )
 async def list_features(
     project: str,
-    name: str = None,
-    tag: str = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
     entities: list[str] = Query(None, alias="entity"),
     labels: list[str] = Query(None, alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -513,8 +513,8 @@ async def list_features(
 )
 async def list_entities(
     project: str,
-    name: str = None,
-    tag: str = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
     labels: list[str] = Query(None, alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -628,9 +628,9 @@ async def get_feature_vector(
 )
 async def list_feature_vectors(
     project: str,
-    name: str = None,
-    state: str = None,
-    tag: str = None,
+    name: Optional[str] = None,
+    state: Optional[str] = None,
+    tag: Optional[str] = None,
     labels: list[str] = Query(None, alias="label"),
     partition_by: mlrun.common.schemas.FeatureStorePartitionByField = Query(
         None, alias="partition-by"
@@ -821,7 +821,7 @@ async def patch_feature_vector(
 async def delete_feature_vector(
     project: str,
     name: str,
-    reference: str = None,
+    reference: Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

@@ -99,21 +99,21 @@ def _features_to_vector_and_check_permissions(features, update_stats):
 def get_offline_features(
     feature_vector: Union[str, FeatureVector],
     entity_rows=None,
-    entity_timestamp_column: str = None,
+    entity_timestamp_column: Optional[str] = None,
     target: DataTargetBase = None,
     run_config: RunConfig = None,
-    drop_columns: list[str] = None,
-    start_time: Union[str, datetime] = None,
-    end_time: Union[str, datetime] = None,
+    drop_columns: Optional[list[str]] = None,
+    start_time: Optional[Union[str, datetime]] = None,
+    end_time: Optional[Union[str, datetime]] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
-    engine: str = None,
-    engine_args: dict = None,
-    query: str = None,
-    order_by: Union[str, list[str]] = None,
-    spark_service: str = None,
-    timestamp_for_filtering: Union[str, dict[str, str]] = None,
-    additional_filters: list = None,
+    engine: Optional[str] = None,
+    engine_args: Optional[dict] = None,
+    query: Optional[str] = None,
+    order_by: Optional[Union[str, list[str]]] = None,
+    spark_service: Optional[str] = None,
+    timestamp_for_filtering: Optional[Union[str, dict[str, str]]] = None,
+    additional_filters: Optional[list] = None,
 ):
     """retrieve offline feature vector results
 
@@ -209,20 +209,20 @@ def get_offline_features(
 def _get_offline_features(
     feature_vector: Union[str, FeatureVector],
     entity_rows=None,
-    entity_timestamp_column: str = None,
+    entity_timestamp_column: Optional[str] = None,
     target: DataTargetBase = None,
     run_config: RunConfig = None,
-    drop_columns: list[str] = None,
-    start_time: Union[str, datetime] = None,
-    end_time: Union[str, datetime] = None,
+    drop_columns: Optional[list[str]] = None,
+    start_time: Optional[Union[str, datetime]] = None,
+    end_time: Optional[Union[str, datetime]] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
-    engine: str = None,
-    engine_args: dict = None,
-    query: str = None,
-    order_by: Union[str, list[str]] = None,
-    spark_service: str = None,
-    timestamp_for_filtering: Union[str, dict[str, str]] = None,
+    engine: Optional[str] = None,
+    engine_args: Optional[dict] = None,
+    query: Optional[str] = None,
+    order_by: Optional[Union[str, list[str]]] = None,
+    spark_service: Optional[str] = None,
+    timestamp_for_filtering: Optional[Union[str, dict[str, str]]] = None,
     additional_filters=None,
 ) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     if entity_rows is None and entity_timestamp_column is not None:
@@ -297,9 +297,9 @@ def get_online_feature_service(
     feature_vector: Union[str, FeatureVector],
     run_config: RunConfig = None,
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-    impute_policy: dict = None,
+    impute_policy: Optional[dict] = None,
     update_stats: bool = False,
-    entity_keys: list[str] = None,
+    entity_keys: Optional[list[str]] = None,
 ):
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -378,9 +378,9 @@ def _get_online_feature_service(
     feature_vector: Union[str, FeatureVector],
     run_config: RunConfig = None,
     fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-    impute_policy: dict = None,
+    impute_policy: Optional[dict] = None,
     update_stats: bool = False,
-    entity_keys: list[str] = None,
+    entity_keys: Optional[list[str]] = None,
 ) -> OnlineVectorService:
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -450,7 +450,7 @@ def _get_namespace(run_config: RunConfig) -> dict[str, Any]:
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
-    targets: list[DataTargetBase] = None,
+    targets: Optional[list[DataTargetBase]] = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.default(),
@@ -530,7 +530,7 @@ def ingest(
 def _ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
-    targets: list[DataTargetBase] = None,
+    targets: Optional[list[DataTargetBase]] = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.default(),
@@ -783,11 +783,11 @@ def _ingest(
 def preview(
     featureset: FeatureSet,
     source,
-    entity_columns: list = None,
+    entity_columns: Optional[list] = None,
     namespace=None,
     options: InferOptions = None,
     verbose: bool = False,
-    sample_size: int = None,
+    sample_size: Optional[int] = None,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -825,11 +825,11 @@ def preview(
 def _preview(
     featureset: FeatureSet,
     source,
-    entity_columns: list = None,
+    entity_columns: Optional[list] = None,
     namespace=None,
     options: InferOptions = None,
     verbose: bool = False,
-    sample_size: int = None,
+    sample_size: Optional[int] = None,
 ) -> pd.DataFrame:
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
@@ -895,8 +895,8 @@ def _preview(
 def _run_ingestion_job(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: list[DataTargetBase] = None,
-    name: str = None,
+    targets: Optional[list[DataTargetBase]] = None,
+    name: Optional[str] = None,
     infer_options: InferOptions = InferOptions.default(),
     run_config: RunConfig = None,
 ):
@@ -920,8 +920,8 @@ def _run_ingestion_job(
 def deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: list[DataTargetBase] = None,
-    name: str = None,
+    targets: Optional[list[DataTargetBase]] = None,
+    name: Optional[str] = None,
     run_config: RunConfig = None,
     verbose=False,
 ) -> tuple[str, BaseRuntime]:
@@ -963,8 +963,8 @@ def deploy_ingestion_service_v2(
 def _deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: list[DataTargetBase] = None,
-    name: str = None,
+    targets: Optional[list[DataTargetBase]] = None,
+    name: Optional[str] = None,
     run_config: RunConfig = None,
     verbose=False,
 ) -> tuple[str, BaseRuntime]:
@@ -1026,7 +1026,7 @@ def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
     source: BaseSourceDriver = None,
-    targets: list[BaseStoreTarget] = None,
+    targets: Optional[list[BaseStoreTarget]] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
@@ -1199,8 +1199,8 @@ def _infer_from_static_df(
 def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
-    targets: list[DataTargetBase] = None,
-    parameters: dict = None,
+    targets: Optional[list[DataTargetBase]] = None,
+    parameters: Optional[dict] = None,
     infer_options: InferOptions = InferOptions.Null,
     overwrite=None,
 ):

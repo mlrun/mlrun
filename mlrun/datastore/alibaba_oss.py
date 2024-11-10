@@ -15,6 +15,7 @@
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 
 import oss2
@@ -28,7 +29,9 @@ from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 class OSSStore(DataStore):
     using_bucket = True
 
-    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+    def __init__(
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+    ):
         super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
 

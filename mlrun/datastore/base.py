@@ -48,7 +48,7 @@ class FileStats:
 class DataStore:
     using_bucket = False
 
-    def __init__(self, parent, name, kind, endpoint="", secrets: dict = None):
+    def __init__(self, parent, name, kind, endpoint="", secrets: Optional[dict] = None):
         self._parent = parent
         self.kind = kind
         self.name = name
@@ -693,7 +693,9 @@ def basic_auth_header(user, password):
 
 
 class HttpStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+    def __init__(
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+    ):
         super().__init__(parent, name, schema, endpoint, secrets)
         self._https_auth_token = None
         self._schema = schema

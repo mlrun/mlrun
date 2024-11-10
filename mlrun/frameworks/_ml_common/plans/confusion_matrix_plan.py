@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 from plotly.figure_factory import create_annotated_heatmap
@@ -35,7 +37,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
         self,
         labels: np.ndarray = None,
         sample_weight: np.ndarray = None,
-        normalize: str = None,
+        normalize: Optional[str] = None,
     ):
         """
         Initialize a confusion matrix plan with the given configuration.

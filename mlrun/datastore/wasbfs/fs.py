@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
 from urllib.parse import urlparse
 
 from fsspec import AbstractFileSystem
@@ -22,23 +23,23 @@ class WasbFS(AbstractFileSystem):
 
     def __init__(
         self,
-        account_name: str = None,
-        account_key: str = None,
-        connection_string: str = None,
-        credential: str = None,
-        sas_token: str = None,
+        account_name: Optional[str] = None,
+        account_key: Optional[str] = None,
+        connection_string: Optional[str] = None,
+        credential: Optional[str] = None,
+        sas_token: Optional[str] = None,
         request_session=None,
-        socket_timeout: int = None,
-        blocksize: int = None,
-        client_id: str = None,
-        client_secret: str = None,
-        tenant_id: str = None,
+        socket_timeout: Optional[int] = None,
+        blocksize: Optional[int] = None,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+        tenant_id: Optional[str] = None,
         anon: bool = True,
-        location_mode: str = None,
+        location_mode: Optional[str] = None,
         loop=None,
         asynchronous: bool = False,
         default_fill_cache: bool = True,
-        default_cache_type: str = None,
+        default_cache_type: Optional[str] = None,
         **kwargs,
     ):
         from adlfs import AzureBlobFileSystem

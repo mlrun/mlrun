@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC
-from typing import Union
+from typing import Optional, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -33,7 +33,7 @@ class MLModelHandler(ModelHandler, ABC):
         self,
         model: MLTypes.ModelType = None,
         model_path: MLTypes.PathType = None,
-        model_name: str = None,
+        model_name: Optional[str] = None,
         modules_map: Union[
             dict[str, Union[None, str, list[str]]], MLTypes.PathType
         ] = None,
@@ -224,18 +224,18 @@ class MLModelHandler(ModelHandler, ABC):
     def log(
         self,
         tag: str = "",
-        labels: dict[str, Union[str, int, float]] = None,
-        parameters: dict[str, Union[str, int, float]] = None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
-        metrics: dict[str, Union[int, float]] = None,
-        artifacts: dict[str, Artifact] = None,
-        extra_data: dict[str, MLTypes.ExtraDataType] = None,
-        algorithm: str = None,
+        labels: Optional[dict[str, Union[str, int, float]]] = None,
+        parameters: Optional[dict[str, Union[str, int, float]]] = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
+        metrics: Optional[dict[str, Union[int, float]]] = None,
+        artifacts: Optional[dict[str, Artifact]] = None,
+        extra_data: Optional[dict[str, MLTypes.ExtraDataType]] = None,
+        algorithm: Optional[str] = None,
         sample_set: MLTypes.DatasetType = None,
         target_columns: MLTypes.TargetColumnsNamesType = None,
-        feature_vector: str = None,
-        feature_weights: list[float] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list[float]] = None,
     ):
         """
         Log the model held by this handler into the MLRun context provided.
@@ -299,15 +299,15 @@ class MLModelHandler(ModelHandler, ABC):
 
     def update(
         self,
-        labels: dict[str, Union[str, int, float]] = None,
-        parameters: dict[str, Union[str, int, float]] = None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
-        metrics: dict[str, Union[int, float]] = None,
-        artifacts: dict[str, Artifact] = None,
-        extra_data: dict[str, MLTypes.ExtraDataType] = None,
-        feature_vector: str = None,
-        feature_weights: list[float] = None,
+        labels: Optional[dict[str, Union[str, int, float]]] = None,
+        parameters: Optional[dict[str, Union[str, int, float]]] = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
+        metrics: Optional[dict[str, Union[int, float]]] = None,
+        artifacts: Optional[dict[str, Artifact]] = None,
+        extra_data: Optional[dict[str, MLTypes.ExtraDataType]] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list[float]] = None,
     ):
         """
         Update the model held by this handler into the MLRun context provided, updating the model's artifact properties

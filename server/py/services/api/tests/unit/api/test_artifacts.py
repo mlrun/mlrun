@@ -17,6 +17,7 @@ import unittest.mock
 import uuid
 from datetime import datetime, timedelta
 from http import HTTPStatus
+from typing import Optional
 
 import deepdiff
 import pytest
@@ -444,7 +445,7 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
 def list_limit_unversioned_client(
     unversioned_client: TestClient, request
 ) -> TestClient:
-    def ensure_endpoint_limit(limit_: int = None):
+    def ensure_endpoint_limit(limit_: Optional[int] = None):
         for route in unversioned_client.app.routes:
             if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
                 for qp in route.dependant.query_params:
@@ -1101,7 +1102,7 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
 
 
 def _create_project(
-    client: TestClient, project_name: str = PROJECT, prefix: str = None
+    client: TestClient, project_name: str = PROJECT, prefix: Optional[str] = None
 ):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
@@ -1152,7 +1153,7 @@ def _generate_artifact_body(
     return data
 
 
-def _get_artifact_url(uid: str = None, tag: str = None) -> str:
+def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> str:
     url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
     params = []
 

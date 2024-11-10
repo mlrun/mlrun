@@ -15,6 +15,7 @@
 import datetime
 import uuid
 from http import HTTPStatus
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -194,18 +195,18 @@ async def delete_run(
 )
 @router.get("/projects/{project}/runs")
 async def list_runs(
-    project: str = None,
-    name: str = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
     states: list[str] = Query([], alias="state"),
     last: int = 0,
     sort: bool = True,
     iter: bool = True,
-    start_time_from: str = None,
-    start_time_to: str = None,
-    last_update_time_from: str = None,
-    last_update_time_to: str = None,
+    start_time_from: Optional[str] = None,
+    start_time_to: Optional[str] = None,
+    last_update_time_from: Optional[str] = None,
+    last_update_time_to: Optional[str] = None,
     partition_by: mlrun.common.schemas.RunPartitionByField = Query(
         None, alias="partition-by"
     ),
@@ -286,11 +287,11 @@ async def list_runs(
 )
 @router.delete("/projects/{project}/runs")
 async def delete_runs(
-    project: str = None,
-    name: str = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
     labels: list[str] = Query([], alias="label"),
-    state: str = None,
-    days_ago: int = None,
+    state: Optional[str] = None,
+    days_ago: Optional[int] = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

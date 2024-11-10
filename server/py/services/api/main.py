@@ -438,7 +438,7 @@ class Service(framework.service.Service):
     async def _start_log_for_run(
         self,
         run: dict,
-        start_logs_limit: asyncio.Semaphore = None,
+        start_logs_limit: typing.Optional[asyncio.Semaphore] = None,
         raise_on_error: bool = True,
         best_effort: bool = False,
     ) -> typing.Optional[typing.Union[str, None]]:

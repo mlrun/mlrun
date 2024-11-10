@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Optional
+
 import numpy as np
 import packaging.version
 import pandas as pd
@@ -29,7 +31,7 @@ def infer_schema_from_df(
     df: pd.DataFrame,
     features,
     entities,
-    timestamp_key: str = None,
+    timestamp_key: Optional[str] = None,
     entity_columns=None,
     options: InferOptions = InferOptions.Null,
 ):

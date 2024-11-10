@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import os
+from typing import Optional
 
 import mlrun
 from tests.system.base import TestMLRunSystem
@@ -36,7 +37,9 @@ class TestDemo(TestMLRunSystem):
     def create_demo_project(self) -> mlrun.projects.MlrunProject:
         raise NotImplementedError
 
-    def run_and_verify_project(self, runs_amount: int = 1, arguments: dict = None):
+    def run_and_verify_project(
+        self, runs_amount: int = 1, arguments: Optional[dict] = None
+    ):
         arguments = arguments or {}
         run_id = self._demo_project.run(
             "main",

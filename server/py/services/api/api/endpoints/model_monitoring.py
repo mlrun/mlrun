@@ -230,7 +230,7 @@ async def disable_model_monitoring(
     delete_stream_function: bool = False,
     delete_histogram_data_drift_app: bool = True,
     delete_user_applications: bool = False,
-    user_application_list: list[str] = None,
+    user_application_list: Optional[list[str]] = None,
 ):
     """
     Disable model monitoring application controller, writer, stream, histogram data drift application

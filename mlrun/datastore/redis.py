@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
 from urllib.parse import urlparse
 
 import redis
@@ -30,7 +31,9 @@ class RedisStore(DataStore):
     - key and value sizes are limited to 512MB
     """
 
-    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+    def __init__(
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+    ):
         redis_default_port = "6379"
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.headers = None

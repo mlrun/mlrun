@@ -101,7 +101,7 @@ async def create_model_endpoint(
 async def patch_model_endpoint(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
-    attributes: str = None,
+    attributes: Optional[str] = None,
     auth_info: schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
 ) -> schemas.ModelEndpoint:
     """

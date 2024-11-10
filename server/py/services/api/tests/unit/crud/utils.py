@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.alert as alert_objects
 
@@ -23,9 +25,9 @@ def generate_alert_data(
     entity: alert_objects.EventEntities,
     summary: str,
     event_kind: alert_objects.EventKind,
-    description: str = None,
+    description: Optional[str] = None,
     severity: alert_objects.AlertSeverity = alert_objects.AlertSeverity.LOW,
-    notifications: list[alert_objects.Notification] = None,
+    notifications: Optional[list[alert_objects.Notification]] = None,
     criteria: alert_objects.AlertCriteria = None,
     reset_policy: alert_objects.ResetPolicy = alert_objects.ResetPolicy.AUTO,
 ):

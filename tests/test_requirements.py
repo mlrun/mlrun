@@ -116,6 +116,7 @@ def test_requirement_specifiers_convention():
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "sphinx-book-theme": {"~=1.0.1"},
+        "scipy": {"~=1.13.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},

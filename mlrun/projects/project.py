@@ -3898,7 +3898,10 @@ class MlrunProject(ModelObj):
                     page_token=token, page_size=5
                 )
                 artifacts.extend(page_artifacts)
-                if not token:  # If no token is returned, we've reached the last page
+
+                # If token is None and page_artifacts is empty, we've reached the end (no more artifacts).
+                # If token is None and page_artifacts is not empty, we've fetched the last page of artifacts.
+                if not token:
                     break
             print(f"Total artifacts retrieved: {len(artifacts)}")
 
@@ -4014,7 +4017,10 @@ class MlrunProject(ModelObj):
                     page_token=token, page_size=5
                 )
                 artifacts.extend(page_artifacts)
-                if not token:  # If no token is returned, we've reached the last page
+
+                # If token is None and page_artifacts is empty, we've reached the end (no more artifacts).
+                # If token is None and page_artifacts is not empty, we've fetched the last page of artifacts.
+                if not token:
                     break
             print(f"Total artifacts retrieved: {len(artifacts)}")
 

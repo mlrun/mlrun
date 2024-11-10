@@ -14,9 +14,10 @@
 import mlrun.common.constants as mlrun_constants
 import mlrun.k8s_utils
 import mlrun.utils.helpers
-import services.api.utils.singletons.k8s
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from mlrun.config import config
+
+import services.api.utils.singletons.k8s
 from services.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
 
 cached_mpijob_crd_version = None

@@ -25,10 +25,11 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
-import services.api.crud
-import services.api.db.session
 from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
+
+import services.api.crud
+import services.api.db.session
 from services.api.db.base import DBError
 from services.api.db.sqldb.db import SQLDB
 

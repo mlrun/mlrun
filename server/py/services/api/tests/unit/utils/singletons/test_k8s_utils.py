@@ -26,9 +26,10 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.runtimes
+from mlrun.common.schemas import SecretEventActions
+
 import services.api.runtime_handlers.mpijob
 import services.api.utils.singletons.k8s
-from mlrun.common.schemas import SecretEventActions
 
 
 @pytest.fixture

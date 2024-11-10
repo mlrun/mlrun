@@ -20,8 +20,9 @@ import unittest.mock
 
 import pytest
 
-import services.api.utils.db.backup
 from mlrun import mlconf
+
+import services.api.utils.db.backup
 
 
 class Constants:

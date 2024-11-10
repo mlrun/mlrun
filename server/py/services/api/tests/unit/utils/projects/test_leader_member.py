@@ -21,10 +21,11 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+from mlrun.utils import logger
+
 import services.api.utils.projects.leader
 import services.api.utils.projects.remotes.follower
 import services.api.utils.singletons.project_member
-from mlrun.utils import logger
 
 
 @pytest.fixture()

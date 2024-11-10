@@ -25,9 +25,10 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.utils import logger
+
 import services.api.utils.auth.providers.base as auth
 import services.api.utils.helpers
-from mlrun.utils import logger
 
 
 class Provider(

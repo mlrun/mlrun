@@ -17,9 +17,10 @@ import time
 
 import sqlalchemy.orm
 
-import services.api.crud
 from mlrun import mlconf
 from mlrun.utils import logger
+
+import services.api.crud
 
 
 def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):

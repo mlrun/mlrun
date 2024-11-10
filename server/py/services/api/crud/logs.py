@@ -23,11 +23,12 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.common.runtimes.constants import PodPhases
+from mlrun.utils import logger
+
 import services.api.api.utils
 import services.api.utils.clients.log_collector as log_collector
 import services.api.utils.singletons.k8s
-from mlrun.common.runtimes.constants import PodPhases
-from mlrun.utils import logger
 from services.api.constants import LogSources
 from services.api.utils.singletons.db import get_db
 

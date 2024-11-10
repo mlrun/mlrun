@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import services.api.utils.clients.nuclio
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+
+import services.api.utils.clients.nuclio
 
 
 # if nuclio version specified on mlrun config set it likewise,

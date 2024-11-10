@@ -13,11 +13,9 @@
 # limitations under the License.
 
 from sqlalchemy import (
-    DATETIME,
     TIMESTAMP,  # TODO: migrate to DATETIME, see ML-6921
     Boolean,
     Column,
-    Float,
     Integer,
     String,
     Text,
@@ -25,10 +23,6 @@ from sqlalchemy import (
 
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
-    FileTargetKind,
-    MetricData,
-    ResultData,
-    WriterEvent,
 )
 from mlrun.utils.db import BaseModel
 
@@ -97,69 +91,3 @@ class ModelEndpointsBaseTable(BaseModel):
         EventFieldType.LAST_REQUEST,
         TIMESTAMP(timezone=True),  # TODO: migrate to DATETIME, see ML-6921
     )
-
-
-class ApplicationResultBaseTable(BaseModel):
-    __tablename__ = FileTargetKind.APP_RESULTS
-
-    uid = Column(EventFieldType.UID, String(120), primary_key=True)
-
-    application_name = Column(
-        WriterEvent.APPLICATION_NAME,
-        String(40),
-        nullable=True,
-    )
-
-    endpoint_id = Column(
-        WriterEvent.ENDPOINT_ID,
-        String(40),
-        nullable=True,
-    )
-
-    result_name = Column(
-        ResultData.RESULT_NAME,
-        String(40),
-    )
-
-    start_infer_time = Column(
-        WriterEvent.START_INFER_TIME,
-        DATETIME(timezone=True),
-    )
-    end_infer_time = Column(
-        WriterEvent.END_INFER_TIME,
-        DATETIME(timezone=True),
-    )
-
-    result_status = Column(ResultData.RESULT_STATUS, String(10))
-    result_kind = Column(ResultData.RESULT_KIND, String(40))
-    result_value = Column(ResultData.RESULT_VALUE, Float)
-    result_extra_data = Column(ResultData.RESULT_EXTRA_DATA, Text)
-
-
-class ApplicationMetricsBaseTable(BaseModel):
-    __tablename__ = FileTargetKind.APP_METRICS
-
-    uid = Column(EventFieldType.UID, String(120), primary_key=True)
-    application_name = Column(
-        WriterEvent.APPLICATION_NAME,
-        String(40),
-        nullable=True,
-    )
-    endpoint_id = Column(
-        WriterEvent.ENDPOINT_ID,
-        String(40),
-        nullable=True,
-    )
-    start_infer_time = Column(
-        WriterEvent.START_INFER_TIME,
-        DATETIME(timezone=True),
-    )
-    end_infer_time = Column(
-        WriterEvent.END_INFER_TIME,
-        DATETIME(timezone=True),
-    )
-    metric_name = Column(
-        MetricData.METRIC_NAME,
-        String(40),
-    )
-    metric_value = Column(MetricData.METRIC_VALUE, Float)

@@ -25,9 +25,10 @@ import fastapi.concurrency
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.utils import logger
+
 import services.api.utils.background_tasks.common
 import services.api.utils.helpers
-from mlrun.utils import logger
 
 
 class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):

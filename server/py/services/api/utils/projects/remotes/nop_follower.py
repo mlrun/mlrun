@@ -20,6 +20,7 @@ import sqlalchemy.orm
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
+
 import services.api.utils.projects.remotes.follower as project_follower
 
 

@@ -24,9 +24,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+from mlrun.config import config
+
 import services.api.crud
 import services.api.tests.unit.conftest
-from mlrun.config import config
 
 
 def _generate_source_dict(index, name, credentials=None):

@@ -13,11 +13,13 @@
 # limitations under the License.
 
 from .alert import (
+    AlertActivation,
     AlertActiveState,
     AlertConfig,
     AlertNotification,
     AlertTemplate,
     Event,
+    NotificationState,
 )
 from .api_gateway import (
     APIGateway,

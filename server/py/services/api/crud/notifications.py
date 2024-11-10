@@ -19,8 +19,8 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.utils.singleton
 
-import framework.api.utils
 import framework.db.sqldb.db
+import framework.utils.notifications
 import framework.utils.singletons.db
 import services.api.utils.scheduler
 import services.api.utils.singletons.scheduler
@@ -43,7 +43,7 @@ class Notifications(
         notification_objects_to_store = notification_objects
         if mask_params:
             notification_objects_to_store = (
-                framework.api.utils.validate_and_mask_notification_list(
+                framework.utils.notifications.validate_and_mask_notification_list(
                     notification_objects, alert_id, project
                 )
             )
@@ -66,7 +66,7 @@ class Notifications(
         notification_objects_to_store = notification_objects
         if mask_params:
             notification_objects_to_store = (
-                framework.api.utils.validate_and_mask_notification_list(
+                framework.utils.notifications.validate_and_mask_notification_list(
                     notification_objects, run_uid, project
                 )
             )
@@ -104,7 +104,9 @@ class Notifications(
         if notifications:
             # unique constraint on name, run_uid, project, so the list will contain one item at most
             notification = notifications[0]
-            framework.api.utils.delete_notification_params_secret(project, notification)
+            framework.utils.notifications.delete_notification_params_secret(
+                project, notification
+            )
 
         framework.utils.singletons.db.get_db().delete_run_notifications(
             session, name, run_uid, project
@@ -162,7 +164,7 @@ class Notifications(
             )
 
         notification_objects_to_set = (
-            framework.api.utils.validate_and_mask_notification_list(
+            framework.utils.notifications.validate_and_mask_notification_list(
                 notifications,
                 getattr(notification_parent, identifier_key),
                 project,

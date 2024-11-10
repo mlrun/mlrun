@@ -27,9 +27,9 @@ from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
 from mlrun.utils import template_artifact_path
 
-import framework.api.utils
 import framework.constants
-import framework.utils.notification_pusher
+import framework.utils.notifications
+import framework.utils.notifications.notification_pusher
 import services.api.crud
 
 
@@ -106,7 +106,7 @@ class WorkflowRunners(
 
         # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
         # key that was created.
-        framework.api.utils.mask_notification_params_on_task_object(
+        framework.utils.notifications.mask_notification_params_on_task_object(
             run_spec, framework.constants.MaskOperations.CONCEAL
         )
         workflow_spec = workflow_request.spec
@@ -247,7 +247,7 @@ class WorkflowRunners(
         )
         # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
         # key that was created.
-        framework.api.utils.mask_notification_params_on_task_object(
+        framework.utils.notifications.mask_notification_params_on_task_object(
             run_spec, framework.constants.MaskOperations.CONCEAL
         )
 

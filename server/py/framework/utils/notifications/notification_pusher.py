@@ -27,7 +27,6 @@ from mlrun.utils.notifications.notification_pusher import (
     _NotificationPusherBase,
 )
 
-import framework.api.utils
 import framework.constants
 
 
@@ -44,7 +43,7 @@ class RunNotificationPusher(NotificationPusher):
             run, notification_object
         )
         for run in runs:
-            framework.api.utils.mask_notification_params_on_task(
+            framework.utils.notifications.mask_notification_params_on_task(
                 run, framework.constants.MaskOperations.REDACT
             )
 
@@ -72,7 +71,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 )
 
                 notification_object = (
-                    framework.api.utils.unmask_notification_params_secret(
+                    framework.utils.notifications.unmask_notification_params_secret(
                         alert.project, notification_object
                     )
                 )

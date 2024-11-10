@@ -833,9 +833,7 @@ class BaseRuntimeHandler(ABC):
     def _list_pods_paginated(
         self, namespace: str, label_selector: Optional[str] = None
     ) -> list:
-        for (
-            pod
-        ) in framework.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
+        for pod in framework.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
             namespace, selector=label_selector
         ):
             yield pod.to_dict()

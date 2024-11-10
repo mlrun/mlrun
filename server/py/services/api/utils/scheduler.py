@@ -38,6 +38,7 @@ from mlrun.utils import logger
 
 import framework.api.utils
 import framework.utils.helpers
+import framework.utils.notifications
 import framework.utils.singletons.project_member
 import services.api.crud
 from framework.db.session import close_session, create_session
@@ -935,7 +936,7 @@ class Scheduler:
         if schedule_notifications:
             scheduled_object["task"]["spec"]["notifications"] = [
                 notification.to_dict()
-                for notification in framework.api.utils.validate_and_mask_notification_list(
+                for notification in framework.utils.notifications.validate_and_mask_notification_list(
                     schedule_notifications, schedule_name, project
                 )
             ]
@@ -982,7 +983,7 @@ class Scheduler:
             )
             if notifications:
                 for notification in notifications:
-                    framework.api.utils.delete_notification_params_secret(
+                    framework.utils.notifications.delete_notification_params_secret(
                         project, mlrun.model.Notification.from_dict(notification)
                     )
 

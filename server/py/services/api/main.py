@@ -40,12 +40,14 @@ import framework.db.base
 import framework.service
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
-import framework.utils.notification_pusher
 import services.api.crud
 import services.api.initial_data
 import services.api.runtime_handlers
 import services.api.utils.time_window_tracker
 from framework.db.session import close_session, create_session
+from framework.utils.notifications.notification_pusher import (
+    resolve_notifications_default_params,
+)
 from framework.utils.periodic import (
     cancel_periodic_function,
     run_function_periodically,
@@ -800,7 +802,7 @@ class Service(framework.service.Service):
         # Unmasking the run parameters from secrets before handing them over to the notification handler
         # as importing the `Secrets` crud in the notification handler will cause a circular import
         unmasked_runs = [
-            framework.api.utils.unmask_notification_params_secret_on_task(
+            framework.utils.notifications.unmask_notification_params_secret_on_task(
                 db, db_session, run
             )
             for run in runs
@@ -809,10 +811,8 @@ class Service(framework.service.Service):
         self._logger.debug(
             "Got terminal runs with configured notifications", runs_amount=len(runs)
         )
-        default_notification_params = (
-            framework.utils.notification_pusher.resolve_notifications_default_params()
-        )
-        framework.utils.notification_pusher.RunNotificationPusher(
+        default_notification_params = resolve_notifications_default_params()
+        framework.utils.notifications.notification_pusher.RunNotificationPusher(
             unmasked_runs, default_notification_params
         ).push()
 

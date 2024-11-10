@@ -31,10 +31,10 @@ import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
-import framework.api.utils
 import framework.constants
 import framework.utils.background_tasks
 import framework.utils.clients.log_collector
+import framework.utils.notifications
 import framework.utils.singletons.db
 import services.api.runtime_handlers
 
@@ -54,7 +54,7 @@ class Runs(
 
         # Some runtimes do not use the submit job flow, so their notifications are not masked.
         # Redact notification params if not concealed with a secret
-        framework.api.utils.mask_notification_params_on_task(
+        framework.utils.notifications.mask_notification_params_on_task(
             data, framework.constants.MaskOperations.REDACT
         )
 

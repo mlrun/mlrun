@@ -23,11 +23,10 @@ import mlrun.utils.singleton
 from mlrun.config import config as mlconfig
 from mlrun.utils import logger
 
-import framework.api.utils
 import framework.utils.helpers
 import framework.utils.singletons.db
 import services.api.utils.lru_cache
-from framework.utils.notification_pusher import AlertNotificationPusher
+from framework.utils.notifications.notification_pusher import AlertNotificationPusher
 
 
 class Alerts(
@@ -403,7 +402,7 @@ class Alerts(
     @staticmethod
     def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):
         for notification in alert.notifications:
-            framework.api.utils.delete_notification_params_secret(
+            framework.utils.notifications.delete_notification_params_secret(
                 alert.project, notification.notification
             )
 
@@ -411,7 +410,7 @@ class Alerts(
     def _validate_and_mask_notifications(alert_data):
         notifications = [
             mlrun.common.schemas.notification.Notification(**notification.to_dict())
-            for notification in framework.api.utils.validate_and_mask_notification_list(
+            for notification in framework.utils.notifications.validate_and_mask_notification_list(
                 alert_data.get_raw_notifications(), None, alert_data.project
             )
         ]

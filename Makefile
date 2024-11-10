@@ -783,4 +783,6 @@ update-api-deps: ## Update mlrun-api locked requirements file
 	requirements.txt \
 	extras-requirements.txt \
 	dockerfiles/mlrun-api/requirements.txt \
+	--python-version $(MLRUN_PYTHON_VERSION) \
+	--universal \
 	-U -o dockerfiles/mlrun-api/locked-requirements.txt

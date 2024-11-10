@@ -208,6 +208,7 @@ jobs:
       - name: Checkout Merge Commit (requested branch merged with the target branch)
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref }}  # Checkout the feature branch (head of the PR)
           path: head/mlrun
       - name: Resolve docker cache tag
         id: docker_cache

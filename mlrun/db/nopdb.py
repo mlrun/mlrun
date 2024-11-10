@@ -175,6 +175,16 @@ class NopDB(RunDBInterface):
     ):
         return mlrun.lists.ArtifactList()
 
+    def paginated_list_artifacts(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        return mlrun.lists.ArtifactList(), None
+
     def del_artifact(
         self,
         key,

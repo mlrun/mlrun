@@ -29,10 +29,11 @@ from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+from mlrun.api.schemas import AuthInfo
+
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.utils.auth.verifier
-from mlrun.api.schemas import AuthInfo
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(

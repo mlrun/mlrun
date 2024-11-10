@@ -21,6 +21,7 @@ import fastapi
 import mlrun
 import mlrun.common.schemas
 import mlrun.utils.singleton
+
 import services.api.utils.auth.providers.nop
 import services.api.utils.auth.providers.opa
 import services.api.utils.clients.iguazio

@@ -19,17 +19,18 @@ import pytest
 
 import mlrun.db.factory
 import mlrun.errors
-import services.api.rundb.sqldb
-import services.api.utils.singletons.db
-import services.api.utils.singletons.project_member
 from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.db.base import RunDBInterface
+from tests.conftest import new_run, run_now
+
+import services.api.rundb.sqldb
+import services.api.utils.singletons.db
+import services.api.utils.singletons.project_member
 from services.api.initial_data import init_data
 from services.api.rundb import sqldb
 from services.api.utils.singletons.db import initialize_db
 from services.api.utils.singletons.logs_dir import initialize_logs_dir
-from tests.conftest import new_run, run_now
 
 dbs = [
     "sql",

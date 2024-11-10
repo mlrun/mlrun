@@ -21,8 +21,9 @@ import alembic
 import alembic.config
 import pytest
 
-import services.api.utils.db.alembic
 from mlrun import mlconf
+
+import services.api.utils.db.alembic
 
 
 class Constants:

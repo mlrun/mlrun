@@ -21,13 +21,14 @@ import sqlalchemy.orm
 
 import mlrun
 import mlrun.common.schemas
-import services.api.main
-import services.api.tests.unit.api.utils
-import services.api.utils.singletons.scheduler
-from services.api.utils.singletons.db import get_db
 from tests.common_fixtures import aioresponses_mock
 
-ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
+import services.api.tests.unit.api.utils
+import services.api.utils.singletons.scheduler
+from services.api.daemon import daemon
+from services.api.utils.singletons.db import get_db
+
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 
 
 async def do_nothing():

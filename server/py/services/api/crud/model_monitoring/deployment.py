@@ -35,6 +35,12 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
+from mlrun import feature_store as fstore
+from mlrun.config import config
+from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.platforms.iguazio import split_path
+from mlrun.utils import logger
+
 import services.api.api.endpoints.nuclio
 import services.api.api.utils
 import services.api.crud.model_monitoring.helpers
@@ -42,11 +48,6 @@ import services.api.db.session
 import services.api.utils.background_tasks
 import services.api.utils.functions
 import services.api.utils.singletons.k8s
-from mlrun import feature_store as fstore
-from mlrun.config import config
-from mlrun.model_monitoring.writer import ModelMonitoringWriter
-from mlrun.platforms.iguazio import split_path
-from mlrun.utils import logger
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (

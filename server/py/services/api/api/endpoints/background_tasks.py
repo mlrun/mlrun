@@ -21,11 +21,12 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.utils
+from mlrun.utils import logger
+
 import services.api.api.deps
 import services.api.utils.auth.verifier
 import services.api.utils.background_tasks
 import services.api.utils.clients.chief
-from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 

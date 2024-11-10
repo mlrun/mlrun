@@ -19,10 +19,11 @@ import fastapi
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
+from mlrun.utils import logger
+
 import services.api.initial_data
 import services.api.utils.background_tasks
 import services.api.utils.clients.chief
-from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -114,10 +115,10 @@ def _get_or_create_migration_background_task(
 
 async def _perform_migration():
     # import here to prevent import cycle
-    import services.api.main
+    from services.api.daemon import daemon
 
     await run_in_threadpool(
         services.api.initial_data.init_data, perform_migrations_if_needed=True
     )
-    await services.api.main.move_api_to_online()
+    await daemon.service.move_service_to_online()
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online

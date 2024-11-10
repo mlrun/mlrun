@@ -284,7 +284,14 @@ class ModelEndpointMonitoringMetric(BaseModel):
     app: str
     type: ModelEndpointMonitoringMetricType
     name: str
-    full_name: str
+    full_name: Optional[str] = None
+    kind: Optional[ResultKindApp] = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.full_name = _compose_full_name(
+            project=self.project, app=self.app, name=self.name, type=self.type
+        )
 
 
 def _compose_full_name(

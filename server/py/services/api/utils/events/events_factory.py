@@ -14,6 +14,7 @@
 #
 import mlrun.common.schemas
 import mlrun.utils.singleton
+
 import services.api.utils.events.base
 import services.api.utils.events.iguazio
 import services.api.utils.events.nop

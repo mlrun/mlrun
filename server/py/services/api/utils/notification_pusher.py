@@ -20,14 +20,15 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
 import mlrun.utils.helpers
-import services.api.api.utils
-import services.api.constants
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification import NotificationBase, NotificationTypes
 from mlrun.utils.notifications.notification_pusher import (
     NotificationPusher,
     _NotificationPusherBase,
 )
+
+import services.api.api.utils
+import services.api.constants
 
 
 class RunNotificationPusher(NotificationPusher):

@@ -34,15 +34,16 @@ import mlrun.secrets
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
-import services.api.common.runtime_handlers
-import services.api.crud as crud
-import services.api.utils.helpers
-import services.api.utils.singletons.k8s
 from mlrun.common.runtimes.constants import PodPhases, RunStates, ThresholdStates
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
 from mlrun.utils import logger, now_date
+
+import services.api.common.runtime_handlers
+import services.api.crud as crud
+import services.api.utils.helpers
+import services.api.utils.singletons.k8s
 from services.api.constants import LogSources
 from services.api.db.base import DBInterface
 

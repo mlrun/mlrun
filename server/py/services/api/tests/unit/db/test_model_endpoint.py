@@ -16,8 +16,9 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun
-import services.api.tests.unit.db.test_functions
 from mlrun.common.schemas import ModelEndpointV2
+
+import services.api.tests.unit.db.test_functions
 from services.api.db.base import DBInterface
 from services.api.db.sqldb.models import ModelEndpoint
 

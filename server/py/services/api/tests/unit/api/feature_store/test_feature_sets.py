@@ -22,7 +22,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.feature_store.feature_set
-import services.api.tests.unit.api.utils
 from mlrun.common.schemas.feature_store import (
     FeatureSet,
     FeatureSetSpec,
@@ -30,8 +29,8 @@ from mlrun.common.schemas.feature_store import (
     ObjectStatus,
 )
 from mlrun.common.schemas.object import ObjectStatusState
-from services.api.crud.feature_store import FeatureStore
 
+import services.api.tests.unit.api.utils
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
@@ -39,6 +38,7 @@ from .base import (
     _patch_object,
     _test_partition_by_for_feature_store_objects,
 )
+from services.api.crud.feature_store import FeatureStore
 
 
 def _generate_feature_set(name, extra_feature_name="extra"):

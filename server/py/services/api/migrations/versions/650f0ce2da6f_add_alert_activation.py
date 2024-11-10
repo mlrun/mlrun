@@ -23,12 +23,13 @@ Create Date: 2024-10-30 16:38:07.592754
 import os
 from datetime import datetime
 
-import services.api.crud.alert_activation
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
 import mlrun.common.schemas.alert
+
+import services.api.crud.alert_activation
 
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"

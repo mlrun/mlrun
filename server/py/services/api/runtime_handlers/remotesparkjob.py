@@ -15,6 +15,7 @@
 import mlrun.common.constants as mlrun_constants
 import mlrun.runtimes
 from mlrun.runtimes.base import RuntimeClassMode
+
 from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
 
 

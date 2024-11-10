@@ -21,10 +21,11 @@ import pytest
 import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.nuclio
+from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
+
 import services.api.crud
 import services.api.utils.clients.async_nuclio
 import services.api.utils.clients.iguazio
-from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
 
 PROJECT = "project-name"
 

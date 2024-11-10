@@ -17,12 +17,13 @@ from http import HTTPStatus
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.api.utils
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.k8s
 from mlrun import store_manager
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+
+import services.api.api.utils
+import services.api.utils.auth.verifier
+import services.api.utils.singletons.k8s
 
 
 class Files(

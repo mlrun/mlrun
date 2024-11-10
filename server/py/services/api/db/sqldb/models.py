@@ -36,6 +36,7 @@ from sqlalchemy.orm import relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
+
 from services.api.utils.db.sql_types import SQLTypesUtil
 
 Base = declarative_base()

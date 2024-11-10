@@ -297,16 +297,6 @@ class RunDBMock:
 
         return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
-    def paginated_list_artifacts(
-        self,
-        *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
-
     def store_run(self, struct, uid, project="", iter=0):
         if hasattr(struct, "to_dict"):
             struct = struct.to_dict()

@@ -49,7 +49,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        hyperparams: dict[str, list] = None,
+        hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,

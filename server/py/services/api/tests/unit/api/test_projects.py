@@ -20,6 +20,7 @@ import json.decoder
 import os
 import unittest.mock
 from http import HTTPStatus
+from typing import Optional
 from uuid import uuid4
 
 import deepdiff
@@ -39,9 +40,9 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+
 import services.api.api.utils
 import services.api.crud
-import services.api.main
 import services.api.tests.unit.conftest
 import services.api.tests.unit.utils.clients.test_log_collector
 import services.api.utils.auth.verifier
@@ -51,6 +52,7 @@ import services.api.utils.singletons.db
 import services.api.utils.singletons.k8s
 import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
+from services.api.daemon import daemon
 from services.api.db.sqldb.models import (
     ArtifactV2,
     Entity,
@@ -65,7 +67,7 @@ from services.api.db.sqldb.models import (
     _classes,
 )
 
-ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 LIST_FUNCTION_API = "projects/{project}/functions"
 
@@ -1704,7 +1706,7 @@ def _assert_db_resources_in_project(
 
 
 def _list_project_names_and_assert(
-    client: TestClient, expected_names: list[str], params: dict = None
+    client: TestClient, expected_names: list[str], params: Optional[dict] = None
 ):
     params = params or {}
     params["format"] = mlrun.common.formatters.ProjectFormat.name_only
@@ -1724,7 +1726,9 @@ def _list_project_names_and_assert(
 
 
 def _assert_project_response(
-    expected_project: mlrun.common.schemas.Project, response, extra_exclude: dict = None
+    expected_project: mlrun.common.schemas.Project,
+    response,
+    extra_exclude: Optional[dict] = None,
 ):
     project = mlrun.common.schemas.Project(**response.json())
     _assert_project(expected_project, project, extra_exclude)
@@ -1764,7 +1768,7 @@ def _assert_project_summary(
 def _assert_project(
     expected_project: mlrun.common.schemas.Project,
     project: mlrun.common.schemas.Project,
-    extra_exclude: dict = None,
+    extra_exclude: Optional[dict] = None,
 ):
     exclude = {"id": ..., "metadata": {"created"}, "status": {"state"}}
     if extra_exclude:
@@ -1862,7 +1866,7 @@ def _create_schedule(
     client: TestClient,
     project_name,
     cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
-    labels: dict = None,
+    labels: Optional[dict] = None,
 ):
     if not labels:
         labels = {}

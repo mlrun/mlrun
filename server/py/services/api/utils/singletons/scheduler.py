@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from mlrun.common.db.sql_session import create_session
+
 from services.api.utils.scheduler import Scheduler
 
 # TODO: something nicer

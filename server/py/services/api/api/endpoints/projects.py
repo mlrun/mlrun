@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import http
+from typing import Optional
 
 import fastapi
 import semver
@@ -21,13 +22,14 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+from mlrun.utils import logger
+
 import services.api.api.deps
 import services.api.api.utils
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.clients.chief
 import services.api.utils.helpers
-from mlrun.utils import logger
 from services.api.utils.singletons.project_member import get_project_member
 
 router = fastapi.APIRouter()
@@ -314,7 +316,7 @@ async def list_projects(
     format_: mlrun.common.formatters.ProjectFormat = fastapi.Query(
         mlrun.common.formatters.ProjectFormat.full, alias="format"
     ),
-    owner: str = None,
+    owner: Optional[str] = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
@@ -358,7 +360,7 @@ async def list_projects(
     "/project-summaries", response_model=mlrun.common.schemas.ProjectSummariesOutput
 )
 async def list_project_summaries(
-    owner: str = None,
+    owner: Optional[str] = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(

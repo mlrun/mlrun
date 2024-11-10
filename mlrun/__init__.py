@@ -29,6 +29,7 @@ __all__ = [
 ]
 
 from os import environ, path
+from typing import Optional
 
 import dotenv
 import mlrun_pipelines
@@ -88,12 +89,12 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
 
 
 def set_environment(
-    api_path: str = None,
+    api_path: Optional[str] = None,
     artifact_path: str = "",
-    access_key: str = None,
-    username: str = None,
-    env_file: str = None,
-    mock_functions: str = None,
+    access_key: Optional[str] = None,
+    username: Optional[str] = None,
+    env_file: Optional[str] = None,
+    mock_functions: Optional[str] = None,
 ):
     """set and test default config for: api path, artifact_path and project
 

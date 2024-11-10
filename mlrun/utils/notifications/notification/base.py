@@ -23,9 +23,9 @@ import mlrun.lists
 class NotificationBase:
     def __init__(
         self,
-        name: str = None,
-        params: dict[str, str] = None,
-        default_params: dict[str, str] = None,
+        name: typing.Optional[str] = None,
+        params: typing.Optional[dict[str, str]] = None,
+        default_params: typing.Optional[dict[str, str]] = None,
     ):
         """
         NotificationBase is the base class for all notification types.
@@ -57,7 +57,7 @@ class NotificationBase:
             mlrun.common.schemas.NotificationSeverity, str
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
-        custom_html: str = None,
+        custom_html: typing.Optional[str] = None,
         alert: mlrun.common.schemas.AlertConfig = None,
         event_data: mlrun.common.schemas.Event = None,
     ):
@@ -70,7 +70,9 @@ class NotificationBase:
         self.params = params or {}
 
     @classmethod
-    def enrich_default_params(cls, params: dict, default_params: dict = None) -> dict:
+    def enrich_default_params(
+        cls, params: dict, default_params: typing.Optional[dict] = None
+    ) -> dict:
         default_params = default_params or {}
         returned_params = deepcopy(default_params)
         returned_params.update(params)
@@ -83,7 +85,7 @@ class NotificationBase:
             mlrun.common.schemas.NotificationSeverity, str
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
-        custom_html: str = None,
+        custom_html: typing.Optional[str] = None,
         alert: mlrun.common.schemas.AlertConfig = None,
         event_data: mlrun.common.schemas.Event = None,
     ) -> str:

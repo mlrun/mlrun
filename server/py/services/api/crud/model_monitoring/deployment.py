@@ -35,6 +35,12 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
+from mlrun import feature_store as fstore
+from mlrun.config import config
+from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.platforms.iguazio import split_path
+from mlrun.utils import logger
+
 import services.api.api.endpoints.nuclio
 import services.api.api.utils
 import services.api.crud.model_monitoring.helpers
@@ -42,11 +48,6 @@ import services.api.db.session
 import services.api.utils.background_tasks
 import services.api.utils.functions
 import services.api.utils.singletons.k8s
-from mlrun import feature_store as fstore
-from mlrun.config import config
-from mlrun.model_monitoring.writer import ModelMonitoringWriter
-from mlrun.platforms.iguazio import split_path
-from mlrun.utils import logger
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -459,7 +460,7 @@ class MonitoringDeployment:
         function: typing.Union[
             mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime
         ],
-        function_name: str = None,
+        function_name: typing.Optional[str] = None,
     ) -> typing.Union[mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime]:
         """Applying model monitoring access key on the provided function when using V3IO path. In addition, this method
         mount the V3IO path for the provided function to configure the access to the system files.
@@ -672,7 +673,7 @@ class MonitoringDeployment:
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: list[str] = None,
+        user_application_list: typing.Optional[list[str]] = None,
         background_tasks: fastapi.BackgroundTasks = None,
     ) -> mlrun.common.schemas.BackgroundTaskList:
         """
@@ -734,7 +735,7 @@ class MonitoringDeployment:
         self,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: list[str] = None,
+        user_application_list: typing.Optional[list[str]] = None,
     ):
         application_to_delete = []
 
@@ -1284,8 +1285,8 @@ class MonitoringDeployment:
 
 def get_endpoint_features(
     feature_names: list[str],
-    feature_stats: dict = None,
-    current_stats: dict = None,
+    feature_stats: typing.Optional[dict] = None,
+    current_stats: typing.Optional[dict] = None,
 ) -> list[mlrun.common.schemas.Features]:
     """
     Getting a new list of features that exist in feature_names along with their expected (feature_stats) and

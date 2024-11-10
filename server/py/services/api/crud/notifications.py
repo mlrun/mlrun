@@ -18,6 +18,7 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
+
 import services.api.api.utils
 import services.api.db.sqldb.db
 import services.api.utils.scheduler
@@ -33,7 +34,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: list[mlrun.model.Notification],
         alert_id: str,
-        project: str = None,
+        project: typing.Optional[str] = None,
         mask_params: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
@@ -56,7 +57,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: list[mlrun.model.Notification],
         run_uid: str,
-        project: str = None,
+        project: typing.Optional[str] = None,
         mask_params: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
@@ -88,9 +89,9 @@ class Notifications(
     def delete_run_notifications(
         self,
         session: sqlalchemy.orm.Session,
-        name: str = None,
-        run_uid: str = None,
-        project: str = None,
+        name: typing.Optional[str] = None,
+        run_uid: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
 

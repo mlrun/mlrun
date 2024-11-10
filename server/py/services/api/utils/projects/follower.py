@@ -29,18 +29,19 @@ import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
+from mlrun.errors import err_to_str
+from mlrun.utils import logger
+
+import framework.utils.periodic
 import services.api.crud
 import services.api.db.session
 import services.api.utils.auth.verifier
 import services.api.utils.background_tasks
 import services.api.utils.clients.iguazio
 import services.api.utils.helpers
-import services.api.utils.periodic
 import services.api.utils.projects.member as project_member
 import services.api.utils.projects.remotes.leader
 import services.api.utils.projects.remotes.nop_leader
-from mlrun.errors import err_to_str
-from mlrun.utils import logger
 
 
 class Member(
@@ -205,8 +206,8 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-        background_task_name: str = None,
-        model_monitoring_access_key: str = None,
+        background_task_name: typing.Optional[str] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> bool:
         if services.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
@@ -259,9 +260,9 @@ class Member(
     def list_projects(
         self,
         db_session: sqlalchemy.orm.Session,
-        owner: str = None,
+        owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         # needed only for external usage when requesting leader format
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
@@ -292,8 +293,8 @@ class Member(
     async def list_project_summaries(
         self,
         db_session: sqlalchemy.orm.Session,
-        owner: str = None,
-        labels: list[str] = None,
+        owner: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
@@ -319,7 +320,7 @@ class Member(
                 "Starting periodic projects sync",
                 interval=self._periodic_sync_interval_seconds,
             )
-            services.api.utils.periodic.run_function_periodically(
+            framework.utils.periodic.run_function_periodically(
                 self._periodic_sync_interval_seconds,
                 self._sync_projects.__name__,
                 False,
@@ -328,9 +329,7 @@ class Member(
 
     @services.api.utils.helpers.ensure_running_on_chief
     def _stop_periodic_sync(self):
-        services.api.utils.periodic.cancel_periodic_function(
-            self._sync_projects.__name__
-        )
+        framework.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
     @services.api.utils.helpers.ensure_running_on_chief
     def _sync_projects(self, full_sync=False):

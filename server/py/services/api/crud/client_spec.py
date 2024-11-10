@@ -12,18 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Optional
+
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.config import Config, config, default_config
+
 import services.api.runtime_handlers.mpijob
 import services.api.utils.runtimes.nuclio
-from mlrun.config import Config, config, default_config
 
 
 class ClientSpec(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     def get_client_spec(
-        self, client_version: str = None, client_python_version: str = None
+        self,
+        client_version: Optional[str] = None,
+        client_python_version: Optional[str] = None,
     ) -> mlrun.common.schemas.ClientSpec:
         mpijob_crd_version = (
             services.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
@@ -123,7 +128,7 @@ class ClientSpec(
 
     @staticmethod
     def _resolve_image_by_client_versions(
-        image: str, client_version: str = None, client_python_version=None
+        image: str, client_version: Optional[str] = None, client_python_version=None
     ):
         """
         This method main purpose is to provide enriched images for deployment processes which are being executed on

@@ -36,6 +36,13 @@ import mlrun.common.formatters
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
+from mlrun.common.helpers import parse_versioned_object_uri
+from mlrun.config import config
+from mlrun.errors import err_to_str
+from mlrun.run import new_function
+from mlrun.runtimes import RuntimeKinds
+from mlrun.utils import get_in, logger, update_in
+
 import services.api.api.utils
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
@@ -49,12 +56,6 @@ import services.api.utils.helpers
 import services.api.utils.pagination
 import services.api.utils.singletons.k8s
 import services.api.utils.singletons.project_member
-from mlrun.common.helpers import parse_versioned_object_uri
-from mlrun.config import config
-from mlrun.errors import err_to_str
-from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds
-from mlrun.utils import get_in, logger, update_in
 from services.api.api import deps
 from services.api.api.endpoints.nuclio import (
     _get_api_gateways_urls_for_function,
@@ -205,13 +206,13 @@ async def delete_function(
 
 @router.get("/projects/{project}/functions")
 async def list_functions(
-    project: str = None,
-    name: str = None,
-    tag: str = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
     labels: list[str] = Query([], alias="label"),
-    hash_key: str = None,
-    since: str = None,
-    until: str = None,
+    hash_key: Optional[str] = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -720,8 +721,8 @@ def _parse_start_function_body(db_session, data):
 async def _start_function_wrapper(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,
-    client_version: str = None,
-    client_python_version: str = None,
+    client_version: Optional[str] = None,
+    client_python_version: Optional[str] = None,
 ):
     await run_in_threadpool(
         _start_function,
@@ -735,8 +736,8 @@ async def _start_function_wrapper(
 def _start_function(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,
-    client_version: str = None,
-    client_python_version: str = None,
+    client_version: Optional[str] = None,
+    client_python_version: Optional[str] = None,
 ):
     db_session = services.api.db.session.create_session()
     try:

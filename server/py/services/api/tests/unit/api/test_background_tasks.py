@@ -29,12 +29,13 @@ import requests
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+from mlrun.utils import logger
+
 import services.api.api.deps
 import services.api.utils.auth.verifier
 import services.api.utils.background_tasks
 import services.api.utils.clients.chief
-from mlrun.utils import logger
-from services.api import main
+from services.api.daemon import daemon
 
 test_router = fastapi.APIRouter()
 
@@ -49,7 +50,7 @@ async def create_project_background_task(
     project: str,
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    timeout: int = None,
+    timeout: typing.Optional[int] = None,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         services.api.api.deps.get_db_session
     ),
@@ -82,7 +83,7 @@ async def create_project_background_task(
 def create_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    project: str = None,
+    project: typing.Optional[str] = None,
 ):
     function = bump_counter
     if failed_task:
@@ -144,8 +145,8 @@ async def long_function(sleep_time):
 # must add it here since we're adding routes
 @pytest.fixture()
 def client() -> typing.Generator:
-    main.app.include_router(test_router, prefix="/test")
-    with fastapi.testclient.TestClient(main.app) as client:
+    daemon.app.include_router(test_router, prefix="/test")
+    with fastapi.testclient.TestClient(daemon.app) as client:
         yield client
 
 
@@ -172,12 +173,12 @@ async def async_client() -> typing.Iterator[ThreadedAsyncClient]:
         result = await async_client.post(...)
         response = result.result()
     """
-    main.app.include_router(test_router, prefix="/test")
-    async with ThreadedAsyncClient(app=main.app, base_url="https://mlrun") as client:
+    daemon.app.include_router(test_router, prefix="/test")
+    async with ThreadedAsyncClient(app=daemon.app, base_url="https://mlrun") as client:
         yield client
 
 
-ORIGINAL_VERSIONED_API_PREFIX = main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 
 
 def test_redirection_from_worker_to_chief_trigger_migrations(

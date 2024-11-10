@@ -25,11 +25,12 @@ import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
 import mlrun.utils.vault
+from mlrun.config import config as mlconf
+from mlrun.utils import logger
+
 import services.api
 import services.api.utils.events.events_factory as events_factory
 import services.api.utils.singletons.k8s
-from mlrun.config import config as mlconf
-from mlrun.utils import logger
 
 
 class SecretsClientType(str, enum.Enum):

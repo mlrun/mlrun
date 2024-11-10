@@ -14,6 +14,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Optional
 
 from fsspec.registry import get_filesystem_class
 from google.auth.credentials import Credentials
@@ -33,7 +34,9 @@ class GoogleCloudStorageStore(DataStore):
     workers = 8
     chunk_size = 32 * 1024 * 1024
 
-    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+    def __init__(
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+    ):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self._storage_client = None
         self._storage_options = None

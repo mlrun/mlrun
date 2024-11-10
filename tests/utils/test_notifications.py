@@ -16,6 +16,7 @@ import asyncio
 import builtins
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
+from typing import Optional
 
 import aiohttp
 import pytest
@@ -951,7 +952,9 @@ def _mock_async_response(monkeypatch, method, result):
     return requests_mock
 
 
-def _generate_run_result(state: str, error: str = None, results: dict = None):
+def _generate_run_result(
+    state: str, error: Optional[str] = None, results: Optional[dict] = None
+):
     run_example = {
         "status": {
             "notifications": {

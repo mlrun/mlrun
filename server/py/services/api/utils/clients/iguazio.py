@@ -36,9 +36,10 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.utils import get_in, logger
+
 import services.api.utils.helpers
 import services.api.utils.projects.remotes.leader as project_leader
-from mlrun.utils import get_in, logger
 
 
 class JobStates:
@@ -200,7 +201,9 @@ class Client(
         response_json = response.json()
         return response_json["data"]["attributes"]["uid"]
 
-    def get_or_create_access_key(self, session: str, planes: list[str] = None) -> str:
+    def get_or_create_access_key(
+        self, session: str, planes: typing.Optional[list[str]] = None
+    ) -> str:
         if planes is None:
             planes = [
                 SessionPlanes.data,

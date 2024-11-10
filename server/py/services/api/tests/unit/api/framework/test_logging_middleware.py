@@ -25,7 +25,8 @@ from sqlalchemy.orm import Session
 
 from mlrun.utils import logger
 from mlrun.utils.logger import Logger, create_logger
-from services.api.main import app
+
+from services.api.daemon import app
 
 
 class Handled1Error(Exception):

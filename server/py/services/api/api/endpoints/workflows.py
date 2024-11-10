@@ -28,14 +28,15 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.projects.pipelines
+from mlrun.k8s_utils import sanitize_label_value
+from mlrun.utils.helpers import logger
+
 import services.api.api.deps
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.clients.chief
 import services.api.utils.singletons.db
 import services.api.utils.singletons.project_member
-from mlrun.k8s_utils import sanitize_label_value
-from mlrun.utils.helpers import logger
 from services.api.api.utils import log_and_raise
 
 router = fastapi.APIRouter()

@@ -14,6 +14,7 @@
 #
 
 import datetime
+from typing import Optional
 
 import sqlalchemy.orm
 
@@ -23,6 +24,7 @@ import mlrun.common.types
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
+
 import services.api.api.utils
 import services.api.runtime_handlers
 import services.api.utils.singletons.db
@@ -36,7 +38,7 @@ class Functions(
         db_session: sqlalchemy.orm.Session,
         function: dict,
         name: str,
-        project: str = None,
+        project: Optional[str] = None,
         tag: str = "",
         versioned: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -68,10 +70,10 @@ class Functions(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        project: str = None,
+        project: Optional[str] = None,
         tag: str = "",
         hash_key: str = "",
-        format_: str = None,
+        format_: Optional[str] = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().get_function(
@@ -91,16 +93,16 @@ class Functions(
     def list_functions(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = None,
-        name: str = None,
-        tag: str = None,
-        labels: list[str] = None,
-        hash_key: str = None,
-        page: int = None,
-        page_size: int = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[list[str]] = None,
+        hash_key: Optional[str] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
         format_: mlrun.common.formatters.FunctionFormat = None,
-        since: datetime.datetime = None,
-        until: datetime.datetime = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:

@@ -74,8 +74,6 @@ class SQLStoreBase(StoreBase):
 
     def _init_tables(self):
         self._init_model_endpoints_table()
-        self._init_application_results_table()
-        self._init_application_metrics_table()
 
     def _init_model_endpoints_table(self):
         self.model_endpoints_table = (
@@ -85,24 +83,6 @@ class SQLStoreBase(StoreBase):
         )
         self._tables[mm_schemas.EventFieldType.MODEL_ENDPOINTS] = (
             self.model_endpoints_table
-        )
-
-    def _init_application_results_table(self):
-        self.application_results_table = (
-            mlrun.model_monitoring.db.stores.sqldb.models._get_application_result_table(
-                connection_string=self._sql_connection_string
-            )
-        )
-        self._tables[mm_schemas.FileTargetKind.APP_RESULTS] = (
-            self.application_results_table
-        )
-
-    def _init_application_metrics_table(self) -> None:
-        self.application_metrics_table = mlrun.model_monitoring.db.stores.sqldb.models._get_application_metrics_table(
-            connection_string=self._sql_connection_string
-        )
-        self._tables[mm_schemas.FileTargetKind.APP_METRICS] = (
-            self.application_metrics_table
         )
 
     def _write(self, table_name: str, event: dict[str, typing.Any]) -> None:
@@ -262,12 +242,12 @@ class SQLStoreBase(StoreBase):
 
     def list_model_endpoints(
         self,
-        model: str = None,
-        function: str = None,
-        labels: list[str] = None,
-        top_level: bool = None,
-        uids: list = None,
-        include_stats: bool = None,
+        model: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
+        top_level: typing.Optional[bool] = None,
+        uids: typing.Optional[list] = None,
+        include_stats: typing.Optional[bool] = None,
     ) -> list[dict[str, typing.Any]]:
         # Generate an empty model endpoints that will be filled afterwards with model endpoint dictionaries
         endpoint_list = []
@@ -338,108 +318,11 @@ class SQLStoreBase(StoreBase):
 
         return endpoint_list
 
-    def write_application_event(
-        self,
-        event: dict[str, typing.Any],
-        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ) -> None:
-        """
-        Write a new application event in the target table.
-
-        :param event: An event dictionary that represents the application result or metric,
-                      should be corresponded to the schema defined in the
-                      :py:class:`~mm_constants.constants.WriterEvent` object.
-        :param kind: The type of the event, can be either "result" or "metric".
-        """
-
-        if kind == mm_schemas.WriterEventKind.METRIC:
-            table = self.application_metrics_table
-            table_name = mm_schemas.FileTargetKind.APP_METRICS
-        elif kind == mm_schemas.WriterEventKind.RESULT:
-            table = self.application_results_table
-            table_name = mm_schemas.FileTargetKind.APP_RESULTS
-        else:
-            raise ValueError(f"Invalid {kind = }")
-
-        application_result_uid = self._generate_application_result_uid(event, kind=kind)
-        criteria = [table.uid == application_result_uid]
-
-        application_record = self._get(table=table, criteria=criteria)
-        if application_record:
-            self._convert_to_datetime(
-                event=event, key=mm_schemas.WriterEvent.START_INFER_TIME
-            )
-            self._convert_to_datetime(
-                event=event, key=mm_schemas.WriterEvent.END_INFER_TIME
-            )
-            # Update an existing application result
-            self._update(attributes=event, table=table, criteria=criteria)
-        else:
-            # Write a new application result
-            event[mm_schemas.EventFieldType.UID] = application_result_uid
-            self._write(table_name=table_name, event=event)
-
     @staticmethod
     def _convert_to_datetime(event: dict[str, typing.Any], key: str) -> None:
         if isinstance(event[key], str):
             event[key] = datetime.datetime.fromisoformat(event[key])
         event[key] = event[key].astimezone(tz=datetime.timezone.utc)
-
-    @staticmethod
-    def _generate_application_result_uid(
-        event: dict[str, typing.Any],
-        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ) -> str:
-        if kind == mm_schemas.WriterEventKind.RESULT:
-            name = event[mm_schemas.ResultData.RESULT_NAME]
-        else:
-            name = event[mm_schemas.MetricData.METRIC_NAME]
-        return "_".join(
-            [
-                event[mm_schemas.WriterEvent.ENDPOINT_ID],
-                event[mm_schemas.WriterEvent.APPLICATION_NAME],
-                name,
-            ]
-        )
-
-    @staticmethod
-    def _get_filter_criteria(
-        *,
-        table: sqlalchemy.orm.decl_api.DeclarativeMeta,
-        endpoint_id: str,
-        application_name: typing.Optional[str] = None,
-    ) -> list[BinaryExpression]:
-        """
-        Return the filter criteria for the given endpoint_id and application_name.
-        Note: the table object must include the relevant columns:
-        `endpoint_id` and `application_name`.
-        """
-        criteria = [table.endpoint_id == endpoint_id]
-        if application_name is not None:
-            criteria.append(table.application_name == application_name)
-        return criteria
-
-    def _delete_application_result(
-        self, endpoint_id: str, application_name: typing.Optional[str] = None
-    ) -> None:
-        criteria = self._get_filter_criteria(
-            table=self.application_results_table,
-            endpoint_id=endpoint_id,
-            application_name=application_name,
-        )
-        # Delete the relevant records from the results table
-        self._delete(table=self.application_results_table, criteria=criteria)
-
-    def _delete_application_metrics(
-        self, endpoint_id: str, application_name: typing.Optional[str] = None
-    ) -> None:
-        criteria = self._get_filter_criteria(
-            table=self.application_metrics_table,
-            endpoint_id=endpoint_id,
-            application_name=application_name,
-        )
-        # Delete the relevant records from the metrics table
-        self._delete(table=self.application_metrics_table, criteria=criteria)
 
     def _create_tables_if_not_exist(self):
         self._init_tables()
@@ -511,10 +394,6 @@ class SQLStoreBase(StoreBase):
                 project=self.project,
             )
 
-            # Delete application results and metrics records
-            self._delete_application_result(endpoint_id=endpoint_id)
-            self._delete_application_metrics(endpoint_id=endpoint_id)
-
             # Delete model endpoint record
             self.delete_model_endpoint(endpoint_id=endpoint_id)
             logger.debug(
@@ -527,48 +406,3 @@ class SQLStoreBase(StoreBase):
             "Successfully deleted model monitoring endpoints resources from the SQL tables",
             project=self.project,
         )
-
-    def get_model_endpoint_metrics(
-        self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
-    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
-        """
-        Fetch the model endpoint metrics or results (according to `type`) for the
-        requested endpoint.
-        """
-        logger.debug(
-            "Fetching metrics for model endpoint",
-            project=self.project,
-            endpoint_id=endpoint_id,
-            type=type,
-        )
-        if type == mm_schemas.ModelEndpointMonitoringMetricType.METRIC:
-            table = self.application_metrics_table
-            name_col = mm_schemas.MetricData.METRIC_NAME
-        else:
-            table = self.application_results_table
-            name_col = mm_schemas.ResultData.RESULT_NAME
-
-        # Note: the block below does not use self._get, as we need here all the
-        # results, not only `one_or_none`.
-        with sqlalchemy.orm.Session(self.engine) as session:
-            metric_rows = (
-                session.query(table)  # pyright: ignore[reportOptionalCall]
-                .filter(table.endpoint_id == endpoint_id)
-                .all()
-            )
-
-        return [
-            mm_schemas.ModelEndpointMonitoringMetric(
-                project=self.project,
-                app=metric_row.application_name,
-                type=type,
-                name=getattr(metric_row, name_col),
-                full_name=mlrun.model_monitoring.helpers._compose_full_name(
-                    project=self.project,
-                    app=metric_row.application_name,
-                    type=type,
-                    name=getattr(metric_row, name_col),
-                ),
-            )
-            for metric_row in metric_rows
-        ]

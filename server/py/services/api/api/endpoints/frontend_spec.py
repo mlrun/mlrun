@@ -21,12 +21,13 @@ import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
+from mlrun.config import config
+from mlrun.platforms import is_iguazio_session_cookie
+
 import services.api.api.deps
 import services.api.utils.builder
 import services.api.utils.clients.iguazio
 import services.api.utils.runtimes.nuclio
-from mlrun.config import config
-from mlrun.platforms import is_iguazio_session_cookie
 from services.api.api.utils import get_allowed_path_prefixes_list
 
 router = fastapi.APIRouter()

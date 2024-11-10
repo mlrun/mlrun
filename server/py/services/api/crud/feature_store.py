@@ -21,6 +21,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
+
 import services.api.utils.singletons.db
 
 
@@ -123,10 +124,10 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        state: str = None,
-        entities: list[str] = None,
-        features: list[str] = None,
-        labels: list[str] = None,
+        state: typing.Optional[str] = None,
+        entities: typing.Optional[list[str]] = None,
+        features: typing.Optional[list[str]] = None,
+        labels: typing.Optional[list[str]] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -174,8 +175,8 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        entities: list[str] = None,
-        labels: list[str] = None,
+        entities: typing.Optional[list[str]] = None,
+        labels: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.FeaturesOutput:
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().list_features(
@@ -193,8 +194,8 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        entities: list[str] = None,
-        labels: list[str] = None,
+        entities: typing.Optional[list[str]] = None,
+        labels: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().list_features_v2(
@@ -213,7 +214,7 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().list_entities(
@@ -230,7 +231,7 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.EntitiesOutputV2:
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().list_entities_v2(
@@ -326,8 +327,8 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        state: str = None,
-        labels: list[str] = None,
+        state: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,

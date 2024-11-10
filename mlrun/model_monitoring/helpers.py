@@ -166,7 +166,9 @@ def get_monitoring_drift_measures_data(
     )
 
 
-def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -> str:
+def get_connection_string(
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+) -> str:
     """Get endpoint store connection string from the project secret. If wasn't set, take it from the system
     configurations.
 

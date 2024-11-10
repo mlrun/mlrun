@@ -22,11 +22,12 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
+from mlrun.config import config as mlconf
+
 import services.api.api.utils
 import services.api.utils.builder
 import services.api.utils.clients.iguazio
 import services.api.utils.runtimes.nuclio
-from mlrun.config import config as mlconf
 
 
 def test_get_frontend_spec(

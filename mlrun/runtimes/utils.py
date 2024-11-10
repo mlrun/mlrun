@@ -18,6 +18,7 @@ import os
 import re
 from io import StringIO
 from sys import stderr
+from typing import Optional
 
 import pandas as pd
 
@@ -432,7 +433,7 @@ def enrich_function_from_dict(function, function_dict):
 
 def enrich_run_labels(
     labels: dict,
-    labels_to_enrich: list[RunLabels] = None,
+    labels_to_enrich: Optional[list[RunLabels]] = None,
 ):
     labels_enrichment = {
         RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),

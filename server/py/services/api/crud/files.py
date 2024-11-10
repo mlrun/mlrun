@@ -14,15 +14,17 @@
 #
 import mimetypes
 from http import HTTPStatus
+from typing import Optional
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.api.utils
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.k8s
 from mlrun import store_manager
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+
+import services.api.api.utils
+import services.api.utils.auth.verifier
+import services.api.utils.singletons.k8s
 
 
 class Files(
@@ -32,9 +34,9 @@ class Files(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
         path: str = "",
-        schema: str = None,
-        user: str = None,
-        secrets: dict = None,
+        schema: Optional[str] = None,
+        user: Optional[str] = None,
+        secrets: Optional[dict] = None,
     ):
         return self._get_filestat(schema, path, user, auth_info, secrets=secrets)
 
@@ -43,9 +45,9 @@ class Files(
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         path: str = "",
-        schema: str = None,
+        schema: Optional[str] = None,
         user: str = "",
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         secrets = secrets or {}
 
@@ -71,7 +73,7 @@ class Files(
         path: str,
         user: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         path = self._resolve_obj_path(schema, path, user)
 
@@ -102,7 +104,7 @@ class Files(
         path: str,
         user: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
         project: str = "",
     ):
         path = self._resolve_obj_path(schema, path, user)
@@ -113,7 +115,7 @@ class Files(
 
     @staticmethod
     def _enrich_secrets_with_auth_info(
-        auth_info: mlrun.common.schemas.AuthInfo, secrets: dict = None
+        auth_info: mlrun.common.schemas.AuthInfo, secrets: Optional[dict] = None
     ):
         """
         Update user-provided secrets with auth_info (user-provided secrets take precedence)

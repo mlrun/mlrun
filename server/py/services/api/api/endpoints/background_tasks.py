@@ -21,11 +21,12 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.utils
+from mlrun.utils import logger
+
 import services.api.api.deps
 import services.api.utils.auth.verifier
 import services.api.utils.background_tasks
 import services.api.utils.clients.chief
-from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -67,11 +68,11 @@ async def get_project_background_task(
 )
 async def list_project_background_tasks(
     project: str,
-    state: str = None,
-    created_from: str = None,
-    created_to: str = None,
-    last_update_time_from: str = None,
-    last_update_time_to: str = None,
+    state: typing.Optional[str] = None,
+    created_from: typing.Optional[str] = None,
+    created_to: typing.Optional[str] = None,
+    last_update_time_from: typing.Optional[str] = None,
+    last_update_time_to: typing.Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         services.api.api.deps.authenticate_request
     ),

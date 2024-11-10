@@ -12,8 +12,13 @@ extend-select = [
     "UP",  # pyupgrade
     "CPY", # flake8-copyright
     "B006", # mutable default arguments
+    "RUF013",  # forbid implicit `Optional` type hints
 ]
 explicit-preview-rules = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["mlrun"]
+known-local-folder = ["services", "framework"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
@@ -48,6 +53,7 @@ root_packages = [
     "mlrun",
     "tests",
     "server.py.services",
+    "server.py.framework",
 ]
 include_external_packages = true
 
@@ -93,7 +99,9 @@ type = "forbidden"
 source_modules = [
     "mlrun",
     "services",
+    "framework",
     "server.py.services",
+    "server.py.framework",
 ]
 forbidden_modules = [
     "kfp",
@@ -105,6 +113,7 @@ type = "layers"
 layers = [
     "server.py.services",
     "services",
+    "framework",
     "mlrun",
 ]
 
@@ -116,9 +125,21 @@ source_modules = [
 ]
 forbidden_modules = [
     "services",
+    "framework",
     "server.py.services",
+    "server.py.framework",
 ]
 # Ignore integration tests until we have service specific integration tests infrastructure
 ignore_imports = [
     "tests.integration.sdk_api.alerts.test_alerts -> services ",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun common server code should not import specific services"
+type = "forbidden"
+source_modules = [
+    "server.py.framework",
+]
+forbidden_modules = [
+    "services",
 ]

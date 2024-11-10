@@ -19,9 +19,10 @@ import typing
 
 import mlrun.errors
 import mlrun.utils.singleton
-import services.api.utils.clients.protocols.grpc
 from mlrun.config import config
 from mlrun.utils import logger
+
+import services.api.utils.clients.protocols.grpc
 
 
 class LogCollectorErrorCode(enum.Enum):
@@ -73,7 +74,7 @@ class LogCollectorClient(
 ):
     name = "log_collector"
 
-    def __init__(self, address: str = None):
+    def __init__(self, address: typing.Optional[str] = None):
         self._initialize_proto_client_imports()
         self.stub_class = self._log_collector_pb2_grpc.LogCollectorStub
         super().__init__(address=address or mlrun.mlconf.log_collector.address)
@@ -257,7 +258,7 @@ class LogCollectorClient(
     async def stop_logs(
         self,
         project: str,
-        run_uids: list[str] = None,
+        run_uids: typing.Optional[list[str]] = None,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> None:
@@ -286,7 +287,7 @@ class LogCollectorClient(
     async def delete_logs(
         self,
         project: str,
-        run_uids: list[str] = None,
+        run_uids: typing.Optional[list[str]] = None,
         verbose: bool = False,
         raise_on_error: bool = True,
     ) -> None:
@@ -315,7 +316,7 @@ class LogCollectorClient(
 
     async def list_runs_in_progress(
         self,
-        project: str = None,
+        project: typing.Optional[str] = None,
         verbose: bool = True,
         raise_on_error: bool = True,
     ) -> typing.AsyncIterable[str]:

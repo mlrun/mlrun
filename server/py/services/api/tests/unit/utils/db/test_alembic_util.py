@@ -21,8 +21,9 @@ import alembic
 import alembic.config
 import pytest
 
-import services.api.utils.db.alembic
 from mlrun import mlconf
+
+import services.api.utils.db.alembic
 
 
 class Constants:
@@ -69,7 +70,7 @@ def mock_database(
     monkeypatch, mock_alembic, mock_db_file_name
 ) -> typing.Callable[[list[str], str, bool, bool], None]:
     def _mock_database(
-        revision_history: list[str] = None,
+        revision_history: typing.Optional[list[str]] = None,
         current_revision: str = "",
         db_file_exists: bool = True,
         db_backup_exists: bool = True,

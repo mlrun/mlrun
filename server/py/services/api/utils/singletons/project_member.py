@@ -16,6 +16,7 @@
 import typing
 
 import mlrun.config
+
 import services.api.utils.projects.follower
 import services.api.utils.projects.leader
 import services.api.utils.projects.member

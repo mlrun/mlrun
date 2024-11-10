@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import warnings
-from typing import Union
+from typing import Optional, Union
 
 import mlrun.common.schemas.schedule
 import mlrun.model
@@ -74,7 +74,9 @@ class TrackingPolicy(mlrun.model.ModelObj):
         self.default_controller_image = default_controller_image
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+    def from_dict(
+        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+    ):
         new_obj = super().from_dict(
             struct, fields=cls._dict_fields, deprecated_fields=deprecated_fields
         )
@@ -102,7 +104,12 @@ class TrackingPolicy(mlrun.model.ModelObj):
                 )
         return new_obj
 
-    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
+    def to_dict(
+        self,
+        fields: Optional[list] = None,
+        exclude: Optional[list] = None,
+        strip: bool = False,
+    ):
         struct = super().to_dict(
             fields,
             exclude=[

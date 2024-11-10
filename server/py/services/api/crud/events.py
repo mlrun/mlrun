@@ -13,13 +13,15 @@
 # limitations under the License.
 #
 import datetime
+from typing import Optional
 
 import sqlalchemy.orm
 
 import mlrun.utils.singleton
+from mlrun.utils import logger
+
 import services.api.api.utils
 import services.api.utils.singletons.db
-from mlrun.utils import logger
 
 
 class Events(
@@ -58,7 +60,7 @@ class Events(
         session: sqlalchemy.orm.Session,
         event_data: mlrun.common.schemas.Event,
         event_name: str,
-        project: str = None,
+        project: Optional[str] = None,
         validate_event: bool = False,
     ):
         project = project or mlrun.mlconf.default_project

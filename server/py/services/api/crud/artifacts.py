@@ -26,9 +26,10 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-import services.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+
+import services.api.utils.singletons.db
 
 
 class Artifacts(
@@ -39,11 +40,11 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         artifact: dict,
-        object_uid: str = None,
+        object_uid: typing.Optional[str] = None,
         tag: str = "latest",
-        iter: int = None,
-        project: str = None,
-        producer_id: str = None,
+        iter: typing.Optional[int] = None,
+        project: typing.Optional[str] = None,
+        producer_id: typing.Optional[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         project = project or mlrun.mlconf.default_project
@@ -83,9 +84,9 @@ class Artifacts(
         key: str,
         artifact: dict,
         tag: str = "latest",
-        iter: int = None,
-        producer_id: str = None,
-        project: str = None,
+        iter: typing.Optional[int] = None,
+        producer_id: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         project = project or mlrun.mlconf.default_project
@@ -120,11 +121,11 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        iter: int = None,
-        project: str = None,
+        iter: typing.Optional[int] = None,
+        project: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        producer_id: str = None,
-        object_uid: str = None,
+        producer_id: typing.Optional[str] = None,
+        object_uid: typing.Optional[str] = None,
         raise_on_not_found: bool = True,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
@@ -144,20 +145,20 @@ class Artifacts(
     def list_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = None,
+        project: typing.Optional[str] = None,
         name: typing.Optional[str] = None,
         tag: typing.Optional[str] = None,
-        labels: list[str] = None,
-        since: datetime.datetime = None,
-        until: datetime.datetime = None,
+        labels: typing.Optional[list[str]] = None,
+        since: typing.Optional[datetime.datetime] = None,
+        until: typing.Optional[datetime.datetime] = None,
         kind: typing.Optional[str] = None,
         category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        producer_id: str = None,
-        producer_uri: str = None,
-        limit: int = None,
+        producer_id: typing.Optional[str] = None,
+        producer_uri: typing.Optional[str] = None,
+        limit: typing.Optional[int] = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list:
@@ -202,7 +203,7 @@ class Artifacts(
     def list_artifact_tags(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = None,
+        project: typing.Optional[str] = None,
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
         project = project or mlrun.mlconf.default_project
@@ -215,14 +216,14 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: str = None,
-        object_uid: str = None,
-        producer_id: str = None,
-        iteration: int = None,
+        project: typing.Optional[str] = None,
+        object_uid: typing.Optional[str] = None,
+        producer_id: typing.Optional[str] = None,
+        iteration: typing.Optional[int] = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: dict = None,
+        secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
@@ -258,12 +259,12 @@ class Artifacts(
     def delete_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = None,
+        project: typing.Optional[str] = None,
         name: str = "",
         tag: str = "latest",
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        producer_id: str = None,
+        producer_id: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         services.api.utils.singletons.db.get_db().del_artifacts(
@@ -296,14 +297,14 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: str = None,
-        object_uid: str = None,
-        producer_id: str = None,
-        iteration: int = None,
+        project: typing.Optional[str] = None,
+        object_uid: typing.Optional[str] = None,
+        producer_id: typing.Optional[str] = None,
+        iteration: typing.Optional[int] = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: dict = None,
+        secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug("Deleting artifact data", project=project, key=key, tag=tag)

@@ -14,19 +14,21 @@
 #
 import mimetypes
 from http import HTTPStatus
+from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun
 import mlrun.common.schemas
+from mlrun.datastore import store_manager
+from mlrun.errors import err_to_str
+from mlrun.utils import logger
+
 import services.api.api.deps
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.singletons.k8s
-from mlrun.datastore import store_manager
-from mlrun.errors import err_to_str
-from mlrun.utils import logger
 from services.api.api.utils import get_obj_path, get_secrets, log_and_raise
 
 router = fastapi.APIRouter()
@@ -106,7 +108,7 @@ def _get_files(
     size: int,
     offset: int,
     auth_info: mlrun.common.schemas.AuthInfo,
-    secrets: dict = None,
+    secrets: Optional[dict] = None,
     project: str = "",
 ):
     if size > mlrun.mlconf.artifacts.limits.max_chunk_size:

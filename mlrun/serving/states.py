@@ -25,7 +25,7 @@ import pathlib
 import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import storey.utils
 
@@ -104,7 +104,12 @@ class BaseStep(ModelObj):
     default_shape = "ellipse"
     _dict_fields = ["kind", "comment", "after", "on_error"]
 
-    def __init__(self, name: str = None, after: list = None, shape: str = None):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        after: Optional[list] = None,
+        shape: Optional[str] = None,
+    ):
         self.name = name
         self._parent = None
         self.comment = None
@@ -154,14 +159,14 @@ class BaseStep(ModelObj):
 
     def error_handler(
         self,
-        name: str = None,
+        name: Optional[str] = None,
         class_name=None,
         handler=None,
         before=None,
         function=None,
-        full_event: bool = None,
-        input_path: str = None,
-        result_path: str = None,
+        full_event: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         **class_args,
     ):
         """set error handler on a step or the entire graph (to be executed on failure/raise)
@@ -297,13 +302,13 @@ class BaseStep(ModelObj):
     def to(
         self,
         class_name: Union[str, StepToDict] = None,
-        name: str = None,
-        handler: str = None,
-        graph_shape: str = None,
-        function: str = None,
-        full_event: bool = None,
-        input_path: str = None,
-        result_path: str = None,
+        name: Optional[str] = None,
+        handler: Optional[str] = None,
+        graph_shape: Optional[str] = None,
+        function: Optional[str] = None,
+        full_event: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         **class_args,
     ):
         """add a step right after this step and return the new step
@@ -404,16 +409,16 @@ class TaskStep(BaseStep):
 
     def __init__(
         self,
-        class_name: Union[str, type] = None,
-        class_args: dict = None,
-        handler: str = None,
-        name: str = None,
-        after: list = None,
-        full_event: bool = None,
-        function: str = None,
-        responder: bool = None,
-        input_path: str = None,
-        result_path: str = None,
+        class_name: Optional[Union[str, type]] = None,
+        class_args: Optional[dict] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = None,
+        after: Optional[list] = None,
+        full_event: Optional[bool] = None,
+        function: Optional[str] = None,
+        responder: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
     ):
         super().__init__(name, after)
         self.class_name = class_name
@@ -607,16 +612,16 @@ class MonitoringApplicationStep(TaskStep):
 
     def __init__(
         self,
-        class_name: Union[str, type] = None,
-        class_args: dict = None,
-        handler: str = None,
-        name: str = None,
-        after: list = None,
-        full_event: bool = None,
-        function: str = None,
-        responder: bool = None,
-        input_path: str = None,
-        result_path: str = None,
+        class_name: Optional[Union[str, type]] = None,
+        class_args: Optional[dict] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = None,
+        after: Optional[list] = None,
+        full_event: Optional[bool] = None,
+        function: Optional[str] = None,
+        responder: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -641,16 +646,16 @@ class ErrorStep(TaskStep):
 
     def __init__(
         self,
-        class_name: Union[str, type] = None,
-        class_args: dict = None,
-        handler: str = None,
-        name: str = None,
-        after: list = None,
-        full_event: bool = None,
-        function: str = None,
-        responder: bool = None,
-        input_path: str = None,
-        result_path: str = None,
+        class_name: Optional[Union[str, type]] = None,
+        class_args: Optional[dict] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = None,
+        after: Optional[list] = None,
+        full_event: Optional[bool] = None,
+        function: Optional[str] = None,
+        responder: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -678,14 +683,14 @@ class RouterStep(TaskStep):
 
     def __init__(
         self,
-        class_name: Union[str, type] = None,
-        class_args: dict = None,
-        handler: str = None,
-        routes: list = None,
-        name: str = None,
-        function: str = None,
-        input_path: str = None,
-        result_path: str = None,
+        class_name: Optional[Union[str, type]] = None,
+        class_args: Optional[dict] = None,
+        handler: Optional[str] = None,
+        routes: Optional[list] = None,
+        name: Optional[str] = None,
+        function: Optional[str] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
     ):
         super().__init__(
             class_name,
@@ -813,12 +818,12 @@ class QueueStep(BaseStep):
 
     def __init__(
         self,
-        name: str = None,
-        path: str = None,
-        after: list = None,
-        shards: int = None,
-        retention_in_hours: int = None,
-        trigger_args: dict = None,
+        name: Optional[str] = None,
+        path: Optional[str] = None,
+        after: Optional[list] = None,
+        shards: Optional[int] = None,
+        retention_in_hours: Optional[int] = None,
+        trigger_args: Optional[dict] = None,
         **options,
     ):
         super().__init__(name, after)
@@ -848,13 +853,13 @@ class QueueStep(BaseStep):
     def to(
         self,
         class_name: Union[str, StepToDict] = None,
-        name: str = None,
-        handler: str = None,
-        graph_shape: str = None,
-        function: str = None,
-        full_event: bool = None,
-        input_path: str = None,
-        result_path: str = None,
+        name: Optional[str] = None,
+        handler: Optional[str] = None,
+        graph_shape: Optional[str] = None,
+        function: Optional[str] = None,
+        full_event: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         **class_args,
     ):
         if not function:
@@ -903,7 +908,7 @@ class FlowStep(BaseStep):
         self,
         name=None,
         steps=None,
-        after: list = None,
+        after: Optional[list] = None,
         engine=None,
         final_step=None,
     ):
@@ -946,9 +951,9 @@ class FlowStep(BaseStep):
         before=None,
         graph_shape=None,
         function=None,
-        full_event: bool = None,
-        input_path: str = None,
-        result_path: str = None,
+        full_event: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         **class_args,
     ):
         """add task, queue or router step/class to the flow
@@ -1035,7 +1040,7 @@ class FlowStep(BaseStep):
         self._last_added = step
         return step
 
-    def clear_children(self, steps: list = None):
+    def clear_children(self, steps: Optional[list] = None):
         """remove some or all of the states, empty/None for all"""
         if not steps:
             steps = self._steps.keys()
@@ -1552,8 +1557,8 @@ def params_to_step(
     graph_shape=None,
     function=None,
     full_event=None,
-    input_path: str = None,
-    result_path: str = None,
+    input_path: Optional[str] = None,
+    result_path: Optional[str] = None,
     class_args=None,
 ):
     """return step object from provided params or classes/objects"""

@@ -451,6 +451,36 @@ class TSDBConnector(ABC):
         return metrics_values
 
     @staticmethod
+    def df_to_metrics_list(
+        *,
+        df: pd.DataFrame,
+        project: str,
+        type: str,
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        """
+        Parse a DataFrame of metrics from the TSDB into a list of mm metrics objects.
+
+        :param df:      The DataFrame to parse.
+        :param project: The project name.
+        :param type:    The type of the metrics (either "result" or "metric").
+
+        :return:        A list of mm metrics objects.
+        """
+        return list(
+            map(
+                lambda record: mm_schemas.ModelEndpointMonitoringMetric(
+                    project=project,
+                    type=type,
+                    app=record.get(mm_schemas.WriterEvent.APPLICATION_NAME),
+                    name=record.get(mm_schemas.ResultData.RESULT_NAME)
+                    or record.get(mm_schemas.MetricData.METRIC_NAME),
+                    kind=record.get(mm_schemas.ResultData.RESULT_KIND),
+                ),
+                df.to_dict("records"),
+            )
+        )
+
+    @staticmethod
     def _get_start_end(
         start: typing.Union[datetime, None],
         end: typing.Union[datetime, None],

@@ -30,17 +30,18 @@ from sqlalchemy.orm import Session
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
+from mlrun.common.runtimes.constants import RunStates
+from mlrun.config import config
+from mlrun.errors import err_to_str
+from mlrun.model import RunObject
+from mlrun.utils import logger
+
 import services.api.api.utils
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.clients.iguazio
 import services.api.utils.helpers
 import services.api.utils.singletons.project_member
-from mlrun.common.runtimes.constants import RunStates
-from mlrun.config import config
-from mlrun.errors import err_to_str
-from mlrun.model import RunObject
-from mlrun.utils import logger
 from services.api.db.session import close_session, create_session
 from services.api.utils.singletons.db import get_db
 
@@ -112,8 +113,8 @@ class Scheduler:
         kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Union[dict, Callable],
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger],
-        labels: dict = None,
-        concurrency_limit: int = None,
+        labels: Optional[dict] = None,
+        concurrency_limit: Optional[int] = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -185,10 +186,10 @@ class Scheduler:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
-        scheduled_object: Union[dict, Callable] = None,
+        scheduled_object: Optional[Union[dict, Callable]] = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: dict = None,
-        concurrency_limit: int = None,
+        labels: Optional[dict] = None,
+        concurrency_limit: Optional[int] = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -249,10 +250,10 @@ class Scheduler:
     def list_schedules(
         self,
         db_session: Session,
-        project: str = None,
-        name: str = None,
-        kind: str = None,
-        labels: list[str] = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        kind: Optional[str] = None,
+        labels: Optional[list[str]] = None,
         include_last_run: bool = False,
         include_credentials: bool = False,
     ) -> mlrun.common.schemas.SchedulesOutput:
@@ -325,11 +326,11 @@ class Scheduler:
         project: str,
         name: str,
         kind: mlrun.common.schemas.ScheduleKinds = None,
-        scheduled_object: Union[dict, Callable] = None,
+        scheduled_object: Optional[Union[dict, Callable]] = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: dict = None,
-        concurrency_limit: int = None,
-        fn_kind: str = None,
+        labels: Optional[dict] = None,
+        concurrency_limit: Optional[int] = None,
+        fn_kind: Optional[str] = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -635,7 +636,7 @@ class Scheduler:
         self,
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         # accepting now from outside for testing purposes
-        now: datetime = None,
+        now: Optional[datetime] = None,
     ):
         """
         Enforce no more than one job per min_allowed_interval

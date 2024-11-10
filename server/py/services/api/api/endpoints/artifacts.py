@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from http import HTTPStatus
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -20,11 +21,12 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+from mlrun.config import config
+from mlrun.utils import logger
+
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.singletons.project_member
-from mlrun.config import config
-from mlrun.utils import logger
 from services.api.api import deps
 from services.api.api.utils import (
     artifact_project_and_resource_name_extractor,
@@ -191,10 +193,10 @@ async def delete_artifact(
 
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
-    project: str = None,
-    name: str = None,
-    tag: str = None,
-    kind: str = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
+    kind: Optional[str] = None,
     category: mlrun.common.schemas.ArtifactCategories = None,
     labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
@@ -258,7 +260,7 @@ async def list_artifacts(
 
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
-    project: str = None,
+    project: Optional[str] = None,
     name: str = "",
     tag: str = "",
     labels: list[str] = Query([], alias="label"),
@@ -276,10 +278,10 @@ async def delete_artifacts(
 
 
 async def _delete_artifacts(
-    project: str = None,
-    name: str = None,
-    tag: str = None,
-    labels: list[str] = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
+    labels: Optional[list[str]] = None,
     auth_info: mlrun.common.schemas.AuthInfo = None,
     db_session: Session = None,
 ):

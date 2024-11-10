@@ -90,12 +90,12 @@ class StoreBase(ABC):
     @abstractmethod
     def list_model_endpoints(
         self,
-        model: str = None,
-        function: str = None,
-        labels: list[str] = None,
-        top_level: bool = None,
-        uids: list = None,
-        include_stats: bool = None,
+        model: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
+        top_level: typing.Optional[bool] = None,
+        uids: typing.Optional[list] = None,
+        include_stats: typing.Optional[bool] = None,
     ) -> list[dict[str, typing.Any]]:
         """
         Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
@@ -114,34 +114,6 @@ class StoreBase(ABC):
         :return: A list of model endpoint dictionaries.
         """
         pass
-
-    @abstractmethod
-    def write_application_event(
-        self,
-        event: dict[str, typing.Any],
-        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ) -> None:
-        """
-        Write a new event in the target table.
-
-        :param event: An event dictionary that represents the application result, should be corresponded to the
-                      schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
-                      object.
-        :param kind: The type of the event, can be either "result" or "metric".
-        """
-
-    @abstractmethod
-    def get_model_endpoint_metrics(
-        self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
-    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
-        """
-        Get the model monitoring results and metrics of the requested model endpoint.
-
-        :param: endpoint_id: The model endpoint identifier.
-        :param: type:        The type of the requested metrics ("result" or "metric").
-
-        :return:             A list of the available metrics.
-        """
 
     @staticmethod
     def _validate_labels(

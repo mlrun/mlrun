@@ -14,6 +14,7 @@
 #
 import os
 import uuid
+from typing import Optional
 
 import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
@@ -21,12 +22,13 @@ from sqlalchemy.orm import Session
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.api.utils
-import services.api.constants
-import services.api.utils.notification_pusher
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
 from mlrun.utils import template_artifact_path
+
+import services.api.api.utils
+import services.api.constants
+import services.api.utils.notification_pusher
 
 
 class WorkflowRunners(
@@ -322,7 +324,7 @@ class WorkflowRunners(
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
-        run_name: str = None,
+        run_name: Optional[str] = None,
         load_only: bool = False,
     ) -> mlrun.run.RunObject:
         """

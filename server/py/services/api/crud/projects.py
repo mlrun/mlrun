@@ -26,6 +26,8 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.utils import logger, retry_until_successful
+
 import services.api.crud
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio
@@ -36,7 +38,6 @@ import services.api.utils.events.events_factory as events_factory
 import services.api.utils.projects.remotes.follower as project_follower
 import services.api.utils.singletons.db
 import services.api.utils.singletons.scheduler
-from mlrun.utils import logger, retry_until_successful
 from services.api.utils.singletons.k8s import get_k8s_helper
 
 
@@ -99,8 +100,8 @@ class Projects(
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        background_task_name: str = None,
-        model_monitoring_access_key: str = None,
+        background_task_name: typing.Optional[str] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         self._enrich_project_with_deletion_background_task_name(
@@ -152,7 +153,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        model_monitoring_access_key: str = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ):
         logger.debug(
             "Deleting project resources",
@@ -275,9 +276,9 @@ class Projects(
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
-        owner: str = None,
+        owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
@@ -288,8 +289,8 @@ class Projects(
     async def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,
-        owner: str = None,
-        labels: list[str] = None,
+        owner: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:

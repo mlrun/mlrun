@@ -21,15 +21,11 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.datastore
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
-import services.api.api.utils
-import services.api.crud.model_monitoring.deployment
-import services.api.crud.model_monitoring.helpers
-import services.api.crud.secrets
-import services.api.rundb.sqldb
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFile,
     delete_model_monitoring_schedules_folder,
@@ -40,6 +36,12 @@ from mlrun.model_monitoring.db._stats import (
     delete_model_monitoring_stats_folder,
 )
 from mlrun.utils import logger
+
+import services.api.api.utils
+import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring.helpers
+import services.api.crud.secrets
+import services.api.rundb.sqldb
 
 
 class ModelEndpoints:
@@ -368,7 +370,7 @@ class ModelEndpoints:
         self,
         project: str,
         endpoint_id: str,
-        metrics: list[str] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
@@ -431,14 +433,14 @@ class ModelEndpoints:
     def list_model_endpoints(
         self,
         project: str,
-        model: str = None,
-        function: str = None,
-        labels: list[str] = None,
-        metrics: list[str] = None,
+        model: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
         top_level: bool = False,
-        uids: list[str] = None,
+        uids: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects, wrapped in `ModelEndpointList` object. Each `ModelEndpoint`
@@ -636,6 +638,47 @@ class ModelEndpoints:
         )
 
     @staticmethod
+    def get_model_endpoints_metrics(
+        project: str,
+        endpoint_id: str,
+        type: str,
+    ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        """
+        Get the metrics for a given model endpoint.
+
+        :param project:     The name of the project.
+        :param endpoint_id: The unique id of the model endpoint.
+        :param type:        metric or result.
+
+        :return: A dictionary of metrics.
+        """
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=project
+                ),
+            )
+        except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+            logger.debug(
+                f"Failed to list model endpoint {type}s because tsdb connection is not defined."
+                " Returning an empty list of metrics",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return []
+
+        if type == "metric":
+            df = tsdb_connector.get_metrics_metadata(endpoint_id=endpoint_id)
+        elif type == "result":
+            df = tsdb_connector.get_results_metadata(endpoint_id=endpoint_id)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Type must be either 'metric' or 'result'"
+            )
+
+        return tsdb_connector.df_to_metrics_list(df=df, type=type, project=project)
+
+    @staticmethod
     def _delete_model_monitoring_stream_resources(
         project_name: str,
         model_monitoring_applications: typing.Optional[list[str]],
@@ -736,7 +779,7 @@ class ModelEndpoints:
     @staticmethod
     def _add_real_time_metrics(
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
-        metrics: list[str] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
     ) -> mlrun.common.schemas.ModelEndpoint:

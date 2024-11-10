@@ -24,6 +24,11 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
+from mlrun.config import config
+from mlrun.utils import logger
+from mlrun.utils.helpers import generate_object_uri
+
 import services.api.api.utils
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
@@ -33,12 +38,8 @@ import services.api.utils.auth.verifier
 import services.api.utils.clients.async_nuclio
 import services.api.utils.clients.chief
 import services.api.utils.singletons.project_member
-from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
-from mlrun.config import config
-from mlrun.utils import logger
-from mlrun.utils.helpers import generate_object_uri
-from services.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api import deps
+from services.api.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.crud.secrets import Secrets, SecretsClientType
 
 router = APIRouter()
@@ -411,7 +412,7 @@ def create_model_monitoring_stream(
     stream_path: str,
     shard_count: int,
     retention_period_hours: int,
-    access_key: str = None,
+    access_key: typing.Optional[str] = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
@@ -705,7 +706,10 @@ async def _get_api_gateways_urls_for_function(
 
 
 def _is_nuclio_deploy_status_changed(
-    previous_status: dict, new_status: dict, new_state: str, new_nuclio_name: str = None
+    previous_status: dict,
+    new_status: dict,
+    new_state: str,
+    new_nuclio_name: typing.Optional[str] = None,
 ) -> bool:
     # get relevant fields from the new status
     new_container_image = new_status.get("containerImage", "")

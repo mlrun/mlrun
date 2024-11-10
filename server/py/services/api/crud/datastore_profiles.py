@@ -13,13 +13,16 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 import sqlalchemy.orm
 
+import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.utils.singletons.k8s
 from mlrun.datastore.datastore_profile import DatastoreProfile as DSProfile
 
-from .secrets import Secrets
+import services.api.crud
+import services.api.utils.singletons.k8s
 
 
 class DatastoreProfiles(
@@ -42,7 +45,7 @@ class DatastoreProfiles(
             DSProfile.generate_secret_key(profile_name, project): profile_secret_json
         }
 
-        Secrets().store_project_secrets(
+        services.api.crud.Secrets().store_project_secrets(
             project,
             mlrun.common.schemas.SecretsData(
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -59,7 +62,7 @@ class DatastoreProfiles(
 
         adjusted_secret = DSProfile.generate_secret_key(profile_name, project)
 
-        Secrets().delete_project_secret(
+        services.api.crud.Secrets().delete_project_secret(
             project,
             mlrun.common.schemas.SecretsData(
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -73,8 +76,8 @@ class DatastoreProfiles(
         session: sqlalchemy.orm.Session,
         profile_name: str,
         profile_public_json: str,
-        profile_secret_json: str = None,
-        project: str = None,
+        profile_secret_json: Optional[str] = None,
+        project: Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         services.api.utils.singletons.db.get_db().store_datastore_profile(
@@ -88,7 +91,7 @@ class DatastoreProfiles(
     def list_datastore_profiles(
         self,
         session: sqlalchemy.orm.Session,
-        project: str = None,
+        project: Optional[str] = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().list_datastore_profiles(
@@ -98,8 +101,8 @@ class DatastoreProfiles(
     def delete_datastore_profile(
         self,
         session: sqlalchemy.orm.Session,
-        profile_name: str = None,
-        project: str = None,
+        profile_name: Optional[str] = None,
+        project: Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         # Delete public part of the secret
@@ -112,8 +115,8 @@ class DatastoreProfiles(
     def get_datastore_profile(
         self,
         session: sqlalchemy.orm.Session,
-        profile_name: str = None,
-        project: str = None,
+        profile_name: Optional[str] = None,
+        project: Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().get_datastore_profile(

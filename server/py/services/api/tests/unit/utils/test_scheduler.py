@@ -30,15 +30,16 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.launcher.factory
+from mlrun.common.runtimes.constants import RunStates
+from mlrun.config import config
+from mlrun.utils import logger
+
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.utils.auth
 import services.api.utils.auth.verifier
 import services.api.utils.helpers
 import services.api.utils.singletons.project_member
-from mlrun.common.runtimes.constants import RunStates
-from mlrun.config import config
-from mlrun.utils import logger
 from services.api.utils.scheduler import Scheduler
 from services.api.utils.singletons.db import get_db
 
@@ -85,7 +86,7 @@ async def do_nothing():
 
 
 def create_project(
-    db: Session, project_name: str = None
+    db: Session, project_name: typing.Optional[str] = None
 ) -> mlrun.common.schemas.Project:
     """API tests use sql db, so we need to create the project with its schema"""
     project = mlrun.common.schemas.Project(
@@ -1785,8 +1786,8 @@ def _assert_schedule(
     kind: mlrun.common.schemas.ScheduleKinds,
     cron_trigger: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger],
     next_run_time: typing.Optional[datetime] = None,
-    labels: dict = None,
-    concurrency_limit: int = None,
+    labels: typing.Optional[dict] = None,
+    concurrency_limit: typing.Optional[int] = None,
 ):
     assert schedule.name == name
     assert schedule.project == project

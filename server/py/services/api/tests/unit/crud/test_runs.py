@@ -24,6 +24,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+
 import services.api.crud
 import services.api.runtime_handlers
 import services.api.tests.unit.conftest

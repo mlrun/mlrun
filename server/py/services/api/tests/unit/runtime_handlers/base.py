@@ -27,10 +27,11 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
-import services.api.crud
-import services.api.utils.clients.chief
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_test_logger, now_date
+
+import services.api.crud
+import services.api.utils.clients.chief
 from services.api.constants import LogSources
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.utils.singletons.db import get_db
@@ -66,9 +67,9 @@ class TestRuntimeHandlerBase:
     def _store_run(
         self,
         db: Session,
-        name: str = None,
-        uid: str = None,
-        start_time: datetime = None,
+        name: Optional[str] = None,
+        uid: Optional[str] = None,
+        start_time: Optional[datetime] = None,
     ):
         self.run = {
             "status": {
@@ -404,7 +405,7 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_delete_namespaced_pods(
-        expected_pod_names: list[str], expected_pod_namespace: str = None
+        expected_pod_names: list[str], expected_pod_namespace: Optional[str] = None
     ):
         calls = [
             unittest.mock.call(
@@ -422,7 +423,8 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_delete_namespaced_services(
-        expected_service_names: list[str], expected_service_namespace: str = None
+        expected_service_names: list[str],
+        expected_service_namespace: Optional[str] = None,
     ):
         calls = [
             unittest.mock.call(
@@ -441,7 +443,7 @@ class TestRuntimeHandlerBase:
     def _assert_delete_namespaced_custom_objects(
         runtime_handler,
         expected_custom_object_names: list[str],
-        expected_custom_object_namespace: str = None,
+        expected_custom_object_namespace: Optional[str] = None,
     ):
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         calls = [
@@ -516,7 +518,7 @@ class TestRuntimeHandlerBase:
     def _assert_list_namespaced_pods_calls(
         runtime_handler,
         expected_number_of_calls: int,
-        expected_label_selector: str = None,
+        expected_label_selector: Optional[str] = None,
         paginated: bool = True,
     ):
         assert (
@@ -573,7 +575,7 @@ class TestRuntimeHandlerBase:
         project: str,
         uid: str,
         expected_log: str,
-        logger_pod_name: str = None,
+        logger_pod_name: Optional[str] = None,
     ):
         if logger_pod_name is not None:
             get_k8s_helper().v1api.read_namespaced_pod_log.assert_called_once_with(
@@ -592,8 +594,8 @@ class TestRuntimeHandlerBase:
         project: str,
         uid: str,
         expected_state: str,
-        expected_status_attrs: dict = None,
-        requested_logs: bool = None,
+        expected_status_attrs: Optional[dict] = None,
+        requested_logs: Optional[bool] = None,
     ):
         expected_status_attrs = expected_status_attrs or {}
 

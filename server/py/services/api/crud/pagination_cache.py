@@ -19,8 +19,9 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.utils.singletons.db
 from mlrun import mlconf
+
+import services.api.utils.singletons.db
 
 
 class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
@@ -46,10 +47,10 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def list_pagination_cache_records(
         session: sqlalchemy.orm.Session,
-        key: str = None,
-        user: str = None,
-        function: str = None,
-        last_accessed_before: datetime.datetime = None,
+        key: typing.Optional[str] = None,
+        user: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        last_accessed_before: typing.Optional[datetime.datetime] = None,
         order_by: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,

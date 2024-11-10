@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 from tensorflow import keras
 
@@ -29,20 +29,20 @@ from .utils import TFKerasTypes, TFKerasUtils
 
 def apply_mlrun(
     model: keras.Model = None,
-    model_name: str = None,
+    model_name: Optional[str] = None,
     tag: str = "",
-    model_path: str = None,
+    model_path: Optional[str] = None,
     model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
     save_traces: bool = False,
-    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-    custom_objects_directory: str = None,
+    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
+    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
+    custom_objects_directory: Optional[str] = None,
     context: mlrun.MLClientCtx = None,
     auto_log: bool = True,
-    tensorboard_directory: str = None,
-    mlrun_callback_kwargs: dict[str, Any] = None,
-    tensorboard_callback_kwargs: dict[str, Any] = None,
-    use_horovod: bool = None,
+    tensorboard_directory: Optional[str] = None,
+    mlrun_callback_kwargs: Optional[dict[str, Any]] = None,
+    tensorboard_callback_kwargs: Optional[dict[str, Any]] = None,
+    use_horovod: Optional[bool] = None,
     **kwargs,
 ) -> TFKerasModelHandler:
     """

@@ -13,12 +13,14 @@
 # limitations under the License.
 #
 import unittest.mock
+from typing import Optional
 
 import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.utils.events.events_factory
@@ -105,7 +107,7 @@ class TestEventClient:
             lambda *args, **kwargs: self.client,
         )
 
-    def _initialize_client(self, version: str = None):
+    def _initialize_client(self, version: Optional[str] = None):
         mlrun.mlconf.igz_version = version
         self.client = (
             services.api.utils.events.events_factory.EventsFactory.get_events_client()

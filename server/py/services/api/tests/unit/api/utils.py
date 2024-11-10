@@ -14,6 +14,7 @@
 #
 import uuid
 from http import HTTPStatus
+from typing import Optional
 
 import httpx
 from fastapi.testclient import TestClient
@@ -47,7 +48,7 @@ def create_project(
     return resp
 
 
-def compile_schedule(schedule_name: str = None, to_json: bool = True):
+def compile_schedule(schedule_name: Optional[str] = None, to_json: bool = True):
     if not schedule_name:
         schedule_name = f"schedule-name-{str(uuid.uuid4())}"
     schedule = mlrun.common.schemas.ScheduleInput(

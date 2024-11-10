@@ -32,9 +32,10 @@ import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
-import services.api.runtime_handlers
 from mlrun.utils import logger
 from mlrun.utils.helpers import run_with_retry, to_non_empty_values_dict
+
+import services.api.runtime_handlers
 
 _k8s = None
 
@@ -111,9 +112,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def list_pods_paginated(
         self,
-        namespace: str = None,
+        namespace: typing.Optional[str] = None,
         selector: str = "",
-        states: list[str] = None,
+        states: typing.Optional[list[str]] = None,
         max_retry: int = 3,
     ):
         """
@@ -160,7 +161,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         crd_group: str,
         crd_version: str,
         crd_plural: str,
-        namespace: str = None,
+        namespace: typing.Optional[str] = None,
         selector: str = "",
         max_retry: int = 3,
     ):
@@ -733,8 +734,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         resource_name: str,
         data: dict,
         namespace: str = "",
-        labels: dict = None,
-        project: str = None,
+        labels: typing.Optional[dict] = None,
+        project: typing.Optional[str] = None,
     ):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
@@ -892,7 +893,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return self._decode_secret_data(secrets_data)
 
     def list_object_events(
-        self, object_name: str, namespace: str = None
+        self, object_name: str, namespace: typing.Optional[str] = None
     ) -> list[client.CoreV1Event]:
         return self._list_events(
             namespace=namespace, field_selector=f"involvedObject.name={object_name}"
@@ -1157,7 +1158,7 @@ class BasePod:
 def kube_resource_spec_to_pod_spec(
     kube_resource_spec: mlrun.runtimes.pod.KubeResourceSpec,
     container: client.V1Container,
-    node_selector: dict = None,
+    node_selector: typing.Optional[dict] = None,
 ):
     return client.V1PodSpec(
         containers=[container],

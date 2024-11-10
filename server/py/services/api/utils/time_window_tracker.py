@@ -18,6 +18,7 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.common.types
+
 import services.api.utils.singletons.db
 
 
@@ -51,7 +52,9 @@ class TimeWindowTracker:
             )
 
     def update_window(
-        self, session: sqlalchemy.orm.Session, timestamp: datetime.datetime = None
+        self,
+        session: sqlalchemy.orm.Session,
+        timestamp: typing.Optional[datetime.datetime] = None,
     ):
         self._timestamp = timestamp or datetime.datetime.now(datetime.timezone.utc)
         self._db.store_time_window_tracker_record(

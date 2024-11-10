@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from http import HTTPStatus
+from typing import Optional
 
 import fastapi
 from fastapi import APIRouter, Depends, Response
@@ -20,11 +21,12 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+from mlrun.utils import logger
+
 import services.api.crud
 import services.api.utils.auth.verifier
 import services.api.utils.clients.chief
 import services.api.utils.singletons.project_member
-from mlrun.utils import logger
 from services.api.api import deps
 from services.api.utils.singletons.scheduler import get_scheduler
 
@@ -139,7 +141,7 @@ async def update_schedule(
 @router.get("", response_model=mlrun.common.schemas.SchedulesOutput)
 async def list_schedules(
     project: str,
-    name: str = None,
+    name: Optional[str] = None,
     # TODO: Remove _labels in 1.9.0
     _labels: str = fastapi.Query(
         None,

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+
 from services.api.db.base import DBInterface
 from services.api.db.sqldb.db import SQLDB
 from services.api.db.sqldb.models import Schedule
@@ -108,9 +109,22 @@ def test_calculate_schedules_counters(db: DBInterface, db_session: Session):
             next_run_time=next_minute,
         )
 
+    db.store_schedule(
+        db_session,
+        project="project3",
+        name="no_kind_label",
+        kind=mlrun.common.schemas.ScheduleKinds.job,
+        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+        next_run_time=next_minute,
+    )
+
     counters = SQLDB._calculate_schedules_counters(db_session)
     assert counters == (
-        {"project1": 1, "project2": 3},  # total schedule count per project
-        {"project1": 1},  # pending jobs count per project
-        {"project2": 3},
-    )  # pending pipelines count per project
+        {
+            "project1": 1,
+            "project2": 3,
+            "project3": 1,
+        },  # total schedule count per project
+        {"project1": 1, "project3": 1},  # pending jobs count per project
+        {"project2": 3},  # pending pipelines count per project
+    )

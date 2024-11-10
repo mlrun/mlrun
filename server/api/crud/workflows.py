@@ -484,7 +484,8 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             source=source,
             project_name=project.metadata.name,
             save=save,
-            handler="mlrun.projects.load_and_run_workflow",
+            # TODO: We use 'load_and_run' for BC. Change it to 'load_and_run_workflow' in 1.10
+            handler="mlrun.projects.load_and_run",
             parameters=parameters,
             notifications=notifications,
             run_name=run_name,

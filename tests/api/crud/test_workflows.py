@@ -154,7 +154,7 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
             .secret_params.get("secret", "")
             .startswith("mlrun.notifications.")
         )
-        assert run.spec.handler == "mlrun.projects.load_and_run_workflow"
+        assert run.spec.handler == "mlrun.projects.load_and_run"
 
     @pytest.mark.parametrize(
         "runner_class, source, expected_save",

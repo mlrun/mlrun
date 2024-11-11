@@ -858,6 +858,65 @@ def test_add_tag_and_delete_untagged_artifacts(create_server):
     assert artifacts[0]["metadata"]["tag"] == "latest"
 
 
+def test_paginated_list_artifacts(create_server):
+    _, db = _configure_run_db_server(create_server)
+    project_name = "artifact-project"
+    project = mlrun.new_project(project_name)
+
+    num_artifacts = 10
+    page_size = 4
+    for i in range(num_artifacts):
+        artifact_key = f"artifact_{i}"
+        project.log_artifact(
+            artifact_key,
+            body=b"some data",
+        )
+
+    # First request (Page 1)
+    artifacts, token = db.paginated_list_artifacts(
+        project=project_name, page_size=page_size
+    )
+    assert len(artifacts) == page_size
+    assert artifacts[0]["metadata"].get("key") == "artifact_9"
+    assert token is not None
+
+    # Second request using the token from the first response
+    artifacts, token = db.paginated_list_artifacts(
+        project=project_name, page_token=token
+    )
+    assert len(artifacts) == page_size
+    assert artifacts[0]["metadata"].get("key") == "artifact_5"
+    assert token is not None
+
+    # Third request, expecting fewer artifacts (last page)
+    artifacts, token = db.paginated_list_artifacts(
+        project=project_name, page_token=token
+    )
+    assert len(artifacts) == 2
+    assert artifacts[0]["metadata"].get("key") == "artifact_1"
+    assert token is None
+
+    # Retrieve specific page (Page 3)
+    artifacts, token = db.paginated_list_artifacts(
+        project=project_name, page_size=page_size, page=3
+    )
+    assert len(artifacts) == 2
+    assert artifacts[0]["metadata"].get("key") == "artifact_1"
+    assert token is None
+
+    # Automatically iterate over all pages without explicitly specifying the page number
+    artifacts = []
+    token = None
+    while True:
+        page_artifacts, token = db.paginated_list_artifacts(
+            project=project_name, page_token=token, page_size=page_size
+        )
+        artifacts.extend(page_artifacts)
+        if not token:  # If no token is returned, we've reached the last page
+            break
+    assert len(artifacts) == num_artifacts
+
+
 def _generate_project_and_artifact(project: str = "newproj", tag: Optional[str] = None):
     proj_obj = mlrun.new_project(project)
 

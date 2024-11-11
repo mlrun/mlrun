@@ -262,6 +262,16 @@ class SQLRunDB(RunDBInterface):
             limit=limit,
         )
 
+    def paginated_list_artifacts(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        raise NotImplementedError()
+
     def del_artifact(
         self,
         key,

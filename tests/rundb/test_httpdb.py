@@ -226,6 +226,23 @@ def setup_artifacts(create_server):
     return db, project_name, num_artifacts
 
 
+@pytest.fixture
+def setup_runs(create_server):
+    _, db = _configure_run_db_server(create_server)
+    project_name = "my-project"
+    mlrun.new_project(project_name)
+
+    num_runs = 10
+    run_as_dict = RunObject().to_dict()
+
+    for i in range(num_runs):
+        run_key = f"run-{i}"
+        run_as_dict["metadata"]["name"] = run_key
+        db.store_run(run_as_dict, uid=run_key, project=project_name)
+
+    return db, project_name, num_runs
+
+
 def test_log(create_server):
     server: Server = create_server()
     db = server.conn
@@ -1003,10 +1020,63 @@ def test_paginated_list_functions(setup_functions):
     assert token is None
 
     # Automatically iterate over all pages without explicitly specifying the page number
-    artifacts = _retrieve_all_items_with_pagination(
+    functions = _retrieve_all_items_with_pagination(
         project_name, page_size, db.paginated_list_functions
     )
-    assert len(artifacts) == num_functions
+    assert len(functions) == num_functions
+
+
+def test_paginated_list_runs(setup_runs):
+    db, project_name, num_runs = setup_runs
+    page_size = 4
+
+    # First request (Page 1)
+    runs, token = db.paginated_list_runs(project=project_name, page_size=page_size)
+    _assert_list_response(
+        runs,
+        expected_results_count=page_size,
+        identifier_name="name",
+        expected_first_result_name="run-0",
+    )
+    assert token is not None
+
+    # Second request using the token from the first response
+    runs, token = db.paginated_list_runs(project=project_name, page_token=token)
+    _assert_list_response(
+        runs,
+        expected_results_count=page_size,
+        identifier_name="name",
+        expected_first_result_name="run-4",
+    )
+    assert token is not None
+
+    # Third request, expecting fewer runs (last page)
+    runs, token = db.paginated_list_runs(project=project_name, page_token=token)
+    _assert_list_response(
+        runs,
+        expected_results_count=2,
+        identifier_name="name",
+        expected_first_result_name="run-8",
+    )
+    assert token is None
+
+    # Retrieve specific page (Page 3)
+    runs, token = db.paginated_list_runs(
+        project=project_name, page_size=page_size, page=3
+    )
+    _assert_list_response(
+        runs,
+        expected_results_count=2,
+        identifier_name="name",
+        expected_first_result_name="run-8",
+    )
+    assert token is None
+
+    # Automatically iterate over all pages without explicitly specifying the page number
+    runs = _retrieve_all_items_with_pagination(
+        project_name, page_size, db.paginated_list_runs
+    )
+    assert len(runs) == num_runs
 
 
 def test_feature_vectors(create_server):

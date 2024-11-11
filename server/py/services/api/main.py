@@ -24,7 +24,6 @@ import sqlalchemy.orm
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
-import mlrun.common.schemas.alert as alert_objects
 import mlrun.errors
 import mlrun.lists
 import mlrun.utils
@@ -40,11 +39,11 @@ import framework.db.base
 import framework.service
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
+import framework.utils.time_window_tracker
 import services.api.crud
 import services.api.initial_data
 import services.api.runtime_handlers
 import services.api.utils.db.partitioner
-import services.api.utils.time_window_tracker
 from framework.db.session import close_session, create_session
 from framework.utils.notifications.notification_pusher import (
     resolve_notifications_default_params,
@@ -75,6 +74,34 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
+    async def move_service_to_online(self):
+        self._logger.info("Moving api to online")
+
+        # scheduler is needed on both workers and chief
+        # on workers - it allows to us to list/get scheduler(s)
+        # on chief - it allows to us to create/update/delete schedule(s)
+        ensure_scheduler()
+        if (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+            and mlconf.httpdb.clusterization.chief.feature_gates.scheduler == "enabled"
+        ):
+            await start_scheduler()
+
+        # In general, it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
+        # we've added the full sync on the project member initialization (see code there for details) which might delete
+        # projects which requires the scheduler to be set
+        await fastapi.concurrency.run_in_threadpool(initialize_project_member)
+        get_project_member().start()
+
+        # maintenance periodic functions should only run on the chief instance
+        if (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            services.api.initial_data.update_default_configuration_data()
+            await self._start_periodic_functions()
+
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class
         self.app.include_router(api_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX)
@@ -115,34 +142,6 @@ class Service(framework.service.Service):
             == mlrun.common.schemas.ClusterizationRole.chief
         ):
             services.api.initial_data.init_data()
-
-    async def move_service_to_online(self):
-        self._logger.info("Moving api to online")
-
-        # scheduler is needed on both workers and chief
-        # on workers - it allows to us to list/get scheduler(s)
-        # on chief - it allows to us to create/update/delete schedule(s)
-        ensure_scheduler()
-        if (
-            mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.chief
-            and mlconf.httpdb.clusterization.chief.feature_gates.scheduler == "enabled"
-        ):
-            await start_scheduler()
-
-        # In general, it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
-        # we've added the full sync on the project member initialization (see code there for details) which might delete
-        # projects which requires the scheduler to be set
-        await fastapi.concurrency.run_in_threadpool(initialize_project_member)
-        get_project_member().start()
-
-        # maintenance periodic functions should only run on the chief instance
-        if (
-            mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.chief
-        ):
-            services.api.initial_data.update_default_configuration_data()
-            await self._start_periodic_functions()
 
     async def _start_periodic_functions(self):
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
@@ -216,8 +215,8 @@ class Service(framework.service.Service):
         :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
         """
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        log_collection_cycle_tracker = services.api.utils.time_window_tracker.TimeWindowTracker(
-            key=services.api.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+        log_collection_cycle_tracker = framework.utils.time_window_tracker.TimeWindowTracker(
+            key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
             # If the API was down for more than the grace period, we will only collect logs for runs which reached
             # terminal state within the grace period and not since the API actually went down.
             max_window_size_seconds=min(
@@ -763,8 +762,8 @@ class Service(framework.service.Service):
                 )
 
         try:
-            runs_monitoring_cycle_tracker = services.api.utils.time_window_tracker.TimeWindowTracker(
-                key=services.api.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
+            runs_monitoring_cycle_tracker = framework.utils.time_window_tracker.TimeWindowTracker(
+                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
                 max_window_size_seconds=int(
                     mlconf.runtime_resources_deletion_grace_period
                 ),
@@ -773,8 +772,6 @@ class Service(framework.service.Service):
             last_update_time = runs_monitoring_cycle_tracker.get_window(db_session)
             now = datetime.datetime.now(datetime.timezone.utc)
 
-            if mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
-                self._generate_event_on_failed_runs(db, db_session, last_update_time)
             self._push_terminal_run_notifications(db, db_session, last_update_time)
 
             runs_monitoring_cycle_tracker.update_window(db_session, now)
@@ -842,44 +839,6 @@ class Service(framework.service.Service):
         framework.utils.notifications.notification_pusher.RunNotificationPusher(
             unmasked_runs, default_notification_params
         ).push()
-
-    def _generate_event_on_failed_runs(
-        self, db: framework.db.base.DBInterface, db_session, last_update_time
-    ):
-        """
-        Send an event on the runs that ended with error state since the last call to the function
-        """
-
-        runs = db.list_runs(
-            db_session,
-            project="*",
-            states=[mlrun.common.runtimes.constants.RunStates.error],
-            last_update_time_from=last_update_time,
-        )
-
-        for run in runs:
-            project = run["metadata"]["project"]
-            run_uid = run["metadata"]["uid"]
-            run_name = run["metadata"]["name"]
-            entity = mlrun.common.schemas.alert.EventEntities(
-                kind=alert_objects.EventEntityKind.JOB,
-                project=project,
-                ids=[run_name],
-            )
-            event_value = {"uid": run_uid, "error": run["status"].get("error", None)}
-            event_data = mlrun.common.schemas.Event(
-                kind=alert_objects.EventKind.FAILED,
-                entity=entity,
-                value_dict=event_value,
-            )
-
-            services.api.crud.Events().process_event(
-                session=db_session,
-                event_data=event_data,
-                event_name=alert_objects.EventKind.FAILED,
-                project=project,
-                validate_event=True,
-            )
 
     async def _abort_stale_runs(self, stale_runs: list[dict]):
         semaphore = asyncio.Semaphore(

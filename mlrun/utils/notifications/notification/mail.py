@@ -37,7 +37,7 @@ class MailNotification(NotificationBase):
         "sender_address",
         "username",
         "password",
-        "email_address",
+        "email_addresses",
     ]
 
     @classmethod
@@ -47,6 +47,11 @@ class MailNotification(NotificationBase):
                 raise ValueError(
                     f"Parameter '{required_param}' is required for MailNotification"
                 )
+
+        if type(params["email_addresses"]) not in [str, list]:
+            raise ValueError(
+                "Parameter 'email_addresses' must be a string or a list of strings"
+            )
 
     async def push(
         self,
@@ -63,21 +68,21 @@ class MailNotification(NotificationBase):
 
     @staticmethod
     async def _send_email(
-        email_address: str,
+        email_addresses: str,
         sender_address: str,
         server_host: str,
         server_port: int,
         username: str,
         password: str,
         use_tls: bool,
-        subject: str = "",
+        subject: str = "MLRun Notification",
         body: str = "",
         **kwargs,
     ):
         # Create the email message
         message = EmailMessage()
         message["From"] = sender_address
-        message["To"] = email_address
+        message["To"] = email_addresses
         message["Subject"] = subject
         message.set_content(body)
 
@@ -101,6 +106,10 @@ class MailNotification(NotificationBase):
 
         params.setdefault("server_port", DEFAULT_SMTP_PORT)
 
-        default_mail_address = params.pop("default_email_address", None)
-        params.setdefault("email_address", default_mail_address)
+        default_mail_address = params.pop("default_email_addresses", "")
+        email_addresses = params.get("email_addresses", default_mail_address)
+        if type(email_addresses) is list:
+            email_addresses = ",".join(email_addresses)
+        params["email_addresses"] = email_addresses
+
         return params

@@ -20,9 +20,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
 import mlrun.utils.helpers
-import services.api.api.utils
-import services.api.constants
-import services.api.utils.singletons.k8s
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification import NotificationBase, NotificationTypes
 from mlrun.utils.notifications.notification_pusher import (
@@ -32,6 +29,7 @@ from mlrun.utils.notifications.notification_pusher import (
 
 import services.api.api.utils
 import services.api.constants
+import services.api.utils.singletons.k8s
 
 mail_notification_default_params = None
 

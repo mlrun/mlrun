@@ -442,7 +442,7 @@ async def abort_run(
             # get the background task and check if it's still running
             try:
                 background_task = await run_in_threadpool(
-                    services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
+                    framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
                     db_session,
                     background_task_id,
                     project,

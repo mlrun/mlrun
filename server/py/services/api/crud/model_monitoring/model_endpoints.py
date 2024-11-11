@@ -222,7 +222,7 @@ class ModelEndpoints:
     def _get_features(
         model: mlrun.artifacts.ModelArtifact,
         project: str,
-        run_db: framework.rundb.sqldb.SQLRunDB,
+        run_db: mlrun.db.RunDBInterface,
     ) -> list[mlrun.feature_store.Feature]:
         """Get features to the feature set according to the model object"""
         features = []

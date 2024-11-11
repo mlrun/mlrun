@@ -94,7 +94,7 @@ def test_sync_projects(
     # check race condition with background task where sync might want to create a project that is just deleted
     project_just_deleted = _generate_project(name="project-just-deleted")
     monkeypatch.setattr(
-        services.api.utils.background_tasks.InternalBackgroundTasksHandler,
+        framework.utils.background_tasks.InternalBackgroundTasksHandler,
         "get_active_background_task_by_kind",
         lambda _, kind, raise_on_not_found: project_just_deleted.metadata.name in kind,
     )

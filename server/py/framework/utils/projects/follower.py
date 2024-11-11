@@ -394,13 +394,13 @@ class Member(
         background_task_kinds = [
             task_format.format(project_name)
             for task_format in [
-                services.api.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper,
-                services.api.utils.background_tasks.BackgroundTaskKinds.project_deletion,
+                framework.utils.background_tasks.BackgroundTaskKinds.project_deletion_wrapper,
+                framework.utils.background_tasks.BackgroundTaskKinds.project_deletion,
             ]
         ]
         return any(
             [
-                services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
+                framework.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
                     background_task_kind,
                     raise_on_not_found=False,
                 )

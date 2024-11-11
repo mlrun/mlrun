@@ -795,7 +795,7 @@ class MonitoringDeployment:
         background_task_name = str(uuid.uuid4())
 
         # create the background task for function deletion
-        return services.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+        return framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
             db_session,
             project_name,
             background_tasks,

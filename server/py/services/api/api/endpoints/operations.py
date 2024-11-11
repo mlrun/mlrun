@@ -67,7 +67,7 @@ async def trigger_migrations(
     if not background_task:
         # No task in progress, creating a new one
         background_tasks.add_task(task_callback)
-        background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             task_name
         )
 
@@ -87,7 +87,7 @@ def _get_or_create_migration_background_task(
         mlrun.mlconf.httpdb.state
         == mlrun.common.schemas.APIStates.migrations_in_progress
     ):
-        background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             task_name
         )
         return None, background_task, task_name
@@ -105,8 +105,8 @@ def _get_or_create_migration_background_task(
     (
         task,
         task_name,
-    ) = services.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        services.api.utils.background_tasks.BackgroundTaskKinds.db_migrations,
+    ) = framework.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        framework.utils.background_tasks.BackgroundTaskKinds.db_migrations,
         None,
         _perform_migration,
     )

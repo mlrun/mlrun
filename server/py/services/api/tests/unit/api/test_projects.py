@@ -1065,7 +1065,7 @@ def test_delete_project_not_found_in_leader(
         if response.status_code == HTTPStatus.ACCEPTED.value:
             assert delete_api_version == "v2"
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                 background_task.metadata.name
             )
             assert (
@@ -1134,7 +1134,7 @@ def test_delete_project_fail_fast(
         else:
             assert response.status_code == HTTPStatus.ACCEPTED.value
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                 background_task.metadata.name
             )
             assert (

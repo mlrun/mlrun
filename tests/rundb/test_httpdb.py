@@ -32,6 +32,7 @@ import pytest
 import requests_mock as requests_mock_package
 
 import mlrun.alerts
+import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -191,56 +192,6 @@ def create_server(request):
         yield create
     finally:
         cleanup()
-
-
-@pytest.fixture
-def setup_functions(create_server):
-    _, db = _configure_run_db_server(create_server)
-    project_name = "my-project"
-    proj_obj = mlrun.new_project(project_name, save=False)
-    db.create_project(proj_obj)
-
-    num_functions = 10
-    for i in range(num_functions):
-        name = f"function-{i}"
-        func = {"fid": i}
-        db.store_function(func, name, project_name)
-
-    return db, project_name, num_functions
-
-
-@pytest.fixture
-def setup_artifacts(create_server):
-    _, db = _configure_run_db_server(create_server)
-    project_name = "my-project"
-    project = mlrun.new_project(project_name)
-
-    num_artifacts = 10
-    for i in range(num_artifacts):
-        artifact_key = f"artifact-{i}"
-        project.log_artifact(
-            artifact_key,
-            body=b"some data",
-        )
-
-    return db, project_name, num_artifacts
-
-
-@pytest.fixture
-def setup_runs(create_server):
-    _, db = _configure_run_db_server(create_server)
-    project_name = "my-project"
-    mlrun.new_project(project_name)
-
-    num_runs = 10
-    run_as_dict = RunObject().to_dict()
-
-    for i in range(num_runs):
-        run_key = f"run-{i}"
-        run_as_dict["metadata"]["name"] = run_key
-        db.store_run(run_as_dict, uid=run_key, project=project_name)
-
-    return db, project_name, num_runs
 
 
 def test_log(create_server):
@@ -908,8 +859,9 @@ def test_add_tag_and_delete_untagged_artifacts(create_server):
     assert artifacts[0]["metadata"]["tag"] == "latest"
 
 
-def test_paginated_list_artifacts(setup_artifacts):
-    db, project_name, num_artifacts = setup_artifacts
+def test_paginated_list_artifacts(create_server):
+    num_artifacts = 10
+    db, project_name = _store_artifacts(create_server, num_artifacts)
     page_size = 4
 
     # First request (Page 1)
@@ -967,8 +919,9 @@ def test_paginated_list_artifacts(setup_artifacts):
     assert len(artifacts) == num_artifacts
 
 
-def test_paginated_list_functions(setup_functions):
-    db, project_name, num_functions = setup_functions
+def test_paginated_list_functions(create_server):
+    num_functions = 10
+    db, project_name = _store_functions(create_server, num_functions)
     page_size = 4
 
     # First request (Page 1)
@@ -1026,8 +979,9 @@ def test_paginated_list_functions(setup_functions):
     assert len(functions) == num_functions
 
 
-def test_paginated_list_runs(setup_runs):
-    db, project_name, num_runs = setup_runs
+def test_paginated_list_runs(create_server):
+    num_runs = 10
+    db, project_name = _store_runs(create_server, num_runs)
     page_size = 4
 
     # First request (Page 1)
@@ -1247,6 +1201,49 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
+
+
+def _store_functions(create_server, num_functions):
+    db, project_name = _setup_project_and_db(create_server)
+    for i in range(num_functions):
+        name = f"function-{i}"
+        func = {"fid": i}
+        db.store_function(func, name, project_name)
+
+    return db, project_name
+
+
+def _store_artifacts(create_server, num_artifacts):
+    db, project_name = _setup_project_and_db(create_server)
+
+    for i in range(num_artifacts):
+        artifact_key = f"artifact-{i}"
+        artifact = mlrun.artifacts.Artifact(
+            artifact_key, body=b"some data", project=project_name
+        )
+        db.store_artifact(artifact_key, artifact)
+
+    return db, project_name
+
+
+def _store_runs(create_server, num_runs):
+    db, project_name = _setup_project_and_db(create_server)
+
+    run_as_dict = RunObject().to_dict()
+
+    for i in range(num_runs):
+        run_key = f"run-{i}"
+        run_as_dict["metadata"]["name"] = run_key
+        db.store_run(run_as_dict, uid=run_key, project=project_name)
+
+    return db, project_name
+
+
+def _setup_project_and_db(create_server, project_name="my-project"):
+    _, db = _configure_run_db_server(create_server)
+    project_obj = mlrun.new_project(project_name, save=False)
+    db.create_project(project_obj)
+    return db, project_name
 
 
 def _assert_list_response(

@@ -506,7 +506,7 @@ class SQLDB(DBInterface):
         self, session, name=None, project=None, labels=None, state=None, days_ago=0
     ):
         project = project or config.default_project
-        query = self._find_runs(session, None, project, labels)
+        query = self._find_runs(session, None, project, None, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
@@ -3218,7 +3218,7 @@ class SQLDB(DBInterface):
         )
         logs = self._list_logs(session, name)
         self._verify_empty_list_of_project_related_resources(name, logs, "logs")
-        runs = self._find_runs(session, None, name, []).all()
+        runs = self._find_runs(session, None, name, None, []).all()
         self._verify_empty_list_of_project_related_resources(name, runs, "runs")
         notifications = []
         for cls in _with_notifications:

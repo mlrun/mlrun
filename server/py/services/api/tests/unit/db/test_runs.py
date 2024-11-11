@@ -244,7 +244,9 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
     # use to internal function to get the record itself to be able to assert the column itself
-    runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
+    runs = db._find_runs(
+        db_session, uid=None, project=project, projects=None, labels=None
+    ).all()
     assert len(runs) == 1
     assert (
         db._add_utc_timezone(runs[0].start_time).isoformat()
@@ -256,7 +258,9 @@ def test_store_run_overriding_start_time(db: DBInterface, db_session: Session):
     db.store_run(db_session, run, uid, project)
 
     # get the start time and verify
-    runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
+    runs = db._find_runs(
+        db_session, uid=None, project=project, projects=None, labels=None
+    ).all()
     assert len(runs) == 1
     assert (
         db._add_utc_timezone(runs[0].start_time).isoformat()
@@ -283,7 +287,7 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
                         state=mlrun.common.runtimes.constants.RunStates.completed,
                     )
     # get all run records, and change to be as they will be in field (before the migration)
-    runs = db._find_runs(db_session, None, "*", None).all()
+    runs = db._find_runs(db_session, None, "*", None, None).all()
     for run in runs:
         _change_run_record_to_before_align_runs_migration(run, time_before_creation)
         db._upsert(db_session, [run], ignore=True)
@@ -292,7 +296,7 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
     services.api.initial_data._align_runs_table(db, db_session)
 
     # assert after migration column start time aligned to the body start time
-    runs = db._find_runs(db_session, None, "*", None).all()
+    runs = db._find_runs(db_session, None, "*", None, None).all()
     for run in runs:
         _ensure_run_after_align_runs_migration(db, run, time_before_creation)
 
@@ -306,7 +310,7 @@ def test_data_migration_align_runs_table_with_empty_run_body(
         db, db_session, state=mlrun.common.runtimes.constants.RunStates.completed
     )
     # get all run records, and change to be as they will be in field (before the migration)
-    runs = db._find_runs(db_session, None, "*", None).all()
+    runs = db._find_runs(db_session, None, "*", None, None).all()
     assert len(runs) == 1
     run = runs[0]
     # change to be as it will be in field (before the migration) and then empty the body
@@ -317,7 +321,7 @@ def test_data_migration_align_runs_table_with_empty_run_body(
     # run the migration
     services.api.initial_data._align_runs_table(db, db_session)
 
-    runs = db._find_runs(db_session, None, "*", None).all()
+    runs = db._find_runs(db_session, None, "*", None, None).all()
     assert len(runs) == 1
     run = runs[0]
     _ensure_run_after_align_runs_migration(db, run)
@@ -327,7 +331,9 @@ def test_store_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
     # use to internal function to get the record itself to be able to assert columns
-    runs = db._find_runs(db_session, uid=None, project=project, labels=None).all()
+    runs = db._find_runs(
+        db_session, uid=None, project=project, projects=None, labels=None
+    ).all()
     assert len(runs) == 1
     run = runs[0]
     assert run.project == project

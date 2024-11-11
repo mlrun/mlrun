@@ -569,7 +569,7 @@ class Service(framework.service.Service):
     @staticmethod
     async def _manage_partitions(table_name, retention_days):
         await fastapi.concurrency.run_in_threadpool(
-            services.api.db.session.run_function_with_new_db_session,
+            framework.db.session.run_function_with_new_db_session,
             services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions,
             table_name=table_name,
             retention_days=retention_days,

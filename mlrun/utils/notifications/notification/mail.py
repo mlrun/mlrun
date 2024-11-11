@@ -98,7 +98,9 @@ class MailNotification(NotificationBase):
         )
 
     @classmethod
-    def enrich_default_params(cls, params: dict, default_params: typing.Optional[dict] = None) -> dict:
+    def enrich_default_params(
+        cls, params: dict, default_params: typing.Optional[dict] = None
+    ) -> dict:
         params = super().enrich_default_params(params, default_params)
 
         if type(params["use_tls"]) is str:

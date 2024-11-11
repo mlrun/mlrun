@@ -29,7 +29,6 @@ from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import now_date
 
 import framework.utils.helpers
-import framework.utils.runtimes.runtimes
 import framework.utils.singletons.db
 import services.api.crud
 from framework.utils.singletons.db import get_db

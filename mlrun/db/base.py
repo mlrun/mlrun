@@ -97,6 +97,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def paginated_list_runs(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        pass
+
+    @abstractmethod
     def del_run(self, uid, project="", iter=0):
         pass
 

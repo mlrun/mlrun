@@ -4824,6 +4824,8 @@ class SQLDB(DBInterface):
                 # Filter on the specific tag
                 query = query.filter(Function.Tag.name == tag)
 
+        # filter out untagged unversioned functions, or in other words:
+        # include only functions that are tagged OR their uid does not start with `unversioned-`
         query = query.filter(
             or_(
                 Function.Tag.name != NULL,

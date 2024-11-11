@@ -21,7 +21,6 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.config import config as mlconf
 from mlrun.utils import logger
 
 import services.api.crud
@@ -157,20 +156,11 @@ async def list_schedules(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    project = project or mlconf.default_project
-    if project != "*":
-        await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
+    allowed_project_names = (
+        await services.api.crud.Projects().list_allowed_project_names(
+            db_session, auth_info, project=project
         )
-        allowed_project_names = [project]
-    else:
-        allowed_project_names = (
-            await services.api.crud.Projects().list_allowed_project_names(
-                db_session, auth_info
-            )
-        )
+    )
 
     schedules = await run_in_threadpool(
         get_scheduler().list_schedules,

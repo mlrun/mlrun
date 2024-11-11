@@ -291,18 +291,28 @@ class Projects(
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
+        project: typing.Optional[str] = None,
         **project_filters,
     ) -> list[str]:
-        projects_output = self.list_projects(
-            session,
-            format_=mlrun.common.formatters.ProjectFormat.name_only,
-            **project_filters,
-        )
-        return await services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            projects_output.projects,
-            auth_info,
-            action=action,
-        )
+        project = project or mlrun.mlconf.default_project
+        if project != "*":
+            await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                project,
+                mlrun.common.schemas.AuthorizationAction.read,
+                auth_info,
+            )
+            return [project]
+        else:
+            projects_output = self.list_projects(
+                session,
+                format_=mlrun.common.formatters.ProjectFormat.name_only,
+                **project_filters,
+            )
+            return await services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+                projects_output.projects,
+                auth_info,
+                action=action,
+            )
 
     async def list_project_summaries(
         self,

@@ -45,7 +45,8 @@ class Pipelines(
     def list_pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str,
+        project: typing.Optional[str] = None,
+        projects: typing.Optional[list[str]] = None,
         namespace: typing.Optional[str] = None,
         sort_by: str = "",
         page_token: str = "",
@@ -67,8 +68,8 @@ class Pipelines(
             )
 
         kfp_client = self.initialize_kfp_client(namespace)
-        if project != "*":
-            # If no filter is provided and the project is not "*",
+        if not projects:
+            # If no filter is provided and we're querying a single project,
             # automatically apply a filter to match runs where the project name
             # is a substring of the pipeline's name. This ensures that only pipelines
             # with the project name in their name are returned, helping narrow down the results.
@@ -126,7 +127,14 @@ class Pipelines(
             runs = [
                 mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []
             ]
-            runs = self._filter_runs_by_name(runs, name_contains)
+            project_runs = []
+            for run in runs:
+                run_project = self.resolve_project_from_pipeline(run)
+                if run_project in projects:
+                    project_runs.append(run)
+
+            runs = self._filter_runs_by_name(project_runs, name_contains)
+
             next_page_token = response.next_page_token
             # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
             # so don't pass it to the client in such case

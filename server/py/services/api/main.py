@@ -809,7 +809,9 @@ class Service(framework.service.Service):
         self._logger.debug(
             "Got terminal runs with configured notifications", runs_amount=len(runs)
         )
-        notification_pusher = services.api.utils.notification_pusher.NotificationPusher
+        notification_pusher = (
+            services.api.utils.notification_pusher.RunNotificationPusher
+        )
         services.api.utils.notification_pusher.RunNotificationPusher(
             unmasked_runs, notification_pusher.resolve_notifications_default_params()
         ).push()

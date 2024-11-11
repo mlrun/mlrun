@@ -475,7 +475,9 @@ def validate_and_mask_notification_list(
 
         # validate notification schema
         mlrun.common.schemas.Notification(**notification_object.to_dict())
-        notification_pusher = services.api.utils.notification_pusher.NotificationPusher
+        notification_pusher = (
+            services.api.utils.notification_pusher.RunNotificationPusher
+        )
         notification_object.validate_notification_params(
             notification_pusher.resolve_notifications_default_params()
         )

@@ -1938,12 +1938,6 @@ class SQLDB(DBInterface):
                 #  will need to understand how to display functions in UI, because if we do not remove the status here,
                 #  UI shows two function as `ready` which belong to the same Nuclio function
                 function_dict["status"] = None
-
-                # the unversioned uid is only a placeholder for tagged instances that are versioned.
-                # if another instance "took" the tag, we're left with an unversioned untagged instance
-                # don't list it
-                if function.uid.startswith(unversioned_tagged_object_uid_prefix):
-                    continue
             else:
                 function_dict["metadata"]["tag"] = function_tag
 
@@ -4829,6 +4823,13 @@ class SQLDB(DBInterface):
             if tag != "*":
                 # Filter on the specific tag
                 query = query.filter(Function.Tag.name == tag)
+
+        query = query.filter(
+            or_(
+                Function.Tag.name != NULL,
+                Function.uid.notlike(f"{unversioned_tagged_object_uid_prefix}%"),
+            )
+        )
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)

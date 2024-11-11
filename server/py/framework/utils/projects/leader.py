@@ -424,9 +424,9 @@ class Member(
             "mlrun": services.api.crud.Projects(),
             "nuclio": framework.utils.clients.nuclio.Client(),
             # for tests
-            "nop-self-leader": services.api.utils.projects.remotes.nop_follower.Member(),
-            "nop": services.api.utils.projects.remotes.nop_follower.Member(),
-            "nop2": services.api.utils.projects.remotes.nop_follower.Member(),
+            "nop-self-leader": framework.utils.projects.remotes.nop_follower.Member(),
+            "nop": framework.utils.projects.remotes.nop_follower.Member(),
+            "nop2": framework.utils.projects.remotes.nop_follower.Member(),
         }
         if name not in followers_classes_map:
             raise ValueError(f"Unknown follower name: {name}")

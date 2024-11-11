@@ -41,12 +41,12 @@ from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
+import framework
 import framework.utils.clients.iguazio
-import framework.utils.projects.remotes.leader as project_leader
+import framework.utils.projects.remotes.leader
 import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
-import framework.utils.singletons.project_member
 import services.api.crud
 import services.api.launcher
 import services.api.runtime_handlers.mpijob
@@ -414,7 +414,8 @@ def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
 
 
 class MockedProjectFollowerIguazioClient(
-    project_leader.Member, metaclass=mlrun.utils.singleton.AbstractSingleton
+    framework.utils.projects.remotes.leader.Member,
+    metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self):
         self._db_session = None

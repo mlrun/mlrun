@@ -142,6 +142,7 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
+
     }
 
     for (

@@ -29,17 +29,16 @@ from mlrun.utils.notifications.notification.webhook import WebhookNotification
 
 
 @pytest.mark.parametrize(
-    "notification_kind", mlrun.common.schemas.notification.NotificationKind
-)
-@pytest.mark.parametrize(
-    "params, default_params, expected_params",
+    "notification_kind, params, default_params, expected_params",
     [
         (
+            mlrun.common.schemas.notification.NotificationKind.webhook,
             {"webhook": "some-webhook"},
             {"webhook": "some-default"},
             {"webhook": "some-webhook"},
         ),
         (
+            mlrun.common.schemas.notification.NotificationKind.webhook,
             {"webhook": "some-webhook"},
             {"hello": "world"},
             {"webhook": "some-webhook", "hello": "world"},

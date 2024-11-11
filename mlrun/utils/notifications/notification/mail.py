@@ -105,7 +105,7 @@ class MailNotification(NotificationBase):
     ) -> dict:
         params = super().enrich_default_params(params, default_params)
 
-        if type(params["use_tls"]) is str:
+        if type(params.get("use_tls", "")) is str:
             params["use_tls"] = json.loads(params.get("use_tls", "true"))
 
         params.setdefault("server_port", DEFAULT_SMTP_PORT)

@@ -251,13 +251,21 @@ class Scheduler:
         self,
         db_session: Session,
         project: Optional[str] = None,
+        projects: Optional[list[str]] = None,
         name: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
         include_last_run: bool = False,
         include_credentials: bool = False,
     ) -> mlrun.common.schemas.SchedulesOutput:
-        db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
+        db_schedules = get_db().list_schedules(
+            session=db_session,
+            project=project,
+            projects=projects,
+            name=name,
+            labels=labels,
+            kind=kind,
+        )
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_and_enrich_db_schedule(

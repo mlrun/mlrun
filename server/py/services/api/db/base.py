@@ -442,6 +442,7 @@ class DBInterface(ABC):
         self,
         session,
         project: Optional[str] = None,
+        projects: Optional[list[str]] = None,
         name: Optional[str] = None,
         labels: Optional[list[str]] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,

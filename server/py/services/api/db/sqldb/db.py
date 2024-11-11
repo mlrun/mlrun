@@ -2411,15 +2411,25 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project: typing.Optional[str] = None,
+        projects: typing.Optional[list[str]] = None,
         name: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
         as_records: bool = False,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
-        logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
+        logger.debug(
+            "Getting schedules from db",
+            project=project,
+            projects=projects,
+            name=name,
+            kind=kind,
+        )
         query = self._query(session, Schedule, kind=kind)
-        if project and project != "*":
+        if projects:
+            query = query.filter(Schedule.project.in_(projects))
+        elif project:
             query = query.filter(Schedule.project == project)
+
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)

@@ -212,9 +212,11 @@ def _get_mail_notification_default_params():
         return mail_notification_default_params
 
     smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
-    mail_notification_default_params = (
-        services.api.utils.singletons.k8s.get_k8s_helper().read_secret_data(
-            smtp_config_secret_name
+    mail_notification_default_params = {}
+    if services.api.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
+        mail_notification_default_params = (
+            services.api.utils.singletons.k8s.get_k8s_helper().read_secret_data(
+                smtp_config_secret_name
+            )
         )
-    )
     return mail_notification_default_params

@@ -31,6 +31,7 @@ import framework.constants
 import framework.utils.notifications
 import framework.utils.notifications.notification_pusher
 import services.api.crud
+import services.api.utils.singletons
 
 
 class WorkflowRunners(
@@ -126,7 +127,7 @@ class WorkflowRunners(
             "schedule": schedule,
         }
 
-        framework.api.utils.get_scheduler().store_schedule(
+        services.api.utils.singletons.get_scheduler().store_schedule(
             db_session=db_session,
             auth_info=auth_info,
             project=project.metadata.name,

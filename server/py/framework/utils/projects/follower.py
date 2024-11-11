@@ -67,9 +67,7 @@ class Member(
                 )
             self._sync_session = mlrun.mlconf.httpdb.projects.iguazio_access_key
         elif self._leader_name == "nop":
-            self._leader_client = (
-                services.api.utils.projects.remotes.nop_leader.Member()
-            )
+            self._leader_client = framework.utils.projects.remotes.nop_leader.Member()
         else:
             raise NotImplementedError("Unsupported project leader")
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(

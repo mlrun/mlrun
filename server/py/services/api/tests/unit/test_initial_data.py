@@ -308,5 +308,5 @@ def _initialize_db_without_migrations() -> (
     db_session = mlrun.common.db.sql_session.create_session(dsn=dsn)
     db = framework.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    framework.db.init_db.init_db()
+    framework.db.init_db()
     return db, db_session

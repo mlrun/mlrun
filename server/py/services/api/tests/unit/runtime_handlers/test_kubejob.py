@@ -730,7 +730,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         run = get_db().read_run(db, self.run_uid, self.project)
         with unittest.mock.patch(
-            "services.api.db.sqldb.db.SQLDB.read_run",
+            "framework.db.sqldb.db.SQLDB.read_run",
             unittest.mock.Mock(return_value=run),
         ) as mock_read_run:
             for _ in range(expected_monitor_cycles_to_reach_expected_state):
@@ -757,7 +757,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         with unittest.mock.patch(
-            "services.api.db.sqldb.db.SQLDB.read_run", unittest.mock.Mock()
+            "framework.db.sqldb.db.SQLDB.read_run", unittest.mock.Mock()
         ) as mock_read_run:
             for _ in range(expected_monitor_cycles_to_reach_expected_state):
                 self.runtime_handler.monitor_runs(get_db(), db)

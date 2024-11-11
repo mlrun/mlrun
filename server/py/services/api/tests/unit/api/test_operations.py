@@ -45,7 +45,7 @@ def test_migrations_already_in_progress(
         return_value=(_generate_background_task_schema(background_task_name))
     )
     monkeypatch.setattr(
-        services.api.utils.background_tasks,
+        framework.utils.background_tasks,
         "InternalBackgroundTasksHandler",
         lambda *args, **kwargs: handler_mock,
     )

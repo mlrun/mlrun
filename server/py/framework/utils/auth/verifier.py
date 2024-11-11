@@ -24,6 +24,7 @@ import mlrun.utils.singleton
 
 import framework.utils.auth.providers.nop
 import framework.utils.auth.providers.opa
+import framework.utils.clients.iguazio
 
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):

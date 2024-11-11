@@ -34,6 +34,7 @@ import mlrun.errors
 import tests.conftest
 
 import framework.api.utils
+import framework.utils.clients.async_nuclio
 import framework.utils.clients.chief
 import framework.utils.clients.iguazio
 import framework.utils.singletons.db
@@ -290,9 +291,9 @@ async def test_list_functions_with_hash_key_versioned(
     "function_deletion_endpoint_prefix, expected_status",
     [("v1/", HTTPStatus.NO_CONTENT.value), ("v2/", HTTPStatus.ACCEPTED.value)],
 )
-@unittest.mock.patch.object(services.api.utils.clients.async_nuclio, "Client")
+@unittest.mock.patch.object(framework.utils.clients.async_nuclio, "Client")
 @unittest.mock.patch.object(
-    services.api.utils.clients.async_nuclio.Client, "delete_function"
+    framework.utils.clients.async_nuclio.Client, "delete_function"
 )
 def test_delete_function(
     patched_nuclio_client,
@@ -729,7 +730,7 @@ def test_build_function_force_build(
             return_value=([], [], "/empty/requirements.txt"),
         ),
         unittest.mock.patch(
-            "services.api.utils.singletons.k8s.get_k8s_helper"
+            "framework.utils.singletons.k8s.get_k8s_helper"
         ) as mock_get_k8s_helper,
     ):
         mock_get_k8s_helper.return_value.create_pod.return_value = (

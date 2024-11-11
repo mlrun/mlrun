@@ -540,7 +540,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         )
 
         for artifact in best_iteration_artifacts:
-            services.api.utils.singletons.db.get_db().store_artifact(
+            framework.utils.singletons.db.get_db().store_artifact(
                 db,
                 artifact["spec"]["db_key"],
                 artifact,

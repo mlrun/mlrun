@@ -1682,11 +1682,11 @@ async def test_delete_function_calls_k8s_helper_methods():
 
     with (
         patch(
-            "services.api.utils.clients.async_nuclio.Client",
+            "framework.utils.clients.async_nuclio.Client",
             return_value=async_client_mock,
         ),
         patch(
-            "services.api.utils.singletons.k8s.get_k8s_helper",
+            "framework.utils.singletons.k8s.get_k8s_helper",
             return_value=k8s_helper_mock,
         ),
     ):

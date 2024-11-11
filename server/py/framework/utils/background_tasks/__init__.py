@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from .common import background_task_exceeded_timeout
 from .internal import InternalBackgroundTasksHandler
 from .kinds import BackgroundTaskKinds
 from .project import ProjectBackgroundTasksHandler

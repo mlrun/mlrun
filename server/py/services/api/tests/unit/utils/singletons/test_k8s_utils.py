@@ -35,7 +35,7 @@ import services.api.runtime_handlers.mpijob
 @pytest.fixture
 def k8s_helper():
     with mock.patch(
-        "services.api.utils.singletons.k8s.K8sHelper._init_k8s_config",
+        "framework.utils.singletons.k8s.K8sHelper._init_k8s_config",
         return_value=None,
     ):
         k8s_helper = framework.utils.singletons.k8s.K8sHelper(

@@ -369,7 +369,7 @@ def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
     with unittest.mock.patch(
-        "services.api.db.sqldb.helpers.update_labels", return_value=None
+        "framework.db.sqldb.helpers.update_labels", return_value=None
     ) as update_labels_mock:
         db.update_run(
             db_session,

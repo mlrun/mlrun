@@ -32,6 +32,7 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 import framework.constants
+import framework.db.session
 import framework.utils.background_tasks
 import framework.utils.clients.log_collector
 import framework.utils.notifications
@@ -339,7 +340,7 @@ class Runs(
             tasks = []
             for run in runs_list[: mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size]:
                 tasks.append(
-                    services.api.db.session.run_function_with_new_db_session(
+                    framework.db.session.run_function_with_new_db_session(
                         self.delete_run,
                         run.uid,
                         run.iteration,

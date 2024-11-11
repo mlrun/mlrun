@@ -1482,45 +1482,6 @@ class HTTPRunDB(RunDBInterface):
             **kwargs,
         )
 
-    def _list_functions(
-        self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
-        return_all: bool = False,
-    ) -> tuple[list, Optional[str]]:
-        """Handles list functions, both paginated and not."""
-
-        project = project or config.default_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "label": labels,
-            "since": datetime_to_iso(since),
-            "until": datetime_to_iso(until),
-            "page": page,
-            "page-size": page_size,
-            "page-token": page_token,
-        }
-        error = "list functions"
-        path = f"projects/{project}/functions"
-
-        # Fetch the responses, either one page or all based on `return_all`
-        responses = self.paginated_api_call(
-            "GET", path, error, params=params, return_all=return_all
-        )
-        paginated_responses, token = self.process_paginated_responses(
-            responses, "funcs"
-        )
-        return paginated_responses, token
-
     def list_runtime_resources(
         self,
         project: Optional[str] = None,
@@ -4751,6 +4712,44 @@ class HTTPRunDB(RunDBInterface):
         values.tag = tag
         return values, token
 
+    def _list_functions(
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ) -> tuple[list, Optional[str]]:
+        """Handles list functions, both paginated and not."""
+
+        project = project or config.default_project
+        labels = self._parse_labels(labels)
+        params = {
+            "name": name,
+            "tag": tag,
+            "label": labels,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
+        }
+        error = "list functions"
+        path = f"projects/{project}/functions"
+
+        # Fetch the responses, either one page or all based on `return_all`
+        responses = self.paginated_api_call(
+            "GET", path, error, params=params, return_all=return_all
+        )
+        paginated_responses, token = self.process_paginated_responses(
+            responses, "funcs"
+        )
+        return paginated_responses, token
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

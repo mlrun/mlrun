@@ -726,11 +726,18 @@ endif
 ifndef MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH
 	$(error MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH is undefined)
 endif
+	# Run tests for the base code
 	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 $(MLRUN_BC_TESTS_BASE_CODE_PATH)/server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json && \
-	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
+	cd $(MLRUN_BC_TESTS_BASE_CODE_PATH) && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json && \
+	cd ..
+
+	# Run tests for the head code (feature branch)
+	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json
+
+	# Run OpenAPI diff to check compatibility
 	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
 
 

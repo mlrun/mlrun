@@ -4751,6 +4751,7 @@ class HTTPRunDB(RunDBInterface):
         )
         return paginated_responses, token
 
+
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)
     if fn:

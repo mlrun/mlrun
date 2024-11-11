@@ -70,7 +70,7 @@ You can also use a context path to load the project from a local directory conta
 Example for a remote GitHub project - https://github.com/mlrun/project-demo
 
 ```{admonition} Note
-From MLRun > 1.7.1 -  when running remote/schedule workflow, the remote workflow pull/extract the remote source content to the running pod but load the project configuration from MLRun db and not from the project.yaml in the remote source.
+From MLRun v1.7.1: when running a remote/scheduled workflow, the remote workflow pulls/extracts the remote source content to the running pod but loads the project configuration from the MLRun DB and not from the project.yaml in the remote source.
 ```
 import mlrun
 project_name = "remote-workflow-example"

@@ -193,6 +193,39 @@ def create_server(request):
         cleanup()
 
 
+@pytest.fixture
+def setup_functions(create_server):
+    _, db = _configure_run_db_server(create_server)
+    project_name = "my-project"
+    proj_obj = mlrun.new_project(project_name, save=False)
+    db.create_project(proj_obj)
+
+    num_functions = 10
+    for i in range(num_functions):
+        name = f"function-{i}"
+        func = {"fid": i}
+        db.store_function(func, name, project_name)
+
+    return db, project_name, num_functions
+
+
+@pytest.fixture
+def setup_artifacts(create_server):
+    _, db = _configure_run_db_server(create_server)
+    project_name = "my-project"
+    project = mlrun.new_project(project_name)
+
+    num_artifacts = 10
+    for i in range(num_artifacts):
+        artifact_key = f"artifact-{i}"
+        project.log_artifact(
+            artifact_key,
+            body=b"some data",
+        )
+
+    return db, project_name, num_artifacts
+
+
 def test_log(create_server):
     server: Server = create_server()
     db = server.conn
@@ -858,149 +891,122 @@ def test_add_tag_and_delete_untagged_artifacts(create_server):
     assert artifacts[0]["metadata"]["tag"] == "latest"
 
 
-def test_paginated_list_artifacts(create_server):
-    _, db = _configure_run_db_server(create_server)
-    project_name = "my-project"
-    project = mlrun.new_project(project_name)
-
-    num_artifacts = 10
+def test_paginated_list_artifacts(setup_artifacts):
+    db, project_name, num_artifacts = setup_artifacts
     page_size = 4
-    for i in range(num_artifacts):
-        artifact_key = f"artifact-{i}"
-        project.log_artifact(
-            artifact_key,
-            body=b"some data",
-        )
 
     # First request (Page 1)
     artifacts, token = db.paginated_list_artifacts(
         project=project_name, page_size=page_size
     )
-    assert len(artifacts) == page_size
-    assert artifacts[0]["metadata"].get("key") == "artifact-9"
+    _assert_list_response(
+        artifacts,
+        expected_results_count=page_size,
+        identifier_name="key",
+        expected_first_result_name="artifact-9",
+    )
     assert token is not None
 
     # Second request using the token from the first response
     artifacts, token = db.paginated_list_artifacts(
         project=project_name, page_token=token
     )
-    assert len(artifacts) == page_size
-    assert artifacts[0]["metadata"].get("key") == "artifact-5"
+    _assert_list_response(
+        artifacts,
+        expected_results_count=page_size,
+        identifier_name="key",
+        expected_first_result_name="artifact-5",
+    )
     assert token is not None
 
     # Third request, expecting fewer artifacts (last page)
     artifacts, token = db.paginated_list_artifacts(
         project=project_name, page_token=token
     )
-    assert len(artifacts) == 2
-    assert artifacts[0]["metadata"].get("key") == "artifact-1"
+    _assert_list_response(
+        artifacts,
+        expected_results_count=2,
+        identifier_name="key",
+        expected_first_result_name="artifact-1",
+    )
     assert token is None
 
     # Retrieve specific page (Page 3)
     artifacts, token = db.paginated_list_artifacts(
         project=project_name, page_size=page_size, page=3
     )
-    assert len(artifacts) == 2
-    assert artifacts[0]["metadata"].get("key") == "artifact-1"
+    _assert_list_response(
+        artifacts,
+        expected_results_count=2,
+        identifier_name="key",
+        expected_first_result_name="artifact-1",
+    )
     assert token is None
 
     # Automatically iterate over all pages without explicitly specifying the page number
-    artifacts = []
-    token = None
-    while True:
-        page_artifacts, token = db.paginated_list_artifacts(
-            project=project_name, page_token=token, page_size=page_size
-        )
-        artifacts.extend(page_artifacts)
-        if not token:  # If no token is returned, we've reached the last page
-            break
+    artifacts = _retrieve_all_items_with_pagination(
+        project_name, page_size, db.paginated_list_artifacts
+    )
     assert len(artifacts) == num_artifacts
 
 
-def test_paginated_list_functions(create_server):
-    _, db = _configure_run_db_server(create_server)
-    project_name = "my-project"
-    proj_obj = mlrun.new_project(project_name, save=False)
-    db.create_project(proj_obj)
-
-    num_functions = 10
+def test_paginated_list_functions(setup_functions):
+    db, project_name, num_functions = setup_functions
     page_size = 4
-    for i in range(num_functions):
-        name = f"function-{i}"
-        func = {"fid": i}
-        db.store_function(func, name, project_name)
 
     # First request (Page 1)
     functions, token = db.paginated_list_functions(
         project=project_name, page_size=page_size
     )
-    assert len(functions) == page_size
-    assert functions[0]["metadata"].get("name") == "function-0"
+    _assert_list_response(
+        functions,
+        expected_results_count=page_size,
+        identifier_name="name",
+        expected_first_result_name="function-0",
+    )
     assert token is not None
 
     # Second request using the token from the first response
     functions, token = db.paginated_list_functions(
         project=project_name, page_token=token
     )
-    assert len(functions) == page_size
-    assert functions[0]["metadata"].get("name") == "function-4"
+    _assert_list_response(
+        functions,
+        expected_results_count=page_size,
+        identifier_name="name",
+        expected_first_result_name="function-4",
+    )
     assert token is not None
 
     # Third request, expecting fewer functions (last page)
     functions, token = db.paginated_list_functions(
         project=project_name, page_token=token
     )
-    assert len(functions) == 2
-    assert functions[0]["metadata"].get("name") == "function-8"
+    _assert_list_response(
+        functions,
+        expected_results_count=2,
+        identifier_name="name",
+        expected_first_result_name="function-8",
+    )
     assert token is None
 
     # Retrieve specific page (Page 3)
     functions, token = db.paginated_list_functions(
         project=project_name, page_size=page_size, page=3
     )
-    assert len(functions) == 2
-    assert functions[0]["metadata"].get("name") == "function-8"
+    _assert_list_response(
+        functions,
+        expected_results_count=2,
+        identifier_name="name",
+        expected_first_result_name="function-8",
+    )
     assert token is None
 
     # Automatically iterate over all pages without explicitly specifying the page number
-    functions = []
-    token = None
-    while True:
-        page_functions, token = db.paginated_list_functions(
-            project=project_name, page_token=token, page_size=page_size
-        )
-        functions.extend(page_functions)
-        if not token:  # If no token is returned, we've reached the last page
-            break
-    assert len(functions) == num_functions
-
-
-def _generate_project_and_artifact(project: str = "newproj", tag: Optional[str] = None):
-    proj_obj = mlrun.new_project(project)
-
-    logged_artifact = proj_obj.log_artifact(
-        "my-artifact",
-        body=b"some data",
-        tag=tag,
+    artifacts = _retrieve_all_items_with_pagination(
+        project_name, page_size, db.paginated_list_functions
     )
-    return proj_obj, logged_artifact
-
-
-def _assert_artifacts(db, project: str, tag: str, expected_count: int):
-    artifacts = db.list_artifacts(project=project, tag=tag)
-    assert (
-        len(artifacts) == expected_count
-    ), "bad list results - wrong number of artifacts"
-
-
-def _configure_run_db_server(create_server):
-    server: Server = create_server()
-    db: HTTPRunDB = server.conn
-    mlrun.mlconf.dbpath = server.url
-    mlrun.db._run_db = db
-    mlrun.db._last_db_url = server.url
-
-    return server, db
+    assert len(artifacts) == num_functions
 
 
 def test_feature_vectors(create_server):
@@ -1131,24 +1137,6 @@ def test_project_sql_db_roundtrip(create_server):
     _assert_projects(project, list_projects[0])
 
 
-def _assert_projects(expected_project, project):
-    assert (
-        deepdiff.DeepDiff(
-            expected_project.to_dict(),
-            project.to_dict(),
-            ignore_order=True,
-            exclude_paths={
-                "root['metadata']['created']",
-                "root['spec']['desired_state']",
-                "root['status']",
-            },
-        )
-        == {}
-    )
-    assert expected_project.spec.desired_state == project.spec.desired_state
-    assert expected_project.spec.desired_state == project.status.state
-
-
 @pytest.mark.parametrize(
     "alert_name_in_config, alert_name_as_func_param",
     [
@@ -1171,3 +1159,72 @@ def test_store_alert_config_missing_alert_name(
             alert_name=alert_name_as_func_param,
             alert_data=alert_data,
         )
+
+
+def _assert_projects(expected_project, project):
+    assert (
+        deepdiff.DeepDiff(
+            expected_project.to_dict(),
+            project.to_dict(),
+            ignore_order=True,
+            exclude_paths={
+                "root['metadata']['created']",
+                "root['spec']['desired_state']",
+                "root['status']",
+            },
+        )
+        == {}
+    )
+    assert expected_project.spec.desired_state == project.spec.desired_state
+    assert expected_project.spec.desired_state == project.status.state
+
+
+def _assert_list_response(
+    response,
+    expected_results_count: int,
+    identifier_name: str,
+    expected_first_result_name: str,
+):
+    assert len(response) == expected_results_count
+    assert response[0]["metadata"].get(identifier_name) == expected_first_result_name
+
+
+def _retrieve_all_items_with_pagination(project_name, page_size, paginated_list_fn):
+    items = []
+    token = None
+    while True:
+        page_items, token = paginated_list_fn(
+            project=project_name, page_token=token, page_size=page_size
+        )
+        items.extend(page_items)
+        if not token:  # If no token is returned, we've reached the last page
+            break
+    return items
+
+
+def _generate_project_and_artifact(project: str = "newproj", tag: Optional[str] = None):
+    proj_obj = mlrun.new_project(project)
+
+    logged_artifact = proj_obj.log_artifact(
+        "my-artifact",
+        body=b"some data",
+        tag=tag,
+    )
+    return proj_obj, logged_artifact
+
+
+def _assert_artifacts(db, project: str, tag: str, expected_count: int):
+    artifacts = db.list_artifacts(project=project, tag=tag)
+    assert (
+        len(artifacts) == expected_count
+    ), "bad list results - wrong number of artifacts"
+
+
+def _configure_run_db_server(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+    mlrun.mlconf.dbpath = server.url
+    mlrun.db._run_db = db
+    mlrun.db._last_db_url = server.url
+
+    return server, db

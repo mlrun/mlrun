@@ -60,7 +60,7 @@ class MailNotification(NotificationBase):
             mlrun.common.schemas.NotificationSeverity, str
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
-        custom_html: str = None,
+        custom_html: typing.Optional[str] = None,
         alert: mlrun.common.schemas.AlertConfig = None,
         event_data: mlrun.common.schemas.Event = None,
     ):
@@ -98,7 +98,7 @@ class MailNotification(NotificationBase):
         )
 
     @classmethod
-    def enrich_default_params(cls, params: dict, default_params: dict = None) -> dict:
+    def enrich_default_params(cls, params: dict, default_params: typing.Optional[dict] = None) -> dict:
         params = super().enrich_default_params(params, default_params)
 
         if type(params["use_tls"]) is str:

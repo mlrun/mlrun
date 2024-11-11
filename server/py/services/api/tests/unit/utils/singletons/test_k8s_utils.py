@@ -28,7 +28,7 @@ import mlrun.common.schemas
 import mlrun.runtimes
 from mlrun.common.schemas import SecretEventActions
 
-import framework.utils.runtimes
+import framework.utils.runtimes.mpijob
 import framework.utils.singletons.k8s
 
 

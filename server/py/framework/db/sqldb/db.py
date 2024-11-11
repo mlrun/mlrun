@@ -5928,7 +5928,7 @@ class SQLDB(DBInterface):
     def list_alerts_activations(
         self, session: Session, project: typing.Optional[str] = None
     ) -> list[mlrun.common.schemas.AlertActivation]:
-        # add filters later
+        # TODO: add filters
         query = self._query(session, AlertActivation)
 
         if project and project != "*":

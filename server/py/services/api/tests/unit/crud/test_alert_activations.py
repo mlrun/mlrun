@@ -17,6 +17,7 @@ import fastapi.concurrency
 import sqlalchemy.orm
 
 import mlrun.common.schemas.alert as alert_objects
+import mlrun.common.schemas.notification
 
 import services.api.crud.alert_activation
 import services.api.tests.unit.conftest
@@ -65,25 +66,31 @@ async def test_store_alert_activation(
 
     # since the reset policy of the alert if auto, then now it should be reset and added to the alert
     # activation table
-    alerts = services.api.crud.AlertActivation().list_alerts_activations(
+    activations = services.api.crud.AlertActivation().list_alerts_activations(
         session=db, project=project
     )
     expected_notifications_states = [
-        alert_objects.NotificationState(kind="slack", status=""),
+        mlrun.common.schemas.NotificationState(kind="slack", status=""),
     ]
-
-    assert len(alerts) == 1
-    assert alerts[0].name == alert_name
-    assert alerts[0].project == project
-    assert (
-        alerts[0].entity_id
-        == f"{alert_data.entities.ids[0]}.{event_data.value_dict.get('uid')}"
+    expected_entity_id = (
+        f"{alert_data.entities.ids[0]}.{event_data.value_dict.get('uid')}"
     )
-    assert alerts[0].entity_kind == alert_entity.kind
+    expected_activation_time = event_data.timestamp
+
     # since criteria is not defined the default count number is 1
-    assert alerts[0].number_of_events == 1
-    assert alerts[0].activation_time == event_data.timestamp
-    assert alerts[0].notifications == expected_notifications_states
+    expected_number_of_events = 1
+
+    assert len(activations) == 1
+    _assert_alert_activation(
+        activations[0],
+        alert_name=alert_name,
+        project=project,
+        entity_kind=alert_entity.kind,
+        entity_id=expected_entity_id,
+        notifications_states=expected_notifications_states,
+        activation_time=expected_activation_time,
+        number_of_events=expected_number_of_events,
+    )
 
     # trigger the event again and validate that the activation is saved again in the db
     await fastapi.concurrency.run_in_threadpool(
@@ -94,15 +101,22 @@ async def test_store_alert_activation(
         project=project,
     )
 
-    alerts = services.api.crud.AlertActivation().list_alerts_activations(
+    activations = services.api.crud.AlertActivation().list_alerts_activations(
         session=db, project=project
     )
+    expected_activation_time = event_data.timestamp
 
-    assert len(alerts) == 2
-    assert alerts[1].name == alert_name
-    assert alerts[1].project == project
-    assert alerts[1].number_of_events == 1
-    assert alerts[1].activation_time == event_data.timestamp
+    assert len(activations) == 2
+    _assert_alert_activation(
+        activations[1],
+        alert_name=alert_name,
+        project=project,
+        entity_kind=alert_entity.kind,
+        entity_id=expected_entity_id,
+        notifications_states=expected_notifications_states,
+        activation_time=expected_activation_time,
+        number_of_events=1,
+    )
 
 
 async def test_store_alert_activation_with_criteria(
@@ -149,21 +163,45 @@ async def test_store_alert_activation_with_criteria(
             project=project,
         )
 
-    alerts = services.api.crud.AlertActivation().list_alerts_activations(
+    activations = services.api.crud.AlertActivation().list_alerts_activations(
         session=db, project=project
     )
     expected_notifications_states = [
-        alert_objects.NotificationState(kind="slack", status=""),
+        mlrun.common.schemas.NotificationState(kind="slack", status=""),
     ]
-
-    assert len(alerts) == 1
-    assert alerts[0].name == alert_name
-    assert alerts[0].project == project
-    assert (
-        alerts[0].entity_id
-        == f"{alert_data.entities.ids[0]}.{event_data.value_dict.get('uid')}"
+    expected_entity_id = (
+        f"{alert_data.entities.ids[0]}.{event_data.value_dict.get('uid')}"
     )
-    assert alerts[0].entity_kind == alert_entity.kind
-    assert alerts[0].number_of_events == 3
-    assert alerts[0].activation_time == event_data.timestamp
-    assert alerts[0].notifications == expected_notifications_states
+    expected_activation_time = event_data.timestamp
+
+    assert len(activations) == 1
+
+    _assert_alert_activation(
+        activations[0],
+        alert_name=alert_name,
+        project=project,
+        entity_kind=alert_entity.kind,
+        entity_id=expected_entity_id,
+        notifications_states=expected_notifications_states,
+        activation_time=expected_activation_time,
+        number_of_events=alert_criteria.count,
+    )
+
+
+def _assert_alert_activation(
+    alert_activation,
+    alert_name,
+    project,
+    entity_kind,
+    entity_id,
+    notifications_states,
+    activation_time,
+    number_of_events,
+):
+    assert alert_activation.name == alert_name
+    assert alert_activation.project == project
+    assert alert_activation.entity_id == entity_id
+    assert alert_activation.entity_kind == entity_kind
+    assert alert_activation.number_of_events == number_of_events
+    assert alert_activation.activation_time == activation_time
+    assert alert_activation.notifications == notifications_states

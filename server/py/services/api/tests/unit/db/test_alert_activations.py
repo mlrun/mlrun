@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas.alert as alert_objects
+import mlrun.common.schemas.notification
 
 import services.api.tests.unit.crud.utils
 from services.api.db.base import DBInterface
@@ -42,8 +43,8 @@ def test_store_alert_activation(db: DBInterface, db_session: Session):
         value_dict={"uid": 123},
     )
     notifications_states = [
-        alert_objects.NotificationState(kind="git", status=""),
-        alert_objects.NotificationState(kind="slack", status="error"),
+        mlrun.common.schemas.NotificationState(kind="git", status=""),
+        mlrun.common.schemas.NotificationState(kind="slack", status="error"),
     ]
 
     alert_data = services.api.tests.unit.crud.utils.generate_alert_data(

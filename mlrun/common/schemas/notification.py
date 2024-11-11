@@ -15,6 +15,7 @@
 import datetime
 import enum
 import typing
+from typing import Optional
 
 import pydantic
 
@@ -129,3 +130,8 @@ class Notification(pydantic.BaseModel):
 
 class SetNotificationRequest(pydantic.BaseModel):
     notifications: list[Notification] = None
+
+
+class NotificationState(pydantic.BaseModel):
+    kind: str
+    status: Optional[str]

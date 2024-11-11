@@ -41,7 +41,7 @@ class AlertActivation(
         session: sqlalchemy.orm.Session,
         project: str = "",
     ) -> list[mlrun.common.schemas.AlertActivation]:
-        # add filters later
+        # TODO: add filters
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().list_alerts_activations(
             session, project
@@ -61,16 +61,12 @@ class AlertActivation(
             notification_kind = alert_notification.notification.kind
             notification_status = alert_notification.notification.status
 
-            if notification_kind not in notification_states:
-                notification_states[notification_kind] = (
-                    "error"
-                    if notification_status
-                    == mlrun.common.schemas.NotificationStatus.ERROR
-                    else ""
-                )
-            else:
-                if notification_status == mlrun.common.schemas.NotificationStatus.ERROR:
-                    notification_states[notification_kind] = "error"
+            notification_states.setdefault(
+                notification_kind,
+                notification_status
+                if notification_status == mlrun.common.schemas.NotificationStatus.ERROR
+                else "",
+            )
 
         notification_states = [
             mlrun.common.schemas.NotificationState(kind=kind, status=status)

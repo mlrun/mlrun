@@ -17,7 +17,7 @@ from typing import Annotated, Optional, Union
 
 import pydantic
 
-from mlrun.common.schemas.notification import Notification
+from mlrun.common.schemas.notification import Notification, NotificationState
 from mlrun.common.types import StrEnum
 
 
@@ -200,11 +200,6 @@ class AlertTemplate(
             or self.reset_policy != other.reset_policy
             or self.criteria != other.criteria
         )
-
-
-class NotificationState(pydantic.BaseModel):
-    kind: str
-    status: Optional[str]
 
 
 class AlertActivation(pydantic.BaseModel):

@@ -19,7 +19,6 @@ from .alert import (
     AlertNotification,
     AlertTemplate,
     Event,
-    NotificationState,
 )
 from .api_gateway import (
     APIGateway,
@@ -163,6 +162,7 @@ from .notification import (
     Notification,
     NotificationKind,
     NotificationSeverity,
+    NotificationState,
     NotificationStatus,
     SetNotificationRequest,
 )

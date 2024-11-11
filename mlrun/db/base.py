@@ -150,6 +150,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def paginated_list_artifacts(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        pass
+
+    @abstractmethod
     def del_artifact(
         self,
         key,

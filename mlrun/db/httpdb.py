@@ -312,9 +312,26 @@ class HTTPRunDB(RunDBInterface):
         headers=None,
         timeout=45,
         version=None,
+        return_all=False,
     ) -> typing.Generator[requests.Response, None, None]:
         """
-        Calls the api with pagination, yielding each page of the response
+        Calls the API with pagination and yields each page of the response.
+
+        Depending on the `return_all` parameter:
+        - If `return_all` is `True`, fetches and yields all pages of results.
+        - If `return_all` is False, only a single page of results is fetched and yielded.
+
+        :param method: The HTTP method (GET, POST, etc.).
+        :param path: The API endpoint path.
+        :param error: Error message used for debugging if the request fails.
+        :param params: The parameters to pass for the API request, including filters.
+        :param body: The body of the request.
+        :param json: The JSON payload for the request.
+        :param headers: Custom headers for the request.
+        :param timeout: Timeout for the request.
+        :param version: API version, optional.
+        :param return_all: If `True`, fetches all pages and returns them in one shot. If `False`, returns only
+            the requested page or the next page.
         """
 
         def _api_call(_params):
@@ -330,38 +347,50 @@ class HTTPRunDB(RunDBInterface):
                 version=version,
             )
 
-        first_page_params = deepcopy(params) or {}
-        first_page_params["page"] = 1
-        first_page_params["page-size"] = config.httpdb.pagination.default_page_size
-        response = _api_call(first_page_params)
+        page_params = deepcopy(params) or {}
 
+        if page_params.get("page-token") is None and page_params.get("page") is None:
+            page_params["page"] = 1
+
+        if page_params.get("page-size") is None:
+            page_params["page-size"] = config.httpdb.pagination.default_page_size
+
+        response = _api_call(page_params)
+
+        # Yield only a single page of results
         yield response
-        page_token = response.json().get("pagination", {}).get("page-token", None)
 
-        while page_token:
-            try:
-                # Use the page token to get the next page.
-                # No need to supply any other parameters as the token informs the pagination cache
-                # which parameters to use.
-                response = _api_call({"page-token": page_token})
-            except mlrun.errors.MLRunNotFoundError:
-                # pagination token expired
-                break
-
-            yield response
+        if return_all:
             page_token = response.json().get("pagination", {}).get("page-token", None)
+
+            while page_token:
+                try:
+                    # Use the page token to get the next page.
+                    # No need to supply any other parameters as the token informs the pagination cache
+                    # which parameters to use.
+                    response = _api_call({"page-token": page_token})
+                except mlrun.errors.MLRunNotFoundError:
+                    # pagination token expired, we've reached the last page
+                    break
+
+                yield response
+                page_token = (
+                    response.json().get("pagination", {}).get("page-token", None)
+                )
 
     @staticmethod
     def process_paginated_responses(
         responses: typing.Generator[requests.Response, None, None], key: str = "data"
-    ) -> list[typing.Any]:
+    ) -> tuple[list[typing.Any], Optional[str]]:
         """
         Processes the paginated responses and returns the combined data
         """
         data = []
+        page_token = None
         for response in responses:
+            page_token = response.json().get("pagination", {}).get("page-token", None)
             data.extend(response.json().get(key, []))
-        return data
+        return data, page_token
 
     def _init_session(self, retry_on_post: bool = False):
         return mlrun.utils.HTTPSessionWithRetry(
@@ -911,8 +940,11 @@ class HTTPRunDB(RunDBInterface):
             )
         error = "list runs"
         _path = self._path_of("runs", project)
-        responses = self.paginated_api_call("GET", _path, error, params=params)
-        return RunList(self.process_paginated_responses(responses, "runs"))
+        responses = self.paginated_api_call(
+            "GET", _path, error, params=params, return_all=True
+        )
+        paginated_responses, _ = self.process_paginated_responses(responses, "runs")
+        return RunList(paginated_responses)
 
     def del_runs(
         self,
@@ -1107,7 +1139,7 @@ class HTTPRunDB(RunDBInterface):
         Examples::
 
             # Show latest version of all artifacts in project
-            latest_artifacts = db.list_artifacts("", tag="latest", project="iris")
+            latest_artifacts = db.list_artifacts(tag="latest", project="iris")
             # check different artifact versions for a specific artifact
             result_versions = db.list_artifacts("results", tag="*", project="iris")
             # Show artifacts with label filters - both uploaded and of binary type
@@ -1144,33 +1176,88 @@ class HTTPRunDB(RunDBInterface):
         :param limit:           Maximum number of artifacts to return.
         """
 
-        project = project or config.default_project
-        labels = self._parse_labels(labels)
-
-        params = {
-            "name": name,
-            "tag": tag,
-            "label": labels,
-            "iter": iter,
-            "best-iteration": best_iteration,
-            "kind": kind,
-            "category": category,
-            "tree": tree,
-            "format": format_,
-            "producer_uri": producer_uri,
-            "limit": limit,
-            "since": datetime_to_iso(since),
-            "until": datetime_to_iso(until),
-        }
-        error = "list artifacts"
-        endpoint_path = f"projects/{project}/artifacts"
-        responses = self.paginated_api_call(
-            "GET", endpoint_path, error, params=params, version="v2"
+        artifacts, _ = self._list_artifacts(
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            since=since,
+            until=until,
+            iter=iter,
+            best_iteration=best_iteration,
+            kind=kind,
+            category=category,
+            tree=tree,
+            producer_uri=producer_uri,
+            format_=format_,
+            limit=limit,
+            return_all=True,
         )
-        paginated_responses = self.process_paginated_responses(responses, "artifacts")
-        values = ArtifactList(paginated_responses)
-        values.tag = tag
-        return values
+        return artifacts
+
+    def paginated_list_artifacts(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[ArtifactList, Optional[str]]:
+        """List artifacts with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of artifacts based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of artifacts that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_artifacts method:
+            See :py:func:`~list_artifacts` for more details.
+
+        Examples::
+
+            # Fetch first page of artifacts with page size of 5
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page_size=5
+            )
+            # Fetch next page using the pagination token from the previous response
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page_token=token
+            )
+            # Fetch artifacts for a specific page (e.g., page 3)
+            artifacts, token = db.paginated_list_artifacts(
+                project="my-project", page=3, page_size=5
+            )
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            artifacts = []
+            token = None
+            while True:
+                page_artifacts, token = db.paginated_list_artifacts(
+                    project="my-project", page_token=token, page_size=5
+                )
+                artifacts.extend(page_artifacts)
+
+                # If token is None and page_artifacts is empty, we've reached the end (no more artifacts).
+                # If token is None and page_artifacts is not empty, we've fetched the last page of artifacts.
+                if not token:
+                    break
+            print(f"Total artifacts retrieved: {len(artifacts)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of artifacts and an optional `page_token` for pagination.
+        """
+
+        return self._list_artifacts(
+            *args,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            return_all=False,
+            **kwargs,
+        )
 
     def del_artifacts(
         self,
@@ -1331,8 +1418,11 @@ class HTTPRunDB(RunDBInterface):
         }
         error = "list functions"
         path = f"projects/{project}/functions"
-        responses = self.paginated_api_call("GET", path, error, params=params)
-        return self.process_paginated_responses(responses, "funcs")
+        responses = self.paginated_api_call(
+            "GET", path, error, params=params, return_all=True
+        )
+        paginated_responses, _ = self.process_paginated_responses(responses, "funcs")
+        return paginated_responses
 
     def list_runtime_resources(
         self,
@@ -4496,6 +4586,73 @@ class HTTPRunDB(RunDBInterface):
                 "Invalid labels format. Must be a dictionary of strings, a list of strings, "
                 "or a comma-separated string."
             ) from exc
+
+    def _list_artifacts(
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        iter: Optional[int] = None,
+        best_iteration: bool = False,
+        kind: Optional[str] = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: Optional[str] = None,
+        producer_uri: Optional[str] = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
+        limit: Optional[int] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ) -> tuple[ArtifactList, Optional[str]]:
+        """Handles list artifacts, both paginated and not."""
+
+        project = project or config.default_project
+        labels = self._parse_labels(labels)
+
+        params = {
+            "name": name,
+            "tag": tag,
+            "label": labels,
+            "iter": iter,
+            "best-iteration": best_iteration,
+            "kind": kind,
+            "category": category,
+            "tree": tree,
+            "format": format_,
+            "producer_uri": producer_uri,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
+            "limit": limit,
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
+        }
+
+        error = "list artifacts"
+        endpoint_path = f"projects/{project}/artifacts"
+
+        # Fetch the responses, either one page or all based on `return_all`
+        responses = self.paginated_api_call(
+            "GET",
+            endpoint_path,
+            error,
+            params=params,
+            version="v2",
+            return_all=return_all,
+        )
+        paginated_responses, token = self.process_paginated_responses(
+            responses, "artifacts"
+        )
+
+        values = ArtifactList(paginated_responses)
+        values.tag = tag
+        return values, token
 
 
 def _as_json(obj):

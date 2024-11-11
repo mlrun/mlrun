@@ -329,19 +329,10 @@ async def list_projects(
     allowed_project_names = None
     # skip permission check if it's the leader
     if not services.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
-        projects_output = await run_in_threadpool(
-            get_project_member().list_projects,
-            db_session,
-            owner,
-            mlrun.common.formatters.ProjectFormat.name_only,
-            labels,
-            state,
-            auth_info.projects_role,
-            auth_info.session,
-        )
-        allowed_project_names = await services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            projects_output.projects,
-            auth_info,
+        allowed_project_names = (
+            await services.api.crud.Projects().list_allowed_project_names(
+                db_session, auth_info, owner=owner, labels=labels, state=state
+            )
         )
     return await run_in_threadpool(
         get_project_member().list_projects,

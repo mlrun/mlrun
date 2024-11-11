@@ -114,6 +114,7 @@ class DBInterface(ABC):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         project: str = "",
+        projects: Optional[list[str]] = None,
         labels: Optional[Union[str, list[str]]] = None,
         states: Optional[list[str]] = None,
         sort: bool = True,

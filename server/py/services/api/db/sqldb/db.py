@@ -416,6 +416,7 @@ class SQLDB(DBInterface):
         name: typing.Optional[str] = None,
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
+        projects: typing.Optional[list[str]] = None,
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
@@ -437,7 +438,7 @@ class SQLDB(DBInterface):
         page_size: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
-        query = self._find_runs(session, uid, project, labels)
+        query = self._find_runs(session, uid, project, projects, labels)
         if name is not None:
             query = self._add_run_name_query(query, name)
         if states is not None:
@@ -4746,11 +4747,15 @@ class SQLDB(DBInterface):
                 _try_commit_obj,
             )
 
-    def _find_runs(self, session, uid, project, labels):
+    def _find_runs(self, session, uid, project, projects, labels):
         labels = label_set(labels)
-        if project == "*":
+        if project == "*" or projects:
             project = None
         query = self._query(session, Run, project=project)
+
+        if projects:
+            query = query.filter(Run.project.in_(projects))
+
         if uid:
             # uid may be either a single uid (string) or a list of uids
             uid = mlrun.utils.helpers.as_list(uid)

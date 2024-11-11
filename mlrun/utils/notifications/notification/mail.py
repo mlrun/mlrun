@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import re
 import typing
 from email.message import EmailMessage
 
@@ -20,13 +21,13 @@ import aiosmtplib
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.utils.helpers
-
-from .base import NotificationBase
+import mlrun.utils.notifications.notification.base as base
+import mlrun.utils.regex
 
 DEFAULT_SMTP_PORT = 587
 
 
-class MailNotification(NotificationBase):
+class MailNotification(base.NotificationBase):
     """
     API/Client notification for sending run statuses as a mail message
     """
@@ -48,21 +49,33 @@ class MailNotification(NotificationBase):
                     f"Parameter '{required_param}' is required for MailNotification"
                 )
 
-        if type(params["email_addresses"]) not in [str, list]:
+        if not isinstance(params["email_addresses"], (str, list)):
             raise ValueError(
                 "Parameter 'email_addresses' must be a string or a list of strings"
             )
 
+        if isinstance(params["email_addresses"], list):
+            for email_address in params["email_addresses"]:
+                if not isinstance(email_address, str):
+                    raise ValueError(
+                        "Parameter 'email_addresses' must be a string or a list of strings"
+                    )
+
+                if not re.match(mlrun.utils.regex.mail_regex, email_address):
+                    raise ValueError(
+                        f"Invalid email address '{email_address}' in 'email_addresses'"
+                    )
+
     async def push(
         self,
         message: str,
-        severity: typing.Union[
-            mlrun.common.schemas.NotificationSeverity, str
+        severity: typing.Optional[
+            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Union[mlrun.lists.RunList, list] = None,
-        custom_html: typing.Optional[str] = None,
-        alert: mlrun.common.schemas.AlertConfig = None,
-        event_data: mlrun.common.schemas.Event = None,
+        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+        custom_html: typing.Optional[typing.Optional[str]] = None,
+        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
+        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
         self.params.setdefault("subject", f"[{severity}] {message}")
         self.params.setdefault("body", message)

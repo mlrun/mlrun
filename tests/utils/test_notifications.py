@@ -24,6 +24,7 @@ import tabulate
 
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
+import mlrun.utils.notifications.notification.mail as mail
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification.webhook import WebhookNotification
 
@@ -1060,13 +1061,33 @@ class TestMailNotification:
                 },
                 pytest.raises(ValueError),
             ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", 1],
+                },
+                pytest.raises(ValueError),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "aaa"],
+                },
+                pytest.raises(ValueError),
+            ),
         ],
     )
     def test_validate_mail_params(self, params, expectation):
         with expectation:
-            mlrun.utils.notifications.notification.MailNotification.validate_params(
-                params
-            )
+            mail.MailNotification.validate_params(params)
 
     @pytest.mark.parametrize(
         ["name", "params", "expected_params"],
@@ -1098,7 +1119,7 @@ class TestMailNotification:
     )
     def test_enrich_default_params(self, name, params, expected_params):
         logger.debug(f"Testing {name}")
-        enriched_params = mlrun.utils.notifications.notification.MailNotification.enrich_default_params(
+        enriched_params = mail.MailNotification.enrich_default_params(
             params, TestMailNotification.DEFAULT_PARAMS
         )
         default_params_copy = TestMailNotification.DEFAULT_PARAMS.copy()

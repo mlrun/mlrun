@@ -11,14 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 import functools
 import inspect
 from collections import OrderedDict
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 from ..config import config
 from .context_handler import ContextHandler
@@ -40,8 +37,8 @@ from .utils import (
 
 
 def handler(
-    labels: dict[str, str] = None,
-    outputs: list[Union[str, dict[str, str]]] = None,
+    labels: Optional[dict[str, str]] = None,
+    outputs: Optional[list[Union[str, dict[str, str]]]] = None,
     inputs: Union[bool, dict[str, Union[str, type]]] = True,
 ):
     """

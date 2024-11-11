@@ -275,7 +275,7 @@ class ApplicationRuntime(RemoteRuntime):
         tag="",
         verbose=False,
         auth_info: schemas.AuthInfo = None,
-        builder_env: dict = None,
+        builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
         with_mlrun=None,
         skip_deployed=False,
@@ -367,7 +367,7 @@ class ApplicationRuntime(RemoteRuntime):
         source,
         workdir=None,
         pull_at_runtime: bool = False,
-        target_dir: str = None,
+        target_dir: typing.Optional[str] = None,
     ):
         """load the code from git/tar/zip archive at build
 
@@ -426,12 +426,12 @@ class ApplicationRuntime(RemoteRuntime):
 
     def create_api_gateway(
         self,
-        name: str = None,
-        path: str = None,
+        name: typing.Optional[str] = None,
+        path: typing.Optional[str] = None,
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
-        authentication_creds: tuple[str, str] = None,
-        ssl_redirect: bool = None,
+        authentication_creds: typing.Optional[tuple[str, str]] = None,
+        ssl_redirect: typing.Optional[bool] = None,
         set_as_default: bool = False,
         gateway_timeout: typing.Optional[int] = None,
     ):
@@ -540,13 +540,13 @@ class ApplicationRuntime(RemoteRuntime):
         self,
         path: str = "",
         body: typing.Optional[typing.Union[str, bytes, dict]] = None,
-        method: str = None,
-        headers: dict = None,
+        method: typing.Optional[str] = None,
+        headers: typing.Optional[dict] = None,
         dashboard: str = "",
         force_external_address: bool = False,
         auth_info: schemas.AuthInfo = None,
-        mock: bool = None,
-        credentials: tuple[str, str] = None,
+        mock: typing.Optional[bool] = None,
+        credentials: typing.Optional[tuple[str, str]] = None,
         **http_client_kwargs,
     ):
         self._sync_api_gateway()
@@ -653,7 +653,7 @@ class ApplicationRuntime(RemoteRuntime):
 
     def _build_application_image(
         self,
-        builder_env: dict = None,
+        builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
         watch=True,
         with_mlrun=None,

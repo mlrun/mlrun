@@ -126,15 +126,15 @@ def new_project(
     context: str = "./",
     init_git: bool = False,
     user_project: bool = False,
-    remote: str = None,
-    from_template: str = None,
-    secrets: dict = None,
-    description: str = None,
-    subpath: str = None,
+    remote: Optional[str] = None,
+    from_template: Optional[str] = None,
+    secrets: Optional[dict] = None,
+    description: Optional[str] = None,
+    subpath: Optional[str] = None,
     save: bool = True,
     overwrite: bool = False,
-    parameters: dict = None,
-    default_function_node_selector: dict = None,
+    parameters: Optional[dict] = None,
+    default_function_node_selector: Optional[dict] = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -291,17 +291,17 @@ def new_project(
 
 def load_project(
     context: str = "./",
-    url: str = None,
-    name: str = None,
-    secrets: dict = None,
+    url: Optional[str] = None,
+    name: Optional[str] = None,
+    secrets: Optional[dict] = None,
     init_git: bool = False,
-    subpath: str = None,
+    subpath: Optional[str] = None,
     clone: bool = False,
     user_project: bool = False,
     save: bool = True,
     sync_functions: bool = False,
-    parameters: dict = None,
-    allow_cross_project: bool = None,
+    parameters: Optional[dict] = None,
+    allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -437,16 +437,16 @@ def load_project(
 def get_or_create_project(
     name: str,
     context: str = "./",
-    url: str = None,
-    secrets: dict = None,
+    url: Optional[str] = None,
+    secrets: Optional[dict] = None,
     init_git=False,
-    subpath: str = None,
+    subpath: Optional[str] = None,
     clone: bool = False,
     user_project: bool = False,
-    from_template: str = None,
+    from_template: Optional[str] = None,
     save: bool = True,
-    parameters: dict = None,
-    allow_cross_project: bool = None,
+    parameters: Optional[dict] = None,
+    allow_cross_project: Optional[bool] = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist
 
@@ -823,14 +823,14 @@ class ProjectSpec(ModelObj):
         origin_url=None,
         goals=None,
         load_source_on_run=None,
-        default_requirements: typing.Union[str, list[str]] = None,
+        default_requirements: Optional[typing.Union[str, list[str]]] = None,
         desired_state=mlrun.common.schemas.ProjectState.online.value,
         owner=None,
         disable_auto_mount=None,
         workdir=None,
         default_image=None,
         build=None,
-        custom_packagers: list[tuple[str, bool]] = None,
+        custom_packagers: Optional[list[tuple[str, bool]]] = None,
         default_function_node_selector=None,
     ):
         self.repo = None
@@ -1253,7 +1253,11 @@ class MlrunProject(ModelObj):
             raise exc
 
     def get_artifact_uri(
-        self, key: str, category: str = "artifact", tag: str = None, iter: int = None
+        self,
+        key: str,
+        category: str = "artifact",
+        tag: Optional[str] = None,
+        iter: Optional[int] = None,
     ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
@@ -1353,7 +1357,7 @@ class MlrunProject(ModelObj):
         workflow_path: str,
         embed: bool = False,
         engine: Optional[str] = None,
-        args_schema: list[EntrypointParam] = None,
+        args_schema: Optional[list[EntrypointParam]] = None,
         handler: Optional[str] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         ttl: Optional[int] = None,
@@ -1425,8 +1429,8 @@ class MlrunProject(ModelObj):
         self,
         key,
         artifact: typing.Union[str, dict, Artifact] = None,
-        target_path: str = None,
-        tag: str = None,
+        target_path: Optional[str] = None,
+        tag: Optional[str] = None,
     ):
         """add/set an artifact in the project spec (will be registered on load)
 
@@ -1646,7 +1650,7 @@ class MlrunProject(ModelObj):
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         """Delete an artifact object in the DB and optionally delete the artifact data
 
@@ -1953,12 +1957,12 @@ class MlrunProject(ModelObj):
             str,
             mm_app.ModelMonitoringApplicationBase,
         ] = None,
-        name: str = None,
-        image: str = None,
+        name: Optional[str] = None,
+        image: Optional[str] = None,
         handler=None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        with_repo: Optional[bool] = None,
+        tag: Optional[str] = None,
+        requirements: Optional[typing.Union[str, list[str]]] = None,
         requirements_file: str = "",
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
@@ -2015,17 +2019,17 @@ class MlrunProject(ModelObj):
 
     def create_model_monitoring_function(
         self,
-        func: str = None,
+        func: Optional[str] = None,
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
         ] = None,
-        name: str = None,
-        image: str = None,
-        handler: str = None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        name: Optional[str] = None,
+        image: Optional[str] = None,
+        handler: Optional[str] = None,
+        with_repo: Optional[bool] = None,
+        tag: Optional[str] = None,
+        requirements: Optional[typing.Union[str, list[str]]] = None,
         requirements_file: str = "",
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
@@ -2269,7 +2273,7 @@ class MlrunProject(ModelObj):
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: list[str] = None,
+        user_application_list: Optional[list[str]] = None,
     ) -> None:
         """
         Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -2329,11 +2333,11 @@ class MlrunProject(ModelObj):
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
         kind: str = "job",
-        image: str = None,
-        handler: str = None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        image: Optional[str] = None,
+        handler: Optional[str] = None,
+        with_repo: Optional[bool] = None,
+        tag: Optional[str] = None,
+        requirements: Optional[typing.Union[str, list[str]]] = None,
         requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """
@@ -2427,11 +2431,11 @@ class MlrunProject(ModelObj):
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
         kind: str = "",
-        image: str = None,
-        handler: str = None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        image: Optional[str] = None,
+        handler: Optional[str] = None,
+        with_repo: Optional[bool] = None,
+        tag: Optional[str] = None,
+        requirements: Optional[typing.Union[str, list[str]]] = None,
         requirements_file: str = "",
     ) -> tuple[str, str, mlrun.runtimes.BaseRuntime, dict]:
         if (
@@ -2654,8 +2658,8 @@ class MlrunProject(ModelObj):
 
     def pull(
         self,
-        branch: str = None,
-        remote: str = None,
+        branch: Optional[str] = None,
+        remote: Optional[str] = None,
         secrets: Union[SecretsStore, dict] = None,
     ):
         """pull/update sources from git or tar into the context dir
@@ -2768,10 +2772,10 @@ class MlrunProject(ModelObj):
         branch,
         message=None,
         update=True,
-        remote: str = None,
-        add: list = None,
-        author_name: str = None,
-        author_email: str = None,
+        remote: Optional[str] = None,
+        add: Optional[list] = None,
+        author_name: Optional[str] = None,
+        author_email: Optional[str] = None,
         secrets: Union[SecretsStore, dict] = None,
     ):
         """update spec and push updates to remote git repo
@@ -2834,7 +2838,7 @@ class MlrunProject(ModelObj):
 
     def sync_functions(
         self,
-        names: list = None,
+        names: Optional[list] = None,
         always: bool = True,
         save: bool = False,
         silent: bool = False,
@@ -2978,8 +2982,8 @@ class MlrunProject(ModelObj):
 
     def set_secrets(
         self,
-        secrets: dict = None,
-        file_path: str = None,
+        secrets: Optional[dict] = None,
+        file_path: Optional[str] = None,
         provider: typing.Union[str, mlrun.common.schemas.SecretProviderName] = None,
     ):
         """
@@ -3056,24 +3060,24 @@ class MlrunProject(ModelObj):
 
     def run(
         self,
-        name: str = None,
-        workflow_path: str = None,
-        arguments: dict[str, typing.Any] = None,
-        artifact_path: str = None,
-        workflow_handler: typing.Union[str, typing.Callable] = None,
-        namespace: str = None,
+        name: Optional[str] = None,
+        workflow_path: Optional[str] = None,
+        arguments: Optional[dict[str, typing.Any]] = None,
+        artifact_path: Optional[str] = None,
+        workflow_handler: Optional[typing.Union[str, typing.Callable]] = None,
+        namespace: Optional[str] = None,
         sync: bool = False,
         watch: bool = False,
         dirty: bool = False,
-        engine: str = None,
-        local: bool = None,
+        engine: Optional[str] = None,
+        local: Optional[bool] = None,
         schedule: typing.Union[
             str, mlrun.common.schemas.ScheduleCronTrigger, bool
         ] = None,
-        timeout: int = None,
-        source: str = None,
-        cleanup_ttl: int = None,
-        notifications: list[mlrun.model.Notification] = None,
+        timeout: Optional[int] = None,
+        source: Optional[str] = None,
+        cleanup_ttl: Optional[int] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
         workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
@@ -3280,7 +3284,7 @@ class MlrunProject(ModelObj):
 
         return db.create_project(self.to_dict())
 
-    def export(self, filepath=None, include_files: str = None):
+    def export(self, filepath=None, include_files: Optional[str] = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)
 
         By default, the project object is exported to a yaml file, when the filepath suffix is '.zip'
@@ -3388,27 +3392,27 @@ class MlrunProject(ModelObj):
     def run_function(
         self,
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        handler: str = None,
+        handler: Optional[str] = None,
         name: str = "",
-        params: dict = None,
-        hyperparams: dict = None,
+        params: Optional[dict] = None,
+        hyperparams: Optional[dict] = None,
         hyper_param_options: mlrun.model.HyperParamOptions = None,
-        inputs: dict = None,
-        outputs: list[str] = None,
+        inputs: Optional[dict] = None,
+        outputs: Optional[list[str]] = None,
         workdir: str = "",
-        labels: dict = None,
+        labels: Optional[dict] = None,
         base_task: mlrun.model.RunTemplate = None,
         watch: bool = True,
-        local: bool = None,
-        verbose: bool = None,
-        selector: str = None,
-        auto_build: bool = None,
+        local: Optional[bool] = None,
+        verbose: Optional[bool] = None,
+        selector: Optional[str] = None,
+        auto_build: Optional[bool] = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        artifact_path: str = None,
-        notifications: list[mlrun.model.Notification] = None,
+        artifact_path: Optional[str] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
-        reset_on_run: bool = None,
+        reset_on_run: Optional[bool] = None,
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -3501,18 +3505,18 @@ class MlrunProject(ModelObj):
     def build_function(
         self,
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        with_mlrun: bool = None,
+        with_mlrun: Optional[bool] = None,
         skip_deployed: bool = False,
-        image: str = None,
-        base_image: str = None,
-        commands: list = None,
-        secret_name: str = None,
-        requirements: typing.Union[str, list[str]] = None,
-        mlrun_version_specifier: str = None,
-        builder_env: dict = None,
+        image: Optional[str] = None,
+        base_image: Optional[str] = None,
+        commands: Optional[list] = None,
+        secret_name: Optional[str] = None,
+        requirements: Optional[typing.Union[str, list[str]]] = None,
+        mlrun_version_specifier: Optional[str] = None,
+        builder_env: Optional[dict] = None,
         overwrite_build_params: bool = False,
-        requirements_file: str = None,
-        extra_args: str = None,
+        requirements_file: Optional[str] = None,
+        extra_args: Optional[str] = None,
         force_build: bool = False,
     ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """deploy ML function, build container with its dependencies
@@ -3557,18 +3561,18 @@ class MlrunProject(ModelObj):
 
     def build_config(
         self,
-        image: str = None,
+        image: Optional[str] = None,
         set_as_default: bool = False,
-        with_mlrun: bool = None,
-        base_image: str = None,
-        commands: list = None,
-        secret_name: str = None,
-        requirements: typing.Union[str, list[str]] = None,
+        with_mlrun: Optional[bool] = None,
+        base_image: Optional[str] = None,
+        commands: Optional[list] = None,
+        secret_name: Optional[str] = None,
+        requirements: Optional[typing.Union[str, list[str]]] = None,
         overwrite_build_params: bool = False,
-        requirements_file: str = None,
-        builder_env: dict = None,
-        extra_args: str = None,
-        source_code_target_dir: str = None,
+        requirements_file: Optional[str] = None,
+        builder_env: Optional[dict] = None,
+        extra_args: Optional[str] = None,
+        source_code_target_dir: Optional[str] = None,
     ):
         """specify builder configuration for the project
 
@@ -3622,19 +3626,19 @@ class MlrunProject(ModelObj):
 
     def build_image(
         self,
-        image: str = None,
+        image: Optional[str] = None,
         set_as_default: bool = True,
-        with_mlrun: bool = None,
-        base_image: str = None,
-        commands: list = None,
-        secret_name: str = None,
-        requirements: typing.Union[str, list[str]] = None,
-        mlrun_version_specifier: str = None,
-        builder_env: dict = None,
+        with_mlrun: Optional[bool] = None,
+        base_image: Optional[str] = None,
+        commands: Optional[list] = None,
+        secret_name: Optional[str] = None,
+        requirements: Optional[typing.Union[str, list[str]]] = None,
+        mlrun_version_specifier: Optional[str] = None,
+        builder_env: Optional[dict] = None,
         overwrite_build_params: bool = False,
-        requirements_file: str = None,
-        extra_args: str = None,
-        target_dir: str = None,
+        requirements_file: Optional[str] = None,
+        extra_args: Optional[str] = None,
+        target_dir: Optional[str] = None,
     ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -3740,12 +3744,12 @@ class MlrunProject(ModelObj):
     def deploy_function(
         self,
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        models: list = None,
-        env: dict = None,
-        tag: str = None,
-        verbose: bool = None,
-        builder_env: dict = None,
-        mock: bool = None,
+        models: Optional[list] = None,
+        env: Optional[dict] = None,
+        tag: Optional[str] = None,
+        verbose: Optional[bool] = None,
+        builder_env: Optional[dict] = None,
+        mock: Optional[bool] = None,
     ) -> typing.Union[DeployStatus, PipelineNodeWrapper]:
         """deploy real-time (nuclio based) functions
 
@@ -3795,12 +3799,12 @@ class MlrunProject(ModelObj):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
-        iter: int = None,
+        iter: Optional[int] = None,
         best_iteration: bool = False,
-        kind: str = None,
+        kind: Optional[str] = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
-        limit: int = None,
+        tree: Optional[str] = None,
+        limit: Optional[int] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -3865,10 +3869,10 @@ class MlrunProject(ModelObj):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
-        iter: int = None,
+        iter: Optional[int] = None,
         best_iteration: bool = False,
-        tree: str = None,
-        limit: int = None,
+        tree: Optional[str] = None,
+        limit: Optional[int] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
@@ -4266,7 +4270,7 @@ class MlrunProject(ModelObj):
         return db.list_alerts_configs(self.metadata.name)
 
     def delete_alert_config(
-        self, alert_data: AlertConfig = None, alert_name: str = None
+        self, alert_data: AlertConfig = None, alert_name: Optional[str] = None
     ):
         """
         Delete an alert.
@@ -4286,7 +4290,7 @@ class MlrunProject(ModelObj):
         db.delete_alert_config(alert_name, self.metadata.name)
 
     def reset_alert_config(
-        self, alert_data: AlertConfig = None, alert_name: str = None
+        self, alert_data: AlertConfig = None, alert_name: Optional[str] = None
     ):
         """
         Reset an alert.
@@ -4328,8 +4332,8 @@ class MlrunProject(ModelObj):
         self,
         action: Callable,
         remote: str,
-        args: list = None,
-        kwargs: dict = None,
+        args: Optional[list] = None,
+        kwargs: Optional[dict] = None,
         secrets: Union[SecretsStore, dict] = None,
     ):
         """Run an arbitrary Git routine while the remote is enriched with secrets
@@ -4406,7 +4410,7 @@ class MlrunProject(ModelObj):
     def _resolve_artifact_producer(
         self,
         artifact: typing.Union[str, Artifact],
-        project_producer_tag: str = None,
+        project_producer_tag: Optional[str] = None,
     ) -> tuple[ArtifactProducer, bool]:
         """
         Resolve the artifact producer of the given artifact.
@@ -4457,7 +4461,7 @@ class MlrunProject(ModelObj):
     def _resolve_existing_artifact(
         self,
         item: typing.Union[str, Artifact],
-        tag: str = None,
+        tag: Optional[str] = None,
     ) -> typing.Optional[Artifact]:
         """
         Check if there is and existing artifact with the given item and tag.

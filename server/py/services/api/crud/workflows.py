@@ -14,6 +14,7 @@
 #
 import os
 import uuid
+from typing import Optional
 
 import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
@@ -323,7 +324,7 @@ class WorkflowRunners(
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
-        run_name: str = None,
+        run_name: Optional[str] = None,
         load_only: bool = False,
     ) -> mlrun.run.RunObject:
         """

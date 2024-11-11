@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import math
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 
@@ -28,8 +28,8 @@ class ONNXDataset:
         x: Union[np.ndarray, list[np.ndarray]],
         y: Union[np.ndarray, list[np.ndarray]] = None,
         batch_size: int = 1,
-        x_transforms: list[Callable[[np.ndarray], np.ndarray]] = None,
-        y_transforms: list[Callable[[np.ndarray], np.ndarray]] = None,
+        x_transforms: Optional[list[Callable[[np.ndarray], np.ndarray]]] = None,
+        y_transforms: Optional[list[Callable[[np.ndarray], np.ndarray]]] = None,
         is_batched_transforms: bool = False,
     ):
         """

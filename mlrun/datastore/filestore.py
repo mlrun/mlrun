@@ -14,6 +14,7 @@
 import time
 from os import listdir, makedirs, path, stat
 from shutil import copyfile
+from typing import Optional
 
 import fsspec
 
@@ -23,7 +24,9 @@ from .base import DataStore, FileStats
 
 
 class FileStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+    def __init__(
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+    ):
         super().__init__(parent, name, "file", endpoint, secrets=secrets)
 
         self._item_path, self._real_path = None, None

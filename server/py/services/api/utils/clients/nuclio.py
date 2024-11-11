@@ -140,9 +140,9 @@ class Client(
     def list_projects(
         self,
         session: sqlalchemy.orm.Session,
-        owner: str = None,
+        owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
@@ -182,8 +182,8 @@ class Client(
     def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,
-        owner: str = None,
-        labels: list[str] = None,
+        owner: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:

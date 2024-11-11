@@ -24,7 +24,7 @@ assets_path = pathlib.Path(__file__).parent.parent / "assets"
 
 
 def deploy_notification_nuclio(
-    project: mlrun.projects.MlrunProject, image: str = None
+    project: mlrun.projects.MlrunProject, image: typing.Optional[str] = None
 ) -> str:
     nuclio_function = project.set_function(
         name="notification-nuclio-function",

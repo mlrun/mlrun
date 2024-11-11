@@ -39,8 +39,8 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         project: str,
         background_tasks: fastapi.BackgroundTasks,
         function,
-        timeout: int = None,  # in seconds
-        name: str = None,
+        timeout: typing.Optional[int] = None,  # in seconds
+        name: typing.Optional[str] = None,
         *args,
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
@@ -87,10 +87,10 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         db_session: sqlalchemy.orm.Session,
         project: str,
         states: typing.Optional[list[str]] = None,
-        created_from: datetime.datetime = None,
-        created_to: datetime.datetime = None,
-        last_update_time_from: datetime.datetime = None,
-        last_update_time_to: datetime.datetime = None,
+        created_from: typing.Optional[datetime.datetime] = None,
+        created_to: typing.Optional[datetime.datetime] = None,
+        last_update_time_from: typing.Optional[datetime.datetime] = None,
+        last_update_time_to: typing.Optional[datetime.datetime] = None,
     ) -> list[mlrun.common.schemas.BackgroundTask]:
         return services.api.utils.singletons.db.get_db().list_background_tasks(
             db_session,

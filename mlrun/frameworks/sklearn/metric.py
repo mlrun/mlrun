@@ -15,7 +15,7 @@
 import importlib
 import json
 import sys
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import mlrun.errors
 
@@ -31,8 +31,8 @@ class Metric:
     def __init__(
         self,
         metric: Union[Callable, str],
-        name: str = None,
-        additional_arguments: dict = None,
+        name: Optional[str] = None,
+        additional_arguments: Optional[dict] = None,
         need_probabilities: bool = False,
     ):
         """

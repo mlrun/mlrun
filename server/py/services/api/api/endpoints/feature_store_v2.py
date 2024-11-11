@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -61,8 +63,8 @@ def _dedup_feature_set(
 @router.get("/entities", response_model=mlrun.common.schemas.EntitiesOutputV2)
 async def list_entities(
     project: str,
-    name: str = None,
-    tag: str = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
     labels: list[str] = Query(None, alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -88,8 +90,8 @@ async def list_entities(
 @router.get("/features", response_model=mlrun.common.schemas.FeaturesOutputV2)
 async def list_features(
     project: str,
-    name: str = None,
-    tag: str = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
     entities: list[str] = Query(None, alias="entity"),
     labels: list[str] = Query(None, alias="label"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),

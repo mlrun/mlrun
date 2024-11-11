@@ -13,6 +13,7 @@
 # limitations under the License.
 import re
 from subprocess import run
+from typing import Optional
 
 import kubernetes.client
 from mlrun_pipelines.mounts import mount_v3io, mount_v3iod
@@ -179,7 +180,7 @@ class RemoteSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
-        builder_env: dict = None,
+        builder_env: Optional[dict] = None,
         show_on_failure: bool = False,
         force_build: bool = False,
     ):

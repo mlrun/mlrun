@@ -49,7 +49,7 @@ class Runs(
         data: dict,
         uid: str,
         iter: int = 0,
-        project: str = None,
+        project: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
 
@@ -121,7 +121,7 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = None,
+        project: typing.Optional[str] = None,
         format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
@@ -168,7 +168,7 @@ class Runs(
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
-        requested_logs: bool = None,
+        requested_logs: typing.Optional[bool] = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
         page: typing.Optional[int] = None,
@@ -243,7 +243,7 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = None,
+        project: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         try:
@@ -303,7 +303,7 @@ class Runs(
         self,
         db_session: sqlalchemy.orm.Session,
         name=None,
-        project: str = None,
+        project: typing.Optional[str] = None,
         labels=None,
         state=None,
         days_ago: int = 0,

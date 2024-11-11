@@ -247,7 +247,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info.data_session = request.headers["X-V3io-Access-Key"]
         return auth_info
 
-    def get_or_create_access_key(self, session: str, planes: list[str] = None) -> str:
+    def get_or_create_access_key(
+        self, session: str, planes: typing.Optional[list[str]] = None
+    ) -> str:
         if not self._iguazio_auth_configured():
             raise NotImplementedError(
                 "Access key is currently supported only for Iguazio authentication mode"

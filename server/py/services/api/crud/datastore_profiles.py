@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -74,8 +76,8 @@ class DatastoreProfiles(
         session: sqlalchemy.orm.Session,
         profile_name: str,
         profile_public_json: str,
-        profile_secret_json: str = None,
-        project: str = None,
+        profile_secret_json: Optional[str] = None,
+        project: Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         services.api.utils.singletons.db.get_db().store_datastore_profile(
@@ -89,7 +91,7 @@ class DatastoreProfiles(
     def list_datastore_profiles(
         self,
         session: sqlalchemy.orm.Session,
-        project: str = None,
+        project: Optional[str] = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().list_datastore_profiles(
@@ -99,8 +101,8 @@ class DatastoreProfiles(
     def delete_datastore_profile(
         self,
         session: sqlalchemy.orm.Session,
-        profile_name: str = None,
-        project: str = None,
+        profile_name: Optional[str] = None,
+        project: Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         # Delete public part of the secret
@@ -113,8 +115,8 @@ class DatastoreProfiles(
     def get_datastore_profile(
         self,
         session: sqlalchemy.orm.Session,
-        profile_name: str = None,
-        project: str = None,
+        profile_name: Optional[str] = None,
+        project: Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         return services.api.utils.singletons.db.get_db().get_datastore_profile(

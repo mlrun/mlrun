@@ -81,10 +81,10 @@ class RunDBInterface(ABC):
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
-        start_time_from: datetime.datetime = None,
-        start_time_to: datetime.datetime = None,
-        last_update_time_from: datetime.datetime = None,
-        last_update_time_to: datetime.datetime = None,
+        start_time_from: Optional[datetime.datetime] = None,
+        start_time_to: Optional[datetime.datetime] = None,
+        last_update_time_from: Optional[datetime.datetime] = None,
+        last_update_time_to: Optional[datetime.datetime] = None,
         partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
@@ -139,13 +139,13 @@ class RunDBInterface(ABC):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
-        iter: int = None,
+        iter: Optional[int] = None,
         best_iteration: bool = False,
-        kind: str = None,
+        kind: Optional[str] = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
+        tree: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        limit: int = None,
+        limit: Optional[int] = None,
     ):
         pass
 
@@ -160,7 +160,7 @@ class RunDBInterface(ABC):
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
         iter=None,
     ):
         pass
@@ -308,7 +308,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_projects(
         self,
-        owner: str = None,
+        owner: Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: mlrun.common.schemas.ProjectState = None,
@@ -338,7 +338,11 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def get_feature_set(
-        self, name: str, project: str = "", tag: str = None, uid: str = None
+        self,
+        name: str,
+        project: str = "",
+        tag: Optional[str] = None,
+        uid: Optional[str] = None,
     ) -> dict:
         pass
 
@@ -352,9 +356,9 @@ class RunDBInterface(ABC):
     def list_features(
         self,
         project: str,
-        name: str = None,
-        tag: str = None,
-        entities: list[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        entities: Optional[list[str]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.FeaturesOutput:
         pass
@@ -363,9 +367,9 @@ class RunDBInterface(ABC):
     def list_features_v2(
         self,
         project: str,
-        name: str = None,
-        tag: str = None,
-        entities: list[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        entities: Optional[list[str]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
@@ -380,8 +384,8 @@ class RunDBInterface(ABC):
     def list_entities(
         self,
         project: str,
-        name: str = None,
-        tag: str = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
         pass
@@ -390,8 +394,8 @@ class RunDBInterface(ABC):
     def list_entities_v2(
         self,
         project: str,
-        name: str = None,
-        tag: str = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
@@ -400,11 +404,11 @@ class RunDBInterface(ABC):
     def list_feature_sets(
         self,
         project: str = "",
-        name: str = None,
-        tag: str = None,
-        state: str = None,
-        entities: list[str] = None,
-        features: list[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        state: Optional[str] = None,
+        entities: Optional[list[str]] = None,
+        features: Optional[list[str]] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
@@ -461,7 +465,11 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def get_feature_vector(
-        self, name: str, project: str = "", tag: str = None, uid: str = None
+        self,
+        name: str,
+        project: str = "",
+        tag: Optional[str] = None,
+        uid: Optional[str] = None,
     ) -> dict:
         pass
 
@@ -469,9 +477,9 @@ class RunDBInterface(ABC):
     def list_feature_vectors(
         self,
         project: str = "",
-        name: str = None,
-        tag: str = None,
-        state: str = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        state: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
@@ -518,12 +526,12 @@ class RunDBInterface(ABC):
     def get_pipeline(
         self,
         run_id: str,
-        namespace: str = None,
+        namespace: Optional[str] = None,
         timeout: int = 30,
         format_: Union[
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.summary,
-        project: str = None,
+        project: Optional[str] = None,
     ):
         pass
 
@@ -531,14 +539,14 @@ class RunDBInterface(ABC):
     def list_pipelines(
         self,
         project: str,
-        namespace: str = None,
+        namespace: Optional[str] = None,
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
         format_: Union[
             str, mlrun.common.formatters.PipelineFormat
         ] = mlrun.common.formatters.PipelineFormat.metadata_only,
-        page_size: int = None,
+        page_size: Optional[int] = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         pass
 
@@ -549,7 +557,7 @@ class RunDBInterface(ABC):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         pass
 
@@ -561,7 +569,7 @@ class RunDBInterface(ABC):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: list[str] = None,
+        secrets: Optional[list[str]] = None,
     ) -> mlrun.common.schemas.SecretsData:
         pass
 
@@ -572,7 +580,7 @@ class RunDBInterface(ABC):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        token: str = None,
+        token: Optional[str] = None,
     ) -> mlrun.common.schemas.SecretKeysData:
         pass
 
@@ -583,7 +591,7 @@ class RunDBInterface(ABC):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: list[str] = None,
+        secrets: Optional[list[str]] = None,
     ):
         pass
 
@@ -594,7 +602,7 @@ class RunDBInterface(ABC):
         provider: Union[
             str, mlrun.common.schemas.SecretProviderName
         ] = mlrun.common.schemas.SecretProviderName.vault,
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         pass
 
@@ -684,8 +692,8 @@ class RunDBInterface(ABC):
     def get_hub_catalog(
         self,
         source_name: str,
-        version: str = None,
-        tag: str = None,
+        version: Optional[str] = None,
+        tag: Optional[str] = None,
         force_refresh: bool = False,
     ):
         pass
@@ -695,7 +703,7 @@ class RunDBInterface(ABC):
         self,
         source_name: str,
         item_name: str,
-        version: str = None,
+        version: Optional[str] = None,
         tag: str = "latest",
         force_refresh: bool = False,
     ):
@@ -826,7 +834,7 @@ class RunDBInterface(ABC):
         self,
         notification_objects: list[mlrun.model.Notification],
         run_uid: str,
-        project: str = None,
+        project: Optional[str] = None,
         mask_params: bool = True,
     ):
         pass
@@ -880,7 +888,9 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def start_function(
-        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+        self,
+        func_url: Optional[str] = None,
+        function: "mlrun.runtimes.BaseRuntime" = None,
     ):
         pass
 
@@ -899,7 +909,7 @@ class RunDBInterface(ABC):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
-        notifications: list["mlrun.model.Notification"] = None,
+        notifications: Optional[list["mlrun.model.Notification"]] = None,
     ) -> "mlrun.common.schemas.WorkflowResponse":
         pass
 
@@ -932,7 +942,7 @@ class RunDBInterface(ABC):
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: list[str] = None,
+        user_application_list: Optional[list[str]] = None,
     ) -> bool:
         pass
 

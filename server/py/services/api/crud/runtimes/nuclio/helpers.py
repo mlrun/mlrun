@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import urllib.parse
+from typing import Optional
 
 import semver
 
@@ -33,7 +34,7 @@ def resolve_function_http_trigger(function_spec):
 
 
 def resolve_nuclio_runtime_python_image(
-    mlrun_client_version: str = None, python_version: str = None
+    mlrun_client_version: Optional[str] = None, python_version: Optional[str] = None
 ):
     if not python_version or not mlrun_client_version:
         return mlrun.mlconf.default_nuclio_runtime

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from http import HTTPStatus
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -87,9 +88,9 @@ async def store_artifact(
     project: str,
     artifact: mlrun.common.schemas.Artifact,
     key: str,
-    tree: str = None,
-    tag: str = None,
-    iter: int = None,
+    tree: Optional[str] = None,
+    tag: Optional[str] = None,
+    iter: Optional[int] = None,
     object_uid: str = Query(None, alias="object-uid"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -147,19 +148,19 @@ async def store_artifact(
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
     project: str,
-    name: str = None,
-    tag: str = None,
-    kind: str = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
+    kind: Optional[str] = None,
     category: mlrun.common.schemas.ArtifactCategories = None,
     labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
-    tree: str = None,
-    producer_uri: str = None,
+    tree: Optional[str] = None,
+    producer_uri: Optional[str] = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     limit: int = Query(None),
-    since: str = None,
-    until: str = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -215,9 +216,9 @@ async def list_artifacts(
 async def get_artifact(
     project: str,
     key: str,
-    tree: str = None,
-    tag: str = None,
-    iter: int = None,
+    tree: Optional[str] = None,
+    tag: Optional[str] = None,
+    iter: Optional[int] = None,
     object_uid: str = Query(None, alias="object-uid"),
     # TODO: remove deprecated uid parameter in 1.9.0
     # we support both uid and object-uid for backward compatibility
@@ -255,8 +256,8 @@ async def get_artifact(
 async def delete_artifact(
     project: str,
     key: str,
-    tree: str = None,
-    tag: str = None,
+    tree: Optional[str] = None,
+    tag: Optional[str] = None,
     object_uid: str = Query(None, alias="object-uid"),
     # TODO: remove deprecated uid parameter in 1.9.0
     # we support both uid and object-uid for backward compatibility
@@ -267,7 +268,7 @@ async def delete_artifact(
     ),
     iteration: int = Query(None, alias="iter"),
     deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
-    secrets: dict = None,
+    secrets: Optional[dict] = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -307,10 +308,10 @@ async def delete_artifact(
 
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
-    project: str = None,
+    project: Optional[str] = None,
     name: str = "",
     tag: str = "",
-    tree: str = None,
+    tree: Optional[str] = None,
     labels: list[str] = Query([], alias="label"),
     limit: int = Query(None),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),

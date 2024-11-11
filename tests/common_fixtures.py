@@ -281,15 +281,15 @@ class RunDBMock:
         labels=None,
         since=None,
         until=None,
-        iter: int = None,
+        iter: Optional[int] = None,
         best_iteration: bool = False,
-        kind: str = None,
+        kind: Optional[str] = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: str = None,
+        tree: Optional[str] = None,
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
-        limit: int = None,
+        limit: Optional[int] = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:
@@ -462,7 +462,7 @@ class RunDBMock:
         self._api_gateways[key] = api_gateway
         return api_gateway
 
-    def get_api_gateway(self, name: str, project: str = None):
+    def get_api_gateway(self, name: str, project: Optional[str] = None):
         key = self._generate_api_gateway_key(name, project)
         api_gateway = self._api_gateways.get(key)
         if api_gateway:
@@ -598,7 +598,7 @@ class RunDBMock:
     ):
         pass
 
-    def _get_function_internal(self, function_name: str = None):
+    def _get_function_internal(self, function_name: Optional[str] = None):
         if function_name:
             return self._functions[function_name]
 

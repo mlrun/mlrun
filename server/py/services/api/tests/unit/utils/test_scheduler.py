@@ -86,7 +86,7 @@ async def do_nothing():
 
 
 def create_project(
-    db: Session, project_name: str = None
+    db: Session, project_name: typing.Optional[str] = None
 ) -> mlrun.common.schemas.Project:
     """API tests use sql db, so we need to create the project with its schema"""
     project = mlrun.common.schemas.Project(
@@ -1786,8 +1786,8 @@ def _assert_schedule(
     kind: mlrun.common.schemas.ScheduleKinds,
     cron_trigger: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger],
     next_run_time: typing.Optional[datetime] = None,
-    labels: dict = None,
-    concurrency_limit: int = None,
+    labels: typing.Optional[dict] = None,
+    concurrency_limit: typing.Optional[int] = None,
 ):
     assert schedule.name == name
     assert schedule.project == project

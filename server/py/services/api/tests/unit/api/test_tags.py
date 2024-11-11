@@ -603,7 +603,7 @@ class TestArtifactTags:
         client,
         tag: str,
         identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
-        project: str = None,
+        project: typing.Optional[str] = None,
     ):
         # using client.request instead of client.delete because the latter doesn't support body
         # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
@@ -618,7 +618,7 @@ class TestArtifactTags:
         client,
         tag: str,
         identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
-        project: str = None,
+        project: typing.Optional[str] = None,
     ):
         return client.put(
             API_TAGS_PATH.format(project=project or self.project, tag=tag),
@@ -630,7 +630,7 @@ class TestArtifactTags:
         client,
         tag: str,
         identifiers: list[typing.Union[dict, mlrun.common.schemas.ArtifactIdentifier]],
-        project: str = None,
+        project: typing.Optional[str] = None,
     ):
         return client.post(
             API_TAGS_PATH.format(project=project or self.project, tag=tag),
@@ -676,7 +676,9 @@ class TestArtifactTags:
             assert artifact_tag == expected_tag
 
     def _create_project(
-        self, client: fastapi.testclient.TestClient, project_name: str = None
+        self,
+        client: fastapi.testclient.TestClient,
+        project_name: typing.Optional[str] = None,
     ):
         project = mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(
@@ -690,7 +692,12 @@ class TestArtifactTags:
         assert response.status_code == http.HTTPStatus.CREATED.value
         return response
 
-    def _list_artifacts(self, client, project: str = None, tag: str = None):
+    def _list_artifacts(
+        self,
+        client,
+        project: typing.Optional[str] = None,
+        tag: typing.Optional[str] = None,
+    ):
         project = project or self.project
         if tag:
             return client.get(
@@ -701,13 +708,13 @@ class TestArtifactTags:
     def _store_artifact(
         self,
         client: fastapi.testclient.TestClient,
-        name: str = None,
-        project: str = None,
-        tree: str = None,
-        key: str = None,
-        tag: str = None,
-        data: dict = None,
-        labels: dict = None,
+        name: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
+        tree: typing.Optional[str] = None,
+        key: typing.Optional[str] = None,
+        tag: typing.Optional[str] = None,
+        data: typing.Optional[dict] = None,
+        labels: typing.Optional[dict] = None,
         kind: str = "artifact",
         expected_status_code: int = http.HTTPStatus.OK.value,
     ):

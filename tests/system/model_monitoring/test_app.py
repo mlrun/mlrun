@@ -235,8 +235,8 @@ class _V3IORecordsChecker:
         ep_id: str,
         inputs: set[str],
         outputs: set[str],
-        last_request: datetime = None,
-        error_count: float = None,
+        last_request: typing.Optional[datetime] = None,
+        error_count: typing.Optional[float] = None,
     ) -> None:
         cls._test_parquet(ep_id, inputs, outputs)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
@@ -1153,7 +1153,7 @@ class TestMonitoredServings(TestMLRunSystem):
         self,
         model_name: str,
         training_set: pd.DataFrame = None,
-        label_column: typing.Union[str, list[str]] = None,
+        label_column: typing.Optional[typing.Union[str, list[str]]] = None,
     ) -> None:
         self.project.log_model(
             model_name,

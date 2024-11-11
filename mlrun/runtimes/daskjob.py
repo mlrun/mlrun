@@ -363,7 +363,7 @@ class DaskCluster(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
-        builder_env: dict = None,
+        builder_env: Optional[dict] = None,
         show_on_failure: bool = False,
         force_build: bool = False,
     ):
@@ -406,9 +406,9 @@ class DaskCluster(KubejobRuntime):
 
     def with_scheduler_limits(
         self,
-        mem: str = None,
-        cpu: str = None,
-        gpus: int = None,
+        mem: Optional[str] = None,
+        cpu: Optional[str] = None,
+        gpus: Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -422,9 +422,9 @@ class DaskCluster(KubejobRuntime):
 
     def with_worker_limits(
         self,
-        mem: str = None,
-        cpu: str = None,
-        gpus: int = None,
+        mem: Optional[str] = None,
+        cpu: Optional[str] = None,
+        gpus: Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -442,7 +442,7 @@ class DaskCluster(KubejobRuntime):
         )
 
     def with_scheduler_requests(
-        self, mem: str = None, cpu: str = None, patch: bool = False
+        self, mem: Optional[str] = None, cpu: Optional[str] = None, patch: bool = False
     ):
         """
         set scheduler pod resources requests
@@ -451,7 +451,7 @@ class DaskCluster(KubejobRuntime):
         self.spec._verify_and_set_requests("scheduler_resources", mem, cpu, patch=patch)
 
     def with_worker_requests(
-        self, mem: str = None, cpu: str = None, patch: bool = False
+        self, mem: Optional[str] = None, cpu: Optional[str] = None, patch: bool = False
     ):
         """
         set worker pod resources requests

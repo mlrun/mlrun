@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 from ..._ml_common.loggers import Logger
 from ..utils import LGBMTypes
 from .callback import Callback, CallbackEnv
@@ -25,8 +27,8 @@ class LoggingCallback(Callback):
 
     def __init__(
         self,
-        dynamic_hyperparameters: list[str] = None,
-        static_hyperparameters: list[str] = None,
+        dynamic_hyperparameters: Optional[list[str]] = None,
+        static_hyperparameters: Optional[list[str]] = None,
     ):
         """
         Initialize the logging callback with the given configuration. All the metrics data will be collected but the

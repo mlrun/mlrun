@@ -107,8 +107,8 @@ class Member(abc.ABC):
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-        background_task_name: str = None,
-        model_monitoring_access_key: str = None,
+        background_task_name: typing.Optional[str] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> bool:
         pass
 
@@ -127,9 +127,9 @@ class Member(abc.ABC):
     def list_projects(
         self,
         db_session: sqlalchemy.orm.Session,
-        owner: str = None,
+        owner: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
@@ -150,8 +150,8 @@ class Member(abc.ABC):
     async def list_project_summaries(
         self,
         db_session: sqlalchemy.orm.Session,
-        owner: str = None,
-        labels: list[str] = None,
+        owner: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,

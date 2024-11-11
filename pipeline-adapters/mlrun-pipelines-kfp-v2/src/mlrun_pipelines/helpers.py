@@ -17,9 +17,9 @@ import typing
 
 
 def new_pipe_metadata(
-    artifact_path: str = None,
-    cleanup_ttl: int = None,
-    op_transformers: list[typing.Callable] = None,
+    artifact_path: typing.Optional[str] = None,
+    cleanup_ttl: typing.Optional[int] = None,
+    op_transformers: typing.Optional[list[typing.Callable]] = None,
 ):
     # This function is not required on a KFP 2.0 setup
     # The definition is here for import compatibility reasons

@@ -111,7 +111,8 @@ def extract_image_tag(image_reference):
 
 
 def is_request_from_leader(
-    projects_role: Optional[mlrun.common.schemas.ProjectsRole], leader_name: str = None
+    projects_role: Optional[mlrun.common.schemas.ProjectsRole],
+    leader_name: Optional[str] = None,
 ):
     leader_name = leader_name or mlrun.mlconf.httpdb.projects.leader
     if projects_role and projects_role.value == leader_name:

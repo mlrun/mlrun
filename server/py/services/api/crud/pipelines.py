@@ -68,7 +68,9 @@ class Pipelines(
             )
 
         kfp_client = self.initialize_kfp_client(namespace)
-        if not projects:
+        if not projects or len(projects) == 1:
+            project = project or projects[0]
+
             # If no filter is provided and we're querying a single project,
             # automatically apply a filter to match runs where the project name
             # is a substring of the pipeline's name. This ensures that only pipelines

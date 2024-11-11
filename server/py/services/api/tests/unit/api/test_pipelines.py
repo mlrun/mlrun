@@ -51,6 +51,9 @@ def test_list_pipelines_empty_list(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
+    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project])
+    )
     runs = []
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get("projects/*/pipelines")
@@ -65,6 +68,9 @@ def test_list_pipelines_formats(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
+    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project])
+    )
     for format_ in [
         mlrun.common.formatters.PipelineFormat.full,
         mlrun.common.formatters.PipelineFormat.metadata_only,
@@ -171,6 +177,9 @@ def test_list_pipelines_time_fields_default(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
+    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project])
+    )
     created_at = datetime.datetime.now()
     workflow_manifest = _generate_workflow_manifest()
     runs = [
@@ -227,6 +236,9 @@ def test_list_pipelines_name_contains(
     expected_runs_ids: list,
 ) -> None:
     project_name = "test-project"
+    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[project_name])
+    )
     services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project_name
     )
@@ -264,6 +276,9 @@ def test_list_pipelines_specific_project(
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
     project = "project-name"
+    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[project])
+    )
     runs = _generate_list_runs_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)

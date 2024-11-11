@@ -52,25 +52,23 @@ class AlertActivation(
         alert: mlrun.common.schemas.AlertConfig,
     ) -> list[mlrun.common.schemas.NotificationState]:
         # process the notifications associated with the provided alert and construct a list of NotificationState objects
-        # each NotificationState represents a unique type of notification (e.g., "slack", "git") and its status,
-        # the status will be set to "error" if at least one notification of that type has failed.
-        # otherwise, the status will be an empty string if all notifications of that type have succeeded.
+        # each NotificationState represents a unique type of notification (e.g., "slack", "git") and its status.
+        # if at least one notification of that type failed, the error message from the most recent failure will
+        # be stored. if no failure occurred, the status will be an empty string indicating success.
         notification_states = {}
 
         for alert_notification in alert.notifications:
             notification_kind = alert_notification.notification.kind
-            notification_status = alert_notification.notification.status
+            notification_reason = alert_notification.notification.reason
 
             notification_states.setdefault(
                 notification_kind,
-                notification_status
-                if notification_status == mlrun.common.schemas.NotificationStatus.ERROR
-                else "",
+                notification_reason if notification_reason is not None else "",
             )
 
         notification_states = [
-            mlrun.common.schemas.NotificationState(kind=kind, status=status)
-            for kind, status in notification_states.items()
+            mlrun.common.schemas.NotificationState(kind=kind, err=err)
+            for kind, err in notification_states.items()
         ]
 
         return notification_states

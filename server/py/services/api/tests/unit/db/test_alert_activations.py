@@ -43,8 +43,10 @@ def test_store_alert_activation(db: DBInterface, db_session: Session):
         value_dict={"uid": 123},
     )
     notifications_states = [
-        mlrun.common.schemas.NotificationState(kind="git", status=""),
-        mlrun.common.schemas.NotificationState(kind="slack", status="error"),
+        mlrun.common.schemas.NotificationState(kind="git", err=""),
+        mlrun.common.schemas.NotificationState(
+            kind="slack", err="slack channel not found"
+        ),
     ]
 
     alert_data = services.api.tests.unit.crud.utils.generate_alert_data(

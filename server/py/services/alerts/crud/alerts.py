@@ -209,10 +209,10 @@ class Alerts(
                 AlertNotificationPusher().push(alert, event_data)
 
                 if alert.reset_policy == "auto":
+                    self.reset_alert(session, alert.project, alert.name)
                     services.api.crud.AlertActivation().store_alert_activation(
                         session, alert, event_data
                     )
-                    self.reset_alert(session, alert.project, alert.name)
                     update_state = False
                 else:
                     active = True

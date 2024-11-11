@@ -198,6 +198,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 alert.project,
                 notification_object,
                 status=mlrun.common.schemas.NotificationStatus.ERROR,
+                reason=str(exc),
             )
             raise exc
 
@@ -222,10 +223,20 @@ class AlertNotificationPusher(_NotificationPusherBase):
         notification: mlrun.common.schemas.Notification,
         status: typing.Optional[str] = None,
         sent_time: typing.Optional[datetime.datetime] = None,
+        reason: typing.Optional[str] = None,
     ):
         db = mlrun.get_run_db()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
+
+        # fill reason only if failed
+        if notification.status == mlrun.common.schemas.NotificationStatus.ERROR:
+            notification.reason = reason or notification.reason
+
+            # limit reason to a max of 255 characters (for db reasons) but also for human readability reasons.
+            notification.reason = notification.reason[:255]
+        else:
+            notification.reason = None
 
         # There is no need to mask the params as the secrets are already loaded
         db.store_alert_notifications(

@@ -209,7 +209,7 @@ class AlertActivation(pydantic.BaseModel):
     activation_time: datetime
     entity_id: str
     entity_kind: EventEntityKind
-    criteria: Optional[AlertCriteria]
+    criteria: AlertCriteria
     event_kind: EventKind
     number_of_events: int
     notifications: list[NotificationState]

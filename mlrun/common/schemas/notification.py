@@ -134,4 +134,6 @@ class SetNotificationRequest(pydantic.BaseModel):
 
 class NotificationState(pydantic.BaseModel):
     kind: str
-    status: Optional[str]
+    err: Optional[
+        str
+    ]  # empty error means that the notifications were sent successfully

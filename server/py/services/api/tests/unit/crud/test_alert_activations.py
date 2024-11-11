@@ -70,7 +70,7 @@ async def test_store_alert_activation(
         session=db, project=project
     )
     expected_notifications_states = [
-        mlrun.common.schemas.NotificationState(kind="slack", status=""),
+        mlrun.common.schemas.NotificationState(kind="slack", err=""),
     ]
     expected_entity_id = (
         f"{alert_data.entities.ids[0]}.{event_data.value_dict.get('uid')}"
@@ -167,7 +167,7 @@ async def test_store_alert_activation_with_criteria(
         session=db, project=project
     )
     expected_notifications_states = [
-        mlrun.common.schemas.NotificationState(kind="slack", status=""),
+        mlrun.common.schemas.NotificationState(kind="slack", err=""),
     ]
     expected_entity_id = (
         f"{alert_data.entities.ids[0]}.{event_data.value_dict.get('uid')}"

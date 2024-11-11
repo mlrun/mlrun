@@ -52,7 +52,7 @@ def test_list_pipelines_empty_list(
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
     services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project])
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
     )
     runs = []
     _mock_list_runs(kfp_client_mock, runs)
@@ -69,7 +69,7 @@ def test_list_pipelines_formats(
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
     services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project])
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
     )
     for format_ in [
         mlrun.common.formatters.PipelineFormat.full,
@@ -178,7 +178,7 @@ def test_list_pipelines_time_fields_default(
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
     services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
-        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project])
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
     )
     created_at = datetime.datetime.now()
     workflow_manifest = _generate_workflow_manifest()

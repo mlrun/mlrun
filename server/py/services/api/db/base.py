@@ -355,6 +355,7 @@ class DBInterface(ABC):
         session,
         name: Optional[str] = None,
         project: Optional[str] = None,
+        projects: Optional[list[str]] = None,
         tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
         hash_key: Optional[str] = None,

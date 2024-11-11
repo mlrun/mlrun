@@ -220,14 +220,20 @@ async def list_functions(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if project is None:
-        project = config.default_project
+    project = project or config.default_project
 
     if project != "*":
         await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
+        )
+        allowed_project_names = [project]
+    else:
+        allowed_project_names = (
+            await services.api.crud.Projects().list_allowed_project_names(
+                db_session, auth_info
+            )
         )
 
     paginator = services.api.utils.pagination.Paginator()
@@ -253,7 +259,7 @@ async def list_functions(
         token=page_token,
         page=page,
         page_size=page_size,
-        project=project,
+        projects=allowed_project_names,
         name=name,
         tag=tag,
         labels=labels,

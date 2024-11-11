@@ -1909,6 +1909,7 @@ class SQLDB(DBInterface):
         session: Session,
         name: typing.Optional[str] = None,
         project: typing.Optional[str] = None,
+        projects: typing.Optional[list[str]] = None,
         tag: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         hash_key: typing.Optional[str] = None,
@@ -1924,6 +1925,7 @@ class SQLDB(DBInterface):
             session=session,
             name=name,
             project=project,
+            projects=projects,
             labels=labels,
             tag=tag,
             hash_key=hash_key,
@@ -4785,6 +4787,7 @@ class SQLDB(DBInterface):
         session: Session,
         name: str,
         project: str,
+        projects: typing.Optional[list[str]] = None,
         labels: typing.Union[str, list[str], None] = None,
         tag: typing.Optional[str] = None,
         hash_key: typing.Optional[str] = None,
@@ -4809,7 +4812,9 @@ class SQLDB(DBInterface):
         """
         query = session.query(Function, Function.Tag.name)
 
-        if project != "*":
+        if projects:
+            query = query.filter(Function.project.in_(projects))
+        else:
             query = query.filter(Function.project == project)
 
         if name:

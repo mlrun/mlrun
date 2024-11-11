@@ -13,3 +13,4 @@
 # limitations under the License.
 #
 from .init_db import init_db
+from .session import close_session, create_session

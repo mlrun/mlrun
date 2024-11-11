@@ -36,6 +36,7 @@ import mlrun.utils.helpers
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
+import services.api.utils.singletons.k8s
 from .notification import NotificationBase, NotificationTypes
 
 
@@ -99,6 +100,7 @@ class NotificationPusher(_NotificationPusherBase):
         "error": "{resource} failed",
         "aborted": "{resource} aborted",
     }
+    mail_notification_default_params = None
 
     def __init__(
         self,
@@ -182,6 +184,39 @@ class NotificationPusher(_NotificationPusherBase):
         )
 
         self._push(sync_push, async_push)
+
+    @staticmethod
+    def resolve_notifications_default_params():
+        # TODO: After implementing make running notification send from the server side (ML-8069),
+        #       we should move all the notifications classes from the client to the server and also
+        #       create new function on the NotificationBase class for resolving the default params.
+        #       After that we can remove this function.
+        return {
+            NotificationTypes.console: {},
+            NotificationTypes.git: {},
+            NotificationTypes.ipython: {},
+            NotificationTypes.slack: {},
+            NotificationTypes.mail: NotificationPusher._get_mail_notification_default_params(),
+            NotificationTypes.webhook: {},
+        }
+
+    @staticmethod
+    def _get_mail_notification_default_params():
+        if NotificationPusher.mail_notification_default_params is not None:
+            return NotificationPusher.mail_notification_default_params
+
+        smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
+        mail_notification_default_params = {}
+        if services.api.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
+            mail_notification_default_params = (
+                services.api.utils.singletons.k8s.get_k8s_helper().read_secret_data(
+                    smtp_config_secret_name
+                )
+            )
+        NotificationPusher.mail_notification_default_params = (
+            mail_notification_default_params
+        )
+        return NotificationPusher.mail_notification_default_params
 
     @staticmethod
     def _should_notify(

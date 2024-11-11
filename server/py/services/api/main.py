@@ -809,9 +809,9 @@ class Service(framework.service.Service):
         self._logger.debug(
             "Got terminal runs with configured notifications", runs_amount=len(runs)
         )
-        default_notification_params = services.api.utils.notification_pusher.resolve_notifications_default_params()
+        notification_pusher = services.api.utils.notification_pusher.NotificationPusher
         services.api.utils.notification_pusher.RunNotificationPusher(
-            unmasked_runs, default_notification_params
+            unmasked_runs, notification_pusher.resolve_notifications_default_params()
         ).push()
 
     def _generate_event_on_failed_runs(

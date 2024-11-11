@@ -1026,7 +1026,7 @@ class TestMailNotification:
     }
 
     @pytest.mark.parametrize(
-        "params, should_raise",
+        "params, expectation",
         [
             (
                 {
@@ -1037,7 +1037,7 @@ class TestMailNotification:
                     "password": "pass",
                     "email_addresses": "a@example.com",
                 },
-                False,
+                does_not_raise(),
             ),
             (
                 {
@@ -1048,7 +1048,7 @@ class TestMailNotification:
                     "password": "pass",
                     "email_addresses": ["a@example.com", "b@example.com"],
                 },
-                False,
+                does_not_raise(),
             ),
             (
                 {
@@ -1058,19 +1058,15 @@ class TestMailNotification:
                     "password": "pass",
                     "email_addresses": "a@example.com",
                 },
-                True,
+                pytest.raises(ValueError),
             ),
         ],
     )
-    def test_validate_mail_params(self, params, should_raise):
-        try:
+    def test_validate_mail_params(self, params, expectation):
+        with expectation:
             mlrun.utils.notifications.notification.MailNotification.validate_params(
                 params
             )
-        except ValueError:
-            assert should_raise
-        else:
-            assert not should_raise
 
     @pytest.mark.parametrize(
         ["name", "params", "expected_params"],

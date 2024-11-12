@@ -29,7 +29,6 @@ import pydantic.error_wrappers
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
-import mlrun.utils.notifications
 import mlrun.utils.regex
 
 from .utils import (

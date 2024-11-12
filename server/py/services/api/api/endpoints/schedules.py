@@ -169,7 +169,7 @@ async def list_schedules(
     schedules = await run_in_threadpool(
         get_scheduler().list_schedules,
         db_session,
-        projects=allowed_project_names,
+        project=allowed_project_names,
         name=name,
         kind=kind,
         labels=labels or _labels,

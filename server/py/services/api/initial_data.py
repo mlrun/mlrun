@@ -266,7 +266,7 @@ def _align_runs_table(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     logger.info("Aligning runs")
-    runs = db._find_runs(db_session, None, "*", None, None).all()
+    runs = db._find_runs(db_session, None, "*", None).all()
     for run in runs:
         run_dict = run.struct
 

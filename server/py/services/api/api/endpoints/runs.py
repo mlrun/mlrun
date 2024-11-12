@@ -263,7 +263,7 @@ async def list_runs(
         page_size=page_size,
         name=name,
         uid=uid,
-        projects=allowed_project_names,
+        project=allowed_project_names,
         labels=labels,
         states=states,
         sort=sort,

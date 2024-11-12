@@ -14,7 +14,7 @@
 #
 
 import datetime
-from typing import Optional
+from typing import Optional, Union
 
 import sqlalchemy.orm
 
@@ -94,8 +94,7 @@ class Functions(
     def list_functions(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: Optional[str] = None,
-        projects: Optional[list[str]] = None,
+        project: Optional[Union[str, list[str]]] = None,
         name: Optional[str] = None,
         tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
@@ -113,7 +112,6 @@ class Functions(
             session=db_session,
             name=name,
             project=project,
-            projects=projects,
             tag=tag,
             labels=labels,
             hash_key=hash_key,

@@ -111,13 +111,10 @@ class Alerts(
     def list_alerts(
         self,
         session: sqlalchemy.orm.Session,
-        project: str = "",
-        projects: typing.Optional[list[str]] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         project = project or mlrun.mlconf.default_project
-        return framework.utils.singletons.db.get_db().list_alerts(
-            session, project, projects
-        )
+        return framework.utils.singletons.db.get_db().list_alerts(session, project)
 
     def get_enriched_alert(
         self, session: sqlalchemy.orm.Session, project: str, name: str

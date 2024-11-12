@@ -254,7 +254,7 @@ async def list_functions(
         token=page_token,
         page=page,
         page_size=page_size,
-        projects=allowed_project_names,
+        project=allowed_project_names,
         name=name,
         tag=tag,
         labels=labels,

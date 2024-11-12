@@ -76,7 +76,7 @@ async def list_pipelines(
         total_size, next_page_token, runs = await run_in_threadpool(
             services.api.crud.Pipelines().list_pipelines,
             db_session=db_session,
-            projects=allowed_project_names,
+            project=allowed_project_names,
             namespace=namespace,
             sort_by=sort_by,
             page_token=page_token,

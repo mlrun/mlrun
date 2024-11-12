@@ -113,8 +113,7 @@ class DBInterface(ABC):
         session,
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        project: str = "",
-        projects: Optional[list[str]] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
         states: Optional[list[str]] = None,
         sort: bool = True,
@@ -354,8 +353,7 @@ class DBInterface(ABC):
         self,
         session,
         name: Optional[str] = None,
-        project: Optional[str] = None,
-        projects: Optional[list[str]] = None,
+        project: Optional[Union[str, list[str]]] = None,
         tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
         hash_key: Optional[str] = None,
@@ -441,8 +439,7 @@ class DBInterface(ABC):
     def list_schedules(
         self,
         session,
-        project: Optional[str] = None,
-        projects: Optional[list[str]] = None,
+        project: Optional[Union[str, list[str]]] = None,
         name: Optional[str] = None,
         labels: Optional[list[str]] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
@@ -881,10 +878,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_alerts(
-        self,
-        session,
-        project: Optional[str] = None,
-        projects: Optional[list[str]] = None,
+        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
     ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 

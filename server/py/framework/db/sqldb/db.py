@@ -415,8 +415,7 @@ class SQLDB(DBInterface):
         session,
         name: typing.Optional[str] = None,
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
-        project: str = "",
-        projects: typing.Optional[list[str]] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
@@ -438,7 +437,7 @@ class SQLDB(DBInterface):
         page_size: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
-        query = self._find_runs(session, uid, project, projects, labels)
+        query = self._find_runs(session, uid, project, labels)
         if name is not None:
             query = self._add_run_name_query(query, name)
         if states is not None:
@@ -506,7 +505,7 @@ class SQLDB(DBInterface):
         self, session, name=None, project=None, labels=None, state=None, days_ago=0
     ):
         project = project or config.default_project
-        query = self._find_runs(session, None, project, None, labels)
+        query = self._find_runs(session, None, project, labels)
         if days_ago:
             since = datetime.now(timezone.utc) - timedelta(days=days_ago)
             query = query.filter(Run.start_time >= since)
@@ -1908,8 +1907,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
-        projects: typing.Optional[list[str]] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         tag: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         hash_key: typing.Optional[str] = None,
@@ -1925,7 +1923,6 @@ class SQLDB(DBInterface):
             session=session,
             name=name,
             project=project,
-            projects=projects,
             labels=labels,
             tag=tag,
             hash_key=hash_key,
@@ -2404,24 +2401,17 @@ class SQLDB(DBInterface):
     def list_schedules(
         self,
         session: Session,
-        project: typing.Optional[str] = None,
-        projects: typing.Optional[list[str]] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         name: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
         as_records: bool = False,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
-        logger.debug(
-            "Getting schedules from db",
-            project=project,
-            projects=projects,
-            name=name,
-            kind=kind,
-        )
+        logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
-        if projects:
-            query = query.filter(Schedule.project.in_(projects))
-        elif project:
+        if isinstance(project, list):
+            query = query.filter(Schedule.project.in_(project))
+        elif project and project != "*":
             query = query.filter(Schedule.project == project)
 
         if name is not None:
@@ -3213,7 +3203,7 @@ class SQLDB(DBInterface):
         )
         logs = self._list_logs(session, name)
         self._verify_empty_list_of_project_related_resources(name, logs, "logs")
-        runs = self._find_runs(session, None, name, None, []).all()
+        runs = self._find_runs(session, None, name, []).all()
         self._verify_empty_list_of_project_related_resources(name, runs, "runs")
         notifications = []
         for cls in _with_notifications:
@@ -4754,14 +4744,16 @@ class SQLDB(DBInterface):
                 _try_commit_obj,
             )
 
-    def _find_runs(self, session, uid, project, projects, labels):
+    def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)
-        if project == "*" or projects:
+
+        if isinstance(project, list) or project == "*":
             project = None
+
         query = self._query(session, Run, project=project)
 
-        if projects:
-            query = query.filter(Run.project.in_(projects))
+        if isinstance(project, list):
+            query = query.filter(Run.project.in_(project))
 
         if uid:
             # uid may be either a single uid (string) or a list of uids
@@ -4791,8 +4783,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: str,
-        project: str,
-        projects: typing.Optional[list[str]] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: typing.Union[str, list[str], None] = None,
         tag: typing.Optional[str] = None,
         hash_key: typing.Optional[str] = None,
@@ -4817,9 +4808,9 @@ class SQLDB(DBInterface):
         """
         query = session.query(Function, Function.Tag.name)
 
-        if projects:
-            query = query.filter(Function.project.in_(projects))
-        else:
+        if isinstance(project, list):
+            query = query.filter(Function.project.in_(project))
+        elif project and project != "*":
             query = query.filter(Function.project == project)
 
         if name:
@@ -5601,17 +5592,14 @@ class SQLDB(DBInterface):
         self._delete(session, AlertConfig, project=project, name=name)
 
     def list_alerts(
-        self,
-        session,
-        project: typing.Optional[str] = None,
-        projects: typing.Optional[list[str]] = None,
+        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
-        if project and not projects:
+        if isinstance(project, list):
+            query = query.filter(AlertConfig.project.in_(project))
+        elif project and project != "*":
             query = query.filter(AlertConfig.project == project)
-        elif projects:
-            query = query.filter(AlertConfig.project.in_(projects))
 
         alerts = list(map(self._transform_alert_config_record_to_schema, query.all()))
         for alert in alerts:

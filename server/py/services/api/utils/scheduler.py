@@ -249,8 +249,7 @@ class Scheduler:
     def list_schedules(
         self,
         db_session: Session,
-        project: Optional[str] = None,
-        projects: Optional[list[str]] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         name: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
@@ -260,7 +259,6 @@ class Scheduler:
         db_schedules = get_db().list_schedules(
             session=db_session,
             project=project,
-            projects=projects,
             name=name,
             labels=labels,
             kind=kind,

@@ -21,7 +21,8 @@ import mlrun.errors
 import mlrun.model
 import mlrun.utils.helpers
 from mlrun.utils import logger
-from mlrun.utils.notifications.notification import NotificationBase, NotificationTypes
+from mlrun.utils.notifications.notification import NotificationTypes
+import mlrun.utils.notifications.notification.base as base
 from mlrun.utils.notifications.notification_pusher import (
     NotificationPusher,
     _NotificationPusherBase,
@@ -144,7 +145,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
 
     async def _push_notification_async(
         self,
-        notification: NotificationBase,
+        notification: base.NotificationBase,
         alert: mlrun.common.schemas.AlertConfig,
         notification_object: mlrun.common.schemas.Notification,
         event_data: mlrun.common.schemas.Event,

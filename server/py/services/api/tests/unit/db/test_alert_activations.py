@@ -21,7 +21,7 @@ import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.notification
 
 import services.api.tests.unit.crud.utils
-from services.api.db.base import DBInterface
+from framework.db.base import DBInterface
 
 
 def test_store_alert_activation(db: DBInterface, db_session: Session):

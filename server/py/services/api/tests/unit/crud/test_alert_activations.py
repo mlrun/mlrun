@@ -23,6 +23,7 @@ import services.api.crud.alert_activation
 import services.api.tests.unit.conftest
 import services.api.tests.unit.crud.utils
 
+
 async def test_store_alert_activation(
     db: sqlalchemy.orm.Session,
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,

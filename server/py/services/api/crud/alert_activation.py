@@ -18,7 +18,7 @@ import sqlalchemy.orm
 import mlrun.common.schemas.alert
 import mlrun.utils.singleton
 
-import services.api.utils.singletons.db
+import framework.utils.singletons.db
 
 
 class AlertActivation(
@@ -32,7 +32,7 @@ class AlertActivation(
     ):
         notifications_states = self._prepare_notifications_states(alert_data)
 
-        services.api.utils.singletons.db.get_db().store_alert_activation(
+        framework.utils.singletons.db.get_db().store_alert_activation(
             session, alert_data, event_data, notifications_states
         )
 
@@ -43,7 +43,7 @@ class AlertActivation(
     ) -> list[mlrun.common.schemas.AlertActivation]:
         # TODO: add filters
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_alerts_activations(
+        return framework.utils.singletons.db.get_db().list_alerts_activations(
             session, project
         )
 

@@ -97,9 +97,6 @@ When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a 
 
 ### UI configuration
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
 Configure requests and limits in the service's **Common Parameters** tab and in the **Configuration** tab of the function.
 
 ## Number of workers and GPUs
@@ -163,9 +160,6 @@ mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data")
 See full details in {py:meth}`~mlrun.platforms.mount_pvc`.
 ### UI configuration
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
 You can configure Volumes when creating a job, rerunning an existing job, and creating an ML function.
 Modify the Volumes for an ML function by pressing **ML functions**, then **<img src="../_static/images/kebab-menu.png" width="25"/>** 
 of the function, **Edit** | **Resources** | **Volumes** drop-down list. 
@@ -222,7 +216,7 @@ To change the default function preemption mode, it is required to override the a
 
 ### SDK configuration
 
-Configure preemption mode by adding the {py:meth}`~mlrun.runtimes.KubeResource.with_preemption_mode` parameter in your Jupyter notebook,  specifying a mode from the list of values above. <br>
+Configure preemption mode by adding the {py:meth}`~mlrun.runtimes.KubeResource.with_preemption_mode` parameter,  specifying a mode from the list of values above. <br>
 This example illustrates a function that cannot be scheduled on preemptible nodes:
 
 
@@ -244,7 +238,7 @@ train_fn.with_preemption_mode(mode="prevent")
 train_fn.run(inputs={"dataset": my_data})
 ```
 
-See {py:meth}`~KubeResource.with_preemption_mode.
+See {py:meth}`~KubeResource.with_preemption_mode`.
 
 Alternatively, you can specify the preemption using `with_priority_class` and `with_node_selection` parameters. This example specifies that 
 the pod/function runs only on non-preemptible nodes:
@@ -269,10 +263,6 @@ See:
 
 ### UI configuration
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
-
 You can configure Spot node support when creating a job, rerunning an existing job, and creating an ML function. 
 The **Run on Spot nodes** drop-down list is in the **Resources** section of jobs. 
 Configure the Spot node support for individual Nuclio functions when creating a function in the **Configuration** tab, under **Resources**. 
@@ -291,7 +281,7 @@ Pod priority is specified through Priority classes, which map to a priority valu
 
 ### SDK configuration
 
-Configure pod priority by adding the priority class parameter in your Jupyter notebook. <br>
+Configure pod priority by adding the priority class parameter. <br>
 For example:
 
 ```
@@ -309,9 +299,6 @@ See {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class`.
 
 ### UI configuration
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
 Configure the default priority for a service, which is applied to the service itself or to all subsequently created user-jobs in the 
 service's **Common Parameters** tab, **User jobs defaults** section, **Priority class** drop-down list.
 
@@ -427,7 +414,7 @@ which does not run in the MLRun cluster: node selectors have no significance in 
 
 ### SDK configuration
 
-Configure node selection by adding the key:value pairs in your Jupyter notebook formatted as a Python dictionary. <br>
+Configure node selection by adding the key:value pairs, formatted as a Python dictionary. <br>
 For example:
 
 ```        
@@ -447,9 +434,7 @@ fn.with_node_selection(node_selector={"zone": })
 See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_node_selection`.
 
 ### UI configuration
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
+
 - Configure node selection for individual MLRun jobs when creating a Batch run by going to **Platform dashboard | Projects | New Job | Resources | Node selector**, 
 and adding or removing Key:Value pairs. 
 - Configure the node selection for individual Nuclio functions when creating a 

@@ -15,6 +15,7 @@
 
 from http import HTTPStatus
 
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 from mlrun.utils import logger
 
+import framework.service
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
@@ -32,6 +34,7 @@ router = APIRouter(prefix="/projects/{project}/alerts")
 
 
 @router.put("/{name}", response_model=mlrun.common.schemas.AlertConfig)
+@inject
 async def store_alert(
     request: Request,
     project: str,
@@ -40,42 +43,19 @@ async def store_alert(
     force_reset: bool = False,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    service: framework.service.Service = Depends(
+        Provide[framework.service.ServiceContainer.service]
+    ),
 ) -> mlrun.common.schemas.AlertConfig:
-    await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
-        project,
-        auth_info=auth_info,
-    )
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert,
-            project,
-            name,
-            mlrun.common.schemas.AuthorizationAction.create,
-            auth_info,
-        )
-    )
-
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        chief_client = framework.utils.clients.chief.Client()
-        data = await request.json()
-        return await chief_client.store_alert(
-            project=project, name=name, request=request, json=data
-        )
-
-    logger.debug("Storing alert", project=project, name=name)
-
-    return await run_in_threadpool(
-        services.api.crud.Alerts().store_alert,
-        db_session,
+    return await service.handle_request(
+        "store_alert",
+        request,
         project,
         name,
         alert_data,
         force_reset,
+        auth_info,
+        db_session,
     )
 
 

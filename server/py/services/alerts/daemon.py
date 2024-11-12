@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dependency_injector import containers, providers
+
 import framework.service
 import services.alerts.main
 
@@ -30,3 +32,9 @@ class Daemon(framework.service.Daemon):
 daemon = Daemon(service_cls=services.alerts.main.Service)
 daemon.initialize()
 app = daemon.app
+
+
+# Overriding ``ServiceContainer`` with ``AlertsServiceContainer``:
+@containers.override(framework.service.ServiceContainer)
+class AlertsServiceContainer(containers.DeclarativeContainer):
+    service = providers.Object(daemon.service)

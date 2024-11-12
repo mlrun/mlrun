@@ -215,94 +215,92 @@ class Service(framework.service.Service):
         :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
         """
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        log_collection_cycle_tracker = framework.utils.time_window_tracker.TimeWindowTracker(
-            key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
-            # If the API was down for more than the grace period, we will only collect logs for runs which reached
-            # terminal state within the grace period and not since the API actually went down.
-            max_window_size_seconds=min(
-                int(mlconf.log_collector.api_downtime_grace_period),
-                int(mlconf.runtime_resources_deletion_grace_period),
-            ),
-        )
-        await fastapi.concurrency.run_in_threadpool(
-            log_collection_cycle_tracker.initialize, db_session
-        )
-        last_update_time = await fastapi.concurrency.run_in_threadpool(
-            log_collection_cycle_tracker.get_window, db_session
-        )
-        now = datetime.datetime.now(datetime.timezone.utc)
         try:
-            self._logger.debug(
-                "Getting all runs which are in non terminal state and require logs collection"
+            await framework.utils.time_window_tracker.run_with_time_window_tracker(
+                db_session,
+                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+                # If the API was down for more than the grace period, we will only collect logs for runs which reached
+                # terminal state within the grace period and not since the API actually went down.
+                max_window_size_seconds=min(
+                    int(mlconf.log_collector.api_downtime_grace_period),
+                    int(mlconf.runtime_resources_deletion_grace_period),
+                ),
+                ensure_window_update=True,
+                callback=self._verify_log_collection_started,
+                start_logs_limit=start_logs_limit,
             )
-            runs_uids = await fastapi.concurrency.run_in_threadpool(
+        finally:
+            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+    async def _verify_log_collection_started(
+        self, db_session, last_update_time: datetime.datetime, start_logs_limit
+    ):
+        self._logger.debug(
+            "Getting all runs which are in non terminal state and require logs collection"
+        )
+        runs_uids = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[None, False],
+            only_uids=True,
+            states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
+        )
+        self._logger.debug(
+            "Getting all runs which might have reached terminal state while the API was down",
+            api_downtime_grace_period=mlconf.log_collector.api_downtime_grace_period,
+        )
+        runs_uids.extend(
+            await fastapi.concurrency.run_in_threadpool(
                 get_db().list_distinct_runs_uids,
                 db_session,
                 requested_logs_modes=[None, False],
+                # get only uids as there might be many runs which reached terminal state while the API was down, the
+                # run objects will be fetched in the next step
                 only_uids=True,
-                states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
+                last_update_time_from=last_update_time,
+                states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
             )
+        )
+        if runs_uids:
+            skipped_run_uids = []
+            if len(runs_uids) > int(
+                mlrun.mlconf.log_collector.start_logs_startup_run_limit
+            ):
+                self._logger.warning(
+                    "Amount of runs requiring logs collection on startup exceeds configured limit, "
+                    "skipping the rest but marking them as requested",
+                    total_runs_count=len(runs_uids),
+                    start_logs_startup_run_limit=mlrun.mlconf.log_collector.start_logs_startup_run_limit,
+                )
+                skipped_run_uids = runs_uids[
+                    int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) :
+                ]
+                runs_uids = runs_uids[
+                    : int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
+                ]
+
             self._logger.debug(
-                "Getting all runs which might have reached terminal state while the API was down",
-                api_downtime_grace_period=mlconf.log_collector.api_downtime_grace_period,
+                "Found runs which require logs collection on startup",
+                runs_count=len(runs_uids),
             )
-            runs_uids.extend(
+
+            # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
+            # where the log collection failed (e.g. when the pod is not found for runs that might have reached
+            # terminal state while the API was down)
+            await self._start_log_and_update_runs(
+                start_logs_limit=start_logs_limit,
+                db_session=db_session,
+                runs_uids=runs_uids,
+                best_effort=True,
+            )
+
+            if skipped_run_uids:
                 await fastapi.concurrency.run_in_threadpool(
-                    get_db().list_distinct_runs_uids,
+                    get_db().update_runs_requested_logs,
                     db_session,
-                    requested_logs_modes=[None, False],
-                    # get only uids as there might be many runs which reached terminal state while the API was down, the
-                    # run objects will be fetched in the next step
-                    only_uids=True,
-                    last_update_time_from=last_update_time,
-                    states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
+                    uids=skipped_run_uids,
+                    requested_logs=True,
                 )
-            )
-            if runs_uids:
-                skipped_run_uids = []
-                if len(runs_uids) > int(
-                    mlrun.mlconf.log_collector.start_logs_startup_run_limit
-                ):
-                    self._logger.warning(
-                        "Amount of runs requiring logs collection on startup exceeds configured limit, "
-                        "skipping the rest but marking them as requested",
-                        total_runs_count=len(runs_uids),
-                        start_logs_startup_run_limit=mlrun.mlconf.log_collector.start_logs_startup_run_limit,
-                    )
-                    skipped_run_uids = runs_uids[
-                        int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) :
-                    ]
-                    runs_uids = runs_uids[
-                        : int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
-                    ]
-
-                self._logger.debug(
-                    "Found runs which require logs collection on startup",
-                    runs_count=len(runs_uids),
-                )
-
-                # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
-                # where the log collection failed (e.g. when the pod is not found for runs that might have reached
-                # terminal state while the API was down)
-                await self._start_log_and_update_runs(
-                    start_logs_limit=start_logs_limit,
-                    db_session=db_session,
-                    runs_uids=runs_uids,
-                    best_effort=True,
-                )
-
-                if skipped_run_uids:
-                    await fastapi.concurrency.run_in_threadpool(
-                        get_db().update_runs_requested_logs,
-                        db_session,
-                        uids=skipped_run_uids,
-                        requested_logs=True,
-                    )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(
-                log_collection_cycle_tracker.update_window, db_session, now
-            )
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     async def _initiate_logs_collection(self, start_logs_limit: asyncio.Semaphore):
         """
@@ -746,7 +744,7 @@ class Service(framework.service.Service):
         )
         await self._abort_stale_runs(stale_runs)
 
-    def _monitor_runs_and_push_terminal_notifications(self, db_session):
+    async def _monitor_runs_and_push_terminal_notifications(self, db_session):
         db = get_db()
         stale_runs = []
         for kind in RuntimeKinds.runtime_with_handlers():
@@ -762,19 +760,16 @@ class Service(framework.service.Service):
                 )
 
         try:
-            runs_monitoring_cycle_tracker = framework.utils.time_window_tracker.TimeWindowTracker(
+            await framework.utils.time_window_tracker.run_with_time_window_tracker(
+                db_session,
                 key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
                 max_window_size_seconds=int(
                     mlconf.runtime_resources_deletion_grace_period
                 ),
+                ensure_window_update=False,
+                callback=self._push_terminal_run_notifications,
+                db=db,
             )
-            runs_monitoring_cycle_tracker.initialize(db_session)
-            last_update_time = runs_monitoring_cycle_tracker.get_window(db_session)
-            now = datetime.datetime.now(datetime.timezone.utc)
-
-            self._push_terminal_run_notifications(db, db_session, last_update_time)
-
-            runs_monitoring_cycle_tracker.update_window(db_session, now)
         except Exception as exc:
             self._logger.warning(
                 "Failed pushing terminal run notifications. Ignoring",
@@ -800,7 +795,10 @@ class Service(framework.service.Service):
             close_session(db_session)
 
     def _push_terminal_run_notifications(
-        self, db: framework.db.base.DBInterface, db_session, last_update_time
+        self,
+        db_session,
+        last_update_time: datetime.datetime,
+        db: framework.db.base.DBInterface,
     ):
         """
         Get all runs with notification configs which became terminal since the last call to the function

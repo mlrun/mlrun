@@ -14,6 +14,8 @@
 import datetime
 
 import fastapi
+import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -26,15 +28,67 @@ import framework.db.base
 import framework.db.session
 import framework.db.sqldb.db
 import framework.service
+import framework.utils.auth.verifier
+import framework.utils.clients.chief
 import framework.utils.periodic
 import framework.utils.singletons.db
+import framework.utils.singletons.project_member
 import framework.utils.time_window_tracker
 import services.alerts.crud
 import services.alerts.initial_data
+import services.api.crud
+from framework.db.session import close_session, create_session
 from framework.routers import alerts, auth, healthz
 
 
 class Service(framework.service.Service):
+    service_name = "alerts"
+
+    async def store_alert(
+        self,
+        request: fastapi.Request,
+        project: str,
+        name: str,
+        alert_data: mlrun.common.schemas.AlertConfig,
+        force_reset: bool = False,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> mlrun.common.schemas.AlertConfig:
+        await run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().ensure_project,
+            db_session,
+            project,
+            auth_info=auth_info,
+        )
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+
+        # TODO: Remove chief requirement when alerts is standalone
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            chief_client = framework.utils.clients.chief.Client()
+            data = await request.json()
+            return await chief_client.store_alert(
+                project=project, name=name, request=request, json=data
+            )
+
+        self._logger.debug("Storing alert", project=project, name=name)
+        return await run_in_threadpool(
+            services.alerts.crud.Alerts().store_alert,
+            db_session,
+            project,
+            name,
+            alert_data,
+            force_reset,
+        )
+
     async def move_service_to_online(self):
         # TODO: Once alerts runs in its own pod - remove chief check
         if (
@@ -68,47 +122,47 @@ class Service(framework.service.Service):
         pass
 
     async def _start_periodic_functions(self):
-        self._start_periodic_cleanup()
+        self._start_periodic_events_generation()
 
-    def _start_periodic_cleanup(self):
-        interval = int(mlconf.monitoring.runs.interval)
+    def _start_periodic_events_generation(self):
+        interval = int(mlconf.alerts.events_generation_interval)
         if interval > 0:
-            self._logger.info("Starting periodic runtimes cleanup", interval=interval)
+            self._logger.info("Starting events generation", interval=interval)
             framework.utils.periodic.run_function_periodically(
                 interval,
-                self._monitor_runs_and_push_terminal_notifications.__name__,
+                self._generate_events.__name__,
                 False,
-                self._monitor_runs_and_push_terminal_notifications,
+                self._generate_events,
             )
 
-    def _monitor_runs_and_push_terminal_notifications(self, db_session):
-        db = framework.utils.singletons.db.get_db()
+    async def _generate_events(self):
+        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
         try:
-            runs_monitoring_cycle_tracker = framework.utils.time_window_tracker.TimeWindowTracker(
-                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
+            await framework.utils.time_window_tracker.run_with_time_window_tracker(
+                db_session=db_session,
+                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.events_generation,
                 max_window_size_seconds=int(
+                    # TODO: This needs to be aligned with chief
                     mlconf.runtime_resources_deletion_grace_period
                 ),
+                ensure_window_update=False,
+                callback=self._generate_event_on_failed_runs,
             )
-            runs_monitoring_cycle_tracker.initialize(db_session)
-            last_update_time = runs_monitoring_cycle_tracker.get_window(db_session)
-            now = datetime.datetime.now(datetime.timezone.utc)
-
-            self._generate_event_on_failed_runs(db, db_session, last_update_time)
-
-            runs_monitoring_cycle_tracker.update_window(db_session, now)
         except Exception as exc:
             self._logger.warning(
-                "Failed pushing terminal run notifications. Ignoring",
+                "Failed generating events. Ignoring",
                 exc=mlrun.errors.err_to_str(exc),
             )
+        finally:
+            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     def _generate_event_on_failed_runs(
-        self, db: framework.db.base.DBInterface, db_session, last_update_time
+        self, db_session: sqlalchemy.orm.Session, last_update_time: datetime.datetime
     ):
         """
         Send an event on the runs that ended with error state since the last call to the function
         """
+        db = framework.utils.singletons.db.get_db()
         runs = db.list_runs(
             db_session,
             project="*",

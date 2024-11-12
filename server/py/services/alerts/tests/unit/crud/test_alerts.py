@@ -23,15 +23,15 @@ import sqlalchemy.orm
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.alert as alert_objects
 
-import services.api.crud
+import services.alerts.crud
 import services.api.tests.unit.conftest
 
 
 @pytest.fixture
 def reset_alert_caches():
     yield
-    services.api.crud.Alerts()._alert_cache.cache_clear()
-    services.api.crud.Alerts()._alert_state_cache.cache_clear()
+    services.alerts.crud.Alerts()._alert_cache.cache_clear()
+    services.alerts.crud.Alerts()._alert_state_cache.cache_clear()
 
 
 @pytest.mark.asyncio
@@ -60,7 +60,7 @@ async def test_process_event_no_cache(
         reset_policy=alert_reset_policy,
     )
 
-    services.api.crud.Alerts().store_alert(
+    services.alerts.crud.Alerts().store_alert(
         session=db,
         project=project,
         name=alert_name,
@@ -70,10 +70,10 @@ async def test_process_event_no_cache(
     event = alert_objects.Event(kind=event_kind, entity=alert_entity)
 
     await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Alerts().process_event_no_cache, db, event.kind, event
+        services.alerts.crud.Alerts().process_event_no_cache, db, event.kind, event
     )
 
-    alert = services.api.crud.Alerts().get_enriched_alert(
+    alert = services.alerts.crud.Alerts().get_enriched_alert(
         session=db,
         project=project,
         name=alert_name,
@@ -119,7 +119,7 @@ async def test_validate_alert_name(
         trigger=alert_trigger,
     )
     with expectation:
-        services.api.crud.Alerts().store_alert(
+        services.alerts.crud.Alerts().store_alert(
             session=db,
             project=project,
             name=alert_name,
@@ -263,7 +263,7 @@ async def test_alert_reset_with_fields_updates(
     )
 
     # store the initial alert
-    services.api.crud.Alerts().store_alert(
+    services.alerts.crud.Alerts().store_alert(
         session=db,
         project=project,
         name=alert_name,
@@ -273,12 +273,12 @@ async def test_alert_reset_with_fields_updates(
     # activate the alert
     event = alert_objects.Event(kind=event_kind, entity=alert_entity)
     await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Alerts().process_event_no_cache,
+        services.alerts.crud.Alerts().process_event_no_cache,
         db,
         event.kind,
         event,
     )
-    alert = services.api.crud.Alerts().get_enriched_alert(
+    alert = services.alerts.crud.Alerts().get_enriched_alert(
         session=db,
         project=project,
         name=alert_name,
@@ -293,7 +293,7 @@ async def test_alert_reset_with_fields_updates(
         setattr(alert_data, modify_field, modified_value)
 
     # store the modified alert
-    services.api.crud.Alerts().store_alert(
+    services.alerts.crud.Alerts().store_alert(
         session=db,
         project=project,
         name=alert_name,
@@ -302,7 +302,7 @@ async def test_alert_reset_with_fields_updates(
     )
 
     # fetch the updated alert
-    alert = services.api.crud.Alerts().get_enriched_alert(
+    alert = services.alerts.crud.Alerts().get_enriched_alert(
         session=db,
         project=project,
         name=alert_name,

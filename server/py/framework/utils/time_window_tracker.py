@@ -16,15 +16,18 @@ import datetime
 import typing
 
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.types
 
+import framework.utils.asyncio
 import framework.utils.singletons.db
 
 
 class TimeWindowTrackerKeys(mlrun.common.types.StrEnum):
     run_monitoring = "run_monitoring"
     log_collection = "log_collection"
+    events_generation = "events_generation"
 
 
 class TimeWindowTracker:
@@ -93,3 +96,33 @@ class TimeWindowTracker:
             self.update_window(session, self._timestamp)
 
         return time_window_tracker_record
+
+
+async def run_with_time_window_tracker(
+    db_session: sqlalchemy.orm.Session,
+    key: TimeWindowTrackerKeys,
+    max_window_size_seconds: int,
+    ensure_window_update: bool,
+    callback: typing.Callable,
+    *args,
+    **kwargs,
+):
+    cycle_tracker = TimeWindowTracker(
+        key=key,
+        max_window_size_seconds=max_window_size_seconds,
+    )
+    await run_in_threadpool(cycle_tracker.initialize, db_session)
+    last_update_time = await run_in_threadpool(cycle_tracker.get_window, db_session)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if ensure_window_update:
+        try:
+            await framework.utils.asyncio.maybe_coroutine(
+                callback(db_session, last_update_time, *args, **kwargs)
+            )
+        finally:
+            await run_in_threadpool(cycle_tracker.update_window, db_session, now)
+    else:
+        await framework.utils.asyncio.maybe_coroutine(
+            callback(db_session, last_update_time, *args, **kwargs)
+        )
+        await run_in_threadpool(cycle_tracker.update_window, db_session, now)

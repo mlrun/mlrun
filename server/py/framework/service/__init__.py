@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 import fastapi
 import fastapi.concurrency
 import fastapi.exception_handlers
+from dependency_injector import containers, providers
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -27,19 +28,22 @@ import mlrun.utils
 import mlrun.utils.version
 from mlrun import mlconf
 
+import framework.api.utils
 import framework.middlewares
 import framework.utils.periodic
 
 
 class Service(ABC):
+    service_name = "api"
+
     def __init__(self):
         # TODO: make the prefixes and service name configurable
-        service_name = "api"
-        self.SERVICE_PREFIX = f"/{service_name}"
+
+        self.SERVICE_PREFIX = f"/{self.service_name}"
         self.BASE_VERSIONED_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v1"
         self.V2_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v2"
         self.app: fastapi.FastAPI = None
-        self._logger = mlrun.utils.logger.get_child(service_name)
+        self._logger = mlrun.utils.logger.get_child(self.service_name)
 
     def initialize(self):
         self._initialize_app()
@@ -171,6 +175,32 @@ class Service(ABC):
             fastapi.HTTPException(status_code=status_code, detail=error_message),
         )
 
+    async def handle_request(
+        self,
+        path,
+        request: fastapi.Request,
+        *args,
+        **kwargs,
+    ):
+        callback = getattr(self, path, None)
+        if path is None:
+            return await self._base_handler(request, *args, **kwargs)
+        return await callback(
+            request,
+            *args,
+            **kwargs,
+        )
+
+    async def _base_handler(
+        self,
+        request: fastapi.Request,
+        *args,
+        **kwargs,
+    ):
+        framework.api.utils.log_and_raise(
+            "Handler not implemented for request", request_url=request.url
+        )
+
     def _initialize_data(self):
         pass
 
@@ -192,3 +222,10 @@ class Daemon(ABC):
     @property
     def service(self) -> Service:
         return self._service
+
+
+class ServiceContainer(containers.DeclarativeContainer):
+    wiring_config = containers.WiringConfiguration(
+        modules=[".routers.alerts"], from_package="framework"
+    )
+    service = providers.Object(None)

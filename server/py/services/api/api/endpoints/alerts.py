@@ -132,7 +132,7 @@ async def list_alerts(
     alerts = await run_in_threadpool(
         services.api.crud.Alerts().list_alerts,
         db_session,
-        projects=allowed_project_names,
+        project=allowed_project_names,
     )
 
     alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

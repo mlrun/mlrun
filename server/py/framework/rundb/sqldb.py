@@ -338,8 +338,7 @@ class SQLRunDB(RunDBInterface):
     def list_functions(
         self,
         name: Optional[str] = None,
-        project: Optional[str] = None,
-        projects: Optional[list[str]] = None,
+        project: Optional[Union[str, list[str]]] = None,
         tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
         since: Optional[datetime.datetime] = None,
@@ -349,7 +348,6 @@ class SQLRunDB(RunDBInterface):
             services.api.crud.Functions().list_functions,
             db_session=self.session,
             project=project,
-            projects=projects,
             name=name,
             tag=tag,
             labels=labels,

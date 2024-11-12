@@ -256,13 +256,7 @@ class Scheduler:
         include_last_run: bool = False,
         include_credentials: bool = False,
     ) -> mlrun.common.schemas.SchedulesOutput:
-        db_schedules = get_db().list_schedules(
-            session=db_session,
-            project=project,
-            name=name,
-            labels=labels,
-            kind=kind,
-        )
+        db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_and_enrich_db_schedule(

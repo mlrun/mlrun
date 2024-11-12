@@ -29,6 +29,7 @@ import mlrun.utils.singleton
 from mlrun.utils import logger, retry_until_successful
 
 import framework.db.session
+import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.nuclio
 import framework.utils.projects.remotes.follower as project_follower
@@ -296,10 +297,12 @@ class Projects(
     ) -> list[str]:
         project = project or mlrun.mlconf.default_project
         if project != "*":
-            await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-                project,
-                mlrun.common.schemas.AuthorizationAction.read,
-                auth_info,
+            await (
+                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                    project,
+                    mlrun.common.schemas.AuthorizationAction.read,
+                    auth_info,
+                )
             )
             return [project]
         else:
@@ -308,7 +311,7 @@ class Projects(
                 format_=mlrun.common.formatters.ProjectFormat.name_only,
                 **project_filters,
             )
-            return await services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
                 projects_output.projects,
                 auth_info,
                 action=action,

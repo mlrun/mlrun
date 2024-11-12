@@ -4747,13 +4747,12 @@ class SQLDB(DBInterface):
     def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)
 
-        if isinstance(project, list) or project == "*":
-            project = None
-
-        query = self._query(session, Run, project=project)
+        query = self._query(session, Run)
 
         if isinstance(project, list):
             query = query.filter(Run.project.in_(project))
+        elif project and project != "*":
+            query = query.filter(Run.project == project)
 
         if uid:
             # uid may be either a single uid (string) or a list of uids

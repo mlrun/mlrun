@@ -714,7 +714,7 @@ async def test_list_schedules_name_filter(db: Session, scheduler: Scheduler):
         if should_find:
             expected_schedule_names.append(name)
 
-    schedules = scheduler.list_schedules(db, project, None, "~mlrun")
+    schedules = scheduler.list_schedules(db, project, "~mlrun")
     assert len(schedules.schedules) == len(expected_schedule_names)
     for schedule in schedules.schedules:
         assert schedule.name in expected_schedule_names
@@ -1715,7 +1715,7 @@ def _assert_schedule_get_and_list_credentials_enrichment(
     assert schedule.labels[scheduler._db_record_auth_label] == secret_name
     assert schedule.credentials.access_key == secret_ref
     schedules = scheduler.list_schedules(
-        db, project, None, schedule_name, include_credentials=True
+        db, project, schedule_name, include_credentials=True
     )
     assert schedules.schedules[0].credentials.access_key == secret_ref
 

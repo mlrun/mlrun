@@ -69,7 +69,7 @@ See more details in [Dask](../runtimes/dask-overview.ipynb), [MPIJob and Horovod
 
 ## CPU, GPU, and memory &mdash; requests and limits for user jobs
 
-Requests and limits define how much the memory, CPU, and GPU, the pod must have to be able to start to work, and its maximum allowed consumption.
+Requests and limits define how much the memory, CPU, and GPU, the pod must have to be able to start to work, and its maximum allowed consumption. 
 MLRun and Nuclio functions run in their own pods. The default CPU and memory limits for these pods are defined by their respective services. 
 You can change the limits when creating a job, or a function. It is best practice to define this for each MLRun function. 
 
@@ -160,7 +160,7 @@ mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data")
 See full details in {py:meth}`~mlrun.platforms.mount_pvc`.
 ### UI configuration
 
-You can configure Volumes when creating a job, rerunning an existing job, and creating an ML function.
+You can configure Volumes when creating a job, rerunning an existing job, and creating an ML function. 
 Modify the Volumes for an ML function by pressing **ML functions**, then **<img src="../_static/images/kebab-menu.png" width="25"/>** 
 of the function, **Edit** | **Resources** | **Volumes** drop-down list. 
 
@@ -169,6 +169,8 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 
 ## Preemption mode: Spot vs. On-demand nodes
+
+Spot nodes give you access to spare computing capacity
 When running ML functions you might want to control whether to run on spot nodes or on-demand nodes. Preemption mode controls 
 whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. 
 

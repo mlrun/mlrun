@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 import tensorflow as tf
@@ -36,11 +36,14 @@ class LoggingCallback(Callback):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        dynamic_hyperparameters: dict[
-            str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
+        dynamic_hyperparameters: Optional[
+            dict[
+                str,
+                Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]],
+            ]
         ] = None,
-        static_hyperparameters: dict[
-            str, Union[TFKerasTypes.TrackableType, list[Union[str, int]]]
+        static_hyperparameters: Optional[
+            dict[str, Union[TFKerasTypes.TrackableType, list[Union[str, int]]]]
         ] = None,
         auto_log: bool = False,
     ):
@@ -175,7 +178,7 @@ class LoggingCallback(Callback):
         """
         return self._logger.validation_iterations
 
-    def on_train_begin(self, logs: dict = None):
+    def on_train_begin(self, logs: Optional[dict] = None):
         """
         Called once at the beginning of training process (one time call).
 
@@ -185,7 +188,7 @@ class LoggingCallback(Callback):
         self._is_training = True
         self._setup_run()
 
-    def on_test_begin(self, logs: dict = None):
+    def on_test_begin(self, logs: Optional[dict] = None):
         """
         Called at the beginning of evaluation or validation. Will be called on each epoch according to the validation
         per epoch configuration.
@@ -202,7 +205,7 @@ class LoggingCallback(Callback):
         if not self._is_training:
             self._setup_run()
 
-    def on_test_end(self, logs: dict = None):
+    def on_test_end(self, logs: Optional[dict] = None):
         """
         Called at the end of evaluation or validation. Will be called on each epoch according to the validation
         per epoch configuration. The recent evaluation / validation results will be summarized and logged.
@@ -220,7 +223,7 @@ class LoggingCallback(Callback):
                 result=float(sum(epoch_values[-1]) / len(epoch_values[-1])),
             )
 
-    def on_epoch_begin(self, epoch: int, logs: dict = None):
+    def on_epoch_begin(self, epoch: int, logs: Optional[dict] = None):
         """
         Called at the start of an epoch, logging it and appending a new epoch to the logger's dictionaries.
 
@@ -236,7 +239,7 @@ class LoggingCallback(Callback):
             for metric in sum_dictionary:
                 sum_dictionary[metric] = 0
 
-    def on_epoch_end(self, epoch: int, logs: dict = None):
+    def on_epoch_end(self, epoch: int, logs: Optional[dict] = None):
         """
         Called at the end of an epoch, logging the training summaries and the current dynamic hyperparameters values.
 
@@ -262,7 +265,7 @@ class LoggingCallback(Callback):
                     value=self._get_hyperparameter(key_chain=key_chain),
                 )
 
-    def on_train_batch_begin(self, batch: int, logs: dict = None):
+    def on_train_batch_begin(self, batch: int, logs: Optional[dict] = None):
         """
         Called at the beginning of a training batch in `fit` methods. The logger will check if this batch is needed to
         be logged according to the configuration. Note that if the `steps_per_execution` argument to `compile` in
@@ -274,7 +277,7 @@ class LoggingCallback(Callback):
         """
         self._logger.log_training_iteration()
 
-    def on_train_batch_end(self, batch: int, logs: dict = None):
+    def on_train_batch_end(self, batch: int, logs: Optional[dict] = None):
         """
         Called at the end of a training batch in `fit` methods. The batch metrics results will be logged. Note that if
         the `steps_per_execution` argument to `compile` in `tf.keras.Model` is set to `N`, this method will only be
@@ -289,7 +292,7 @@ class LoggingCallback(Callback):
             logs=logs,
         )
 
-    def on_test_batch_begin(self, batch: int, logs: dict = None):
+    def on_test_batch_begin(self, batch: int, logs: Optional[dict] = None):
         """
         Called at the beginning of a batch in `evaluate` methods. Also called at the beginning of a validation batch in
         the `fit` methods, if validation data is provided. The logger will check if this batch is needed to be logged
@@ -302,7 +305,7 @@ class LoggingCallback(Callback):
         """
         self._logger.log_validation_iteration()
 
-    def on_test_batch_end(self, batch: int, logs: dict = None):
+    def on_test_batch_end(self, batch: int, logs: Optional[dict] = None):
         """
         Called at the end of a batch in `evaluate` methods. Also called at the end of a validation batch in the `fit`
         methods, if validation data is provided. The batch metrics results will be logged. Note that if the

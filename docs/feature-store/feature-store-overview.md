@@ -29,7 +29,7 @@ offline or online sources, build a list of features through a set of transformat
 associated metadata and statistics. For example, transactions could be grouped by the ID of a person performing the transfer or by the device 
 identifier used to perform the transaction. You can also define in the timestamp source in the feature set, and ingest data into a 
 feature set.
-- **[Execution](./feature-sets.html#add-transformations)** &mdash; A set of operations performed on the data while it is 
+- **[Execution](./feature-sets.md#add-transformations)** &mdash; A set of operations performed on the data while it is 
 ingested. The transformation graph contains steps that represent data sources and targets, and can also include steps that transform and enrich the data that is passed through the feature set. For a deeper dive, see {ref}`transformations`.
 - **{ref}`Feature vectors <create-use-feature-vectors>`** &mdash; A set of features, taken from one or more feature sets. The feature vector is defined prior to model 
 training and serves as the input to the model training process. During model serving, the feature values in the vector are obtained from an online service.
@@ -48,11 +48,11 @@ You can ingest data directly from a DataFrame, by calling the feature set {py:cl
 process that runs as a Kubernetes job. This is useful if there is a large ingestion process, or if there is a recurrent ingestion and you 
 want to schedule the job. 
 
-MLRun can also leverage [Nuclio](https://nuclio.io/docs/latest/) to perform real-time ingestion by calling the {py:class}`~mlrun.feature_store.deploy_ingestion_service` function. This means that during 
+MLRun can also leverage [Nuclio](https://docs.nuclio.io/en/latest) to perform real-time ingestion by calling the {py:class}`~mlrun.feature_store.deploy_ingestion_service` function. This means that during 
 serving you can update feature values, and not just read them. For example, you can update a sliding window aggregation as part of a model 
 serving process.
 
-The next step is to define the [feature vector](feature-vectors.html). Call the {py:meth}`~mlrun.feature_store.get_offline_features` function to join together features across different feature sets. 
+The next step is to define the [feature vector](feature-vectors.md). Call the {py:meth}`~mlrun.feature_store.get_offline_features` function to join together features across different feature sets. 
 
 ### Ingestion engines
 
@@ -62,7 +62,7 @@ MLRun supports several ingestion engines:
 - `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes. Pandas is used for testing, and is not recommended for production deployments
 - `spark` engine is designed for batch data.
 
-See also [transformation &mdash; engine support](./transformations.html#supporting-multiple-engines).
+See also [transformation &mdash; engine support](./transformations.md#supporting-multiple-engines).
 
 ## Training and serving using the feature store 
 

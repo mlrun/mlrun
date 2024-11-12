@@ -5,7 +5,7 @@
 - [Overview](#overview)
 - [APIs](#apis)
 - [Model and model monitoring endpoints](#model-and-model-monitoring-endpoints)
-- [Streaming platforms and credentials](#streaming-platforms-and-credentials)
+- [Streaming platforms and credentials](#selecting-the-streaming-and-tsdb-platforms)
 - [Model monitoring applications](#model-monitoring-applications)
 - [Multi-port predictions](#multi-port-predictions)
 - [Batch inputs](#batch-inputs)
@@ -49,7 +49,7 @@ You can also deploy the default histogram-based data drift application when you 
 - {py:meth}`~mlrun.config.Config.get_model_monitoring_file_target_path` &mdash; Gets the full path from the configuration based on the provided project and kind.
 
 
-## Model and model monitoring endpoints 
+## Model and model monitoring endpoints
 
 For each model that is served in a model serving function, there is a model endpoint. The model endpoint is associated 
 with a feature set that manages the model endpoint statistics. See {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`.
@@ -124,7 +124,7 @@ Processing data in batches allows for parallel computation, significantly speedi
 important for large-scale models that require substantial computational resources. Batch inputs are used with CPUs and GPUs. For gen AI models, 
 batch input is typically a list of prompts. For classic ML models, batch input is a list of features.
 
-See an example of batch input in the [Serving pre-trained ML/DL models](../tutorials/03-model-serving.html#create-and-test-the-serving-function) tutorial.
+See an example of batch input in the [Serving pre-trained ML/DL models](../tutorials/03-model-serving.ipynb#create-and-test-the-serving-function) tutorial.
 
 ## Alerts and notifications
 

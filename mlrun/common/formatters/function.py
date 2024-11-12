@@ -21,6 +21,7 @@ from .base import ObjectFormat
 
 
 class FunctionFormat(ObjectFormat, mlrun.common.types.StrEnum):
+    full = "full"
     minimal = "minimal"
 
     @staticmethod

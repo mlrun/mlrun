@@ -28,7 +28,6 @@ class PackageTester:
         self._logger = logger
 
         basic_import = "import mlrun"
-        api_import = "import server.api.main"
         s3_import = "import mlrun.datastore.s3"
         azure_blob_storage_import = "import mlrun.datastore.azure_blob"
         azure_key_vault_import = "import mlrun.utils.azure_vault"
@@ -43,10 +42,10 @@ class PackageTester:
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
-            "[api]": {"import_test_command": f"{basic_import}; {api_import}"},
+            "[api]": {"import_test_command": f"{basic_import}"},
             "[complete-api]": {
-                "import_test_command": f"{basic_import}; {api_import}; {s3_import}; "
-                + f"{azure_blob_storage_import}; {azure_key_vault_import}",
+                "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
+                f"{azure_key_vault_import}",
                 "perform_vulnerability_check": True,
             },
             "[s3]": {"import_test_command": f"{basic_import}; {s3_import}"},

@@ -44,7 +44,6 @@ release = current_version()
 version = release
 version = version[: version.rfind(".")]
 
-
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -150,8 +149,9 @@ myst_enable_extensions = [
     "substitution",
 ]
 myst_url_schemes = ("http", "https", "mailto")
-myst_heading_anchors = 2
-myst_all_links_external = True
+myst_heading_anchors = 5
+myst_all_links_external = False
+myst_xref_missing = "ignore"
 
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
@@ -162,7 +162,6 @@ myst_substitutions = {
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
-
 # Add here external imports:
 autodoc_mock_imports = [
     "plotly",
@@ -191,6 +190,23 @@ redirects = {
 }
 
 smartquotes = False
+
+linkcheck_ignore = [
+    # Ignore all the links to local files
+    r"^(?!https?://).*",
+    # linkcheck doesn't work well with relative paths on github which contain anchor, so ignore them
+    r"https:\/\/github.com/.*#.*$",
+    # open ai often blocks access and returns 403
+    r"https:\/\/platform\.openai\.com\/.*",
+    r"https:\/\/openai\.com\/.*",
+    # Single links to ignore
+    "./workflow.py",
+    "http://workflow.py",
+    "alerts-notifications",
+    "project.yaml",
+    "http://function.py",
+    "http://localhost:30040",
+]
 
 # -- Autosummary -------------------------------------------------------------
 

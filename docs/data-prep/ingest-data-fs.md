@@ -39,7 +39,7 @@ one of: count, sum, sqr, max, min, first, last, avg, stdvar, stddev. E.g. x_coun
 - {ref}`feature-sets`
 - {ref}`sources-targets`
 
-## Verify a feature set with a small dataset by inferring data 
+## Verify a feature set with a small dataset by inferring data
 
 Ingesting an entire dataset can take a fair amount of time. Before ingesting the entire dataset,  you can check the feature 
 set definition by 

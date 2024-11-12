@@ -19,3 +19,4 @@ from .pipeline import PipelineFormat  # noqa
 from .project import ProjectFormat  # noqa
 from .run import RunFormat  # noqa
 from .feature_set import FeatureSetFormat  # noqa
+from .model_endpoint import ModelEndpointFormat  # noqa

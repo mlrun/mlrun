@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 import storey
 
 
@@ -37,10 +39,10 @@ class CacheEntry:
 class Merge(storey.Flow):
     def __init__(
         self,
-        full_event: bool = None,
-        key_path: str = None,
-        max_behind: int = None,
-        expected_num_events: int = None,
+        full_event: Optional[bool] = None,
+        key_path: Optional[str] = None,
+        max_behind: Optional[int] = None,
+        expected_num_events: Optional[int] = None,
         **kwargs,
     ):
         """Merge multiple events based on event id or provided key path

@@ -26,9 +26,6 @@ import requests
 import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
-from mlrun_pipelines.common.mounts import VolumeMount
-from mlrun_pipelines.common.ops import deploy_op
-from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -50,6 +47,9 @@ from mlrun.runtimes.base import FunctionStatus, RunError
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
 from mlrun.runtimes.utils import get_item_name, log_std
 from mlrun.utils import get_in, logger, update_in
+from mlrun_pipelines.common.mounts import VolumeMount
+from mlrun_pipelines.common.ops import deploy_op
+from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 
 
 def validate_nuclio_version_compatibility(*min_versions):
@@ -554,7 +554,7 @@ class RemoteRuntime(KubeResource):
         tag="",
         verbose=False,
         auth_info: AuthInfo = None,
-        builder_env: dict = None,
+        builder_env: typing.Optional[dict] = None,
         force_build: bool = False,
     ):
         """Deploy the nuclio function to the cluster
@@ -693,7 +693,9 @@ class RemoteRuntime(KubeResource):
         super().with_priority_class(name)
 
     def with_service_type(
-        self, service_type: str, add_templated_ingress_host_mode: str = None
+        self,
+        service_type: str,
+        add_templated_ingress_host_mode: typing.Optional[str] = None,
     ):
         """
         Enables to control the service type of the pod and the addition of templated ingress host
@@ -887,13 +889,13 @@ class RemoteRuntime(KubeResource):
     def invoke(
         self,
         path: str,
-        body: typing.Union[str, bytes, dict] = None,
-        method: str = None,
-        headers: dict = None,
+        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
+        method: typing.Optional[str] = None,
+        headers: typing.Optional[dict] = None,
         dashboard: str = "",
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
-        mock: bool = None,
+        mock: typing.Optional[bool] = None,
         **http_client_kwargs,
     ):
         """Invoke the remote (live) function and return the results
@@ -995,8 +997,8 @@ class RemoteRuntime(KubeResource):
 
     def with_sidecar(
         self,
-        name: str = None,
-        image: str = None,
+        name: typing.Optional[str] = None,
+        image: typing.Optional[str] = None,
         ports: typing.Optional[typing.Union[int, list[int]]] = None,
         command: typing.Optional[str] = None,
         args: typing.Optional[list[str]] = None,

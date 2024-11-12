@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from dataclasses import dataclass
 from typing import Final, Optional, Protocol, Union, cast
 
@@ -25,10 +24,10 @@ import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 import mlrun.model_monitoring.features_drift_table as mm_drift_table
 from mlrun.common.schemas.model_monitoring.constants import (
-    EventFieldType,
     HistogramDataDriftApplicationConstants,
     ResultKindApp,
     ResultStatusApp,
+    StatsKind,
 )
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
@@ -120,6 +119,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
 
     _REQUIRED_METRICS = {HellingerDistance, TotalVarianceDistance}
+    _STATS_TYPES: tuple[StatsKind] = (StatsKind.CURRENT_STATS, StatsKind.DRIFT_MEASURES)
 
     metrics: list[type[HistogramDistanceMetric]] = [
         HellingerDistance,
@@ -189,21 +189,12 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         )
 
         status = self._value_classifier.value_to_status(value)
+
         return mm_results.ModelMonitoringApplicationResult(
             name=HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
             value=value,
             kind=ResultKindApp.data_drift,
             status=status,
-            extra_data={
-                EventFieldType.CURRENT_STATS: json.dumps(
-                    monitoring_context.sample_df_stats
-                ),
-                EventFieldType.DRIFT_MEASURES: json.dumps(
-                    metrics_per_feature.T.to_dict()
-                    | {metric.name: metric.value for metric in metrics}
-                ),
-                EventFieldType.DRIFT_STATUS: status.value,
-            },
         )
 
     @staticmethod
@@ -224,6 +215,35 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             )
 
         return metrics
+
+    @staticmethod
+    def _get_stats(
+        metrics: list[mm_results.ModelMonitoringApplicationMetric],
+        metrics_per_feature: DataFrame,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> list[mm_results._ModelMonitoringApplicationStats]:
+        """
+        list the application calculated stats
+        :param metrics: the calculated metrics
+        :param metrics_per_feature: metric calculated per feature
+        :param monitoring_context:  context object for current monitoring application
+        :return: list of mm_results._ModelMonitoringApplicationStats for histogram data drift application
+        """
+        stats = []
+        for stats_type in HistogramDataDriftApplication._STATS_TYPES:
+            stats.append(
+                mm_results._ModelMonitoringApplicationStats(
+                    name=stats_type,
+                    stats=metrics_per_feature.T.to_dict()
+                    | {metric.name: metric.value for metric in metrics}
+                    if stats_type == StatsKind.DRIFT_MEASURES
+                    else monitoring_context.sample_df_stats,
+                    timestamp=monitoring_context.end_infer_time.isoformat(
+                        sep=" ", timespec="microseconds"
+                    ),
+                )
+            )
+        return stats
 
     @staticmethod
     def _get_shared_features_sample_stats(
@@ -317,6 +337,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         Union[
             mm_results.ModelMonitoringApplicationResult,
             mm_results.ModelMonitoringApplicationMetric,
+            mm_results._ModelMonitoringApplicationStats,
         ]
     ]:
         """
@@ -347,8 +368,13 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             monitoring_context=monitoring_context,
             metrics_per_feature=metrics_per_feature,
         )
-        metrics_and_result = metrics + [result]
-        monitoring_context.logger.debug(
-            "Finished running the application", results=metrics_and_result
+        stats = self._get_stats(
+            metrics=metrics,
+            monitoring_context=monitoring_context,
+            metrics_per_feature=metrics_per_feature,
         )
-        return metrics_and_result
+        metrics_result_and_stats = metrics + [result] + stats
+        monitoring_context.logger.debug(
+            "Finished running the application", results=metrics_result_and_stats
+        )
+        return metrics_result_and_stats

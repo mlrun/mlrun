@@ -14,6 +14,7 @@
 #
 import asyncio
 import json
+from typing import Optional
 
 import aiohttp
 import requests
@@ -40,14 +41,14 @@ class RemoteStep(storey.SendToHttp):
     def __init__(
         self,
         url: str,
-        subpath: str = None,
-        method: str = None,
-        headers: dict = None,
-        url_expression: str = None,
-        body_expression: str = None,
+        subpath: Optional[str] = None,
+        method: Optional[str] = None,
+        headers: Optional[dict] = None,
+        url_expression: Optional[str] = None,
+        body_expression: Optional[str] = None,
         return_json: bool = True,
-        input_path: str = None,
-        result_path: str = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         max_in_flight=None,
         retries=None,
         backoff_factor=None,
@@ -57,7 +58,7 @@ class RemoteStep(storey.SendToHttp):
         """class for calling remote endpoints
 
         sync and async graph step implementation for request/resp to remote service (class shortcut = "$remote")
-        url can be an http(s) url (e.g. "https://myservice/path") or an mlrun function uri ([project/]name).
+        url can be an http(s) url (e.g. `https://myservice/path`) or an mlrun function uri ([project/]name).
         alternatively the url_expression can be specified to build the url from the event (e.g. "event['url']").
 
         example pipeline::
@@ -241,15 +242,15 @@ class RemoteStep(storey.SendToHttp):
 class BatchHttpRequests(_ConcurrentJobExecution):
     def __init__(
         self,
-        url: str = None,
-        subpath: str = None,
-        method: str = None,
-        headers: dict = None,
-        url_expression: str = None,
-        body_expression: str = None,
+        url: Optional[str] = None,
+        subpath: Optional[str] = None,
+        method: Optional[str] = None,
+        headers: Optional[dict] = None,
+        url_expression: Optional[str] = None,
+        body_expression: Optional[str] = None,
         return_json: bool = True,
-        input_path: str = None,
-        result_path: str = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
         retries=None,
         backoff_factor=None,
         timeout=None,
@@ -258,7 +259,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
         """class for calling remote endpoints in parallel
 
         sync and async graph step implementation for request/resp to remote service (class shortcut = "$remote")
-        url can be an http(s) url (e.g. "https://myservice/path") or an mlrun function uri ([project/]name).
+        url can be an http(s) url (e.g. `https://myservice/path`) or an mlrun function uri ([project/]name).
         alternatively the url_expression can be specified to build the url from the event (e.g. "event['url']").
 
         example pipeline::

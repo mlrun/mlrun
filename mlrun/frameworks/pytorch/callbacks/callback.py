@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from torch import Tensor
 from torch.nn import Module
@@ -67,7 +68,7 @@ class Callback(ABC):
         validation_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
-        metric_functions: list[PyTorchTypes.MetricFunctionType] = None,
+        metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
         scheduler=None,
     ):
         """

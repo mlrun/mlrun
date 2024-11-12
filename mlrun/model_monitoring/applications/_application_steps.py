@@ -26,7 +26,11 @@ from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
 from .context import MonitoringApplicationContext
-from .results import ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult
+from .results import (
+    ModelMonitoringApplicationMetric,
+    ModelMonitoringApplicationResult,
+    _ModelMonitoringApplicationStats,
+)
 
 
 class _PushToMonitoringWriter(StepToDict):
@@ -61,7 +65,9 @@ class _PushToMonitoringWriter(StepToDict):
         event: tuple[
             list[
                 Union[
-                    ModelMonitoringApplicationResult, ModelMonitoringApplicationMetric
+                    ModelMonitoringApplicationResult,
+                    ModelMonitoringApplicationMetric,
+                    _ModelMonitoringApplicationStats,
                 ]
             ],
             MonitoringApplicationContext,
@@ -90,21 +96,15 @@ class _PushToMonitoringWriter(StepToDict):
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.RESULT
                 )
-                data[mm_constant.ResultData.CURRENT_STATS] = json.dumps(
-                    application_context.sample_df_stats
+            elif isinstance(result, _ModelMonitoringApplicationStats):
+                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
+                    mm_constant.WriterEventKind.STATS
                 )
-                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             else:
                 writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
                     mm_constant.WriterEventKind.METRIC
                 )
-                writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
-
-            writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                mm_constant.WriterEventKind.RESULT
-                if isinstance(result, ModelMonitoringApplicationResult)
-                else mm_constant.WriterEventKind.METRIC
-            )
+            writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
             logger.info(
                 f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
             )
@@ -113,9 +113,7 @@ class _PushToMonitoringWriter(StepToDict):
 
     def _lazy_init(self):
         if self.output_stream is None:
-            self.output_stream = mlrun.datastore.get_stream_pusher(
-                self.stream_uri,
-            )
+            self.output_stream = mlrun.datastore.get_stream_pusher(self.stream_uri)
 
 
 class _PrepareMonitoringEvent(StepToDict):

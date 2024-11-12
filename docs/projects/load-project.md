@@ -9,12 +9,11 @@ and can be loaded into your work environment or CI system with a single SDK or C
 The project root (context) directory contains the `project.yaml` file with the required metadata and links to various project files/objects, and is read during the `load` process.
 
 **In this section**
-- [Load projects using the SDK](#load-sdk)
-- [Load projects using the CLI](#load-cli)
+- [Load projects using the SDK](#load-projects-using-the-sdk)
+- [Load projects using the CLI](#load-projects-using-the-cli)
 
-See also details on loading and using projects [**with CI/CD frameworks**](./ci-integration.html).
+See also details on loading and using projects [**with CI/CD frameworks**](./ci-integration.md).
 
-<a id='load-sdk'></a>
 ## Load projects using the SDK
 
 When a project is already created and stored in a local dir, git, or archive, you can quickly load and use it with the 
@@ -41,14 +40,14 @@ or if the flag init_git=True, it initializes a Git repo in the target context di
 ```
 
 ```{admonition} Note
-When working with a private Git, set the project secrets. See [MLRun-managed secrets](../secrets.html#mlrun-managed-secrets).
+When working with a private Git, set the project secrets. See [MLRun-managed secrets](../secrets.md#mlrun-managed-secrets).
 ```
 
-After the project object is loaded use the {py:meth}`~mlrun.projects.MlrunProject.run` method to execute workflows. See details on [**building and running workflows**](./build-run-workflows-pipelines.html)), 
-and how to [**run, build, or deploy**](./run-build-deploy.html) individual functions. 
+After the project object is loaded use the {py:meth}`~mlrun.projects.MlrunProject.run` method to execute workflows. See details on [**building and running workflows**](./build-run-workflows-pipelines.md)), 
+and how to [**run, build, or deploy**](./run-build-deploy.md) individual functions. 
 
-You can edit or add project elements like functions, workflows, artifacts, etc. (See  [**create and use projects**](./create-project.html).)
-Once you make changes use GIT or MLRun commands to push those changes to the archive (See [**save into git or an archive**](./create-project.html#push).)
+You can edit or add project elements like functions, workflows, artifacts, etc. (See  [**create and use projects**](./create-project.md).
+Once you make changes use GIT or MLRun commands to push those changes to the archive (See [**save into git or an archive**](./create-project.md#pushing-the-project-content-into-git-or-an-archive).)
 
 <a id='load-cli'></a>
 ## Load projects using the CLI

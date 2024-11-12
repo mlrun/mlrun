@@ -38,7 +38,7 @@ This MLRun logic is referred to as **auto-mount**.
 
 **In this section**
 - [Disabling auto-mount](#disabling-auto-mount)
-- [Modifying the auto-mount default configuration](#Modifying-the-auto-mount-default-configuration)
+- [Modifying the auto-mount default configuration](#modifying-the-auto-mount-default-configuration)
 
 ## Disabling auto-mount
 In cases where the default storage configuration does not fit the function needs, MLRun allows for function spec 

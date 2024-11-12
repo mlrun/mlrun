@@ -339,9 +339,6 @@ class V3IOTSDBConnector(TSDBConnector):
         elif kind == mm_schemas.WriterEventKind.RESULT:
             table = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
             index_cols = index_cols_base + [mm_schemas.ResultData.RESULT_NAME]
-            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
-            # TODO: remove this when extra data is supported (ML-7460)
-            event.pop(mm_schemas.ResultData.RESULT_EXTRA_DATA, None)
         else:
             raise ValueError(f"Invalid {kind = }")
 
@@ -545,6 +542,7 @@ class V3IOTSDBConnector(TSDBConnector):
         end: datetime,
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: Literal["metrics", "results"] = "results",
+        with_result_extra_data: bool = False,
     ) -> Union[
         list[
             Union[
@@ -566,6 +564,12 @@ class V3IOTSDBConnector(TSDBConnector):
         """
 
         if type == "metrics":
+            if with_result_extra_data:
+                logger.warning(
+                    "The 'with_result_extra_data' parameter is not supported for metrics, just for results",
+                    project=self.project,
+                    endpoint_id=endpoint_id,
+                )
             table_path = self.tables[mm_schemas.V3IOTSDBTables.METRICS]
             name = mm_schemas.MetricData.METRIC_NAME
             columns = [mm_schemas.MetricData.METRIC_VALUE]
@@ -578,6 +582,8 @@ class V3IOTSDBConnector(TSDBConnector):
                 mm_schemas.ResultData.RESULT_STATUS,
                 mm_schemas.ResultData.RESULT_KIND,
             ]
+            if with_result_extra_data:
+                columns.append(mm_schemas.ResultData.RESULT_EXTRA_DATA)
             df_handler = self.df_to_results_values
         else:
             raise ValueError(f"Invalid {type = }")
@@ -606,6 +612,9 @@ class V3IOTSDBConnector(TSDBConnector):
             endpoint_id=endpoint_id,
             is_empty=df.empty,
         )
+        if not with_result_extra_data and type == "results":
+            # Set the extra data to an empty string if it's not requested
+            df[mm_schemas.ResultData.RESULT_EXTRA_DATA] = ""
 
         return df_handler(df=df, metrics=metrics, project=self.project)
 
@@ -701,12 +710,13 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_last_request(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
+        start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.FileTargetKind.PREDICTIONS,
             start=start,
@@ -735,14 +745,14 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._get_start_end(start, end, delta_start=-24)
+        start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
@@ -761,8 +771,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = None,
-        end: Union[datetime, str] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -782,8 +792,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: datetime = None,
-        end: datetime = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -808,8 +818,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = None,
-        end: Union[datetime, str] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -837,8 +847,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: datetime = None,
-        end: datetime = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]

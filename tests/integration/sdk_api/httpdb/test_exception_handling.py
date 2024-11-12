@@ -44,7 +44,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             )
 
         # mlrun exception - mlrun code raises an mlrun exception because we're creating a project with invalid name
-        # This is handled in the server/api/main.py::http_status_error_handler
+        # This is handled in the server/py/services/api/main.py::http_status_error_handler
         invalid_project_name = "some_project"
         # Not using client class cause it does validation on client side and we want to fail on server side
         project = mlrun.common.schemas.Project(

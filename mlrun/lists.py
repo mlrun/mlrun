@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
+from typing import Optional
 
 import pandas as pd
 
@@ -129,11 +130,11 @@ class RunList(list):
     def compare(
         self,
         hide_identical: bool = True,
-        exclude: list = None,
-        show: bool = None,
+        exclude: Optional[list] = None,
+        show: Optional[bool] = None,
         extend_iterations=True,
         filename=None,
-        colorscale: str = None,
+        colorscale: Optional[str] = None,
     ):
         """return/show parallel coordinates plot + table to compare between the list of runs
 

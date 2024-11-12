@@ -17,7 +17,6 @@ import os
 import time
 import uuid
 
-import mlrun_pipelines.mounts
 import pandas as pd
 import pytest
 import requests
@@ -26,6 +25,7 @@ from storey import MapClass
 from v3io.dataplane import RaiseForStatus
 
 import mlrun
+import mlrun_pipelines.mounts
 import tests.system.base
 from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
@@ -545,6 +545,7 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         fn.deploy()
         return fn
 
+    @pytest.mark.smoke
     def test_single_run(self):
         fn = self._deploy_function()
         run_result = fn.run(params={"p1": 8})

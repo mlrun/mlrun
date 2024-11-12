@@ -10,20 +10,19 @@
 
 Use the following commands of the MLRun command-line interface (CLI) &mdash; `mlrun` &mdash; to build and run MLRun functions:
 
-- [`build`](#cli-cmd-build)
-- [`clean`](#cli-cmd-clean)
-- [`config`](#cli-cmd-config)
-- [`get`](#cli-cmd-get)
-- [`logs`](#cli-cmd-logs)
-- [`project`](#cli-cmd-project)
-- [`run`](#cli-cmd-run)
-- [`version`](#cli-cmd-version)
-- [`watch-stream`](#cli-cmd-watch-stream)
+- [`build`](#build)
+- [`clean`](#clean)
+- [`config`](#config)
+- [`get`](#get)
+- [`logs`](#logs)
+- [`project`](#project)
+- [`run`](#run)
+- [`version`](#version)
+- [`watch-stream`](#watch-stream)
 
 Each command supports many flags, some of which are listed in their relevant sections. To view all the flags of a command, run `mlrun <command name> --help`.
 
-<a id="cli-cmd-build"></a>
-### `build` 
+### `build`
 
 Use the `build` CLI command to build all the function dependencies from the function specification into a function container (Docker image).
 
@@ -52,10 +51,9 @@ Example:  `mlrun build myfunc.yaml`
 | \--ensure-project     | Ensure the project exists, if not, create project                                                                                                                                                  |
 
 
-> **Note:** For information about using the `-a|--archive` option to create a function-sources archive, see [Using a Sources Archive](#sources-archive) later in this tutorial.
+> **Note:** For information about using the `-a|--archive` option to create a function-sources archive, see [Using a Sources Archive](#using-a-sources-archive) later in this tutorial.
 
-<a id="cli-cmd-clean"></a>
-### `clean` 
+### `clean`
 
 Use the `clean` CLI command to clean runtime resources. When run without any flags, it cleans the resources for all runs of all runtimes.
 
@@ -81,8 +79,7 @@ Examples:
 | -f, --force                 | Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.                                               |
 | -gp, --grace-period INTEGER | Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to the terminal state. |
 
-<a id="cli-cmd-config"></a>
-### `config` 
+### `config`
 
 Use the `config` CLI command to show the mlrun client environment configuration, such as location of artifacts and api.
 
@@ -99,8 +96,7 @@ Example:  `mlrun config`
 | -e, --env-vars TEXT      | Additional env vars, e.g. -e AWS_ACCESS_KEY_ID=<key-id>  |
 
 
-<a id="cli-cmd-get"></a>
-### `get` 
+### `get`
 
 Use the `get` CLI command to list one or more objects per kind/class.
 
@@ -125,8 +121,7 @@ Examples:
 | \--db TEXT           | db path/url of object to return                                       |
 
 
-<a id="cli-cmd-logs"></a>
-### `logs` 
+### `logs`
 
 Use the `logs` CLI command to get or watch task logs.
 
@@ -143,8 +138,7 @@ Example:  `mlrun logs ba409c0cb4904d60aa8f8d1c05b40a75 --project getting-started
 | -w, --watch        | Retrieve logs of a running process, and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
 
 
-<a id="cli-cmd-project"></a>
-### `project` 
+### `project`
     
 Use the `project` CLI command to load and/or run a project.
 
@@ -182,8 +176,7 @@ Example:  `mlrun project -r workflow.py .`
 | -nt, --notifications TEXT | To have a notification for the run set notification file destination define: file=notification.json or a 'dictionary configuration e.g \'{"slack":{"webhook":"<webhook>"}}\''                                                                                      |
 
 
-<a id="cli-cmd-run"></a>
-### `run` 
+### `run`
 
 Use the `run` CLI command to execute a task and inject parameters by using a local or remote function.
 
@@ -237,13 +230,11 @@ Examples:
 | \--ensure-project            | Ensure the project exists, if not, create project                                                       |
 | \--returns TEXT              | Logging configurations for the handler's returning values                                               |
 
-<a id="cli-cmd-version"></a>
-### `version` 
+### `version`
     
 Use the `version` CLI command to get the mlrun server version.
 
-<a id="cli-cmd-watch-stream"></a>
-### `watch-stream` 
+### `watch-stream`
 
 Use the `watch-stream` CLI command to watch a v3io stream and print data at a recurring interval.
 
@@ -279,7 +270,7 @@ spec:
   image: .mlrun/func-default-remote-demo-ps-latest
   image_pull_policy: Always
   build:
-    base_image: mlrun/mlrun:1.6.4
+    base_image: mlrun/mlrun:1.7.0
     source: git://github.com/mlrun/mlrun
 ```
 
@@ -309,17 +300,16 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.6.4
+    base_image: mlrun/mlrun:1.7.0
     source: git://github.com/mlrun/ci-demo.git
 ```
 
-<a id="sources-archive"></a>
 ## Using a sources archive
 
-The `-a|--archive` option of the CLI [`build`](#cli-cmd-build) command enables you to define a remote object path for storing TAR archive files with all the required code dependencies.
+The `-a|--archive` option of the CLI [`build`](#build) command enables you to define a remote object path for storing TAR archive files with all the required code dependencies.
 The remote location can be, for example, in an AWS S3 bucket or in a data container in an Iguazio MLOps Platform ("platform") cluster.
 Alternatively, you can also set the archive path by using the `MLRUN_DEFAULT_ARCHIVE` environment variable.
-When an archive path is provided, the remote builder archives the configured function sources (see the `-s|-source` [`build`](#cli-cmd-build) option) into a TAR archive file, and then extracts all of the archive files (i.e., the function sources) into the configured archive location.
+When an archive path is provided, the remote builder archives the configured function sources (see the `-s|-source` [`build`](#build) option) into a TAR archive file, and then extracts all of the archive files (i.e., the function sources) into the configured archive location.
 <!-- [IntInfo] MLRUN_DEFAULT_ARCHIVE is referenced in the code using
   `mlconf.default_archive` when using `from .config import config as mlconf`.
 -->
@@ -337,7 +327,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.6.4
+    base_image: mlrun/mlrun:1.7.0
 ```
 
 Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:

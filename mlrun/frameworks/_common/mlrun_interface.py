@@ -17,7 +17,7 @@ import functools
 import inspect
 from abc import ABC
 from types import FunctionType, MethodType
-from typing import Any, Generic, Union
+from typing import Any, Generic, Optional, Union
 
 from .utils import CommonTypes
 
@@ -173,7 +173,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _insert_properties(
         cls,
         obj: CommonTypes.MLRunInterfaceableType,
-        properties: dict[str, Any] = None,
+        properties: Optional[dict[str, Any]] = None,
     ):
         """
         Insert the properties of the interface to the object. The properties default values are being copied (not deep
@@ -238,7 +238,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
 
     @classmethod
     def _replace_properties(
-        cls, obj: CommonTypes.MLRunInterfaceableType, properties: dict[str, Any] = None
+        cls,
+        obj: CommonTypes.MLRunInterfaceableType,
+        properties: Optional[dict[str, Any]] = None,
     ):
         """
         Replace the properties of the given object according to the configuration in the MLRun interface.
@@ -282,7 +284,9 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
 
     @classmethod
     def _replace_functions(
-        cls, obj: CommonTypes.MLRunInterfaceableType, functions: list[str] = None
+        cls,
+        obj: CommonTypes.MLRunInterfaceableType,
+        functions: Optional[list[str]] = None,
     ):
         """
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
@@ -417,8 +421,8 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _get_function_argument(
         func: FunctionType,
         argument_name: str,
-        passed_args: tuple = None,
-        passed_kwargs: dict = None,
+        passed_args: Optional[tuple] = None,
+        passed_kwargs: Optional[dict] = None,
         default_value: Any = None,
     ) -> tuple[Any, Union[str, int, None]]:
         """

@@ -21,10 +21,10 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import mlrun.errors
 
-import services.api.api.deps
+import framework.api.deps
+import framework.utils.auth.verifier
+import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
 
 router = fastapi.APIRouter()
 
@@ -34,26 +34,28 @@ async def store_project_secrets(
     project: str,
     secrets: mlrun.common.schemas.SecretsData,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
-    db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
     # Doing a specific check for project existence, because we want to return 404 in the case of a project not
     # existing, rather than returning a permission error, as it misleads the user. We don't even care for return
     # value.
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project,
         auth_info.session,
     )
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.secret,
-        project,
-        secrets.provider,
-        mlrun.common.schemas.AuthorizationAction.create,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project,
+            secrets.provider,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
     )
     await run_in_threadpool(
         services.api.crud.Secrets().store_project_secrets, project, secrets
@@ -68,23 +70,25 @@ async def delete_project_secrets(
     provider: mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
     secrets: list[str] = fastapi.Query(None, alias="secret"),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
-    db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project,
         auth_info.session,
     )
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.secret,
-        project,
-        provider,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project,
+            provider,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
     await run_in_threadpool(
         services.api.crud.Secrets().delete_project_secrets, project, provider, secrets
@@ -104,22 +108,24 @@ async def list_project_secret_keys(
         None, alias=mlrun.common.schemas.HeaderNames.secret_store_token
     ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
-    db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project,
         auth_info.session,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.secret,
-        project,
-        provider,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project,
+            provider,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     return await run_in_threadpool(
         services.api.crud.Secrets().list_project_secret_keys, project, provider, token
@@ -137,22 +143,24 @@ async def list_project_secrets(
         None, alias=mlrun.common.schemas.HeaderNames.secret_store_token
     ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
-    db_session: Session = fastapi.Depends(services.api.api.deps.get_db_session),
+    db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project,
         auth_info.session,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.secret,
-        project,
-        provider,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project,
+            provider,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     return await run_in_threadpool(
         services.api.crud.Secrets().list_project_secrets,

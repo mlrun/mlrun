@@ -36,14 +36,13 @@ from mlrun.errors import err_to_str
 from mlrun.model import RunObject
 from mlrun.utils import logger
 
-import services.api.api.utils
+import framework.api.utils
+import framework.utils.helpers
+import framework.utils.notifications
+import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.clients.iguazio
-import services.api.utils.helpers
-import services.api.utils.singletons.project_member
-from services.api.db.session import close_session, create_session
-from services.api.utils.singletons.db import get_db
+from framework.db.session import close_session, create_session
+from framework.utils.singletons.db import get_db
 
 
 class Scheduler:
@@ -103,7 +102,7 @@ class Scheduler:
             if label["name"] == self._db_record_auth_label:
                 return label["value"]
 
-    @services.api.utils.helpers.ensure_running_on_chief
+    @framework.utils.helpers.ensure_running_on_chief
     def create_schedule(
         self,
         db_session: Session,
@@ -133,7 +132,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        labels = services.api.utils.helpers.merge_schedule_and_schedule_object_labels(
+        labels = framework.utils.helpers.merge_schedule_and_schedule_object_labels(
             labels=labels,
             scheduled_object=scheduled_object,
         )
@@ -179,7 +178,7 @@ class Scheduler:
                 db_session, project_name, schedule_name, next_run_time=job.next_run_time
             )
 
-    @services.api.utils.helpers.ensure_running_on_chief
+    @framework.utils.helpers.ensure_running_on_chief
     def update_schedule(
         self,
         db_session: Session,
@@ -212,7 +211,7 @@ class Scheduler:
         db_schedule = get_db().get_schedule(db_session, project, name)
 
         labels, scheduled_object = (
-            services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+            framework.utils.helpers.merge_schedule_and_db_schedule_labels(
                 labels, scheduled_object, db_schedule
             )
         )
@@ -280,7 +279,7 @@ class Scheduler:
             db_session, db_schedule, include_last_run, include_credentials
         )
 
-    @services.api.utils.helpers.ensure_running_on_chief
+    @framework.utils.helpers.ensure_running_on_chief
     def delete_schedule(
         self,
         db_session: Session,
@@ -297,7 +296,7 @@ class Scheduler:
         )
         get_db().delete_schedule(db_session, project, name)
 
-    @services.api.utils.helpers.ensure_running_on_chief
+    @framework.utils.helpers.ensure_running_on_chief
     def delete_schedules(
         self,
         db_session: Session,
@@ -318,7 +317,7 @@ class Scheduler:
             )
         get_db().delete_project_schedules(db_session, project)
 
-    @services.api.utils.helpers.ensure_running_on_chief
+    @framework.utils.helpers.ensure_running_on_chief
     def store_schedule(
         self,
         db_session: Session,
@@ -361,7 +360,7 @@ class Scheduler:
             kind = db_schedule.kind
 
         labels, scheduled_object = (
-            services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+            framework.utils.helpers.merge_schedule_and_db_schedule_labels(
                 labels, scheduled_object, db_schedule
             )
         )
@@ -425,7 +424,7 @@ class Scheduler:
         if job:
             self._scheduler.remove_job(job_id)
 
-    @services.api.utils.helpers.ensure_running_on_chief
+    @framework.utils.helpers.ensure_running_on_chief
     async def invoke_schedule(
         self,
         db_session: Session,
@@ -453,7 +452,7 @@ class Scheduler:
         )
         return await function(*args, **kwargs)
 
-    @services.api.utils.helpers.ensure_running_on_chief
+    @framework.utils.helpers.ensure_running_on_chief
     def set_schedule_notifications(
         self,
         session: Session,
@@ -487,19 +486,19 @@ class Scheduler:
     ):
         if (
             kind not in mlrun.common.schemas.ScheduleKinds.local_kinds()
-            and services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+            and framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
         ):
             if (
                 not auth_info.access_key
                 or auth_info.access_key == mlrun.model.Credentials.generate_access_key
             ):
-                auth_info.access_key = services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
+                auth_info.access_key = framework.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
                     auth_info.session
                 )
                 # created an access key with control and data session plane, so enriching auth_info with those planes
                 auth_info.planes = [
-                    services.api.utils.clients.iguazio.SessionPlanes.control,
-                    services.api.utils.clients.iguazio.SessionPlanes.data,
+                    framework.utils.clients.iguazio.SessionPlanes.control,
+                    framework.utils.clients.iguazio.SessionPlanes.data,
                 ]
             # Support receiving access-key reference ($ref:...), for example when updating existing schedule
             if auth_info.access_key.startswith(
@@ -518,7 +517,7 @@ class Scheduler:
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> str:
-        if services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+        if framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             # sanity
             if not auth_info.access_key:
                 raise mlrun.errors.MLRunAccessDeniedError(
@@ -546,7 +545,7 @@ class Scheduler:
         project: str,
         name: str,
     ):
-        if services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+        if framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             # sanity
             if not auth_info.access_key:
                 raise mlrun.errors.MLRunAccessDeniedError(
@@ -773,7 +772,7 @@ class Scheduler:
             try:
                 access_key = None
                 username = None
-                if services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
+                if framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
                     secret_name = self._get_access_key_secret_name_from_db_record(
                         db_schedule
                     )
@@ -788,7 +787,7 @@ class Scheduler:
                     username=username,
                     access_key=access_key,
                     # enriching with control plane tag because scheduling a function requires control plane
-                    planes=[services.api.utils.clients.iguazio.SessionPlanes.control],
+                    planes=[framework.utils.clients.iguazio.SessionPlanes.control],
                 )
 
                 self._create_schedule_in_scheduler(
@@ -937,7 +936,7 @@ class Scheduler:
         if schedule_notifications:
             scheduled_object["task"]["spec"]["notifications"] = [
                 notification.to_dict()
-                for notification in services.api.api.utils.validate_and_mask_notification_list(
+                for notification in framework.utils.notifications.validate_and_mask_notification_list(
                     schedule_notifications, schedule_name, project
                 )
             ]
@@ -954,7 +953,7 @@ class Scheduler:
         if fn_kind:
             labels = labels or {}
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
-        services.api.utils.helpers.set_scheduled_object_labels(scheduled_object, labels)
+        framework.utils.helpers.set_scheduled_object_labels(scheduled_object, labels)
         return labels
 
     @staticmethod
@@ -984,7 +983,7 @@ class Scheduler:
             )
             if notifications:
                 for notification in notifications:
-                    services.api.api.utils.delete_notification_params_secret(
+                    framework.utils.notifications.delete_notification_params_secret(
                         project, mlrun.model.Notification.from_dict(notification)
                     )
 
@@ -1069,7 +1068,7 @@ class Scheduler:
             # Note that here we're using the "knowledge" that submit_run only requires the access key of the auth info
             if (
                 not auth_info.access_key
-                and services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+                and framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
             ):
                 logger.info(
                     "Schedule missing auth info which is required. Trying to fill from project owner",
@@ -1077,7 +1076,7 @@ class Scheduler:
                     schedule_name=schedule_name,
                 )
 
-                project_owner = services.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                project_owner = framework.utils.singletons.project_member.get_project_member().get_project_owner(
                     db_session, project_name
                 )
                 # Update the schedule with the new auth info so we won't need to do the above again in the next run
@@ -1088,14 +1087,14 @@ class Scheduler:
                         access_key=project_owner.access_key,
                         # enriching with control plane tag because scheduling a function requires control plane
                         planes=[
-                            services.api.utils.clients.iguazio.SessionPlanes.control,
+                            framework.utils.clients.iguazio.SessionPlanes.control,
                         ],
                     ),
                     project_name,
                     schedule_name,
                 )
 
-            _, _, _, response = services.api.api.utils.submit_run_sync(
+            _, _, _, response = framework.api.utils.submit_run_sync(
                 db_session, auth_info, scheduled_object
             )
 

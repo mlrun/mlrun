@@ -15,26 +15,26 @@
 
 from fastapi import APIRouter, Depends
 
-import services.api.api.deps
+import framework.api.deps
 from . import config, memory_reports
 
 internal_router = APIRouter(
     prefix="/_internal",
-    dependencies=[Depends(services.api.api.deps.verify_api_state)],
+    dependencies=[Depends(framework.api.deps.verify_api_state)],
     tags=["internal"],
 )
 
 internal_router.include_router(
     config.router,
     tags=["config"],
-    dependencies=[Depends(services.api.api.deps.authenticate_request)],
+    dependencies=[Depends(framework.api.deps.authenticate_request)],
 )
 
 internal_router.include_router(
     memory_reports.router,
     tags=["memory-reports"],
     dependencies=[
-        Depends(services.api.api.deps.authenticate_request),
-        Depends(services.api.api.deps.expose_internal_endpoints),
+        Depends(framework.api.deps.authenticate_request),
+        Depends(framework.api.deps.expose_internal_endpoints),
     ],
 )

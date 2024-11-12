@@ -25,7 +25,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 
-import services.api.utils.auth.providers.opa
+import framework.utils.auth.providers.opa
 
 
 @pytest.fixture()
@@ -53,11 +53,11 @@ def permission_filter_path() -> str:
 
 @pytest_asyncio.fixture()
 async def opa_provider() -> (
-    typing.AsyncIterator[services.api.utils.auth.providers.opa.Provider]
+    typing.AsyncIterator[framework.utils.auth.providers.opa.Provider]
 ):
     mlrun.mlconf.httpdb.authorization.opa.log_level = 10
     mlrun.mlconf.httpdb.authorization.mode = "opa"
-    provider = services.api.utils.auth.providers.opa.Provider()
+    provider = framework.utils.auth.providers.opa.Provider()
 
     # force running init again so the configured api url will be used
     provider.__init__()
@@ -72,7 +72,7 @@ async def opa_provider() -> (
 async def test_query_permissions_success(
     api_url: str,
     permission_query_path: str,
-    opa_provider: services.api.utils.auth.providers.opa.Provider,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
 ):
     resource = "/projects/project-name/functions/function-name"
     action = mlrun.common.schemas.AuthorizationAction.create
@@ -107,7 +107,7 @@ async def test_query_permissions_success(
 async def test_filter_by_permission(
     api_url: str,
     permission_filter_path: str,
-    opa_provider: services.api.utils.auth.providers.opa.Provider,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
 ):
     resources = [
         {"resource_id": 1, "opa_resource": "/some-resource", "allowed": True},
@@ -171,7 +171,7 @@ async def test_filter_by_permission(
 async def test_query_permissions_failure(
     api_url: str,
     permission_query_path: str,
-    opa_provider: services.api.utils.auth.providers.opa.Provider,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
     requests_mock: aioresponses.aioresponses,
 ):
     resource = "/projects/project-name/functions/function-name"
@@ -210,7 +210,7 @@ async def test_query_permissions_failure(
 async def test_query_permissions_use_cache(
     api_url: str,
     permission_query_path: str,
-    opa_provider: services.api.utils.auth.providers.opa.Provider,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
 ):
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
     project_name = "project-name"
@@ -231,7 +231,7 @@ async def test_query_permissions_use_cache(
 def test_allowed_project_owners_cache(
     api_url: str,
     permission_query_path: str,
-    opa_provider: services.api.utils.auth.providers.opa.Provider,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
 ):
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
     project_name = "project-name"
@@ -262,7 +262,7 @@ def test_allowed_project_owners_cache(
 def test_allowed_project_owners_cache_ttl_refresh(
     api_url: str,
     permission_query_path: str,
-    opa_provider: services.api.utils.auth.providers.opa.Provider,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
 ):
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
     opa_provider._allowed_project_owners_cache_ttl_seconds = 1
@@ -290,7 +290,7 @@ def test_allowed_project_owners_cache_ttl_refresh(
 def test_allowed_project_owners_cache_clean_expired(
     api_url: str,
     permission_query_path: str,
-    opa_provider: services.api.utils.auth.providers.opa.Provider,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
 ):
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
     auth_info_2 = mlrun.common.schemas.AuthInfo(user_id="user-id-2")

@@ -17,7 +17,7 @@ extend-select = [
 explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
-known-first-party = ["mlrun"]
+known-first-party = ["mlrun", "mlrun_pipelines"]
 known-local-folder = ["services", "framework"]
 
 [tool.ruff.lint.pycodestyle]
@@ -131,7 +131,7 @@ forbidden_modules = [
 ]
 # Ignore integration tests until we have service specific integration tests infrastructure
 ignore_imports = [
-    "tests.integration.sdk_api.alerts.test_alerts -> services ",
+    "tests.integration.sdk_api.alerts.test_alerts -> framework",
 ]
 
 [[tool.importlinter.contracts]]
@@ -142,4 +142,11 @@ source_modules = [
 ]
 forbidden_modules = [
     "services",
+]
+# TODO: Remove when crud moves to framework
+ignore_imports = [
+    "server.py.framework.api.utils -> services",
+    "server.py.framework.rundb.sqldb -> services",
+    "server.py.framework.utils.projects.* -> services",
+    "server.py.framework.utils.notifications -> services",
 ]

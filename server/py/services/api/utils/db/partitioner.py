@@ -18,9 +18,9 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas.partition
-import mlrun.utils.singleton
 
-import services.api.db.sqldb.db
+import framework.db.sqldb.db
+import framework.utils.singletons.db
 
 
 class MySQLPartitioner:
@@ -71,7 +71,7 @@ class MySQLPartitioner:
             partition_number=partition_number,
         )
 
-        services.api.utils.singletons.db.get_db().create_partitions(
+        framework.utils.singletons.db.get_db().create_partitions(
             session=session,
             table_name=table_name,
             partitioning_information_list=partitioning_information_list,
@@ -99,7 +99,7 @@ class MySQLPartitioner:
         cutoff_partition_name = partition_interval.get_partition_name(cutoff_date)
 
         # Drop partitions that are older than the cutoff
-        services.api.utils.singletons.db.get_db().drop_partitions(
+        framework.utils.singletons.db.get_db().drop_partitions(
             session,
             table_name,
             f"p{cutoff_partition_name}",
@@ -111,9 +111,11 @@ class MySQLPartitioner:
         table_name: str,
     ) -> mlrun.common.schemas.partition.PartitionInterval:
         # Retrieve the partition function from the database
-        partition_expression = services.api.utils.singletons.db.get_db().get_partition_expression_for_table(
-            session,
-            table_name=table_name,
+        partition_expression = (
+            framework.utils.singletons.db.get_db().get_partition_expression_for_table(
+                session,
+                table_name=table_name,
+            )
         )
 
         partition_function = partition_expression[

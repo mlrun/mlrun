@@ -22,7 +22,7 @@ import sqlalchemy.orm
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.partition
 
-import services.api.db.sqldb
+import framework.utils.singletons.db
 import services.api.utils.db.partitioner
 
 
@@ -120,7 +120,7 @@ def test_drop_old_partitions(
             "services.api.utils.db.partitioner.datetime"
         ) as mock_datetime,
         unittest.mock.patch.object(
-            services.api.utils.singletons.db.get_db(), "drop_partitions"
+            framework.utils.singletons.db.get_db(), "drop_partitions"
         ) as mocked_db_drop_partitions,
     ):
         mock_datetime.now.return_value = test_date
@@ -188,7 +188,7 @@ def test_create_partitions(
             "services.api.utils.db.partitioner.datetime"
         ) as mock_datetime,
         unittest.mock.patch.object(
-            services.api.utils.singletons.db.get_db(),
+            framework.utils.singletons.db.get_db(),
             "create_partitions",
         ) as mocked_db_create_partitions,
     ):
@@ -223,7 +223,7 @@ def test_get_interval(
 ):
     with (
         unittest.mock.patch.object(
-            services.api.utils.singletons.db.get_db(),
+            framework.utils.singletons.db.get_db(),
             "get_partition_expression_for_table",
         ) as mocked_get_partition_expression_for_table,
     ):

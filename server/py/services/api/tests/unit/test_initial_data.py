@@ -23,10 +23,10 @@ import mlrun.common.db.sql_session
 import mlrun.common.schemas
 from mlrun.config import config
 
-import services.api.db.init_db
-import services.api.db.sqldb.db
+import framework.db.init_db
+import framework.db.sqldb.db
+import framework.utils.singletons.db
 import services.api.initial_data
-import services.api.utils.singletons.db
 
 
 def test_add_data_version_empty_db():
@@ -299,14 +299,14 @@ def test_align_schedule_labels(
 
 
 def _initialize_db_without_migrations() -> (
-    tuple[services.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
+    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
     mlrun.common.db.sql_session._init_engine(dsn=dsn)
-    services.api.utils.singletons.db.initialize_db()
+    framework.utils.singletons.db.initialize_db()
     db_session = mlrun.common.db.sql_session.create_session(dsn=dsn)
-    db = services.api.db.sqldb.db.SQLDB(dsn)
+    db = framework.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    services.api.db.init_db.init_db()
+    framework.db.init_db()
     return db, db_session

@@ -21,9 +21,9 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import mlrun.model
 
-import services.api.db.sqldb.helpers
+import framework.db.sqldb.helpers
 import services.api.initial_data
-from services.api.db.base import DBInterface
+from framework.db.base import DBInterface
 
 
 def test_list_runs_name_filter(db: DBInterface, db_session: Session):
@@ -369,7 +369,7 @@ def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
     with unittest.mock.patch(
-        "services.api.db.sqldb.helpers.update_labels", return_value=None
+        "framework.db.sqldb.helpers.update_labels", return_value=None
     ) as update_labels_mock:
         db.update_run(
             db_session,
@@ -471,7 +471,7 @@ def _change_run_record_to_before_align_runs_migration(run, time_before_creation)
     run_dict = run.struct
 
     # change only the start_time column (and not the field in the body) to be earlier
-    assert services.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
+    assert framework.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
     run.start_time = time_before_creation
 
     # change name column to be empty
@@ -490,13 +490,12 @@ def _ensure_run_after_align_runs_migration(
     run_dict = run.struct
 
     # ensure start time aligned
-    assert services.api.db.sqldb.helpers.run_start_time(
-        run_dict
-    ) == db._add_utc_timezone(run.start_time)
+    assert framework.db.sqldb.helpers.run_start_time(run_dict) == db._add_utc_timezone(
+        run.start_time
+    )
     if time_before_creation is not None:
         assert (
-            services.api.db.sqldb.helpers.run_start_time(run_dict)
-            > time_before_creation
+            framework.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
         )
 
     # ensure name column filled

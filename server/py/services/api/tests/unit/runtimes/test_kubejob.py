@@ -21,7 +21,6 @@ import unittest.mock
 import deepdiff
 import pytest
 from fastapi.testclient import TestClient
-from mlrun_pipelines.mounts import auto_mount
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -30,11 +29,12 @@ import mlrun.k8s_utils
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.runtimes.utils import generate_resources
+from mlrun_pipelines.mounts import auto_mount
 
 import services.api.utils.builder
+from framework.utils.singletons.db import get_db
 from services.api.tests.unit.conftest import K8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
-from services.api.utils.singletons.db import get_db
 
 
 class TestKubejobRuntime(TestRuntimeBase):

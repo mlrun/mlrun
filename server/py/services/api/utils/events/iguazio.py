@@ -20,7 +20,7 @@ import igz_mgmt.schemas.events
 import mlrun.common.schemas
 from mlrun.utils import logger
 
-import services.api.utils.clients.iguazio
+import framework.utils.clients.iguazio
 import services.api.utils.events.base as base_events
 
 PROJECT_AUTH_SECRET_CREATED = "Security.Project.AuthSecret.Created"
@@ -45,7 +45,7 @@ class Client(base_events.BaseEventClient):
     def emit(self, event: igz_mgmt.Event):
         try:
             logger.debug("Emitting event", event=event)
-            services.api.utils.clients.iguazio.Client().emit_manual_event(
+            framework.utils.clients.iguazio.Client().emit_manual_event(
                 self.access_key, event
             )
         except Exception as exc:

@@ -17,7 +17,6 @@ import typing
 import unittest.mock
 
 import deepdiff
-import mlrun_pipelines.utils
 import pytest
 import sqlalchemy.orm
 
@@ -25,26 +24,25 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+import mlrun_pipelines.utils
 from mlrun.utils import logger
 
+import framework.utils.background_tasks
+import framework.utils.projects.follower
+import framework.utils.projects.remotes.leader
+import framework.utils.singletons.db
+import framework.utils.singletons.project_member
 import services.api.crud
 import services.api.tests.unit.conftest
-import services.api.utils.background_tasks
-import services.api.utils.projects.follower
-import services.api.utils.projects.remotes.leader
-import services.api.utils.singletons.db
-import services.api.utils.singletons.project_member
 
 
 @pytest.fixture()
-def projects_follower() -> typing.Iterator[services.api.utils.projects.follower.Member]:
+def projects_follower() -> typing.Iterator[framework.utils.projects.follower.Member]:
     logger.info("Creating projects follower")
     mlrun.mlconf.httpdb.projects.leader = "nop"
     mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-    services.api.utils.singletons.project_member.initialize_project_member()
-    projects_follower = (
-        services.api.utils.singletons.project_member.get_project_member()
-    )
+    framework.utils.singletons.project_member.initialize_project_member()
+    projects_follower = framework.utils.singletons.project_member.get_project_member()
     yield projects_follower
     logger.info("Stopping projects follower")
     projects_follower.shutdown()
@@ -53,16 +51,16 @@ def projects_follower() -> typing.Iterator[services.api.utils.projects.follower.
 @pytest.fixture()
 def nop_leader(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-) -> services.api.utils.projects.remotes.leader.Member:
+    projects_follower: framework.utils.projects.follower.Member,
+) -> framework.utils.projects.remotes.leader.Member:
     projects_follower._leader_client.db_session = db
     return projects_follower._leader_client
 
 
 def test_sync_projects(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
     monkeypatch,
 ):
     project_nothing_changed = _generate_project(name="project-nothing-changed")
@@ -96,7 +94,7 @@ def test_sync_projects(
     # check race condition with background task where sync might want to create a project that is just deleted
     project_just_deleted = _generate_project(name="project-just-deleted")
     monkeypatch.setattr(
-        services.api.utils.background_tasks.InternalBackgroundTasksHandler,
+        framework.utils.background_tasks.InternalBackgroundTasksHandler,
         "get_active_background_task_by_kind",
         lambda _, kind, raise_on_not_found: project_just_deleted.metadata.name in kind,
     )
@@ -160,8 +158,8 @@ def test_sync_projects(
 
 def test_create_project(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project()
     created_project, _ = projects_follower.create_project(
@@ -174,8 +172,8 @@ def test_create_project(
 
 def test_store_project(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project()
 
@@ -201,8 +199,8 @@ def test_store_project(
 
 def test_patch_project(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project()
 
@@ -230,14 +228,14 @@ def test_delete_project(
     # k8s_secrets_mock fixture uses the client fixture which intializes the project member so must be declared
     # before the projects follower
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project()
     projects_follower.create_project(db, project)
     _assert_project_in_follower(db, projects_follower, project)
-    services.api.utils.singletons.db.get_db().verify_project_has_no_related_resources = unittest.mock.Mock(
-        return_value=None
+    framework.utils.singletons.db.get_db().verify_project_has_no_related_resources = (
+        unittest.mock.Mock(return_value=None)
     )
     projects_follower.delete_project(
         db,
@@ -254,8 +252,8 @@ def test_delete_project(
 
 def test_get_project(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project()
     projects_follower.create_project(
@@ -269,8 +267,8 @@ def test_get_project(
 
 def test_get_project_owner(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     owner = "some-username"
     owner_access_key = "some-access-key"
@@ -287,8 +285,8 @@ def test_get_project_owner(
 
 def test_list_project(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     owner = "project-owner"
     project = _generate_project(name="name-1", owner=owner)
@@ -401,8 +399,8 @@ def test_list_project(
 @pytest.mark.asyncio
 async def test_list_project_summaries(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project(name="name-1")
     project_summary = mlrun.common.schemas.ProjectSummary(
@@ -423,7 +421,7 @@ async def test_list_project_summaries(
         project.metadata.name,
         project,
     )
-    services.api.utils.singletons.db.get_db().refresh_project_summaries(
+    framework.utils.singletons.db.get_db().refresh_project_summaries(
         db, [project_summary]
     )
     project_summaries = await projects_follower.list_project_summaries(db)
@@ -451,12 +449,12 @@ async def test_list_project_summaries(
 async def test_list_project_summaries_fails_to_list_pipeline_runs(
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project_name = "project-name"
     project = _generate_project(name=project_name)
-    services.api.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
+    framework.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
         return_value=mlrun.common.schemas.ProjectsOutput(projects=[project_name])
     )
     services.api.crud.projects.Projects()._list_pipelines = unittest.mock.Mock(
@@ -467,7 +465,7 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
         project_name,
         project,
     )
-    services.api.utils.singletons.db.get_db().get_project_resources_counters = (
+    framework.utils.singletons.db.get_db().get_project_resources_counters = (
         unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(9)))
     )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
@@ -480,11 +478,11 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
 
 def test_list_project_leader_format(
     db: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
-    nop_leader: services.api.utils.projects.remotes.leader.Member,
+    projects_follower: framework.utils.projects.follower.Member,
+    nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project(name="name-1")
-    services.api.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
+    framework.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
         return_value=mlrun.common.schemas.ProjectsOutput(projects=[project])
     )
     projects = projects_follower.list_projects(
@@ -504,7 +502,7 @@ def test_list_project_leader_format(
 
 def _assert_list_projects(
     db_session: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
+    projects_follower: framework.utils.projects.follower.Member,
     expected_projects: list[mlrun.common.schemas.Project],
     **kwargs,
 ):
@@ -569,7 +567,7 @@ def _assert_projects_equal(project_1, project_2):
 
 def _assert_project_not_in_follower(
     db_session: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
+    projects_follower: framework.utils.projects.follower.Member,
     project_name: str,
 ):
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -578,7 +576,7 @@ def _assert_project_not_in_follower(
 
 def _assert_project_in_follower(
     db_session: sqlalchemy.orm.Session,
-    projects_follower: services.api.utils.projects.follower.Member,
+    projects_follower: framework.utils.projects.follower.Member,
     project: mlrun.common.schemas.Project,
 ):
     follower_project = projects_follower.get_project(db_session, project.metadata.name)

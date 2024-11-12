@@ -19,13 +19,13 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import mlrun_pipelines.common.ops
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
 import yaml
 
+import mlrun_pipelines.common.ops
 from mlrun import mlconf, new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger

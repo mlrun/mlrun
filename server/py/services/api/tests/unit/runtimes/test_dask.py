@@ -21,7 +21,6 @@ import unittest.mock
 from dask import distributed
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
-from mlrun_pipelines.mounts import auto_mount
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -29,6 +28,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun import mlconf
 from mlrun.runtimes.utils import generate_resources
+from mlrun_pipelines.mounts import auto_mount
 
 import services.api.api.endpoints.functions
 import services.api.runtime_handlers.daskjob

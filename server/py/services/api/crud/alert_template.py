@@ -15,11 +15,11 @@
 
 import sqlalchemy.orm
 
+import mlrun.common.schemas
 import mlrun.utils.singleton
 
-import services.api.api.utils
-import services.api.utils.helpers
-import services.api.utils.singletons.db
+import framework.utils.helpers
+import framework.utils.singletons.db
 
 
 class AlertTemplates(
@@ -31,7 +31,7 @@ class AlertTemplates(
         name: str,
         alert_data: mlrun.common.schemas.AlertTemplate,
     ):
-        alert_template = services.api.utils.singletons.db.get_db().get_alert_template(
+        alert_template = framework.utils.singletons.db.get_db().get_alert_template(
             session, name
         )
 
@@ -40,7 +40,7 @@ class AlertTemplates(
         if alert_template is not None:
             alert_data.id = alert_template.id
 
-        return services.api.utils.singletons.db.get_db().store_alert_template(
+        return framework.utils.singletons.db.get_db().store_alert_template(
             session, alert_data
         )
 
@@ -48,14 +48,14 @@ class AlertTemplates(
         self,
         session: sqlalchemy.orm.Session,
     ) -> list[mlrun.common.schemas.AlertTemplate]:
-        return services.api.utils.singletons.db.get_db().list_alert_templates(session)
+        return framework.utils.singletons.db.get_db().list_alert_templates(session)
 
     def get_alert_template(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
     ) -> mlrun.common.schemas.AlertTemplate:
-        alert_template = services.api.utils.singletons.db.get_db().get_alert_template(
+        alert_template = framework.utils.singletons.db.get_db().get_alert_template(
             session, name
         )
         if alert_template is None:
@@ -68,7 +68,7 @@ class AlertTemplates(
         session: sqlalchemy.orm.Session,
         name: str,
     ):
-        template = services.api.utils.singletons.db.get_db().get_alert_template(
+        template = framework.utils.singletons.db.get_db().get_alert_template(
             session, name
         )
 
@@ -80,14 +80,14 @@ class AlertTemplates(
                 f"Cannot delete the Alert template {name}: it is a system template"
             )
 
-        services.api.utils.singletons.db.get_db().delete_alert_template(session, name)
+        framework.utils.singletons.db.get_db().delete_alert_template(session, name)
 
     @staticmethod
     def _validate_alert_template(alert_template, name):
         if (
             alert_template.criteria is not None
             and alert_template.criteria.period is not None
-            and services.api.utils.helpers.string_to_timedelta(
+            and framework.utils.helpers.string_to_timedelta(
                 alert_template.criteria.period, raise_on_error=False
             )
             is None

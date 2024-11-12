@@ -29,10 +29,10 @@ import mlrun.common.constants as mlrun_constants
 from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
 
+import framework.utils.auth.verifier
+import framework.utils.clients.chief
+import framework.utils.singletons.k8s
 import services.api.tests.unit.api.utils
-import services.api.utils.auth.verifier
-import services.api.utils.clients.chief
-import services.api.utils.singletons.k8s
 from services.api.daemon import daemon
 from services.api.tests.unit.conftest import K8sSecretsMock
 
@@ -65,15 +65,15 @@ access_key = "12345"
 @pytest.fixture()
 def pod_create_mock():
     create_pod_orig_function = (
-        services.api.utils.singletons.k8s.get_k8s_helper().create_pod
+        framework.utils.singletons.k8s.get_k8s_helper().create_pod
     )
     _get_project_secrets_raw_data_orig_function = (
-        services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
+        framework.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
     )
-    services.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
+    framework.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
         return_value=("pod-name", "namespace")
     )
-    services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
+    framework.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
         unittest.mock.Mock(return_value={})
     )
 
@@ -91,25 +91,25 @@ def pod_create_mock():
     )
 
     authenticate_request_orig_function = (
-        services.api.utils.auth.verifier.AuthVerifier().authenticate_request
+        framework.utils.auth.verifier.AuthVerifier().authenticate_request
     )
-    services.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+    framework.utils.auth.verifier.AuthVerifier().authenticate_request = (
         unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
-    yield services.api.utils.singletons.k8s.get_k8s_helper().create_pod
+    yield framework.utils.singletons.k8s.get_k8s_helper().create_pod
 
     # Have to revert the mocks, otherwise other tests are failing
-    services.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
+    framework.utils.singletons.k8s.get_k8s_helper().create_pod = (
         create_pod_orig_function
     )
-    services.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
+    framework.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
         _get_project_secrets_raw_data_orig_function
     )
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
         update_run_state_orig_function
     )
-    services.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+    framework.utils.auth.verifier.AuthVerifier().authenticate_request = (
         authenticate_request_orig_function
     )
 
@@ -402,7 +402,7 @@ def test_submit_job_with_hyper_params_file(
 
     # Create test-specific mocks
     monkeypatch.setattr(
-        services.api.utils.auth.verifier.AuthVerifier(),
+        framework.utils.auth.verifier.AuthVerifier(),
         "authenticate_request",
         auth_info_mock,
     )
@@ -452,12 +452,12 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
         image="mlrun/mlrun",
     )
 
-    handler_mock = services.api.utils.clients.chief.Client()
+    handler_mock = framework.utils.clients.chief.Client()
     handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
-        services.api.utils.clients.chief,
+        framework.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )

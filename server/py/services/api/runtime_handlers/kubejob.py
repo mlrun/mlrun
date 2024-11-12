@@ -25,8 +25,8 @@ import mlrun.common.constants as mlrun_constants
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 
-import services.api.db.base as api_db_base
-import services.api.utils.singletons.k8s
+import framework.db.base as api_db_base
+import framework.utils.singletons.k8s
 from services.api.runtime_handlers import BaseRuntimeHandler
 
 
@@ -83,7 +83,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             (
                 pod_name,
                 namespace,
-            ) = services.api.utils.singletons.k8s.get_k8s_helper().create_pod(pod)
+            ) = framework.utils.singletons.k8s.get_k8s_helper().create_pod(pod)
         except ApiException as exc:
             raise mlrun.runtimes.utils.RunError(mlrun.errors.err_to_str(exc)) from exc
 
@@ -262,7 +262,7 @@ def func_to_pod(
         lifecycle=lifecycle,
     )
 
-    pod_spec = services.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
+    pod_spec = framework.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         runtime.spec, container, node_selector
     )
 

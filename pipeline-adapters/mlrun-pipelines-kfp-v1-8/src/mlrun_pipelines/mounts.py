@@ -17,13 +17,13 @@ from typing import Optional
 
 import kfp.dsl
 import semver
-from mlrun_pipelines.common.mounts import _enrich_and_validate_v3io_mounts
 
 from mlrun.config import config
 from mlrun.config import config as mlconf
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.platforms.iguazio import v3io_to_vol
 from mlrun.utils import logger
+from mlrun_pipelines.common.mounts import _enrich_and_validate_v3io_mounts
 
 # Disable the warning about reusing components
 kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True

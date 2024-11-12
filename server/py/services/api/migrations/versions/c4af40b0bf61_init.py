@@ -24,7 +24,7 @@ import sqlalchemy as sa
 import sqlalchemy.dialects.mysql
 from alembic import op
 
-from services.api.utils.db.sql_types import SQLTypesUtil
+from framework.utils.db.sql_types import SQLTypesUtil
 
 # revision identifiers, used by Alembic.
 revision = "c4af40b0bf61"

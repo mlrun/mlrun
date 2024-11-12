@@ -23,7 +23,7 @@ from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import logger
 
-import services.api.api.utils
+import framework.api.utils
 import services.api.launcher
 from services.api.api.endpoints.nuclio import _deploy_nuclio_runtime
 from services.api.utils.builder import build_runtime
@@ -47,13 +47,13 @@ def build_function(
         fn = new_function(runtime=function)
     except Exception as err:
         logger.error(traceback.format_exc())
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )
     try:
         # connect to run db
-        run_db = services.api.api.utils.get_run_db_instance(db_session)
+        run_db = framework.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
         # TODO:  nuclio deploy moved to new endpoint, this flow is about to be deprecated
@@ -80,7 +80,7 @@ def build_function(
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
-            log_file = services.api.api.utils.log_path(
+            log_file = framework.api.utils.log_path(
                 fn.metadata.project,
                 f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
             )
@@ -103,7 +103,7 @@ def build_function(
         logger.info("Resolved function", fn=fn.to_dict())
     except Exception as err:
         logger.error(traceback.format_exc())
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )

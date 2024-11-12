@@ -27,8 +27,9 @@ from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import config, logger
 from mlrun.utils.v3io_clients import get_frames_client
 
-import services.api.utils.auth.verifier
-from services.api.utils.singletons.project_member import get_project_member
+import framework.utils.auth.verifier
+import services.api.crud
+from framework.utils.singletons.project_member import get_project_member
 
 
 def grafana_list_projects(
@@ -83,7 +84,7 @@ async def grafana_list_endpoints(
     filter_router = query_parameters.get("filter_router", None)
 
     if project:
-        await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -98,7 +99,7 @@ async def grafana_list_endpoints(
         start=start,
         end=end,
     )
-    allowed_endpoints = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoint_list.endpoints,
         lambda _endpoint: (
@@ -197,12 +198,14 @@ async def grafana_individual_feature_analysis(
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+            project,
+            endpoint_id,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     endpoint = await run_in_threadpool(
@@ -279,12 +282,14 @@ async def grafana_overall_feature_analysis(
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+            project,
+            endpoint_id,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     endpoint = await run_in_threadpool(
         services.api.crud.ModelEndpoints().get_model_endpoint,
@@ -339,12 +344,14 @@ async def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+            project,
+            endpoint_id,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     endpoint = await run_in_threadpool(

@@ -17,13 +17,13 @@ import unittest.mock
 import numpy as np
 import pandas as pd
 import pytest
-from mlrun_pipelines.models import PipelineRun
 
 import mlrun
 import mlrun.artifacts
 import mlrun.common.constants as mlrun_constants
 import mlrun.errors
 from mlrun import new_task
+from mlrun_pipelines.models import PipelineRun
 from tests.conftest import out_path, tag_test, verify_state
 
 

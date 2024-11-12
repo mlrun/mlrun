@@ -36,18 +36,16 @@ from mlrun.utils import (
     logger,
 )
 
-import services.api.constants
+import framework.constants
+import framework.db.sqldb.models
+import framework.utils.db.mysql
 import services.api.crud.pagination_cache
-import services.api.db.sqldb.db
-import services.api.db.sqldb.helpers
-import services.api.db.sqldb.models
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
-import services.api.utils.db.mysql
 import services.api.utils.scheduler
-from services.api.db.init_db import init_db
-from services.api.db.session import close_session, create_session
-from services.api.db.sqldb.models import ProjectSummary
+from framework.db import init_db
+from framework.db.session import close_session, create_session
+from framework.db.sqldb.models import ProjectSummary
 
 
 def init_data(
@@ -58,7 +56,7 @@ def init_data(
     alembic_util = None
 
     # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
-    mysql_util = services.api.utils.db.mysql.MySQLUtil(logger)
+    mysql_util = framework.utils.db.mysql.MySQLUtil(logger)
     if mysql_util.get_mysql_dsn_data():
         mysql_util.wait_for_db_liveness()
         mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
@@ -145,14 +143,14 @@ latest_data_version = 8
 
 
 def update_default_configuration_data():
-    services.api.db.session.run_function_with_new_db_session(
+    framework.db.session.run_function_with_new_db_session(
         services.api.crud.Alerts().populate_event_cache
     )
 
     logger.debug("Updating default configuration data")
     db_session = create_session()
     try:
-        db = services.api.db.sqldb.db.SQLDB()
+        db = framework.db.sqldb.db.SQLDB()
         _add_default_hub_source_if_needed(db, db_session)
         _add_default_alert_templates(db, db_session)
     finally:
@@ -210,7 +208,7 @@ def _perform_schema_migrations(alembic_util: services.api.utils.db.alembic.Alemb
 
 def _is_latest_data_version():
     db_session = create_session()
-    db = services.api.db.sqldb.db.SQLDB()
+    db = framework.db.sqldb.db.SQLDB()
 
     try:
         current_data_version = _resolve_current_data_version(db, db_session)
@@ -222,7 +220,7 @@ def _is_latest_data_version():
 
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     if config.httpdb.db.data_migrations_mode == "enabled":
-        db = services.api.db.sqldb.db.SQLDB()
+        db = framework.db.sqldb.db.SQLDB()
         current_data_version = int(db.get_current_data_version(db_session))
         if current_data_version != latest_data_version:
             logger.info(
@@ -254,18 +252,18 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 
 
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
-    db = services.api.db.sqldb.db.SQLDB()
+    db = framework.db.sqldb.db.SQLDB()
     _add_data_version(db, db_session)
 
 
 def _perform_version_2_data_migrations(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _align_runs_table(db, db_session)
 
 
 def _align_runs_table(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     logger.info("Aligning runs")
     runs = db._find_runs(db_session, None, "*", None).all()
@@ -274,7 +272,7 @@ def _align_runs_table(
 
         # Align run start_time column to the start time from the body
         run.start_time = (
-            services.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
+            framework.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
         )
         # in case no start time was in the body, we took the time from the column, let's make sure the body will have
         # it as well
@@ -306,13 +304,13 @@ def _align_runs_table(
 
 
 def _perform_version_3_data_migrations(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _rename_marketplace_kind_to_hub(db, db_session)
 
 
 def _rename_marketplace_kind_to_hub(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     logger.info("Renaming 'Marketplace' kinds to 'Hub'")
 
@@ -330,13 +328,13 @@ def _rename_marketplace_kind_to_hub(
 
 
 def _perform_version_4_data_migrations(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _update_default_hub_source(db, db_session)
 
 
 def _add_default_hub_source_if_needed(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     default_hub_source = mlrun.common.schemas.HubSource.generate_default_source()
     # hub_source will be None if the configuration has hub.default_source.create=False
@@ -362,7 +360,7 @@ def _add_default_hub_source_if_needed(
 
 
 def _update_default_hub_source(
-    db: services.api.db.sqldb.db.SQLDB,
+    db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     hub_source: mlrun.common.schemas.hub.HubSource = None,
 ):
@@ -393,9 +391,9 @@ def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
     """
     # Not using db.delete_hub_source() since it doesn't allow deleting the default hub source.
     default_record = (
-        db_session.query(services.api.db.sqldb.models.HubSource)
+        db_session.query(framework.db.sqldb.models.HubSource)
         .filter(
-            services.api.db.sqldb.models.HubSource.index
+            framework.db.sqldb.models.HubSource.index
             == mlrun.common.schemas.last_source_index
         )
         .one_or_none()
@@ -409,7 +407,7 @@ def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
 
 
 def _add_data_version(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
         data_version = _resolve_current_data_version(db, db_session)
@@ -421,7 +419,7 @@ def _add_data_version(
 
 
 def _resolve_current_data_version(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     try:
         return int(db.get_current_data_version(db_session))
@@ -473,13 +471,13 @@ def _resolve_current_data_version(
 
 
 def _perform_version_5_data_migrations(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _migrate_artifacts_table_v2(db, db_session)
 
 
 def _migrate_artifacts_table_v2(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     """
     Migrate the old artifacts table to the new artifacts_v2 table, including their respective tags and labels.
@@ -490,7 +488,7 @@ def _migrate_artifacts_table_v2(
 
     # count the total number of artifacts to migrate
     total_artifacts_count = db._query(
-        db_session, services.api.db.sqldb.models.Artifact
+        db_session, framework.db.sqldb.models.Artifact
     ).count()
 
     if total_artifacts_count == 0:
@@ -531,21 +529,21 @@ def _migrate_artifacts_table_v2(
     # drop the old artifacts table, including their labels and tags tables
     db.delete_table_records(
         db_session,
-        services.api.db.sqldb.models.Artifact.Label,
+        framework.db.sqldb.models.Artifact.Label,
         raise_on_not_exists=False,
     )
     db.delete_table_records(
-        db_session, services.api.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
+        db_session, framework.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
     )
     db.delete_table_records(
-        db_session, services.api.db.sqldb.models.Artifact, raise_on_not_exists=False
+        db_session, framework.db.sqldb.models.Artifact, raise_on_not_exists=False
     )
 
     logger.info("Finished migrating artifacts to artifacts_v2 table successfully")
 
 
 def _migrate_artifacts_batch(
-    db: services.api.db.sqldb.db.SQLDB,
+    db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     last_migrated_artifact_id: int,
     batch_size: int,
@@ -556,14 +554,14 @@ def _migrate_artifacts_batch(
     link_artifact_ids = []
 
     # get artifacts from the db, sorted by id
-    query = db._query(db_session, services.api.db.sqldb.models.Artifact)
+    query = db._query(db_session, framework.db.sqldb.models.Artifact)
     if last_migrated_artifact_id > 0:
         # skip the artifacts that were already migrated
         query = query.filter(
-            services.api.db.sqldb.models.Artifact.id > last_migrated_artifact_id
+            framework.db.sqldb.models.Artifact.id > last_migrated_artifact_id
         )
 
-    query = query.order_by(services.api.db.sqldb.models.Artifact.id).limit(batch_size)
+    query = query.order_by(framework.db.sqldb.models.Artifact.id).limit(batch_size)
 
     artifacts = query.all()
 
@@ -574,7 +572,7 @@ def _migrate_artifacts_batch(
     logger.debug("Migrating artifacts batch", batch_size=len(artifacts))
 
     for artifact in artifacts:
-        new_artifact = services.api.db.sqldb.models.ArtifactV2()
+        new_artifact = framework.db.sqldb.models.ArtifactV2()
 
         artifact_dict = artifact.struct
 
@@ -706,7 +704,7 @@ def _migrate_artifact_labels(
 
 def _migrate_artifact_tags(
     db_session: sqlalchemy.orm.Session,
-    old_id_to_artifact: dict[typing.Any, services.api.db.sqldb.models.ArtifactV2],
+    old_id_to_artifact: dict[typing.Any, framework.db.sqldb.models.ArtifactV2],
 ):
     if not old_id_to_artifact:
         return []
@@ -715,11 +713,9 @@ def _migrate_artifact_tags(
 
     # get all tags that are attached to the artifacts we migrated
     old_tags = (
-        db_session.query(services.api.db.sqldb.models.Artifact.Tag)
+        db_session.query(framework.db.sqldb.models.Artifact.Tag)
         .filter(
-            services.api.db.sqldb.models.Artifact.Tag.obj_id.in_(
-                old_id_to_artifact.keys()
-            )
+            framework.db.sqldb.models.Artifact.Tag.obj_id.in_(old_id_to_artifact.keys())
         )
         .all()
     )
@@ -728,7 +724,7 @@ def _migrate_artifact_tags(
         new_artifact = old_id_to_artifact[old_tag.obj_id]
 
         # create a new tag object
-        new_tag = services.api.db.sqldb.models.ArtifactV2.Tag(
+        new_tag = framework.db.sqldb.models.ArtifactV2.Tag(
             project=new_artifact.project,
             name=old_tag.name,
             obj_name=new_artifact.key,
@@ -743,7 +739,7 @@ def _migrate_artifact_tags(
 
 
 def _mark_best_iteration_artifacts(
-    db: services.api.db.sqldb.db.SQLDB,
+    db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     link_artifact_ids: list,
 ):
@@ -751,8 +747,8 @@ def _mark_best_iteration_artifacts(
 
     # get all link artifacts
     link_artifacts = (
-        db_session.query(services.api.db.sqldb.models.Artifact)
-        .filter(services.api.db.sqldb.models.Artifact.id.in_(link_artifact_ids))
+        db_session.query(framework.db.sqldb.models.Artifact)
+        .filter(framework.db.sqldb.models.Artifact.id.in_(link_artifact_ids))
         .all()
     )
 
@@ -784,13 +780,13 @@ def _mark_best_iteration_artifacts(
             continue
 
         # get the artifacts attached to the link artifact
-        query = db._query(db_session, services.api.db.sqldb.models.ArtifactV2).filter(
-            services.api.db.sqldb.models.ArtifactV2.key == link_artifact_key,
-            services.api.db.sqldb.models.ArtifactV2.iteration == link_iteration,
+        query = db._query(db_session, framework.db.sqldb.models.ArtifactV2).filter(
+            framework.db.sqldb.models.ArtifactV2.key == link_artifact_key,
+            framework.db.sqldb.models.ArtifactV2.iteration == link_iteration,
         )
         if link_tree:
             query = query.filter(
-                services.api.db.sqldb.models.ArtifactV2.producer_id == link_tree
+                framework.db.sqldb.models.ArtifactV2.producer_id == link_tree
             )
 
         artifact = query.one_or_none()
@@ -850,16 +846,16 @@ def _delete_state_file():
 
 
 def _add_default_alert_templates(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    for template in services.api.constants.pre_defined_templates:
+    for template in framework.constants.pre_defined_templates:
         record = db.get_alert_template(db_session, template.template_name)
         if record is None or record.templates_differ(template):
             db.store_alert_template(db_session, template)
 
 
 def _perform_version_6_data_migrations(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _migrate_model_monitoring_jobs(db, db_session)
 
@@ -878,13 +874,13 @@ def _migrate_model_monitoring_jobs(db, db_session):
 
 
 def _perform_version_7_data_migrations(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _create_project_summaries(db, db_session)
 
 
 def _perform_version_8_data_migrations(
-    db: services.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     db.align_schedule_labels(session=db_session)
 

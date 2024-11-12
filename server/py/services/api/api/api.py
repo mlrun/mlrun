@@ -14,7 +14,7 @@
 #
 from fastapi import APIRouter, Depends
 
-from services.api.api import deps
+from framework.api import deps
 from services.api.api.endpoints import (
     alert_template,
     alerts,

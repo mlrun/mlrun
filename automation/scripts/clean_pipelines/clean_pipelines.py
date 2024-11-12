@@ -25,7 +25,8 @@ from mlrun_pipelines.models import PipelineRun
 
 import mlrun
 
-DELETION_LOG_INTERVAL = 100  # Interval for logging deletion progress
+# Interval for logging deletion progress
+DELETION_LOG_INTERVAL = 100
 
 
 def delete_project_old_pipelines(

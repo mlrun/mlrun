@@ -881,7 +881,10 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_alerts(
-        self, session, project: Optional[str] = None
+        self,
+        session,
+        project: Optional[str] = None,
+        projects: Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 

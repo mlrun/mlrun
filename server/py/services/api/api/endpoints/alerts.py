@@ -123,14 +123,16 @@ async def list_alerts(
         project,
         auth_info=auth_info,
     )
-    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    allowed_project_names = (
+        await services.api.crud.Projects().list_allowed_project_names(
+            db_session, auth_info, project=project
+        )
     )
 
     alerts = await run_in_threadpool(
-        services.api.crud.Alerts().list_alerts, db_session, project
+        services.api.crud.Alerts().list_alerts,
+        db_session,
+        projects=allowed_project_names,
     )
 
     alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

@@ -2531,6 +2531,7 @@ class SQLDB(DBInterface):
             )
             return 0
 
+        # TODO: add project permissions handling like in the list methods
         if project != "*":
             where_clause = main_table.project == project
             # To allow deleting all project resources - don't require main_table_identifier
@@ -5600,12 +5601,17 @@ class SQLDB(DBInterface):
         self._delete(session, AlertConfig, project=project, name=name)
 
     def list_alerts(
-        self, session, project: typing.Optional[str] = None
+        self,
+        session,
+        project: typing.Optional[str] = None,
+        projects: typing.Optional[list[str]] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
-        if project and project != "*":
+        if project and not projects:
             query = query.filter(AlertConfig.project == project)
+        elif projects:
+            query = query.filter(AlertConfig.project.in_(projects))
 
         alerts = list(map(self._transform_alert_config_record_to_schema, query.all()))
         for alert in alerts:
@@ -6221,6 +6227,7 @@ class SQLDB(DBInterface):
                 )
             run_id = run.id
 
+        # TODO: add project permissions handling like in the list methods
         project = project or config.default_project
         if project == "*":
             project = None

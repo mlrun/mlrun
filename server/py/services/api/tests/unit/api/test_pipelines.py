@@ -51,7 +51,7 @@ def test_list_pipelines_empty_list(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
-    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
     )
     runs = []
@@ -68,7 +68,7 @@ def test_list_pipelines_formats(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
-    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
     )
     for format_ in [
@@ -179,7 +179,7 @@ def test_list_pipelines_time_fields_default(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
-    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
     )
     created_at = datetime.datetime.now()
@@ -238,7 +238,7 @@ def test_list_pipelines_name_contains(
     expected_runs_ids: list,
 ) -> None:
     project_name = "test-project"
-    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=[project_name])
     )
     services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
@@ -278,7 +278,7 @@ def test_list_pipelines_specific_project(
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
     project = "project-name"
-    services.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=[project])
     )
     runs = _generate_list_runs_mocks()

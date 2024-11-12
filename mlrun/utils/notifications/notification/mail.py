@@ -90,8 +90,10 @@ class MailNotification(base.NotificationBase):
         username: str,
         password: str,
         use_tls: bool,
-        subject: str = "MLRun Notification",
-        body: str = "",
+        start_tls: bool,
+        validate_certs: bool,
+        subject: str,
+        body: str,
         **kwargs,
     ):
         # Create the email message
@@ -109,7 +111,8 @@ class MailNotification(base.NotificationBase):
             username=username,
             password=password,
             use_tls=use_tls,
-            validate_certs=use_tls,
+            validate_certs=validate_certs,
+            start_tls=start_tls,
         )
 
     @classmethod
@@ -118,8 +121,9 @@ class MailNotification(base.NotificationBase):
     ) -> dict:
         params = super().enrich_default_params(params, default_params)
 
-        if type(params.get("use_tls", "")) is str:
-            params["use_tls"] = json.loads(params.get("use_tls", "true"))
+        cls._set_param_default_value(params, "use_tls", "true")
+        cls._set_param_default_value(params, "start_tls", "false")
+        cls._set_param_default_value(params, "validate_certs", "true")
 
         params.setdefault("server_port", DEFAULT_SMTP_PORT)
 
@@ -130,3 +134,8 @@ class MailNotification(base.NotificationBase):
         params["email_addresses"] = email_addresses
 
         return params
+
+    @staticmethod
+    def _set_param_default_value(params, key, default_value):
+        if type(params.get(key, "")) is str:
+            params[key] = json.loads(params.get(key, default_value))

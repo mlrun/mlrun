@@ -282,7 +282,7 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     ],
 )
 def test_console_notification(monkeypatch, runs, expected, is_table):
-    console_notification = mlrun.utils.notifications.ConsoleNotification()
+    console_notification = mlrun.utils.notifications.console.ConsoleNotification()
     print_result = ""
 
     def set_result(result):
@@ -366,7 +366,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
     ],
 )
 def test_slack_notification(runs, expected):
-    slack_notification = mlrun.utils.notifications.SlackNotification()
+    slack_notification = mlrun.utils.notifications.slack.SlackNotification()
     slack_data = slack_notification._generate_slack_data("test-message", "info", runs)
 
     assert slack_data == expected
@@ -427,7 +427,7 @@ def test_slack_notification(runs, expected):
     ],
 )
 async def test_git_notification(monkeypatch, params, expected_url, expected_headers):
-    git_notification = mlrun.utils.notifications.GitNotification("git", params)
+    git_notification = mlrun.utils.notifications.git.GitNotification("git", params)
     expected_body = "[info] git: test-message"
 
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
@@ -454,7 +454,7 @@ async def test_webhook_notification(monkeypatch, test_method):
     test_message = "test-message"
     test_severity = "info"
     test_runs_info = ["some-run"]
-    webhook_notification = mlrun.utils.notifications.WebhookNotification(
+    webhook_notification = mlrun.utils.notifications.webhook.WebhookNotification(
         "webhook",
         {
             "url": test_url,
@@ -510,13 +510,13 @@ def test_inverse_dependencies(
     mock_console_push = unittest.mock.MagicMock(return_value=Exception())
     mock_ipython_push = unittest.mock.MagicMock(return_value=Exception())
     monkeypatch.setattr(
-        mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push
+        mlrun.utils.notifications.console.ConsoleNotification, "push", mock_console_push
     )
     monkeypatch.setattr(
-        mlrun.utils.notifications.IPythonNotification, "push", mock_ipython_push
+        mlrun.utils.notifications.ipython.IPythonNotification, "push", mock_ipython_push
     )
     monkeypatch.setattr(
-        mlrun.utils.notifications.IPythonNotification, "active", ipython_active
+        mlrun.utils.notifications.ipython.IPythonNotification, "active", ipython_active
     )
 
     custom_notification_pusher.push("test-message", "info", [])

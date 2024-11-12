@@ -53,8 +53,8 @@ class RunNotificationPusher(NotificationPusher):
 
     @staticmethod
     def _get_mail_notification_default_params():
-        if NotificationPusher.mail_notification_default_params is not None:
-            return NotificationPusher.mail_notification_default_params
+        if RunNotificationPusher.mail_notification_default_params is not None:
+            return RunNotificationPusher.mail_notification_default_params
 
         smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
         mail_notification_default_params = {}
@@ -64,10 +64,10 @@ class RunNotificationPusher(NotificationPusher):
                     smtp_config_secret_name
                 )
             )
-        NotificationPusher.mail_notification_default_params = (
+        RunNotificationPusher.mail_notification_default_params = (
             mail_notification_default_params
         )
-        return NotificationPusher.mail_notification_default_params
+        return RunNotificationPusher.mail_notification_default_params
 
     def _prepare_notification_args(
         self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification

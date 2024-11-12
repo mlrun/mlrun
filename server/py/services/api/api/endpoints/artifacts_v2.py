@@ -24,12 +24,12 @@ import mlrun.common.schemas
 from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.utils import logger
 
+import framework.utils.auth.verifier
+import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.auth.verifier
 import services.api.utils.pagination
-import services.api.utils.singletons.project_member
-from services.api.api import deps
-from services.api.api.utils import artifact_project_and_resource_name_extractor
+from framework.api import deps
+from framework.api.utils import artifact_project_and_resource_name_extractor
 
 router = APIRouter()
 
@@ -42,7 +42,7 @@ async def create_artifact(
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
@@ -53,12 +53,14 @@ async def create_artifact(
     iteration = artifact.metadata.iter or 0
     tree = artifact.metadata.tree or None
     logger.debug("Creating artifact", project=project, key=key, tag=tag, iter=iteration)
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
     artifact_uid = await run_in_threadpool(
         services.api.crud.Artifacts().create_artifact,
@@ -96,7 +98,7 @@ async def store_artifact(
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
@@ -114,12 +116,14 @@ async def store_artifact(
         iter=iter,
     )
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
     artifact_uid = await run_in_threadpool(
         services.api.crud.Artifacts().store_artifact,
@@ -167,7 +171,7 @@ async def list_artifacts(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -176,7 +180,7 @@ async def list_artifacts(
     paginator = services.api.utils.pagination.Paginator()
 
     async def _filter_artifacts(_artifacts):
-        return await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+        return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.artifact,
             _artifacts,
             artifact_project_and_resource_name_extractor,
@@ -231,12 +235,14 @@ async def get_artifact(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     artifact = await run_in_threadpool(
         services.api.crud.Artifacts().get_artifact,
@@ -283,12 +289,14 @@ async def delete_artifact(
         object_uid=object_uid or uid,
     )
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
     await run_in_threadpool(
         services.api.crud.Artifacts().delete_artifact,
@@ -328,7 +336,7 @@ async def delete_artifacts(
         producer_id=tree,
         limit=limit,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         artifact_project_and_resource_name_extractor,

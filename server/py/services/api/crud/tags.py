@@ -19,14 +19,14 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 
-import services.api.db.sqldb.db
-import services.api.utils.singletons.db
+import framework.db.sqldb.db
+import framework.utils.singletons.db
 
 kind_to_function_names = {
     "artifact": {
-        "overwrite": services.api.db.sqldb.db.SQLDB.overwrite_artifacts_with_tag.__name__,
-        "append": services.api.db.sqldb.db.SQLDB.append_tag_to_artifacts.__name__,
-        "delete": services.api.db.sqldb.db.SQLDB.delete_tag_from_artifacts.__name__,
+        "overwrite": framework.db.sqldb.db.SQLDB.overwrite_artifacts_with_tag.__name__,
+        "append": framework.db.sqldb.db.SQLDB.append_tag_to_artifacts.__name__,
+        "delete": framework.db.sqldb.db.SQLDB.delete_tag_from_artifacts.__name__,
     }
 }
 
@@ -48,7 +48,7 @@ class Tags(
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find overwrite function for object kind: {tag_objects.kind}"
             )
-        getattr(services.api.utils.singletons.db.get_db(), overwrite_func)(
+        getattr(framework.utils.singletons.db.get_db(), overwrite_func)(
             session=db_session,
             project=project,
             tag=tag,
@@ -67,7 +67,7 @@ class Tags(
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find append function for object kind: {tag_objects.kind}"
             )
-        getattr(services.api.utils.singletons.db.get_db(), append_func)(
+        getattr(framework.utils.singletons.db.get_db(), append_func)(
             session=db_session,
             project=project,
             tag=tag,
@@ -86,7 +86,7 @@ class Tags(
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find delete function for object kind: {tag_objects.kind}"
             )
-        getattr(services.api.utils.singletons.db.get_db(), delete_func)(
+        getattr(framework.utils.singletons.db.get_db(), delete_func)(
             session=db_session,
             project=project,
             tag=tag,

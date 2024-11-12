@@ -32,9 +32,9 @@ import mlrun.utils.helpers
 from mlrun.errors import MLRunConflictError
 from mlrun.utils import logger
 
-import services.api.api.deps
+import framework.api.deps
+import framework.utils.auth.verifier
 import services.api.crud
-import services.api.utils.auth.verifier
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
@@ -52,8 +52,8 @@ async def create_model_endpoint(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
     model_endpoint: schemas.ModelEndpoint,
-    auth_info: schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
-    db_session: Session = Depends(services.api.api.deps.get_db_session),
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
+    db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> schemas.ModelEndpoint:
     """
     Create a DB record of a given `ModelEndpoint` object.
@@ -69,12 +69,14 @@ async def create_model_endpoint(
     :return: A Model endpoint object.
     """
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
-        project_name=project,
-        resource_name=endpoint_id,
-        action=schemas.AuthorizationAction.store,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
+            project_name=project,
+            resource_name=endpoint_id,
+            action=schemas.AuthorizationAction.store,
+            auth_info=auth_info,
+        )
     )
 
     if project != model_endpoint.metadata.project:
@@ -102,7 +104,7 @@ async def patch_model_endpoint(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
     attributes: Optional[str] = None,
-    auth_info: schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ) -> schemas.ModelEndpoint:
     """
     Update a DB record of a given `ModelEndpoint` object.
@@ -122,12 +124,14 @@ async def patch_model_endpoint(
     :return: A Model endpoint object.
     """
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
-        project_name=project,
-        resource_name=endpoint_id,
-        action=schemas.AuthorizationAction.update,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
+            project_name=project,
+            resource_name=endpoint_id,
+            action=schemas.AuthorizationAction.update,
+            auth_info=auth_info,
+        )
     )
 
     if not attributes:
@@ -149,7 +153,7 @@ async def patch_model_endpoint(
 async def delete_model_endpoint(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
-    auth_info: schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ):
     """
     Clears endpoint record from the DB based on endpoint_id.
@@ -160,12 +164,14 @@ async def delete_model_endpoint(
 
     """
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
-        project_name=project,
-        resource_name=endpoint_id,
-        action=schemas.AuthorizationAction.delete,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=schemas.AuthorizationResourceTypes.model_endpoint,
+            project_name=project,
+            resource_name=endpoint_id,
+            action=schemas.AuthorizationAction.delete,
+            auth_info=auth_info,
+        )
     )
 
     await run_in_threadpool(
@@ -189,7 +195,7 @@ async def list_model_endpoints(
     metrics: list[str] = Query([], alias="metric"),
     top_level: bool = Query(False, alias="top-level"),
     uids: list[str] = Query(None, alias="uid"),
-    auth_info: schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ) -> schemas.ModelEndpointList:
     """
     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
@@ -233,7 +239,7 @@ async def list_model_endpoints(
              get a standard list of model endpoints use ModelEndpointList.endpoints.
     """
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=schemas.AuthorizationAction.read,
         auth_info=auth_info,
@@ -251,7 +257,7 @@ async def list_model_endpoints(
         top_level=top_level,
         uids=uids,
     )
-    allowed_endpoints = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
         lambda _endpoint: (
@@ -268,12 +274,14 @@ async def list_model_endpoints(
 async def _verify_model_endpoint_read_permission(
     *, project: str, endpoint_id: str, auth_info: schemas.AuthInfo
 ) -> None:
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        schemas.AuthorizationResourceTypes.model_endpoint,
-        project_name=project,
-        resource_name=endpoint_id,
-        action=schemas.AuthorizationAction.read,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            schemas.AuthorizationResourceTypes.model_endpoint,
+            project_name=project,
+            resource_name=endpoint_id,
+            action=schemas.AuthorizationAction.read,
+            auth_info=auth_info,
+        )
     )
 
 
@@ -288,7 +296,7 @@ async def get_model_endpoint(
     end: str = Query(default="now"),
     metrics: list[str] = Query([], alias="metric"),
     feature_analysis: bool = Query(default=False),
-    auth_info: schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ) -> schemas.ModelEndpoint:
     """Get a single model endpoint object. You can apply different time series metrics that will be added to the
        result.
@@ -337,7 +345,7 @@ async def get_model_endpoint(
 async def get_model_endpoint_monitoring_metrics(
     project: ProjectAnnotation,
     endpoint_id: EndpointIDAnnotation,
-    auth_info: schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     type: Literal["results", "metrics", "all"] = "all",
 ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
     """
@@ -402,7 +410,7 @@ async def _get_metrics_values_params(
     ],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
-    auth_info: schemas.AuthInfo = Depends(services.api.api.deps.authenticate_request),
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ) -> _MetricsValuesParams:
     """
     Verify authorization, validate parameters and initialize the parameters.

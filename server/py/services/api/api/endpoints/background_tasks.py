@@ -23,10 +23,10 @@ import mlrun.common.schemas
 import mlrun.utils
 from mlrun.utils import logger
 
-import services.api.api.deps
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
-import services.api.utils.clients.chief
+import framework.api.deps
+import framework.utils.auth.verifier
+import framework.utils.background_tasks
+import framework.utils.clients.chief
 
 router = fastapi.APIRouter()
 
@@ -39,23 +39,25 @@ async def get_project_background_task(
     project: str,
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
     # Since there's no not-found option on get_project_background_task - we authorize before getting (unlike other
     # get endpoint)
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.project_background_task,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_background_task,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     return await run_in_threadpool(
-        services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
         db_session,
         name=name,
         project=project,
@@ -74,13 +76,13 @@ async def list_project_background_tasks(
     last_update_time_from: typing.Optional[str] = None,
     last_update_time_to: typing.Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -99,7 +101,7 @@ async def list_project_background_tasks(
         ).isoformat()
 
     background_tasks = await run_in_threadpool(
-        services.api.utils.background_tasks.ProjectBackgroundTasksHandler().list_background_tasks,
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler().list_background_tasks,
         db_session,
         project=project,
         states=[state] if state is not None else None,
@@ -109,7 +111,7 @@ async def list_project_background_tasks(
         last_update_time_to=mlrun.utils.datetime_from_iso(last_update_time_to),
     )
 
-    background_tasks = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    background_tasks = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.project_background_task,
         background_tasks,
         lambda background_task: (
@@ -130,7 +132,7 @@ async def get_internal_background_task(
     name: str,
     request: fastapi.Request,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
     if (
@@ -141,13 +143,13 @@ async def get_internal_background_task(
             "Requesting internal background task, re-routing to chief",
             internal_background_task=name,
         )
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         return await chief_client.get_internal_background_task(
             name=name, request=request
         )
 
     background_task = await run_in_threadpool(
-        services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task,
+        framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task,
         name=name,
         raise_on_not_found=True,
     )
@@ -164,7 +166,7 @@ async def list_internal_background_tasks(
     name: typing.Optional[str] = None,
     kind: typing.Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
     if (
@@ -175,10 +177,10 @@ async def list_internal_background_tasks(
             "Requesting internal background tasks, re-routing to chief",
             internal_background_task=name,
         )
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         return await chief_client.get_internal_background_tasks(request=request)
 
-    background_tasks = services.api.utils.background_tasks.InternalBackgroundTasksHandler().list_background_tasks(
+    background_tasks = framework.utils.background_tasks.InternalBackgroundTasksHandler().list_background_tasks(
         name=name,
         kind=kind,
     )

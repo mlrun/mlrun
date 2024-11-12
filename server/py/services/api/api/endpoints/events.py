@@ -22,11 +22,11 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 from mlrun.utils import logger
 
+import framework.utils.auth.verifier
+import framework.utils.clients.chief
+import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.clients.chief
-import services.api.utils.singletons.project_member
-from services.api.api import deps
+from framework.api import deps
 
 router = APIRouter()
 
@@ -41,17 +41,19 @@ async def post_event(
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.event,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.event,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
 
     if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
@@ -67,7 +69,7 @@ async def post_event(
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
         data = await request.json()
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         return await chief_client.set_event(
             project=project, name=name, request=request, json=data
         )

@@ -21,9 +21,9 @@ import mlrun
 import mlrun.runtimes
 from mlrun.utils import logger
 
-import services.api.utils.clients.nuclio
-import services.api.utils.runtimes.nuclio
-import services.api.utils.singletons.k8s
+import framework.utils.clients.nuclio
+import framework.utils.runtimes.nuclio
+import framework.utils.singletons.k8s
 
 
 def resolve_function_http_trigger(function_spec):
@@ -201,7 +201,7 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     try:
         parsed_min_version = semver.VersionInfo.parse(min_version)
         parsed_max_version = semver.VersionInfo.parse(max_version)
-        nuclio_version = services.api.utils.runtimes.nuclio.resolve_nuclio_version()
+        nuclio_version = framework.utils.runtimes.nuclio.resolve_nuclio_version()
         parsed_current_version = semver.VersionInfo.parse(nuclio_version)
     except ValueError:
         logger.warning(
@@ -224,10 +224,10 @@ def compile_nuclio_archive_config(
     secrets = {}
     if (
         project
-        and services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
+        and framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
     ):
         secrets = (
-            services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(
+            framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(
                 project
             )
         )

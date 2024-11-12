@@ -28,17 +28,17 @@ import mlrun.common.schemas
 import mlrun.runtimes
 from mlrun.common.schemas import SecretEventActions
 
-import services.api.runtime_handlers.mpijob
-import services.api.utils.singletons.k8s
+import framework.utils.runtimes.mpijob
+import framework.utils.singletons.k8s
 
 
 @pytest.fixture
 def k8s_helper():
     with mock.patch(
-        "services.api.utils.singletons.k8s.K8sHelper._init_k8s_config",
+        "framework.utils.singletons.k8s.K8sHelper._init_k8s_config",
         return_value=None,
     ):
-        k8s_helper = services.api.utils.singletons.k8s.K8sHelper(
+        k8s_helper = framework.utils.singletons.k8s.K8sHelper(
             namespace="test-namespace",
             silent=True,
         )
@@ -158,7 +158,7 @@ def test_get_logger_pods_label_selector(
     k8s_helper, monkeypatch, run_type, mpi_version, extra_selector
 ):
     monkeypatch.setattr(
-        services.api.runtime_handlers.mpijob,
+        framework.utils.runtimes.mpijob,
         "cached_mpijob_crd_version",
         mpi_version or mlrun.common.runtimes.constants.MPIJobCRDVersions.default(),
     )

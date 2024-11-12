@@ -40,7 +40,6 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
-from mlrun_pipelines.models import PipelineRun
 from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -52,6 +51,7 @@ import mlrun.utils.regex
 import mlrun.utils.version.version
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.config import config
+from mlrun_pipelines.models import PipelineRun
 
 from .logger import create_logger
 from .retryer import (  # noqa: F401

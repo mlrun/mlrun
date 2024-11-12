@@ -16,19 +16,22 @@ import os
 import uuid
 from typing import Optional
 
-import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.utils.singleton
+import mlrun_pipelines.common.models
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
 from mlrun.utils import template_artifact_path
 
-import services.api.api.utils
-import services.api.constants
-import services.api.utils.notification_pusher
+import framework.constants
+import framework.utils.notifications
+import framework.utils.notifications.notification_pusher
+import services.api.crud
+import services.api.utils.singletons.scheduler
 
 
 class WorkflowRunners(
@@ -61,12 +64,12 @@ class WorkflowRunners(
             image=image,
         )
 
-        runner.set_db_connection(services.api.api.utils.get_run_db_instance(db_session))
+        runner.set_db_connection(framework.api.utils.get_run_db_instance(db_session))
 
         # Enrichment and validation requires access key
         runner.metadata.credentials.access_key = Credentials.generate_access_key
 
-        services.api.api.utils.apply_enrichment_and_validation_on_function(
+        framework.api.utils.apply_enrichment_and_validation_on_function(
             function=runner,
             auth_info=auth_info,
         )
@@ -104,8 +107,8 @@ class WorkflowRunners(
 
         # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
         # key that was created.
-        services.api.api.utils.mask_notification_params_on_task_object(
-            run_spec, services.api.constants.MaskOperations.CONCEAL
+        framework.utils.notifications.mask_notification_params_on_task_object(
+            run_spec, framework.constants.MaskOperations.CONCEAL
         )
         workflow_spec = workflow_request.spec
         if workflow_spec.workflow_runner_node_selector:
@@ -124,7 +127,7 @@ class WorkflowRunners(
             "schedule": schedule,
         }
 
-        services.api.api.utils.get_scheduler().store_schedule(
+        services.api.utils.singletons.scheduler.get_scheduler().store_schedule(
             db_session=db_session,
             auth_info=auth_info,
             project=project.metadata.name,
@@ -245,8 +248,8 @@ class WorkflowRunners(
         )
         # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
         # key that was created.
-        services.api.api.utils.mask_notification_params_on_task_object(
-            run_spec, services.api.constants.MaskOperations.CONCEAL
+        framework.utils.notifications.mask_notification_params_on_task_object(
+            run_spec, framework.constants.MaskOperations.CONCEAL
         )
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""

@@ -23,9 +23,11 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 from mlrun.utils import logger
 
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
-from services.api.api import deps
+import framework.utils.auth.verifier
+import framework.utils.clients.chief
+import framework.utils.singletons.project_member
+import services.api.crud
+from framework.api import deps
 
 router = APIRouter(prefix="/alert-templates")
 
@@ -38,17 +40,19 @@ async def store_alert_template(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> mlrun.common.schemas.AlertTemplate:
-    await services.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        _get_authorization_resource(),
-        mlrun.common.schemas.AuthorizationAction.create,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            _get_authorization_resource(),
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
     )
 
     if (
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         data = await request.json()
         return await chief_client.store_alert_template(
             name=name, request=request, json=data
@@ -73,10 +77,12 @@ async def get_alert_template(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> mlrun.common.schemas.AlertTemplate:
-    await services.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        _get_authorization_resource(),
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            _get_authorization_resource(),
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     return await run_in_threadpool(
@@ -89,10 +95,12 @@ async def list_alert_templates(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ) -> list[mlrun.common.schemas.AlertTemplate]:
-    await services.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        _get_authorization_resource(),
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            _get_authorization_resource(),
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     return await run_in_threadpool(
@@ -110,10 +118,12 @@ async def delete_alert_template(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        _get_authorization_resource(),
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            _get_authorization_resource(),
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
 
     if (

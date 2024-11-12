@@ -23,12 +23,12 @@ import mlrun
 import mlrun.common.schemas
 from mlrun.datastore.datastore_profile import DatastoreProfile as DSProfile
 
-import services.api.api.deps
+import framework.api.deps
+import framework.utils.auth.verifier
+import framework.utils.singletons.db
+import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.db
-import services.api.utils.singletons.project_member
-from services.api.api.utils import log_and_raise
+from framework.api.utils import log_and_raise
 
 router = APIRouter()
 
@@ -39,23 +39,25 @@ router = APIRouter()
 async def store_datastore_profile(
     project_name: str,
     info: mlrun.common.schemas.DatastoreProfile,
-    db_session: Session = Depends(services.api.api.deps.get_db_session),
+    db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project_name,
         auth_info.session,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
-        project_name,
-        info.name,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
+            project_name,
+            info.name,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
     # overwrite the project
     if info.project != project_name:
@@ -65,12 +67,14 @@ async def store_datastore_profile(
         )
     project_ds_name_private = DSProfile.generate_secret_key(info.name, project_name)
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.secret,
-        project_name,
-        mlrun.common.schemas.SecretProviderName.kubernetes,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project_name,
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
 
     # TODO: Although embedding specialized business logic like the handling of sensitive information in secrets
@@ -89,13 +93,13 @@ async def store_datastore_profile(
     )
 
     await run_in_threadpool(
-        services.api.utils.singletons.db.get_db().store_datastore_profile,
+        framework.utils.singletons.db.get_db().store_datastore_profile,
         db_session,
         info,
     )
 
     return await run_in_threadpool(
-        services.api.utils.singletons.db.get_db().get_datastore_profile,
+        framework.utils.singletons.db.get_db().get_datastore_profile,
         db_session,
         info.name,
         project_name,
@@ -107,30 +111,30 @@ async def store_datastore_profile(
 )
 async def list_datastore_profiles(
     project_name: str,
-    db_session: Session = Depends(services.api.api.deps.get_db_session),
+    db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project_name,
         auth_info.session,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     profiles = await run_in_threadpool(
-        services.api.utils.singletons.db.get_db().list_datastore_profiles,
+        framework.utils.singletons.db.get_db().list_datastore_profiles,
         db_session,
         project_name,
     )
     if len(profiles) == 0:
         return profiles
-    filtered_data = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    filtered_data = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
         profiles,
         lambda profile: (project_name, profile.name),
@@ -145,26 +149,28 @@ async def list_datastore_profiles(
 async def get_datastore_profile(
     project_name: str,
     profile: str,
-    db_session: Session = Depends(services.api.api.deps.get_db_session),
+    db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project_name,
         auth_info.session,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
-        project_name,
-        profile,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
+            project_name,
+            profile,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     return await run_in_threadpool(
-        services.api.utils.singletons.db.get_db().get_datastore_profile,
+        framework.utils.singletons.db.get_db().get_datastore_profile,
         db_session,
         profile,
         project_name,
@@ -177,30 +183,34 @@ async def get_datastore_profile(
 async def delete_datastore_profile(
     project_name: str,
     profile: str,
-    db_session: Session = Depends(services.api.api.deps.get_db_session),
+    db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().get_project,
         db_session,
         project_name,
         auth_info.session,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
-        project_name,
-        profile,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
+            project_name,
+            profile,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.secret,
-        project_name,
-        mlrun.common.schemas.SecretProviderName.kubernetes,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project_name,
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
     project_ds_name_private = DSProfile.generate_secret_key(profile, project_name)
 
@@ -214,7 +224,7 @@ async def delete_datastore_profile(
     )
 
     return await run_in_threadpool(
-        services.api.utils.singletons.db.get_db().delete_datastore_profile,
+        framework.utils.singletons.db.get_db().delete_datastore_profile,
         db_session,
         profile,
         project_name,

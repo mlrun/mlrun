@@ -33,12 +33,9 @@ from typing import Callable, Optional, Union
 import dotenv
 import git
 import git.exc
-import mlrun_pipelines.common.models
-import mlrun_pipelines.mounts
 import nuclio.utils
 import requests
 import yaml
-from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun.artifacts.model
 import mlrun.common.formatters
@@ -58,10 +55,13 @@ import mlrun.runtimes.utils
 import mlrun.serving
 import mlrun.utils
 import mlrun.utils.regex
+import mlrun_pipelines.common.models
+import mlrun_pipelines.mounts
 from mlrun.alerts.alert import AlertConfig
 from mlrun.common.schemas.alert import AlertTemplate
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
+from mlrun_pipelines.models import PipelineNodeWrapper
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path

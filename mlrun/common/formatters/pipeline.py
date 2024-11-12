@@ -15,10 +15,9 @@
 
 import typing
 
+import mlrun.common.types
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
-
-import mlrun.common.types
 
 from .base import ObjectFormat
 

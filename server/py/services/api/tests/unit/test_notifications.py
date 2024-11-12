@@ -19,8 +19,8 @@ import unittest.mock
 
 import mlrun.common.schemas.notification
 
-import services.api.api.utils
-import services.api.constants
+import framework.constants
+import framework.utils.notifications
 import services.api.crud
 
 
@@ -40,8 +40,8 @@ def test_notification_params_masking_on_run(monkeypatch):
         "metadata": {"uid": run_uid, "project": "test-project"},
         "spec": {"notifications": [{"when": "completed", "secret_params": params}]},
     }
-    services.api.api.utils.mask_notification_params_on_task(
-        run, services.api.constants.MaskOperations.CONCEAL
+    framework.utils.notifications.mask_notification_params_on_task(
+        run, framework.constants.MaskOperations.CONCEAL
     )
     assert "sensitive" not in run["spec"]["notifications"][0]["secret_params"]
     assert "secret" in run["spec"]["notifications"][0]["secret_params"]
@@ -79,8 +79,10 @@ def test_notification_params_unmasking_on_run(monkeypatch):
         services.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
     )
 
-    unmasked_run = services.api.api.utils.unmask_notification_params_secret_on_task(
-        db_mock, db_session_mock, copy.deepcopy(run)
+    unmasked_run = (
+        framework.utils.notifications.unmask_notification_params_secret_on_task(
+            db_mock, db_session_mock, copy.deepcopy(run)
+        )
     )
     assert "sensitive" in unmasked_run.spec.notifications[0].secret_params
     assert "secret" not in unmasked_run.spec.notifications[0].secret_params
@@ -89,8 +91,10 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     monkeypatch.setattr(
         services.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
     )
-    unmasked_run = services.api.api.utils.unmask_notification_params_secret_on_task(
-        db_mock, db_session_mock, copy.deepcopy(run)
+    unmasked_run = (
+        framework.utils.notifications.unmask_notification_params_secret_on_task(
+            db_mock, db_session_mock, copy.deepcopy(run)
+        )
     )
     assert len(unmasked_run.spec.notifications) == 0
     db_mock.store_run_notifications.assert_called_once()

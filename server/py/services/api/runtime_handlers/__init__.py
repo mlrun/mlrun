@@ -14,14 +14,14 @@
 #
 from mlrun.runtimes import RuntimeKinds
 
+from framework.utils.runtimes.mpijob import resolve_mpijob_crd_version
 from services.api.runtime_handlers.base import BaseRuntimeHandler
 from services.api.runtime_handlers.daskjob import DaskRuntimeHandler, get_dask_resource
 from services.api.runtime_handlers.kubejob import (
     DatabricksRuntimeHandler,
     KubeRuntimeHandler,
 )
-from services.api.runtime_handlers.mpijob import resolve_mpijob_crd_version
-from services.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
+from services.api.runtime_handlers.mpijob import MpiV1RuntimeHandler
 from services.api.runtime_handlers.remotesparkjob import RemoteSparkRuntimeHandler
 from services.api.runtime_handlers.sparkjob.spark3job import Spark3RuntimeHandler
 

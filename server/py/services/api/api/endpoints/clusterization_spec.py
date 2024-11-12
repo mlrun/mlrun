@@ -16,8 +16,8 @@ import fastapi
 
 import mlrun.common.schemas
 
+import framework.utils.clients.chief
 import services.api.crud
-import services.api.utils.clients.chief
 
 router = fastapi.APIRouter()
 
@@ -30,7 +30,7 @@ async def clusterization_spec():
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         return await chief_client.get_clusterization_spec()
 
     # TODO: cache me

@@ -41,17 +41,16 @@ from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
+import framework
+import framework.utils.clients.iguazio
+import framework.utils.projects.remotes.leader
+import framework.utils.runtimes.nuclio
+import framework.utils.singletons.db
+import framework.utils.singletons.k8s
 import services.api.crud
 import services.api.launcher
-import services.api.rundb.sqldb
 import services.api.runtime_handlers.mpijob
-import services.api.utils.clients.iguazio
-import services.api.utils.projects.remotes.leader as project_leader
-import services.api.utils.runtimes.nuclio
-import services.api.utils.singletons.db
-import services.api.utils.singletons.k8s
 import services.api.utils.singletons.logs_dir
-import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
 from services.api.daemon import app, daemon
 from services.api.initial_data import init_data
@@ -73,22 +72,22 @@ if str(tests_root_directory) in os.getcwd():
 
 @pytest.fixture(autouse=True)
 def api_config_test():
-    services.api.utils.singletons.db.db = None
-    services.api.utils.singletons.project_member.project_member = None
+    framework.utils.singletons.db.db = None
+    framework.utils.singletons.project_member.project_member = None
     services.api.utils.singletons.scheduler.scheduler = None
-    services.api.utils.singletons.k8s._k8s = None
+    framework.utils.singletons.k8s._k8s = None
     services.api.utils.singletons.logs_dir.logs_dir = None
 
     mlconf.nuclio_version = ""
     services.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
-    services.api.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster = False
+    framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster = False
 
     # we need to override the run db container manually because we run all unit tests in the same process in CI
     # so API is imported even when it's not needed
     rundb_factory = mlrun.db.factory.RunDBFactory()
-    rundb_factory._rundb_container.override(services.api.rundb.sqldb.SQLRunDBContainer)
+    rundb_factory._rundb_container.override(framework.rundb.sqldb.SQLRunDBContainer)
 
     # same for the launcher container
     launcher_factory = mlrun.launcher.factory.LauncherFactory()
@@ -131,8 +130,8 @@ def db() -> typing.Iterator[sqlalchemy.orm.Session]:
 
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)
-    services.api.utils.singletons.db.initialize_db()
-    services.api.utils.singletons.project_member.initialize_project_member()
+    framework.utils.singletons.db.initialize_db()
+    framework.utils.singletons.project_member.initialize_project_member()
 
     # we're also running client code in tests so set dbpath as well
     # note that setting this attribute triggers connection to the run db therefore must happen after the initialization
@@ -197,7 +196,7 @@ async def async_client(db) -> typing.AsyncIterator[httpx.AsyncClient]:
 
 @pytest.fixture
 def kfp_client_mock(monkeypatch) -> mlrun_pipelines.utils.kfp.Client:
-    services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+    framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
         return_value=True
     )
     kfp_client_mock = unittest.mock.Mock()
@@ -218,11 +217,11 @@ def api_url() -> str:
 @pytest.fixture()
 def iguazio_client(
     request: pytest.FixtureRequest,
-) -> services.api.utils.clients.iguazio.Client:
+) -> framework.utils.clients.iguazio.Client:
     if request.param == "async":
-        client = services.api.utils.clients.iguazio.AsyncClient()
+        client = framework.utils.clients.iguazio.AsyncClient()
     else:
-        client = services.api.utils.clients.iguazio.Client()
+        client = framework.utils.clients.iguazio.Client()
 
     # force running init again so the configured api url will be used
     client.__init__()
@@ -255,38 +254,38 @@ def mocked_k8s_helper():
 
 def _mocked_k8s_helper():
     # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
-    services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
+    framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
         unittest.mock.Mock(return_value=[])
     )
-    services.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-    services.api.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
-    services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+    framework.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
+    framework.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
+    framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
         return_value=True
     )
 
     config_map = unittest.mock.Mock()
     config_map.items = []
-    services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
-        return_value=config_map
+    framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = (
+        unittest.mock.Mock(return_value=config_map)
     )
     pods_list = unittest.mock.Mock()
     pods_list.items = []
     pods_list.metadata._continue = None
-    services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod = (
+    framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod = (
         unittest.mock.Mock(return_value=pods_list)
     )
     service_list = unittest.mock.Mock()
     service_list.items = []
-    services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service = (
+    framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service = (
         unittest.mock.Mock(return_value=service_list)
     )
     custom_object_list = {"items": []}
-    services.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
+    framework.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
         return_value=custom_object_list
     )
     secret_data = unittest.mock.Mock()
     secret_data.data = {}
-    services.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_secret = (
+    framework.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_secret = (
         unittest.mock.Mock(return_value=secret_data)
     )
 
@@ -326,7 +325,7 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
                 expected_env_from_secrets[env_variable_name] = {global_secret: key}
 
         secret_name = (
-            services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+            framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
                 project
             )
         )
@@ -409,13 +408,14 @@ def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
     logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = K8sSecretsMock()
     k8s_secrets_mock.mock_functions(
-        services.api.utils.singletons.k8s.get_k8s_helper(), monkeypatch
+        framework.utils.singletons.k8s.get_k8s_helper(), monkeypatch
     )
     yield k8s_secrets_mock
 
 
 class MockedProjectFollowerIguazioClient(
-    project_leader.Member, metaclass=mlrun.utils.singleton.AbstractSingleton
+    framework.utils.projects.remotes.leader.Member,
+    metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self):
         self._db_session = None
@@ -497,13 +497,13 @@ def mock_project_follower_iguazio_client(
     """
     mlrun.mlconf.httpdb.projects.leader = "iguazio"
     mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
-    old_iguazio_client = services.api.utils.clients.iguazio.Client
-    services.api.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient
-    services.api.utils.singletons.project_member.initialize_project_member()
+    old_iguazio_client = framework.utils.clients.iguazio.Client
+    framework.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient
+    framework.utils.singletons.project_member.initialize_project_member()
     iguazio_client = MockedProjectFollowerIguazioClient()
     iguazio_client._db_session = db
     iguazio_client._unversioned_client = unversioned_client
 
     yield iguazio_client
 
-    services.api.utils.clients.iguazio.Client = old_iguazio_client
+    framework.utils.clients.iguazio.Client = old_iguazio_client

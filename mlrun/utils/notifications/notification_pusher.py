@@ -20,10 +20,6 @@ import traceback
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
-import mlrun_pipelines.common.ops
-import mlrun_pipelines.models
-import mlrun_pipelines.utils
-
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -33,6 +29,9 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
+import mlrun_pipelines.common.ops
+import mlrun_pipelines.models
+import mlrun_pipelines.utils
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 

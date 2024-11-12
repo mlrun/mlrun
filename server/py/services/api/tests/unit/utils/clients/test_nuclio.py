@@ -22,7 +22,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 
-import services.api.utils.clients.nuclio
+import framework.utils.clients.nuclio
 
 
 @pytest.fixture()
@@ -35,8 +35,8 @@ def api_url() -> str:
 @pytest.fixture()
 def nuclio_client(
     api_url: str,
-) -> services.api.utils.clients.nuclio.Client:
-    client = services.api.utils.clients.nuclio.Client()
+) -> framework.utils.clients.nuclio.Client:
+    client = framework.utils.clients.nuclio.Client()
     # force running init again so the configured api url will be used
     client.__init__()
     return client
@@ -44,7 +44,7 @@ def nuclio_client(
 
 def test_get_project(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -95,7 +95,7 @@ def test_get_project(
 
 def test_list_project(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     mock_projects = [
@@ -148,7 +148,7 @@ def test_list_project(
 
 def test_create_project(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -193,7 +193,7 @@ def test_create_project(
 
 def test_store_project_creation(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -244,7 +244,7 @@ def test_store_project_creation(
 
 def test_store_project_update(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -295,7 +295,7 @@ def test_store_project_update(
 
 def test_patch_project(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -345,7 +345,7 @@ def test_patch_project(
 
 def test_patch_project_only_labels(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -384,7 +384,7 @@ def test_patch_project_only_labels(
 
 def test_delete_project(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -423,7 +423,7 @@ def test_delete_project(
 
 def test_get_dashboard_version(
     api_url: str,
-    nuclio_client: services.api.utils.clients.nuclio.Client,
+    nuclio_client: framework.utils.clients.nuclio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     label = "x.x.x"

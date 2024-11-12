@@ -23,7 +23,7 @@ import mlrun.utils
 import tests.integration.sdk_api.base
 from mlrun.utils import logger
 
-import services.api.constants
+import framework.constants
 
 
 class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
@@ -223,7 +223,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # one of the pre-defined system templates
         drift_system_template = self._get_template_by_name(
-            services.api.constants.pre_defined_templates, "DataDriftDetected"
+            framework.constants.pre_defined_templates, "DataDriftDetected"
         )
 
         drift_template = project.get_alert_template("DataDriftDetected")

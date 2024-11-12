@@ -21,9 +21,9 @@ import mlrun.common.schemas
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.runtimes import RuntimeKinds
 
+from framework.utils.singletons.db import get_db
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
-from services.api.utils.singletons.db import get_db
 
 
 class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):

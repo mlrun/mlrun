@@ -29,19 +29,10 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.utils import logger
 
-import services.api.api.utils
-import services.api.crud.model_monitoring.deployment
-import services.api.crud.runtimes.nuclio.function
-import services.api.db.session
-import services.api.launcher
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
-import services.api.utils.clients.chief
-import services.api.utils.functions
-import services.api.utils.pagination
-import services.api.utils.singletons.k8s
-import services.api.utils.singletons.project_member
-from services.api.api import deps
+import framework.api.utils
+import framework.utils.auth.verifier
+import framework.utils.clients.chief
+from framework.api import deps
 from services.api.utils.singletons.scheduler import get_scheduler
 
 router = APIRouter()
@@ -62,12 +53,14 @@ async def delete_function(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
     #  If the requested function has a schedule, we must delete it before deleting the function
     try:
@@ -93,7 +86,7 @@ async def delete_function(
                 function=name,
                 project=project,
             )
-            chief_client = services.api.utils.clients.chief.Client()
+            chief_client = framework.utils.clients.chief.Client()
             await chief_client.delete_schedule(
                 project=project, name=name, request=request
             )
@@ -102,7 +95,7 @@ async def delete_function(
                 get_scheduler().delete_schedule, db_session, project, name
             )
     task = await run_in_threadpool(
-        services.api.api.utils.create_function_deletion_background_task,
+        framework.api.utils.create_function_deletion_background_task,
         background_tasks,
         db_session,
         project,

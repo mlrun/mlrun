@@ -18,8 +18,8 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.config import Config, config, default_config
 
-import services.api.runtime_handlers.mpijob
-import services.api.utils.runtimes.nuclio
+import framework.utils.runtimes.mpijob
+import framework.utils.runtimes.nuclio
 
 
 class ClientSpec(
@@ -31,7 +31,7 @@ class ClientSpec(
         client_python_version: Optional[str] = None,
     ) -> mlrun.common.schemas.ClientSpec:
         mpijob_crd_version = (
-            services.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
+            framework.utils.runtimes.mpijob.resolve_mpijob_crd_version()
         )
 
         return mlrun.common.schemas.ClientSpec(
@@ -53,7 +53,7 @@ class ClientSpec(
                 config.dask_kfp_image, client_version, client_python_version
             ),
             api_url=config.httpdb.api_url,
-            nuclio_version=services.api.utils.runtimes.nuclio.resolve_nuclio_version(),
+            nuclio_version=framework.utils.runtimes.nuclio.resolve_nuclio_version(),
             spark_operator_version=config.spark_operator_version,
             calculate_artifact_hash=config.artifacts.calculate_hash,
             generate_artifact_target_path_from_artifact_hash=config.artifacts.generate_target_path_from_artifact_hash,

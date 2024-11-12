@@ -30,7 +30,7 @@ from sqlalchemy.orm import sessionmaker
 
 import mlrun
 
-from services.api.db.sqldb.models import Run
+from framework.db.sqldb.models import Run
 
 log = logging.getLogger(__name__)
 

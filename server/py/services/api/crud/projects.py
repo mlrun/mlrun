@@ -28,17 +28,17 @@ import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.utils import logger, retry_until_successful
 
+import framework.db.session
+import framework.utils.background_tasks
+import framework.utils.clients.nuclio
+import framework.utils.projects.remotes.follower as project_follower
+import framework.utils.singletons.db
 import services.api.crud
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio
-import services.api.db.session
-import services.api.utils.background_tasks
-import services.api.utils.clients.nuclio
 import services.api.utils.events.events_factory as events_factory
-import services.api.utils.projects.remotes.follower as project_follower
-import services.api.utils.singletons.db
 import services.api.utils.singletons.scheduler
-from services.api.utils.singletons.k8s import get_k8s_helper
+from framework.utils.singletons.k8s import get_k8s_helper
 
 
 class Projects(
@@ -59,7 +59,7 @@ class Projects(
             artifact_amount=len(project.spec.artifacts or []),
             workflows_amount=len(project.spec.workflows or []),
         )
-        services.api.utils.singletons.db.get_db().create_project(session, project)
+        framework.utils.singletons.db.get_db().create_project(session, project)
 
     def store_project(
         self,
@@ -78,7 +78,7 @@ class Projects(
             artifact_amount=len(project.spec.artifacts or []),
             workflows_amount=len(project.spec.workflows or []),
         )
-        services.api.utils.singletons.db.get_db().store_project(session, name, project)
+        framework.utils.singletons.db.get_db().store_project(session, name, project)
 
     def patch_project(
         self,
@@ -90,7 +90,7 @@ class Projects(
         logger.debug(
             "Patching project", name=name, project=project, patch_mode=patch_mode
         )
-        services.api.utils.singletons.db.get_db().patch_project(
+        framework.utils.singletons.db.get_db().patch_project(
             session, name, project, patch_mode
         )
 
@@ -111,7 +111,7 @@ class Projects(
             deletion_strategy.is_restricted()
             or deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
         ):
-            if not services.api.utils.singletons.db.get_db().is_project_exists(
+            if not framework.utils.singletons.db.get_db().is_project_exists(
                 session, name
             ):
                 return
@@ -133,7 +133,7 @@ class Projects(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
             )
-        services.api.utils.singletons.db.get_db().delete_project(
+        framework.utils.singletons.db.get_db().delete_project(
             session, name, deletion_strategy
         )
 
@@ -143,7 +143,7 @@ class Projects(
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        services.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
+        framework.utils.singletons.db.get_db().verify_project_has_no_related_resources(
             session, name
         )
         self._verify_project_has_no_external_resources(session, name, auth_info)
@@ -227,7 +227,7 @@ class Projects(
             "Deleting project related resources",
             project_name=name,
         )
-        services.api.utils.singletons.db.get_db().delete_project_related_resources(
+        framework.utils.singletons.db.get_db().delete_project_related_resources(
             session, name
         )
 
@@ -271,7 +271,7 @@ class Projects(
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.common.schemas.ProjectOut:
-        return services.api.utils.singletons.db.get_db().get_project(session, name)
+        return framework.utils.singletons.db.get_db().get_project(session, name)
 
     def list_projects(
         self,
@@ -282,7 +282,7 @@ class Projects(
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
-        return services.api.utils.singletons.db.get_db().list_projects(
+        return framework.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
         )
 
@@ -295,7 +295,7 @@ class Projects(
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         project_summaries = await fastapi.concurrency.run_in_threadpool(
-            services.api.utils.singletons.db.get_db().list_project_summaries,
+            framework.utils.singletons.db.get_db().list_project_summaries,
             session,
             owner,
             labels,
@@ -313,7 +313,7 @@ class Projects(
         # Call get project so we'll explode if project doesn't exists
         await fastapi.concurrency.run_in_threadpool(self.get_project, session, name)
         return await fastapi.concurrency.run_in_threadpool(
-            services.api.utils.singletons.db.get_db().get_project_summary,
+            framework.utils.singletons.db.get_db().get_project_summary,
             session,
             project=name,
         )
@@ -344,7 +344,7 @@ class Projects(
 
         # verify project can be deleted in nuclio
         if mlrun.mlconf.nuclio_dashboard_url:
-            nuclio_client = services.api.utils.clients.nuclio.Client()
+            nuclio_client = framework.utils.clients.nuclio.Client()
             nuclio_client.delete_project(
                 session,
                 project,
@@ -370,7 +370,7 @@ class Projects(
         )
 
         project_counters, pipeline_counters = await asyncio.gather(
-            services.api.utils.singletons.db.get_db().get_project_resources_counters(),
+            framework.utils.singletons.db.get_db().get_project_resources_counters(),
             self._calculate_pipelines_counters(),
         )
         (
@@ -432,7 +432,7 @@ class Projects(
                 )
             )
         await fastapi.concurrency.run_in_threadpool(
-            services.api.utils.singletons.db.get_db().refresh_project_summaries,
+            framework.utils.singletons.db.get_db().refresh_project_summaries,
             session,
             project_summaries,
         )
@@ -475,7 +475,7 @@ class Projects(
                     next_page_token,
                     pipelines,
                 ) = await fastapi.concurrency.run_in_threadpool(
-                    services.api.db.session.run_function_with_new_db_session,
+                    framework.db.session.run_function_with_new_db_session,
                     self._list_pipelines,
                     page_token=next_page_token,
                 )
@@ -566,7 +566,7 @@ class Projects(
         if not mlrun.mlconf.nuclio_dashboard_url:
             return
 
-        nuclio_client = services.api.utils.clients.nuclio.Client()
+        nuclio_client = framework.utils.clients.nuclio.Client()
 
         def _check_nuclio_project_deletion():
             try:
@@ -582,7 +582,7 @@ class Projects(
                 )
 
         def _verify_no_project_function_pods():
-            project_function_pods = services.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+            project_function_pods = framework.utils.singletons.k8s.get_k8s_helper().list_pods(
                 selector=f"{mlrun_constants.MLRunInternalLabels.nuclio_project_name}={project_name},"
                 f"{mlrun_constants.MLRunInternalLabels.nuclio_class}=function"
             )
@@ -643,6 +643,6 @@ class Projects(
             "status": {"deletion_background_task_name": background_task_name}
         }
 
-        services.api.utils.singletons.db.get_db().patch_project(
+        framework.utils.singletons.db.get_db().patch_project(
             session, name, project_patch
         )

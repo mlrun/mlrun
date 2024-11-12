@@ -43,20 +43,20 @@ from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
 
-import services.api.api.utils
+import framework.api.utils
+import framework.db.session
+import framework.utils.auth.verifier
+import framework.utils.background_tasks
+import framework.utils.clients.chief
+import framework.utils.helpers
+import framework.utils.singletons.k8s
+import framework.utils.singletons.project_member
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
-import services.api.db.session
 import services.api.launcher
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
-import services.api.utils.clients.chief
 import services.api.utils.functions
-import services.api.utils.helpers
 import services.api.utils.pagination
-import services.api.utils.singletons.k8s
-import services.api.utils.singletons.project_member
-from services.api.api import deps
+from framework.api import deps
 from services.api.api.endpoints.nuclio import (
     _get_api_gateways_urls_for_function,
     _handle_nuclio_deploy_status,
@@ -77,23 +77,25 @@ async def store_function(
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
     data = None
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
         )
 
@@ -132,12 +134,14 @@ async def get_function(
         hash_key,
         format_,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     return {
         "func": func,
@@ -159,12 +163,14 @@ async def delete_function(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
     #  If the requested function has a schedule, we must delete it before deleting the function
     try:
@@ -190,7 +196,7 @@ async def delete_function(
                 function=name,
                 project=project,
             )
-            chief_client = services.api.utils.clients.chief.Client()
+            chief_client = framework.utils.clients.chief.Client()
             await chief_client.delete_schedule(
                 project=project, name=name, request=request
             )
@@ -224,7 +230,7 @@ async def list_functions(
         project = config.default_project
 
     if project != "*":
-        await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -233,7 +239,7 @@ async def list_functions(
     paginator = services.api.utils.pagination.Paginator()
 
     async def _filter_functions_by_permissions(_functions):
-        return await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+        return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.function,
             _functions,
             lambda function: (
@@ -286,7 +292,7 @@ async def build_function(
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
         )
 
@@ -295,17 +301,19 @@ async def build_function(
     project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
     function_name = function.get("metadata", {}).get("name")
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project,
-        function_name,
-        mlrun.common.schemas.AuthorizationAction.update,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project,
+            function_name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
     )
 
     # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
@@ -324,7 +332,7 @@ async def build_function(
                 project=project,
                 function=function,
             )
-            chief_client = services.api.utils.clients.chief.Client()
+            chief_client = framework.utils.clients.chief.Client()
             return await chief_client.build_function(request=request, json=data)
 
     if isinstance(data.get("with_mlrun"), bool):
@@ -379,24 +387,26 @@ async def start_function(
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
         )
 
     logger.info("Got request to start function", body=data)
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        function.metadata.project,
-        function.metadata.name,
-        mlrun.common.schemas.AuthorizationAction.update,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            function.metadata.project,
+            function.metadata.name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
     )
     background_timeout = mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask
 
     background_task = await run_in_threadpool(
-        services.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
         db_session,
         function.metadata.project,
         background_tasks,
@@ -423,7 +433,7 @@ async def function_status(
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
         )
 
@@ -450,7 +460,7 @@ async def build_status(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
         project or mlrun.mlconf.default_project,
         name,
@@ -463,7 +473,7 @@ async def build_status(
         services.api.crud.Functions().get_function, db_session, name, project, tag
     )
     if not fn:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag
         )
 
@@ -536,9 +546,7 @@ def _handle_job_deploy_status(
         )
 
     # read from log file
-    log_file = services.api.api.utils.log_path(
-        project, f"build_{name}__{tag or 'latest'}"
-    )
+    log_file = framework.api.utils.log_path(project, f"build_{name}__{tag or 'latest'}")
     if (
         function_state in mlrun.common.schemas.FunctionState.terminal_states()
         and log_file.exists()
@@ -566,7 +574,7 @@ def _handle_job_deploy_status(
             },
         )
 
-    build_pod_state = services.api.utils.singletons.k8s.get_k8s_helper(
+    build_pod_state = framework.utils.singletons.k8s.get_k8s_helper(
         silent=False
     ).get_pod_phase(pod)
     logger.debug(
@@ -596,14 +604,12 @@ def _handle_job_deploy_status(
     if (
         logs
         and normalized_pod_function_state == mlrun.common.schemas.FunctionState.pending
-        and services.api.utils.helpers.validate_client_version(
-            client_version, "1.8.0-rc1"
-        )
+        and framework.utils.helpers.validate_client_version(client_version, "1.8.0-rc1")
     ):
         response_headers["deploy_status_text_kind"] = (
             mlrun.common.constants.DeployStatusTextKind.events
         )
-        build_pod_events = services.api.utils.singletons.k8s.get_k8s_helper(
+        build_pod_events = framework.utils.singletons.k8s.get_k8s_helper(
             silent=False
         ).list_object_events(object_name=pod)
         logger.debug(
@@ -638,9 +644,7 @@ Message: {event.message}
         in mlrun.common.schemas.FunctionState.terminal_states()
     ):
         try:
-            resp = services.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(
-                pod
-            )
+            resp = framework.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         except ApiException as exc:
             logger.warning(
                 "Failed to get build logs",
@@ -700,7 +704,7 @@ Message: {event.message}
 def _parse_start_function_body(db_session, data):
     url = data.get("functionUrl")
     if not url:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason="Runtime error: functionUrl not specified",
         )
@@ -710,7 +714,7 @@ def _parse_start_function_body(db_session, data):
         db_session, name, project, tag, hash_key
     )
     if not runtime:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: function {url} not found",
         )
@@ -739,11 +743,11 @@ def _start_function(
     client_version: Optional[str] = None,
     client_python_version: Optional[str] = None,
 ):
-    db_session = services.api.db.session.create_session()
+    db_session = framework.db.session.create_session()
     try:
-        run_db = services.api.api.utils.get_run_db_instance(db_session)
+        run_db = framework.api.utils.get_run_db_instance(db_session)
         function.set_db_connection(run_db)
-        services.api.api.utils.apply_enrichment_and_validation_on_function(
+        framework.api.utils.apply_enrichment_and_validation_on_function(
             function,
             auth_info,
         )
@@ -758,12 +762,12 @@ def _start_function(
 
     except Exception as err:
         logger.error(traceback.format_exc())
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )
     finally:
-        services.api.db.session.close_session(db_session)
+        framework.db.session.close_session(db_session)
 
 
 async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
@@ -771,18 +775,20 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
     selector = data.get("selector")
     kind = data.get("kind")
     if not selector or not kind:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason="Runtime error: selector or runtime kind not specified",
         )
     project, name = data.get("project"), data.get("name")
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     try:
@@ -798,7 +804,7 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
 
     except Exception as err:
         logger.error(traceback.format_exc())
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )

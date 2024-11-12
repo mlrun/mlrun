@@ -19,15 +19,16 @@ from typing import Optional
 import sqlalchemy.orm
 
 import mlrun.common.formatters
+import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 
-import services.api.api.utils
+import framework.api.utils
+import framework.utils.singletons.db
 import services.api.runtime_handlers
-import services.api.utils.singletons.db
 
 
 class Functions(
@@ -52,12 +53,12 @@ class Functions(
             # intermediate steps or temporary objects which might not be executed at any phase and therefore we don't
             # want to enrich if user didn't requested.
             # (The way user will request to generate is by passing $generate in the metadata.credentials.access_key)
-            services.api.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
+            framework.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
                 function_obj, auth_info, allow_empty_access_key=True
             )
             function = function_obj.to_dict()
 
-        return services.api.utils.singletons.db.get_db().store_function(
+        return framework.utils.singletons.db.get_db().store_function(
             db_session,
             function,
             name,
@@ -76,7 +77,7 @@ class Functions(
         format_: Optional[str] = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().get_function(
+        return framework.utils.singletons.db.get_db().get_function(
             db_session, name, project, tag, hash_key, format_
         )
 
@@ -86,7 +87,7 @@ class Functions(
         project: str,
         name: str,
     ):
-        return services.api.utils.singletons.db.get_db().delete_function(
+        return framework.utils.singletons.db.get_db().delete_function(
             db_session, project, name
         )
 
@@ -107,7 +108,7 @@ class Functions(
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
-        return services.api.utils.singletons.db.get_db().list_functions(
+        return framework.utils.singletons.db.get_db().list_functions(
             session=db_session,
             name=name,
             project=project,
@@ -157,7 +158,7 @@ class Functions(
         project,
         updates: dict,
     ):
-        return services.api.utils.singletons.db.get_db().update_function(
+        return framework.utils.singletons.db.get_db().update_function(
             session=db_session,
             name=function["metadata"]["name"],
             tag=function["metadata"]["tag"],
@@ -176,7 +177,7 @@ class Functions(
         _, function_name, tag, hash_key = (
             mlrun.common.helpers.parse_versioned_object_uri(function_uri)
         )
-        services.api.utils.singletons.db.get_db().update_function_external_invocation_url(
+        framework.utils.singletons.db.get_db().update_function_external_invocation_url(
             session=db_session,
             name=function_name,
             url=invocation_url,
@@ -196,7 +197,7 @@ class Functions(
         _, function_name, tag, hash_key = (
             mlrun.common.helpers.parse_versioned_object_uri(function_uri)
         )
-        services.api.utils.singletons.db.get_db().update_function_external_invocation_url(
+        framework.utils.singletons.db.get_db().update_function_external_invocation_url(
             session=db_session,
             name=function_name,
             url=invocation_url,

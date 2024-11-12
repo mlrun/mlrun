@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .alert_activation import AlertActivation
 from .alert_template import AlertTemplates
 from .alerts import Alerts
 from .artifacts import Artifacts

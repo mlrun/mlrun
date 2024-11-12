@@ -24,9 +24,9 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 
+import framework.utils.auth.verifier
 import services.api.api.endpoints.feature_store
 import services.api.tests.unit.api.utils
-import services.api.utils.auth.verifier
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
     _list_and_assert_objects,
@@ -504,8 +504,8 @@ async def test_verify_feature_vector_features_permissions(
             == {}
         )
 
-    services.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = unittest.mock.AsyncMock(
-        side_effect=_verify_queried_resources
+    framework.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = (
+        unittest.mock.AsyncMock(side_effect=_verify_queried_resources)
     )
     await services.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
         mlrun.common.schemas.AuthInfo(),

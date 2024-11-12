@@ -36,7 +36,7 @@ import mlrun.config
 import mlrun.errors
 from tests.common_fixtures import aioresponses_mock
 
-import services.api.utils.clients.iguazio
+import framework.utils.clients.iguazio
 from services.api.utils.asyncio import maybe_coroutine
 
 
@@ -79,7 +79,7 @@ def patch_restful_request(
 @pytest.mark.asyncio
 async def test_verify_request_session_success(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
     aioresponses_mock: aioresponses_mock,
 ):
@@ -168,7 +168,7 @@ async def test_verify_request_session_success(
 @pytest.mark.asyncio
 async def test_verify_request_session_failure(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
     aioresponses_mock: aioresponses_mock,
 ):
@@ -193,7 +193,7 @@ async def test_verify_request_session_failure(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_success(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     expected_grafana_url = (
@@ -221,7 +221,7 @@ async def test_get_grafana_service_url_success(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_cache(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     expected_grafana_url = (
@@ -255,7 +255,7 @@ async def test_get_grafana_service_url_cache(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_ignoring_disabled_service(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     grafana_service = {"spec": {"kind": "grafana"}, "status": {"state": "disabled"}}
@@ -271,7 +271,7 @@ async def test_get_grafana_service_url_ignoring_disabled_service(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_no_grafana_exists(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     response_body = _generate_app_services_manifests_body([])
@@ -286,7 +286,7 @@ async def test_get_grafana_service_url_no_grafana_exists(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_no_urls(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     grafana_service = {
@@ -305,11 +305,11 @@ async def test_get_grafana_service_url_no_urls(
 @pytest.mark.asyncio
 async def test_get_or_create_access_key_success(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     monkeypatch,
 ):
     planes = [
-        services.api.utils.clients.iguazio.SessionPlanes.control,
+        framework.utils.clients.iguazio.SessionPlanes.control,
     ]
     access_key_id = "some-id"
     session = "1234"
@@ -347,7 +347,7 @@ async def test_get_or_create_access_key_success(
 @pytest.mark.asyncio
 async def test_get_project_owner(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     owner_username = "some-username"
@@ -387,7 +387,7 @@ async def test_get_project_owner(
 @pytest.mark.asyncio
 async def test_list_project_with_updated_after(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
@@ -436,7 +436,7 @@ async def test_list_project_with_updated_after(
 @pytest.mark.asyncio
 async def test_list_project(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     mock_projects = [
@@ -518,7 +518,7 @@ async def test_list_project(
 @pytest.mark.asyncio
 async def test_create_project(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
@@ -529,7 +529,7 @@ async def test_create_project(
 @pytest.mark.asyncio
 async def test_create_project_failures(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     """
@@ -582,7 +582,7 @@ async def test_create_project_failures(
         requests_mock,
         session,
         job_id,
-        services.api.utils.clients.iguazio.JobStates.failed,
+        framework.utils.clients.iguazio.JobStates.failed,
         job_result,
     )
 
@@ -602,7 +602,7 @@ async def test_create_project_failures(
         requests_mock,
         session,
         job_id,
-        services.api.utils.clients.iguazio.JobStates.failed,
+        framework.utils.clients.iguazio.JobStates.failed,
     )
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
@@ -618,7 +618,7 @@ async def test_create_project_failures(
 @pytest.mark.asyncio
 async def test_create_project_minimal_project(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = mlrun.common.schemas.Project(
@@ -633,7 +633,7 @@ async def test_create_project_minimal_project(
 @pytest.mark.asyncio
 async def test_create_project_without_wait(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
@@ -656,7 +656,7 @@ async def test_create_project_without_wait(
 @pytest.mark.asyncio
 async def test_update_project(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
@@ -685,7 +685,7 @@ async def test_update_project(
 @pytest.mark.asyncio
 async def test_update_project_remove_labels_and_annotations(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project(name="empty-labels", labels={}, annotations={})
@@ -739,7 +739,7 @@ async def test_update_project_remove_labels_and_annotations(
 @pytest.mark.asyncio
 async def test_delete_project(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -778,7 +778,7 @@ async def test_delete_project(
 @pytest.mark.asyncio
 async def test_delete_project_without_wait(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -799,7 +799,7 @@ async def test_delete_project_without_wait(
 @pytest.mark.asyncio
 async def test_delete_project_job_cache(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -834,7 +834,7 @@ async def test_delete_project_job_cache(
 @pytest.mark.asyncio
 async def test_delete_project_job_is_done(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -859,7 +859,7 @@ async def test_delete_project_job_is_done(
     responses = [
         functools.partial(
             _mock_get_job,
-            services.api.utils.clients.iguazio.JobStates.completed,
+            framework.utils.clients.iguazio.JobStates.completed,
             "",
             session,
         ),
@@ -900,9 +900,9 @@ async def test_job_cache_scheduled_invalidation(
     mlrun.mlconf.httpdb.projects.iguazio_client_job_cache_ttl = "1 seconds"
 
     if iguazio_client_kind == "async":
-        client = services.api.utils.clients.iguazio.AsyncClient()
+        client = framework.utils.clients.iguazio.AsyncClient()
     else:
-        client = services.api.utils.clients.iguazio.Client()
+        client = framework.utils.clients.iguazio.Client()
 
     project_name = "project-name"
     job_id = "some-job-id"
@@ -925,7 +925,7 @@ async def test_job_cache_scheduled_invalidation(
 @pytest.mark.asyncio
 async def test_format_as_leader_project(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
 ):
     project = _generate_project()
     with unittest.mock.patch(
@@ -965,7 +965,7 @@ async def test_format_as_leader_project(
 def test_resolve_final_error_message(
     error_message, result_message, final_error_message
 ):
-    message = services.api.utils.clients.iguazio.Client._resolve_final_error_message(
+    message = framework.utils.clients.iguazio.Client._resolve_final_error_message(
         error_message, result_message
     )
     assert message == final_error_message
@@ -1018,7 +1018,7 @@ def _assert_auth_info(
 
 async def _create_project_and_assert(
     api_url: str,
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
     project: mlrun.common.schemas.Project,
 ):
@@ -1102,7 +1102,7 @@ def _mock_job_progress(
     requests_mock,
     session: str,
     job_id: str,
-    terminal_job_state: str = services.api.utils.clients.iguazio.JobStates.completed,
+    terminal_job_state: str = framework.utils.clients.iguazio.JobStates.completed,
     job_result: str = "",
 ):
     def _mock_get_job(state, result, session, request, context):
@@ -1113,13 +1113,13 @@ def _mock_job_progress(
     responses = [
         functools.partial(
             _mock_get_job,
-            services.api.utils.clients.iguazio.JobStates.in_progress,
+            framework.utils.clients.iguazio.JobStates.in_progress,
             job_result,
             session,
         ),
         functools.partial(
             _mock_get_job,
-            services.api.utils.clients.iguazio.JobStates.in_progress,
+            framework.utils.clients.iguazio.JobStates.in_progress,
             job_result,
             session,
         ),
@@ -1173,7 +1173,7 @@ def _generate_project(
 
 
 def _build_project_response(
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     project: mlrun.common.schemas.Project,
     job_id: typing.Optional[str] = None,
     operational_status: typing.Optional[mlrun.common.schemas.ProjectState] = None,
@@ -1236,7 +1236,7 @@ def _build_project_response(
 
 
 def _assert_project_creation(
-    iguazio_client: services.api.utils.clients.iguazio.Client,
+    iguazio_client: framework.utils.clients.iguazio.Client,
     request_body: dict,
     project: mlrun.common.schemas.Project,
 ):

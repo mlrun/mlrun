@@ -16,12 +16,12 @@ import os
 from unittest.mock import Mock
 
 import deepdiff
-import mlrun_pipelines.common.mounts
 import pytest
 import requests
 
 import mlrun
 import mlrun.errors
+import mlrun_pipelines.common.mounts
 from mlrun import mlconf
 from mlrun.platforms import add_or_refresh_credentials
 from mlrun.platforms.iguazio import min_iguazio_versions

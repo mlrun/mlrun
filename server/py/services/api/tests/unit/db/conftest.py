@@ -22,11 +22,11 @@ from sqlalchemy.engine import Engine
 from mlrun.common.db.sql_session import _init_engine
 from mlrun.config import config
 
-from services.api.db.session import close_session, create_session
-from services.api.db.sqldb.db import SQLDB
+from framework.db import close_session, create_session
+from framework.db.sqldb.db import SQLDB
+from framework.utils.singletons.db import initialize_db
+from framework.utils.singletons.project_member import initialize_project_member
 from services.api.initial_data import init_data
-from services.api.utils.singletons.db import initialize_db
-from services.api.utils.singletons.project_member import initialize_project_member
 
 
 @pytest.fixture()

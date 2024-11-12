@@ -21,8 +21,8 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.errors
 
+import framework.utils.clients.log_collector
 import services.api.crud
-import services.api.utils.clients.log_collector
 from services.api.tests.unit.utils.clients.test_log_collector import GetLogSizeResponse
 
 
@@ -65,7 +65,7 @@ class TestLogs:
         self, db: sqlalchemy.orm.Session, return_value, expected_error
     ):
         mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
-        log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=GetLogSizeResponse(True, None, return_value)
         )

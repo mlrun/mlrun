@@ -26,11 +26,11 @@ import mlrun.utils.singleton
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.utils import logger
 
-import services.api.api.utils
-import services.api.utils.clients.log_collector as log_collector
-import services.api.utils.singletons.k8s
-from services.api.constants import LogSources
-from services.api.utils.singletons.db import get_db
+import framework.api.utils
+import framework.utils.clients.log_collector as log_collector
+import framework.utils.singletons.k8s
+from framework.constants import LogSources
+from framework.utils.singletons.db import get_db
 
 
 class Logs(
@@ -44,7 +44,7 @@ class Logs(
         append: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
-        log_file = services.api.api.utils.log_path(project, uid)
+        log_file = framework.api.utils.log_path(project, uid)
         log_file.parent.mkdir(parents=True, exist_ok=True)
         mode = "ab" if append else "wb"
         with log_file.open(mode) as fp:
@@ -78,7 +78,7 @@ class Logs(
         project: str,
     ):
         project = project or mlrun.mlconf.default_project
-        logs_path = services.api.api.utils.project_logs_path(project)
+        logs_path = framework.api.utils.project_logs_path(project)
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
 
@@ -88,7 +88,7 @@ class Logs(
         run_uid: str,
     ):
         project = project or mlrun.mlconf.default_project
-        logs_path = services.api.api.utils.log_path(project, run_uid)
+        logs_path = framework.api.utils.log_path(project, run_uid)
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
 
@@ -243,7 +243,7 @@ class Logs(
         if not run:
             run = get_db().read_run(db_session, uid, project)
         if not run:
-            services.api.api.utils.log_and_raise(
+            framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, project=project, uid=uid
             )
         if log_file_exists and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
@@ -251,13 +251,11 @@ class Logs(
                 fp.seek(offset)
                 log_contents = fp.read(size)
         elif source in [LogSources.AUTO, LogSources.K8S]:
-            k8s = services.api.utils.singletons.k8s.get_k8s_helper()
+            k8s = framework.utils.singletons.k8s.get_k8s_helper()
             if k8s and k8s.is_running_inside_kubernetes_cluster():
                 run_kind = run.get("metadata", {}).get("labels", {}).get("kind")
-                pods = (
-                    services.api.utils.singletons.k8s.get_k8s_helper().get_logger_pods(
-                        project, uid, run_kind
-                    )
+                pods = framework.utils.singletons.k8s.get_k8s_helper().get_logger_pods(
+                    project, uid, run_kind
                 )
                 if pods:
                     if len(pods) > 1:
@@ -271,9 +269,7 @@ class Logs(
                         )
                     pod, pod_phase = list(pods.items())[0]
                     if pod_phase != PodPhases.pending:
-                        resp = services.api.utils.singletons.k8s.get_k8s_helper().logs(
-                            pod
-                        )
+                        resp = framework.utils.singletons.k8s.get_k8s_helper().logs(pod)
                         if resp:
                             if size == -1:
                                 log_contents = resp.encode()[offset:]
@@ -307,7 +303,7 @@ class Logs(
     async def _get_run_for_log(db_session: Session, project: str, uid: str) -> dict:
         run = await run_in_threadpool(get_db().read_run, db_session, uid, project)
         if not run:
-            services.api.api.utils.log_and_raise(
+            framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, project=project, uid=uid
             )
         return run
@@ -315,7 +311,7 @@ class Logs(
     @staticmethod
     async def _get_log_size_from_log_collector(project: str, run_uid: str) -> int:
         log_collector_client = (
-            services.api.utils.clients.log_collector.LogCollectorClient()
+            framework.utils.clients.log_collector.LogCollectorClient()
         )
         log_file_size = await log_collector_client.get_log_size(
             project=project,
@@ -330,7 +326,7 @@ class Logs(
 
     @staticmethod
     def _get_log_size_legacy(project: str, uid: str) -> int:
-        log_file = services.api.api.utils.log_path(project, uid)
+        log_file = framework.api.utils.log_path(project, uid)
         if not log_file.exists():
             raise mlrun.errors.MLRunNotFoundError(
                 f"Log file for {project}/{uid} not found",
@@ -346,18 +342,18 @@ class Logs(
         :param uid: run uid
         :return: True if the log file exists, False otherwise, and the log file path
         """
-        project_logs_dir = services.api.api.utils.project_logs_path(project)
+        project_logs_dir = framework.api.utils.project_logs_path(project)
         if not project_logs_dir.exists():
             return False, None
 
-        log_file = services.api.api.utils.log_path(project, uid)
+        log_file = framework.api.utils.log_path(project, uid)
         if log_file.exists():
             return True, log_file
 
         return False, None
 
     def _list_project_logs_uids(self, project: str) -> list[str]:
-        logs_path = services.api.api.utils.project_logs_path(project)
+        logs_path = framework.api.utils.project_logs_path(project)
         return [
             file
             for file in os.listdir(str(logs_path))
@@ -372,7 +368,7 @@ class Logs(
         resource = "project" if not run_uids else "run"
         try:
             log_collector_client = (
-                services.api.utils.clients.log_collector.LogCollectorClient()
+                framework.utils.clients.log_collector.LogCollectorClient()
             )
             await log_collector_client.stop_logs(
                 project=project_name,
@@ -398,7 +394,7 @@ class Logs(
         resource = "project" if not run_uids else "run"
         try:
             log_collector_client = (
-                services.api.utils.clients.log_collector.LogCollectorClient()
+                framework.utils.clients.log_collector.LogCollectorClient()
             )
             await log_collector_client.delete_logs(
                 project=project,

@@ -26,10 +26,10 @@ import mlrun.errors
 import mlrun.runtimes
 from mlrun.utils import logger
 
+import framework.utils.background_tasks
 import services.api.api.endpoints.operations
 import services.api.crud
 import services.api.initial_data
-import services.api.utils.background_tasks
 import services.api.utils.singletons.scheduler
 
 
@@ -40,12 +40,12 @@ def test_migrations_already_in_progress(
     services.api.api.endpoints.operations.current_migration_background_task_name = (
         background_task_name
     )
-    handler_mock = services.api.utils.background_tasks.InternalBackgroundTasksHandler()
+    handler_mock = framework.utils.background_tasks.InternalBackgroundTasksHandler()
     handler_mock.get_background_task = unittest.mock.Mock(
         return_value=(_generate_background_task_schema(background_task_name))
     )
     monkeypatch.setattr(
-        services.api.utils.background_tasks,
+        framework.utils.background_tasks,
         "InternalBackgroundTasksHandler",
         lambda *args, **kwargs: handler_mock,
     )

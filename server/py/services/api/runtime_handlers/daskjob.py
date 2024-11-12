@@ -31,9 +31,10 @@ from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 
-import services.api.utils.singletons.k8s
+import framework.utils.singletons.k8s
+import services.api.runtime_handlers
+from framework.db.base import DBInterface
 from services.api.common.runtime_handlers import get_resource_labels
-from services.api.db.base import DBInterface
 from services.api.runtime_handlers import BaseRuntimeHandler
 
 
@@ -114,7 +115,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
             return response
-        _services = services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
+        _services = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         service_resources = []
@@ -219,13 +220,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
 
-        _services = services.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
+        _services = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         for service in _services.items:
             try:
                 if force or service.metadata.name in service_names:
-                    services.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_service(
+                    framework.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_service(
                         service.metadata.name,
                         namespace,
                         grace_period_seconds=resource_deletion_grace_period,
@@ -419,12 +420,10 @@ def enrich_dask_cluster(
         project.spec.default_function_node_selector,
         function.spec.node_selector,
     )
-    scheduler_pod_spec = (
-        services.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-            spec, scheduler_container, node_selector=node_selector
-        )
+    scheduler_pod_spec = framework.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
+        spec, scheduler_container, node_selector=node_selector
     )
-    worker_pod_spec = services.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
+    worker_pod_spec = framework.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec, worker_container, node_selector=node_selector
     )
     for pod_spec in [scheduler_pod_spec, worker_pod_spec]:
@@ -465,7 +464,7 @@ def get_obj_status(selector=None, namespace=None):
     if selector is None:
         selector = []
 
-    k8s = services.api.utils.singletons.k8s.get_k8s_helper()
+    k8s = framework.utils.singletons.k8s.get_k8s_helper()
     namespace = namespace or config.namespace
     selector = ",".join(
         [f"{mlrun_constants.MLRunInternalLabels.dask_component}=scheduler"] + selector

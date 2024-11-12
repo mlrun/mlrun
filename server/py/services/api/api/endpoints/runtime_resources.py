@@ -23,9 +23,9 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun
 import mlrun.common.schemas
 
-import services.api.api.deps
+import framework.api.deps
+import framework.utils.auth.verifier
 import services.api.crud
-import services.api.utils.auth.verifier
 
 router = fastapi.APIRouter(prefix="/projects/{project}/runtime-resources")
 
@@ -47,7 +47,7 @@ async def list_runtime_resources(
         mlrun.common.schemas.ListRuntimeResourcesGroupByField
     ] = fastapi.Query(None, alias="group-by"),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
     return await _list_runtime_resources(
@@ -69,10 +69,10 @@ async def delete_runtime_resources(
         mlrun.mlconf.runtime_resources_deletion_grace_period, alias="grace-period"
     ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
     return await _delete_runtime_resources(
@@ -211,7 +211,7 @@ async def _get_runtime_resources_allowed_projects(
     bool,
 ]:
     if project != "*":
-        await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
@@ -238,7 +238,7 @@ async def _get_runtime_resources_allowed_projects(
             is_non_project_runtime_resource_exists = True
             continue
         projects.append(project)
-    allowed_projects = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_projects = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.runtime_resource,
         projects,
         lambda project: (

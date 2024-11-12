@@ -25,7 +25,6 @@ from datetime import datetime, timedelta, timezone
 from time import sleep
 
 import fsspec
-import mlrun_pipelines.mounts
 import numpy as np
 import pandas as pd
 import pyarrow
@@ -40,6 +39,7 @@ from storey.dtypes import V3ioError
 import mlrun
 import mlrun.datastore.utils
 import mlrun.feature_store as fstore
+import mlrun_pipelines.mounts
 import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType

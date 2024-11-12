@@ -19,8 +19,8 @@ import mlrun
 from mlrun.common.schemas import ModelEndpointV2
 
 import services.api.tests.unit.db.test_functions
-from services.api.db.base import DBInterface
-from services.api.db.sqldb.models import ModelEndpoint
+from framework.db.base import DBInterface
+from framework.db.sqldb.models import ModelEndpoint
 
 
 def _store_function(

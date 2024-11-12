@@ -45,7 +45,7 @@ def model_endpoint() -> mlrun.common.schemas.ModelEndpoint:
 
 @pytest.fixture
 def _patch_external_resources() -> Iterator[None]:
-    with patch("services.api.api.utils.get_run_db_instance", autospec=True):
+    with patch("framework.api.utils.get_run_db_instance", autospec=True):
         with patch(
             "mlrun.datastore.store_resources.get_store_resource",
             return_value=ModelArtifact(),

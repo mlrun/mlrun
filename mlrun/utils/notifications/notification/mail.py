@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import re
 import typing
 from email.message import EmailMessage
@@ -53,18 +52,20 @@ class MailNotification(base.NotificationBase):
             raise ValueError(
                 "Parameter 'email_addresses' must be a string or a list of strings"
             )
+        email_addresses = params["email_addresses"]
+        if isinstance(params["email_addresses"], str):
+            email_addresses = params["email_addresses"].split(",")
 
-        if isinstance(params["email_addresses"], list):
-            for email_address in params["email_addresses"]:
-                if not isinstance(email_address, str):
-                    raise ValueError(
-                        "Parameter 'email_addresses' must be a string or a list of strings"
-                    )
+        for email_address in email_addresses:
+            if not isinstance(email_address, str):
+                raise ValueError(
+                    "Parameter 'email_addresses' must be a string or a list of strings"
+                )
 
-                if not re.match(mlrun.utils.regex.mail_regex, email_address):
-                    raise ValueError(
-                        f"Invalid email address '{email_address}' in 'email_addresses'"
-                    )
+            if not re.match(mlrun.utils.regex.mail_regex, email_address):
+                raise ValueError(
+                    f"Invalid email address '{email_address}' in 'email_addresses'"
+                )
 
     async def push(
         self,
@@ -121,21 +122,20 @@ class MailNotification(base.NotificationBase):
     ) -> dict:
         params = super().enrich_default_params(params, default_params)
 
-        cls._set_param_default_value(params, "use_tls", "true")
-        cls._set_param_default_value(params, "start_tls", "false")
-        cls._set_param_default_value(params, "validate_certs", "true")
+        cls._load_json_from_str_param_with_default_json_value(params, "use_tls", "true")
+        cls._load_json_from_str_param_with_default_json_value(
+            params, "start_tls", "false"
+        )
+        cls._load_json_from_str_param_with_default_json_value(
+            params, "validate_certs", "true"
+        )
 
         params.setdefault("server_port", DEFAULT_SMTP_PORT)
 
         default_mail_address = params.pop("default_email_addresses", "")
         email_addresses = params.get("email_addresses", default_mail_address)
-        if type(email_addresses) is list:
+        if isinstance(email_addresses, list):
             email_addresses = ",".join(email_addresses)
         params["email_addresses"] = email_addresses
 
         return params
-
-    @staticmethod
-    def _set_param_default_value(params, key, default_value):
-        if isinstance(params.get(key, ""), str):
-            params[key] = json.loads(params.get(key, default_value))

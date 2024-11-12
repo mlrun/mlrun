@@ -1049,6 +1049,17 @@ class TestMailNotification:
                     "sender_address": "sender@example.com",
                     "username": "user",
                     "password": "pass",
+                    "email_addresses": "a,b",
+                },
+                pytest.raises(ValueError),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
                     "email_addresses": ["a@example.com", "b@example.com"],
                 },
                 does_not_raise(),

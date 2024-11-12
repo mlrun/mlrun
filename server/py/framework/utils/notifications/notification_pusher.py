@@ -20,9 +20,9 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
 import mlrun.utils.helpers
+import mlrun.utils.notifications.notification as notification_module
 import mlrun.utils.notifications.notification.base as base
 from mlrun.utils import logger
-from mlrun.utils.notifications.notification import NotificationTypes
 from mlrun.utils.notifications.notification_pusher import (
     NotificationPusher,
     _NotificationPusherBase,
@@ -43,12 +43,12 @@ class RunNotificationPusher(NotificationPusher):
         #       create new function on the NotificationBase class for resolving the default params.
         #       After that we can remove this function.
         return {
-            NotificationTypes.console: {},
-            NotificationTypes.git: {},
-            NotificationTypes.ipython: {},
-            NotificationTypes.slack: {},
-            NotificationTypes.mail: RunNotificationPusher._get_mail_notification_default_params(),
-            NotificationTypes.webhook: {},
+            notification_module.NotificationTypes.console: {},
+            notification_module.NotificationTypes.git: {},
+            notification_module.NotificationTypes.ipython: {},
+            notification_module.NotificationTypes.slack: {},
+            notification_module.NotificationTypes.mail: RunNotificationPusher._get_mail_notification_default_params(),
+            notification_module.NotificationTypes.webhook: {},
         }
 
     @staticmethod
@@ -115,7 +115,9 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 )
 
                 name = notification_object.name
-                notification_type = NotificationTypes(notification_object.kind)
+                notification_type = notification_module.NotificationTypes(
+                    notification_object.kind
+                )
                 params = {}
                 if notification_object.secret_params:
                     params.update(notification_object.secret_params)

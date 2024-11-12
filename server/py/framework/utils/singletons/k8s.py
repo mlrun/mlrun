@@ -578,6 +578,31 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
         return mlrun.common.schemas.SecretEventActions.updated
 
+    def read_secret(
+        self,
+        secret_name: str,
+        namespace: str = "",
+    ) -> client.V1Secret:
+        namespace = self.resolve_namespace(namespace)
+        logger.debug("Reading secret", secret_name=secret_name, namespace=namespace)
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(
+                name=secret_name,
+                namespace=namespace,
+            )
+        except k8s_client_rest.ApiException as exc:
+            logger.error(
+                "Failed to retrieve k8s secret",
+                secret_name=secret_name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise k8s_dynamic_exceptions.api_exception(exc)
+        return k8s_secret
+
+    def read_secret_data(self, secret_name: str, namespace: str = "") -> dict[str, str]:
+        k8s_secret = self.read_secret(secret_name, namespace)
+        return self._decode_secret_data(k8s_secret.data)
+
     def _create_secret(
         self,
         secret_name: str,
@@ -628,31 +653,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
         except k8s_client_rest.ApiException as exc:
             raise k8s_dynamic_exceptions.api_exception(exc)
-
-    def read_secret(
-        self,
-        secret_name: str,
-        namespace: str = "",
-    ) -> client.V1Secret:
-        namespace = self.resolve_namespace(namespace)
-        logger.debug("Reading secret", secret_name=secret_name, namespace=namespace)
-        try:
-            k8s_secret = self.v1api.read_namespaced_secret(
-                name=secret_name,
-                namespace=namespace,
-            )
-        except k8s_client_rest.ApiException as exc:
-            logger.error(
-                "Failed to retrieve k8s secret",
-                secret_name=secret_name,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise k8s_dynamic_exceptions.api_exception(exc)
-        return k8s_secret
-
-    def read_secret_data(self, secret_name: str, namespace: str = "") -> dict[str, str]:
-        k8s_secret = self.read_secret(secret_name, namespace)
-        return self._decode_secret_data(k8s_secret.data)
 
     def delete_project_secrets(
         self, project, secrets, namespace=""

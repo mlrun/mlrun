@@ -29,14 +29,13 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
+import mlrun.utils.notifications.notification as notification_module
 import mlrun.utils.notifications.notification.base as base
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
-
-from .notification import NotificationTypes
 
 
 class _NotificationPusherBase:
@@ -223,8 +222,8 @@ class NotificationPusher(_NotificationPusherBase):
         self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification
     ) -> base.NotificationBase:
         name = notification_object.name
-        notification_type = NotificationTypes(
-            notification_object.kind or NotificationTypes.console
+        notification_type = notification_module.NotificationTypes(
+            notification_object.kind or notification_module.NotificationTypes.console
         )
         params = {}
         params.update(notification_object.secret_params)
@@ -530,7 +529,9 @@ class NotificationPusher(_NotificationPusherBase):
 class CustomNotificationPusher(_NotificationPusherBase):
     def __init__(self, notification_types: typing.Optional[list[str]] = None):
         notifications = {
-            notification_type: NotificationTypes(notification_type).get_notification()()
+            notification_type: notification_module.NotificationTypes(
+                notification_type
+            ).get_notification()()
             for notification_type in notification_types
         }
         self._sync_notifications = {
@@ -586,7 +587,9 @@ class CustomNotificationPusher(_NotificationPusherBase):
         elif notification_type in self._sync_notifications:
             self._sync_notifications[notification_type].load_notification(params)
         else:
-            notification = NotificationTypes(notification_type).get_notification()(
+            notification = notification_module.NotificationTypes(
+                notification_type
+            ).get_notification()(
                 params=params,
             )
             if notification.is_async:
@@ -620,7 +623,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
 
         # get notification's inverse dependencies, and only push the notification if
         # none of its inverse dependencies are being sent
-        inverse_dependencies = NotificationTypes(
+        inverse_dependencies = notification_module.NotificationTypes(
             notification_type
         ).inverse_dependencies()
         for inverse_dependency in inverse_dependencies:

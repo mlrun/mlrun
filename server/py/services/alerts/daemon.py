@@ -21,16 +21,12 @@ class Daemon(framework.service.Daemon):
     def __init__(self, service_cls: framework.service.Service.__class__):
         self._service = service_cls()
 
-    def initialize(self):
-        self._service.initialize()
-
     @property
     def service(self) -> services.alerts.main.Service:
         return self._service
 
 
 daemon = Daemon(service_cls=services.alerts.main.Service)
-daemon.initialize()
 app = daemon.app
 
 
@@ -38,3 +34,7 @@ app = daemon.app
 @containers.override(framework.service.ServiceContainer)
 class AlertsServiceContainer(containers.DeclarativeContainer):
     service = providers.Object(daemon.service)
+
+
+# Initialization must be after the service container override
+daemon.initialize()

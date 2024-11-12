@@ -23,8 +23,8 @@ import sqlalchemy.orm
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.alert as alert_objects
 
+import framework.tests.unit.common_fixtures
 import services.alerts.crud
-import services.api.tests.unit.conftest
 
 
 @pytest.fixture
@@ -36,8 +36,8 @@ def reset_alert_caches():
 
 @pytest.mark.asyncio
 async def test_process_event_no_cache(
-    db: sqlalchemy.orm.Session,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    db_session: sqlalchemy.orm.Session,
+    k8s_secrets_mock: framework.tests.unit.common_fixtures.K8sSecretsMock,
 ):
     project = "project-name"
     alert_name = "my-alert"
@@ -61,7 +61,7 @@ async def test_process_event_no_cache(
     )
 
     services.alerts.crud.Alerts().store_alert(
-        session=db,
+        session=db_session,
         project=project,
         name=alert_name,
         alert_data=alert_data,
@@ -70,11 +70,14 @@ async def test_process_event_no_cache(
     event = alert_objects.Event(kind=event_kind, entity=alert_entity)
 
     await fastapi.concurrency.run_in_threadpool(
-        services.alerts.crud.Alerts().process_event_no_cache, db, event.kind, event
+        services.alerts.crud.Alerts().process_event_no_cache,
+        db_session,
+        event.kind,
+        event,
     )
 
     alert = services.alerts.crud.Alerts().get_enriched_alert(
-        session=db,
+        session=db_session,
         project=project,
         name=alert_name,
     )
@@ -96,8 +99,8 @@ async def test_process_event_no_cache(
     ],
 )
 async def test_validate_alert_name(
-    db: sqlalchemy.orm.Session,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    db_session: sqlalchemy.orm.Session,
+    k8s_secrets_mock: framework.tests.unit.common_fixtures.K8sSecretsMock,
     alert_name: str,
     expectation: AbstractContextManager,
 ):
@@ -120,7 +123,7 @@ async def test_validate_alert_name(
     )
     with expectation:
         services.alerts.crud.Alerts().store_alert(
-            session=db,
+            session=db_session,
             project=project,
             name=alert_name,
             alert_data=alert_data,
@@ -233,12 +236,12 @@ async def test_validate_alert_name(
     [False, True],
 )
 async def test_alert_reset_with_fields_updates(
-    db: sqlalchemy.orm.Session,
+    db_session: sqlalchemy.orm.Session,
     modify_field,
     modified_value,
     should_reset,
     force_reset,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: framework.tests.unit.common_fixtures.K8sSecretsMock,
     reset_alert_caches,
 ):
     project = "project-name"
@@ -264,7 +267,7 @@ async def test_alert_reset_with_fields_updates(
 
     # store the initial alert
     services.alerts.crud.Alerts().store_alert(
-        session=db,
+        session=db_session,
         project=project,
         name=alert_name,
         alert_data=alert_data,
@@ -274,12 +277,12 @@ async def test_alert_reset_with_fields_updates(
     event = alert_objects.Event(kind=event_kind, entity=alert_entity)
     await fastapi.concurrency.run_in_threadpool(
         services.alerts.crud.Alerts().process_event_no_cache,
-        db,
+        db_session,
         event.kind,
         event,
     )
     alert = services.alerts.crud.Alerts().get_enriched_alert(
-        session=db,
+        session=db_session,
         project=project,
         name=alert_name,
     )
@@ -294,7 +297,7 @@ async def test_alert_reset_with_fields_updates(
 
     # store the modified alert
     services.alerts.crud.Alerts().store_alert(
-        session=db,
+        session=db_session,
         project=project,
         name=alert_name,
         alert_data=alert_data,
@@ -303,7 +306,7 @@ async def test_alert_reset_with_fields_updates(
 
     # fetch the updated alert
     alert = services.alerts.crud.Alerts().get_enriched_alert(
-        session=db,
+        session=db_session,
         project=project,
         name=alert_name,
     )

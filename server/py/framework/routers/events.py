@@ -13,19 +13,14 @@
 # limitations under the License.
 #
 
-from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.concurrency import run_in_threadpool
+from dependency_injector.wiring import Provide
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.utils import logger
 
-import framework.utils.auth.verifier
-import framework.utils.clients.chief
-import framework.utils.singletons.project_member
-import services.api.crud
+import framework.service
 from framework.api import deps
 
 router = APIRouter()
@@ -39,46 +34,16 @@ async def post_event(
     event_data: mlrun.common.schemas.Event,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    service: framework.service.Service = Depends(
+        Provide[framework.service.ServiceContainer.service]
+    ),
 ):
-    await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
+    return await service.handle_request(
+        "post_event",
+        request,
         project,
-        auth_info=auth_info,
-    )
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.event,
-            project,
-            name,
-            mlrun.common.schemas.AuthorizationAction.store,
-            auth_info,
-        )
-    )
-
-    if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
-        logger.debug(
-            "Alerts are disabled, skipping event processing",
-            project=project,
-            event_name=name,
-        )
-        return
-
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        data = await request.json()
-        chief_client = framework.utils.clients.chief.Client()
-        return await chief_client.set_event(
-            project=project, name=name, request=request, json=data
-        )
-
-    logger.debug("Got event", project=project, name=name, id=event_data.entity.ids[0])
-
-    if not services.api.crud.Events().is_valid_event(project, event_data):
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST.value)
-
-    await run_in_threadpool(
-        services.api.crud.Events().process_event, db_session, event_data, name, project
+        name,
+        event_data,
+        auth_info,
+        db_session,
     )

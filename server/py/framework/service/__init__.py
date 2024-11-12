@@ -213,6 +213,9 @@ class Daemon(ABC):
         self._service = service_cls()
 
     def initialize(self):
+        # Wire the service container to inject the providers to the routers
+        container = ServiceContainer()
+        container.wire()
         self._service.initialize()
 
     @property
@@ -225,7 +228,5 @@ class Daemon(ABC):
 
 
 class ServiceContainer(containers.DeclarativeContainer):
-    wiring_config = containers.WiringConfiguration(
-        modules=[".routers.alerts"], from_package="framework"
-    )
+    wiring_config = containers.WiringConfiguration(packages=["framework.routers"])
     service = providers.Object(None)

@@ -19,7 +19,6 @@ import unittest.mock
 from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
-import deepdiff
 import httpx
 import pytest
 import pytest_asyncio
@@ -38,10 +37,10 @@ import mlrun.utils.singleton
 from mlrun import mlconf
 from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
-from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
 import framework
+import framework.tests.unit.common_fixtures
 import framework.utils.clients.iguazio
 import framework.utils.projects.remotes.leader
 import framework.utils.runtimes.nuclio
@@ -52,7 +51,7 @@ import services.api.launcher
 import services.api.runtime_handlers.mpijob
 import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.scheduler
-from services.api.daemon import app, daemon
+from services.api.daemon import daemon
 from services.api.initial_data import init_data
 
 # Importing here since mlrun_pipelines imports mlconf and it causes circular import
@@ -67,9 +66,22 @@ if str(tests_root_directory) in os.getcwd():
     # then providing pytest_plugins is not allowed.
     pytest_plugins = [
         "tests.common_fixtures",
+        "server.py.framework.tests.unit.common_fixtures",
     ]
 
 
+@pytest.fixture()
+def app():
+    yield daemon.app
+
+
+@pytest.fixture()
+def prefix():
+    yield daemon.service.BASE_VERSIONED_SERVICE_PREFIX
+
+
+# TODO: This is partially duplicated with server.py.framework.tests.unit.common_fixtures.service_config_test.
+#  Remove the common code and use both.
 @pytest.fixture(autouse=True)
 def api_config_test():
     framework.utils.singletons.db.db = None
@@ -104,6 +116,7 @@ def api_config_test():
     launcher_factory._launcher_container.reset_override()
 
 
+# TODO: This is duplicated with server.py.framework.tests.unit.common_fixtures.db_session. Use the common one
 @pytest.fixture()
 def db() -> typing.Iterator[sqlalchemy.orm.Session]:
     """
@@ -148,21 +161,9 @@ def set_base_url_for_test_client(
     client.base_url = client.base_url.join(prefix)
 
 
-@pytest.fixture()
-def client(db) -> Generator:
-    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
-        mlconf.httpdb.logs_path = log_dir
-        mlconf.monitoring.runs.interval = 0
-        mlconf.runtimes_cleanup_interval = 0
-        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-        mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = "false"
-        with TestClient(app) as test_client:
-            set_base_url_for_test_client(test_client)
-            yield test_client
-
-
+# TODO: Move this to common fixtures similar to framework.tests.unit.common_fixtures.client
 @pytest.fixture
-def unversioned_client(db) -> Generator:
+def unversioned_client(db, app) -> Generator:
     """
     unversioned_client is a test client that doesn't have the version prefix in the url.
     When using this client, the version prefix must be added to the url manually.
@@ -182,7 +183,7 @@ def unversioned_client(db) -> Generator:
 
 
 @pytest_asyncio.fixture()
-async def async_client(db) -> typing.AsyncIterator[httpx.AsyncClient]:
+async def async_client(db, app) -> typing.AsyncIterator[httpx.AsyncClient]:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
         mlconf.monitoring.runs.interval = 0
@@ -290,78 +291,7 @@ def _mocked_k8s_helper():
     )
 
 
-class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
-    def __init__(self):
-        super().__init__()
-        self._is_running_in_k8s = True
-
-    def reset_mock(self):
-        # project -> secret_key -> secret_value
-        self.project_secrets_map = {}
-        # ref -> secret_key -> secret_value
-        self.auth_secrets_map = {}
-        # secret-name -> secret_key -> secret_value
-        self.secrets_map = {}
-
-    # cannot use a property since it's used as a method on the actual class
-    def is_running_inside_kubernetes_cluster(self) -> bool:
-        return self._is_running_in_k8s
-
-    def set_is_running_in_k8s_cluster(self, value: bool):
-        self._is_running_in_k8s = value
-
-    def get_expected_env_variables_from_secrets(
-        self, project, encode_key_names=True, include_internal=False, global_secret=None
-    ):
-        expected_env_from_secrets = {}
-
-        if global_secret:
-            for key in self.secrets_map.get(global_secret, {}):
-                env_variable_name = (
-                    SecretsStore.k8s_env_variable_name_for_secret(key)
-                    if encode_key_names
-                    else key
-                )
-                expected_env_from_secrets[env_variable_name] = {global_secret: key}
-
-        secret_name = (
-            framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
-                project
-            )
-        )
-        for key in self.project_secrets_map.get(project, {}):
-            if key.startswith("mlrun.") and not include_internal:
-                continue
-
-            env_variable_name = (
-                SecretsStore.k8s_env_variable_name_for_secret(key)
-                if encode_key_names
-                else key
-            )
-            expected_env_from_secrets[env_variable_name] = {secret_name: key}
-
-        return expected_env_from_secrets
-
-    def assert_project_secrets(self, project: str, secrets: dict):
-        assert (
-            deepdiff.DeepDiff(
-                self.project_secrets_map[project],
-                secrets,
-                ignore_order=True,
-            )
-            == {}
-        )
-
-    def assert_auth_secret(self, secret_ref: str, username: str, access_key: str):
-        assert (
-            deepdiff.DeepDiff(
-                self.auth_secrets_map[secret_ref],
-                self._generate_auth_secret_data(username, access_key),
-                ignore_order=True,
-            )
-            == {}
-        )
-
+class K8sSecretsMock(framework.tests.unit.common_fixtures.K8sSecretsMock):
     def set_service_account_keys(
         self, project, default_service_account, allowed_service_accounts
     ):
@@ -381,26 +311,6 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
                 )
             ] = ",".join(allowed_service_accounts)
         self.store_project_secrets(project, secrets)
-
-    def mock_functions(self, mocked_object, monkeypatch):
-        mocked_function_names = [
-            "is_running_inside_kubernetes_cluster",
-            "get_project_secret_keys",
-            "get_project_secret_data",
-            "store_project_secrets",
-            "delete_project_secrets",
-            "store_auth_secret",
-            "delete_auth_secret",
-            "read_auth_secret",
-            "get_secret_data",
-        ]
-
-        for mocked_function_name in mocked_function_names:
-            monkeypatch.setattr(
-                mocked_object,
-                mocked_function_name,
-                getattr(self, mocked_function_name),
-            )
 
 
 @pytest.fixture()

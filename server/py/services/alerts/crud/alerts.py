@@ -329,7 +329,7 @@ class Alerts(
             ]:
                 raise mlrun.errors.MLRunBadRequestError(
                     f"Unsupported notification ({alert_notification.notification.kind}) "
-                    "for alert {name} for project {project}"
+                    f"for alert {name} for project {project}"
                 )
             notification_object = mlrun.model.Notification.from_dict(
                 alert_notification.notification.dict()

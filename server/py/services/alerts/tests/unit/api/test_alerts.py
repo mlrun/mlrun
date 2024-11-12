@@ -18,13 +18,16 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 
+import framework.utils.singletons.db
+
 ALERTS_PATH = "projects/{project}/alerts"
 STORE_ALERTS_PATH = "projects/{project}/alerts/{name}"
 
 
-def test_store_alerts(db: Session, client: TestClient):
+def test_store_alerts(db_session: Session, client: TestClient):
     project = "test-alerts"
     alert_name = "alert-name"
+    _create_project(db_session, project)
     notification = mlrun.model.Notification(
         kind="slack",
         when=["completed", "error"],
@@ -32,7 +35,7 @@ def test_store_alerts(db: Session, client: TestClient):
         message="test-message",
         condition="",
         severity="info",
-        params={"some-param": "some-value"},
+        params={"webhook": "some-value"},
     )
     alert_config = mlrun.common.schemas.AlertConfig(
         project=project,
@@ -53,3 +56,14 @@ def test_store_alerts(db: Session, client: TestClient):
         json=alert_config.dict(),
     )
     assert resp.status_code == HTTPStatus.OK.value
+
+
+# TODO: Move to test utils framework
+def _create_project(db_session: Session, project_name: str):
+    db = framework.utils.singletons.db.get_db()
+    db.create_project(
+        db_session,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        ),
+    )

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import http
 
 import fastapi
 import sqlalchemy.orm
@@ -87,6 +88,198 @@ class Service(framework.service.Service):
             name,
             alert_data,
             force_reset,
+        )
+
+    async def get_alert(
+        self,
+        project: str,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> mlrun.common.schemas.AlertConfig:
+        await run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().ensure_project,
+            db_session,
+            project,
+            auth_info=auth_info,
+        )
+
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+
+        return await run_in_threadpool(
+            services.alerts.crud.Alerts().get_enriched_alert, db_session, project, name
+        )
+
+    async def list_alerts(
+        self,
+        request: fastapi.Request,
+        project: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> list[mlrun.common.schemas.AlertConfig]:
+        await run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().ensure_project,
+            db_session,
+            project,
+            auth_info=auth_info,
+        )
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            project,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+
+        alerts = await run_in_threadpool(
+            services.alerts.crud.Alerts().list_alerts, db_session, project
+        )
+
+        alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            alerts,
+            lambda alert: (
+                alert.project,
+                alert.name,
+            ),
+            auth_info,
+        )
+
+        return alerts
+
+    async def delete_alert(
+        self,
+        request: fastapi.Request,
+        project: str,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ):
+        await run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().ensure_project,
+            db_session,
+            project,
+            auth_info=auth_info,
+        )
+
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            chief_client = framework.utils.clients.chief.Client()
+            return await chief_client.delete_alert(
+                project=project, name=name, request=request
+            )
+
+        self._logger.debug("Deleting alert", project=project, name=name)
+
+        await run_in_threadpool(
+            services.alerts.crud.Alerts().delete_alert, db_session, project, name
+        )
+
+    async def reset_alert(
+        self,
+        request: fastapi.Request,
+        project: str,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ):
+        await run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().ensure_project,
+            db_session,
+            project,
+            auth_info=auth_info,
+        )
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            chief_client = framework.utils.clients.chief.Client()
+            return await chief_client.reset_alert(
+                project=project, name=name, request=request
+            )
+
+        self._logger.debug("Resetting alert", project=project, name=name)
+
+        return await run_in_threadpool(
+            services.alerts.crud.Alerts().reset_alert, db_session, project, name
+        )
+
+    async def post_event(
+        self,
+        request: fastapi.Request,
+        project: str,
+        name: str,
+        event_data: mlrun.common.schemas.Event,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ):
+        await run_in_threadpool(
+            framework.utils.singletons.project_member.get_project_member().ensure_project,
+            db_session,
+            project,
+            auth_info=auth_info,
+        )
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.event,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
+
+        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
+            self._logger.debug(
+                "Alerts are disabled, skipping event processing",
+                project=project,
+                event_name=name,
+            )
+            return
+
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            data = await request.json()
+            chief_client = framework.utils.clients.chief.Client()
+            return await chief_client.set_event(
+                project=project, name=name, request=request, json=data
+            )
+
+        self._logger.debug(
+            "Got event", project=project, name=name, id=event_data.entity.ids[0]
+        )
+
+        if not services.alerts.crud.Events().is_valid_event(project, event_data):
+            raise fastapi.HTTPException(status_code=http.HTTPStatus.BAD_REQUEST.value)
+
+        await run_in_threadpool(
+            services.alerts.crud.Events().process_event,
+            db_session,
+            event_data,
+            name,
+            project,
         )
 
     async def move_service_to_online(self):

@@ -17,17 +17,12 @@ from http import HTTPStatus
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request
-from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.utils import logger
 
 import framework.service
-import framework.utils.auth.verifier
-import framework.utils.clients.chief
 import framework.utils.singletons.project_member
-import services.api.crud
 from framework.api import deps
 
 router = APIRouter(prefix="/projects/{project}/alerts")
@@ -64,66 +59,42 @@ async def store_alert(
     response_model=mlrun.common.schemas.AlertConfig,
 )
 async def get_alert(
+    request: Request,
     project: str,
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    service: framework.service.Service = Depends(
+        Provide[framework.service.ServiceContainer.service]
+    ),
 ) -> mlrun.common.schemas.AlertConfig:
-    await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
+    return await service.handle_request(
+        "get_alert",
+        request,
         project,
-        auth_info=auth_info,
-    )
-
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert,
-            project,
-            name,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-    )
-
-    return await run_in_threadpool(
-        services.api.crud.Alerts().get_enriched_alert, db_session, project, name
+        name,
+        auth_info,
+        db_session,
     )
 
 
 @router.get("", response_model=list[mlrun.common.schemas.AlertConfig])
 async def list_alerts(
+    request: Request,
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    service: framework.service.Service = Depends(
+        Provide[framework.service.ServiceContainer.service]
+    ),
 ) -> list[mlrun.common.schemas.AlertConfig]:
-    await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().ensure_project,
+    return await service.handle_request(
+        "list_alerts",
+        request,
+        project,
+        auth_info,
         db_session,
-        project,
-        auth_info=auth_info,
     )
-    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-
-    alerts = await run_in_threadpool(
-        services.api.crud.Alerts().list_alerts, db_session, project
-    )
-
-    alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.alert,
-        alerts,
-        lambda alert: (
-            alert.project,
-            alert.name,
-        ),
-        auth_info,
-    )
-
-    return alerts
 
 
 @router.delete(
@@ -136,37 +107,17 @@ async def delete_alert(
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    service: framework.service.Service = Depends(
+        Provide[framework.service.ServiceContainer.service]
+    ),
 ):
-    await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
+    return await service.handle_request(
+        "delete_alert",
+        request,
         project,
-        auth_info=auth_info,
-    )
-
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert,
-            project,
-            name,
-            mlrun.common.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
-    )
-
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        chief_client = framework.utils.clients.chief.Client()
-        return await chief_client.delete_alert(
-            project=project, name=name, request=request
-        )
-
-    logger.debug("Deleting alert", project=project, name=name)
-
-    await run_in_threadpool(
-        services.api.crud.Alerts().delete_alert, db_session, project, name
+        name,
+        auth_info,
+        db_session,
     )
 
 
@@ -177,34 +128,15 @@ async def reset_alert(
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    service: framework.service.Service = Depends(
+        Provide[framework.service.ServiceContainer.service]
+    ),
 ):
-    await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
+    return await service.handle_request(
+        "reset_alert",
+        request,
         project,
-        auth_info=auth_info,
-    )
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert,
-            project,
-            name,
-            mlrun.common.schemas.AuthorizationAction.update,
-            auth_info,
-        )
-    )
-
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        chief_client = framework.utils.clients.chief.Client()
-        return await chief_client.reset_alert(
-            project=project, name=name, request=request
-        )
-
-    logger.debug("Resetting alert", project=project, name=name)
-
-    return await run_in_threadpool(
-        services.api.crud.Alerts().reset_alert, db_session, project, name
+        name,
+        auth_info,
+        db_session,
     )

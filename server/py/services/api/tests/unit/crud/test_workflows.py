@@ -195,7 +195,7 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
         params = dict(
             runner=runner, project=project, auth_info=mlrun.common.schemas.AuthInfo()
         )
-        if runner_class == server.api.crud.WorkflowRunners:
+        if runner_class == services.api.crud.WorkflowRunners:
             params.update(
                 dict(
                     workflow_request=mlrun.common.schemas.WorkflowRequest(

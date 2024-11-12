@@ -14,8 +14,8 @@
 #
 import os
 import uuid
-from typing import Optional
 from abc import abstractmethod
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -28,8 +28,8 @@ import mlrun.utils as mlrun_utils
 import mlrun.utils.singleton
 import mlrun_pipelines.common.models
 
-import framework.constants
 import framework.api.utils
+import framework.constants
 import framework.utils.notifications
 import framework.utils.notifications.notification_pusher
 import services.api.crud
@@ -139,7 +139,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest,
-        run_name: str = None,
+        run_name: Optional[str] = None,
     ) -> mlrun_model.RunObject:
         """
         Abstract method to prepare the run object.
@@ -160,12 +160,12 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         handler: str,
         parameters: dict,
         notifications: Optional[list[mlrun_model.Notification]] = None,
-        run_name: str = None,
-        is_context: bool = False,
-        labels: dict[str, str] = None,
-        scrape_metrics: bool = None,
-        output_path: str = None,
-        uid: str = None,
+        run_name: Optional[str] = None,
+        is_context: Optional[bool] = None,
+        labels: Optional[dict[str, str]] = None,
+        scrape_metrics: Optional[bool] = None,
+        output_path: Optional[str] = None,
+        uid: Optional[str] = None,
     ) -> mlrun_model.RunObject:
         """
         Create a RunObject with the given parameters.
@@ -270,7 +270,7 @@ class LoadRunner(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         self,
         project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
-        run_name: str = None,
+        run_name: Optional[str] = None,
         workflow_request: Optional[mlrun.common.schemas.WorkflowRequest] = None,
     ) -> mlrun_model.RunObject:
         """
@@ -438,8 +438,8 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         run_name: Optional[str] = None,
-        uid: str = None,
-        scrape_metrics: str = None,
+        uid: Optional[str] = None,
+        scrape_metrics: Optional[str] = None,
         url: str = "",
     ) -> mlrun_model.RunObject:
         """

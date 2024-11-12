@@ -20,10 +20,6 @@ import tempfile
 import typing
 import uuid
 
-import mlrun_pipelines.common.models
-import mlrun_pipelines.patcher
-import mlrun_pipelines.utils
-
 import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -1009,7 +1005,7 @@ def load_and_run_workflow(
     workflow_arguments: typing.Optional[dict[str, typing.Any]] = None,
     artifact_path: typing.Optional[str] = None,
     workflow_handler: typing.Optional[typing.Union[str, typing.Callable]] = None,
-    namespace: str = None,
+    namespace: typing.Optional[str] = None,
     sync: bool = False,
     dirty: bool = False,
     engine: typing.Optional[str] = None,
@@ -1221,13 +1217,13 @@ def handle_workflow_completion(
 
 def import_remote_project(
     context: mlrun.execution.MLClientCtx,
-    url: str = None,
+    url: typing.Optional[str] = None,
     project_name: str = "",
-    init_git: bool = None,
-    subpath: str = None,
+    init_git: typing.Optional[bool] = None,
+    subpath: typing.Optional[str] = None,
     clone: bool = False,
     save: bool = True,
-    project_context: str = None,
+    project_context: typing.Optional[str] = None,
 ):
     """
     This function loads a project from a given remote source.

@@ -137,5 +137,5 @@ class MailNotification(base.NotificationBase):
 
     @staticmethod
     def _set_param_default_value(params, key, default_value):
-        if type(params.get(key, "")) is str:
+        if isinstance(params.get(key, ""), str):
             params[key] = json.loads(params.get(key, default_value))

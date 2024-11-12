@@ -1024,6 +1024,8 @@ class TestMailNotification:
         "password": "pass",
         "email_addresses": "a@example.com",
         "use_tls": True,
+        "validate_certs": True,
+        "start_tls": False
     }
 
     @pytest.mark.parametrize(

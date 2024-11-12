@@ -40,6 +40,7 @@ import framework.db.base
 import framework.service
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
+import framework.utils.notifications.notification_pusher
 import services.api.crud
 import services.api.initial_data
 import services.api.runtime_handlers
@@ -835,9 +836,12 @@ class Service(framework.service.Service):
         self._logger.debug(
             "Got terminal runs with configured notifications", runs_amount=len(runs)
         )
-        notification_pusher = framework.utils.notification_pusher.RunNotificationPusher
-        framework.utils.notification_pusher.RunNotificationPusher(
-            unmasked_runs, notification_pusher.resolve_notifications_default_params()
+        run_notification_pusher_class = (
+            framework.utils.notifications.notification_pusher.RunNotificationPusher
+        )
+        run_notification_pusher_class(
+            unmasked_runs,
+            run_notification_pusher_class.resolve_notifications_default_params(),
         ).push()
 
     def _generate_event_on_failed_runs(

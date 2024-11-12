@@ -78,7 +78,7 @@ function_build = project.build_function(
     base_image="python:3.9",
     with_mlrun=False,
     force_build=True,
-    requirements=["mlrun==1.7.0-rc55"],
+    requirements=["mlrun==1.7.0"],
 )
 ```
 

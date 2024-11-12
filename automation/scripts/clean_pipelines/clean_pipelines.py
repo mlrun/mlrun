@@ -25,6 +25,8 @@ from mlrun_pipelines.models import PipelineRun
 
 import mlrun
 
+DELETION_LOG_INTERVAL = 100  # Interval for logging deletion progress
+
 
 def delete_project_old_pipelines(
     context: mlrun.MLClientCtx,
@@ -181,11 +183,14 @@ def _query_and_filter_runs(
 
 
 def _list_pipelines_runs(
-    kfp_client: Client, query_filter: str, page_token: str = "", sort_by: str = ""
+    kfp_client: Client,
+    query_filter: str,
+    page_token: str = "",
+    sort_by: str = "",
+    batch_size=1000,
 ) -> list[PipelineRun]:
     runs = []
-    batch_size = 1000  # Adjust batch size for progress updates
-    while page_token is not None:
+    while page_token:
         # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.
         # When we have a token from previous call, we will strip out the filter and use the token to continue
         # (the token contains the details of the filter that was used to create it)
@@ -380,7 +385,7 @@ def _perform_deletion(
             delete_func(item_id)
             deleted_count += 1
             deleted_items.append((name, item_id))
-            if deleted_count % 100 == 0:
+            if deleted_count % DELETION_LOG_INTERVAL == 0:
                 mlrun.utils.logger.info(
                     f"Deleted {deleted_count}/{total_items_amount} {item_type}s successfully"
                 )

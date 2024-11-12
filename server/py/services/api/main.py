@@ -46,9 +46,6 @@ import services.api.runtime_handlers
 import services.api.utils.db.partitioner
 import services.api.utils.time_window_tracker
 from framework.db.session import close_session, create_session
-from framework.utils.notifications.notification_pusher import (
-    resolve_notifications_default_params,
-)
 from framework.utils.periodic import (
     cancel_periodic_function,
     run_function_periodically,
@@ -838,9 +835,7 @@ class Service(framework.service.Service):
         self._logger.debug(
             "Got terminal runs with configured notifications", runs_amount=len(runs)
         )
-        notification_pusher = (
-            framework.utils.notification_pusher.RunNotificationPusher
-        )
+        notification_pusher = framework.utils.notification_pusher.RunNotificationPusher
         framework.utils.notification_pusher.RunNotificationPusher(
             unmasked_runs, notification_pusher.resolve_notifications_default_params()
         ).push()

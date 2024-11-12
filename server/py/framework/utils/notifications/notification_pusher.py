@@ -28,8 +28,8 @@ from mlrun.utils.notifications.notification_pusher import (
 )
 
 import framework.api.utils
-import framework.utils.singletons.k8s
 import framework.constants
+import framework.utils.singletons.k8s
 
 
 class RunNotificationPusher(NotificationPusher):

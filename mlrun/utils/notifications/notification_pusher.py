@@ -29,10 +29,10 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
+import mlrun.utils.notifications.notification.base as base
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
-import mlrun.utils.notifications.notification.base as base
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 

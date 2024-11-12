@@ -43,6 +43,7 @@ import services.api.initial_data
 import services.api.runtime_handlers
 import services.api.utils.clients.chief
 import services.api.utils.clients.log_collector
+import services.api.utils.db.partitioner
 import services.api.utils.notification_pusher
 import services.api.utils.time_window_tracker
 from framework.utils.periodic import (
@@ -163,6 +164,7 @@ class Service(framework.service.Service):
             == "enabled"
         ):
             self._start_periodic_project_summaries_calculation()
+        self._start_periodic_partition_management()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -545,6 +547,31 @@ class Service(framework.service.Service):
                 services.api.db.session.run_async_function_with_new_db_session,
                 services.api.crud.projects.Projects().refresh_project_resources_counters_cache,
             )
+
+    def _start_periodic_partition_management(self):
+        for table_name, retention_days in mlconf.object_retentions.items():
+            self._logger.info(
+                f"Starting periodic partition management for table {table_name}",
+                retention_days=retention_days,
+            )
+            interval_in_seconds = retention_days * 24 * 60 * 60
+            run_function_periodically(
+                interval_in_seconds,
+                f"{self._manage_partitions.__name__}_{table_name}",
+                False,
+                self._manage_partitions,
+                table_name=table_name,
+                retention_days=retention_days,
+            )
+
+    @staticmethod
+    async def _manage_partitions(table_name, retention_days):
+        await fastapi.concurrency.run_in_threadpool(
+            services.api.db.session.run_function_with_new_db_session,
+            services.api.utils.db.partitioner.MySQLPartitioner().create_and_drop_partitions,
+            table_name=table_name,
+            retention_days=retention_days,
+        )
 
     async def _start_periodic_stop_logs(
         self,

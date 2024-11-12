@@ -1938,12 +1938,6 @@ class SQLDB(DBInterface):
                 #  will need to understand how to display functions in UI, because if we do not remove the status here,
                 #  UI shows two function as `ready` which belong to the same Nuclio function
                 function_dict["status"] = None
-
-                # the unversioned uid is only a placeholder for tagged instances that are versioned.
-                # if another instance "took" the tag, we're left with an unversioned untagged instance
-                # don't list it
-                if function.uid.startswith(unversioned_tagged_object_uid_prefix):
-                    continue
             else:
                 function_dict["metadata"]["tag"] = function_tag
 
@@ -4830,6 +4824,15 @@ class SQLDB(DBInterface):
                 # Filter on the specific tag
                 query = query.filter(Function.Tag.name == tag)
 
+        # filter out untagged unversioned functions, or in other words:
+        # include only functions that are tagged OR their uid does not start with `unversioned-`
+        query = query.filter(
+            or_(
+                Function.Tag.name != NULL,
+                Function.uid.notlike(f"{unversioned_tagged_object_uid_prefix}%"),
+            )
+        )
+
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
         query = self._paginate_query(query, page, page_size)
@@ -5641,6 +5644,122 @@ class SQLDB(DBInterface):
             )
             for cooldown, notification in zip(cooldowns, notifications)
         ]
+
+    @staticmethod
+    def create_partitions(
+        session: Session,
+        table_name: str,
+        partitioning_information_list: list[tuple[str, str]],
+    ):
+        """
+        Creates partitions in the specified database table.
+
+        :param session: SQLAlchemy session for database connection.
+        :param table_name: Name of the table where partitions will be created.
+        :param partitioning_information_list: List of tuples, each containing:
+            - partition_name: The name for the partition.
+            - partition_value: The "LESS THAN" boundary value for the partition.
+        """
+        query = text("""
+            SELECT PARTITION_DESCRIPTION
+            FROM INFORMATION_SCHEMA.PARTITIONS
+            WHERE TABLE_NAME = :table_name
+        """)
+
+        existing_partition_values = {
+            row["PARTITION_DESCRIPTION"]
+            for row in session.execute(query, {"table_name": table_name})
+        }
+
+        # Filter partitions to add only those that are not in the table
+        new_partitions = [
+            f"PARTITION p{partition_name} VALUES LESS THAN ({partition_value})"
+            for partition_name, partition_value in partitioning_information_list
+            if str(partition_value) not in existing_partition_values
+        ]
+
+        if not new_partitions:
+            return
+
+        alter_table_template = f"""
+            ALTER TABLE {table_name}
+            ADD PARTITION (
+                {", ".join(new_partitions)}
+            );
+        """
+
+        # No commit needed here, as DDL commands in MySQL cause an implicit commit
+        session.execute(text(alter_table_template))
+
+    @staticmethod
+    def drop_partitions(
+        session: Session,
+        table_name: str,
+        cutoff_partition_name: str,
+    ):
+        """
+        Execute the drop operation for partitions older than the cutoff partition name.
+
+        :param session: SQLAlchemy session.
+        :param table_name: The name of the table with partitions.
+        :param cutoff_partition_name: The cutoff partition name for dropping old partitions.
+        """
+
+        # Retrieve partitions to drop as a list
+        partitions_to_drop = session.execute(
+            text("""
+            SELECT PARTITION_NAME
+            FROM information_schema.PARTITIONS
+            WHERE TABLE_NAME = :table_name
+              AND PARTITION_NAME < :cutoff_partition_name
+            """),
+            {"table_name": table_name, "cutoff_partition_name": cutoff_partition_name},
+        ).fetchall()
+
+        # Only proceed if there are partitions to drop
+        if partitions_to_drop:
+            # Aggregate partition names into a comma-separated string for the SQL query
+            partitions_to_drop_str = ", ".join(
+                [f"{partition[0]}" for partition in partitions_to_drop]
+            )
+
+            # Formulate the DROP PARTITION SQL statement
+            drop_sql = (
+                f"ALTER TABLE {table_name} DROP PARTITION {partitions_to_drop_str}"
+            )
+
+            # Log the partitions to be dropped for reference
+            logger.debug(
+                f"Dropping partitions for table {table_name}: {partitions_to_drop_str}"
+            )
+
+            # Execute the DROP PARTITION statement
+            # No commit needed here, as DDL commands in MySQL cause an implicit commit
+            session.execute(text(drop_sql))
+
+    @staticmethod
+    def get_partition_expression_for_table(
+        session: Session,
+        table_name: str,
+    ) -> str:
+        """
+        Returns partitioning expression for a given table
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table.
+
+        Output examples:
+        - month(`activation_time`)
+        - dayofmonth(`activation_time`)
+        - yearweek(`activation_time`, 1)
+        """
+        return session.execute(
+            text(
+                "SELECT PARTITION_EXPRESSION "
+                "FROM information_schema.PARTITIONS "
+                "WHERE TABLE_NAME = :table_name"
+            ),
+            {"table_name": table_name},
+        ).scalar()
 
     @staticmethod
     def _transform_alert_template_schema_to_record(

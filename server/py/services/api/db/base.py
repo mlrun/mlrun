@@ -898,6 +898,29 @@ class DBInterface(ABC):
     def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
         pass
 
+    @staticmethod
+    def create_partitions(
+        session,
+        table_name: str,
+        partitioning_information_list: list[tuple[str, str, str]],
+    ):
+        pass
+
+    @staticmethod
+    def drop_partitions(
+        session,
+        table_name: str,
+        cutoff_partition_name: str,
+    ):
+        pass
+
+    @staticmethod
+    def get_partition_expression_for_table(
+        session,
+        table_name: str,
+    ) -> str:
+        pass
+
     @abstractmethod
     def delete_alert(self, session, project: str, name: str):
         pass

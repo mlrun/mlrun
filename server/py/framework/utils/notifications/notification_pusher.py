@@ -20,9 +20,9 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
 import mlrun.utils.helpers
+import mlrun.utils.notifications.notification.base as base
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification import NotificationTypes
-import mlrun.utils.notifications.notification.base as base
 from mlrun.utils.notifications.notification_pusher import (
     NotificationPusher,
     _NotificationPusherBase,

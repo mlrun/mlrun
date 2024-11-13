@@ -1071,9 +1071,7 @@ class TestMailNotification:
                     "validate_certs": True,
                     "start_tls": False,
                 },
-                pytest.raises(
-                    ValueError, match="Invalid email address 'a' in 'email_addresses'"
-                ),
+                pytest.raises(ValueError, match="Invalid email address 'a'"),
             ),
             (
                 {
@@ -1105,7 +1103,7 @@ class TestMailNotification:
                 },
                 pytest.raises(
                     ValueError,
-                    match="Parameter 'email_addresses' must be a string or a list of strings",
+                    match="Email address '1' must be a string",
                 ),
             ),
             (
@@ -1120,9 +1118,7 @@ class TestMailNotification:
                     "validate_certs": True,
                     "start_tls": False,
                 },
-                pytest.raises(
-                    ValueError, match="Invalid email address 'aaa' in 'email_addresses'"
-                ),
+                pytest.raises(ValueError, match="Invalid email address 'aaa'"),
             ),
             (
                 {

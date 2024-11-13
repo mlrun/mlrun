@@ -56,7 +56,7 @@ class MailNotification(base.NotificationBase):
                     f"Parameter '{boolean_param}' must be a boolean for MailNotification"
                 )
 
-        cls._validate_email_addresses(params)
+        cls._validate_emails(params)
 
     async def push(
         self,
@@ -92,12 +92,8 @@ class MailNotification(base.NotificationBase):
         return params
 
     @classmethod
-    def _validate_email_addresses(cls, params):
-        sender_address = params["sender_address"]
-        if not re.match(mlrun.utils.regex.mail_regex, sender_address):
-            raise ValueError(
-                f"Invalid email address '{sender_address}' in 'sender_address'"
-            )
+    def _validate_emails(cls, params):
+        cls._validate_email_address(params["sender_address"])
 
         if not isinstance(params["email_addresses"], (str, list)):
             raise ValueError(
@@ -105,18 +101,18 @@ class MailNotification(base.NotificationBase):
             )
 
         email_addresses = params["email_addresses"]
-        if isinstance(params["email_addresses"], str):
-            email_addresses = params["email_addresses"].split(",")
+        if isinstance(email_addresses, str):
+            email_addresses = email_addresses.split(",")
         for email_address in email_addresses:
-            if not isinstance(email_address, str):
-                raise ValueError(
-                    "Parameter 'email_addresses' must be a string or a list of strings"
-                )
+            cls._validate_email_address(email_address)
 
-            if not re.match(mlrun.utils.regex.mail_regex, email_address):
-                raise ValueError(
-                    f"Invalid email address '{email_address}' in 'email_addresses'"
-                )
+    @classmethod
+    def _validate_email_address(cls, email_address):
+        if not isinstance(email_address, str):
+            raise ValueError(f"Email address '{email_address}' must be a string")
+
+        if not re.match(mlrun.utils.regex.mail_regex, email_address):
+            raise ValueError(f"Invalid email address '{email_address}'")
 
     @staticmethod
     async def _send_email(

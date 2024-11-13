@@ -46,7 +46,7 @@ class Pipelines(
     def list_pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        project: str,
         namespace: typing.Optional[str] = None,
         sort_by: str = "",
         page_token: str = "",
@@ -55,14 +55,10 @@ class Pipelines(
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> tuple[int, typing.Optional[int], list[dict]]:
-        if isinstance(project, list) and len(project) == 1:
-            project = project[0]
-
-        if (isinstance(project, list) or project != "*") and (page_token or page_size):
+        if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination"
             )
-
         if format_ == mlrun.common.formatters.PipelineFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
             # manifest status that includes the nodes section we use to generate the DAG.
@@ -72,8 +68,8 @@ class Pipelines(
             )
 
         kfp_client = self.initialize_kfp_client(namespace)
-        if isinstance(project, str):
-            # If no filter is provided and we're querying a single project,
+        if project != "*":
+            # If no filter is provided and the project is not "*",
             # automatically apply a filter to match runs where the project name
             # is a substring of the pipeline's name. This ensures that only pipelines
             # with the project name in their name are returned, helping narrow down the results.
@@ -131,17 +127,7 @@ class Pipelines(
             runs = [
                 mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []
             ]
-
-            if isinstance(project, list) and project:
-                project_runs = []
-                for run in runs:
-                    run_project = self.resolve_project_from_pipeline(run)
-                    if run_project in project:
-                        project_runs.append(run)
-                runs = project_runs
-
             runs = self._filter_runs_by_name(runs, name_contains)
-
             next_page_token = response.next_page_token
             # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
             # so don't pass it to the client in such case

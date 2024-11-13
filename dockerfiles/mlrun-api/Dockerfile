@@ -48,9 +48,8 @@ ADD https://astral.sh/uv/${MLRUN_UV_VERSION}/install.sh /uv-installer.sh
 RUN sh /uv-installer.sh && rm /uv-installer.sh
 
 ENV PATH="/root/.local/bin/:$PATH"
-
 ENV UV_SYSTEM_PYTHON=true
-
+ENV UV_REQUIRE_HASHES=true
 
 WORKDIR /mlrun
 

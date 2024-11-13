@@ -19,6 +19,7 @@ import unittest.mock
 from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
+import fastapi
 import httpx
 import pytest
 import pytest_asyncio
@@ -71,12 +72,12 @@ if str(tests_root_directory) in os.getcwd():
 
 
 @pytest.fixture()
-def app():
+def app() -> fastapi.FastAPI:
     yield daemon.app
 
 
 @pytest.fixture()
-def prefix():
+def prefix() -> str:
     yield daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 
 

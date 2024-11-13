@@ -27,7 +27,6 @@ class Daemon(framework.service.Daemon):
 
 
 daemon = Daemon(service_cls=services.alerts.main.Service)
-app = daemon.app
 
 
 # Overriding ``ServiceContainer`` with ``AlertsServiceContainer``:
@@ -38,3 +37,4 @@ class AlertsServiceContainer(containers.DeclarativeContainer):
 
 # Initialization must be after the service container override
 daemon.initialize()
+app = daemon.app

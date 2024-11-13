@@ -26,8 +26,6 @@ from sqlalchemy.orm import Session
 from mlrun.utils import logger
 from mlrun.utils.logger import Logger, create_logger
 
-from services.api.daemon import app
-
 
 class Handled1Error(Exception):
     pass
@@ -41,13 +39,11 @@ class UnhandledError(Exception):
     pass
 
 
-@app.exception_handler(Handled1Error)
 async def handler_returning_response(request: fastapi.Request, exc: Handled1Error):
     logger.warning("Handler caught Handled1Error exception, returning 204 response")
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@app.exception_handler(Handled2Error)
 async def handler_returning_http_exception(
     request: fastapi.Request, exc: Handled2Error
 ):
@@ -107,7 +103,15 @@ middleware_modes = [
 
 # must add it here since we're adding routes
 @pytest.fixture(params=middleware_modes)
-def client(request: pytest.FixtureRequest) -> Iterator[TestClient]:
+def client(
+    request: pytest.FixtureRequest, app: fastapi.FastAPI
+) -> Iterator[TestClient]:
+    app.add_exception_handler(Handled1Error, handler_returning_response)
+    app.add_exception_handler(Handled2Error, handler_returning_http_exception)
+
+    # TODO: This is a hack to remove the alerts app mount because it blocks the test router. Remove this when alerts is
+    #  properly mounted with "alerts" prefix
+    app.routes.pop()
     # save a copy of the middlewares. we would want to restore them once we're done with the test
     user_middleware = app.user_middleware.copy()
     try:

@@ -218,7 +218,7 @@ class Daemon(ABC):
         self._service.initialize()
 
     @property
-    def app(self):
+    def app(self) -> fastapi.FastAPI:
         return self._service.app
 
     @property

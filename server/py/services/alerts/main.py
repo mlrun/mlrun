@@ -176,6 +176,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
+        # TODO: Once alerts runs in its own pod - remove chief check
         if (
             mlrun.mlconf.httpdb.clusterization.role
             != mlrun.common.schemas.ClusterizationRole.chief
@@ -213,6 +214,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
+        # TODO: Once alerts runs in its own pod - remove chief check
         if (
             mlrun.mlconf.httpdb.clusterization.role
             != mlrun.common.schemas.ClusterizationRole.chief
@@ -259,6 +261,7 @@ class Service(framework.service.Service):
             )
             return
 
+        # TODO: Once alerts runs in its own pod - remove chief check
         if (
             mlrun.mlconf.httpdb.clusterization.role
             != mlrun.common.schemas.ClusterizationRole.chief

@@ -737,12 +737,9 @@ class Service(framework.service.Service):
             self._synchronize_with_chief_clusterization_spec.__name__
         )
 
-    async def _monitor_runs(
-        self,
-    ):
-        stale_runs = await fastapi.concurrency.run_in_threadpool(
-            framework.db.session.run_function_with_new_db_session,
-            self._monitor_runs_and_push_terminal_notifications,
+    async def _monitor_runs(self):
+        stale_runs = await framework.db.session.run_async_function_with_new_db_session(
+            self._monitor_runs_and_push_terminal_notifications
         )
         await self._abort_stale_runs(stale_runs)
 

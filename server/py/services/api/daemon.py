@@ -24,8 +24,8 @@ class Daemon(framework.service.Daemon):
     def __init__(self, service_cls: framework.service.Service.__class__):
         self._service = service_cls()
 
-    def initialize(self):
-        self._service.initialize()
+    # def initialize(self):
+    #     self._service.initialize()
 
     @property
     def service(self) -> services.api.main.Service:
@@ -36,6 +36,6 @@ daemon = Daemon(service_cls=services.api.main.Service)
 daemon.initialize()
 app = daemon.app
 
-# Mount the alerts application until we have a service hydra
+# Mount the alerts application until we have service routing/tunneling
 app.mount("/", alerts_daemon.app)
 # TODO: Create a container, override ServiceContainer and implement forwarding requests to alerts service

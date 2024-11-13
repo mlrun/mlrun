@@ -16,15 +16,16 @@ import json
 import typing
 from time import sleep
 
-import mlrun_pipelines
 import pandas as pd
 import pytz
 from dateutil import parser
 from kfp import Client
-from mlrun_pipelines.models import PipelineRun
 
 import mlrun
+import mlrun_pipelines
+from mlrun_pipelines.models import PipelineRun
 
+# Interval for logging deletion progress
 DELETION_LOG_INTERVAL = 100
 
 

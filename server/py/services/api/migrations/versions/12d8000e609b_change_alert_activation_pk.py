@@ -36,20 +36,25 @@ def upgrade():
     op.create_primary_key(
         "_alert_activation_uc", "alert_activation", ["id", "activation_time"]
     )
-
-    op.execute("""
-        ALTER TABLE alert_activation
-        MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT
-    """)
+    # Only add AUTO_INCREMENT if not using SQLite
+    conn = op.get_bind()
+    if conn.dialect.name != "sqlite":
+        op.execute("""
+            ALTER TABLE alert_activation
+            MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT
+        """)
 
     # ### end Alembic commands ###
 
 
 def downgrade():
-    op.execute("""
-                ALTER TABLE alert_activation
-                MODIFY COLUMN id INT NOT NULL
-            """)
+    # Revert AUTO_INCREMENT setting only if not SQLite
+    conn = op.get_bind()
+    if conn.dialect.name != "sqlite":
+        op.execute("""
+                    ALTER TABLE alert_activation
+                    MODIFY COLUMN id INT NOT NULL
+                """)
 
     op.drop_constraint("_alert_activation_uc", "alert_activation", type_="primary")
     op.create_primary_key(

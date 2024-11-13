@@ -855,7 +855,7 @@ with warnings.catch_warnings():
             Index("ix_alert_activation_activation_time", "activation_time"),
         )
 
-        id = Column(Integer, autoincrement=True)
+        id = Column(Integer)
         activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(

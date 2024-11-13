@@ -5911,7 +5911,6 @@ class SQLDB(DBInterface):
             entity_id = alert_data.entities.ids[0]
 
         alert_activation_record = AlertActivation(
-            id=alert_data.id,
             name=alert_data.name,
             project=alert_data.project,
             activation_time=event_data.timestamp,
@@ -5948,7 +5947,6 @@ class SQLDB(DBInterface):
             return None
 
         alert_activation = mlrun.common.schemas.AlertActivation(
-            id=alert_activation_record.id,
             name=alert_activation_record.name,
             project=alert_activation_record.project,
             severity=alert_activation_record.severity,

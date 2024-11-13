@@ -40,7 +40,7 @@ fn.set_envs(file_path="env.txt")
 
 Some runtimes can scale horizontally, configured either as a number of replicas:
 ```python
-training_function = mlrun.code_to_function(
+training_function = mlrun.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -80,7 +80,7 @@ See more details in the [Kubernetes documentation: Resource Management for Pods 
 Examples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
 ```python
-training_function = mlrun.code_to_function(
+training_function = mlrun.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -170,57 +170,55 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 ## Preemption mode: Spot vs. On-demand nodes
 
-Spot nodes give you access to spare computing capacity
-When running ML functions you might want to control whether to run on spot nodes or on-demand nodes. Preemption mode controls 
-whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. 
+Spot (preemptible) nodes give you access to spare computing capacity from your cloud environment. 
+With Spot instances, you request capacity from specific availability zones, though it is 
+dependent on spare computing capacity. This is a good choice if you can be flexible about when your applications runs 
+and if your applications can be interrupted. Since spot instances run when there is available capacity, the cost is significantly lower. 
 
-Preemption mode uses [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration) to enforce the mode selected.  
+On-demand instances give you full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
+reboot or terminate it. On-demand instances have a fixed (higher) price and are always available. 
 
-### Why preemption mode?
-
-On-demand instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
-reboot, or terminate it. With Spot instances, you request capacity from specific availability zones, though it is
-susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
-and if your applications can be interrupted. 
-
-Here are some questions to consider when choosing the type of node:
-
-- Is the function mission critical and must be operational at all times?
-- Is the function a stateful function or stateless function?
-- Can the function recover from unexpected failure?
-- Is this a job that should run only when there are available inexpensive resources?
-
-```{admonition} Important
-When an MLRun job is running on a spot node and it fails, it won't get back up again. However, if Nuclio goes down due to a spot issue, it 
-is brought up by Kubernetes.
-```
+You can control whether to run your MLRun functions on spot nodes or on-demand nodes. 
+MLRun supports spot nodes for all functions.
 
 Kubernetes has a few methods for configuring which nodes to run on. To get a deeper understanding, see 
 [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
 Also, you must understand the configuration of the spot nodes as specified by the cloud provider.
 
-### Stateless and Stateful Applications 
+Preemption mode uses [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration) to enforce the selected mode. 
+
+### Choosing the node type
+
 When deploying your MLRun jobs to specific nodes, take into consideration that on-demand 
 nodes are designed to run stateful applications while spot nodes are designed for stateless applications. 
-MLRun jobs are more stateful by nature. An MLRun job that is assigned to run on a spot node might be subject to interruption; 
-it would have to be designed so that the job/function state will be saved when scaling to zero.
+MLRun jobs are more stateful by nature. An MLRun job that is assigned to run on a spot node might be subject to interruption. 
+The job must be designed so that the job/function state will be saved when scaling to zero.
 
+Here are some questions to consider when choosing the type of node:
+- Is the function mission critical and must be operational at all times?
+- Is the function a stateful function or stateless function?
+- Can the function recover from unexpected failure?
+- Is this a job that should run only when there are available, inexpensive, resources?
+
+```{admonition} Important
+- When an MLRun job is running on a spot node and it fails, it won't get back up again. However, if Nuclio goes down due to a spot issue, Kubernetes will bring it up.
+- Cloud providers use interruption handlers to warn before terminating a spot instance. MLRun does not currently support interruption handlers. 
+```
 ### Supported preemption modes
 
-Preemption mode has these values:
+The MLRun parameter {py:meth}`mlrun.runtimes.KubeResource.with_preemption_mode` controls the node type, and has these values:
 - allow: The function pod can run on a spot node if one is available.
-- constrain: The function pod only runs on spot nodes, and does not run if none is available. 
+- constrain: The function pod only runs on spot nodes and does not run if none is available. 
 - prevent: Default. The function pod cannot run on a spot node. 
-- none: No preemptible configuration is applied to the function
+- none: The function has no preemptible configuration applied to it.
 
-To change the default function preemption mode, it is required to override the api configuration 
-(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environment variable to either one of the above modes).
+To change the default function preemption mode, you need to override the API configuration 
+(and specifically, "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environment variable to either one of the above modes).
 
 ### SDK configuration
 
-Configure preemption mode by adding the {py:meth}`~mlrun.runtimes.KubeResource.with_preemption_mode` parameter,  specifying a mode from the list of values above. <br>
+Configure preemption mode by adding the {py:meth}`~mlrun.runtimes.KubeResource.with_preemption_mode` parameter, specifying a mode from the list of values above. <br>
 This example illustrates a function that cannot be scheduled on preemptible nodes:
-
 
 ```
 # Can be scheduled on a preemptible (spot) node
@@ -233,22 +231,21 @@ And another function that can only be scheduled on preemptible nodes:
 import mlrun
 import os
 
-train_fn = mlrun.code_to_function('training', 
+train_fn = mlrun.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_preemption_mode(mode="prevent") 
 train_fn.run(inputs={"dataset": my_data})
 ```
 
-See {py:meth}`~KubeResource.with_preemption_mode`.
-
-Alternatively, you can specify the preemption using `with_priority_class` and `with_node_selection` parameters. This example specifies that 
+Alternatively, you can specify the preemption using {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class` and 
+{py:meth}`~mlrun.runtimes.KubeResource.with_node_selection` parameters. This example specifies that 
 the pod/function runs only on non-preemptible nodes:
 
 ```
 import mlrun
 import os
-train_fn = mlrun.code_to_function('training', 
+train_fn = mlrun.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_preemption_mode(mode="prevent") 
@@ -258,10 +255,6 @@ fn.with_priority_class(name="default-priority")
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
 
 ```
-
-See:
-- {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class`
-- {py:meth}`~mlrun.runtimes.KubeResource.with_node_selection`
 
 ### UI configuration
 
@@ -289,7 +282,7 @@ For example:
 ```
 import mlrun
 import os
-train_fn = mlrun.code_to_function('training', 
+train_fn = mlrun.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name={value})

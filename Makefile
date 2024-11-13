@@ -34,6 +34,7 @@ MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 24.2
+MLRUN_UV_VERSION ?= 0.5.1
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -776,9 +777,19 @@ ifdef MLRUN_DOCKER_CACHE_FROM_TAG
     MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG)
 endif
 
+.PHONY: verify-uv-version
+verify-uv-version:
+	@{ \
+	uv_version=$$(uv version --output-format json | jq -r .version); \
+	result=$$(pysemver compare $$uv_version $(MLRUN_UV_VERSION)); \
+	if [ "$$result" -eq -1 ]; then \
+	  echo "Error: The running uv version ($$uv_version) is outdated. Upgrade uv to version $(MLRUN_UV_VERSION)."; \
+	  exit 1; \
+	fi; \
+	}
 
 .PHONY: update-mlrun-api-deps
-update-api-deps: ## Update mlrun-api locked requirements file
+update-api-deps: verify-uv-version ## Update mlrun-api locked requirements file
 	uv pip compile \
 	requirements.txt \
 	extras-requirements.txt \

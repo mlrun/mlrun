@@ -16,6 +16,7 @@ import codecs
 import datetime
 import sys
 import time
+import typing
 from collections import namedtuple
 from os import environ
 from pathlib import Path
@@ -1203,7 +1204,7 @@ def _assert_projects(expected_project, project):
     assert expected_project.spec.desired_state == project.status.state
 
 
-def _store_functions(create_server, num_functions):
+def _store_functions(create_server, num_functions: int) -> tuple[HTTPRunDB, str]:
     db, project_name = _setup_project_and_db(create_server)
     for i in range(num_functions):
         name = f"function-{i}"
@@ -1213,7 +1214,7 @@ def _store_functions(create_server, num_functions):
     return db, project_name
 
 
-def _store_artifacts(create_server, num_artifacts):
+def _store_artifacts(create_server, num_artifacts: int) -> tuple[HTTPRunDB, str]:
     db, project_name = _setup_project_and_db(create_server)
 
     for i in range(num_artifacts):
@@ -1226,7 +1227,7 @@ def _store_artifacts(create_server, num_artifacts):
     return db, project_name
 
 
-def _store_runs(create_server, num_runs):
+def _store_runs(create_server, num_runs: int) -> tuple[HTTPRunDB, str]:
     db, project_name = _setup_project_and_db(create_server)
 
     run_as_dict = RunObject().to_dict()
@@ -1239,7 +1240,9 @@ def _store_runs(create_server, num_runs):
     return db, project_name
 
 
-def _setup_project_and_db(create_server, project_name="my-project"):
+def _setup_project_and_db(
+    create_server, project_name: str = "my-project"
+) -> tuple[HTTPRunDB, str]:
     _, db = _configure_run_db_server(create_server)
     project_obj = mlrun.new_project(project_name, save=False)
     db.create_project(project_obj)
@@ -1256,7 +1259,9 @@ def _assert_list_response(
     assert response[0]["metadata"].get(identifier_name) == expected_first_result_name
 
 
-def _retrieve_all_items_with_pagination(project_name, page_size, paginated_list_fn):
+def _retrieve_all_items_with_pagination(
+    project_name: str, page_size: int, paginated_list_fn: typing.Callable
+) -> list:
     items = []
     token = None
     while True:

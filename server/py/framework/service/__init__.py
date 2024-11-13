@@ -34,11 +34,10 @@ import framework.utils.periodic
 
 
 class Service(ABC):
-    service_name = "api"
+    service_name = None
 
     def __init__(self):
         # TODO: make the prefixes and service name configurable
-
         self.SERVICE_PREFIX = f"/{self.service_name}"
         self.BASE_VERSIONED_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v1"
         self.V2_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v2"

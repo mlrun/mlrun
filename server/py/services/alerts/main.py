@@ -43,7 +43,9 @@ from framework.routers import alerts, auth, healthz
 
 
 class Service(framework.service.Service):
-    service_name = "alerts"
+    # TODO: Change service name to alerts once they are fully seperated - this allows to mount the application on the
+    #  api Router without implementing tunneling
+    service_name = "api"
 
     async def store_alert(
         self,

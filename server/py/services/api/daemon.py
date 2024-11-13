@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import framework.service
+import services.api.main
 
 # The alerts import is to initialize the alerts daemon so that both services will run on the same instance
 # It shall be removed once they are completely split
-import services.alerts.daemon
-import services.api.main
+from services.alerts.daemon import daemon as alerts_daemon
 
 
 class Daemon(framework.service.Daemon):
@@ -36,4 +36,6 @@ daemon = Daemon(service_cls=services.api.main.Service)
 daemon.initialize()
 app = daemon.app
 
+# Mount the alerts application until we have a service hydra
+app.mount("/", alerts_daemon.app)
 # TODO: Create a container, override ServiceContainer and implement forwarding requests to alerts service

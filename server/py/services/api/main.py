@@ -74,6 +74,8 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
+    service_name = "api"
+
     async def move_service_to_online(self):
         self._logger.info("Moving api to online")
 

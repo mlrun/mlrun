@@ -33,6 +33,7 @@ import framework.utils.background_tasks
 import framework.utils.clients.nuclio
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
+import services.alerts.crud
 import services.api.crud
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio
@@ -200,7 +201,8 @@ class Projects(
             "Deleting project alert events",
             project_name=name,
         )
-        services.api.crud.Events().delete_project_alert_events(name)
+        # TODO: Forward to alerts service
+        services.alerts.crud.Events().delete_project_alert_events(name)
 
         # get model monitoring application names, important for deleting model monitoring resources
         model_monitoring_deployment = (

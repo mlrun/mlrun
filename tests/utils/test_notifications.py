@@ -1039,6 +1039,23 @@ class TestMailNotification:
                     "username": "user",
                     "password": "pass",
                     "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "b@example.com"],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
                 },
                 does_not_raise(),
             ),
@@ -1050,19 +1067,13 @@ class TestMailNotification:
                     "username": "user",
                     "password": "pass",
                     "email_addresses": "a,b",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
                 },
-                pytest.raises(ValueError),
-            ),
-            (
-                {
-                    "server_host": "smtp.gmail.com",
-                    "server_port": 587,
-                    "sender_address": "sender@example.com",
-                    "username": "user",
-                    "password": "pass",
-                    "email_addresses": ["a@example.com", "b@example.com"],
-                },
-                does_not_raise(),
+                pytest.raises(
+                    ValueError, match="Invalid email address 'a' in 'email_addresses'"
+                ),
             ),
             (
                 {
@@ -1071,8 +1082,14 @@ class TestMailNotification:
                     "username": "user",
                     "password": "pass",
                     "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
                 },
-                pytest.raises(ValueError),
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'server_host' is required for MailNotification",
+                ),
             ),
             (
                 {
@@ -1082,8 +1099,14 @@ class TestMailNotification:
                     "username": "user",
                     "password": "pass",
                     "email_addresses": ["a@example.com", 1],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
                 },
-                pytest.raises(ValueError),
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'email_addresses' must be a string or a list of strings",
+                ),
             ),
             (
                 {
@@ -1093,8 +1116,30 @@ class TestMailNotification:
                     "username": "user",
                     "password": "pass",
                     "email_addresses": ["a@example.com", "aaa"],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
                 },
-                pytest.raises(ValueError),
+                pytest.raises(
+                    ValueError, match="Invalid email address 'aaa' in 'email_addresses'"
+                ),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "aaa"],
+                    "use_tls": "True",
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'use_tls' must be a boolean for MailNotification",
+                ),
             ),
         ],
     )

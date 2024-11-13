@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import asyncio
-import json
 import typing
 from copy import deepcopy
 
@@ -146,13 +145,3 @@ class NotificationBase:
             overview_type = "Model endpoint"
 
         return overview_type, url
-
-    @staticmethod
-    def _load_json_from_str_param_with_default_json_value(
-        params, key, default_json_value
-    ):
-        if isinstance(params.get(key, ""), str):
-            try:
-                params[key] = json.loads(params.get(key, default_json_value))
-            except json.JSONDecodeError:
-                params[key] = json.loads(default_json_value)

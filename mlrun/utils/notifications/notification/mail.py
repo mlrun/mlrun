@@ -31,6 +31,8 @@ class MailNotification(base.NotificationBase):
     API/Client notification for sending run statuses as a mail message
     """
 
+    boolean_params = ["use_tls", "start_tls", "validate_certs"]
+
     required_params = [
         "server_host",
         "server_port",
@@ -38,7 +40,7 @@ class MailNotification(base.NotificationBase):
         "username",
         "password",
         "email_addresses",
-    ]
+    ] + boolean_params
 
     @classmethod
     def validate_params(cls, params):
@@ -48,24 +50,13 @@ class MailNotification(base.NotificationBase):
                     f"Parameter '{required_param}' is required for MailNotification"
                 )
 
-        if not isinstance(params["email_addresses"], (str, list)):
-            raise ValueError(
-                "Parameter 'email_addresses' must be a string or a list of strings"
-            )
-        email_addresses = params["email_addresses"]
-        if isinstance(params["email_addresses"], str):
-            email_addresses = params["email_addresses"].split(",")
-
-        for email_address in email_addresses:
-            if not isinstance(email_address, str):
+        for boolean_param in cls.boolean_params:
+            if not isinstance(params.get(boolean_param, None), bool):
                 raise ValueError(
-                    "Parameter 'email_addresses' must be a string or a list of strings"
+                    f"Parameter '{boolean_param}' must be a boolean for MailNotification"
                 )
 
-            if not re.match(mlrun.utils.regex.mail_regex, email_address):
-                raise ValueError(
-                    f"Invalid email address '{email_address}' in 'email_addresses'"
-                )
+        cls._validate_email_addresses(params)
 
     async def push(
         self,
@@ -81,6 +72,51 @@ class MailNotification(base.NotificationBase):
         self.params.setdefault("subject", f"[{severity}] {message}")
         self.params.setdefault("body", message)
         await self._send_email(**self.params)
+
+    @classmethod
+    def enrich_default_params(
+        cls, params: dict, default_params: typing.Optional[dict] = None
+    ) -> dict:
+        params = super().enrich_default_params(params, default_params)
+        params.setdefault("use_tls", True)
+        params.setdefault("start_tls", False)
+        params.setdefault("validate_certs", True)
+        params.setdefault("server_port", DEFAULT_SMTP_PORT)
+
+        default_mail_address = params.pop("default_email_addresses", "")
+        email_addresses = params.get("email_addresses", default_mail_address)
+        if isinstance(email_addresses, list):
+            email_addresses = ",".join(email_addresses)
+        params["email_addresses"] = email_addresses
+
+        return params
+
+    @classmethod
+    def _validate_email_addresses(cls, params):
+        sender_address = params["sender_address"]
+        if not re.match(mlrun.utils.regex.mail_regex, sender_address):
+            raise ValueError(
+                f"Invalid email address '{sender_address}' in 'sender_address'"
+            )
+
+        if not isinstance(params["email_addresses"], (str, list)):
+            raise ValueError(
+                "Parameter 'email_addresses' must be a string or a list of strings"
+            )
+
+        email_addresses = params["email_addresses"]
+        if isinstance(params["email_addresses"], str):
+            email_addresses = params["email_addresses"].split(",")
+        for email_address in email_addresses:
+            if not isinstance(email_address, str):
+                raise ValueError(
+                    "Parameter 'email_addresses' must be a string or a list of strings"
+                )
+
+            if not re.match(mlrun.utils.regex.mail_regex, email_address):
+                raise ValueError(
+                    f"Invalid email address '{email_address}' in 'email_addresses'"
+                )
 
     @staticmethod
     async def _send_email(
@@ -115,27 +151,3 @@ class MailNotification(base.NotificationBase):
             validate_certs=validate_certs,
             start_tls=start_tls,
         )
-
-    @classmethod
-    def enrich_default_params(
-        cls, params: dict, default_params: typing.Optional[dict] = None
-    ) -> dict:
-        params = super().enrich_default_params(params, default_params)
-
-        cls._load_json_from_str_param_with_default_json_value(params, "use_tls", "true")
-        cls._load_json_from_str_param_with_default_json_value(
-            params, "start_tls", "false"
-        )
-        cls._load_json_from_str_param_with_default_json_value(
-            params, "validate_certs", "true"
-        )
-
-        params.setdefault("server_port", DEFAULT_SMTP_PORT)
-
-        default_mail_address = params.pop("default_email_addresses", "")
-        email_addresses = params.get("email_addresses", default_mail_address)
-        if isinstance(email_addresses, list):
-            email_addresses = ",".join(email_addresses)
-        params["email_addresses"] = email_addresses
-
-        return params

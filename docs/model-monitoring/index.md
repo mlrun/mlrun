@@ -1,16 +1,17 @@
 (model-monitoring-des)=
-# Model monitoring description
+# Model monitoring architecture
 
 **In this section**
-- [Architecture](#architecture)
+- [Overview](#overview)
+- [APIs](#apis)
 - [Model and model monitoring endpoints](#model-and-model-monitoring-endpoints)
-- [Streaming platforms and credentials](#streaming-platforms-and-credentials)
+- [Streaming platforms and credentials](#selecting-the-streaming-and-tsdb-platforms)
 - [Model monitoring applications](#model-monitoring-applications)
 - [Multi-port predictions](#multi-port-predictions)
 - [Batch inputs](#batch-inputs)
 - [Alerts and notifications](#alerts-and-notifications)
 
-## Architecture
+## Overview
 
 <img src="../_static/images/model-monitoring.png" width="900" >
 
@@ -32,7 +33,23 @@ The stream function examines the log entry, processes it into statistics which a
 The monitoring stream function writes the Parquet files using a basic storey ParquetTarget. Additionally, there is a monitoring feature set that refers 
 to the same target. 
 
-## Model and model monitoring endpoints 
+## APIs
+
+The model monitoring APIs are configured per project. The APIs are:
+
+- {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; Brings up the controller, writer and stream realtime functions, and schedules the controller according to the `base_period`. 
+You can also deploy the default histogram-based data drift application when you enable model monitoring.
+- {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; Creates a monitoring function object without setting it to the project, used for user-apps and troubleshooting.
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or sets a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
+- {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
+- {py:meth}`~mlrun.projects.MlrunProject.remove_model_monitoring_function` &mdash; Removes the specified model-monitoring-app function from the project and from the DB.
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. 
+- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the controller. 
+- {py:meth}`~mlrun.projects.MlrunProject.update_model_monitoring_controller`  &mdash; Redeploys the model monitoring application controller functions.
+- {py:meth}`~mlrun.config.Config.get_model_monitoring_file_target_path` &mdash; Gets the full path from the configuration based on the provided project and kind.
+
+
+## Model and model monitoring endpoints
 
 For each model that is served in a model serving function, there is a model endpoint. The model endpoint is associated 
 with a feature set that manages the model endpoint statistics. See {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`.
@@ -74,14 +91,15 @@ tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.).
 * The average of TVD & Hellinger as the general drift result.
 * Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
 
-You can create your own model monitoring applications, for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 
-MLRun includes a built-in class, `EvidentlyModelMonitoringApplicationBase`, to integrate [Evidently](https://github.com/evidentlyai/evidently) 
-as an MLRun function and create MLRun artifacts. See an example in {ref}`realtime-monitor-drift-tutor`. 
+You can create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 
+See {ref}`mm-applications`. </br>
+You can also integrate [Evidently](https://github.com/evidentlyai/evidently) 
+as an MLRun function and create MLRun artifacts, using the built-in class `EvidentlyModelMonitoringApplicationBase`. See an example in {ref}`realtime-monitor-drift-tutor`. 
 
-Projects are used to group functions that use the same model monitoring application. You first need to create a project for aspecific application. 
+Projects are used to group functions that use the same model monitoring application. You first need to create a project for a specific application. 
 Then you disable the default app, enable your customer app, and create and run the functions. 
 
-The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. See {ref}`model-monitoring`.
+The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. 
 
 ## Multi-port predictions
 
@@ -106,7 +124,7 @@ Processing data in batches allows for parallel computation, significantly speedi
 important for large-scale models that require substantial computational resources. Batch inputs are used with CPUs and GPUs. For gen AI models, 
 batch input is typically a list of prompts. For classic ML models, batch input is a list of features.
 
-See an example of batch input in the [Serving pre-trained ML/DL models](../tutorials/03-model-serving.html#create-and-test-the-serving-function) tutorial.
+See an example of batch input in the [Serving pre-trained ML/DL models](../tutorials/03-model-serving.ipynb#create-and-test-the-serving-function) tutorial.
 
 ## Alerts and notifications
 

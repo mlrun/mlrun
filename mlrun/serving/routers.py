@@ -46,13 +46,13 @@ class BaseModelRouter(RouterToDict):
     def __init__(
         self,
         context=None,
-        name: str = None,
+        name: typing.Optional[str] = None,
         routes=None,
-        protocol: str = None,
-        url_prefix: str = None,
-        health_prefix: str = None,
-        input_path: str = None,
-        result_path: str = None,
+        protocol: typing.Optional[str] = None,
+        url_prefix: typing.Optional[str] = None,
+        health_prefix: typing.Optional[str] = None,
+        input_path: typing.Optional[str] = None,
+        result_path: typing.Optional[str] = None,
         **kwargs,
     ):
         """Model Serving Router, route between child models
@@ -249,11 +249,11 @@ class ParallelRun(BaseModelRouter):
     def __init__(
         self,
         context=None,
-        name: str = None,
+        name: typing.Optional[str] = None,
         routes=None,
-        protocol: str = None,
-        url_prefix: str = None,
-        health_prefix: str = None,
+        protocol: typing.Optional[str] = None,
+        url_prefix: typing.Optional[str] = None,
+        health_prefix: typing.Optional[str] = None,
         extend_event=None,
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         **kwargs,
@@ -481,16 +481,17 @@ class VotingEnsemble(ParallelRun):
     def __init__(
         self,
         context=None,
-        name: str = None,
+        name: typing.Optional[str] = None,
         routes=None,
-        protocol: str = None,
-        url_prefix: str = None,
-        health_prefix: str = None,
-        vote_type: str = None,
-        weights: dict[str, float] = None,
+        protocol: typing.Optional[str] = None,
+        url_prefix: typing.Optional[str] = None,
+        health_prefix: typing.Optional[str] = None,
+        vote_type: typing.Optional[str] = None,
+        weights: typing.Optional[dict[str, float]] = None,
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         format_response_with_col_name_flag: bool = False,
         prediction_col_name: str = "prediction",
+        shard_by_endpoint: typing.Optional[bool] = None,
         **kwargs,
     ):
         """Voting Ensemble
@@ -580,6 +581,8 @@ class VotingEnsemble(ParallelRun):
                               `{id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}`
                               the prediction_col_name should be `prediction`.
                               by default, `prediction`
+        :param shard_by_endpoint: whether to use the endpoint as the partition/sharding key when writing to model
+                                  monitoring stream. Defaults to True.
         :param kwargs:        extra arguments
         """
         super().__init__(
@@ -606,6 +609,7 @@ class VotingEnsemble(ParallelRun):
         self.prediction_col_name = prediction_col_name or "prediction"
         self.format_response_with_col_name_flag = format_response_with_col_name_flag
         self.model_endpoint_uid = None
+        self.shard_by_endpoint = shard_by_endpoint
 
     def post_init(self, mode="sync"):
         server = getattr(self.context, "_server", None) or getattr(
@@ -907,7 +911,12 @@ class VotingEnsemble(ParallelRun):
         if self._model_logger and self.log_router:
             if "id" not in request:
                 request["id"] = response.body["id"]
-            self._model_logger.push(start, request, response.body)
+            partition_key = (
+                self.model_endpoint_uid if self.shard_by_endpoint is not False else None
+            )
+            self._model_logger.push(
+                start, request, response.body, partition_key=partition_key
+            )
         event.body = _update_result_body(
             self._result_path, original_body, response.body if response else None
         )
@@ -1121,13 +1130,13 @@ class EnrichmentModelRouter(ModelRouter):
     def __init__(
         self,
         context=None,
-        name: str = None,
+        name: typing.Optional[str] = None,
         routes=None,
-        protocol: str = None,
-        url_prefix: str = None,
-        health_prefix: str = None,
+        protocol: typing.Optional[str] = None,
+        url_prefix: typing.Optional[str] = None,
+        health_prefix: typing.Optional[str] = None,
         feature_vector_uri: str = "",
-        impute_policy: dict = None,
+        impute_policy: typing.Optional[dict] = None,
         **kwargs,
     ):
         """Model router with feature enrichment (from the feature store)
@@ -1202,16 +1211,16 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
     def __init__(
         self,
         context=None,
-        name: str = None,
+        name: typing.Optional[str] = None,
         routes=None,
         protocol=None,
-        url_prefix: str = None,
-        health_prefix: str = None,
-        vote_type: str = None,
+        url_prefix: typing.Optional[str] = None,
+        health_prefix: typing.Optional[str] = None,
+        vote_type: typing.Optional[str] = None,
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
-        prediction_col_name: str = None,
+        prediction_col_name: typing.Optional[str] = None,
         feature_vector_uri: str = "",
-        impute_policy: dict = None,
+        impute_policy: typing.Optional[dict] = None,
         **kwargs,
     ):
         """Voting Ensemble with feature enrichment (from the feature store)

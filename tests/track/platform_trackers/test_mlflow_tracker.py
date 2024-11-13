@@ -15,6 +15,7 @@
 import pathlib
 import tempfile
 from random import randint, random
+from typing import Optional
 
 import lightgbm as lgb
 import mlflow
@@ -333,7 +334,7 @@ def test_track_run_no_handler(rundb_mock, run_name):
         # Mlflow creates a dir to log the run, this makes it in the tmpdir we create
         trainer_run = func.run(
             name=f"{run_name}_no_handler",
-            project=project,
+            project=project.name,
             artifact_path=test_directory,
             params={"tracking_uri": test_directory},
             local=True,
@@ -537,7 +538,7 @@ def test_import_artifact(rundb_mock, handler):
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
-def _validate_run(run: mlrun.run, run_id: str = None):
+def _validate_run(run: mlrun.run, run_id: Optional[str] = None):
     # in order to tell mlflow where to look for logged run for comparison
     client = mlflow.MlflowClient()
     if run_id:

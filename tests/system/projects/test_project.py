@@ -14,7 +14,6 @@
 #
 import io
 import os
-import pathlib
 import re
 import shutil
 import sys
@@ -22,7 +21,6 @@ import time
 from sys import executable
 
 import igz_mgmt
-import mlrun_pipelines.common.models
 import pandas as pd
 import pytest
 from kfp import dsl
@@ -32,6 +30,7 @@ import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.logger
+import mlrun_pipelines.common.models
 import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.artifacts import Artifact
 from mlrun.common.runtimes.constants import RunStates
@@ -87,13 +86,6 @@ class TestProject(TestMLRunSystem):
         )
         for name in self.custom_project_names_to_delete:
             self._delete_test_project(name)
-
-    @property
-    def assets_path(self):
-        return (
-            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / "assets"
-        )
 
     def _create_project(
         self, project_name, with_repo=False, overwrite=False
@@ -530,7 +522,7 @@ class TestProject(TestMLRunSystem):
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
         for secret_name, env_var_name in project._secrets.get_k8s_secrets().items():
-            k8s_secret: V1Secret = pytest.Session.kube_client.read_namespaced_secret(
+            k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
                 name=secret_name,
                 namespace="default-tenant",
             )

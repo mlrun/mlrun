@@ -41,9 +41,9 @@ class Entity(ModelObj):
 
     def __init__(
         self,
-        name: str = None,
+        name: Optional[str] = None,
         value_type: Union[ValueType, str] = None,
-        description: str = None,
+        description: Optional[str] = None,
         labels: Optional[dict[str, str]] = None,
     ):
         """data entity (index key)
@@ -80,13 +80,13 @@ class Feature(ModelObj):
     def __init__(
         self,
         value_type: Union[ValueType, str] = None,
-        dims: list[int] = None,
-        description: str = None,
-        aggregate: bool = None,
-        name: str = None,
+        dims: Optional[list[int]] = None,
+        description: Optional[str] = None,
+        aggregate: Optional[bool] = None,
+        name: Optional[str] = None,
         validator=None,
-        default: str = None,
-        labels: dict[str, str] = None,
+        default: Optional[str] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         """data feature
 
@@ -100,7 +100,8 @@ class Feature(ModelObj):
         :param name:        name of the feature
         :param validator:   feature validation policy
         :param default:     default value
-        :param labels:      a set of key/value labels (tags)
+        :param labels:      a set of key/value labels (tags). Labels can be used to filter featues, for example,
+                            in the UI Feature store page.
         """
         self.name = name or ""
         if isinstance(value_type, ValueType):
@@ -230,7 +231,9 @@ class Validator(ModelObj):
     kind = ""
     _dict_fields = ["kind", "check_type", "severity"]
 
-    def __init__(self, check_type: bool = None, severity: str = None):
+    def __init__(
+        self, check_type: Optional[bool] = None, severity: Optional[str] = None
+    ):
         """Base validator
 
         example::
@@ -267,7 +270,11 @@ class MinMaxValidator(Validator):
     _dict_fields = Validator._dict_fields + ["min", "max"]
 
     def __init__(
-        self, check_type: bool = None, severity: str = None, min=None, max=None
+        self,
+        check_type: Optional[bool] = None,
+        severity: Optional[str] = None,
+        min=None,
+        max=None,
     ):
         """Validate min/max value ranges
 
@@ -327,7 +334,11 @@ class MinMaxLenValidator(Validator):
     _dict_fields = Validator._dict_fields + ["min", "max"]
 
     def __init__(
-        self, check_type: bool = None, severity: str = None, min=None, max=None
+        self,
+        check_type: Optional[bool] = None,
+        severity: Optional[str] = None,
+        min=None,
+        max=None,
     ):
         """Validate min/max length value ranges
 
@@ -389,7 +400,12 @@ class RegexValidator(Validator):
     kind = "regex"
     _dict_fields = Validator._dict_fields + ["regex"]
 
-    def __init__(self, check_type: bool = None, severity: str = None, regex=None):
+    def __init__(
+        self,
+        check_type: Optional[bool] = None,
+        severity: Optional[str] = None,
+        regex=None,
+    ):
         """Validate value based on regular expression
 
         example::
@@ -433,7 +449,9 @@ class RegexValidator(Validator):
         return ok, args
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+    def from_dict(
+        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+    ):
         new_obj = super().from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )

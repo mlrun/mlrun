@@ -15,6 +15,7 @@
 import json
 import os
 import urllib
+from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -97,34 +98,43 @@ class OutputStream:
 
         self._v3io_client = v3io.dataplane.Client(**v3io_client_kwargs)
         self._container, self._stream_path = split_path(stream_path)
+        self._shards = shards
+        self._retention_in_hours = retention_in_hours
+        self._create = create
+        self._endpoint = endpoint
         self._mock = mock
         self._mock_queue = []
 
-        if create and not mock:
-            # this import creates an import loop via the utils module, so putting it in execution path
-            from mlrun.utils.helpers import logger
+    def create_stream(self):
+        # this import creates an import loop via the utils module, so putting it in execution path
+        from mlrun.utils.helpers import logger
 
-            logger.debug(
-                "Creating output stream",
-                endpoint=endpoint,
-                container=self._container,
-                stream_path=self._stream_path,
-                shards=shards,
-                retention_in_hours=retention_in_hours,
-            )
-            response = self._v3io_client.stream.create(
-                container=self._container,
-                stream_path=self._stream_path,
-                shard_count=shards or 1,
-                retention_period_hours=retention_in_hours or 24,
-                raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            )
-            if not (
-                response.status_code == 400 and "ResourceInUse" in str(response.body)
-            ):
-                response.raise_for_status([409, 204])
+        logger.debug(
+            "Creating output stream",
+            endpoint=self._endpoint,
+            container=self._container,
+            stream_path=self._stream_path,
+            shards=self._shards,
+            retention_in_hours=self._retention_in_hours,
+        )
+        response = self._v3io_client.stream.create(
+            container=self._container,
+            stream_path=self._stream_path,
+            shard_count=self._shards or 1,
+            retention_period_hours=self._retention_in_hours or 24,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+        )
+        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+            response.raise_for_status([409, 204])
 
-    def push(self, data):
+    def _lazy_init(self):
+        if self._create and not self._mock:
+            self._create = False
+            self.create_stream()
+
+    def push(self, data, partition_key=None):
+        self._lazy_init()
+
         def dump_record(rec):
             if not isinstance(rec, (str, bytes)):
                 return dict_to_json(rec)
@@ -132,7 +142,14 @@ class OutputStream:
 
         if not isinstance(data, list):
             data = [data]
-        records = [{"data": dump_record(rec)} for rec in data]
+
+        records = []
+        for rec in data:
+            record = {"data": dump_record(rec)}
+            if partition_key is not None:
+                record["partition_key"] = partition_key
+            records.append(record)
+
         if self._mock:
             # for mock testing
             self._mock_queue.extend(records)
@@ -205,7 +222,7 @@ class KafkaOutputStream:
 
         self._initialized = True
 
-    def push(self, data):
+    def push(self, data, partition_key=None):
         self._lazy_init()
 
         def dump_record(rec):
@@ -226,11 +243,17 @@ class KafkaOutputStream:
         else:
             for record in data:
                 serialized_record = dump_record(record)
-                self._kafka_producer.send(self._topic, serialized_record)
+                if isinstance(partition_key, str):
+                    partition_key = partition_key.encode("UTF-8")
+                self._kafka_producer.send(
+                    self._topic, serialized_record, key=partition_key
+                )
 
 
 class V3ioStreamClient:
-    def __init__(self, url: str, shard_id: int = 0, seek_to: str = None, **kwargs):
+    def __init__(
+        self, url: str, shard_id: int = 0, seek_to: Optional[str] = None, **kwargs
+    ):
         endpoint, stream_path = parse_path(url)
         seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]
         seek_to = seek_to or "LATEST"

@@ -14,14 +14,14 @@
 #
 import os
 
-import mlrun_pipelines.mounts
 import pytest
 from kfp import dsl
-from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun
+import mlrun_pipelines.mounts
 import tests.system.base
 from mlrun import mlconf
+from mlrun_pipelines.common.models import RunStatuses
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

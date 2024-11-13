@@ -47,13 +47,16 @@ COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/tutorials $HOME/tutorials
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/images
-
-RUN mkdir data
-
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/requirements.txt /tmp/requirements/jupyter-requirements.txt
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/mlrun-api/requirements.txt /tmp/requirements/mlrun-api-requirements.txt
 COPY --chown=$NB_UID:$NB_GID ./extras-requirements.txt /tmp/requirements/extras-requirement.txt
 COPY --chown=$NB_UID:$NB_GID ./requirements.txt /tmp/requirements/requirement.txt
+
+# Install it via mamba to overcome installing jupyterlab not being able to install the latest version
+# on the current image distribution.
+RUN mamba install --channel conda-forge --yes jupyterlab~=4.3
+
+# Install the requirements
 RUN python -m pip install \
     -r /tmp/requirements/jupyter-requirements.txt \
     -r /tmp/requirements/mlrun-api-requirements.txt \
@@ -66,9 +69,8 @@ RUN cd $HOME/mlrun && python -m pip install ".[complete-api]"
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
 RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
-    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup
-
-RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
+    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
+    git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
@@ -77,7 +79,8 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_ENV_FILE=$HOME/mlrun.env
 
 # backup home since it will be deleted when using pvc
-RUN tar -cvf /tmp/basehome.tar $HOME
+RUN mkdir data && \
+    tar -cvf /tmp/basehome.tar $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
@@ -86,10 +89,11 @@ COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/
 ENTRYPOINT ["tini", "--"]
 
 # run the mlrun api and the notebook in parallel
-CMD cd $HOME/mlrun && MLRUN_ARTIFACT_PATH=$HOME/data uvicorn server.api.main:app \
+CMD cd $HOME/mlrun && \
+    PYTHONPATH=$HOME/mlrun/server/py MLRUN_ARTIFACT_PATH=$HOME/data uvicorn services.api.main:app \
     --proxy-headers \
     --host="0.0.0.0" \
-    --log-config=server/api/uvicorn_log_config.yaml & \
+    --log-config=server/py/services/uvicorn_log_config.yaml & \
     MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
     --ip="0.0.0.0" \
     --port=8888 \

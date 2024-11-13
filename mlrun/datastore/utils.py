@@ -26,7 +26,7 @@ import mlrun.datastore
 
 
 def parse_kafka_url(
-    url: str, brokers: typing.Union[list, str] = None
+    url: str, brokers: typing.Optional[typing.Union[list, str]] = None
 ) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
@@ -71,7 +71,7 @@ def upload_tarball(source_dir, target, secrets=None):
 
 def filter_df_start_end_time(
     df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    time_column: str = None,
+    time_column: typing.Optional[str] = None,
     start_time: pd.Timestamp = None,
     end_time: pd.Timestamp = None,
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:

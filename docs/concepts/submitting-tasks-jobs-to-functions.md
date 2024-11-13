@@ -2,17 +2,16 @@
 #  Running a task (job)
 
 **In this section**
-- [Submit tasks (jobs) using run_function](#run)
-- [Run result object and UI](#result)
+- [Submit tasks (jobs) using run_function](#submit-tasks-jobs-using-run_function)
+- [Run result object and UI](#run-result-object-and-ui)
 
-<a id="run"></a>
 ## Submit tasks (jobs) using run_function
 
 Use the {py:meth}`~mlrun.projects.run_function` method for invoking a job over MLRun batch functions. 
 The `run_function` method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
 Alternatively, you can pass a **`Task`** object that holds all of the 
 parameters plus the advanced options. 
-See: {py:func}`~mlrun.model.new_task`, and the example in [run_function](../projects/run-build-deploy.html#run-function).
+See: {py:func}`~mlrun.model.new_task`, and the example in [run_function](../projects/run-build-deploy.md#run_function).
 
 Functions can host multiple methods (handlers). You can set the default handler per function. You
  need to specify which handler you intend to call in the run command. 
@@ -28,7 +27,7 @@ Parameters that are passed to a workflow are limited to 10000 chars.
 {py:class}`~mlrun.datastore.DataItem`  objects. You can pass data objects using the inputs dictionary argument, where the dictionary keys 
 match the function's handler argument names and the MLRun data urls are provided as the values. DataItems have many methods like `local`  
 (download the data item's file to a local temp directory) and `as_df` (parse the data to a `pd.DataFrame`).  The dataItem objects handle 
-data movement, tracking, and security in an optimal way.  Read more about [data items](../store/data-items.html).
+data movement, tracking, and security in an optimal way.  Read more about [data items](../store/data-items.md).
 
 When a type hint is available for an argument, MLRun automatically parses the DataItem to the hinted type (when the hinted type is supported).
 
@@ -76,4 +75,4 @@ run's data.
 
 <br><img src="../_static/images/project-jobs-train-artifacts-test_set.png" alt="project-jobs-train-artifacts-test_set" width="800"/>
 
-See full details and examples in [Functions](../runtimes/functions.html).
+See full details and examples in [Functions](../runtimes/functions.md).

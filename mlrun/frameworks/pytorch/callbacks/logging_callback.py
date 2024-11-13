@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 from torch import Tensor
@@ -59,15 +59,22 @@ class LoggingCallback(Callback):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        dynamic_hyperparameters: dict[
-            str,
-            tuple[
+        dynamic_hyperparameters: Optional[
+            dict[
                 str,
-                Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
-            ],
+                tuple[
+                    str,
+                    Union[
+                        list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
+                    ],
+                ],
+            ]
         ] = None,
-        static_hyperparameters: dict[
-            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
+        static_hyperparameters: Optional[
+            dict[
+                str,
+                Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]],
+            ]
         ] = None,
         auto_log: bool = False,
     ):

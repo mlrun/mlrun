@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import os
 import pathlib
 import sys
 import typing
+from tempfile import NamedTemporaryFile
 
 import igz_mgmt
+import kubernetes.client as k8s_client
+import kubernetes.config
 import pytest
 import yaml
 from deepdiff import DeepDiff
@@ -66,6 +70,7 @@ class TestMLRunSystem:
     def setup_class(cls):
         env = cls._get_env_from_file()
         cls._setup_env(env)
+        cls._setup_k8s_client()
         cls._run_db = get_run_db()
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
@@ -208,10 +213,7 @@ class TestMLRunSystem:
     @property
     def assets_path(self) -> pathlib.Path:
         """Returns the test file directory "assets" directory."""
-        return (
-            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / "assets"
-        )
+        return self.get_assets_path()
 
     @classmethod
     def _get_env_from_file(cls) -> dict:
@@ -253,6 +255,38 @@ class TestMLRunSystem:
             os.environ[key] = value
 
     @classmethod
+    def _setup_k8s_client(cls):
+        def missing_kubeclient(*args, **kwargs):
+            raise AttributeError("Kubeclient was not setup and is unavailable")
+
+        kubeconfig_content = None
+        try:
+            base64_kubeconfig_content = os.environ["MLRUN_SYSTEM_TEST_KUBECONFIG"]
+            kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
+        except (ValueError, KeyError) as exc:
+            logger.warning(
+                "Kubeconfig was empty or invalid.",
+                exc_info=mlrun.errors.err_to_str(exc),
+            )
+            cls.kube_client = property(missing_kubeclient)
+        if kubeconfig_content:
+            with NamedTemporaryFile() as tempfile:
+                tempfile.write(kubeconfig_content)
+                tempfile.flush()
+                try:
+                    kubernetes.config.load_kube_config(
+                        config_file=tempfile.name,
+                    )
+                    cls.kube_client = k8s_client.CoreV1Api()
+                except kubernetes.config.config_exception.ConfigException:
+                    logger.warning(
+                        "Failed to load kubeconfig, kube_client will be unavailable."
+                    )
+                    cls.kube_client = property(missing_kubeclient)
+        else:
+            cls.kube_client = property(missing_kubeclient)
+
+    @classmethod
     def _teardown_env(cls):
         cls._logger.debug("Tearing down test environment")
         for env_var in cls._test_env:
@@ -274,14 +308,14 @@ class TestMLRunSystem:
     def _verify_run_spec(
         self,
         run_spec,
-        parameters: dict = None,
-        inputs: dict = None,
-        outputs: list = None,
-        output_path: str = None,
-        function: str = None,
-        secret_sources: list = None,
-        data_stores: list = None,
-        scrape_metrics: bool = None,
+        parameters: typing.Optional[dict] = None,
+        inputs: typing.Optional[dict] = None,
+        outputs: typing.Optional[list] = None,
+        output_path: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        secret_sources: typing.Optional[list] = None,
+        data_stores: typing.Optional[list] = None,
+        scrape_metrics: typing.Optional[bool] = None,
     ):
         self._logger.debug("Verifying run spec", spec=run_spec)
         if parameters:
@@ -304,11 +338,11 @@ class TestMLRunSystem:
     def _verify_run_metadata(
         self,
         run_metadata,
-        uid: str = None,
-        name: str = None,
-        project: str = None,
-        labels: dict = None,
-        iteration: int = None,
+        uid: typing.Optional[str] = None,
+        name: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
+        labels: typing.Optional[dict] = None,
+        iteration: typing.Optional[int] = None,
     ):
         self._logger.debug("Verifying run metadata", spec=run_metadata)
         if uid:
@@ -331,9 +365,9 @@ class TestMLRunSystem:
         name: str,
         project: str,
         output_path: pathlib.Path,
-        accuracy: int = None,
-        loss: int = None,
-        best_iteration: int = None,
+        accuracy: typing.Optional[int] = None,
+        loss: typing.Optional[int] = None,
+        best_iteration: typing.Optional[int] = None,
         iteration_results: bool = False,
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)

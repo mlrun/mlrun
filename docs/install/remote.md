@@ -7,11 +7,11 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Set up a Python 3.9 client environment](#set-up-a-python-3-9-client-environment)
+- [Set up a Python 3.9 client environment](#set-up-a-python-39-client-environment)
 - [Configure remote environment](#configure-remote-environment)
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
-   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
-   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
+   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-config-set-command-in-mlrun-cli)
+   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
 - [Setting up a dark site](#setting-up-a-dark-site)
 
 <a id="prerequisites"></a>
@@ -25,7 +25,7 @@ Applications:
 
 The MLRun server is based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
 
-For a Python 3.7 environment for platform versions up to and including v3.5.2, see [Set up a Python 3.7 client environment](../change-log/index.html#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2).
+For a Python 3.7 environment for platform versions up to and including v3.5.2, see [Set up a Python 3.7 client environment](../change-log/index.md#set-up-a-python-37-client-environment-iguazio-versions-up-to-and-including-v352).
 
 ## MLRun client supported OS
 The MLRun client supports:
@@ -33,7 +33,7 @@ The MLRun client supports:
 - Mac
 - Windows via WSL
 
-## Set up a Python 3.9 client environment 
+## Set up a Python 3.9 client environment
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
@@ -87,8 +87,8 @@ conda install "protobuf>=3.20.3, <4" -y
 ## Configure remote environment
 You have a few options to configure your remote environment:
 - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
-- [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
-- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
+- [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
+- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
 
 ### Using `mlrun config set` command in MLRun CLI
 

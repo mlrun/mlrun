@@ -18,10 +18,10 @@ import os
 import shutil
 import tempfile
 
-import mlrun_pipelines.mounts
 import pytest
 
 import mlrun.errors
+import mlrun_pipelines.mounts
 from mlrun.config import config as mlconf
 from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.pod import AutoMountType

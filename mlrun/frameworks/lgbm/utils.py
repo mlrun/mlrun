@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Union
+from typing import Optional, Union
 
 import lightgbm as lgb
 import numpy as np
@@ -109,7 +109,7 @@ class LGBMUtils(MLUtils):
     def get_algorithm_functionality(
         model: MLTypes.ModelType = None,
         y: MLTypes.DatasetType = None,
-        objective: str = None,
+        objective: Optional[str] = None,
     ) -> AlgorithmFunctionality:
         """
         Get the algorithm functionality of the LightGBM model. If SciKit-Learn API is used, pass the LGBBMModel and a y

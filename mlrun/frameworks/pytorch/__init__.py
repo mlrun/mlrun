@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import Any, Union
+
+from typing import Any, Optional, Union
 
 from torch.nn import Module
 from torch.optim import Optimizer
@@ -35,23 +34,23 @@ def train(
     loss_function: Module,
     optimizer: Optimizer,
     validation_set: DataLoader = None,
-    metric_functions: list[PyTorchTypes.MetricFunctionType] = None,
+    metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
     scheduler=None,
     scheduler_step_frequency: Union[int, float, str] = "epoch",
     epochs: int = 1,
-    training_iterations: int = None,
-    validation_iterations: int = None,
-    callbacks_list: list[Callback] = None,
+    training_iterations: Optional[int] = None,
+    validation_iterations: Optional[int] = None,
+    callbacks_list: Optional[list[Callback]] = None,
     use_cuda: bool = True,
-    use_horovod: bool = None,
+    use_horovod: Optional[bool] = None,
     auto_log: bool = True,
-    model_name: str = None,
-    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-    custom_objects_directory: str = None,
-    tensorboard_directory: str = None,
-    mlrun_callback_kwargs: dict[str, Any] = None,
-    tensorboard_callback_kwargs: dict[str, Any] = None,
+    model_name: Optional[str] = None,
+    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
+    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
+    custom_objects_directory: Optional[str] = None,
+    tensorboard_directory: Optional[str] = None,
+    mlrun_callback_kwargs: Optional[dict[str, Any]] = None,
+    tensorboard_callback_kwargs: Optional[dict[str, Any]] = None,
     context: mlrun.MLClientCtx = None,
 ) -> PyTorchModelHandler:
     """
@@ -205,17 +204,17 @@ def evaluate(
     dataset: DataLoader,
     model: Module = None,
     loss_function: Module = None,
-    metric_functions: list[PyTorchTypes.MetricFunctionType] = None,
-    iterations: int = None,
-    callbacks_list: list[Callback] = None,
+    metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
+    iterations: Optional[int] = None,
+    callbacks_list: Optional[list[Callback]] = None,
     use_cuda: bool = True,
     use_horovod: bool = False,
     auto_log: bool = True,
-    model_name: str = None,
-    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-    custom_objects_directory: str = None,
-    mlrun_callback_kwargs: dict[str, Any] = None,
+    model_name: Optional[str] = None,
+    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
+    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
+    custom_objects_directory: Optional[str] = None,
+    mlrun_callback_kwargs: Optional[dict[str, Any]] = None,
     context: mlrun.MLClientCtx = None,
 ) -> tuple[PyTorchModelHandler, list[PyTorchTypes.MetricValueType]]:
     """

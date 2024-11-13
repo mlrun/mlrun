@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Optional, Union
 
 from sklearn.datasets import (
     make_classification,
@@ -30,7 +30,9 @@ class MLFunctions(ABC):
     @staticmethod
     @abstractmethod
     def train(
-        context: mlrun.MLClientCtx, algorithm_functionality: str, model_name: str = None
+        context: mlrun.MLClientCtx,
+        algorithm_functionality: str,
+        model_name: Optional[str] = None,
     ):
         pass
 

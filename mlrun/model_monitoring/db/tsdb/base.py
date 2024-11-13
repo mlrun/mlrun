@@ -15,7 +15,6 @@
 import typing
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Union
 
 import pandas as pd
 import pydantic
@@ -132,6 +131,7 @@ class TSDBConnector(ABC):
         end: datetime,
         metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: typing.Literal["metrics", "results"],
+        with_result_extra_data: bool,
     ) -> typing.Union[
         list[
             typing.Union[
@@ -150,11 +150,13 @@ class TSDBConnector(ABC):
         Read metrics OR results from the TSDB and return as a list.
 
         :param endpoint_id: The model endpoint identifier.
-        :param start:       The start time of the query.
-        :param end:         The end time of the query.
-        :param metrics:     The list of metrics to get the values for.
-        :param type:        "metrics" or "results" - the type of each item in metrics.
-        :return:            A list of result values or a list of metric values.
+        :param start:                  The start time of the query.
+        :param end:                    The end time of the query.
+        :param metrics:                The list of metrics to get the values for.
+        :param type:                   "metrics" or "results" - the type of each item in metrics.
+        :param with_result_extra_data: Whether to include the extra data in the results, relevant only when
+                                       `type="results"`.
+        :return:                        A list of result values or a list of metric values.
         """
 
     @abstractmethod
@@ -193,9 +195,9 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_last_request(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        endpoint_ids: typing.Union[str, list[str]],
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
@@ -212,9 +214,9 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_drift_status(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "now-24h",
-        end: Union[datetime, str] = "now",
+        endpoint_ids: typing.Union[str, list[str]],
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the app-results TSDB table and returns the highest status among all
@@ -233,8 +235,8 @@ class TSDBConnector(ABC):
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoint.
@@ -251,8 +253,8 @@ class TSDBConnector(ABC):
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct results metadata from the app-results TSDB table for a specified model endpoint.
@@ -268,9 +270,9 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_error_count(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        endpoint_ids: typing.Union[str, list[str]],
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the error TSDB table and returns the error count for each specified endpoint.
@@ -286,9 +288,9 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_avg_latency(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        endpoint_ids: typing.Union[str, list[str]],
+        start: typing.Optional[datetime] = None,
+        end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
@@ -420,6 +422,7 @@ class TSDBConnector(ABC):
                                 sub_df.index,
                                 sub_df[mm_schemas.ResultData.RESULT_VALUE],
                                 sub_df[mm_schemas.ResultData.RESULT_STATUS],
+                                sub_df[mm_schemas.ResultData.RESULT_EXTRA_DATA],
                             )
                         ),  # pyright: ignore[reportArgumentType]
                     )
@@ -446,3 +449,52 @@ class TSDBConnector(ABC):
             )
 
         return metrics_values
+
+    @staticmethod
+    def df_to_metrics_list(
+        *,
+        df: pd.DataFrame,
+        project: str,
+        type: str,
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        """
+        Parse a DataFrame of metrics from the TSDB into a list of mm metrics objects.
+
+        :param df:      The DataFrame to parse.
+        :param project: The project name.
+        :param type:    The type of the metrics (either "result" or "metric").
+
+        :return:        A list of mm metrics objects.
+        """
+        return list(
+            map(
+                lambda record: mm_schemas.ModelEndpointMonitoringMetric(
+                    project=project,
+                    type=type,
+                    app=record.get(mm_schemas.WriterEvent.APPLICATION_NAME),
+                    name=record.get(mm_schemas.ResultData.RESULT_NAME)
+                    or record.get(mm_schemas.MetricData.METRIC_NAME),
+                    kind=record.get(mm_schemas.ResultData.RESULT_KIND),
+                ),
+                df.to_dict("records"),
+            )
+        )
+
+    @staticmethod
+    def _get_start_end(
+        start: typing.Union[datetime, None],
+        end: typing.Union[datetime, None],
+    ) -> tuple[datetime, datetime]:
+        """
+        static utils function for tsdb start end format
+        :param start:       Either None or datetime, None is handled as datetime.min(tz=timezone.utc)
+        :param end:         Either None or datetime, None is handled as datetime.now(tz=timezone.utc)
+        :return:            start datetime, end datetime
+        """
+        start = start or mlrun.utils.datetime_min()
+        end = end or mlrun.utils.datetime_now()
+        if not (isinstance(start, datetime) and isinstance(end, datetime)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both start and end must be datetime objects"
+            )
+        return start, end

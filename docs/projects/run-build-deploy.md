@@ -3,11 +3,11 @@
 
 **In this section**
 - [Overview](#overview)
-- [run_function](#run)
-- [build_function](#build)
-- [deploy_function](#deploy)
-- [Default image](#default_image)
-- [Image build configuration](#build_config)
+- [run_function](#run_function)
+- [build_function](#build_function)
+- [deploy_function](#deploy_function)
+- [Default image](#default-image)
+- [Image build configuration](#image-build-configuration)
 - [build_image](#build_image)
 
 <a id="overview"></a>
@@ -65,7 +65,7 @@ If you pass the parameter `watch=True` (default), the command blocks until the j
 MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.). 
 See {ref}`hyper-params` for details and examples.
 
-Read further details on [**running tasks and getting their results**](../concepts/submitting-tasks-jobs-to-functions.html).
+Read further details on [**running tasks and getting their results**](../concepts/submitting-tasks-jobs-to-functions.md).
 
 ```{admonition} Run/simulate functions locally: 
 Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` 
@@ -132,14 +132,14 @@ project.build_function("trainer")
 The {py:meth}`~mlrun.projects.build_function` method accepts different parameters that can add to, or override, the function build spec.
 You can specify the target or base `image` extra docker `commands`, builder environment, and source credentials (`builder_env`), etc. 
 
-See further details and examples in [**Build function image**](../runtimes/image-build.html). 
+See further details and examples in [**Build function image**](../runtimes/image-build.md). 
 
 
 <a id="deploy"></a>
 ## deploy_function
 
 The {py:meth}`~mlrun.projects.deploy_function` method is used to deploy real-time/online (`nuclio` or `serving`) functions and pipelines.
-Read more about [**Real-time serving pipelines**](../serving/serving-graph.html).
+Read more about [**Real-time serving pipelines**](../serving/serving-graph.md).
 
 Basic example:
 
@@ -173,7 +173,7 @@ mlrun.deploy_function(
 
 
 ```{admonition} Note
-If you want to create a simulated (mock) function instead of a real Kubernetes service, set the `mock` flag is set to `True`. See [deploy_function api](https://docs.mlrun.org/en/latest/api/mlrun.projects.html#mlrun.projects.MlrunProject.deploy_function).
+If you want to create a simulated (mock) function instead of a real Kubernetes service, set the `mock` flag is set to `True`. See {py:meth}`~mlrun.projects.MlrunProject.deploy_function`).
 ```
 
 <a id="default_image"></a>

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import os
 import typing
 
 import numpy as np
@@ -27,7 +28,9 @@ import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
+import mlrun.datastore
 import mlrun.model_monitoring
+import mlrun.utils.helpers
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     _compose_full_name,
@@ -98,7 +101,74 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
-def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -> str:
+def get_monitoring_stats_directory_path(
+    project: str,
+    kind: str = mm_constants.FileTargetKind.STATS,
+) -> str:
+    """
+    Get model monitoring stats target for the current project and kind. The stats target path is based on the
+    project artifact path. If project artifact path is not defined, the stats target path will be based on MLRun
+    artifact path.
+    :param project:     Project object.
+    :param kind:        indicate the kind of the stats path
+    :return:            Monitoring stats target path.
+    """
+    stats_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project,
+        kind=kind,
+    )
+    return stats_path
+
+
+def _get_monitoring_current_stats_file_path(project: str, endpoint_id: str) -> str:
+    return os.path.join(
+        get_monitoring_stats_directory_path(project),
+        f"{endpoint_id}_current_stats.json",
+    )
+
+
+def _get_monitoring_drift_measures_file_path(project: str, endpoint_id: str) -> str:
+    return os.path.join(
+        get_monitoring_stats_directory_path(project),
+        f"{endpoint_id}_drift_measures.json",
+    )
+
+
+def get_monitoring_current_stats_data(
+    project: str, endpoint_id: str
+) -> mlrun.datastore.DataItem:
+    """
+    getter for data item of current stats for project and endpoint
+    :param project: project name str
+    :param endpoint_id: endpoint id str
+    :return: DataItem
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_current_stats_file_path(
+            project=project, endpoint_id=endpoint_id
+        )
+    )
+
+
+def get_monitoring_drift_measures_data(
+    project: str, endpoint_id: str
+) -> mlrun.datastore.DataItem:
+    """
+    getter for data item of drift measures for project and endpoint
+    :param project: project name str
+    :param endpoint_id: endpoint id str
+    :return: DataItem
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_drift_measures_file_path(
+            project=project, endpoint_id=endpoint_id
+        )
+    )
+
+
+def get_connection_string(
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+) -> str:
     """Get endpoint store connection string from the project secret. If wasn't set, take it from the system
     configurations.
 
@@ -349,4 +419,30 @@ def enrich_model_endpoint_with_model_uri(
     )
     model_endpoint.spec.model_uri = mlrun.datastore.get_store_uri(
         kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+    )
+
+
+def _get_monitoring_schedules_folder_path(project: str) -> str:
+    return typing.cast(
+        str,
+        mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES
+        ),
+    )
+
+
+def _get_monitoring_schedules_file_path(*, project: str, endpoint_id: str) -> str:
+    return os.path.join(
+        _get_monitoring_schedules_folder_path(project), f"{endpoint_id}.json"
+    )
+
+
+def get_monitoring_schedules_data(
+    *, project: str, endpoint_id: str
+) -> mlrun.datastore.DataItem:
+    """
+    Get the model monitoring schedules' data item of the project's model endpoint.
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_schedules_file_path(project=project, endpoint_id=endpoint_id)
     )

@@ -19,13 +19,13 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import mlrun_pipelines.common.ops
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
 import yaml
 
+import mlrun_pipelines.common.ops
 from mlrun import mlconf, new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger
@@ -110,7 +110,7 @@ def test_kfp_function_run(kfp_dirs):
     assert result.status.state == "completed"
 
 
-def test_kfp_function_run_with_hyper_params(kfp_dirs):
+def test_kfp_function_run_with_hyper_params(rundb_mock, kfp_dirs):
     meta_dir, artifacts_dir, output_dir = kfp_dirs
     p1 = [1, 2, 3]
     task = _generate_task(p1, output_dir)

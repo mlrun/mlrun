@@ -379,7 +379,7 @@ class Imputer(StepToDict, MLRunStep):
         self,
         method: str = "avg",
         default_value=None,
-        mapping: dict[str, Any] = None,
+        mapping: Optional[dict[str, Any]] = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -517,7 +517,7 @@ class DateExtractor(StepToDict, MLRunStep):
     def __init__(
         self,
         parts: Union[dict[str, str], list[str]],
-        timestamp_col: str = None,
+        timestamp_col: Optional[str] = None,
         **kwargs,
     ):
         """Date Extractor extracts a date-time component into new columns

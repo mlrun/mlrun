@@ -15,8 +15,9 @@
 import logging
 import os
 import uuid
+import warnings
 from copy import deepcopy
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import yaml
@@ -25,11 +26,10 @@ from dateutil import parser
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
-from mlrun.artifacts import ModelArtifact
+from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
 
-from .artifacts import DatasetArtifact
 from .artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from .datastore import store_manager
 from .features import Feature
@@ -195,6 +195,11 @@ class MLClientCtx:
         return deepcopy(self._artifacts_manager.artifact_list())
 
     @property
+    def artifact_uris(self):
+        """Dictionary of artifact URIs (read-only)"""
+        return deepcopy(self._artifacts_manager.artifact_uris)
+
+    @property
     def in_path(self):
         """Default input path for data objects"""
         return self._in_path
@@ -296,7 +301,7 @@ class MLClientCtx:
             )
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
-    def get_store_resource(self, url, secrets: dict = None):
+    def get_store_resource(self, url, secrets: Optional[dict] = None):
         """Get mlrun data resource (feature set/vector, artifact, item) from url.
 
         Example::
@@ -317,7 +322,7 @@ class MLClientCtx:
             data_store_secrets=secrets,
         )
 
-    def get_dataitem(self, url, secrets: dict = None):
+    def get_dataitem(self, url, secrets: Optional[dict] = None):
         """Get mlrun dataitem from url
 
         Example::
@@ -425,8 +430,11 @@ class MLClientCtx:
             self._results = status.get("results", self._results)
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
-                key = artifact_obj.key
-                self._artifacts_manager.artifacts[key] = artifact_obj
+                self._artifacts_manager.artifact_uris[artifact_obj.key] = (
+                    artifact_obj.uri
+                )
+            for key, uri in status.get("artifact_uris", {}).items():
+                self._artifacts_manager.artifact_uris[key] = uri
             self._state = status.get("state", self._state)
 
         # No need to store the run for every worker
@@ -573,22 +581,25 @@ class MLClientCtx:
         """Reserved for internal use"""
 
         if best:
+            # Recreate the best iteration context for the interface of getting its artifacts
+            best_context = MLClientCtx.from_dict(
+                task, store_run=False, include_status=True
+            )
             self._results["best_iteration"] = best
-            for k, v in get_in(task, ["status", "results"], {}).items():
-                self._results[k] = v
-            for artifact in get_in(task, ["status", RunKeys.artifacts], []):
-                self._artifacts_manager.artifacts[artifact["metadata"]["key"]] = (
-                    artifact
-                )
+            for key, result in best_context.results.items():
+                self._results[key] = result
+            for key, artifact_uri in best_context.artifact_uris.items():
+                self._artifacts_manager.artifact_uris[key] = artifact_uri
+                artifact = best_context.get_artifact(key)
                 self._artifacts_manager.link_artifact(
                     self.project,
                     self.name,
                     self.tag,
-                    artifact["metadata"]["key"],
+                    key,
                     self.iteration,
-                    artifact["spec"]["target_path"],
+                    artifact.target_path,
+                    db_key=artifact.db_key,
                     link_iteration=best,
-                    db_key=artifact["spec"]["db_key"],
                 )
 
         if summary is not None:
@@ -679,7 +690,7 @@ class MLClientCtx:
         db_key=None,
         target_path="",
         extra_data=None,
-        label_column: str = None,
+        label_column: Optional[str] = None,
         **kwargs,
     ):
         """Log a dataset artifact and optionally upload it to datastore
@@ -760,12 +771,12 @@ class MLClientCtx:
         artifact_path=None,
         upload=True,
         labels=None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
-        feature_vector: str = None,
-        feature_weights: list = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list] = None,
         training_set=None,
-        label_column: Union[str, list] = None,
+        label_column: Optional[Union[str, list]] = None,
         extra_data=None,
         db_key=None,
         **kwargs,
@@ -788,7 +799,7 @@ class MLClientCtx:
         :param key:             Artifact key or artifact class ()
         :param body:            Will use the body as the artifact content
         :param model_file:      Path to the local model file we upload (see also model_dir)
-                                or to a model file data url (e.g. http://host/path/model.pkl)
+                                or to a model file data url (e.g. `http://host/path/model.pkl`)
         :param model_dir:       Path to the local dir holding the model file and extra files
         :param artifact_path:   Target artifact path (when not using the default)
                                 to define a subpath under the default location use:
@@ -852,10 +863,18 @@ class MLClientCtx:
 
     def get_cached_artifact(self, key):
         """Return a logged artifact from cache (for potential updates)"""
-        return self._artifacts_manager.artifacts[key]
+        warnings.warn(
+            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.10.0. Use get_artifact instead.",
+            FutureWarning,
+        )
+        return self.get_artifact(key)
 
-    def update_artifact(self, artifact_object):
-        """Update an artifact object in the cache and the DB"""
+    def get_artifact(self, key: str) -> Artifact:
+        artifact_uri = self._artifacts_manager.artifact_uris[key]
+        return self.get_store_resource(artifact_uri)
+
+    def update_artifact(self, artifact_object: Artifact):
+        """Update an artifact object in the DB and the cached uri"""
         self._artifacts_manager.update_artifact(self, artifact_object)
 
     def commit(self, message: str = "", completed=False):
@@ -885,7 +904,12 @@ class MLClientCtx:
         if completed and not self.iteration:
             mlrun.runtimes.utils.global_context.set(None)
 
-    def set_state(self, execution_state: str = None, error: str = None, commit=True):
+    def set_state(
+        self,
+        execution_state: Optional[str] = None,
+        error: Optional[str] = None,
+        commit=True,
+    ):
         """
         Modify and store the execution state or mark an error and update the run state accordingly.
         This method allows to set the run state to 'completed' in the DB which is discouraged.
@@ -1013,7 +1037,7 @@ class MLClientCtx:
         set_if_not_none(struct["status"], "commit", self._commit)
         set_if_not_none(struct["status"], "iterations", self._iteration_results)
 
-        struct["status"][RunKeys.artifacts] = self._artifacts_manager.artifact_list()
+        struct["status"][RunKeys.artifact_uris] = self._artifacts_manager.artifact_uris
         self._data_stores.to_dict(struct["spec"])
         return struct
 
@@ -1107,7 +1131,9 @@ class MLClientCtx:
         set_if_not_none(struct, "status.commit", self._commit)
         set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        struct[f"status.{RunKeys.artifacts}"] = self._artifacts_manager.artifact_list()
+        struct[f"status.{RunKeys.artifact_uris}"] = (
+            self._artifacts_manager.artifact_uris
+        )
         return struct
 
     def _init_dbs(self, rundb):

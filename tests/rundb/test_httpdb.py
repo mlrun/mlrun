@@ -24,6 +24,7 @@ from socket import socket
 from subprocess import DEVNULL, PIPE, Popen, run
 from sys import executable
 from tempfile import mkdtemp
+from typing import Optional
 from uuid import uuid4
 
 import deepdiff
@@ -67,6 +68,7 @@ def create_workdir(root_dir="/tmp"):
 def start_server(workdir, env_config: dict):
     port = free_port()
     env = environ.copy()
+    env["PYTHONPATH"] = str(project_dir_path / "server" / "py")
     env["MLRUN_HTTPDB__PORT"] = str(port)
     env["MLRUN_HTTPDB__DSN"] = (
         f"sqlite:///{workdir}/mlrun.sqlite3?check_same_thread=false"
@@ -76,7 +78,7 @@ def start_server(workdir, env_config: dict):
     cmd = [
         executable,
         "-m",
-        "server.api.main",
+        "services.api.main",
     ]
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
@@ -658,6 +660,7 @@ def test_feature_sets(create_server):
     assert len(feature_sets) == count
     assert not any([feature_set.status.stats for feature_set in feature_sets])
     assert not any([feature_set.status.preview for feature_set in feature_sets])
+    assert not any([feature_set.metadata.updated for feature_set in feature_sets])
     assert all([feature_set.status.state for feature_set in feature_sets])
 
     # Create a feature-set that has no labels
@@ -855,7 +858,66 @@ def test_add_tag_and_delete_untagged_artifacts(create_server):
     assert artifacts[0]["metadata"]["tag"] == "latest"
 
 
-def _generate_project_and_artifact(project: str = "newproj", tag: str = None):
+def test_paginated_list_artifacts(create_server):
+    _, db = _configure_run_db_server(create_server)
+    project_name = "artifact-project"
+    project = mlrun.new_project(project_name)
+
+    num_artifacts = 10
+    page_size = 4
+    for i in range(num_artifacts):
+        artifact_key = f"artifact_{i}"
+        project.log_artifact(
+            artifact_key,
+            body=b"some data",
+        )
+
+    # First request (Page 1)
+    artifacts, token = db.paginated_list_artifacts(
+        project=project_name, page_size=page_size
+    )
+    assert len(artifacts) == page_size
+    assert artifacts[0]["metadata"].get("key") == "artifact_9"
+    assert token is not None
+
+    # Second request using the token from the first response
+    artifacts, token = db.paginated_list_artifacts(
+        project=project_name, page_token=token
+    )
+    assert len(artifacts) == page_size
+    assert artifacts[0]["metadata"].get("key") == "artifact_5"
+    assert token is not None
+
+    # Third request, expecting fewer artifacts (last page)
+    artifacts, token = db.paginated_list_artifacts(
+        project=project_name, page_token=token
+    )
+    assert len(artifacts) == 2
+    assert artifacts[0]["metadata"].get("key") == "artifact_1"
+    assert token is None
+
+    # Retrieve specific page (Page 3)
+    artifacts, token = db.paginated_list_artifacts(
+        project=project_name, page_size=page_size, page=3
+    )
+    assert len(artifacts) == 2
+    assert artifacts[0]["metadata"].get("key") == "artifact_1"
+    assert token is None
+
+    # Automatically iterate over all pages without explicitly specifying the page number
+    artifacts = []
+    token = None
+    while True:
+        page_artifacts, token = db.paginated_list_artifacts(
+            project=project_name, page_token=token, page_size=page_size
+        )
+        artifacts.extend(page_artifacts)
+        if not token:  # If no token is returned, we've reached the last page
+            break
+    assert len(artifacts) == num_artifacts
+
+
+def _generate_project_and_artifact(project: str = "newproj", tag: Optional[str] = None):
     proj_obj = mlrun.new_project(project)
 
     logged_artifact = proj_obj.log_artifact(

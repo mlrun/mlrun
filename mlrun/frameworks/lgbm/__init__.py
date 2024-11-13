@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import Any, Union
+
+from typing import Any, Optional, Union
 
 import lightgbm as lgb
 
@@ -37,20 +36,20 @@ LGBMArtifactsLibrary = MLArtifactsLibrary
 def _apply_mlrun_on_module(
     model_name: str = "model",
     tag: str = "",
-    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-    custom_objects_directory: str = None,
+    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
+    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
+    custom_objects_directory: Optional[str] = None,
     context: mlrun.MLClientCtx = None,
     model_format: str = LGBMModelHandler.ModelFormats.PKL,
     sample_set: Union[LGBMTypes.DatasetType, mlrun.DataItem, str] = None,
-    y_columns: Union[list[str], list[int]] = None,
-    feature_vector: str = None,
-    feature_weights: list[float] = None,
-    labels: dict[str, Union[str, int, float]] = None,
-    parameters: dict[str, Union[str, int, float]] = None,
-    extra_data: dict[str, LGBMTypes.ExtraDataType] = None,
+    y_columns: Optional[Union[list[str], list[int]]] = None,
+    feature_vector: Optional[str] = None,
+    feature_weights: Optional[list[float]] = None,
+    labels: Optional[dict[str, Union[str, int, float]]] = None,
+    parameters: Optional[dict[str, Union[str, int, float]]] = None,
+    extra_data: Optional[dict[str, LGBMTypes.ExtraDataType]] = None,
     auto_log: bool = True,
-    mlrun_logging_callback_kwargs: dict[str, Any] = None,
+    mlrun_logging_callback_kwargs: Optional[dict[str, Any]] = None,
 ):
     # Apply MLRun's interface on the LightGBM module:
     LGBMMLRunInterface.add_interface(obj=lgb)
@@ -84,27 +83,29 @@ def _apply_mlrun_on_model(
     model: LGBMTypes.ModelType = None,
     model_name: str = "model",
     tag: str = "",
-    model_path: str = None,
-    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-    custom_objects_directory: str = None,
+    model_path: Optional[str] = None,
+    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
+    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
+    custom_objects_directory: Optional[str] = None,
     context: mlrun.MLClientCtx = None,
     model_format: str = LGBMModelHandler.ModelFormats.PKL,
-    artifacts: Union[list[MLPlan], list[str], dict[str, dict]] = None,
-    metrics: Union[
-        list[Metric],
-        list[LGBMTypes.MetricEntryType],
-        dict[str, LGBMTypes.MetricEntryType],
+    artifacts: Optional[Union[list[MLPlan], list[str], dict[str, dict]]] = None,
+    metrics: Optional[
+        Union[
+            list[Metric],
+            list[LGBMTypes.MetricEntryType],
+            dict[str, LGBMTypes.MetricEntryType],
+        ]
     ] = None,
     x_test: LGBMTypes.DatasetType = None,
     y_test: LGBMTypes.DatasetType = None,
     sample_set: Union[LGBMTypes.DatasetType, mlrun.DataItem, str] = None,
-    y_columns: Union[list[str], list[int]] = None,
-    feature_vector: str = None,
-    feature_weights: list[float] = None,
-    labels: dict[str, Union[str, int, float]] = None,
-    parameters: dict[str, Union[str, int, float]] = None,
-    extra_data: dict[str, LGBMTypes.ExtraDataType] = None,
+    y_columns: Optional[Union[list[str], list[int]]] = None,
+    feature_vector: Optional[str] = None,
+    feature_weights: Optional[list[float]] = None,
+    labels: Optional[dict[str, Union[str, int, float]]] = None,
+    parameters: Optional[dict[str, Union[str, int, float]]] = None,
+    extra_data: Optional[dict[str, LGBMTypes.ExtraDataType]] = None,
     auto_log: bool = True,
     **kwargs,
 ):
@@ -182,29 +183,31 @@ def apply_mlrun(
     model: LGBMTypes.ModelType = None,
     model_name: str = "model",
     tag: str = "",
-    model_path: str = None,
-    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-    custom_objects_directory: str = None,
+    model_path: Optional[str] = None,
+    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
+    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
+    custom_objects_directory: Optional[str] = None,
     context: mlrun.MLClientCtx = None,
     model_format: str = LGBMModelHandler.ModelFormats.PKL,
-    artifacts: Union[list[MLPlan], list[str], dict[str, dict]] = None,
-    metrics: Union[
-        list[Metric],
-        list[LGBMTypes.MetricEntryType],
-        dict[str, LGBMTypes.MetricEntryType],
+    artifacts: Optional[Union[list[MLPlan], list[str], dict[str, dict]]] = None,
+    metrics: Optional[
+        Union[
+            list[Metric],
+            list[LGBMTypes.MetricEntryType],
+            dict[str, LGBMTypes.MetricEntryType],
+        ]
     ] = None,
     x_test: LGBMTypes.DatasetType = None,
     y_test: LGBMTypes.DatasetType = None,
     sample_set: Union[LGBMTypes.DatasetType, mlrun.DataItem, str] = None,
-    y_columns: Union[list[str], list[int]] = None,
-    feature_vector: str = None,
-    feature_weights: list[float] = None,
-    labels: dict[str, Union[str, int, float]] = None,
-    parameters: dict[str, Union[str, int, float]] = None,
-    extra_data: dict[str, LGBMTypes.ExtraDataType] = None,
+    y_columns: Optional[Union[list[str], list[int]]] = None,
+    feature_vector: Optional[str] = None,
+    feature_weights: Optional[list[float]] = None,
+    labels: Optional[dict[str, Union[str, int, float]]] = None,
+    parameters: Optional[dict[str, Union[str, int, float]]] = None,
+    extra_data: Optional[dict[str, LGBMTypes.ExtraDataType]] = None,
     auto_log: bool = True,
-    mlrun_logging_callback_kwargs: dict[str, Any] = None,
+    mlrun_logging_callback_kwargs: Optional[dict[str, Any]] = None,
     **kwargs,
 ) -> Union[LGBMModelHandler, None]:
     """

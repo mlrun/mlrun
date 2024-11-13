@@ -112,10 +112,11 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.7.27"},
+        "storey": {"~=1.8.0"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "sphinx-book-theme": {"~=1.0.1"},
+        "scipy": {"~=1.13.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -127,18 +128,20 @@ def test_requirement_specifiers_convention():
         "databricks-sdk": {"~=0.13.0"},
         "distributed": {"~=2023.12.1"},
         "dask": {"~=2023.12.1"},
-        "nbclassic": {">=0.2.8"},
         "gitpython": {"~=3.1, >=3.1.41"},
         "pydantic": {"~=1.10, >=1.10.8"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
+        "aiohttp-retry": {"~=2.8.0"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
         "scikit-learn": {"~=1.5.1"},
+        # ensure minimal version to gain vulnerability fixes
+        "setuptools": {">=75.2"},
     }
 
     for (

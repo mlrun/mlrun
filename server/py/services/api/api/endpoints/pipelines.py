@@ -61,7 +61,6 @@ async def list_pipelines(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
-
     total_size, next_page_token, runs = None, None, []
     if framework.utils.singletons.k8s.get_k8s_helper(
         silent=True

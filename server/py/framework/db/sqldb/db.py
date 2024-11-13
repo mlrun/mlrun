@@ -5952,6 +5952,8 @@ class SQLDB(DBInterface):
             name=alert_activation_record.name,
             project=alert_activation_record.project,
             severity=alert_activation_record.severity,
+            # the activation_time is already stored in UTC in the database as a naive datetime.
+            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
             activation_time=alert_activation_record.activation_time.replace(
                 tzinfo=timezone.utc
             ),

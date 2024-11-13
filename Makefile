@@ -794,4 +794,5 @@ update-api-deps: verify-uv-version ## Update mlrun-api locked requirements file
 	requirements.txt \
 	extras-requirements.txt \
 	dockerfiles/mlrun-api/requirements.txt \
-	-U -o dockerfiles/mlrun-api/locked-requirements.txt
+	--upgrade \
+	--output-file dockerfiles/mlrun-api/locked-requirements.txt

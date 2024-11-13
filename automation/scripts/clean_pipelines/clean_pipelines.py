@@ -187,7 +187,7 @@ def _list_pipelines_runs(
     query_filter: str,
     page_token: str = "",
     sort_by: str = "",
-    batch_size=1000,
+    batch_size: int = 1000,
 ) -> list[PipelineRun]:
     runs = []
     while page_token:

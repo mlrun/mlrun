@@ -13,6 +13,7 @@
 # limitations under the License.
 import base64
 import hashlib
+import json
 import random
 import string
 import time
@@ -599,9 +600,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             raise k8s_dynamic_exceptions.api_exception(exc)
         return k8s_secret
 
-    def read_secret_data(self, secret_name: str, namespace: str = "") -> dict[str, str]:
+    def read_secret_data(
+        self, secret_name: str, namespace: str = "", load_as_json=False
+    ) -> dict[str, str]:
         k8s_secret = self.read_secret(secret_name, namespace)
-        return self._decode_secret_data(k8s_secret.data)
+        return self._decode_secret_data(k8s_secret.data, load_as_json=load_as_json)
 
     def _create_secret(
         self,
@@ -914,7 +917,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return resp.items
 
     @staticmethod
-    def _decode_secret_data(secrets_data, secret_keys=None):
+    def _decode_secret_data(secrets_data, secret_keys=None, load_as_json=False):
         results = {}
         if not secrets_data:
             return results
@@ -925,7 +928,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         for key in secret_keys:
             encoded_value = secrets_data.get(key)
             if encoded_value:
-                results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
+                value = base64.b64decode(secrets_data[key]).decode("utf-8")
+                if load_as_json:
+                    # Try to load the value as JSON, if it fails, stay with the original value
+                    try:
+                        value = json.loads(value)
+                    except json.JSONDecodeError:
+                        pass
+                results[key] = value
         return results
 
     @staticmethod

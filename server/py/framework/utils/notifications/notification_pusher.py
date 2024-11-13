@@ -61,9 +61,10 @@ class RunNotificationPusher(NotificationPusher):
         if framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
             mail_notification_default_params = (
                 framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
-                    smtp_config_secret_name
+                    smtp_config_secret_name, load_as_json=True
                 )
             )
+
         RunNotificationPusher.mail_notification_default_params = (
             mail_notification_default_params
         )

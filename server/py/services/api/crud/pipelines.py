@@ -55,12 +55,13 @@ class Pipelines(
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> tuple[int, typing.Optional[int], list[dict]]:
+        if isinstance(project, list) and len(project) == 1:
+            project = project[0]
+
         if (isinstance(project, list) or project != "*") and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination"
             )
-        if isinstance(project, list) and len(project) == 1:
-            project = project[0]
 
         if format_ == mlrun.common.formatters.PipelineFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow

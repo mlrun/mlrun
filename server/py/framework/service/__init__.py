@@ -31,6 +31,7 @@ from mlrun import mlconf
 import framework.api.utils
 import framework.middlewares
 import framework.utils.periodic
+from framework.utils.singletons.db import initialize_db
 
 
 class Service(ABC):
@@ -97,6 +98,7 @@ class Service(ABC):
             )
         )
 
+        initialize_db()
         await self._custom_setup_service()
 
         if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
@@ -212,9 +214,6 @@ class Daemon(ABC):
         self._service = service_cls()
 
     def initialize(self):
-        # Wire the service container to inject the providers to the routers
-        container = ServiceContainer()
-        container.wire()
         self._service.initialize()
 
     @property

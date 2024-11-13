@@ -58,6 +58,7 @@ async def store_alert(
     "/{name}",
     response_model=mlrun.common.schemas.AlertConfig,
 )
+@inject
 async def get_alert(
     request: Request,
     project: str,
@@ -79,6 +80,7 @@ async def get_alert(
 
 
 @router.get("", response_model=list[mlrun.common.schemas.AlertConfig])
+@inject
 async def list_alerts(
     request: Request,
     project: str,
@@ -97,10 +99,8 @@ async def list_alerts(
     )
 
 
-@router.delete(
-    "/{name}",
-    status_code=HTTPStatus.NO_CONTENT.value,
-)
+@router.delete("/{name}", status_code=HTTPStatus.NO_CONTENT.value)
+@inject
 async def delete_alert(
     request: Request,
     project: str,
@@ -122,6 +122,7 @@ async def delete_alert(
 
 
 @router.post("/{name}/reset")
+@inject
 async def reset_alert(
     request: Request,
     project: str,

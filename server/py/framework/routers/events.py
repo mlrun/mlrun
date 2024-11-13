@@ -14,7 +14,7 @@
 #
 
 
-from dependency_injector.wiring import Provide
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,7 @@ router = APIRouter()
 
 
 @router.post("/projects/{project}/events/{name}")
+@inject
 async def post_event(
     request: Request,
     project: str,

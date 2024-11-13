@@ -52,7 +52,7 @@ from framework.utils.periodic import (
     cancel_periodic_function,
     run_function_periodically,
 )
-from framework.utils.singletons.db import get_db, initialize_db
+from framework.utils.singletons.db import get_db
 from framework.utils.singletons.k8s import get_k8s_helper
 from framework.utils.singletons.project_member import (
     get_project_member,
@@ -120,7 +120,6 @@ class Service(framework.service.Service):
         initialize_logs_dir()
 
         # TODO: move code below to base class
-        initialize_db()
         self._initialize_data()
 
         if (

@@ -11,23 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import datetime
 import os
 import pathlib
 import typing
 import unittest.mock
 from collections.abc import Generator
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from datetime import datetime
+from tempfile import TemporaryDirectory
 
 import fastapi
 import httpx
 import pytest
 import pytest_asyncio
 import semver
+import sqlalchemy
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
-from sqlalchemy import event
-from sqlalchemy.engine import Engine
 
 import mlrun.common.schemas
 import mlrun.common.secrets
@@ -36,12 +35,8 @@ import mlrun.launcher.factory
 import mlrun.runtimes.utils
 import mlrun.utils.singleton
 from mlrun import mlconf
-from mlrun.common.db.sql_session import _init_engine, create_session
-from mlrun.config import config
 from mlrun.utils import logger
 
-import framework
-import framework.tests.unit.common_fixtures
 import framework.utils.clients.iguazio
 import framework.utils.projects.remotes.leader
 import framework.utils.runtimes.nuclio
@@ -52,8 +47,11 @@ import services.api.launcher
 import services.api.runtime_handlers.mpijob
 import services.api.utils.singletons.logs_dir
 import services.api.utils.singletons.scheduler
+from framework.tests.unit.common_fixtures import (
+    K8sSecretsMock,
+    TestServiceBase,
+)
 from services.api.daemon import daemon
-from services.api.initial_data import init_data
 
 # Importing here since mlrun_pipelines imports mlconf and it causes circular import
 import mlrun_pipelines.utils  # isort:skip
@@ -67,13 +65,16 @@ if str(tests_root_directory) in os.getcwd():
     # then providing pytest_plugins is not allowed.
     pytest_plugins = [
         "tests.common_fixtures",
-        "server.py.framework.tests.unit.common_fixtures",
     ]
 
 
 @pytest.fixture()
 def app() -> fastapi.FastAPI:
-    yield daemon.app
+    # TODO: This is a hack to remove the alerts app mount because it blocks the test router.
+    #  Remove this when alerts is properly mounted with "alerts" prefix
+    _app = daemon.app
+    _app.routes.pop()
+    yield _app
 
 
 @pytest.fixture()
@@ -81,85 +82,35 @@ def prefix() -> str:
     yield daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 
 
-# TODO: This is partially duplicated with server.py.framework.tests.unit.common_fixtures.service_config_test.
-#  Remove the common code and use both.
+# TODO: This is a hack to allow sharing fixtures between services in non-root directives because pytest behavior
+#  changes with respect to the directive in which the test is running from. To use the common fixtures we need to use
+#  pytest plugins but it is not allowed in non-root directive which means the fixture must apply on all tests
+#  including client side. The correct way to solve this is using classes like in alerts service unit tests but it is a
+#  big refactor for this PR
+test_service_base = TestServiceBase()
+service_config_test = test_service_base.service_config_test
+db = test_service_base.db
+set_base_url_for_test_client = test_service_base.set_base_url_for_test_client
+client = test_service_base.client
+
+
 @pytest.fixture(autouse=True)
-def api_config_test():
-    framework.utils.singletons.db.db = None
+def api_config_test(service_config_test):
     framework.utils.singletons.project_member.project_member = None
     services.api.utils.singletons.scheduler.scheduler = None
-    framework.utils.singletons.k8s._k8s = None
     services.api.utils.singletons.logs_dir.logs_dir = None
 
-    mlconf.nuclio_version = ""
     services.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
-    mlrun.config._is_running_as_api = True
-    framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster = False
-
-    # we need to override the run db container manually because we run all unit tests in the same process in CI
+    # we need to override the launcher container manually because we run all unit tests in the same process in CI
     # so API is imported even when it's not needed
-    rundb_factory = mlrun.db.factory.RunDBFactory()
-    rundb_factory._rundb_container.override(framework.rundb.sqldb.SQLRunDBContainer)
-
-    # same for the launcher container
     launcher_factory = mlrun.launcher.factory.LauncherFactory()
     launcher_factory._launcher_container.override(
         services.api.launcher.ServerSideLauncherContainer
     )
 
     yield
-
-    mlrun.config._is_running_as_api = None
-
-    # reset factory container overrides
-    rundb_factory._rundb_container.reset_override()
     launcher_factory._launcher_container.reset_override()
-
-
-# TODO: This is duplicated with server.py.framework.tests.unit.common_fixtures.db_session. Use the common one
-@pytest.fixture()
-def db() -> typing.Iterator[sqlalchemy.orm.Session]:
-    """
-    This fixture initialize the db singleton (so it will be accessible using services.api.singletons.get_db()
-    and generates a db session that can be used by the test
-    """
-    db_file = NamedTemporaryFile(suffix="-mlrun.db")
-    logger.info(f"Created temp db file: {db_file.name}")
-    config.httpdb.db_type = "sqldb"
-    dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
-    config.httpdb.dsn = dsn
-    mlrun.config._is_running_as_api = True
-
-    # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
-    # we need to force re-init the engine cause otherwise it is cached between tests
-    _init_engine(dsn=config.httpdb.dsn)
-
-    # SQLite foreign keys constraint must be enabled manually to allow cascade deletions on DB level
-    @event.listens_for(Engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    # forcing from scratch because we created an empty file for the db
-    init_data(from_scratch=True)
-    framework.utils.singletons.db.initialize_db()
-    framework.utils.singletons.project_member.initialize_project_member()
-
-    # we're also running client code in tests so set dbpath as well
-    # note that setting this attribute triggers connection to the run db therefore must happen after the initialization
-    config.dbpath = dsn
-    yield create_session()
-    logger.info(f"Removing temp db file: {db_file.name}")
-    db_file.close()
-
-
-def set_base_url_for_test_client(
-    client: typing.Union[httpx.AsyncClient, TestClient],
-    prefix: str = daemon.service.BASE_VERSIONED_SERVICE_PREFIX,
-):
-    client.base_url = client.base_url.join(prefix)
 
 
 # TODO: Move this to common fixtures similar to framework.tests.unit.common_fixtures.client
@@ -184,7 +135,7 @@ def unversioned_client(db, app) -> Generator:
 
 
 @pytest_asyncio.fixture()
-async def async_client(db, app) -> typing.AsyncIterator[httpx.AsyncClient]:
+async def async_client(db, app, prefix) -> typing.AsyncIterator[httpx.AsyncClient]:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
         mlconf.monitoring.runs.interval = 0
@@ -192,7 +143,7 @@ async def async_client(db, app) -> typing.AsyncIterator[httpx.AsyncClient]:
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
         async with httpx.AsyncClient(app=app, base_url="http://test") as async_client:
-            set_base_url_for_test_client(async_client)
+            set_base_url_for_test_client(async_client, prefix)
             yield async_client
 
 
@@ -292,7 +243,7 @@ def _mocked_k8s_helper():
     )
 
 
-class K8sSecretsMock(framework.tests.unit.common_fixtures.K8sSecretsMock):
+class APIK8sSecretsMock(K8sSecretsMock):
     def set_service_account_keys(
         self, project, default_service_account, allowed_service_accounts
     ):
@@ -315,9 +266,9 @@ class K8sSecretsMock(framework.tests.unit.common_fixtures.K8sSecretsMock):
 
 
 @pytest.fixture()
-def k8s_secrets_mock(monkeypatch) -> K8sSecretsMock:
+def k8s_secrets_mock(monkeypatch) -> APIK8sSecretsMock:
     logger.info("Creating k8s secrets mock")
-    k8s_secrets_mock = K8sSecretsMock()
+    k8s_secrets_mock = APIK8sSecretsMock()
     k8s_secrets_mock.mock_functions(
         framework.utils.singletons.k8s.get_k8s_helper(), monkeypatch
     )
@@ -375,8 +326,8 @@ class MockedProjectFollowerIguazioClient(
     def list_projects(
         self,
         session: str,
-        updated_after: typing.Optional[datetime.datetime] = None,
-    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
+        updated_after: typing.Optional[datetime] = None,
+    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime]]:
         return [], None
 
     def get_project(

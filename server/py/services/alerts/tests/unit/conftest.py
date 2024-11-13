@@ -14,6 +14,7 @@
 import os
 import pathlib
 
+import fastapi
 import pytest
 
 from services.alerts.daemon import daemon
@@ -27,12 +28,11 @@ if str(tests_root_directory) in os.getcwd():
     # then providing pytest_plugins is not allowed.
     pytest_plugins = [
         "tests.common_fixtures",
-        "server.py.framework.tests.unit.common_fixtures",
     ]
 
 
 @pytest.fixture()
-def app():
+def app() -> fastapi.FastAPI:
     yield daemon.app
 
 

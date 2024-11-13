@@ -22,12 +22,13 @@ from mlrun.config import config
 
 from framework.db import close_session, create_session
 from framework.db.sqldb.db import SQLDB
+from framework.tests.unit.common_fixtures import TestServiceBase
 from framework.utils.singletons.db import initialize_db
 from framework.utils.singletons.project_member import initialize_project_member
 from services.api.initial_data import init_data
 
 
-class TestDatabaseBase:
+class TestDatabaseBase(TestServiceBase):
     """
     This fixture initializes a sqlite DB for all tests in the class that inherit from this class.
     Example:

@@ -43,7 +43,7 @@ from framework.routers import alerts, auth, healthz
 
 
 class Service(framework.service.Service):
-    # TODO: Change service name to alerts once they are fully seperated - this allows to mount the application on the
+    # TODO: Change service name to alerts once they are fully separated - this allows to mount the application on the
     #  api Router without implementing tunneling
     service_name = "api"
 
@@ -94,6 +94,7 @@ class Service(framework.service.Service):
 
     async def get_alert(
         self,
+        request: fastapi.Request,
         project: str,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo,

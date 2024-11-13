@@ -37,6 +37,7 @@ from mlrun.utils import (
 )
 
 import framework.constants
+import framework.db.sqldb.db
 import framework.db.sqldb.models
 import framework.utils.db.mysql
 import services.api.crud.pagination_cache

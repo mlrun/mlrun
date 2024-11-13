@@ -49,13 +49,12 @@ RUN sh /uv-installer.sh && rm /uv-installer.sh
 
 ENV PATH="/root/.local/bin/:$PATH"
 ENV UV_SYSTEM_PYTHON=true
-ENV UV_REQUIRE_HASHES=true
 
 WORKDIR /mlrun
 
 COPY ./dockerfiles/mlrun-api/locked-requirements.txt ./locked-requirements.txt
 
-RUN uv pip sync locked-requirements.txt
+RUN uv pip sync --require-hashes locked-requirements.txt
 
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs

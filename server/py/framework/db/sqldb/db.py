@@ -54,6 +54,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
+import mlrun.utils.db
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
@@ -2409,10 +2410,7 @@ class SQLDB(DBInterface):
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
-        if isinstance(project, list):
-            query = query.filter(Schedule.project.in_(project))
-        elif project and project != "*":
-            query = query.filter(Schedule.project == project)
+        query = self._filter_query_by_resource_project(query, Schedule, project)
 
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
@@ -2948,6 +2946,18 @@ class SQLDB(DBInterface):
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
         )
+
+    @staticmethod
+    def _filter_query_by_resource_project(
+        query: sqlalchemy.orm.query.Query,
+        resource: typing.Type[mlrun.utils.db.BaseModel],
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
+    ) -> sqlalchemy.orm.query.Query:
+        if isinstance(project, list):
+            query = query.filter(resource.project.in_(project))
+        elif project and project != "*":
+            query = query.filter(resource.project == project)
+        return query
 
     @staticmethod
     def _calculate_functions_counters(session) -> dict[str, int]:
@@ -4748,11 +4758,7 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
 
         query = self._query(session, Run)
-
-        if isinstance(project, list):
-            query = query.filter(Run.project.in_(project))
-        elif project and project != "*":
-            query = query.filter(Run.project == project)
+        query = self._filter_query_by_resource_project(query, Run, project)
 
         if uid:
             # uid may be either a single uid (string) or a list of uids
@@ -4806,11 +4812,7 @@ class SQLDB(DBInterface):
         :param page_size: The page size to query.
         """
         query = session.query(Function, Function.Tag.name)
-
-        if isinstance(project, list):
-            query = query.filter(Function.project.in_(project))
-        elif project and project != "*":
-            query = query.filter(Function.project == project)
+        query = self._filter_query_by_resource_project(query, Function, project)
 
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
@@ -5594,11 +5596,7 @@ class SQLDB(DBInterface):
         self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
-
-        if isinstance(project, list):
-            query = query.filter(AlertConfig.project.in_(project))
-        elif project and project != "*":
-            query = query.filter(AlertConfig.project == project)
+        query = self._filter_query_by_resource_project(query, AlertConfig, project)
 
         alerts = list(map(self._transform_alert_config_record_to_schema, query.all()))
         for alert in alerts:

@@ -305,17 +305,17 @@ class Projects(
                 )
             )
             return [project]
-        else:
-            projects_output = self.list_projects(
-                session,
-                format_=mlrun.common.formatters.ProjectFormat.name_only,
-                **project_filters,
-            )
-            return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-                projects_output.projects,
-                auth_info,
-                action=action,
-            )
+
+        projects_output = self.list_projects(
+            session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            **project_filters,
+        )
+        return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            projects_output.projects,
+            auth_info,
+            action=action,
+        )
 
     async def list_project_summaries(
         self,

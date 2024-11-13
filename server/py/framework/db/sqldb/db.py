@@ -2950,7 +2950,7 @@ class SQLDB(DBInterface):
     @staticmethod
     def _filter_query_by_resource_project(
         query: sqlalchemy.orm.query.Query,
-        resource: typing.Type[mlrun.utils.db.BaseModel],
+        resource: type[mlrun.utils.db.BaseModel],
         project: typing.Optional[typing.Union[str, list[str]]] = None,
     ) -> sqlalchemy.orm.query.Query:
         if isinstance(project, list):

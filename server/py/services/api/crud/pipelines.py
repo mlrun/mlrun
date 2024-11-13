@@ -46,7 +46,7 @@ class Pipelines(
     def list_pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         namespace: typing.Optional[str] = None,
         sort_by: str = "",
         page_token: str = "",
@@ -55,10 +55,6 @@ class Pipelines(
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> tuple[int, typing.Optional[int], list[dict]]:
-        if project != "*" and (page_token or page_size):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Filtering by project can not be used together with pagination"
-            )
         if format_ == mlrun.common.formatters.PipelineFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
             # manifest status that includes the nodes section we use to generate the DAG.
@@ -67,75 +63,37 @@ class Pipelines(
                 "Summary format is not supported for list pipelines, use get instead"
             )
 
-        kfp_client = self.initialize_kfp_client(namespace)
-        if project != "*":
-            # If no filter is provided and the project is not "*",
-            # automatically apply a filter to match runs where the project name
-            # is a substring of the pipeline's name. This ensures that only pipelines
-            # with the project name in their name are returned, helping narrow down the results.
-            if not filter_:
-                logger.debug(
-                    "No filter provided. "
-                    "Applying project-based filter for project to match pipelines with project name as a substring",
-                    project=project,
-                )
-                filter_ = mlrun.utils.get_kfp_project_filter(project_name=project)
-            runs = []
-            while page_token is not None:
-                # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.
-                # When we have a token from previous call, we will strip out the filter and use the token to continue
-                # (the token contains the details of the filter that was used to create it)
-                response = kfp_client.list_runs(
-                    page_token=page_token,
-                    page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
-                    sort_by=sort_by if page_token == "" else "",
-                    filter=filter_ if page_token == "" else "",
-                )
-                runs.extend(
-                    [
-                        mlrun_pipelines.models.PipelineRun(run)
-                        for run in response.runs or []
-                    ]
-                )
-                page_token = response.next_page_token
-            project_runs = []
-            for run in runs:
-                run_project = self.resolve_project_from_pipeline(run)
-                if run_project == project:
-                    project_runs.append(run)
-            runs = self._filter_runs_by_name(project_runs, name_contains)
+        project_names = None
+        if isinstance(project, list):
+            project_names = project
+        elif project and project != "*":
+            project_names = [project]
 
-            total_size = len(runs)
-            next_page_token = None
-        else:
-            try:
-                response = kfp_client.list_runs(
-                    page_token=page_token,
-                    page_size=page_size
-                    or mlrun.common.schemas.PipelinesPagination.default_page_size,
-                    sort_by=sort_by,
-                    filter=filter_,
-                )
-            except kfp_server_api.ApiException as exc:
-                # extract the summary of the error message from the exception
-                error_message = exc.body or exc.reason or exc
-                if "message" in error_message:
-                    error_message = error_message["message"]
-                raise mlrun.errors.err_for_status_code(
-                    exc.status, err_to_str(error_message)
-                ) from exc
+        kfp_client = self.initialize_kfp_client(namespace)
+        # If no filter is provided and the project is not "*",
+        # automatically apply a filter to match runs where the project name
+        # is a substring of the pipeline's name. This ensures that only pipelines
+        # with the project name in their name are returned, helping narrow down the results.
+        if not filter_ and project_names and len(project_names) == 1:
+            logger.debug(
+                "No filter provided. "
+                "Applying project-based filter for project to match pipelines with project name as a substring",
+                project=project_names[0],
+            )
+            filter_ = mlrun.utils.get_kfp_project_filter(project_name=project_names[0])
+        total_size, next_page_token, runs = self._paginate_runs(
+            kfp_client, page_token, page_size, sort_by, filter_
+        )
+        if project_names:
             runs = [
-                mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []
+                run
+                for run in runs
+                if self.resolve_project_from_pipeline(run) in project_names
             ]
-            runs = self._filter_runs_by_name(runs, name_contains)
-            next_page_token = response.next_page_token
-            # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
-            # so don't pass it to the client in such case
-            if next_page_token:
-                total_size = -1
-            else:
-                total_size = len(runs)
+        runs = self._filter_runs_by_name(runs, name_contains)
         runs = self._format_runs(runs, format_, kfp_client)
+        if total_size != -1:
+            total_size = len(runs)
 
         return total_size, next_page_token, runs
 
@@ -314,6 +272,75 @@ class Pipelines(
     @staticmethod
     def initialize_kfp_client(namespace: typing.Optional[str] = None):
         return mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url, namespace)
+
+    def _paginate_runs(
+        self,
+        kfp_client: mlrun_pipelines.utils.kfp.Client,
+        page_token: typing.Optional[str] = None,
+        page_size: typing.Optional[int] = None,
+        sort_by: typing.Optional[str] = None,
+        filter_: typing.Optional[str] = None,
+    ) -> tuple[int, typing.Optional[int], list[mlrun_pipelines.models.PipelineRun]]:
+        next_page_token = -1
+        if page_token or page_size:
+            runs, next_page_token = self._list_runs_from_kfp(
+                kfp_client,
+                page_token,
+                page_size or mlrun.common.schemas.PipelinesPagination.default_page_size,
+                sort_by,
+                filter_,
+            )
+            runs = [mlrun_pipelines.models.PipelineRun(run) for run in runs or []]
+            # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
+            # so don't pass it to the client in such case
+            if next_page_token:
+                total_size = -1
+            else:
+                total_size = len(runs)
+        else:
+            runs = []
+            while next_page_token is not None:
+                page_runs, next_page_token = self._list_runs_from_kfp(
+                    kfp_client,
+                    page_token,
+                    page_size or mlrun.common.schemas.PipelinesPagination.max_page_size,
+                    sort_by,
+                    filter_,
+                )
+                runs.extend(
+                    [mlrun_pipelines.models.PipelineRun(run) for run in page_runs or []]
+                )
+                page_token = next_page_token
+            total_size = len(runs)
+
+        return total_size, next_page_token, runs
+
+    def _list_runs_from_kfp(
+        self,
+        kfp_client: mlrun_pipelines.utils.kfp.Client,
+        page_token: typing.Optional[str] = None,
+        page_size: typing.Optional[int] = None,
+        sort_by: typing.Optional[str] = None,
+        filter_: typing.Optional[str] = None,
+    ) -> tuple[list[mlrun_pipelines.models.PipelineRun], typing.Optional[str]]:
+        try:
+            response = kfp_client.list_runs(
+                page_token=page_token,
+                page_size=page_size
+                or mlrun.common.schemas.PipelinesPagination.default_page_size,
+                sort_by=sort_by if not page_token else "",
+                filter=filter_ if not page_token else "",
+            )
+        except kfp_server_api.ApiException as exc:
+            # extract the summary of the error message from the exception
+            error_message = exc.body or exc.reason or exc
+            if "message" in error_message:
+                error_message = error_message["message"]
+            raise mlrun.errors.err_for_status_code(
+                exc.status, err_to_str(error_message)
+            ) from exc
+
+        return response.runs, response.next_page_token
 
     def _format_runs(
         self,

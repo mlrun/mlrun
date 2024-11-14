@@ -303,6 +303,7 @@ with warnings.catch_warnings():
         name = Column(String(255, collation=SQLTypesUtil.collation()))
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        kind = Column(String(255, collation=SQLTypesUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
         updated = Column(SQLTypesUtil.timestamp())

@@ -1392,6 +1392,8 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
+        kind: Optional[str] = None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
@@ -1407,13 +1409,17 @@ class HTTPRunDB(RunDBInterface):
             the specified key-value pairs or key existence.
         :param since: Return functions updated after this date (as datetime object).
         :param until: Return functions updated before this date (as datetime object).
+        :param kind: Return only functions of a specific kind.
+        :param format_: The format in which to return the functions. Default is 'full'.
         :returns: List of function objects (as dictionary).
         """
         functions, _ = self._list_functions(
             name=name,
             project=project,
             tag=tag,
+            kind=kind,
             labels=labels,
+            format_=format_,
             since=since,
             until=until,
             return_all=True,
@@ -4719,7 +4725,9 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         project: Optional[str] = None,
         tag: Optional[str] = None,
+        kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        format_: Optional[str] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         page: Optional[int] = None,
@@ -4734,9 +4742,11 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "tag": tag,
+            "kind": kind,
             "label": labels,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
+            "format": format_,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,

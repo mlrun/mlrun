@@ -867,84 +867,86 @@ class HTTPRunDB(RunDBInterface):
             limit.
         :param with_notifications: Return runs with notifications, and join them to the response. Default is `False`.
         """
-
-        project = project or config.default_project
-        if with_notifications:
-            logger.warning(
-                "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
-                "using the `with_notifications` flag."
-            )
-
-        if last:
-            # TODO: Remove this in 1.8.0
-            warnings.warn(
-                "'last' is deprecated and will be removed in 1.8.0.",
-                FutureWarning,
-            )
-
-        if state:
-            # TODO: Remove this in 1.9.0
-            warnings.warn(
-                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
-                FutureWarning,
-            )
-
-        labels = self._parse_labels(labels)
-
-        if (
-            not name
-            and not uid
-            and not labels
-            and not state
-            and not states
-            and not last
-            and not start_time_from
-            and not start_time_to
-            and not last_update_time_from
-            and not last_update_time_to
-            and not partition_by
-            and not partition_sort_by
-            and not iter
-        ):
-            # default to last week on no filter
-            start_time_from = datetime.now() - timedelta(days=7)
-            partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
-            partition_sort_by = mlrun.common.schemas.SortField.updated
-
-        params = {
-            "name": name,
-            "uid": uid,
-            "label": labels,
-            "state": mlrun.utils.helpers.as_list(state)
-            if state is not None
-            else states or None,
-            "sort": bool2str(sort),
-            "iter": bool2str(iter),
-            "start_time_from": datetime_to_iso(start_time_from),
-            "start_time_to": datetime_to_iso(start_time_to),
-            "last_update_time_from": datetime_to_iso(last_update_time_from),
-            "last_update_time_to": datetime_to_iso(last_update_time_to),
-            "with-notifications": with_notifications,
-        }
-
-        if partition_by:
-            params.update(
-                self._generate_partition_by_params(
-                    mlrun.common.schemas.RunPartitionByField,
-                    partition_by,
-                    rows_per_partition,
-                    partition_sort_by,
-                    partition_order,
-                    max_partitions,
-                )
-            )
-        error = "list runs"
-        _path = self._path_of("runs", project)
-        responses = self.paginated_api_call(
-            "GET", _path, error, params=params, return_all=True
+        runs, _ = self._list_runs(
+            name=name,
+            uid=uid,
+            project=project,
+            labels=labels,
+            state=state,
+            states=states,
+            sort=sort,
+            last=last,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
+            max_partitions=max_partitions,
+            with_notifications=with_notifications,
+            return_all=True,
         )
-        paginated_responses, _ = self.process_paginated_responses(responses, "runs")
-        return RunList(paginated_responses)
+        return runs
+
+    def paginated_list_runs(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[RunList, Optional[str]]:
+        """List runs with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of runs based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of runs that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_runs method:
+            See :py:func:`~list_runs` for more details.
+
+        Examples::
+
+            # Fetch first page of runs with page size of 5
+            runs, token = db.paginated_list_runs(project="my-project", page_size=5)
+            # Fetch next page using the pagination token from the previous response
+            runs, token = db.paginated_list_runs(project="my-project", page_token=token)
+            # Fetch runs for a specific page (e.g., page 3)
+            runs, token = db.paginated_list_runs(project="my-project", page=3, page_size=5)
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            runs = []
+            token = None
+            while True:
+                page_runs, token = db.paginated_list_runs(
+                    project="my-project", page_token=token, page_size=5
+                )
+                runs.extend(page_runs)
+
+                # If token is None and page_runs is empty, we've reached the end (no more runs).
+                # If token is None and page_runs is not empty, we've fetched the last page of runs.
+                if not token:
+                    break
+            print(f"Total runs retrieved: {len(runs)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of runs and an optional `page_token` for pagination.
+        """
+        return self._list_runs(
+            *args,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            return_all=False,
+            **kwargs,
+        )
 
     def del_runs(
         self,
@@ -1407,22 +1409,80 @@ class HTTPRunDB(RunDBInterface):
         :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
         """
-        project = project or config.default_project
-        labels = self._parse_labels(labels)
-        params = {
-            "name": name,
-            "tag": tag,
-            "label": labels,
-            "since": datetime_to_iso(since),
-            "until": datetime_to_iso(until),
-        }
-        error = "list functions"
-        path = f"projects/{project}/functions"
-        responses = self.paginated_api_call(
-            "GET", path, error, params=params, return_all=True
+        functions, _ = self._list_functions(
+            name=name,
+            project=project,
+            tag=tag,
+            labels=labels,
+            since=since,
+            until=until,
+            return_all=True,
         )
-        paginated_responses, _ = self.process_paginated_responses(responses, "funcs")
-        return paginated_responses
+        return functions
+
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[list[dict], Optional[str]]:
+        """List functions with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of functions based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of functions that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_functions method:
+            See :py:func:`~list_functions` for more details.
+
+        Examples::
+
+            # Fetch first page of functions with page size of 5
+            functions, token = db.paginated_list_functions(
+                project="my-project", page_size=5
+            )
+            # Fetch next page using the pagination token from the previous response
+            functions, token = db.paginated_list_functions(
+                project="my-project", page_token=token
+            )
+            # Fetch functions for a specific page (e.g., page 3)
+            functions, token = db.paginated_list_functions(
+                project="my-project", page=3, page_size=5
+            )
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            functions = []
+            token = None
+            while True:
+                page_functions, token = db.paginated_list_functions(
+                    project="my-project", page_token=token, page_size=5
+                )
+                functions.extend(page_functions)
+
+                # If token is None and page_functions is empty, we've reached the end (no more functions).
+                # If token is None and page_functions is not empty, we've fetched the last page of functions.
+                if not token:
+                    break
+            print(f"Total functions retrieved: {len(functions)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of functions objects (as dictionary) and an optional
+            `page_token` for pagination.
+        """
+        return self._list_functions(
+            *args,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            return_all=False,
+            **kwargs,
+        )
 
     def list_runtime_resources(
         self,
@@ -4653,6 +4713,162 @@ class HTTPRunDB(RunDBInterface):
         values = ArtifactList(paginated_responses)
         values.tag = tag
         return values, token
+
+    def _list_functions(
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ) -> tuple[list, Optional[str]]:
+        """Handles list functions, both paginated and not."""
+
+        project = project or config.default_project
+        labels = self._parse_labels(labels)
+        params = {
+            "name": name,
+            "tag": tag,
+            "label": labels,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
+        }
+        error = "list functions"
+        path = f"projects/{project}/functions"
+
+        # Fetch the responses, either one page or all based on `return_all`
+        responses = self.paginated_api_call(
+            "GET", path, error, params=params, return_all=return_all
+        )
+        paginated_responses, token = self.process_paginated_responses(
+            responses, "funcs"
+        )
+        return paginated_responses, token
+
+    def _list_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ) -> tuple[RunList, Optional[str]]:
+        """Handles list runs, both paginated and not."""
+
+        project = project or config.default_project
+        if with_notifications:
+            logger.warning(
+                "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
+                "using the `with_notifications` flag."
+            )
+
+        if last:
+            # TODO: Remove this in 1.8.0
+            warnings.warn(
+                "'last' is deprecated and will be removed in 1.8.0.",
+                FutureWarning,
+            )
+
+        if state:
+            # TODO: Remove this in 1.9.0
+            warnings.warn(
+                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
+                FutureWarning,
+            )
+
+        labels = self._parse_labels(labels)
+
+        if (
+            not name
+            and not uid
+            and not labels
+            and not state
+            and not states
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
+        params = {
+            "name": name,
+            "uid": uid,
+            "label": labels,
+            "state": mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
+            "sort": bool2str(sort),
+            "iter": bool2str(iter),
+            "start_time_from": datetime_to_iso(start_time_from),
+            "start_time_to": datetime_to_iso(start_time_to),
+            "last_update_time_from": datetime_to_iso(last_update_time_from),
+            "last_update_time_to": datetime_to_iso(last_update_time_to),
+            "with-notifications": with_notifications,
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
+        }
+
+        if partition_by:
+            params.update(
+                self._generate_partition_by_params(
+                    mlrun.common.schemas.RunPartitionByField,
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
+                    max_partitions,
+                )
+            )
+        error = "list runs"
+        _path = self._path_of("runs", project)
+
+        # Fetch the responses, either one page or all based on `return_all`
+        responses = self.paginated_api_call(
+            "GET", _path, error, params=params, return_all=return_all
+        )
+        paginated_responses, token = self.process_paginated_responses(responses, "runs")
+        return RunList(paginated_responses), token
 
 
 def _as_json(obj):

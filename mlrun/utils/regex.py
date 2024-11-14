@@ -101,3 +101,5 @@ artifact_uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?
 artifact_producer_uri_pattern = (
     r"^((?P<project>.*)/)?(?P<uid>.*?)(\-(?P<iteration>.*?))?$"
 )
+
+mail_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"

@@ -452,6 +452,30 @@ def test_list_functions_with_time_filters(db: DBInterface, db_session: Session):
     assert len(functions) == 0
 
 
+def test_list_functions_by_kind(db: DBInterface, db_session: Session):
+    function_1_name = "function-name-1"
+    function_2_name = "function-name-2"
+    function_1 = _generate_function(function_1_name)
+    function_2 = _generate_function(function_2_name)
+    function_1.kind = "local"
+    function_2.kind = "job"
+    for function in [function_1, function_2]:
+        db.store_function(db_session, function.to_dict(), function.metadata.name)
+    functions = db.list_functions(db_session, kind="local")
+    assert len(functions) == 1
+    assert functions[0]["metadata"]["name"] == function_1_name
+
+    functions = db.list_functions(db_session, kind="job")
+    assert len(functions) == 1
+    assert functions[0]["metadata"]["name"] == function_2_name
+
+    functions = db.list_functions(db_session, kind="x")
+    assert len(functions) == 0
+
+    functions = db.list_functions(db_session, kind=None)
+    assert len(functions) == 2
+
+
 def test_list_untagged_functions(db: DBInterface, db_session: Session):
     # create 2 functions, one with tag and one without
     function_1_name = "function-name-1"

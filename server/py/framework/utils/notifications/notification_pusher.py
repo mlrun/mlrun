@@ -20,17 +20,56 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
 import mlrun.utils.helpers
+import mlrun.utils.notifications.notification as notification_module
+import mlrun.utils.notifications.notification.base as base
 from mlrun.utils import logger
-from mlrun.utils.notifications.notification import NotificationBase, NotificationTypes
 from mlrun.utils.notifications.notification_pusher import (
     NotificationPusher,
     _NotificationPusherBase,
 )
 
+import framework.api.utils
 import framework.constants
+import framework.utils.singletons.k8s
 
 
 class RunNotificationPusher(NotificationPusher):
+    mail_notification_default_params = None
+
+    @staticmethod
+    def resolve_notifications_default_params():
+        # TODO: After implementing make running notification send from the server side (ML-8069),
+        #       we should move all the notifications classes from the client to the server and also
+        #       create new function on the NotificationBase class for resolving the default params.
+        #       After that we can remove this function.
+        return {
+            notification_module.NotificationTypes.console: {},
+            notification_module.NotificationTypes.git: {},
+            notification_module.NotificationTypes.ipython: {},
+            notification_module.NotificationTypes.slack: {},
+            notification_module.NotificationTypes.mail: RunNotificationPusher._get_mail_notification_default_params(),
+            notification_module.NotificationTypes.webhook: {},
+        }
+
+    @staticmethod
+    def _get_mail_notification_default_params():
+        if RunNotificationPusher.mail_notification_default_params is not None:
+            return RunNotificationPusher.mail_notification_default_params
+
+        smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
+        mail_notification_default_params = {}
+        if framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
+            mail_notification_default_params = (
+                framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
+                    smtp_config_secret_name, load_as_json=True
+                )
+            )
+
+        RunNotificationPusher.mail_notification_default_params = (
+            mail_notification_default_params
+        )
+        return RunNotificationPusher.mail_notification_default_params
+
     def _prepare_notification_args(
         self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification
     ):
@@ -77,7 +116,9 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 )
 
                 name = notification_object.name
-                notification_type = NotificationTypes(notification_object.kind)
+                notification_type = notification_module.NotificationTypes(
+                    notification_object.kind
+                )
                 params = {}
                 if notification_object.secret_params:
                     params.update(notification_object.secret_params)
@@ -107,7 +148,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
 
     async def _push_notification_async(
         self,
-        notification: NotificationBase,
+        notification: base.NotificationBase,
         alert: mlrun.common.schemas.AlertConfig,
         notification_object: mlrun.common.schemas.Notification,
         event_data: mlrun.common.schemas.Event,
@@ -185,17 +226,3 @@ class AlertNotificationPusher(_NotificationPusherBase):
             project,
             mask_params=False,
         )
-
-
-def resolve_notifications_default_params():
-    # TODO: After implementing make running notification send from the server side (ML-8069),
-    #       we should move all the notifications classes from the client to the server and also
-    #       create new function on the NotificationBase class for resolving the default params.
-    #       After that we can remove this function.
-    return {
-        NotificationTypes.console: {},
-        NotificationTypes.git: {},
-        NotificationTypes.ipython: {},
-        NotificationTypes.slack: {},
-        NotificationTypes.webhook: {},
-    }

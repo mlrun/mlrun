@@ -13,6 +13,7 @@
 # limitations under the License.
 import base64
 import hashlib
+import json
 import random
 import string
 import time
@@ -553,7 +554,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         namespace = self.resolve_namespace(namespace)
         try:
-            k8s_secret = self._read_secret(
+            k8s_secret = self.read_secret(
                 secret_name=secret_name,
                 namespace=namespace,
             )
@@ -577,6 +578,33 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             secrets=secrets,
         )
         return mlrun.common.schemas.SecretEventActions.updated
+
+    def read_secret(
+        self,
+        secret_name: str,
+        namespace: str = "",
+    ) -> client.V1Secret:
+        namespace = self.resolve_namespace(namespace)
+        logger.debug("Reading secret", secret_name=secret_name, namespace=namespace)
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(
+                name=secret_name,
+                namespace=namespace,
+            )
+        except k8s_client_rest.ApiException as exc:
+            logger.error(
+                "Failed to retrieve k8s secret",
+                secret_name=secret_name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise k8s_dynamic_exceptions.api_exception(exc)
+        return k8s_secret
+
+    def read_secret_data(
+        self, secret_name: str, namespace: str = "", load_as_json=False
+    ) -> dict[str, str]:
+        k8s_secret = self.read_secret(secret_name, namespace)
+        return self._decode_secret_data(k8s_secret.data, load_as_json=load_as_json)
 
     def _create_secret(
         self,
@@ -628,26 +656,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
         except k8s_client_rest.ApiException as exc:
             raise k8s_dynamic_exceptions.api_exception(exc)
-
-    def _read_secret(
-        self,
-        secret_name: str,
-        namespace: str = "",
-    ) -> client.V1Secret:
-        logger.debug("Reading secret", secret_name=secret_name)
-        try:
-            k8s_secret = self.v1api.read_namespaced_secret(
-                name=secret_name,
-                namespace=namespace,
-            )
-        except k8s_client_rest.ApiException as exc:
-            logger.error(
-                "Failed to retrieve k8s secret",
-                secret_name=secret_name,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise k8s_dynamic_exceptions.api_exception(exc)
-        return k8s_secret
 
     def delete_project_secrets(
         self, project, secrets, namespace=""
@@ -909,7 +917,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return resp.items
 
     @staticmethod
-    def _decode_secret_data(secrets_data, secret_keys=None):
+    def _decode_secret_data(secrets_data, secret_keys=None, load_as_json=False):
         results = {}
         if not secrets_data:
             return results
@@ -920,7 +928,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         for key in secret_keys:
             encoded_value = secrets_data.get(key)
             if encoded_value:
-                results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
+                value = base64.b64decode(secrets_data[key]).decode("utf-8")
+                if load_as_json:
+                    # Try to load the value as JSON, if it fails, stay with the original value
+                    try:
+                        value = json.loads(value)
+                    except json.JSONDecodeError:
+                        pass
+                results[key] = value
         return results
 
     @staticmethod

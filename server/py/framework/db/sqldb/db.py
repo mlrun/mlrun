@@ -1898,6 +1898,8 @@ class SQLDB(DBInterface):
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
+        # avoiding data duplications as the kind is given in the function object
+        # and we store it on a specific "kind" column
         fn.kind = function.pop("kind", None)
         fn.struct = function
         self._upsert(session, [fn])

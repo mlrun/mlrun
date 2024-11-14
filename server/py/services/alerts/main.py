@@ -289,6 +289,7 @@ class Service(framework.service.Service):
         )
 
     async def move_service_to_online(self):
+        self._logger.info("Moving alerts to online")
         # TODO: Once alerts runs in its own pod - remove chief check
         if (
             mlconf.httpdb.clusterization.role

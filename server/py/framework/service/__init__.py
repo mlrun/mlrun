@@ -44,12 +44,20 @@ class Service(ABC):
         self.V2_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v2"
         self.app: fastapi.FastAPI = None
         self._logger = mlrun.utils.logger.get_child(self.service_name)
+        self._mounted_services: list[Service] = []
 
-    def initialize(self):
+    def initialize(self, mounts: dict):
+        self._logger.info("Initializing service")
         self._initialize_app()
         self._register_routes()
+        self._mount_services(mounts)
         self._add_middlewares()
         self._add_exception_handlers()
+
+    def _mount_services(self, mounts: dict):
+        for path, service in mounts.items():
+            self.app.mount(path, service.app)
+            self._mounted_services.append(service)
 
     @abstractmethod
     async def move_service_to_online(self):
@@ -75,15 +83,20 @@ class Service(ABC):
         )
 
     # https://fastapi.tiangolo.com/advanced/events/
-
     @contextlib.asynccontextmanager
     async def lifespan(self, app_: fastapi.FastAPI):
-        await self._setup_service()
+        setup_tasks = [self._setup_service()] + [
+            service._setup_service() for service in self._mounted_services
+        ]
+        await asyncio.gather(*setup_tasks)
 
         # Let the service run
         yield
 
-        await self._teardown_service()
+        teardown_tasks = [self._teardown_service()] + [
+            service._teardown_service() for service in self._mounted_services
+        ]
+        await asyncio.gather(*teardown_tasks)
 
     async def _setup_service(self):
         self._logger.info(
@@ -109,6 +122,7 @@ class Service(ABC):
 
     async def _teardown_service(self):
         await self._custom_teardown_service()
+        # TODO: Don't cancel periodic of mounted services
         framework.utils.periodic.cancel_all_periodic_functions()
 
     async def _custom_teardown_service(self):
@@ -211,10 +225,14 @@ class Service(ABC):
 
 class Daemon(ABC):
     def __init__(self, service_cls: Service.__class__):
-        self._service = service_cls()
+        self._service: Service = service_cls()
 
     def initialize(self):
-        self._service.initialize()
+        self._service.initialize(self.mounts)
+
+    @property
+    def mounts(self) -> dict[str, Service]:
+        return {}
 
     @property
     def app(self) -> fastapi.FastAPI:

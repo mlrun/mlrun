@@ -22,7 +22,12 @@ from services.alerts.daemon import daemon as alerts_daemon
 
 class Daemon(framework.service.Daemon):
     def __init__(self, service_cls: framework.service.Service.__class__):
-        self._service = service_cls()
+        self._service: framework.service.Service = service_cls()
+
+    @property
+    def mounts(self) -> dict[str, framework.service.Service]:
+        # Mount the alerts application until we have service routing/tunneling
+        return {"/": alerts_daemon.service}
 
     @property
     def service(self) -> services.api.main.Service:
@@ -33,6 +38,4 @@ daemon = Daemon(service_cls=services.api.main.Service)
 daemon.initialize()
 app = daemon.app
 
-# Mount the alerts application until we have service routing/tunneling
-app.mount("/", alerts_daemon.app)
 # TODO: Create a container, override ServiceContainer and implement forwarding requests to alerts service

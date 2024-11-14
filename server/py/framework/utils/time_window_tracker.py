@@ -20,6 +20,7 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.types
 
+import framework.db.session
 import framework.utils.asyncio
 import framework.utils.singletons.db
 
@@ -111,8 +112,14 @@ async def run_with_time_window_tracker(
         key=key,
         max_window_size_seconds=max_window_size_seconds,
     )
-    await run_in_threadpool(cycle_tracker.initialize, db_session)
-    last_update_time = await run_in_threadpool(cycle_tracker.get_window, db_session)
+    # Although the methods below would not be using the db_session in parallel, for some reason, reusing it
+    # causes a segmentation fault so we create new ones for the time window ops
+    await run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session, cycle_tracker.initialize
+    )
+    last_update_time = await run_in_threadpool(
+        framework.db.session.run_function_with_new_db_session, cycle_tracker.get_window
+    )
     now = datetime.datetime.now(datetime.timezone.utc)
     if ensure_window_update:
         try:
@@ -120,9 +127,17 @@ async def run_with_time_window_tracker(
                 callback(db_session, last_update_time, *args, **kwargs)
             )
         finally:
-            await run_in_threadpool(cycle_tracker.update_window, db_session, now)
+            await run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                cycle_tracker.update_window,
+                now,
+            )
     else:
         await framework.utils.asyncio.maybe_coroutine(
             callback(db_session, last_update_time, *args, **kwargs)
         )
-        await run_in_threadpool(cycle_tracker.update_window, db_session, now)
+        await run_in_threadpool(
+            framework.db.session.run_function_with_new_db_session,
+            cycle_tracker.update_window,
+            now,
+        )

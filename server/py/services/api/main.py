@@ -754,7 +754,6 @@ class Service(framework.service.Service):
                     exc=err_to_str(exc),
                     kind=kind,
                 )
-
         try:
             await framework.utils.time_window_tracker.run_with_time_window_tracker(
                 db_session,

@@ -206,7 +206,7 @@ class TestServiceBase:
         client.base_url = client.base_url.join(prefix)
 
     @pytest.fixture()
-    def client(self, db, app, prefix) -> Generator:
+    def client(self, app, prefix) -> Generator:
         with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
             mlconf.httpdb.logs_path = log_dir
             mlconf.monitoring.runs.interval = 0

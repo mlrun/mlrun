@@ -4051,6 +4051,8 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        kind: Optional[str] = None,
+        format_: Optional[str] = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
@@ -4068,10 +4070,19 @@ class MlrunProject(ModelObj):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
+        :param kind: Return functions of the specified kind. If not provided, all function kinds will be returned.
+        :param format_: The format in which to return the functions. Default is 'full'.
         :returns: List of function objects.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        functions = db.list_functions(name, self.metadata.name, tag=tag, labels=labels)
+        functions = db.list_functions(
+            name,
+            project=self.metadata.name,
+            tag=tag,
+            kind=kind,
+            labels=labels,
+            format_=format_,
+        )
         if functions:
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]

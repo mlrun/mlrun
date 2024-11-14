@@ -54,12 +54,12 @@ def k8s_helper():
         )
         k8s_helper._create_secret = mock.MagicMock()
         k8s_helper._update_secret = mock.MagicMock()
-        k8s_helper._read_secret = mock.MagicMock()
+        k8s_helper.read_secret = mock.MagicMock()
         return k8s_helper
 
 
 def test_create_new_secret(k8s_helper):
-    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+    k8s_helper.read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
         k8s_client_rest.ApiException(status=404)
     )
     result = k8s_helper.store_secrets(
@@ -73,7 +73,7 @@ def test_create_new_secret(k8s_helper):
 
 
 def test_conflict_during_create_secret(k8s_helper):
-    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+    k8s_helper.read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
         k8s_client_rest.ApiException(status=404)
     )
     k8s_helper._create_secret.side_effect = k8s_dynamic_exceptions.api_exception(
@@ -91,7 +91,7 @@ def test_conflict_during_create_secret(k8s_helper):
 
 
 def test_update_existing_secret(k8s_helper):
-    k8s_helper._read_secret.return_value = k8s_client.V1Secret()
+    k8s_helper.read_secret.return_value = k8s_client.V1Secret()
     k8s_helper._create_secret.side_effect = k8s_dynamic_exceptions.api_exception(
         k8s_client_rest.ApiException(status=409)
     )
@@ -107,7 +107,7 @@ def test_update_existing_secret(k8s_helper):
 
 
 def test_update_failure(k8s_helper):
-    k8s_helper._read_secret.return_value = k8s_client.V1Secret()
+    k8s_helper.read_secret.return_value = k8s_client.V1Secret()
     k8s_helper._update_secret.side_effect = k8s_dynamic_exceptions.api_exception(
         k8s_client_rest.ApiException(status=500)
     )
@@ -123,7 +123,7 @@ def test_update_failure(k8s_helper):
 
 
 def test_read_secret_failure(k8s_helper):
-    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+    k8s_helper.read_secret.side_effect = k8s_dynamic_exceptions.api_exception(
         k8s_client_rest.ApiException(status=403)
     )
 
@@ -134,7 +134,7 @@ def test_read_secret_failure(k8s_helper):
             namespace="default",
         )
 
-    k8s_helper._read_secret.assert_called_once()
+    k8s_helper.read_secret.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -209,11 +209,11 @@ def test_store_secret(
     expected_result: SecretEventActions,
 ):
     if existing_secret_data:
-        k8s_helper._read_secret.return_value = k8s_client.V1Secret(
+        k8s_helper.read_secret.return_value = k8s_client.V1Secret(
             data=existing_secret_data,
         )
     else:
-        k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+        k8s_helper.read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
             k8s_client_rest.ApiException(status=404)
         )
     result = k8s_helper.store_secrets(

@@ -350,7 +350,9 @@ class SQLRunDB(RunDBInterface):
         name: Optional[str] = None,
         project: Optional[Union[str, list[str]]] = None,
         tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        kind: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
     ):
@@ -360,9 +362,11 @@ class SQLRunDB(RunDBInterface):
             project=project,
             name=name,
             tag=tag,
+            kind=kind,
             labels=labels,
             since=since,
             until=until,
+            format_=format_,
         )
 
     def paginated_list_functions(

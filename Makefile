@@ -91,6 +91,9 @@ else
 	$(error MLRUN_PYTHON_PACKAGE_INSTALLER must be either "pip" or "uv")
 endif
 
+# Change to `--upgrade-package <package-name>` to upgrade only a specific package
+MLRUN_UV_UPGRADE_FLAG ?= --upgrade
+
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -794,4 +797,5 @@ update-api-deps: verify-uv-version ## Update mlrun-api locked requirements file
 	requirements.txt \
 	extras-requirements.txt \
 	dockerfiles/mlrun-api/requirements.txt \
+	$(MLRUN_UV_UPGRADE_FLAG) \
 	--output-file dockerfiles/mlrun-api/locked-requirements.txt

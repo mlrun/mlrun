@@ -139,7 +139,7 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 class TestServiceBase:
     @pytest.fixture(autouse=True)
-    def service_config_test(self, config_test_base):
+    def service_config_test(self):
         framework.utils.singletons.db.db = None
         framework.utils.singletons.k8s._k8s = None
 

@@ -134,6 +134,8 @@ def test_requirement_specifiers_convention():
         "pyopenssl": {">=23"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
+        # due to a bug in 3.11
+        "aiohttp": {"~=3.10.0"},
         "aiohttp-retry": {"~=2.8.0"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
         "apscheduler": {"~=3.6, !=3.10.2"},

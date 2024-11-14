@@ -346,7 +346,15 @@ class SQLRunDB(RunDBInterface):
         )
 
     def list_functions(
-        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        kind: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
     ):
         return self._transform_db_error(
             services.api.crud.Functions().list_functions,
@@ -354,9 +362,11 @@ class SQLRunDB(RunDBInterface):
             project=project,
             name=name,
             tag=tag,
+            kind=kind,
             labels=labels,
             since=since,
             until=until,
+            format_=format_,
         )
 
     def paginated_list_functions(

@@ -1898,6 +1898,7 @@ class SQLDB(DBInterface):
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
+        fn.kind = function.pop("kind", None)
         fn.struct = function
         self._upsert(session, [fn])
         self.tag_objects_v2(session, [fn], project, tag)
@@ -2026,6 +2027,7 @@ class SQLDB(DBInterface):
             struct = function.struct
             for key, val in updates.items():
                 update_in(struct, key, val)
+            function.kind = struct.pop("kind", None)
             function.struct = struct
             self._upsert(session, [function])
             return function.struct
@@ -2119,6 +2121,7 @@ class SQLDB(DBInterface):
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
+            function["kind"] = obj.kind
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
@@ -4779,6 +4782,7 @@ class SQLDB(DBInterface):
         hash_key: typing.Optional[str] = None,
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
+        kind: typing.Optional[str] = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
@@ -4793,6 +4797,7 @@ class SQLDB(DBInterface):
         :param hash_key: The hash key of the function to query.
         :param since: Filter functions that were updated after this time
         :param until: Filter functions that were updated before this time
+        :param kind: The kind of the function to query.
         :param page: The page number to query.
         :param page_size: The page size to query.
         """
@@ -4806,6 +4811,9 @@ class SQLDB(DBInterface):
 
         if hash_key is not None:
             query = query.filter(Function.uid == hash_key)
+
+        if kind is not None:
+            query = query.filter(Function.kind == kind)
 
         if since or until:
             since = since or datetime.min

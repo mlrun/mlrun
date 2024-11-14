@@ -15,12 +15,12 @@
 
 import unittest
 
-import services.api.utils.lru_cache
+import framework.utils.lru_cache
 
 
 class LRUTest(unittest.TestCase):
     def test_lru(self):
-        lru = services.api.utils.lru_cache.LRUCache(self._func_getter, maxsize=3)
+        lru = framework.utils.lru_cache.LRUCache(self._func_getter, maxsize=3)
         lru("1")
         lru("2")
         lru("3")
@@ -73,7 +73,7 @@ class LRUTest(unittest.TestCase):
         self.assertTrue(info.misses == 0)
         self.assertTrue(info.currsize == 0)
 
-        lru = services.api.utils.lru_cache.LRUCache(
+        lru = framework.utils.lru_cache.LRUCache(
             self._func_getter2, maxsize=3, ignore_args_for_hash=[0]
         )
         lru("not_important", 1)

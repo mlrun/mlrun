@@ -101,6 +101,11 @@ def test_perform_data_migrations_from_first_version():
     )
     services.api.initial_data._perform_version_8_data_migrations = unittest.mock.Mock()
 
+    original_perform_version_9_data_migrations = (
+        services.api.initial_data._perform_version_9_data_migrations
+    )
+    services.api.initial_data._perform_version_9_data_migrations = unittest.mock.Mock()
+
     # perform migrations
     services.api.initial_data._perform_data_migrations(db_session)
 
@@ -114,6 +119,7 @@ def test_perform_data_migrations_from_first_version():
     services.api.initial_data._perform_version_6_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_7_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_8_data_migrations.assert_called_once()
+    services.api.initial_data._perform_version_9_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         services.api.initial_data.latest_data_version
@@ -140,6 +146,9 @@ def test_perform_data_migrations_from_first_version():
     )
     services.api.initial_data._perform_version_8_data_migrations = (
         original_perform_version_8_data_migrations
+    )
+    services.api.initial_data._perform_version_9_data_migrations = (
+        original_perform_version_9_data_migrations
     )
 
 
@@ -216,6 +225,53 @@ def test_add_default_hub_source_if_needed():
     ) as update_default_hub_source:
         services.api.initial_data._add_default_hub_source_if_needed(db, db_session)
         assert update_default_hub_source.call_count == 0
+
+
+def test_migrate_function_kind():
+    db, db_session = _initialize_db_without_migrations()
+    num_of_functions = 10
+    chunk_size = 1
+
+    for fn_counter in range(num_of_functions):
+        fn_name = f"name-{fn_counter}"
+        function_body = {
+            "metadata": {"name": fn_name},
+            "kind": "remote",
+            "status": {"state": "online"},
+            "spec": {
+                "description": "some_description",
+            },
+        }
+        db.store_function(db_session, function_body, fn_name)
+
+        # make sure the function is inserted the legacy way
+        db_function, _ = db._get_function_db_object(db_session, fn_name)
+        db_function.kind = None
+        fn_struct = db_function.struct
+        fn_struct["kind"] = "remote"
+        db_function.struct = fn_struct
+        db_session.add(db_function)
+        db._commit(db_session, db_function)
+        db_session.flush()
+        db_function, _ = db._get_function_db_object(db_session, fn_name)
+        assert db_function.kind is None
+        assert db_function.struct["kind"] == "remote"
+
+    # migrate the function kind
+    services.api.initial_data._migrate_function_kind(
+        db, db_session, chunk_size=chunk_size
+    )
+
+    for fn_counter in range(num_of_functions):
+        # check that the function kind was migrated
+        fn_name = f"name-{fn_counter}"
+        db_function, _ = db._get_function_db_object(db_session, fn_name)
+        assert "kind" not in db_function.struct
+        assert db_function.kind == "remote"
+
+        # make sure the function kind was stored and retrieved correctly
+        migrated_function = db.get_function(db_session, fn_name)
+        assert migrated_function["kind"] == "remote"
 
 
 def test_create_project_summaries():

@@ -798,11 +798,14 @@ default_config = {
         "max_allowed": 10000,
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
+        # interval for periodic events generation job
+        "events_generation_interval": "30",
     },
     "auth_with_client_id": {
         "enabled": False,
         "request_timeout": 5,
     },
+    "notifications": {"smtp": {"config_secret_name": "mlrun-smtp-config"}},
 }
 _is_running_as_api = None
 

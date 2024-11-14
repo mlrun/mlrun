@@ -1910,6 +1910,7 @@ class SQLDB(DBInterface):
         name: typing.Optional[str] = None,
         project: typing.Optional[str] = None,
         tag: typing.Optional[str] = None,
+        kind: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         hash_key: typing.Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
@@ -1929,6 +1930,7 @@ class SQLDB(DBInterface):
             hash_key=hash_key,
             since=since,
             until=until,
+            kind=kind,
             page=page,
             page_size=page_size,
         ):

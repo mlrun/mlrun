@@ -293,13 +293,10 @@ class Pipelines(
             runs = [mlrun_pipelines.models.PipelineRun(run) for run in runs or []]
             # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
             # so don't pass it to the client in such case
-            if next_page_token:
-                total_size = -1
-            else:
-                total_size = len(runs)
+            total_size = -1 if next_page_token else len(runs)
         else:
             runs = []
-            while next_page_token is not None:
+            while next_page_token:
                 page_runs, next_page_token = self._list_runs_from_kfp(
                     kfp_client,
                     page_token,

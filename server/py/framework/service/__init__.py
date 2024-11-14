@@ -86,7 +86,7 @@ class Service(ABC):
     @contextlib.asynccontextmanager
     async def lifespan(self, app_: fastapi.FastAPI):
         setup_tasks = [self._setup_service()] + [
-            service._setup_service() for service in self._mounted_services
+            service._setup_service(mounted=True) for service in self._mounted_services
         ]
         await asyncio.gather(*setup_tasks)
 
@@ -98,20 +98,21 @@ class Service(ABC):
         ]
         await asyncio.gather(*teardown_tasks)
 
-    async def _setup_service(self):
-        self._logger.info(
-            "On startup event handler called",
-            config=mlconf.dump_yaml(),
-            version=mlrun.utils.version.Version().get(),
-        )
-        loop = asyncio.get_running_loop()
-        loop.set_default_executor(
-            concurrent.futures.ThreadPoolExecutor(
-                max_workers=int(mlconf.httpdb.max_workers)
+    async def _setup_service(self, mounted: bool = False):
+        if not mounted:
+            self._logger.info(
+                "On startup event handler called",
+                config=mlconf.dump_yaml(),
+                version=mlrun.utils.version.Version().get(),
             )
-        )
+            loop = asyncio.get_running_loop()
+            loop.set_default_executor(
+                concurrent.futures.ThreadPoolExecutor(
+                    max_workers=int(mlconf.httpdb.max_workers)
+                )
+            )
 
-        initialize_db()
+            initialize_db()
         await self._custom_setup_service()
 
         if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:

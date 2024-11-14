@@ -502,7 +502,9 @@ class TestFunctions(TestDatabaseBase):
         function_1.kind = "local"
         function_2.kind = "job"
         for function in [function_1, function_2]:
-            self._db.store_function(self._db_session, function.to_dict(), function.metadata.name)
+            self._db.store_function(
+                self._db_session, function.to_dict(), function.metadata.name
+            )
         functions = self._db.list_functions(self._db_session, kind="local")
         assert len(functions) == 1
         assert functions[0]["metadata"]["name"] == function_1_name
@@ -516,7 +518,6 @@ class TestFunctions(TestDatabaseBase):
 
         functions = self._db.list_functions(self._db_session, kind=None)
         assert len(functions) == 2
-
 
     def test_list_untagged_functions(self):
         # create 2 functions, one with tag and one without

@@ -19,10 +19,11 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-import services.api.crud
-import services.api.db.sqldb.models
-import services.api.utils.pagination
 from mlrun.utils import logger
+
+import framework.db.sqldb.models
+import services.api.crud
+import services.api.utils.pagination
 
 
 def paginated_method(
@@ -664,7 +665,7 @@ def _assert_paginated_response(
 
 
 def _assert_cache_record(
-    cache_record: services.api.db.sqldb.models.PaginationCache,
+    cache_record: framework.db.sqldb.models.PaginationCache,
     user: typing.Optional[str],
     method: typing.Callable,
     current_page: int,

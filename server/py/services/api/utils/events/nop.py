@@ -13,7 +13,10 @@
 # limitations under the License.
 #
 
+from typing import Optional
+
 import mlrun.common.schemas
+
 import services.api.utils.events.base as base_events
 
 
@@ -40,7 +43,7 @@ class NopClient(base_events.BaseEventClient):
         self,
         project: str,
         secret_name: str,
-        secret_keys: list[str] = None,
+        secret_keys: Optional[list[str]] = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
     ):
         """

@@ -14,15 +14,18 @@
 #
 import mimetypes
 from http import HTTPStatus
+from typing import Optional
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.api.utils
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.k8s
 from mlrun import store_manager
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+
+import framework.api.utils
+import framework.utils.auth.verifier
+import framework.utils.singletons.k8s
+import services.api.crud
 
 
 class Files(
@@ -32,9 +35,9 @@ class Files(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
         path: str = "",
-        schema: str = None,
-        user: str = None,
-        secrets: dict = None,
+        schema: Optional[str] = None,
+        user: Optional[str] = None,
+        secrets: Optional[dict] = None,
     ):
         return self._get_filestat(schema, path, user, auth_info, secrets=secrets)
 
@@ -43,9 +46,9 @@ class Files(
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         path: str = "",
-        schema: str = None,
+        schema: Optional[str] = None,
         user: str = "",
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         secrets = secrets or {}
 
@@ -71,7 +74,7 @@ class Files(
         path: str,
         user: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
     ):
         path = self._resolve_obj_path(schema, path, user)
 
@@ -82,7 +85,7 @@ class Files(
         try:
             stat = store_manager.object(url=path, secrets=enriched_secrets).stat()
         except FileNotFoundError as exc:
-            services.api.api.utils.log_and_raise(
+            framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, path=path, err=err_to_str(exc)
             )
 
@@ -102,7 +105,7 @@ class Files(
         path: str,
         user: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        secrets: dict = None,
+        secrets: Optional[dict] = None,
         project: str = "",
     ):
         path = self._resolve_obj_path(schema, path, user)
@@ -113,21 +116,21 @@ class Files(
 
     @staticmethod
     def _enrich_secrets_with_auth_info(
-        auth_info: mlrun.common.schemas.AuthInfo, secrets: dict = None
+        auth_info: mlrun.common.schemas.AuthInfo, secrets: Optional[dict] = None
     ):
         """
         Update user-provided secrets with auth_info (user-provided secrets take precedence)
         """
         secrets = secrets or {}
-        enriched_secrets = services.api.api.utils.get_secrets(auth_info)
+        enriched_secrets = framework.api.utils.get_secrets(auth_info)
         enriched_secrets.update(secrets)
         return enriched_secrets
 
     @staticmethod
     def _resolve_obj_path(schema: str, path: str, user: str):
-        path = services.api.api.utils.get_obj_path(schema, path, user=user)
+        path = framework.api.utils.get_obj_path(schema, path, user=user)
         if not path:
-            services.api.api.utils.log_and_raise(
+            framework.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value,
                 path=path,
                 err="illegal path prefix or schema",
@@ -136,7 +139,7 @@ class Files(
 
     @staticmethod
     def _verify_and_get_project_secrets(project):
-        if not services.api.utils.singletons.k8s.get_k8s_helper(
+        if not framework.utils.singletons.k8s.get_k8s_helper(
             silent=True
         ).is_running_inside_kubernetes_cluster():
             return {}

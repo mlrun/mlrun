@@ -88,7 +88,6 @@ def test_write_application_event(
                 project=project,
                 app=app_name,
                 name=result_name,
-                full_name=f"{project}.{app_name}.result.{result_name}",
                 type=ModelEndpointMonitoringMetricType.RESULT,
             ),
         ],

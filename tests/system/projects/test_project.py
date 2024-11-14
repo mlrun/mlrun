@@ -21,7 +21,6 @@ import time
 from sys import executable
 
 import igz_mgmt
-import mlrun_pipelines.common.models
 import pandas as pd
 import pytest
 from kfp import dsl
@@ -31,6 +30,7 @@ import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.logger
+import mlrun_pipelines.common.models
 import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.artifacts import Artifact
 from mlrun.common.runtimes.constants import RunStates

@@ -25,7 +25,6 @@ from contextlib import nullcontext as does_not_raise
 import deepdiff
 import inflection
 import pytest
-from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun
 import mlrun.alerts.alert
@@ -40,6 +39,7 @@ import mlrun.runtimes.base
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils.helpers
 import tests.conftest
+from mlrun_pipelines.common.models import RunStatuses
 
 
 @pytest.fixture()

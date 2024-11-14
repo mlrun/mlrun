@@ -18,10 +18,11 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.api.utils
-import services.api.db.sqldb.db
+
+import framework.db.sqldb.db
+import framework.utils.notifications
+import framework.utils.singletons.db
 import services.api.utils.scheduler
-import services.api.utils.singletons.db
 import services.api.utils.singletons.scheduler
 
 
@@ -33,7 +34,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: list[mlrun.model.Notification],
         alert_id: str,
-        project: str = None,
+        project: typing.Optional[str] = None,
         mask_params: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
@@ -42,12 +43,12 @@ class Notifications(
         notification_objects_to_store = notification_objects
         if mask_params:
             notification_objects_to_store = (
-                services.api.api.utils.validate_and_mask_notification_list(
+                framework.utils.notifications.validate_and_mask_notification_list(
                     notification_objects, alert_id, project
                 )
             )
 
-        services.api.utils.singletons.db.get_db().store_alert_notifications(
+        framework.utils.singletons.db.get_db().store_alert_notifications(
             session, notification_objects_to_store, alert_id, project
         )
 
@@ -56,7 +57,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: list[mlrun.model.Notification],
         run_uid: str,
-        project: str = None,
+        project: typing.Optional[str] = None,
         mask_params: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
@@ -65,12 +66,12 @@ class Notifications(
         notification_objects_to_store = notification_objects
         if mask_params:
             notification_objects_to_store = (
-                services.api.api.utils.validate_and_mask_notification_list(
+                framework.utils.notifications.validate_and_mask_notification_list(
                     notification_objects, run_uid, project
                 )
             )
 
-        services.api.utils.singletons.db.get_db().store_run_notifications(
+        framework.utils.singletons.db.get_db().store_run_notifications(
             session, notification_objects_to_store, run_uid, project
         )
 
@@ -81,16 +82,16 @@ class Notifications(
         project: str = "",
     ) -> list[mlrun.model.Notification]:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_run_notifications(
+        return framework.utils.singletons.db.get_db().list_run_notifications(
             session, run_uid, project
         )
 
     def delete_run_notifications(
         self,
         session: sqlalchemy.orm.Session,
-        name: str = None,
-        run_uid: str = None,
-        project: str = None,
+        name: typing.Optional[str] = None,
+        run_uid: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
 
@@ -103,11 +104,11 @@ class Notifications(
         if notifications:
             # unique constraint on name, run_uid, project, so the list will contain one item at most
             notification = notifications[0]
-            services.api.api.utils.delete_notification_params_secret(
+            framework.utils.notifications.delete_notification_params_secret(
                 project, notification
             )
 
-        services.api.utils.singletons.db.get_db().delete_run_notifications(
+        framework.utils.singletons.db.get_db().delete_run_notifications(
             session, name, run_uid, project
         )
 
@@ -132,8 +133,8 @@ class Notifications(
         """
         set_notification_methods = {
             "run": {
-                "factory": services.api.utils.singletons.db.get_db,
-                "method_name": services.api.db.sqldb.db.SQLDB.set_run_notifications.__name__,
+                "factory": framework.utils.singletons.db.get_db,
+                "method_name": framework.db.sqldb.db.SQLDB.set_run_notifications.__name__,
                 "identifier_key": "uid",
             },
             "schedule": {
@@ -163,7 +164,7 @@ class Notifications(
             )
 
         notification_objects_to_set = (
-            services.api.api.utils.validate_and_mask_notification_list(
+            framework.utils.notifications.validate_and_mask_notification_list(
                 notifications,
                 getattr(notification_parent, identifier_key),
                 project,

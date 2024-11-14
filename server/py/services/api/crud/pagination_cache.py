@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import typing
 
@@ -19,8 +19,9 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import services.api.utils.singletons.db
 from mlrun import mlconf
+
+import framework.utils.singletons.db
 
 
 class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
@@ -33,40 +34,40 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         page_size: int,
         kwargs: dict,
     ):
-        db = services.api.utils.singletons.db.get_db()
+        db = framework.utils.singletons.db.get_db()
         return db.store_paginated_query_cache_record(
             session, user, method.__name__, current_page, page_size, kwargs
         )
 
     @staticmethod
     def get_pagination_cache_record(session: sqlalchemy.orm.Session, key: str):
-        db = services.api.utils.singletons.db.get_db()
+        db = framework.utils.singletons.db.get_db()
         return db.get_paginated_query_cache_record(session, key)
 
     @staticmethod
     def list_pagination_cache_records(
         session: sqlalchemy.orm.Session,
-        key: str = None,
-        user: str = None,
-        function: str = None,
-        last_accessed_before: datetime = None,
+        key: typing.Optional[str] = None,
+        user: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        last_accessed_before: typing.Optional[datetime.datetime] = None,
         order_by: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
     ):
-        db = services.api.utils.singletons.db.get_db()
+        db = framework.utils.singletons.db.get_db()
         return db.list_paginated_query_cache_record(
             session, key, user, function, last_accessed_before, order_by
         )
 
     @staticmethod
     def delete_pagination_cache_record(session: sqlalchemy.orm.Session, key: str):
-        db = services.api.utils.singletons.db.get_db()
+        db = framework.utils.singletons.db.get_db()
         db.delete_paginated_query_cache_record(session, key)
 
     @staticmethod
     def cleanup_pagination_cache(session: sqlalchemy.orm.Session):
-        db = services.api.utils.singletons.db.get_db()
+        db = framework.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(session, as_query=True).delete()
 
     @staticmethod
@@ -80,7 +81,7 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         cache_ttl = mlconf.httpdb.pagination.pagination_cache.ttl + 1
         table_max_size = mlconf.httpdb.pagination.pagination_cache.max_size
 
-        db = services.api.utils.singletons.db.get_db()
+        db = framework.utils.singletons.db.get_db()
         db.list_paginated_query_cache_record(
             session,
             last_accessed_before=datetime.datetime.now(datetime.timezone.utc)

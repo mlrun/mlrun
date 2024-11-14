@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import torch
 from torch import Tensor
@@ -53,20 +53,27 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_handler: PyTorchModelHandler,
         log_model_tag: str = "",
-        log_model_labels: dict[str, PyTorchTypes.TrackableType] = None,
-        log_model_parameters: dict[str, PyTorchTypes.TrackableType] = None,
-        log_model_extra_data: dict[
-            str, Union[PyTorchTypes.TrackableType, Artifact]
+        log_model_labels: Optional[dict[str, PyTorchTypes.TrackableType]] = None,
+        log_model_parameters: Optional[dict[str, PyTorchTypes.TrackableType]] = None,
+        log_model_extra_data: Optional[
+            dict[str, Union[PyTorchTypes.TrackableType, Artifact]]
         ] = None,
-        dynamic_hyperparameters: dict[
-            str,
-            tuple[
+        dynamic_hyperparameters: Optional[
+            dict[
                 str,
-                Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
-            ],
+                tuple[
+                    str,
+                    Union[
+                        list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
+                    ],
+                ],
+            ]
         ] = None,
-        static_hyperparameters: dict[
-            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
+        static_hyperparameters: Optional[
+            dict[
+                str,
+                Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]],
+            ]
         ] = None,
         auto_log: bool = False,
     ):

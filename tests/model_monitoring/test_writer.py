@@ -176,37 +176,6 @@ class TestHistogramGeneralDriftResultEvent:
                     )
                     yield writer
 
-    @staticmethod
-    def test_insert_application_result(
-        general_drift_event: _RawEvent,
-        mock_v3io_client: V3IOClient,
-        writer: ModelMonitoringWriter,
-    ) -> None:
-        writer.do(event=general_drift_event)
-        update_mock = mock_v3io_client.kv.update
-        assert update_mock.call_count == 1, (
-            "Expects two update calls - one for the results KV, "
-            "and one for the model endpoint"
-        )
-        expected_extra_data = {
-            "end_infer_time": general_drift_event["end_infer_time"],
-            "result_extra_data": general_drift_event["result_extra_data"],
-            "result_kind": general_drift_event["result_kind"],
-            "result_status": general_drift_event["result_status"],
-            "result_value": general_drift_event["result_value"],
-            "start_infer_time": general_drift_event["start_infer_time"],
-        }
-        update_mock.assert_called_with(
-            container="users/pipelines/test-application-results/monitoring-apps",
-            table_path="fc96fcd22935343586ce32c5d4614f5dca816405",
-            key="histogram-data-drift",
-            attributes={
-                "general_drift": bytes(
-                    json.dumps(expected_extra_data), encoding="utf-8"
-                )
-            },
-        )
-
 
 class TestTSDB:
     """

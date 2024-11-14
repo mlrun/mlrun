@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import concurrent.futures
 import json
 import pickle
@@ -45,6 +44,10 @@ from mlrun.model_monitoring.applications import (
 )
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
+)
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasuresFile,
 )
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
@@ -121,51 +124,6 @@ class _V3IORecordsChecker:
             store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
         )
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
-
-    @classmethod
-    def _test_results_kv_record(cls, ep_id: str) -> None:
-        for app_data in cls.apps_data:
-            if not app_data.results:
-                continue
-            app_name = app_data.class_.NAME
-            cls._logger.debug(
-                "Checking the results KV record of app", app_name=app_name
-            )
-
-            resp = cls._kv_storage.client.kv.get(
-                container=cls._v3io_container, table_path=ep_id, key=app_name
-            )
-            assert (
-                data := resp.output.item
-            ), f"V3IO KV app data is empty for app {app_name}"
-            if app_data.results:
-                assert (
-                    data.keys() == app_data.results
-                ), "The KV saved metrics are different than expected"
-
-    @classmethod
-    def _test_metrics_kv_record(cls, ep_id: str) -> None:
-        for app_data in cls.apps_data:
-            if not app_data.metrics:
-                return
-
-            app_name = app_data.class_.NAME
-            table_path = f"{ep_id}_metrics"
-
-            for metric in app_data.metrics:
-                cls._logger.debug(
-                    "Checking a metric KV record of app",
-                    app_name=app_name,
-                    metric=metric,
-                )
-                resp = cls._kv_storage.client.kv.get(
-                    container=cls._v3io_container,
-                    table_path=table_path,
-                    key=f"{app_name}.{metric}",
-                )
-                assert (
-                    resp.output.item
-                ), f"V3IO KV app data is empty for app {app_name} and metric {metric}"
 
     @classmethod
     def _test_tsdb_record(
@@ -277,12 +235,10 @@ class _V3IORecordsChecker:
         ep_id: str,
         inputs: set[str],
         outputs: set[str],
-        last_request: datetime = None,
-        error_count: float = None,
+        last_request: typing.Optional[datetime] = None,
+        error_count: typing.Optional[float] = None,
     ) -> None:
         cls._test_parquet(ep_id, inputs, outputs)
-        cls._test_results_kv_record(ep_id)
-        cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
 
     @classmethod
@@ -662,18 +618,27 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert ep.status.feature_stats.keys() == set(
             ep.spec.feature_names
         ), "The endpoint's feature stats keys are not the same as the feature names"
-        assert set(ep.status.current_stats.keys()) == set(
+        ep_current_stats, _ = ModelMonitoringCurrentStatsFile.from_model_endpoint(
+            ep
+        ).read()
+
+        ep_drift_measures, _ = ModelMonitoringDriftMeasuresFile.from_model_endpoint(
+            ep
+        ).read()
+
+        assert set(ep_current_stats.keys()) == set(
             ep.status.feature_stats.keys()
         ), "The endpoint's current stats is different than expected"
-        assert ep.status.drift_status, "The general drift status is empty"
-        assert ep.status.drift_measures, "The drift measures are empty"
+
+        assert ep_drift_measures, "The general drift status is empty"
+        assert ep_drift_measures, "The drift measures are empty"
 
         for measure in ["hellinger_mean", "kld_mean", "tvd_mean"]:
             assert isinstance(
-                ep.status.drift_measures.pop(measure, None), float
+                ep_drift_measures.pop(measure, None), float
             ), f"Expected '{measure}' in drift measures"
 
-        drift_table = pd.DataFrame.from_dict(ep.status.drift_measures, orient="index")
+        drift_table = pd.DataFrame.from_dict(ep_drift_measures, orient="index")
         assert set(drift_table.columns) == {
             "hellinger",
             "kld",
@@ -684,7 +649,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The feature names are not as expected"
 
         assert (
-            ep.status.current_stats["sepal_length_cm"]["count"] == cls.num_events
+            ep_current_stats["sepal_length_cm"]["count"] == cls.num_events
         ), "Different number of events than expected"
 
     @classmethod
@@ -764,9 +729,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         self._test_artifacts(ep_id=ep_id)
         self._test_api(ep_id=ep_id)
-        # TODO: uncomment the following 2 lines once the new API for getting model endpoint stats is implemented
-        # if _DefaultDataDriftAppData in self.apps_data:
-        # self._test_model_endpoint_stats(ep_id=ep_id)
+        if _DefaultDataDriftAppData in self.apps_data:
+            self._test_model_endpoint_stats(ep_id=ep_id)
         self._test_error_alert()
 
 
@@ -1189,7 +1153,7 @@ class TestMonitoredServings(TestMLRunSystem):
         self,
         model_name: str,
         training_set: pd.DataFrame = None,
-        label_column: typing.Union[str, list[str]] = None,
+        label_column: typing.Optional[typing.Union[str, list[str]]] = None,
     ) -> None:
         self.project.log_model(
             model_name,

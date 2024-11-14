@@ -20,12 +20,12 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+from mlrun.utils import logger
+
+import framework.utils.db.mysql
 import services.api.initial_data
-import services.api.utils.auth.verifier
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
-import services.api.utils.db.mysql
-from mlrun.utils import logger
 
 
 def test_offline_state(
@@ -99,7 +99,7 @@ def test_init_data_migration_required_recognition(
         from_scratch=from_scratch,
     )
     alembic_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(services.api.utils.db.mysql, "MySQLUtil", unittest.mock.Mock())
+    monkeypatch.setattr(framework.utils.db.mysql, "MySQLUtil", unittest.mock.Mock())
     monkeypatch.setattr(services.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
     is_latest_data_version_mock = unittest.mock.Mock()
     monkeypatch.setattr(

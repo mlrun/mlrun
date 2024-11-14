@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Optional
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression, Ridge, SGDRegressor
 from sklearn.multiclass import OneVsRestClassifier
@@ -28,7 +30,9 @@ from ..ml_functions import MLFunctions
 class SKLearnFunctions(MLFunctions):
     @staticmethod
     def train(
-        context: mlrun.MLClientCtx, algorithm_functionality: str, model_name: str = None
+        context: mlrun.MLClientCtx,
+        algorithm_functionality: str,
+        model_name: Optional[str] = None,
     ):
         algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
         model = SKLearnFunctions.get_model(

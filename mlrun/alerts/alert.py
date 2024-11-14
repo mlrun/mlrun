@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
+from typing import Optional, Union
 
 import mlrun
 import mlrun.common.schemas.alert as alert_objects
@@ -40,21 +40,21 @@ class AlertConfig(ModelObj):
 
     def __init__(
         self,
-        project: str = None,
-        name: str = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
         template: Union[alert_objects.AlertTemplate, str] = None,
-        description: str = None,
-        summary: str = None,
+        description: Optional[str] = None,
+        summary: Optional[str] = None,
         severity: alert_objects.AlertSeverity = None,
         trigger: alert_objects.AlertTrigger = None,
         criteria: alert_objects.AlertCriteria = None,
         reset_policy: alert_objects.ResetPolicy = None,
-        notifications: list[alert_objects.AlertNotification] = None,
+        notifications: Optional[list[alert_objects.AlertNotification]] = None,
         entities: alert_objects.EventEntities = None,
-        id: int = None,
+        id: Optional[int] = None,
         state: alert_objects.AlertActiveState = None,
-        created: str = None,
-        count: int = None,
+        created: Optional[str] = None,
+        count: Optional[int] = None,
     ):
         """Alert config object
 
@@ -142,7 +142,7 @@ class AlertConfig(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
 
     def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
     ):
         if field_name == "entities":
             if self.entities:
@@ -179,7 +179,12 @@ class AlertConfig(ModelObj):
             return None
         return super()._serialize_field(struct, field_name, strip)
 
-    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
+    def to_dict(
+        self,
+        fields: Optional[list] = None,
+        exclude: Optional[list] = None,
+        strip: bool = False,
+    ):
         if self.entities is None:
             raise mlrun.errors.MLRunBadRequestError("Alert entity field is missing")
         if not self.notifications:
@@ -189,7 +194,9 @@ class AlertConfig(ModelObj):
         return super().to_dict(self._dict_fields)
 
     @classmethod
-    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+    def from_dict(
+        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
+    ):
         new_obj = super().from_dict(struct, fields=fields)
 
         entity_data = struct.get("entities")

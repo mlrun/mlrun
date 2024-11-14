@@ -20,10 +20,10 @@ from fastapi import Header
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-import services.api.api.utils
-import services.api.utils.auth.verifier
-from services.api import MINIMUM_CLIENT_VERSION_FOR_MM
-from services.api.api import deps
+
+import framework.api.utils
+from framework.api import deps
+from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 
 router = fastapi.APIRouter(prefix="/projects/{project}/jobs")
 
@@ -61,7 +61,7 @@ async def create_model_monitoring_controller(
                                      is running. By default, the base period is 5 minutes.
     :param client_version:           The client version that sent the request.
     """
-    services.api.api.utils.log_and_raise(
+    framework.api.utils.log_and_raise(
         HTTPStatus.BAD_REQUEST.value,
         reason=f"Model monitoring is supported from client version {MINIMUM_CLIENT_VERSION_FOR_MM}. "
         f"Please upgrade your client accordingly.",

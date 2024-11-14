@@ -19,10 +19,6 @@ import traceback
 import typing
 
 import kfp_server_api
-import mlrun_pipelines.common.ops
-import mlrun_pipelines.mixins
-import mlrun_pipelines.models
-import mlrun_pipelines.utils
 import sqlalchemy.orm
 
 import mlrun
@@ -32,9 +28,15 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-import services.api.api.utils
+import mlrun_pipelines.common.ops
+import mlrun_pipelines.mixins
+import mlrun_pipelines.models
+import mlrun_pipelines.utils
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+
+import framework.api.utils
+import services.api.crud
 
 
 class Pipelines(
@@ -254,7 +256,7 @@ class Pipelines(
         run_name: str,
         content_type: str,
         data: bytes,
-        arguments: dict = None,
+        arguments: typing.Optional[dict] = None,
     ):
         if arguments is None:
             arguments = {}
@@ -263,7 +265,7 @@ class Pipelines(
         elif " /zip" in content_type:
             content_type = ".zip"
         else:
-            services.api.api.utils.log_and_raise(
+            framework.api.utils.log_and_raise(
                 http.HTTPStatus.BAD_REQUEST.value,
                 reason=f"unsupported pipeline type {content_type}",
             )

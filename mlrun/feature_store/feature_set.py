@@ -323,14 +323,14 @@ class FeatureSet(ModelObj):
 
     def __init__(
         self,
-        name: str = None,
-        description: str = None,
-        entities: list[Union[Entity, str]] = None,
-        timestamp_key: str = None,
-        engine: str = None,
-        label_column: str = None,
-        relations: dict[str, Union[Entity, str]] = None,
-        passthrough: bool = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        entities: Optional[list[Union[Entity, str]]] = None,
+        timestamp_key: Optional[str] = None,
+        engine: Optional[str] = None,
+        label_column: Optional[str] = None,
+        relations: Optional[dict[str, Union[Entity, str]]] = None,
+        passthrough: Optional[bool] = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -533,7 +533,9 @@ class FeatureSet(ModelObj):
                     self, **(class_args if class_args is not None else {})
                 )
 
-    def purge_targets(self, target_names: list[str] = None, silent: bool = False):
+    def purge_targets(
+        self, target_names: Optional[list[str]] = None, silent: bool = False
+    ):
         """Delete data of specific targets
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status"""
@@ -562,7 +564,7 @@ class FeatureSet(ModelObj):
     def update_targets_for_ingest(
         self,
         targets: list[DataTargetBase],
-        overwrite: bool = None,
+        overwrite: Optional[bool] = None,
     ):
         if not targets:
             return
@@ -582,7 +584,7 @@ class FeatureSet(ModelObj):
         update_targets_run_id_for_ingest(overwrite, targets, status_targets)
 
     def _reload_and_get_status_targets(
-        self, target_names: list[str] = None, silent: bool = False
+        self, target_names: Optional[list[str]] = None, silent: bool = False
     ):
         try:
             self.reload(update_spec=False)
@@ -619,7 +621,7 @@ class FeatureSet(ModelObj):
         self,
         name: str,
         value_type: mlrun.data_types.ValueType = None,
-        description: str = None,
+        description: Optional[str] = None,
         labels: Optional[dict[str, str]] = None,
     ):
         """add/set an entity (dataset index)
@@ -1004,7 +1006,7 @@ class FeatureSet(ModelObj):
     def ingest(
         self,
         source=None,
-        targets: list[DataTargetBase] = None,
+        targets: Optional[list[DataTargetBase]] = None,
         namespace=None,
         return_df: bool = True,
         infer_options: InferOptions = InferOptions.default(),
@@ -1073,11 +1075,11 @@ class FeatureSet(ModelObj):
     def preview(
         self,
         source,
-        entity_columns: list = None,
+        entity_columns: Optional[list] = None,
         namespace=None,
         options: InferOptions = None,
         verbose: bool = False,
-        sample_size: int = None,
+        sample_size: Optional[int] = None,
     ) -> pd.DataFrame:
         """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -1106,8 +1108,8 @@ class FeatureSet(ModelObj):
     def deploy_ingestion_service(
         self,
         source: DataSource = None,
-        targets: list[DataTargetBase] = None,
-        name: str = None,
+        targets: Optional[list[DataTargetBase]] = None,
+        name: Optional[str] = None,
         run_config: RunConfig = None,
         verbose=False,
     ) -> tuple[str, BaseRuntime]:
@@ -1143,7 +1145,7 @@ class FeatureSet(ModelObj):
     def extract_relation_keys(
         self,
         other_feature_set,
-        relations: dict[str, Union[str, Entity]] = None,
+        relations: Optional[dict[str, Union[str, Entity]]] = None,
     ) -> list[str]:
         """
         Checks whether a feature set can be merged to the right of this feature set.

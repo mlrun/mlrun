@@ -33,13 +33,13 @@ MLRUN_MEMRAY_EXTRA_FLAGS=$(echo "${MLRUN_MEMRAY_EXTRA_FLAGS# }" | sed 's/^/ /')
 if [[ -n "$MLRUN_MEMRAY_LOWER"  && ( "$MLRUN_MEMRAY_LOWER" == "1" || "$MLRUN_MEMRAY_LOWER" == "true" || "$MLRUN_MEMRAY_LOWER" == "yes" || "$MLRUN_MEMRAY_LOWER" == "on" )]]; then
     if [[ -n "$MLRUN_MEMRAY_OUTPUT_FILE" ]]; then
         echo "Starting API with memray profiling output file $MLRUN_MEMRAY_OUTPUT_FILE..."
-        exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } --output "$MLRUN_MEMRAY_OUTPUT_FILE" --force -m server.api.main
+        exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } --output "$MLRUN_MEMRAY_OUTPUT_FILE" --force -m services.api.main
     else
         echo "Starting API with memray profiling..."
-        exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } -m server.api.main
+        exec python -m memray run${MLRUN_MEMRAY_EXTRA_FLAGS% } -m services.api.main
     fi
 else
-    exec uvicorn services.api.main:app \
+    exec uvicorn services.api.daemon:app \
         --proxy-headers \
         --host 0.0.0.0 \
         --log-config server/py/services/uvicorn_log_config.yaml

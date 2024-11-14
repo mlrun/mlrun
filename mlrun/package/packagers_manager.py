@@ -17,7 +17,7 @@ import inspect
 import os
 import shutil
 import traceback
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import mlrun.errors
 from mlrun.artifacts import Artifact
@@ -42,7 +42,7 @@ class PackagersManager:
     It prepares the instructions / log hint configurations and then looks for the first packager that fits the task.
     """
 
-    def __init__(self, default_packager: type[Packager] = None):
+    def __init__(self, default_packager: Optional[type[Packager]] = None):
         """
         Initialize a packagers manager.
 
@@ -401,8 +401,8 @@ class PackagersManager:
     def _get_packager_for_packing(
         self,
         obj: Any,
-        artifact_type: str = None,
-        configurations: dict = None,
+        artifact_type: Optional[str] = None,
+        configurations: Optional[dict] = None,
     ) -> Union[Packager, None]:
         """
         Look for a packager that can pack the provided object as the provided artifact type.
@@ -429,7 +429,7 @@ class PackagersManager:
         self,
         data_item: Any,
         type_hint: type,
-        artifact_type: str = None,
+        artifact_type: Optional[str] = None,
     ) -> Union[Packager, None]:
         """
         Look for a packager that can unpack the data item of the given type hint as the provided artifact type.

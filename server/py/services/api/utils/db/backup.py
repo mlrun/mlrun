@@ -19,9 +19,10 @@ import shutil
 import subprocess
 import typing
 
-import services.api.utils.db.mysql
 from mlrun import mlconf
 from mlrun.utils import logger
+
+import framework.utils.db.mysql
 
 
 class DBBackupUtil:
@@ -35,7 +36,7 @@ class DBBackupUtil:
         self._backup_rotation = backup_rotation
         self._backup_rotation_limit = backup_rotation_limit
 
-    def backup_database(self, backup_file_name: str = None) -> None:
+    def backup_database(self, backup_file_name: typing.Optional[str] = None) -> None:
         backup_file_name = backup_file_name or self._generate_backup_file_name()
 
         # ensure the backup directory exists
@@ -52,7 +53,7 @@ class DBBackupUtil:
             self._rotate_backup()
 
     def load_database_from_backup(
-        self, backup_file_name: str, new_backup_file_name: str = None
+        self, backup_file_name: str, new_backup_file_name: typing.Optional[str] = None
     ) -> None:
         new_backup_file_name = new_backup_file_name or self._generate_backup_file_name()
 
@@ -98,7 +99,7 @@ class DBBackupUtil:
         backup_path = self._get_backup_file_path(backup_file_name)
 
         logger.debug("Backing up mysql DB data", backup_path=backup_path)
-        dsn_data = services.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
+        dsn_data = framework.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysqldump --single-transaction --routines --triggers "
             f"--max_allowed_packet={mlconf.httpdb.db.backup.max_allowed_packet} "
@@ -120,7 +121,7 @@ class DBBackupUtil:
             "Loading mysql DB backup data",
             backup_path=backup_path,
         )
-        dsn_data = services.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
+        dsn_data = framework.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysql "
             f"-h {dsn_data['host']} "

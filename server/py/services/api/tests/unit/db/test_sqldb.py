@@ -26,11 +26,12 @@ from sqlalchemy.orm import Session
 import mlrun.artifacts
 import mlrun.common.formatters
 import mlrun.common.schemas
-import services.api.db.sqldb.models
 from mlrun.lists import ArtifactList
-from services.api.db.sqldb.db import SQLDB
-from services.api.db.sqldb.models import ArtifactV2
 from tests.conftest import new_run
+
+import framework.db.sqldb.models
+from framework.db.sqldb.db import SQLDB
+from framework.db.sqldb.models import ArtifactV2
 
 
 @contextmanager
@@ -306,9 +307,9 @@ def test_projects_crud(db: SQLDB, db_session: Session):
 def test_commit_failures(db: SQLDB, error_message: str, expected_exception: Exception):
     # create some fake objects to commit
     objects = [
-        services.api.db.sqldb.models.Run(project="p1", uid="u1", name="run-1"),
-        services.api.db.sqldb.models.Feature(feature_set_id="fs-1", name="feat-1"),
-        services.api.db.sqldb.models.Function(project="p3", name="func-1"),
+        framework.db.sqldb.models.Run(project="p1", uid="u1", name="run-1"),
+        framework.db.sqldb.models.Feature(feature_set_id="fs-1", name="feat-1"),
+        framework.db.sqldb.models.Function(project="p3", name="func-1"),
     ]
 
     session = mock.MagicMock()

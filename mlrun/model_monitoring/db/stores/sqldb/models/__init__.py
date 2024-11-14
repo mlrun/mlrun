@@ -15,11 +15,7 @@
 from functools import partial
 from typing import Optional, TypeVar, Union
 
-from .mysql import ApplicationMetricsTable as MySQLApplicationMetricsTable
-from .mysql import ApplicationResultTable as MySQLApplicationResultTable
 from .mysql import ModelEndpointsTable as MySQLModelEndpointsTable
-from .sqlite import ApplicationMetricsTable as SQLiteApplicationMetricsTable
-from .sqlite import ApplicationResultTable as SQLiteApplicationResultTable
 from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable
 
 MySQLTableType = TypeVar("MySQLTableType")
@@ -47,17 +43,4 @@ _get_model_endpoints_table = partial(
     _get_sql_table,
     mysql_table=MySQLModelEndpointsTable,
     sqlite_table=SQLiteModelEndpointsTable,
-)
-
-
-_get_application_result_table = partial(
-    _get_sql_table,
-    mysql_table=MySQLApplicationResultTable,
-    sqlite_table=SQLiteApplicationResultTable,
-)
-
-_get_application_metrics_table = partial(
-    _get_sql_table,
-    mysql_table=MySQLApplicationMetricsTable,
-    sqlite_table=SQLiteApplicationMetricsTable,
 )

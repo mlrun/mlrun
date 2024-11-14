@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa
-
 __all__ = [
     "get_offline_features",
     "get_online_feature_service",

@@ -68,10 +68,10 @@ compile-schemas-python:
 	python3 -m grpc_tools.protoc --proto_path=. --python_out=proto/build/ --grpc_python_out=proto/build/ proto/*.proto
 	@echo Fixing Python GRPC Dir and Imports
 	sh hack/scripts/fix_python_grpc_imports.sh
-	cp -RL proto/build/py/* ../py/services/api/proto
+	cp -RL proto/build/py/* ../py/schemas/proto
 
 .PHONY: cleanup
 cleanup:
 	rm -rf proto/build/
-	rm -f ../py/services/api/proto/*pb2*.py
+	rm -f ../py/schemas/proto/*pb2*.py
 	rm -rf ../go/mlrun-go/pkg/proto/build/

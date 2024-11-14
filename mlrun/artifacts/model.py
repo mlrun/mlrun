@@ -303,7 +303,7 @@ class ModelArtifact(Artifact):
             self.metadata.labels = self.metadata.labels or {}
             self.metadata.labels["framework"] = self.spec.framework
 
-    def upload(self, artifact_path: str = None):
+    def upload(self, artifact_path: Optional[str] = None):
         """
         internal, upload to target store
         :param artifact_path: required only for when generating target_path from artifact hash
@@ -353,7 +353,7 @@ class ModelArtifact(Artifact):
     def _upload_body_or_file(
         self,
         artifact_path: str,
-        target_model_path: str = None,
+        target_model_path: Optional[str] = None,
     ):
         body = self.spec.get_body()
         if body:
@@ -477,15 +477,15 @@ def get_model(model_dir, suffix=""):
 
 def update_model(
     model_artifact,
-    parameters: dict = None,
-    metrics: dict = None,
-    extra_data: dict = None,
-    inputs: list[Feature] = None,
-    outputs: list[Feature] = None,
-    feature_vector: str = None,
-    feature_weights: list = None,
+    parameters: Optional[dict] = None,
+    metrics: Optional[dict] = None,
+    extra_data: Optional[dict] = None,
+    inputs: Optional[list[Feature]] = None,
+    outputs: Optional[list[Feature]] = None,
+    feature_vector: Optional[str] = None,
+    feature_weights: Optional[list] = None,
     key_prefix: str = "",
-    labels: dict = None,
+    labels: Optional[dict] = None,
     write_spec_copy=True,
     store_object: bool = True,
 ) -> ModelArtifact:

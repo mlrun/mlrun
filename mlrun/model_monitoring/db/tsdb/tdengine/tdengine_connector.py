@@ -531,14 +531,14 @@ class TDEngineConnector(TSDBConnector):
             start=start,
             end=end,
             columns=[
-                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
                 mm_schemas.EventFieldType.TIME,
                 mm_schemas.EventFieldType.LATENCY,
             ],
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             timestamp_column=mm_schemas.EventFieldType.TIME,
             agg_funcs=["last"],
-            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            group_by=mm_schemas.EventFieldType.ENDPOINT_ID,
             preform_agg_columns=[mm_schemas.EventFieldType.TIME],
         )
         if not df.empty:
@@ -576,12 +576,12 @@ class TDEngineConnector(TSDBConnector):
             end=end,
             columns=[
                 mm_schemas.ResultData.RESULT_STATUS,
-                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             agg_funcs=["max"],
-            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            group_by=mm_schemas.EventFieldType.ENDPOINT_ID,
             preform_agg_columns=[mm_schemas.ResultData.RESULT_STATUS],
         )
         df.rename(
@@ -608,7 +608,7 @@ class TDEngineConnector(TSDBConnector):
             columns=[
                 mm_schemas.ApplicationEvent.APPLICATION_NAME,
                 mm_schemas.MetricData.METRIC_NAME,
-                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
             filter_query=f"endpoint_id='{endpoint_id}'",
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
@@ -622,7 +622,7 @@ class TDEngineConnector(TSDBConnector):
             columns={
                 f"last({mm_schemas.ApplicationEvent.APPLICATION_NAME})": mm_schemas.ApplicationEvent.APPLICATION_NAME,
                 f"last({mm_schemas.MetricData.METRIC_NAME})": mm_schemas.MetricData.METRIC_NAME,
-                f"last({mm_schemas.SchedulingKeys.ENDPOINT_ID})": mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                f"last({mm_schemas.EventFieldType.ENDPOINT_ID})": mm_schemas.EventFieldType.ENDPOINT_ID,
             },
             inplace=True,
         )
@@ -645,7 +645,7 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.ApplicationEvent.APPLICATION_NAME,
                 mm_schemas.ResultData.RESULT_NAME,
                 mm_schemas.ResultData.RESULT_KIND,
-                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
             filter_query=f"endpoint_id='{endpoint_id}'",
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
@@ -660,7 +660,7 @@ class TDEngineConnector(TSDBConnector):
                 f"last({mm_schemas.ApplicationEvent.APPLICATION_NAME})": mm_schemas.ApplicationEvent.APPLICATION_NAME,
                 f"last({mm_schemas.ResultData.RESULT_NAME})": mm_schemas.ResultData.RESULT_NAME,
                 f"last({mm_schemas.ResultData.RESULT_KIND})": mm_schemas.ResultData.RESULT_KIND,
-                f"last({mm_schemas.SchedulingKeys.ENDPOINT_ID})": mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                f"last({mm_schemas.EventFieldType.ENDPOINT_ID})": mm_schemas.EventFieldType.ENDPOINT_ID,
             },
             inplace=True,
         )
@@ -684,12 +684,12 @@ class TDEngineConnector(TSDBConnector):
             end=end,
             columns=[
                 mm_schemas.EventFieldType.MODEL_ERROR,
-                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
             agg_funcs=["count"],
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]}) "
             f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'",
-            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            group_by=mm_schemas.EventFieldType.ENDPOINT_ID,
             preform_agg_columns=[mm_schemas.EventFieldType.MODEL_ERROR],
         )
         df.rename(
@@ -716,11 +716,11 @@ class TDEngineConnector(TSDBConnector):
             end=end,
             columns=[
                 mm_schemas.EventFieldType.LATENCY,
-                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
             agg_funcs=["avg"],
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
-            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            group_by=mm_schemas.EventFieldType.ENDPOINT_ID,
             preform_agg_columns=[mm_schemas.EventFieldType.LATENCY],
         )
         df.rename(

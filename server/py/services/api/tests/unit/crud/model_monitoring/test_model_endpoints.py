@@ -21,6 +21,7 @@ from v3io.dataplane.response import HttpResponseError
 
 import mlrun.common.schemas
 from mlrun.artifacts import ModelArtifact
+
 from services.api.crud.model_monitoring.model_endpoints import ModelEndpoints
 
 
@@ -44,7 +45,7 @@ def model_endpoint() -> mlrun.common.schemas.ModelEndpoint:
 
 @pytest.fixture
 def _patch_external_resources() -> Iterator[None]:
-    with patch("services.api.api.utils.get_run_db_instance", autospec=True):
+    with patch("framework.api.utils.get_run_db_instance", autospec=True):
         with patch(
             "mlrun.datastore.store_resources.get_store_resource",
             return_value=ModelArtifact(),

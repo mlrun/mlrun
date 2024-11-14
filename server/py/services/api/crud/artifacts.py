@@ -26,9 +26,11 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-import services.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
+
+import framework.utils.singletons.db
+import services.api.crud
 
 
 class Artifacts(
@@ -39,11 +41,11 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         artifact: dict,
-        object_uid: str = None,
+        object_uid: typing.Optional[str] = None,
         tag: str = "latest",
-        iter: int = None,
-        project: str = None,
-        producer_id: str = None,
+        iter: typing.Optional[int] = None,
+        project: typing.Optional[str] = None,
+        producer_id: typing.Optional[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         project = project or mlrun.mlconf.default_project
@@ -66,7 +68,7 @@ class Artifacts(
                 artifact
             ).to_dict()
 
-        return services.api.utils.singletons.db.get_db().store_artifact(
+        return framework.utils.singletons.db.get_db().store_artifact(
             db_session,
             key,
             artifact,
@@ -83,9 +85,9 @@ class Artifacts(
         key: str,
         artifact: dict,
         tag: str = "latest",
-        iter: int = None,
-        producer_id: str = None,
-        project: str = None,
+        iter: typing.Optional[int] = None,
+        producer_id: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         project = project or mlrun.mlconf.default_project
@@ -104,7 +106,7 @@ class Artifacts(
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
 
-        return services.api.utils.singletons.db.get_db().create_artifact(
+        return framework.utils.singletons.db.get_db().create_artifact(
             db_session,
             project,
             artifact,
@@ -120,15 +122,15 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        iter: int = None,
-        project: str = None,
+        iter: typing.Optional[int] = None,
+        project: typing.Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        producer_id: str = None,
-        object_uid: str = None,
+        producer_id: typing.Optional[str] = None,
+        object_uid: typing.Optional[str] = None,
         raise_on_not_found: bool = True,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        artifact = services.api.utils.singletons.db.get_db().read_artifact(
+        artifact = framework.utils.singletons.db.get_db().read_artifact(
             db_session,
             key,
             tag,
@@ -144,27 +146,27 @@ class Artifacts(
     def list_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = None,
+        project: typing.Optional[str] = None,
         name: typing.Optional[str] = None,
         tag: typing.Optional[str] = None,
-        labels: list[str] = None,
-        since: datetime.datetime = None,
-        until: datetime.datetime = None,
+        labels: typing.Optional[list[str]] = None,
+        since: typing.Optional[datetime.datetime] = None,
+        until: typing.Optional[datetime.datetime] = None,
         kind: typing.Optional[str] = None,
         category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        producer_id: str = None,
-        producer_uri: str = None,
-        limit: int = None,
+        producer_id: typing.Optional[str] = None,
+        producer_uri: typing.Optional[str] = None,
+        limit: typing.Optional[int] = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
-        artifacts = services.api.utils.singletons.db.get_db().list_artifacts(
+        artifacts = framework.utils.singletons.db.get_db().list_artifacts(
             db_session,
             name,
             project,
@@ -192,7 +194,7 @@ class Artifacts(
         project: str,
         key_tag_iteration_pairs: list[tuple] = "",
     ):
-        return services.api.utils.singletons.db.get_db().list_artifacts_for_producer_id(
+        return framework.utils.singletons.db.get_db().list_artifacts_for_producer_id(
             db_session,
             producer_id=producer_id,
             project=project,
@@ -202,11 +204,11 @@ class Artifacts(
     def list_artifact_tags(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = None,
+        project: typing.Optional[str] = None,
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_artifact_tags(
+        return framework.utils.singletons.db.get_db().list_artifact_tags(
             db_session, project, category
         )
 
@@ -215,14 +217,14 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: str = None,
-        object_uid: str = None,
-        producer_id: str = None,
-        iteration: int = None,
+        project: typing.Optional[str] = None,
+        object_uid: typing.Optional[str] = None,
+        producer_id: typing.Optional[str] = None,
+        iteration: typing.Optional[int] = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: dict = None,
+        secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         project = project or mlrun.mlconf.default_project
@@ -245,7 +247,7 @@ class Artifacts(
                 auth_info=auth_info,
             )
 
-        return services.api.utils.singletons.db.get_db().del_artifact(
+        return framework.utils.singletons.db.get_db().del_artifact(
             session=db_session,
             key=key,
             tag=tag,
@@ -258,15 +260,15 @@ class Artifacts(
     def delete_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = None,
+        project: typing.Optional[str] = None,
         name: str = "",
         tag: str = "latest",
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        producer_id: str = None,
+        producer_id: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
-        services.api.utils.singletons.db.get_db().del_artifacts(
+        framework.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id
         )
 
@@ -296,14 +298,14 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: str = None,
-        object_uid: str = None,
-        producer_id: str = None,
-        iteration: int = None,
+        project: typing.Optional[str] = None,
+        object_uid: typing.Optional[str] = None,
+        producer_id: typing.Optional[str] = None,
+        iteration: typing.Optional[int] = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: dict = None,
+        secrets: typing.Optional[dict] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         logger.debug("Deleting artifact data", project=project, key=key, tag=tag)

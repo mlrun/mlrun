@@ -16,25 +16,27 @@ import unittest
 from unittest.mock import patch
 
 import fastapi
+import fastapi.testclient
 import pytest
 
 import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.nuclio
-import services.api.crud
-import services.api.utils.clients.async_nuclio
-import services.api.utils.clients.iguazio
 from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
+
+import framework.utils.clients.async_nuclio
+import framework.utils.clients.iguazio
+import services.api.crud
 
 PROJECT = "project-name"
 
 
-@patch.object(services.api.utils.clients.async_nuclio.Client, "list_api_gateways")
+@patch.object(framework.utils.clients.async_nuclio.Client, "list_api_gateways")
 def test_list_api_gateways(
     list_api_gateway_mocked, client: fastapi.testclient.TestClient
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    services.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+    framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
                 mlrun.common.schemas.AuthInfo(
@@ -94,9 +96,9 @@ def test_list_api_gateways(
     }
 
 
-@patch.object(services.api.utils.clients.async_nuclio.Client, "get_api_gateway")
-@patch.object(services.api.utils.clients.async_nuclio.Client, "api_gateway_exists")
-@patch.object(services.api.utils.clients.async_nuclio.Client, "store_api_gateway")
+@patch.object(framework.utils.clients.async_nuclio.Client, "get_api_gateway")
+@patch.object(framework.utils.clients.async_nuclio.Client, "api_gateway_exists")
+@patch.object(framework.utils.clients.async_nuclio.Client, "store_api_gateway")
 @patch.object(services.api.crud.Functions, "add_function_external_invocation_url")
 def test_store_api_gateway(
     add_function_external_invocation_url_mocked,
@@ -106,7 +108,7 @@ def test_store_api_gateway(
     client: fastapi.testclient.TestClient,
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    services.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+    framework.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
                 mlrun.common.schemas.AuthInfo(

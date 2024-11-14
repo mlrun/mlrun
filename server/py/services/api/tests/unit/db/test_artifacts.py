@@ -26,14 +26,15 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
-import services.api.db.sqldb.models
-import services.api.initial_data
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import PlotArtifact, PlotlyArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
-from services.api.db.base import DBInterface
+
+import framework.db.sqldb.models
+import services.api.initial_data
+from framework.db.base import DBInterface
 
 
 class TestArtifacts:
@@ -1389,7 +1390,7 @@ class TestArtifacts:
         # validate the migration succeeded
         query_all = db._query(
             db_session,
-            services.api.db.sqldb.models.ArtifactV2,
+            framework.db.sqldb.models.ArtifactV2,
         )
         new_artifacts = query_all.all()
         assert len(new_artifacts) == 3
@@ -1428,7 +1429,7 @@ class TestArtifacts:
             # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
             query = db._query(
                 db_session,
-                services.api.db.sqldb.models.ArtifactV2,
+                framework.db.sqldb.models.ArtifactV2,
                 key=expected["key"],
             )
             artifact = query.one_or_none()
@@ -1491,7 +1492,7 @@ class TestArtifacts:
         # validate we have 100 artifacts in the old table
         old_artifacts = db._query(
             db_session,
-            services.api.db.sqldb.models.Artifact,
+            framework.db.sqldb.models.Artifact,
         ).all()
         assert len(old_artifacts) == 100
 
@@ -1500,13 +1501,13 @@ class TestArtifacts:
         # validate the migration succeeded
         old_artifacts = db._query(
             db_session,
-            services.api.db.sqldb.models.Artifact,
+            framework.db.sqldb.models.Artifact,
         ).all()
         assert len(old_artifacts) == 0
 
         new_artifacts = db._query(
             db_session,
-            services.api.db.sqldb.models.ArtifactV2,
+            framework.db.sqldb.models.ArtifactV2,
         ).all()
         assert len(new_artifacts) == 100
 
@@ -1519,7 +1520,7 @@ class TestArtifacts:
 
         # validate we have 10 distinct projects in the new table
         new_artifact_projects = db_session.execute(
-            select([distinct(services.api.db.sqldb.models.ArtifactV2.project)])
+            select([distinct(framework.db.sqldb.models.ArtifactV2.project)])
         ).fetchall()
         assert len(new_artifact_projects) == 10
 
@@ -1548,7 +1549,7 @@ class TestArtifacts:
 
         query_all = db._query(
             db_session,
-            services.api.db.sqldb.models.Artifact,
+            framework.db.sqldb.models.Artifact,
         )
         old_artifacts = query_all.all()
         assert len(old_artifacts) == 1
@@ -1558,7 +1559,7 @@ class TestArtifacts:
         # validate the migration succeeded
         query_all = db._query(
             db_session,
-            services.api.db.sqldb.models.ArtifactV2,
+            framework.db.sqldb.models.ArtifactV2,
         )
         new_artifact = query_all.one()
 
@@ -1620,7 +1621,7 @@ class TestArtifacts:
         # validate the migration succeeded and the db_key was persisted
         query_all = db._query(
             db_session,
-            services.api.db.sqldb.models.ArtifactV2,
+            framework.db.sqldb.models.ArtifactV2,
         )
         new_artifact = query_all.one()
         assert new_artifact.key == db_key
@@ -1665,7 +1666,7 @@ class TestArtifacts:
         # validate the migration succeeded and the metadata key is the db_key
         query_all = db._query(
             db_session,
-            services.api.db.sqldb.models.ArtifactV2,
+            framework.db.sqldb.models.ArtifactV2,
         )
         new_artifact = query_all.one()
 
@@ -1675,7 +1676,7 @@ class TestArtifacts:
 
     def test_migrate_invalid_artifact(self, db: DBInterface, db_session: Session):
         # create an artifact with an invalid struct
-        artifact = services.api.db.sqldb.models.Artifact(
+        artifact = framework.db.sqldb.models.Artifact(
             project="my-project",
             key="my-key",
             updated=datetime.datetime.now(),
@@ -1690,7 +1691,7 @@ class TestArtifacts:
 
         query_all = db._query(
             db_session,
-            services.api.db.sqldb.models.ArtifactV2,
+            framework.db.sqldb.models.ArtifactV2,
         )
         new_artifacts = query_all.all()
 

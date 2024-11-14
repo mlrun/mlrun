@@ -2,6 +2,9 @@
 
 ## Creating a development environment
 
+> Configure your project `PYTHONPATH=<project-root>:<project-root>/server/py` to direct python to the server side packages as well.  
+> Some IDEs can manage this for you, for example on PyCharm - right click on `server/py`  folder ➜ mark directory as ➜ source root.
+
 If you are working with an ARM64 machine, please see  [Developing with ARM64 machines](#developing-with-arm64-machines).
 
 We recommend using [pyenv](https://github.com/pyenv/pyenv#installation) to manage your python versions.

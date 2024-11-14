@@ -18,7 +18,8 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.common.types
-import services.api.utils.singletons.db
+
+import framework.utils.singletons.db
 
 
 class TimeWindowTrackerKeys(mlrun.common.types.StrEnum):
@@ -36,7 +37,7 @@ class TimeWindowTracker:
         self._timestamp = None
         self._max_window_size_seconds = max_window_size_seconds
 
-        self._db = services.api.utils.singletons.db.get_db()
+        self._db = framework.utils.singletons.db.get_db()
 
     def initialize(self, session: sqlalchemy.orm.Session):
         time_window_tracker_record = self._refresh_from_db(
@@ -51,7 +52,9 @@ class TimeWindowTracker:
             )
 
     def update_window(
-        self, session: sqlalchemy.orm.Session, timestamp: datetime.datetime = None
+        self,
+        session: sqlalchemy.orm.Session,
+        timestamp: typing.Optional[datetime.datetime] = None,
     ):
         self._timestamp = timestamp or datetime.datetime.now(datetime.timezone.utc)
         self._db.store_time_window_tracker_record(

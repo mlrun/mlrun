@@ -15,6 +15,7 @@
 import asyncio
 import http
 import unittest.mock
+from typing import Optional
 
 import deepdiff
 import fastapi.testclient
@@ -22,10 +23,11 @@ import sqlalchemy.orm
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+
+import framework.utils.auth.verifier
 import services.api.api.endpoints.runtime_resources
 import services.api.crud
 import services.api.runtime_handlers
-import services.api.utils.auth.verifier
 
 
 def test_list_runtimes_resources_opa_filtering(
@@ -462,7 +464,7 @@ def _mock_runtime_handlers_delete_resources(
     def _assert_delete_resources_label_selector(
         db,
         db_session,
-        label_selector: str = None,
+        label_selector: Optional[str] = None,
         force: bool = False,
         grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
     ):
@@ -740,7 +742,7 @@ def _mock_filter_project_resources_by_permissions(monkeypatch, return_value=None
         return future
 
     monkeypatch.setattr(
-        services.api.utils.auth.verifier.AuthVerifier,
+        framework.utils.auth.verifier.AuthVerifier,
         "filter_project_resources_by_permissions",
         _async_mock,
     )

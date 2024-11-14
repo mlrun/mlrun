@@ -213,7 +213,7 @@ class TestApplication:
     ) -> None:
         results = application.do_tracking(**application_kwargs)
         metrics = []
-        assert len(results) == 4, "Expected four results & metrics"
+        assert len(results) == 6, "Expected four results & metrics % stats"
         for res in results:
             if isinstance(
                 res,

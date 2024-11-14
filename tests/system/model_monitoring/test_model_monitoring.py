@@ -21,7 +21,6 @@ from time import monotonic, sleep
 from typing import Optional, Union
 
 import fsspec
-import mlrun_pipelines.mounts
 import numpy as np
 import pandas as pd
 import pytest
@@ -39,6 +38,7 @@ import mlrun.model_monitoring.api
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
+import mlrun_pipelines.mounts
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime

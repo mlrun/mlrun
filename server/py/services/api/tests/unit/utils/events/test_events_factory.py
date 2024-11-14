@@ -15,6 +15,7 @@
 import pytest
 
 import mlrun.common.schemas
+
 import services.api.utils.events.base
 import services.api.utils.events.events_factory
 import services.api.utils.events.iguazio

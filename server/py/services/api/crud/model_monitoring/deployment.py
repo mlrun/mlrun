@@ -35,18 +35,19 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
-import services.api.api.endpoints.nuclio
-import services.api.api.utils
-import services.api.crud.model_monitoring.helpers
-import services.api.db.session
-import services.api.utils.background_tasks
-import services.api.utils.functions
-import services.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
+
+import framework.api.utils
+import framework.db.session
+import framework.utils.background_tasks
+import framework.utils.singletons.k8s
+import services.api.api.endpoints.nuclio
+import services.api.crud.model_monitoring.helpers
+import services.api.utils.functions
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -328,7 +329,7 @@ class MonitoringDeployment:
             function.spec.min_replicas = stream_args.v3io.min_replicas
             function.spec.max_replicas = stream_args.v3io.max_replicas
         else:
-            services.api.api.utils.log_and_raise(
+            framework.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
                 reason="Unexpected stream path schema",
             )
@@ -382,7 +383,7 @@ class MonitoringDeployment:
             ),
         )
         function.set_db_connection(
-            services.api.api.utils.get_run_db_instance(self.db_session)
+            framework.api.utils.get_run_db_instance(self.db_session)
         )
 
         secret_provider = services.api.crud.secrets.get_project_secret_provider(
@@ -436,7 +437,7 @@ class MonitoringDeployment:
             handler="handler",
         )
         function.set_db_connection(
-            services.api.api.utils.get_run_db_instance(self.db_session)
+            framework.api.utils.get_run_db_instance(self.db_session)
         )
 
         # Set the project to the job function
@@ -448,7 +449,7 @@ class MonitoringDeployment:
         )
         function.spec.max_replicas = 1
         # Enrich runtime with the required configurations
-        services.api.api.utils.apply_enrichment_and_validation_on_function(
+        framework.api.utils.apply_enrichment_and_validation_on_function(
             function, self.auth_info
         )
 
@@ -459,7 +460,7 @@ class MonitoringDeployment:
         function: typing.Union[
             mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime
         ],
-        function_name: str = None,
+        function_name: typing.Optional[str] = None,
     ) -> typing.Union[mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime]:
         """Applying model monitoring access key on the provided function when using V3IO path. In addition, this method
         mount the V3IO path for the provided function to configure the access to the system files.
@@ -477,7 +478,7 @@ class MonitoringDeployment:
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
                 mm_constants.ProjectSecretKeys.ACCESS_KEY,
-                services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+                framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
                     self.project
                 ),
                 services.api.crud.secrets.Secrets().generate_client_project_secret_key(
@@ -490,9 +491,7 @@ class MonitoringDeployment:
             function.apply(mlrun.v3io_cred())
 
             # Ensure that the auth env vars are set
-            services.api.api.utils.ensure_function_has_auth_set(
-                function, self.auth_info
-            )
+            framework.api.utils.ensure_function_has_auth_set(function, self.auth_info)
         return function
 
     def _initial_model_monitoring_writer_function(self, writer_image: str):
@@ -516,7 +515,7 @@ class MonitoringDeployment:
             ),
         )
         function.set_db_connection(
-            services.api.api.utils.get_run_db_instance(self.db_session)
+            framework.api.utils.get_run_db_instance(self.db_session)
         )
 
         # Create writer monitoring serving graph
@@ -608,9 +607,7 @@ class MonitoringDeployment:
                     "Setting the access key for the histogram data drift function"
                 )
                 func.metadata.credentials.access_key = self.model_monitoring_access_key
-                services.api.api.utils.ensure_function_has_auth_set(
-                    func, self.auth_info
-                )
+                framework.api.utils.ensure_function_has_auth_set(func, self.auth_info)
                 logger.info("Ensured the histogram data drift function auth")
 
             func.set_label(
@@ -672,7 +669,7 @@ class MonitoringDeployment:
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: list[str] = None,
+        user_application_list: typing.Optional[list[str]] = None,
         background_tasks: fastapi.BackgroundTasks = None,
     ) -> mlrun.common.schemas.BackgroundTaskList:
         """
@@ -713,7 +710,7 @@ class MonitoringDeployment:
         for function_name in function_to_delete:
             if self._get_function_state(function_name):
                 task = await run_in_threadpool(
-                    services.api.db.session.run_function_with_new_db_session,
+                    framework.db.session.run_function_with_new_db_session,
                     MonitoringDeployment._create_monitoring_function_deletion_background_task,
                     background_tasks=background_tasks,
                     project_name=self.project,
@@ -734,7 +731,7 @@ class MonitoringDeployment:
         self,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: list[str] = None,
+        user_application_list: typing.Optional[list[str]] = None,
     ):
         application_to_delete = []
 
@@ -798,7 +795,7 @@ class MonitoringDeployment:
         background_task_name = str(uuid.uuid4())
 
         # create the background task for function deletion
-        return services.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+        return framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
             db_session,
             project_name,
             background_tasks,
@@ -835,7 +832,7 @@ class MonitoringDeployment:
         :param delete_app_stream_resources: If True, delete the stream resources (e.g., v3io stream or kafka  topics).
         :param access_key:                  Model monitoring access key, relevant only for V3IO stream.
         """
-        await services.api.api.utils._delete_function(
+        await framework.api.utils._delete_function(
             db_session=db_session,
             project=project,
             function_name=function_name,
@@ -875,16 +872,21 @@ class MonitoringDeployment:
         )
         stream_paths = []
         for function_name in function_names:
-            label_selector = f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={project}-{function_name}"
-            if len(label_selector) > 63:
-                # k8s label character limit exceeded, skipping deletion of stream resources"
+            qualified_function_name = f"{project}-{function_name}"
+            if len(qualified_function_name) > 63:
+                logger.info(
+                    "k8s 63 characters limit exceeded, skipping deletion of stream resources",
+                    project_name=project,
+                    function_label_name=qualified_function_name,
+                )
                 continue
+            label_selector = f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={qualified_function_name}"
             for i in range(10):
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
                 try:
                     function_pod = (
-                        services.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+                        framework.utils.singletons.k8s.get_k8s_helper().list_pods(
                             selector=label_selector
                         )
                     )
@@ -1284,8 +1286,8 @@ class MonitoringDeployment:
 
 def get_endpoint_features(
     feature_names: list[str],
-    feature_stats: dict = None,
-    current_stats: dict = None,
+    feature_stats: typing.Optional[dict] = None,
+    current_stats: typing.Optional[dict] = None,
 ) -> list[mlrun.common.schemas.Features]:
     """
     Getting a new list of features that exist in feature_names along with their expected (feature_stats) and

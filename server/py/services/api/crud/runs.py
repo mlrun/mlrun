@@ -29,14 +29,15 @@ import mlrun.lists
 import mlrun.runtimes
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-import services.api.api.utils
-import services.api.constants
-import services.api.db.session
-import services.api.runtime_handlers
-import services.api.utils.background_tasks
-import services.api.utils.clients.log_collector
-import services.api.utils.singletons.db
 from mlrun.utils import logger
+
+import framework.constants
+import framework.db.session
+import framework.utils.background_tasks
+import framework.utils.clients.log_collector
+import framework.utils.notifications
+import framework.utils.singletons.db
+import services.api.runtime_handlers
 
 
 class Runs(
@@ -48,14 +49,14 @@ class Runs(
         data: dict,
         uid: str,
         iter: int = 0,
-        project: str = None,
+        project: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
 
         # Some runtimes do not use the submit job flow, so their notifications are not masked.
         # Redact notification params if not concealed with a secret
-        services.api.api.utils.mask_notification_params_on_task(
-            data, services.api.constants.MaskOperations.REDACT
+        framework.utils.notifications.mask_notification_params_on_task(
+            data, framework.constants.MaskOperations.REDACT
         )
 
         # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
@@ -71,7 +72,7 @@ class Runs(
             data["status"]["artifact_uris"] = artifact_uris
         data["status"].pop("artifacts", None)
 
-        services.api.utils.singletons.db.get_db().store_run(
+        framework.utils.singletons.db.get_db().store_run(
             db_session,
             data,
             uid,
@@ -111,7 +112,7 @@ class Runs(
         # Note: Abort run moved to a separated endpoint
         # TODO: Remove below function for 1.8.0 (once 1.5.x clients are not supported)
         self._update_aborted_run(db_session, project, uid, iter, data)
-        services.api.utils.singletons.db.get_db().update_run(
+        framework.utils.singletons.db.get_db().update_run(
             db_session, data, uid, project, iter
         )
 
@@ -120,13 +121,13 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = None,
+        project: typing.Optional[str] = None,
         format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
 
         # TODO: 1.8 - add notifications for full format as well.
-        run = services.api.utils.singletons.db.get_db().read_run(
+        run = framework.utils.singletons.db.get_db().read_run(
             db_session,
             uid,
             project,
@@ -167,7 +168,7 @@ class Runs(
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
-        requested_logs: bool = None,
+        requested_logs: typing.Optional[bool] = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
         page: typing.Optional[int] = None,
@@ -209,7 +210,7 @@ class Runs(
                 last_update_time_to
             )
 
-        return services.api.utils.singletons.db.get_db().list_runs(
+        return framework.utils.singletons.db.get_db().list_runs(
             session=db_session,
             name=name,
             uid=uid,
@@ -242,11 +243,11 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = None,
+        project: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         try:
-            run = services.api.utils.singletons.db.get_db().read_run(
+            run = framework.utils.singletons.db.get_db().read_run(
                 db_session, uid, project, iter
             )
         except mlrun.errors.MLRunNotFoundError:
@@ -278,7 +279,7 @@ class Runs(
             )
             if runtime_handler.are_resources_coupled_to_run_object():
                 runtime_handler.delete_runtime_object_resources(
-                    services.api.utils.singletons.db.get_db(),
+                    framework.utils.singletons.db.get_db(),
                     db_session,
                     object_id=uid,
                     label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project}",
@@ -292,9 +293,7 @@ class Runs(
             iter=iter,
             runtime_kind=runtime_kind,
         )
-        services.api.utils.singletons.db.get_db().del_run(
-            db_session, uid, project, iter
-        )
+        framework.utils.singletons.db.get_db().del_run(db_session, uid, project, iter)
 
         await self._post_delete_run(project, uid)
 
@@ -302,7 +301,7 @@ class Runs(
         self,
         db_session: sqlalchemy.orm.Session,
         name=None,
-        project: str = None,
+        project: typing.Optional[str] = None,
         labels=None,
         state=None,
         days_ago: int = 0,
@@ -341,7 +340,7 @@ class Runs(
             tasks = []
             for run in runs_list[: mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size]:
                 tasks.append(
-                    services.api.db.session.run_function_with_new_db_session(
+                    framework.db.session.run_function_with_new_db_session(
                         self.delete_run,
                         run.uid,
                         run.iteration,
@@ -391,14 +390,14 @@ class Runs(
         )
 
         if not run:
-            run = services.api.utils.singletons.db.get_db().read_run(
+            run = framework.utils.singletons.db.get_db().read_run(
                 db_session, uid, project, iter
             )
 
         current_run_state = run.get("status", {}).get("state")
         # ensure we are not triggering multiple internal aborts / internal abort on top of user abort
         if (
-            new_background_task_id == services.api.constants.internal_abort_task_id
+            new_background_task_id == framework.constants.internal_abort_task_id
             and current_run_state
             in [
                 mlrun.common.runtimes.constants.RunStates.aborting,
@@ -435,7 +434,7 @@ class Runs(
             "status.state": mlrun.common.runtimes.constants.RunStates.aborting,
             "status.abort_task_id": new_background_task_id,
         }
-        services.api.utils.singletons.db.get_db().update_run(
+        framework.utils.singletons.db.get_db().update_run(
             db_session, aborting_updates, uid, project, iter
         )
 
@@ -463,12 +462,12 @@ class Runs(
                 "status.state": mlrun.common.runtimes.constants.RunStates.error,
                 "status.error": f"Failed to abort run, error: {err}",
             }
-            services.api.utils.singletons.db.get_db().update_run(
+            framework.utils.singletons.db.get_db().update_run(
                 db_session, run_updates, uid, project, iter
             )
             raise exc
 
-        services.api.utils.singletons.db.get_db().update_run(
+        framework.utils.singletons.db.get_db().update_run(
             db_session, run_updates, uid, project, iter
         )
 
@@ -523,7 +522,7 @@ class Runs(
             and data.get("status.state")
             == mlrun.common.runtimes.constants.RunStates.aborted
         ):
-            current_run = services.api.utils.singletons.db.get_db().read_run(
+            current_run = framework.utils.singletons.db.get_db().read_run(
                 db_session, uid, project, iter
             )
             if (

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from http import HTTPStatus
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -20,13 +21,14 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
-import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
 from mlrun.config import config
 from mlrun.utils import logger
-from services.api.api import deps
-from services.api.api.utils import (
+
+import framework.utils.auth.verifier
+import framework.utils.singletons.project_member
+import services.api.crud
+from framework.api import deps
+from framework.api.utils import (
     artifact_project_and_resource_name_extractor,
     log_and_raise,
 )
@@ -46,17 +48,19 @@ async def store_artifact(
     db_session: Session = Depends(deps.get_db_session),
 ):
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
 
     data = None
@@ -92,18 +96,20 @@ async def list_artifact_tags(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
     # verify that the user has permissions to read the project's artifacts
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        "",
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            "",
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     tags = await run_in_threadpool(
@@ -155,12 +161,14 @@ async def get_artifact(
             format_=format_,
             producer_id=tag,
         )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     return {
         "data": data,
@@ -176,12 +184,14 @@ async def delete_artifact(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+            project,
+            key,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
     await run_in_threadpool(
         services.api.crud.Artifacts().delete_artifact, db_session, key, tag, project
@@ -191,10 +201,10 @@ async def delete_artifact(
 
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
-    project: str = None,
-    name: str = None,
-    tag: str = None,
-    kind: str = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
+    kind: Optional[str] = None,
     category: mlrun.common.schemas.ArtifactCategories = None,
     labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
@@ -206,7 +216,7 @@ async def list_artifacts(
 ):
     if project is None:
         project = config.default_project
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -245,7 +255,7 @@ async def list_artifacts(
             producer_id=tag,
         )
 
-    artifacts = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    artifacts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         artifact_project_and_resource_name_extractor,
@@ -258,7 +268,7 @@ async def list_artifacts(
 
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
-    project: str = None,
+    project: Optional[str] = None,
     name: str = "",
     tag: str = "",
     labels: list[str] = Query([], alias="label"),
@@ -276,10 +286,10 @@ async def delete_artifacts(
 
 
 async def _delete_artifacts(
-    project: str = None,
-    name: str = None,
-    tag: str = None,
-    labels: list[str] = None,
+    project: Optional[str] = None,
+    name: Optional[str] = None,
+    tag: Optional[str] = None,
+    labels: Optional[list[str]] = None,
     auth_info: mlrun.common.schemas.AuthInfo = None,
     db_session: Session = None,
 ):
@@ -291,7 +301,7 @@ async def _delete_artifacts(
         tag,
         labels,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         artifact_project_and_resource_name_extractor,

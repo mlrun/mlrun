@@ -29,12 +29,11 @@ import requests
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-import services.api.api.deps
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
-import services.api.utils.clients.chief
 from mlrun.utils import logger
-from services.api import main
+
+import framework.api.deps
+import framework.utils.background_tasks
+from services.api.daemon import daemon
 
 test_router = fastapi.APIRouter()
 
@@ -49,9 +48,9 @@ async def create_project_background_task(
     project: str,
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    timeout: int = None,
+    timeout: typing.Optional[int] = None,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
     function = bump_counter
@@ -64,7 +63,7 @@ async def create_project_background_task(
         # adds some time to make sure that it sleeps longer than the timeout
         args = [timeout + 3]
     return await fastapi.concurrency.run_in_threadpool(
-        services.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
         db_session,
         project,
         background_tasks,
@@ -82,7 +81,7 @@ async def create_project_background_task(
 def create_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
-    project: str = None,
+    project: typing.Optional[str] = None,
 ):
     function = bump_counter
     if failed_task:
@@ -95,11 +94,11 @@ def create_internal_background_task(
     (
         task,
         task_name,
-    ) = services.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+    ) = framework.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         "bump_counter", None, function, project=project
     )
     background_tasks.add_task(task)
-    return services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+    return framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
         task_name
     )
 
@@ -115,11 +114,11 @@ def create_long_internal_background_task(
     (
         task,
         task_name,
-    ) = services.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+    ) = framework.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         "long_bump_counter", None, long_function, sleep_time=timeout
     )
     background_tasks.add_task(task)
-    return services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+    return framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
         task_name
     )
 
@@ -144,8 +143,8 @@ async def long_function(sleep_time):
 # must add it here since we're adding routes
 @pytest.fixture()
 def client() -> typing.Generator:
-    main.app.include_router(test_router, prefix="/test")
-    with fastapi.testclient.TestClient(main.app) as client:
+    daemon.app.include_router(test_router, prefix="/test")
+    with fastapi.testclient.TestClient(daemon.app) as client:
         yield client
 
 
@@ -172,12 +171,12 @@ async def async_client() -> typing.Iterator[ThreadedAsyncClient]:
         result = await async_client.post(...)
         response = result.result()
     """
-    main.app.include_router(test_router, prefix="/test")
-    async with ThreadedAsyncClient(app=main.app, base_url="https://mlrun") as client:
+    daemon.app.include_router(test_router, prefix="/test")
+    async with ThreadedAsyncClient(app=daemon.app, base_url="https://mlrun") as client:
         yield client
 
 
-ORIGINAL_VERSIONED_API_PREFIX = main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 
 
 def test_redirection_from_worker_to_chief_trigger_migrations(
@@ -299,7 +298,7 @@ def test_get_project_background_task_not_exists(
 def test_get_internal_background_task_auth(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
-    services.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
+    framework.utils.auth.verifier.AuthVerifier().query_project_permissions = (
         unittest.mock.AsyncMock()
     )
     response = client.post("/test/internal-background-tasks?project=my-proj")
@@ -310,7 +309,7 @@ def test_get_internal_background_task_auth(
     )
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        services.api.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
+        framework.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
         == 0
     )
 
@@ -321,7 +320,7 @@ def test_get_internal_background_task_auth(
     response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        services.api.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
+        framework.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
         == 0
     )
 
@@ -332,12 +331,12 @@ def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
     expected_background_task = _generate_background_task(name)
-    handler_mock = services.api.utils.clients.chief.Client()
+    handler_mock = framework.utils.clients.chief.Client()
     handler_mock.get_internal_background_task = unittest.mock.AsyncMock(
         return_value=expected_background_task
     )
     monkeypatch.setattr(
-        services.api.utils.clients.chief,
+        framework.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -352,12 +351,12 @@ def test_get_internal_background_task_from_worker_redirect_to_chief_doesnt_exist
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
-    handler_mock = services.api.utils.clients.chief.Client()
+    handler_mock = framework.utils.clients.chief.Client()
     handler_mock.get_internal_background_task = unittest.mock.AsyncMock(
         side_effect=mlrun.errors.MLRunHTTPError()
     )
     monkeypatch.setattr(
-        services.api.utils.clients.chief,
+        framework.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -444,12 +443,12 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
         expected_response = fastapi.Response(
             status_code=test_case.get("status_code"), content=test_case.get("content")
         )
-        handler_mock = services.api.utils.clients.chief.Client()
+        handler_mock = framework.utils.clients.chief.Client()
         handler_mock.trigger_migrations = unittest.mock.AsyncMock(
             return_value=expected_response
         )
         monkeypatch.setattr(
-            services.api.utils.clients.chief,
+            framework.utils.clients.chief,
             "Client",
             lambda *args, **kwargs: handler_mock,
         )

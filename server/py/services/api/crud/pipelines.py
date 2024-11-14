@@ -331,7 +331,9 @@ class Pipelines(
                 exc.status, err_to_str(error_message)
             ) from exc
 
-        return [mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []], response.next_page_token
+        return [
+            mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []
+        ], response.next_page_token
 
     def _format_runs(
         self,

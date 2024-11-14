@@ -4050,8 +4050,8 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        kind: Optional[str] = None,
         format_: Optional[str] = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
@@ -4063,7 +4063,6 @@ class MlrunProject(ModelObj):
 
         :param name: Return only functions with a specific name.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
-        :param kind: Return functions of the specified kind. If not provided, all function kinds will be returned.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -4071,6 +4070,7 @@ class MlrunProject(ModelObj):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
+        :param kind: Return functions of the specified kind. If not provided, all function kinds will be returned.
         :param format_: The format in which to return the functions. Default is 'full'.
         :returns: List of function objects.
         """

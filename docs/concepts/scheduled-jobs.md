@@ -78,6 +78,7 @@ The remote files are primarily retrieved for -
 This behavior may be unexpected for users who rely on project.yaml in the remote source (for the project configuration).
 Be sure to update MLRun DB with the latest project configuration to ensure consistent configuration management (use `project.save()`).
 ```
+```
 import mlrun
 project_name = "remote-workflow-example"
 source_url = "git://github.com/mlrun/project-demo.git"

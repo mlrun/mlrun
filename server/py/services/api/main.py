@@ -102,6 +102,8 @@ class Service(framework.service.Service):
             services.api.initial_data.update_default_configuration_data()
             await self._start_periodic_functions()
 
+        await self._move_mounted_services_to_online()
+
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class
         self.app.include_router(api_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX)

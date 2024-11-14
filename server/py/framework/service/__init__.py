@@ -63,6 +63,13 @@ class Service(ABC):
     async def move_service_to_online(self):
         pass
 
+    async def _move_mounted_services_to_online(self):
+        if not self._mounted_services:
+            return
+
+        tasks = [service.move_service_to_online() for service in self._mounted_services]
+        await asyncio.gather(*tasks)
+
     @abstractmethod
     def _register_routes(self):
         pass
@@ -94,7 +101,8 @@ class Service(ABC):
         yield
 
         teardown_tasks = [self._teardown_service()] + [
-            service._teardown_service() for service in self._mounted_services
+            service._teardown_service(mounted=True)
+            for service in self._mounted_services
         ]
         await asyncio.gather(*teardown_tasks)
 
@@ -115,16 +123,16 @@ class Service(ABC):
             initialize_db()
         await self._custom_setup_service()
 
-        if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
+        if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online and not mounted:
             await self.move_service_to_online()
 
     async def _custom_setup_service(self):
         pass
 
-    async def _teardown_service(self):
+    async def _teardown_service(self, mounted: bool = False):
         await self._custom_teardown_service()
-        # TODO: Don't cancel periodic of mounted services
-        framework.utils.periodic.cancel_all_periodic_functions()
+        if not mounted:
+            framework.utils.periodic.cancel_all_periodic_functions()
 
     async def _custom_teardown_service(self):
         pass

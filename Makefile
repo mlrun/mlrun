@@ -780,7 +780,7 @@ endif
 .PHONY: verify-uv-version
 verify-uv-version:
 	@{ \
-	uv_version=$$(uv version --output-format json | jq -r .version); \
+	uv_version=$$(uv version | cut -d' ' -f2); \
 	result=$$(pysemver compare $$uv_version $(MLRUN_UV_VERSION)); \
 	if [ "$$result" -eq -1 ]; then \
 	  echo "Error: The running uv version ($$uv_version) is outdated. Upgrade uv to version $(MLRUN_UV_VERSION)."; \

@@ -166,6 +166,16 @@ class SQLRunDB(RunDBInterface):
             with_notifications=with_notifications,
         )
 
+    def paginated_list_runs(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        raise NotImplementedError()
+
     async def del_run(self, uid, project=None, iter=None):
         return await self._transform_db_error(
             services.api.crud.Runs().delete_run,
@@ -348,6 +358,16 @@ class SQLRunDB(RunDBInterface):
             since=since,
             until=until,
         )
+
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        raise NotImplementedError()
 
     def list_artifact_tags(
         self,

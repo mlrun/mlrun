@@ -4076,6 +4076,67 @@ class MlrunProject(ModelObj):
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
 
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[list, Optional[str]]:
+        """List functions with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of functions based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of functions that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_functions method:
+            See :py:func:`~list_functions` for more details.
+
+        Examples::
+
+            # Fetch first page of functions with page size of 5
+            functions, token = project.paginated_list_functions(page_size=5)
+            # Fetch next page using the pagination token from the previous response
+            functions, token = project.paginated_list_functions(page_token=token)
+            # Fetch functions for a specific page (e.g., page 3)
+            functions, token = project.paginated_list_functions(page=3, page_size=5)
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            functions = []
+            token = None
+            while True:
+                page_functions, token = project.paginated_list_functions(
+                    page_token=token, page_size=5
+                )
+                functions.extend(page_functions)
+
+                # If token is None and page_functions is empty, we've reached the end (no more functions).
+                # If token is None and page_functions is not empty, we've fetched the last page of functions.
+                if not token:
+                    break
+            print(f"Total functions retrieved: {len(functions)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of functions and an optional `page_token` for pagination.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        functions, token = db.paginated_list_functions(
+            *args,
+            project=self.metadata.name,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            **kwargs,
+        )
+        if functions:
+            # convert dict to function objects
+            return [mlrun.new_function(runtime=func) for func in functions], token
+
     def list_model_monitoring_functions(
         self,
         name: Optional[str] = None,
@@ -4190,6 +4251,68 @@ class MlrunProject(ModelObj):
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            **kwargs,
+        )
+
+    def paginated_list_runs(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[mlrun.lists.RunList, Optional[str]]:
+        """List runs with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of runs based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of runs that match the filtering criteria provided.
+
+        The returned result is a `` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
+        `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to
+        generate comparison table and PCP plot.
+
+        For detailed information about the parameters, refer to the list_runs method:
+            See :py:func:`~list_runs` for more details.
+
+        Examples::
+
+            # Fetch first page of runs with page size of 5
+            runs, token = project.paginated_list_runs(page_size=5)
+            # Fetch next page using the pagination token from the previous response
+            runs, token = project.paginated_list_runs(page_token=token)
+            # Fetch runs for a specific page (e.g., page 3)
+            runs, token = project.paginated_list_runs(page=3, page_size=5)
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            runs = []
+            token = None
+            while True:
+                page_runs, token = project.paginated_list_runs(
+                    page_token=token, page_size=5
+                )
+                runs.extend(page_runs)
+
+                # If token is None and page_runs is empty, we've reached the end (no more runs).
+                # If token is None and page_runs is not empty, we've fetched the last page of runs.
+                if not token:
+                    break
+            print(f"Total runs retrieved: {len(runs)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of runs and an optional `page_token` for pagination.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.paginated_list_runs(
+            *args,
+            project=self.metadata.name,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
             **kwargs,
         )
 

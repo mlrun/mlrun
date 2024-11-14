@@ -81,7 +81,7 @@ class Pipelines(
                 project=project_names[0],
             )
             filter_ = mlrun.utils.get_kfp_project_filter(project_name=project_names[0])
-        total_size, next_page_token, runs = self._paginate_runs(
+        runs, next_page_token = self._paginate_runs(
             kfp_client, page_token, page_size, sort_by, filter_
         )
         if project_names:
@@ -92,8 +92,9 @@ class Pipelines(
             ]
         runs = self._filter_runs_by_name(runs, name_contains)
         runs = self._format_runs(runs, format_, kfp_client)
-        if total_size != -1:
-            total_size = len(runs)
+        # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
+        # so don't pass it to the client in such case
+        total_size = -1 if next_page_token else len(runs)
 
         return total_size, next_page_token, runs
 
@@ -280,7 +281,7 @@ class Pipelines(
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
         filter_: typing.Optional[str] = None,
-    ) -> tuple[int, typing.Optional[int], list[mlrun_pipelines.models.PipelineRun]]:
+    ) -> tuple[list[mlrun_pipelines.models.PipelineRun], typing.Optional[int]]:
         next_page_token = -1
         if page_token or page_size:
             runs, next_page_token = self._list_runs_from_kfp(
@@ -290,10 +291,6 @@ class Pipelines(
                 sort_by,
                 filter_,
             )
-            runs = [mlrun_pipelines.models.PipelineRun(run) for run in runs or []]
-            # In-memory filtering turns Kubeflow's counting inaccurate if there are multiple pages of data
-            # so don't pass it to the client in such case
-            total_size = -1 if next_page_token else len(runs)
         else:
             runs = []
             while next_page_token:
@@ -304,13 +301,10 @@ class Pipelines(
                     sort_by,
                     filter_,
                 )
-                runs.extend(
-                    [mlrun_pipelines.models.PipelineRun(run) for run in page_runs or []]
-                )
+                runs.extend(page_runs)
                 page_token = next_page_token
-            total_size = len(runs)
 
-        return total_size, next_page_token, runs
+        return runs, next_page_token
 
     def _list_runs_from_kfp(
         self,
@@ -337,7 +331,7 @@ class Pipelines(
                 exc.status, err_to_str(error_message)
             ) from exc
 
-        return response.runs, response.next_page_token
+        return [mlrun_pipelines.models.PipelineRun(run) for run in response.runs or []], response.next_page_token
 
     def _format_runs(
         self,

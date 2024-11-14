@@ -1004,19 +1004,9 @@ gitpython==3.1.43 \
     # via
     #   -r requirements.txt
     #   mlflow
-google-api-core==1.34.1 ; python_full_version >= '3.11' \
+google-api-core==1.34.1 \
     --hash=sha256:3399c92887a97d33038baa4bfd3bf07acc05d474b0171f333e1f641c1364e552 \
     --hash=sha256:52bcc9d9937735f8a3986fa0bbf9135ae9cf5393a722387e5eced520e39c774a
-    # via
-    #   google-api-python-client
-    #   google-cloud-bigquery
-    #   google-cloud-bigquery-storage
-    #   google-cloud-core
-    #   google-cloud-storage
-    #   kfp
-google-api-core==2.23.0 ; python_full_version < '3.11' \
-    --hash=sha256:2ceb087315e6af43f256704b871d99326b1f12a9d6ce99beaedec99ba26a0ace \
-    --hash=sha256:c20100d4c4c41070cf365f1d8ddf5365915291b5eb11b83829fbd1c999b5122f
     # via
     #   google-api-python-client
     #   google-cloud-bigquery
@@ -2471,9 +2461,7 @@ propcache==0.2.0 \
 proto-plus==1.25.0 \
     --hash=sha256:c91fc4a65074ade8e458e95ef8bac34d4008daa7cce4a12d6707066fca648961 \
     --hash=sha256:fbb17f57f7bd05a68b7707e745e26528b0b3c34e378db91eef93912c54982d91
-    # via
-    #   google-api-core
-    #   google-cloud-bigquery-storage
+    # via google-cloud-bigquery-storage
 protobuf==3.20.3 \
     --hash=sha256:03038ac1cfbc41aa21f6afcbcd357281d7521b4157926f30ebecc8d4ea59dcb7 \
     --hash=sha256:28545383d61f55b57cf4df63eebd9827754fd2dc25f80c5253f9184235db242c \

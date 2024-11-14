@@ -1390,17 +1390,16 @@ class HTTPRunDB(RunDBInterface):
         project: Optional[str] = None,
         tag: Optional[str] = None,
         kind: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
-        :param kind: Return only functions of a specific kind.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -1408,9 +1407,10 @@ class HTTPRunDB(RunDBInterface):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param format_: The format in which to return the functions. Default is 'full'.
         :param since: Return functions updated after this date (as datetime object).
         :param until: Return functions updated before this date (as datetime object).
+        :param kind: Return only functions of a specific kind.
+        :param format_: The format in which to return the functions. Default is 'full'.
         :returns: List of function objects (as dictionary).
         """
         functions, _ = self._list_functions(

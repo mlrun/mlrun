@@ -1292,7 +1292,9 @@ class SQLDB(DBInterface):
         artifact_record.producer_id = producer_id or artifact_dict["metadata"].get(
             "tree"
         )
-        artifact_record.producer_uri = artifact_dict.get("producer", {}).get("uri", None)
+        artifact_record.producer_uri = (
+            artifact_dict.get("spec", {}).get("producer", {}).get("uri", None)
+        )
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
         created = (
@@ -3184,7 +3186,7 @@ class SQLDB(DBInterface):
         return project_record
 
     def verify_project_has_no_related_resources(self, session: Session, name: str):
-        artifacts = self._find_artifacts(session, name, "*")
+        artifacts = self._find_artifacts(session, project=name, ids="*")
         self._verify_empty_list_of_project_related_resources(
             name, artifacts, "artifacts"
         )

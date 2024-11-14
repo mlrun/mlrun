@@ -139,7 +139,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 8
+latest_data_version = 9
 
 
 def update_default_configuration_data():
@@ -247,6 +247,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_7_data_migrations(db, db_session)
             if current_data_version < 8:
                 _perform_version_8_data_migrations(db, db_session)
+            if current_data_version < 9:
+                _perform_version_9_data_migrations(db, db_session)
 
             db.create_data_version(db_session, str(latest_data_version))
 
@@ -879,12 +881,6 @@ def _perform_version_7_data_migrations(
     _create_project_summaries(db, db_session)
 
 
-def _perform_version_8_data_migrations(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    db.align_schedule_labels(session=db_session)
-
-
 def _create_project_summaries(db, db_session):
     # Create a project summary record for all projects.
     # We need to create them manually because a summary record is created only when a new
@@ -900,6 +896,54 @@ def _create_project_summaries(db, db_session):
         for project_name in projects.projects
     ]
     db._upsert(db_session, project_summaries, ignore=True)
+
+
+def _perform_version_8_data_migrations(
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    db.align_schedule_labels(session=db_session)
+
+
+def _perform_version_9_data_migrations(
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_artifact_producer_uri(db, db_session, chunk_size=500)
+
+
+def _migrate_artifact_producer_uri(
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session, chunk_size: int
+):
+    offset = 0
+    number_of_artifacts_to_migrate = (
+        db._query(db_session, framework.db.sqldb.models.ArtifactV2)
+        .filter(framework.db.sqldb.models.ArtifactV2.producer_uri.is_(None))
+        .count()
+    )
+    logger.info(f"Number of artifacts to migrate: {number_of_artifacts_to_migrate}")
+    while True:
+        logger.info("Fetching artifacts to migrate", offset=offset)
+        q = db._query(db_session, framework.db.sqldb.models.ArtifactV2)
+        q = q.order_by(framework.db.sqldb.models.ArtifactV2.id)
+        q = q.limit(chunk_size)
+        q = q.offset(offset)
+        artifacts = []
+        for artifact in q.all():
+            artifact.producer_uri = (
+                artifact.full_object.get("spec", {})
+                .get("producer", {})
+                .get("uri", None)
+            )
+            if artifact.producer_uri is not None:
+                artifacts.append(artifact)
+        if artifacts:
+            logger.info("Committing migrated artifacts", count=len(artifacts))
+            db_session.add_all(artifacts)
+            db._commit(db_session, artifacts)
+        if len(artifacts) < chunk_size:
+            logger.info("No more artifacts to migrate")
+            break
+
+        offset += chunk_size
 
 
 def main() -> None:

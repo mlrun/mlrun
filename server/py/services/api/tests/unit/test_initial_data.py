@@ -101,6 +101,11 @@ def test_perform_data_migrations_from_first_version():
     )
     services.api.initial_data._perform_version_8_data_migrations = unittest.mock.Mock()
 
+    original_perform_version_9_data_migrations = (
+        services.api.initial_data._perform_version_9_data_migrations
+    )
+    services.api.initial_data._perform_version_9_data_migrations = unittest.mock.Mock()
+
     # perform migrations
     services.api.initial_data._perform_data_migrations(db_session)
 
@@ -114,6 +119,7 @@ def test_perform_data_migrations_from_first_version():
     services.api.initial_data._perform_version_6_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_7_data_migrations.assert_called_once()
     services.api.initial_data._perform_version_8_data_migrations.assert_called_once()
+    services.api.initial_data._perform_version_9_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         services.api.initial_data.latest_data_version
@@ -140,6 +146,9 @@ def test_perform_data_migrations_from_first_version():
     )
     services.api.initial_data._perform_version_8_data_migrations = (
         original_perform_version_8_data_migrations
+    )
+    services.api.initial_data._perform_version_8_data_migrations = (
+        original_perform_version_9_data_migrations
     )
 
 
@@ -296,6 +305,48 @@ def test_align_schedule_labels(
         or {} == migrated_schedules_dict
         or {} == expected_labels
     )
+
+
+def test_migrate_artifact_producer_uri():
+    db, db_session = _initialize_db_without_migrations()
+    num_of_artifacts = 10
+    chunk_size = 1
+
+    producer_uri = "some-proj/some-uid"
+
+    for artifact_counter in range(num_of_artifacts):
+        artifact_key = f"name-{artifact_counter}"
+        artifact = {
+            "metadata": {"key": artifact_key},
+            "spec": {"producer": {"uri": f"{producer_uri}-{artifact_counter}"}},
+        }
+        uid = db.store_artifact(db_session, key=artifact_key, artifact=artifact)
+
+        # make sure the artifact is inserted the legacy way
+        db_artifact = db._query(
+            db_session, framework.db.sqldb.db.ArtifactV2, uid=uid
+        ).one_or_none()
+        db_artifact.producer_uri = None
+        db_session.add(db_artifact)
+        db._commit(db_session, db_artifact)
+        db_session.flush()
+        db_artifact = db._query(
+            db_session, framework.db.sqldb.db.ArtifactV2, uid=uid
+        ).one_or_none()
+        assert db_artifact.producer_uri is None
+
+    # migrate the artifact producer_uri
+    services.api.initial_data._migrate_artifact_producer_uri(
+        db, db_session, chunk_size=chunk_size
+    )
+
+    for artifact_counter in range(num_of_artifacts):
+        # check that the artifact producer_uri was migrated
+        artifact_key = f"name-{artifact_counter}"
+        artifact = db._query(
+            db_session, framework.db.sqldb.db.ArtifactV2, key=artifact_key
+        ).one_or_none()
+        assert artifact.producer_uri == f"{producer_uri}-{artifact_counter}"
 
 
 def _initialize_db_without_migrations() -> (

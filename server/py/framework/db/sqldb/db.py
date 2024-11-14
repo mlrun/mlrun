@@ -5924,7 +5924,7 @@ class SQLDB(DBInterface):
 
         self._upsert(session, [alert_activation_record])
 
-    def list_alerts_activations(
+    def list_alert_activations(
         self, session: Session, project: typing.Optional[str] = None
     ) -> list[mlrun.common.schemas.AlertActivation]:
         # TODO: add filters

@@ -36,17 +36,6 @@ class AlertActivation(
             session, alert_data, event_data, notifications_states
         )
 
-    def list_alerts_activations(
-        self,
-        session: sqlalchemy.orm.Session,
-        project: str = "",
-    ) -> list[mlrun.common.schemas.AlertActivation]:
-        # TODO: add filters
-        project = project or mlrun.mlconf.default_project
-        return framework.utils.singletons.db.get_db().list_alerts_activations(
-            session, project
-        )
-
     @staticmethod
     def _prepare_notifications_states(
         alert: mlrun.common.schemas.AlertConfig,
@@ -55,20 +44,11 @@ class AlertActivation(
         # each NotificationState represents a unique type of notification (e.g., "slack", "git") and its status.
         # if at least one notification of that type failed, the error message from the most recent failure will
         # be stored. if no failure occurred, the status will be an empty string indicating success.
-        notification_states = {}
-
-        for alert_notification in alert.notifications:
-            notification_kind = alert_notification.notification.kind
-            notification_reason = alert_notification.notification.reason
-
-            notification_states.setdefault(
-                notification_kind,
-                notification_reason if notification_reason is not None else "",
-            )
-
         notification_states = [
-            mlrun.common.schemas.NotificationState(kind=kind, err=err)
-            for kind, err in notification_states.items()
+            mlrun.common.schemas.NotificationState(
+                kind=alert_notification.notification.kind,
+                err=alert_notification.notification.reason,
+            )
+            for alert_notification in alert.notifications
         ]
-
         return notification_states

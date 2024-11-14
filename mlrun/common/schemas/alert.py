@@ -213,17 +213,3 @@ class AlertActivation(pydantic.BaseModel):
     event_kind: EventKind
     number_of_events: int
     notifications: list[NotificationState]
-
-
-class PartitionInterval(StrEnum):
-    DAY = "DAY"
-    MONTH = "MONTH"
-    YEARWEEK = "YEARWEEK"
-
-    @classmethod
-    def is_valid(cls, value: str) -> bool:
-        return value in cls._value2member_map_
-
-    @classmethod
-    def valid_intervals(cls) -> list:
-        return list(cls._value2member_map_.keys())

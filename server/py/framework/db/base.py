@@ -967,7 +967,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_alerts_activations(
+    def list_alert_activations(
         self, session, project: Optional[str] = None
     ) -> list[mlrun.common.schemas.AlertActivation]:
         pass

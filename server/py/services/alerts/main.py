@@ -288,6 +288,99 @@ class Service(framework.service.Service):
             project,
         )
 
+    async def store_alert_template(
+        self,
+        request: Request,
+        name: str,
+        alert_data: mlrun.common.schemas.AlertTemplate,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> mlrun.common.schemas.AlertTemplate:
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            self._get_authorization_resource_for_alert_template(),
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+
+        # TODO: Once alerts runs in its own pod - remove chief check
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            chief_client = framework.utils.clients.chief.Client()
+            data = await request.json()
+            return await chief_client.store_alert_template(
+                name=name, request=request, json=data
+            )
+
+        self.logger.debug("Storing alert template", name=name)
+
+        return await run_in_threadpool(
+            services.alerts.crud.AlertTemplates().store_alert_template,
+            db_session,
+            name,
+            alert_data,
+        )
+
+    async def get_alert_template(
+        self,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> mlrun.common.schemas.AlertTemplate:
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            _get_authorization_resource(),
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+
+        return await run_in_threadpool(
+            services.alerts.crud.AlertTemplates().get_alert_template, db_session, name
+        )
+
+    async def list_alert_templates(
+        self,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> list[mlrun.common.schemas.AlertTemplate]:
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            _get_authorization_resource(),
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+
+        return await run_in_threadpool(
+            services.alerts.crud.AlertTemplates().list_alert_templates, db_session
+        )
+
+    async def delete_alert_template(
+        self,
+        request: Request,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+        db_session: Session = Depends(deps.get_db_session),
+    ):
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            _get_authorization_resource(),
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+        # TODO: Once alerts runs in its own pod - remove chief check
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            chief_client = framework.utils.clients.chief.Client()
+            return await chief_client.delete_alert_template(name=name, request=request)
+
+        self.logger.debug("Deleting alert template", name=name)
+
+        await run_in_threadpool(
+            services.alerts.crud.AlertTemplates().delete_alert_template,
+            db_session,
+            name,
+        )
+
     async def move_service_to_online(self):
         self._logger.info("Moving alerts to online")
         # TODO: Once alerts runs in its own pod - remove chief check
@@ -355,6 +448,16 @@ class Service(framework.service.Service):
             )
         finally:
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+    @staticmethod
+    def _get_authorization_resource_for_alert_template():
+        igz_version = mlrun.mlconf.get_parsed_igz_version()
+        if igz_version and igz_version < semver.VersionInfo.parse("3.6.0"):
+            # alert_templates is not in OFA manifest prior to 3.6, so we use
+            # the permissions of hub_source as they are the same
+            return mlrun.common.schemas.AuthorizationResourceTypes.hub_source
+
+        return mlrun.common.schemas.AuthorizationResourceTypes.alert_templates
 
     def _generate_event_on_failed_runs(
         self, db_session: sqlalchemy.orm.Session, last_update_time: datetime.datetime

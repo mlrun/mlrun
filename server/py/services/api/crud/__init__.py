@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from .alert_activation import AlertActivation
-from .alert_template import AlertTemplates
 from .artifacts import Artifacts
 from .client_spec import ClientSpec
 from .clusterization_spec import ClusterizationSpec

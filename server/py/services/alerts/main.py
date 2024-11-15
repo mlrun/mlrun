@@ -15,6 +15,7 @@ import datetime
 import http
 
 import fastapi
+import semver
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
@@ -290,7 +291,7 @@ class Service(framework.service.Service):
 
     async def store_alert_template(
         self,
-        request: Request,
+        request: fastapi.Request,
         name: str,
         alert_data: mlrun.common.schemas.AlertTemplate,
         auth_info: mlrun.common.schemas.AuthInfo,
@@ -329,7 +330,7 @@ class Service(framework.service.Service):
         db_session: sqlalchemy.orm.Session = None,
     ) -> mlrun.common.schemas.AlertTemplate:
         await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-            _get_authorization_resource(),
+            self._get_authorization_resource_for_alert_template(),
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
@@ -344,7 +345,7 @@ class Service(framework.service.Service):
         db_session: sqlalchemy.orm.Session = None,
     ) -> list[mlrun.common.schemas.AlertTemplate]:
         await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-            _get_authorization_resource(),
+            self._get_authorization_resource_for_alert_template(),
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
@@ -355,13 +356,13 @@ class Service(framework.service.Service):
 
     async def delete_alert_template(
         self,
-        request: Request,
+        request: fastapi.Request,
         name: str,
-        auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-        db_session: Session = Depends(deps.get_db_session),
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
     ):
         await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-            _get_authorization_resource(),
+            self._get_authorization_resource_for_alert_template(),
             mlrun.common.schemas.AuthorizationAction.delete,
             auth_info,
         )

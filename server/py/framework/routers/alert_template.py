@@ -63,7 +63,6 @@ async def get_alert_template(
 ) -> mlrun.common.schemas.AlertTemplate:
     return await service.handle_request(
         "get_alert_template",
-        request,
         name,
         auth_info,
         db_session,
@@ -80,7 +79,6 @@ async def list_alert_templates(
 ) -> list[mlrun.common.schemas.AlertTemplate]:
     return await service.handle_request(
         "list_alert_templates",
-        request,
         auth_info,
         db_session,
     )

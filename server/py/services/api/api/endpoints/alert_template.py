@@ -130,7 +130,7 @@ async def delete_alert_template(
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        chief_client = services.api.utils.clients.chief.Client()
+        chief_client = framework.utils.clients.chief.Client()
         return await chief_client.delete_alert_template(name=name, request=request)
 
     logger.debug("Deleting alert template", name=name)

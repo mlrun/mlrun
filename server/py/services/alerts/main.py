@@ -40,7 +40,7 @@ import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
 from framework.db.session import close_session, create_session
-from framework.routers import alert_templates, alerts, auth, healthz
+from framework.routers import alert_template, alerts, auth, healthz
 
 
 class Service(framework.service.Service):

@@ -40,7 +40,7 @@ import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
 from framework.db.session import close_session, create_session
-from framework.routers import alert_template, alerts, auth, healthz
+from framework.routers import alerts, auth, healthz
 
 
 class Service(framework.service.Service):
@@ -409,7 +409,7 @@ class Service(framework.service.Service):
             dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
         )
         alerts_v1_router.include_router(
-            alert_templates.router,
+            alert_template.router,
             tags=["alert-templates"],
             dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
         )

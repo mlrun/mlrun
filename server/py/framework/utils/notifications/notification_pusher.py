@@ -71,7 +71,7 @@ class RunNotificationPusher(NotificationPusher):
                 logger.warning(
                     "Failed to read SMTP configuration secret",
                     secret_name=smtp_config_secret_name,
-                    exc=mlrun.errors.err_to_str(exc),
+                    body=mlrun.errors.err_to_str(exc.body),
                 )
 
         RunNotificationPusher.mail_notification_default_params = (

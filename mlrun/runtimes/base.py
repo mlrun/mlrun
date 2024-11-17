@@ -21,7 +21,6 @@ from os import environ
 from typing import Callable, Optional, Union
 
 import requests.exceptions
-from mlrun_pipelines.common.ops import mlrun_op
 from nuclio.build import mlrun_footer
 
 import mlrun.common.constants
@@ -35,6 +34,7 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
+from mlrun_pipelines.common.ops import mlrun_op
 
 from ..config import config
 from ..datastore import store_manager

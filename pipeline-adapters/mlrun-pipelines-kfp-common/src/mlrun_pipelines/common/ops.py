@@ -28,13 +28,13 @@ from ast import literal_eval
 from copy import deepcopy
 from typing import Union
 
-import mlrun_pipelines.common.models
 import yaml
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
 
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun_pipelines.common.models
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec

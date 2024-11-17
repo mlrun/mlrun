@@ -25,7 +25,7 @@ from mlrun.common.runtimes.constants import RunStates
 from mlrun.runtimes.mpijob import MpiRuntimeV1
 from mlrun.utils import update_in
 
-from services.api.runtime_handlers.mpijob.abstract import AbstractMPIJobRuntimeHandler
+from services.api.runtime_handlers.mpijob import AbstractMPIJobRuntimeHandler
 
 
 class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):

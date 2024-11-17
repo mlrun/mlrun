@@ -37,11 +37,10 @@ from mlrun.model_monitoring.db._stats import (
 )
 from mlrun.utils import logger
 
-import services.api.api.utils
+import framework.api.utils
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.model_monitoring.helpers
 import services.api.crud.secrets
-import services.api.rundb.sqldb
 
 
 class ModelEndpoints:
@@ -77,7 +76,7 @@ class ModelEndpoints:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            run_db = services.api.api.utils.get_run_db_instance(db_session)
+            run_db = framework.api.utils.get_run_db_instance(db_session)
             model_obj: mlrun.artifacts.ModelArtifact = (
                 mlrun.datastore.store_resources.get_store_resource(
                     model_endpoint.spec.model_uri, db=run_db
@@ -223,7 +222,7 @@ class ModelEndpoints:
     def _get_features(
         model: mlrun.artifacts.ModelArtifact,
         project: str,
-        run_db: services.api.rundb.sqldb.SQLRunDB,
+        run_db: mlrun.db.RunDBInterface,
     ) -> list[mlrun.feature_store.Feature]:
         """Get features to the feature set according to the model object"""
         features = []
@@ -297,7 +296,7 @@ class ModelEndpoints:
         )
         # Set the run db instance with the current db session
         feature_set._override_run_db(
-            services.api.api.utils.get_run_db_instance(db_session)
+            framework.api.utils.get_run_db_instance(db_session)
         )
         feature_set.spec.features = features
         feature_set.metadata.project = model_endpoint.metadata.project

@@ -26,11 +26,11 @@ import mlrun.common.schemas
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.runtimes import RuntimeKinds
 
-import services.api.utils.helpers
+import framework.utils.helpers
+from framework.utils.singletons.db import get_db
+from framework.utils.singletons.k8s import get_k8s_helper
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
-from services.api.utils.singletons.db import get_db
-from services.api.utils.singletons.k8s import get_k8s_helper
 
 
 class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
@@ -401,7 +401,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         stale_run_name = "my-spark-stale"
         new_run_name = "my-spark-new"
 
-        threshold_in_seconds = services.api.utils.helpers.time_string_to_seconds(
+        threshold_in_seconds = framework.utils.helpers.time_string_to_seconds(
             getattr(
                 mlrun.mlconf.function.spec.state_thresholds.default,
                 threshold_state,

@@ -25,7 +25,6 @@ import mlrun.runtimes.pod
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
-import services.api.utils.runtimes.nuclio
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 
 

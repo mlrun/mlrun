@@ -24,21 +24,22 @@ import tabulate
 
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
+import mlrun.utils.notifications.notification.mail as mail
+from mlrun.utils import logger
 from mlrun.utils.notifications.notification.webhook import WebhookNotification
 
 
 @pytest.mark.parametrize(
-    "notification_kind", mlrun.common.schemas.notification.NotificationKind
-)
-@pytest.mark.parametrize(
-    "params, default_params, expected_params",
+    "notification_kind, params, default_params, expected_params",
     [
         (
+            mlrun.common.schemas.notification.NotificationKind.webhook,
             {"webhook": "some-webhook"},
             {"webhook": "some-default"},
             {"webhook": "some-webhook"},
         ),
         (
+            mlrun.common.schemas.notification.NotificationKind.webhook,
             {"webhook": "some-webhook"},
             {"hello": "world"},
             {"webhook": "some-webhook", "hello": "world"},
@@ -281,7 +282,7 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     ],
 )
 def test_console_notification(monkeypatch, runs, expected, is_table):
-    console_notification = mlrun.utils.notifications.ConsoleNotification()
+    console_notification = mlrun.utils.notifications.console.ConsoleNotification()
     print_result = ""
 
     def set_result(result):
@@ -365,7 +366,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
     ],
 )
 def test_slack_notification(runs, expected):
-    slack_notification = mlrun.utils.notifications.SlackNotification()
+    slack_notification = mlrun.utils.notifications.slack.SlackNotification()
     slack_data = slack_notification._generate_slack_data("test-message", "info", runs)
 
     assert slack_data == expected
@@ -426,7 +427,7 @@ def test_slack_notification(runs, expected):
     ],
 )
 async def test_git_notification(monkeypatch, params, expected_url, expected_headers):
-    git_notification = mlrun.utils.notifications.GitNotification("git", params)
+    git_notification = mlrun.utils.notifications.git.GitNotification("git", params)
     expected_body = "[info] git: test-message"
 
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
@@ -453,7 +454,7 @@ async def test_webhook_notification(monkeypatch, test_method):
     test_message = "test-message"
     test_severity = "info"
     test_runs_info = ["some-run"]
-    webhook_notification = mlrun.utils.notifications.WebhookNotification(
+    webhook_notification = mlrun.utils.notifications.webhook.WebhookNotification(
         "webhook",
         {
             "url": test_url,
@@ -509,13 +510,13 @@ def test_inverse_dependencies(
     mock_console_push = unittest.mock.MagicMock(return_value=Exception())
     mock_ipython_push = unittest.mock.MagicMock(return_value=Exception())
     monkeypatch.setattr(
-        mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push
+        mlrun.utils.notifications.console.ConsoleNotification, "push", mock_console_push
     )
     monkeypatch.setattr(
-        mlrun.utils.notifications.IPythonNotification, "push", mock_ipython_push
+        mlrun.utils.notifications.ipython.IPythonNotification, "push", mock_ipython_push
     )
     monkeypatch.setattr(
-        mlrun.utils.notifications.IPythonNotification, "active", ipython_active
+        mlrun.utils.notifications.ipython.IPythonNotification, "active", ipython_active
     )
 
     custom_notification_pusher.push("test-message", "info", [])
@@ -1012,3 +1013,169 @@ def _generate_run_result(
         run_example["status"]["error"] = error
         run_example["status"]["state"] = state
     return run_example
+
+
+class TestMailNotification:
+    DEFAULT_PARAMS = {
+        "server_host": "smtp.gmail.com",
+        "server_port": 587,
+        "sender_address": "sender@example.com",
+        "username": "user",
+        "password": "pass",
+        "email_addresses": "a@example.com",
+        "use_tls": True,
+        "validate_certs": True,
+        "start_tls": False,
+    }
+
+    @pytest.mark.parametrize(
+        "params, expectation",
+        [
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "b@example.com"],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": "a,b",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(ValueError, match="Invalid email address 'a'"),
+            ),
+            (
+                {
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'server_host' is required for MailNotification",
+                ),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", 1],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Email address '1' must be a string",
+                ),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "aaa"],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(ValueError, match="Invalid email address 'aaa'"),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "aaa"],
+                    "use_tls": "True",
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'use_tls' must be a boolean for MailNotification",
+                ),
+            ),
+        ],
+    )
+    def test_validate_mail_params(self, params, expectation):
+        with expectation:
+            mail.MailNotification.validate_params(params)
+
+    @pytest.mark.parametrize(
+        ["name", "params", "expected_params"],
+        [
+            (
+                "missing_all_params",
+                {},
+                DEFAULT_PARAMS,
+            ),
+            (
+                "overriding_some_params",
+                {
+                    "server_host": "another@smtp.com",
+                    "server_port": 589,
+                },
+                {
+                    "server_host": "another@smtp.com",
+                    "server_port": 589,
+                },
+            ),
+            (
+                "email_addresses_as_list",
+                {
+                    "email_addresses": ["a@b.com", "b@b.com", "c@c.com"],
+                },
+                {"email_addresses": "a@b.com,b@b.com,c@c.com"},
+            ),
+        ],
+    )
+    def test_enrich_default_params(self, name, params, expected_params):
+        logger.debug(f"Testing {name}")
+        enriched_params = mail.MailNotification.enrich_default_params(
+            params, TestMailNotification.DEFAULT_PARAMS
+        )
+        default_params_copy = TestMailNotification.DEFAULT_PARAMS.copy()
+        default_params_copy.update(expected_params)
+        assert enriched_params == default_params_copy

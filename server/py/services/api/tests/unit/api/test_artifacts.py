@@ -29,7 +29,7 @@ import mlrun.common.schemas
 import mlrun.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
-import services.api.db.sqldb.models
+import framework.db.sqldb.models
 import services.api.tests.unit.api.utils
 
 PROJECT = "prj"
@@ -743,7 +743,7 @@ def test_store_artifact_calculate_size(db: Session, client: TestClient):
 
     # mock the get_allowed_path_prefixes_list function since we use a local path here for the testing
     with unittest.mock.patch(
-        "services.api.api.utils.get_allowed_path_prefixes_list", return_value="/"
+        "framework.api.utils.get_allowed_path_prefixes_list", return_value="/"
     ):
         # create the artifact
         artifact = mlrun.artifacts.Artifact(key=KEY, target_path=file_path)
@@ -875,7 +875,7 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     key2 = "key2"
     key3 = "key3"
     key4 = "key4"
-    old_artifact_record = services.api.db.sqldb.models.ArtifactV2(
+    old_artifact_record = framework.db.sqldb.models.ArtifactV2(
         key=key1,
         project=PROJECT,
         created=t1,
@@ -886,7 +886,7 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
             }
         },
     )
-    recent_artifact_record = services.api.db.sqldb.models.ArtifactV2(
+    recent_artifact_record = framework.db.sqldb.models.ArtifactV2(
         key=key2,
         project=PROJECT,
         created=t2,
@@ -897,7 +897,7 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
             }
         },
     )
-    new_artifact_record = services.api.db.sqldb.models.ArtifactV2(
+    new_artifact_record = framework.db.sqldb.models.ArtifactV2(
         key=key3,
         project=PROJECT,
         created=start,
@@ -908,7 +908,7 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
             }
         },
     )
-    recently_updated_artifact_record = services.api.db.sqldb.models.ArtifactV2(
+    recently_updated_artifact_record = framework.db.sqldb.models.ArtifactV2(
         key=key4,
         project=PROJECT,
         created=t2,

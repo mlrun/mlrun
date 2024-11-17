@@ -19,6 +19,7 @@ from typing import Any, Union
 
 from kfp.dsl import ContainerOp
 from kfp_server_api.models.api_run_detail import ApiRunDetail
+
 from mlrun_pipelines.common.helpers import FlexibleMapper
 
 # Disable the warning about reusing components

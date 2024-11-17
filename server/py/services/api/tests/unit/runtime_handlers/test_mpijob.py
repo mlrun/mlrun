@@ -25,11 +25,11 @@ import mlrun.common.schemas
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.runtimes import RuntimeKinds
 
-import services.api.utils.helpers
+import framework.utils.helpers
+from framework.utils.singletons.db import get_db
+from framework.utils.singletons.k8s import get_k8s_helper
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
-from services.api.utils.singletons.db import get_db
-from services.api.utils.singletons.k8s import get_k8s_helper
 
 
 class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
@@ -376,7 +376,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         """
         # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
         mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
-            services.api.utils.helpers.time_string_to_seconds(
+            framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
             * 2
@@ -392,7 +392,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 image_pull_backoff_job_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=services.api.utils.helpers.time_string_to_seconds(
+                    seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
                     )
                 ),
@@ -401,7 +401,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 running_long_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=services.api.utils.helpers.time_string_to_seconds(
+                    seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.executing
                     )
                 ),
@@ -553,7 +553,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_state_thresholds_pending_states(self, db: Session, client: TestClient):
         # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
         mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
-            services.api.utils.helpers.time_string_to_seconds(
+            framework.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
             )
             * 2
@@ -570,7 +570,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 pending_scheduled_stale_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=services.api.utils.helpers.time_string_to_seconds(
+                    seconds=framework.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
                     )
                 ),

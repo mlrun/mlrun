@@ -28,8 +28,7 @@ from alembic import op
 from sqlalchemy.dialects import mysql
 
 import mlrun.common.schemas.alert
-
-import services.api.crud.alert_activation
+import mlrun.common.schemas.partition
 
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
@@ -87,21 +86,23 @@ def upgrade():
     partition_interval = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
 
     # Validate the partition interval
-    if not mlrun.common.schemas.alert.PartitionInterval.is_valid(partition_interval):
+    if not mlrun.common.schemas.partition.PartitionInterval.is_valid(
+        partition_interval
+    ):
         raise ValueError(
             f"Partition interval can only be one of the following: "
-            f"{mlrun.common.schemas.alert.PartitionInterval.valid_intervals()}"
+            f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
         )
 
     # Calculate the date of next partitioning interval
     now_utc = datetime.utcnow()
 
-    partition_name, partition_value, partition_expression = (
-        services.api.crud.alert_activation.AlertActivation.get_partition_info(
-            partition_interval=partition_interval,
-            partition_datetime=now_utc,
-        )
+    partition_interval = mlrun.common.schemas.partition.PartitionInterval(
+        partition_interval
     )
+
+    partition_name, partition_value = partition_interval.get_partition_info(now_utc)[0]
+    partition_expression = partition_interval.get_partition_expression()
 
     # Construct SQL for partitioning
     partition_sql = f"""

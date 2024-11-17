@@ -26,11 +26,11 @@ from mlrun.common.schemas.feature_store import (
 )
 from mlrun.utils import run_in_threadpool
 
+import framework.utils.auth.verifier
+import framework.utils.singletons.project_member
 import services.api.api.endpoints.feature_store
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
-from services.api.api import deps
+from framework.api import deps
 
 router = APIRouter(prefix="/v2/projects/{project}")
 
@@ -69,12 +69,14 @@ async def list_entities(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
-        project_name=project,
-        resource_name="",
-        action=mlrun.common.schemas.AuthorizationAction.read,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
+            project_name=project,
+            resource_name="",
+            action=mlrun.common.schemas.AuthorizationAction.read,
+            auth_info=auth_info,
+        )
     )
     entities = await run_in_threadpool(
         services.api.crud.FeatureStore().list_entities_v2,
@@ -97,12 +99,14 @@ async def list_features(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
-        project_name=project,
-        resource_name="",
-        action=mlrun.common.schemas.AuthorizationAction.read,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
+            project_name=project,
+            resource_name="",
+            action=mlrun.common.schemas.AuthorizationAction.read,
+            auth_info=auth_info,
+        )
     )
     features = await run_in_threadpool(
         services.api.crud.FeatureStore().list_features_v2,

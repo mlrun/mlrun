@@ -27,7 +27,6 @@ import deepdiff
 import fastapi.testclient
 import kubernetes.client
 import mergedeep
-import mlrun_pipelines.common.models
 import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -40,20 +39,20 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun_pipelines.common.models
 
-import services.api.api.utils
+import framework.api.utils
+import framework.utils.auth.verifier
+import framework.utils.background_tasks
+import framework.utils.clients.log_collector
+import framework.utils.singletons.db
+import framework.utils.singletons.k8s
+import framework.utils.singletons.project_member
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.tests.unit.utils.clients.test_log_collector
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
-import services.api.utils.clients.log_collector
-import services.api.utils.singletons.db
-import services.api.utils.singletons.k8s
-import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
-from services.api.daemon import daemon
-from services.api.db.sqldb.models import (
+from framework.db.sqldb.models import (
     ArtifactV2,
     Entity,
     Feature,
@@ -66,6 +65,7 @@ from services.api.db.sqldb.models import (
     Schedule,
     _classes,
 )
+from services.api.daemon import daemon
 
 ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
@@ -76,11 +76,11 @@ LIST_FUNCTION_API = "projects/{project}/functions"
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.mlconf.httpdb.projects.leader = "nop"
-        services.api.utils.singletons.project_member.initialize_project_member()
-        services.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
+        framework.utils.singletons.project_member.initialize_project_member()
+        framework.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
         mlrun.mlconf.httpdb.projects.leader = "mlrun"
-        services.api.utils.singletons.project_member.initialize_project_member()
+        framework.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
             f"Provided project member mode is not supported. mode={request.param}"
@@ -159,7 +159,7 @@ def test_get_non_existing_project(
     not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
     """
     project = "does-not-exist"
-    services.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
+    framework.utils.auth.verifier.AuthVerifier().query_project_permissions = (
         unittest.mock.AsyncMock(side_effect=mlrun.errors.MLRunUnauthorizedError("bla"))
     )
     response = client.get(f"projects/{project}")
@@ -234,7 +234,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - cascading - should succeed and remove all related resources
     # mock project configmaps
-    k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+    k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
 
     def _list_configmaps(*args, **kwargs):
         label_selector = kwargs.get("label_selector")
@@ -667,13 +667,13 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    services.api.utils.singletons.db.get_db()._delete_project_functions = (
+    framework.utils.singletons.db.get_db()._delete_project_functions = (
         unittest.mock.Mock()
     )
-    services.api.utils.singletons.db.get_db()._delete_project_feature_sets = (
+    framework.utils.singletons.db.get_db()._delete_project_feature_sets = (
         unittest.mock.Mock()
     )
-    services.api.utils.singletons.db.get_db()._delete_project_feature_vectors = (
+    framework.utils.singletons.db.get_db()._delete_project_feature_vectors = (
         unittest.mock.Mock()
     )
     # deletion strategy - check - should fail because there are resources
@@ -685,9 +685,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    services.api.utils.singletons.db.get_db()._delete_project_functions.assert_called_once()
-    services.api.utils.singletons.db.get_db()._delete_project_feature_sets.assert_called_once()
-    services.api.utils.singletons.db.get_db()._delete_project_feature_vectors.assert_called_once()
+    framework.utils.singletons.db.get_db()._delete_project_functions.assert_called_once()
+    framework.utils.singletons.db.get_db()._delete_project_feature_sets.assert_called_once()
+    framework.utils.singletons.db.get_db()._delete_project_feature_vectors.assert_called_once()
 
 
 def test_delete_project_deletion_strategy_check_external_resource(
@@ -737,9 +737,9 @@ def test_delete_project_with_stop_logs(
     mlrun.mlconf.namespace = "test-namespace"
     _create_project(client, project_name)
 
-    log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+    log_collector = framework.utils.clients.log_collector.LogCollectorClient()
     with unittest.mock.patch.object(
-        services.api.utils.clients.log_collector.LogCollectorClient,
+        framework.utils.clients.log_collector.LogCollectorClient,
         "_call",
         return_value=services.api.tests.unit.utils.clients.test_log_collector.BaseLogCollectorResponse(
             True, ""
@@ -790,7 +790,7 @@ def test_list_projects_leader_format(
         project = mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         )
-        services.api.utils.singletons.db.get_db().create_project(db, project)
+        framework.utils.singletons.db.get_db().create_project(db, project)
         project_names.append(project_name)
 
     # list in leader format
@@ -1065,7 +1065,7 @@ def test_delete_project_not_found_in_leader(
         if response.status_code == HTTPStatus.ACCEPTED.value:
             assert delete_api_version == "v2"
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                 background_task.metadata.name
             )
             assert (
@@ -1134,7 +1134,7 @@ def test_delete_project_fail_fast(
         else:
             assert response.status_code == HTTPStatus.ACCEPTED.value
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                 background_task.metadata.name
             )
             assert (
@@ -1236,7 +1236,7 @@ def _create_resources_of_all_kinds(
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
     project: str,
 ):
-    db = services.api.utils.singletons.db.get_db()
+    db = framework.utils.singletons.db.get_db()
     # add labels to project
     project_schema = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
@@ -1244,7 +1244,7 @@ def _create_resources_of_all_kinds(
         ),
         spec=mlrun.common.schemas.ProjectSpec(description="some desc"),
     )
-    services.api.utils.singletons.project_member.get_project_member().store_project(
+    framework.utils.singletons.project_member.get_project_member().store_project(
         db_session, project, project_schema
     )
 
@@ -1528,7 +1528,7 @@ def _assert_logs_in_project(
     project: str,
     assert_no_resources: bool = False,
 ) -> int:
-    logs_path = services.api.api.utils.project_logs_path(project)
+    logs_path = framework.api.utils.project_logs_path(project)
     number_of_log_files = 0
     if logs_path.exists():
         number_of_log_files = len(

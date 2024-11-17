@@ -24,11 +24,11 @@ import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.platforms import is_iguazio_session_cookie
 
-import services.api.api.deps
+import framework.api.deps
+import framework.utils.clients.iguazio
+import framework.utils.runtimes.nuclio
 import services.api.utils.builder
-import services.api.utils.clients.iguazio
-import services.api.utils.runtimes.nuclio
-from services.api.api.utils import get_allowed_path_prefixes_list
+from framework.api.utils import get_allowed_path_prefixes_list
 
 router = fastapi.APIRouter()
 
@@ -39,7 +39,7 @@ router = fastapi.APIRouter()
 )
 def get_frontend_spec(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
     jobs_dashboard_url = None
@@ -99,7 +99,7 @@ def try_get_grafana_service_url(session):
     if mlrun.mlconf.grafana_url:
         return mlrun.mlconf.grafana_url
     else:
-        iguazio_client = services.api.utils.clients.iguazio.Client()
+        iguazio_client = framework.utils.clients.iguazio.Client()
         return iguazio_client.try_get_grafana_service_url(session)
 
 
@@ -135,7 +135,7 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 
     if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
-        services.api.utils.runtimes.nuclio.resolve_nuclio_version()
+        framework.utils.runtimes.nuclio.resolve_nuclio_version()
     ) >= semver.VersionInfo.parse("1.7.8"):
         nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.enabled
 

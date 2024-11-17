@@ -14,30 +14,32 @@
 
 import enum
 
-from mlrun.common.schemas.notification import NotificationKind
-
-from .base import NotificationBase
-from .console import ConsoleNotification
-from .git import GitNotification
-from .ipython import IPythonNotification
-from .slack import SlackNotification
-from .webhook import WebhookNotification
+import mlrun.common.schemas.notification as notifications
+import mlrun.utils.notifications.notification.base as base
+import mlrun.utils.notifications.notification.console as console
+import mlrun.utils.notifications.notification.git as git
+import mlrun.utils.notifications.notification.ipython as ipython
+import mlrun.utils.notifications.notification.mail as mail
+import mlrun.utils.notifications.notification.slack as slack
+import mlrun.utils.notifications.notification.webhook as webhook
 
 
 class NotificationTypes(str, enum.Enum):
-    console = NotificationKind.console.value
-    git = NotificationKind.git.value
-    ipython = NotificationKind.ipython.value
-    slack = NotificationKind.slack.value
-    webhook = NotificationKind.webhook.value
+    console = notifications.NotificationKind.console.value
+    git = notifications.NotificationKind.git.value
+    ipython = notifications.NotificationKind.ipython.value
+    slack = notifications.NotificationKind.slack.value
+    mail = notifications.NotificationKind.mail.value
+    webhook = notifications.NotificationKind.webhook.value
 
-    def get_notification(self) -> type[NotificationBase]:
+    def get_notification(self) -> type[base.NotificationBase]:
         return {
-            self.console: ConsoleNotification,
-            self.git: GitNotification,
-            self.ipython: IPythonNotification,
-            self.slack: SlackNotification,
-            self.webhook: WebhookNotification,
+            self.console: console.ConsoleNotification,
+            self.git: git.GitNotification,
+            self.ipython: ipython.IPythonNotification,
+            self.slack: slack.SlackNotification,
+            self.mail: mail.MailNotification,
+            self.webhook: webhook.WebhookNotification,
         }.get(self)
 
     def inverse_dependencies(self) -> list[str]:
@@ -64,5 +66,6 @@ class NotificationTypes(str, enum.Enum):
             cls.git,
             cls.ipython,
             cls.slack,
+            cls.mail,
             cls.webhook,
         ]

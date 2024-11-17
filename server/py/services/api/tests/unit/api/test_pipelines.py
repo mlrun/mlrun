@@ -21,19 +21,19 @@ import unittest.mock
 import deepdiff
 import fastapi.testclient
 import kfp_server_api.models
-import mlrun_pipelines.utils
 import pytest
 import sqlalchemy.orm
 from httpx import BasicAuth
-from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun_pipelines.utils
 from mlrun.api.schemas import AuthInfo
+from mlrun_pipelines.models import PipelineRun
 
+import framework.utils.auth.verifier
 import services.api.crud
 import services.api.tests.unit.conftest
-import services.api.utils.auth.verifier
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(
@@ -120,7 +120,9 @@ def test_get_pipeline_no_project_opa_validation(
     services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
     )
-    services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.AsyncMock()
+    framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.AsyncMock()
+    )
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)
     response = client.get(
@@ -128,7 +130,7 @@ def test_get_pipeline_no_project_opa_validation(
         params={"format": format_},
     )
     assert (
-        services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
             0
         ][1]
         == project

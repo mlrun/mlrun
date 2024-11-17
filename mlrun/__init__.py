@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-
 __all__ = [
     "get_version",
     "set_environment",
@@ -32,6 +30,7 @@ from os import environ, path
 from typing import Optional
 
 import dotenv
+
 import mlrun_pipelines
 
 from .config import config as mlconf

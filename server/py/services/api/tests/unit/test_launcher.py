@@ -23,9 +23,9 @@ import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
 
+import framework.utils.clients.iguazio
 import services.api.launcher
 import services.api.tests.unit.api.utils
-import services.api.utils.clients.iguazio
 
 
 @pytest.mark.parametrize(
@@ -53,7 +53,7 @@ def test_enrich_runtime_with_auth_info(
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     monkeypatch.setattr(
-        services.api.utils.clients.iguazio,
+        framework.utils.clients.iguazio,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )

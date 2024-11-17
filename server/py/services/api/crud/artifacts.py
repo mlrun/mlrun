@@ -29,7 +29,8 @@ import mlrun.utils.singleton
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
-import services.api.utils.singletons.db
+import framework.utils.singletons.db
+import services.api.crud
 
 
 class Artifacts(
@@ -67,7 +68,7 @@ class Artifacts(
                 artifact
             ).to_dict()
 
-        return services.api.utils.singletons.db.get_db().store_artifact(
+        return framework.utils.singletons.db.get_db().store_artifact(
             db_session,
             key,
             artifact,
@@ -105,7 +106,7 @@ class Artifacts(
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
 
-        return services.api.utils.singletons.db.get_db().create_artifact(
+        return framework.utils.singletons.db.get_db().create_artifact(
             db_session,
             project,
             artifact,
@@ -129,7 +130,7 @@ class Artifacts(
         raise_on_not_found: bool = True,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        artifact = services.api.utils.singletons.db.get_db().read_artifact(
+        artifact = framework.utils.singletons.db.get_db().read_artifact(
             db_session,
             key,
             tag,
@@ -165,7 +166,7 @@ class Artifacts(
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
-        artifacts = services.api.utils.singletons.db.get_db().list_artifacts(
+        artifacts = framework.utils.singletons.db.get_db().list_artifacts(
             db_session,
             name,
             project,
@@ -193,7 +194,7 @@ class Artifacts(
         project: str,
         key_tag_iteration_pairs: list[tuple] = "",
     ):
-        return services.api.utils.singletons.db.get_db().list_artifacts_for_producer_id(
+        return framework.utils.singletons.db.get_db().list_artifacts_for_producer_id(
             db_session,
             producer_id=producer_id,
             project=project,
@@ -207,7 +208,7 @@ class Artifacts(
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_artifact_tags(
+        return framework.utils.singletons.db.get_db().list_artifact_tags(
             db_session, project, category
         )
 
@@ -246,7 +247,7 @@ class Artifacts(
                 auth_info=auth_info,
             )
 
-        return services.api.utils.singletons.db.get_db().del_artifact(
+        return framework.utils.singletons.db.get_db().del_artifact(
             session=db_session,
             key=key,
             tag=tag,
@@ -267,7 +268,7 @@ class Artifacts(
         producer_id: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
-        services.api.utils.singletons.db.get_db().del_artifacts(
+        framework.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id
         )
 

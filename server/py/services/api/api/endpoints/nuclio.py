@@ -29,17 +29,17 @@ from mlrun.config import config
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
 
-import services.api.api.utils
+import framework.api.utils
+import framework.db.session
+import framework.utils.auth.verifier
+import framework.utils.clients.async_nuclio
+import framework.utils.clients.chief
+import framework.utils.singletons.project_member
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
-import services.api.db.session
 import services.api.launcher
-import services.api.utils.auth.verifier
-import services.api.utils.clients.async_nuclio
-import services.api.utils.clients.chief
-import services.api.utils.singletons.project_member
-from services.api.api import deps
-from services.api.constants import MINIMUM_CLIENT_VERSION_FOR_MM
+from framework.api import deps
+from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.crud.secrets import Secrets, SecretsClientType
 
 router = APIRouter()
@@ -54,13 +54,13 @@ async def list_api_gateways(
     project: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    auth_verifier = services.api.utils.auth.verifier.AuthVerifier()
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
     await auth_verifier.query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
+    async with framework.utils.clients.async_nuclio.Client(auth_info) as client:
         api_gateways = await client.list_api_gateways(project)
 
     allowed_api_gateways = await auth_verifier.filter_project_resources_by_permissions(
@@ -88,19 +88,21 @@ async def get_api_gateway(
     gateway: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
-        project,
-        gateway,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+            project,
+            gateway,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
-    async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
+    async with framework.utils.clients.async_nuclio.Client(auth_info) as client:
         api_gateway = await client.get_api_gateway(project_name=project, name=gateway)
 
     return api_gateway
@@ -117,19 +119,21 @@ async def store_api_gateway(
     api_gateway: mlrun.common.schemas.APIGateway,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
-    async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
+    async with framework.utils.clients.async_nuclio.Client(auth_info) as client:
         create = False
         try:
             existing_api_gateway = await client.get_api_gateway(
@@ -185,19 +189,21 @@ async def delete_api_gateway(
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.delete,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
     )
-    async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
+    async with framework.utils.clients.async_nuclio.Client(auth_info) as client:
         api_gateway = await client.get_api_gateway(project_name=project, name=name)
 
         if api_gateway:
@@ -228,7 +234,7 @@ async def deploy_function(
     try:
         data = await request.json()
     except ValueError:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
         )
 
@@ -238,17 +244,19 @@ async def deploy_function(
     function["metadata"]["name"] = name
     function["metadata"]["project"] = project
     await run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.function,
-        project,
-        name,
-        mlrun.common.schemas.AuthorizationAction.update,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            project,
+            name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
     )
 
     # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
@@ -267,7 +275,7 @@ async def deploy_function(
                 project=project,
                 function=function,
             )
-            chief_client = services.api.utils.clients.chief.Client()
+            chief_client = framework.utils.clients.chief.Client()
             return await chief_client.build_function(request=request, json=data)
 
     fn = await run_in_threadpool(
@@ -297,7 +305,7 @@ async def deploy_status(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
         project or mlrun.mlconf.default_project,
         name,
@@ -310,12 +318,12 @@ async def deploy_status(
         services.api.crud.Functions().get_function, db_session, name, project, tag
     )
     if not fn:
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag
         )
 
     if fn.get("kind") not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
         )
@@ -370,7 +378,7 @@ def process_model_monitoring_secret(
         )
         if not secret_value:
             try:
-                project_owner = services.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                project_owner = framework.utils.singletons.project_member.get_project_member().get_project_owner(
                     db_session, project_name
                 )
             except mlrun.errors.MLRunNotFoundError:
@@ -460,13 +468,13 @@ def _deploy_function(
         fn = mlrun.new_function(runtime=function, project=project, name=name)
     except Exception as err:
         logger.error(traceback.format_exc())
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
         )
 
     if fn.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
         )
@@ -474,7 +482,7 @@ def _deploy_function(
     fn: mlrun.runtimes.RemoteRuntime
     try:
         # Connect to run db
-        run_db = services.api.api.utils.get_run_db_instance(db_session)
+        run_db = framework.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
         # Enrich runtime
@@ -496,7 +504,7 @@ def _deploy_function(
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        services.api.api.utils.log_and_raise(
+        framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
         )
@@ -540,7 +548,7 @@ def _deploy_nuclio_runtime(
                 err_txt = (
                     f"Can not deploy serving function with track models due to: {exc}"
                 )
-            services.api.api.utils.log_and_raise(
+            framework.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
                 reason=err_txt,
             )
@@ -553,7 +561,7 @@ def _deploy_nuclio_runtime(
 
         if serving_to_monitor:
             if not client_version:
-                services.api.api.utils.log_and_raise(
+                framework.api.utils.log_and_raise(
                     HTTPStatus.BAD_REQUEST.value,
                     reason=f"On deployment of serving-functions that are based on mlrun image "
                     f"('mlrun/') and set-tracking is enabled, "
@@ -564,7 +572,7 @@ def _deploy_nuclio_runtime(
                 < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
                 and "unstable" not in client_version
             ):
-                services.api.api.utils.log_and_raise(
+                framework.api.utils.log_and_raise(
                     HTTPStatus.BAD_REQUEST.value,
                     reason=f"On deployment of serving-functions that are based on mlrun image "
                     f"('mlrun/') and set-tracking is enabled, "
@@ -689,7 +697,7 @@ async def _get_api_gateways_urls_for_function(
     auth_info, project, name, tag
 ) -> list[str]:
     function_uri = generate_object_uri(project, name, tag)
-    async with services.api.utils.clients.async_nuclio.Client(auth_info) as client:
+    async with framework.utils.clients.async_nuclio.Client(auth_info) as client:
         api_gateways = await client.list_api_gateways(project)
         # if there are any API gateways, filter the ones associated with the function
         # extract the hosts from the API gateway specifications and return them as a list
@@ -737,7 +745,7 @@ async def _delete_functions_external_invocation_url(
     tasks = [
         asyncio.create_task(
             run_in_threadpool(
-                services.api.db.session.run_function_with_new_db_session,
+                framework.db.session.run_function_with_new_db_session,
                 services.api.crud.Functions().delete_function_external_invocation_url,
                 function_uri=function,
                 project=project,
@@ -755,7 +763,7 @@ async def _add_functions_external_invocation_url(
     tasks = [
         asyncio.create_task(
             run_in_threadpool(
-                services.api.db.session.run_function_with_new_db_session,
+                framework.db.session.run_function_with_new_db_session,
                 services.api.crud.Functions().add_function_external_invocation_url,
                 function_uri=function,
                 project=project,

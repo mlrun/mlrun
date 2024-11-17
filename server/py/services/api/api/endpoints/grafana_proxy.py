@@ -24,7 +24,7 @@ import mlrun.common.schemas.model_monitoring.grafana
 
 import services.api.crud.model_monitoring.grafana
 import services.api.crud.model_monitoring.helpers
-from services.api.api import deps
+from framework.api import deps
 
 router = APIRouter(prefix="/grafana-proxy/model-endpoints")
 

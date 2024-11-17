@@ -21,10 +21,10 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 from mlrun.utils.helpers import tag_name_regex_as_string
 
-import services.api.api.deps
+import framework.api.deps
+import framework.utils.auth.verifier
+import framework.utils.singletons.project_member
 import services.api.crud.tags
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.project_member
 
 router = fastapi.APIRouter(prefix="/projects/{project}/tags")
 
@@ -35,27 +35,29 @@ async def overwrite_object_tags_with_tag(
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
     tag_objects: mlrun.common.schemas.TagObjects = fastapi.Body(...),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
 
     # check permission per object type
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
-        project,
-        resource_name="",
-        # not actually overwriting objects, just overwriting the objects tags
-        action=mlrun.common.schemas.AuthorizationAction.update,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
+            project,
+            resource_name="",
+            # not actually overwriting objects, just overwriting the objects tags
+            action=mlrun.common.schemas.AuthorizationAction.update,
+            auth_info=auth_info,
+        )
     )
 
     await fastapi.concurrency.run_in_threadpool(
@@ -74,25 +76,27 @@ async def append_tag_to_objects(
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
     tag_objects: mlrun.common.schemas.TagObjects = fastapi.Body(...),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
-        project,
-        resource_name="",
-        action=mlrun.common.schemas.AuthorizationAction.update,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
+            project,
+            resource_name="",
+            action=mlrun.common.schemas.AuthorizationAction.update,
+            auth_info=auth_info,
+        )
     )
 
     await fastapi.concurrency.run_in_threadpool(
@@ -111,26 +115,28 @@ async def delete_tag_from_objects(
     tag: str,
     tag_objects: mlrun.common.schemas.TagObjects,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
     await fastapi.concurrency.run_in_threadpool(
-        services.api.utils.singletons.project_member.get_project_member().ensure_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
         auth_info=auth_info,
     )
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
-        project,
-        resource_name="",
-        # not actually deleting objects, just deleting the objects tags
-        action=mlrun.common.schemas.AuthorizationAction.update,
-        auth_info=auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            getattr(mlrun.common.schemas.AuthorizationResourceTypes, tag_objects.kind),
+            project,
+            resource_name="",
+            # not actually deleting objects, just deleting the objects tags
+            action=mlrun.common.schemas.AuthorizationAction.update,
+            auth_info=auth_info,
+        )
     )
 
     await fastapi.concurrency.run_in_threadpool(

@@ -14,10 +14,10 @@
 #
 import pathlib
 
-import mlrun_pipelines.mounts
 import pytest
 
 import mlrun
+import mlrun_pipelines.mounts
 from tests.system.base import TestMLRunSystem
 from tests.system.demos.base import TestDemo
 

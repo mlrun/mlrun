@@ -18,9 +18,9 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 
-import services.api.api.deps
+import framework.api.deps
+import framework.utils.auth.verifier
 import services.api.crud
-import services.api.utils.auth.verifier
 
 router = fastapi.APIRouter()
 
@@ -39,15 +39,17 @@ async def store_log(
     uid: str,
     append: bool = True,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.log,
-        project,
-        uid,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.log,
+            project,
+            uid,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
     )
     body = await request.body()
     await run_in_threadpool(
@@ -74,22 +76,24 @@ async def get_log(
     size: int = -1,
     offset: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        services.api.api.deps.get_db_session
+        framework.api.deps.get_db_session
     ),
 ):
     if offset < 0:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Offset cannot be negative",
         )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.log,
-        project,
-        uid,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.log,
+            project,
+            uid,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     run_state, log_stream = await services.api.crud.Logs().get_logs(
         db_session, project, uid, size, offset
@@ -109,15 +113,17 @@ async def get_log_size(
     project: str,
     uid: str,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.log,
-        project,
-        uid,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.log,
+            project,
+            uid,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     log_file_size = await services.api.crud.Logs().get_log_size(project, uid)
     return {

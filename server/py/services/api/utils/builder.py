@@ -33,8 +33,8 @@ import mlrun.utils
 from mlrun.config import config
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
-import services.api.utils.helpers
-import services.api.utils.singletons.k8s
+import framework.utils.helpers
+import framework.utils.singletons.k8s
 
 
 def make_dockerfile(
@@ -224,7 +224,7 @@ def make_kaniko_pod(
         )
     }
 
-    kpod = services.api.utils.singletons.k8s.BasePod(
+    kpod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
         args=args,
@@ -479,7 +479,7 @@ def build_image(
         mlrun.mlconf.function.spec.security_context.enrichment_mode
         != mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
-        from services.api.api.utils import ensure_function_security_context
+        from framework.api.utils import ensure_function_security_context
 
         ensure_function_security_context(runtime, auth_info)
         user_unix_id = runtime.spec.security_context.run_as_user
@@ -545,7 +545,7 @@ def build_image(
             user=username,
         )
 
-    k8s = services.api.utils.singletons.k8s.get_k8s_helper(silent=False)
+    k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
     kpod.namespace = k8s.resolve_namespace(namespace)
 
     if interactive:
@@ -564,7 +564,7 @@ def get_kaniko_spec_attributes_from_runtime(
     """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
 
     def service_account_handler(attr_value):
-        from services.api.api.utils import resolve_project_default_service_account
+        from framework.api.utils import resolve_project_default_service_account
 
         (
             allowed_service_accounts,
@@ -784,7 +784,7 @@ def build_runtime(
 def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier=None):
     # Add mlrun to the requirements even though it is already installed because
     # we want pip to include mlrun constraints when installing other packages
-    image_tag, has_py_package = services.api.utils.helpers.extract_image_tag(
+    image_tag, has_py_package = framework.utils.helpers.extract_image_tag(
         enriched_base_image
     )
     if has_py_package or mlrun_version_specifier:
@@ -856,7 +856,7 @@ def resolve_image_target(
 def _generate_builder_env(
     project: str, builder_env: dict
 ) -> (list[client.V1EnvVar], list[client.V1EnvVar]):
-    k8s = services.api.utils.singletons.k8s.get_k8s_helper(silent=False)
+    k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
 

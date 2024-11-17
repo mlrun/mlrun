@@ -25,8 +25,8 @@ from tests.common_fixtures import aioresponses_mock
 
 import services.api.tests.unit.api.utils
 import services.api.utils.singletons.scheduler
+from framework.utils.singletons.db import get_db
 from services.api.daemon import daemon
-from services.api.utils.singletons.db import get_db
 
 ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 

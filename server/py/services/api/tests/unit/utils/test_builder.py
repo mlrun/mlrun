@@ -31,9 +31,9 @@ import mlrun.utils.version
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 
-import services.api.api.utils
+import framework.api.utils
+import framework.utils.singletons.k8s
 import services.api.utils.builder
-import services.api.utils.singletons.k8s
 
 
 def test_build_runtime_use_base_image_when_no_build():
@@ -137,7 +137,7 @@ def test_build_runtime_insecure_registries(
     assert (
         insecure_flags.issubset(
             set(
-                services.api.utils.singletons.k8s.get_k8s_helper()
+                framework.utils.singletons.k8s.get_k8s_helper()
                 .create_pod.call_args[0][0]
                 .pod.spec.containers[0]
                 .args
@@ -880,7 +880,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
 
         # assert v3io remote is normalized
         if expected_v3io_remote:
-            k8s_helper_mock = services.api.utils.singletons.k8s.get_k8s_helper()
+            k8s_helper_mock = framework.utils.singletons.k8s.get_k8s_helper()
             mount_v3io_args = k8s_helper_mock.create_pod.call_args[0][
                 0
             ].mount_v3io.call_args
@@ -1256,7 +1256,7 @@ def test_make_kaniko_pod_command_using_build_args(
     builder_env, extra_args, parsed_extra_args
 ):
     with unittest.mock.patch(
-        "services.api.api.utils.resolve_project_default_service_account",
+        "framework.api.utils.resolve_project_default_service_account",
         return_value=(None, None),
     ):
         kpod = services.api.utils.builder.make_kaniko_pod(
@@ -1608,7 +1608,7 @@ def _get_target_image_from_create_pod_mock():
 
 def _create_pod_mock_pod_spec():
     return (
-        services.api.utils.singletons.k8s.get_k8s_helper()
+        framework.utils.singletons.k8s.get_k8s_helper()
         .create_pod.call_args[0][0]
         .pod.spec
     )
@@ -1629,7 +1629,7 @@ def _patch_k8s_helper(monkeypatch):
         side_effect=lambda project, keys: {"KEY": "val"}
     )
     monkeypatch.setattr(
-        services.api.utils.singletons.k8s,
+        framework.utils.singletons.k8s,
         "get_k8s_helper",
         lambda *args, **kwargs: get_k8s_helper_mock,
     )
@@ -1642,7 +1642,7 @@ def _mock_default_service_account(monkeypatch, service_account):
         service_account,
     )
     monkeypatch.setattr(
-        services.api.api.utils,
+        framework.api.utils,
         "resolve_project_default_service_account",
         resolve_project_default_service_account_mock,
     )

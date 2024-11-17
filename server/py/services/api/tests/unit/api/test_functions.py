@@ -33,17 +33,18 @@ import mlrun.common.schemas
 import mlrun.errors
 import tests.conftest
 
+import framework.api.utils
+import framework.utils.clients.async_nuclio
+import framework.utils.clients.chief
+import framework.utils.clients.iguazio
+import framework.utils.singletons.db
+import framework.utils.singletons.k8s
 import services.api.api.endpoints.functions
 import services.api.api.endpoints.nuclio
-import services.api.api.utils
 import services.api.crud
 import services.api.tests.unit.api.utils
 import services.api.utils.builder
-import services.api.utils.clients.chief
-import services.api.utils.clients.iguazio
 import services.api.utils.functions
-import services.api.utils.singletons.db
-import services.api.utils.singletons.k8s
 from services.api.daemon import daemon
 
 PROJECT = "project-name"
@@ -72,7 +73,7 @@ def test_build_status_pod_not_found(
     )
     assert response.status_code == HTTPStatus.OK.value
     with unittest.mock.patch.object(
-        services.api.utils.singletons.k8s.get_k8s_helper().v1api,
+        framework.utils.singletons.k8s.get_k8s_helper().v1api,
         "read_namespaced_pod_status",
         side_effect=kubernetes.client.rest.ApiException(
             status=HTTPStatus.NOT_FOUND.value
@@ -290,9 +291,9 @@ async def test_list_functions_with_hash_key_versioned(
     "function_deletion_endpoint_prefix, expected_status",
     [("v1/", HTTPStatus.NO_CONTENT.value), ("v2/", HTTPStatus.ACCEPTED.value)],
 )
-@unittest.mock.patch.object(services.api.utils.clients.async_nuclio, "Client")
+@unittest.mock.patch.object(framework.utils.clients.async_nuclio, "Client")
 @unittest.mock.patch.object(
-    services.api.utils.clients.async_nuclio.Client, "delete_function"
+    framework.utils.clients.async_nuclio.Client, "delete_function"
 )
 def test_delete_function(
     patched_nuclio_client,
@@ -396,11 +397,11 @@ async def test_multiple_store_function_race_condition(
     await services.api.tests.unit.api.utils.create_project_async(async_client, PROJECT)
     # Make the get function method to return None on the first two calls, and then use the original function
     get_function_mock = tests.conftest.MockSpecificCalls(
-        services.api.utils.singletons.db.get_db()._get_class_instance_by_uid,
+        framework.utils.singletons.db.get_db()._get_class_instance_by_uid,
         [1, 2],
         None,
     ).mock_function
-    services.api.utils.singletons.db.get_db()._get_class_instance_by_uid = (
+    framework.utils.singletons.db.get_db()._get_class_instance_by_uid = (
         unittest.mock.Mock(side_effect=get_function_mock)
     )
     function = {
@@ -441,7 +442,7 @@ async def test_multiple_store_function_race_condition(
     # but no more than 5 times, as retry should not be that excessive
     assert (
         3
-        <= services.api.utils.singletons.db.get_db()._get_class_instance_by_uid.call_count
+        <= framework.utils.singletons.db.get_db()._get_class_instance_by_uid.call_count
         < 5
     )
 
@@ -459,12 +460,12 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     function_name = "test-function"
     function = _generate_function(function_name)
 
-    handler_mock = services.api.utils.clients.chief.Client()
+    handler_mock = framework.utils.clients.chief.Client()
     handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
-        services.api.utils.clients.chief,
+        framework.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -540,7 +541,7 @@ def test_tracking_on_serving(
     mock_list_namespaced_config_map = unittest.mock.Mock(return_value=config_map)
 
     monkeypatch.setattr(
-        services.api.utils.singletons.k8s.get_k8s_helper().v1api,
+        framework.utils.singletons.k8s.get_k8s_helper().v1api,
         "list_namespaced_config_map",
         mock_list_namespaced_config_map,
     )
@@ -554,7 +555,7 @@ def test_tracking_on_serving(
     function.set_tracking()
 
     # Mock the client and unnecessary functions for this test
-    handler_mock = services.api.utils.clients.chief.Client()
+    handler_mock = framework.utils.clients.chief.Client()
     handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
@@ -718,7 +719,7 @@ def test_build_function_force_build(
         ),
         unittest.mock.patch(
             "services.api.utils.builder.make_kaniko_pod",
-            return_value=services.api.utils.singletons.k8s.BasePod(),
+            return_value=framework.utils.singletons.k8s.BasePod(),
         ),
         unittest.mock.patch(
             "services.api.utils.builder.resolve_image_target",
@@ -729,7 +730,7 @@ def test_build_function_force_build(
             return_value=([], [], "/empty/requirements.txt"),
         ),
         unittest.mock.patch(
-            "services.api.utils.singletons.k8s.get_k8s_helper"
+            "framework.utils.singletons.k8s.get_k8s_helper"
         ) as mock_get_k8s_helper,
     ):
         mock_get_k8s_helper.return_value.create_pod.return_value = (
@@ -751,7 +752,7 @@ def test_build_function_force_build(
         assert services.api.utils.builder.make_kaniko_pod.call_count == expected
         assert services.api.utils.builder.make_dockerfile.call_count == expected
         assert (
-            services.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
+            framework.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
             == expected
         )
 
@@ -766,7 +767,7 @@ def test_build_function_masks_access_key(
     # set auto mount to ensure it doesn't override the access key
     mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
     monkeypatch.setattr(
-        services.api.utils.clients.iguazio,
+        framework.utils.clients.iguazio,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )
@@ -835,7 +836,7 @@ def test_build_no_access_key(
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     monkeypatch.setattr(
-        services.api.utils.clients.iguazio,
+        framework.utils.clients.iguazio,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )
@@ -1091,12 +1092,12 @@ def test_build_status_events_and_logs(
 
     with (
         unittest.mock.patch.object(
-            services.api.utils.singletons.k8s.get_k8s_helper(),
+            framework.utils.singletons.k8s.get_k8s_helper(),
             "get_pod_phase",
             return_value="pending",
         ),
         unittest.mock.patch.object(
-            services.api.utils.singletons.k8s.get_k8s_helper(),
+            framework.utils.singletons.k8s.get_k8s_helper(),
             "list_object_events",
             return_value=events,
         ),
@@ -1124,12 +1125,12 @@ def test_build_status_events_and_logs(
 
     with (
         unittest.mock.patch.object(
-            services.api.utils.singletons.k8s.get_k8s_helper(),
+            framework.utils.singletons.k8s.get_k8s_helper(),
             "get_pod_phase",
             return_value="running",
         ),
         unittest.mock.patch.object(
-            services.api.utils.singletons.k8s.get_k8s_helper().v1api,
+            framework.utils.singletons.k8s.get_k8s_helper().v1api,
             "read_namespaced_pod_log",
             return_value="log",
         ),

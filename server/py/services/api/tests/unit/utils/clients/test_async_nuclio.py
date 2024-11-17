@@ -23,7 +23,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.runtimes.nuclio.api_gateway
 
-import services.api.utils.clients.async_nuclio
+import framework.utils.clients.async_nuclio
 
 
 @pytest.fixture()
@@ -34,11 +34,11 @@ def api_url() -> str:
 @pytest.fixture()
 def nuclio_client(
     api_url,
-) -> services.api.utils.clients.async_nuclio.Client:
+) -> framework.utils.clients.async_nuclio.Client:
     auth_info = mlrun.common.schemas.AuthInfo()
     auth_info.username = "admin"
     auth_info.session = "bed854c1-c57751553"
-    client = services.api.utils.clients.async_nuclio.Client(auth_info)
+    client = framework.utils.clients.async_nuclio.Client(auth_info)
     client._nuclio_dashboard_url = api_url
     return client
 

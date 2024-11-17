@@ -20,7 +20,6 @@ from http import HTTPStatus
 import yaml
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from mlrun_pipelines.models import PipelineManifest
 from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
@@ -28,12 +27,13 @@ import mlrun.common.schemas
 import mlrun.errors
 from mlrun.config import config
 from mlrun.utils import logger
+from mlrun_pipelines.models import PipelineManifest
 
+import framework.utils.auth.verifier
+import framework.utils.singletons.k8s
 import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.k8s
-from services.api.api import deps
-from services.api.api.utils import log_and_raise
+from framework.api import deps
+from framework.api.utils import log_and_raise
 
 router = APIRouter(prefix="/projects/{project}/pipelines")
 
@@ -56,13 +56,13 @@ async def list_pipelines(
     if namespace is None:
         namespace = config.namespace
     if project != "*":
-        await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
     total_size, next_page_token, runs = None, None, []
-    if services.api.utils.singletons.k8s.get_k8s_helper(
+    if framework.utils.singletons.k8s.get_k8s_helper(
         silent=True
     ).is_running_inside_kubernetes_cluster():
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
@@ -84,7 +84,7 @@ async def list_pipelines(
             computed_format,
             page_size,
         )
-    allowed_runs = await services.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_runs = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
         runs,
         lambda run: (
@@ -150,7 +150,7 @@ async def get_pipeline(
         # summary which is the one used inside
         await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
     else:
-        await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             run_id,
@@ -179,12 +179,14 @@ async def _get_pipeline_without_project(
         # minimal format that includes the project
         format_=mlrun.common.formatters.PipelineFormat.summary,
     )
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-        run["run"]["project"],
-        run["run"]["id"],
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            run["run"]["project"],
+            run["run"]["id"],
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
     return run
 
@@ -220,7 +222,7 @@ async def _create_pipeline(
             " the server version"
         )
     else:
-        await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             "",

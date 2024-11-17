@@ -97,6 +97,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def paginated_list_runs(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        pass
+
+    @abstractmethod
     def del_run(self, uid, project="", iter=0):
         pass
 
@@ -150,6 +161,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def paginated_list_artifacts(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        pass
+
+    @abstractmethod
     def del_artifact(
         self,
         key,
@@ -191,11 +213,24 @@ class RunDBInterface(ABC):
     def list_functions(
         self,
         name: Optional[str] = None,
-        project: Optional[str] = "",
-        tag: Optional[str] = "",
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since=None,
-        until=None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
     ):
         pass
 

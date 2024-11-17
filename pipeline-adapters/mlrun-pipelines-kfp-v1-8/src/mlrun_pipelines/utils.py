@@ -18,6 +18,7 @@ import typing
 import kfp
 import kfp.compiler
 from kubernetes import client
+
 from mlrun_pipelines.helpers import new_pipe_metadata
 
 # Disable the warning about reusing components

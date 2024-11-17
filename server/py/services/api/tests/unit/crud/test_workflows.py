@@ -46,7 +46,9 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             image="mlrun/mlrun",
         )
 
-        with unittest.mock.patch("services.api.api.utils.get_scheduler"):
+        with unittest.mock.patch(
+            "services.api.utils.singletons.scheduler.get_scheduler"
+        ):
             services.api.crud.WorkflowRunners().schedule(
                 runner=runner,
                 project=project,

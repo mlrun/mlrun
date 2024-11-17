@@ -17,7 +17,7 @@ from typing import Annotated, Optional, Union
 
 import pydantic
 
-from mlrun.common.schemas.notification import Notification, NotificationState
+import mlrun.common.schemas.notification as notification_objects
 from mlrun.common.types import StrEnum
 
 
@@ -121,7 +121,7 @@ class ResetPolicy(StrEnum):
 
 
 class AlertNotification(pydantic.BaseModel):
-    notification: Notification
+    notification: notification_objects.Notification
     cooldown_period: Annotated[
         str,
         pydantic.Field(
@@ -157,7 +157,7 @@ class AlertConfig(pydantic.BaseModel):
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
 
-    def get_raw_notifications(self) -> list[Notification]:
+    def get_raw_notifications(self) -> list[notification_objects.Notification]:
         return [
             alert_notification.notification for alert_notification in self.notifications
         ]
@@ -212,4 +212,4 @@ class AlertActivation(pydantic.BaseModel):
     criteria: AlertCriteria
     event_kind: EventKind
     number_of_events: int
-    notifications: list[NotificationState]
+    notifications: list[notification_objects.NotificationState]

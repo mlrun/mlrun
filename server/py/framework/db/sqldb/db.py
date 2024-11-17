@@ -5906,7 +5906,7 @@ class SQLDB(DBInterface):
         if alert_data.entities.kind == mlrun.common.schemas.alert.EventEntityKind.JOB:
             run_name = alert_data.entities.ids[0]
             run_uid = event_data.value_dict.get("uid")
-            entity_id = f"{run_name}.{run_uid}"
+            entity_id = f"{run_name}.{run_uid}" if run_uid else run_name
         else:
             entity_id = alert_data.entities.ids[0]
 
@@ -5933,20 +5933,19 @@ class SQLDB(DBInterface):
         if project and project != "*":
             query = query.filter(AlertActivation.project == project)
 
-        alert_activations = list(
-            map(self._transform_alert_activation_record_to_scheme, query.all())
-        )
-
-        return alert_activations
+        return [
+            self._transform_alert_activation_record_to_scheme(record)
+            for record in query.all()
+        ]
 
     @staticmethod
     def _transform_alert_activation_record_to_scheme(
-        alert_activation_record: AlertActivation,
-    ) -> mlrun.common.schemas.AlertActivation:
+        alert_activation_record: typing.Optional[AlertActivation],
+    ) -> typing.Optional[mlrun.common.schemas.AlertActivation]:
         if alert_activation_record is None:
             return None
 
-        alert_activation = mlrun.common.schemas.AlertActivation(
+        return mlrun.common.schemas.AlertActivation(
             name=alert_activation_record.name,
             project=alert_activation_record.project,
             severity=alert_activation_record.severity,
@@ -5962,8 +5961,6 @@ class SQLDB(DBInterface):
             notifications=alert_activation_record.data.get("notifications", []),
             criteria=alert_activation_record.data.get("criteria"),
         )
-
-        return alert_activation
 
     # ---- Background Tasks ----
 

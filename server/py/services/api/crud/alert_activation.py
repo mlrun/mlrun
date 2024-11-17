@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections
 
 import sqlalchemy.orm
 
@@ -52,19 +53,16 @@ class AlertActivation(
         - An 'err' with unique errors if some, but not all, notifications of that type failed.
         """
 
-        notification_errors = {}
-
+        notification_errors = collections.defaultdict(
+            lambda: {
+                "errors": set(),
+                "success_count": 0,
+            },
+        )
         # process each notification and gather errors by type
         for alert_notification in notifications:
             kind = alert_notification.notification.kind
             reason = alert_notification.notification.reason
-
-            # initialize an entry for each kind if it doesn't exist
-            if kind not in notification_errors:
-                notification_errors[kind] = {
-                    "errors": set(),
-                    "success_count": 0,
-                }
 
             # count successes and collect unique errors for failures
             if reason:
@@ -88,7 +86,8 @@ class AlertActivation(
                         f"Some {kind} notifications failed. Errors: {', '.join(errors)}"
                     )
             else:
-                error_message = ""  # indicates success if there are no errors
+                # indicates success if there are no errors
+                error_message = ""
 
             notification_states.append(
                 mlrun.common.schemas.NotificationState(kind=kind, err=error_message)

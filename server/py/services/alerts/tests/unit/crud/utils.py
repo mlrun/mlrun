@@ -15,8 +15,8 @@
 
 from typing import Optional
 
-import mlrun.common.schemas.alert
 import mlrun.common.schemas.alert as alert_objects
+import mlrun.common.schemas.notification as notification_objects
 
 
 def generate_alert_data(
@@ -27,13 +27,13 @@ def generate_alert_data(
     event_kind: alert_objects.EventKind,
     description: Optional[str] = None,
     severity: alert_objects.AlertSeverity = alert_objects.AlertSeverity.LOW,
-    notifications: Optional[list[alert_objects.Notification]] = None,
+    notifications: Optional[list[notification_objects.Notification]] = None,
     criteria: alert_objects.AlertCriteria = None,
     reset_policy: alert_objects.ResetPolicy = alert_objects.ResetPolicy.AUTO,
 ):
     trigger = alert_objects.AlertTrigger(events=[event_kind])
     if notifications is None:
-        notification = mlrun.common.schemas.Notification(
+        notification = notification_objects.Notification(
             kind="slack",
             name="slack_notification",
             secret_params={

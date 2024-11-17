@@ -25,6 +25,7 @@ from mlrun.config import config
 
 import framework.db.init_db
 import framework.db.sqldb.db
+import framework.db.sqldb.models
 import framework.utils.singletons.db
 import services.api.initial_data
 
@@ -258,8 +259,13 @@ def test_migrate_function_kind():
         assert db_function.struct["kind"] == "remote"
 
     # migrate the function kind
-    services.api.initial_data._migrate_function_kind(
-        db, db_session, chunk_size=chunk_size
+    services.api.initial_data._migrate_data(
+        db,
+        db_session,
+        framework.db.sqldb.models.Function,
+        "kind",
+        services.api.initial_data._handle_function_kind,
+        chunk_size,
     )
 
     for fn_counter in range(num_of_functions):
@@ -361,15 +367,14 @@ def test_migrate_artifact_producer_uri():
 
     producer_uri = "some-proj/some-uid"
 
-    for artifact_counter in range(num_of_artifacts):
-        artifact_key = f"name-{artifact_counter}"
+    def insert_artifact(artifact_key, artifact_uri):
         artifact = {
             "metadata": {"key": artifact_key},
-            "spec": {"producer": {"uri": f"{producer_uri}-{artifact_counter}"}},
+            "spec": {"producer": {"uri": artifact_uri}},
         }
         uid = db.store_artifact(db_session, key=artifact_key, artifact=artifact)
 
-        # make sure the artifact is inserted the legacy way
+        # Legacy insert, set producer_uri to None
         db_artifact = db._query(
             db_session, framework.db.sqldb.db.ArtifactV2, uid=uid
         ).one_or_none()
@@ -377,14 +382,26 @@ def test_migrate_artifact_producer_uri():
         db_session.add(db_artifact)
         db._commit(db_session, db_artifact)
         db_session.flush()
+
+        # Ensure producer_uri is None after insertion
         db_artifact = db._query(
             db_session, framework.db.sqldb.db.ArtifactV2, uid=uid
         ).one_or_none()
         assert db_artifact.producer_uri is None
+        return uid, artifact_key
+
+    for artifact_counter in range(num_of_artifacts):
+        artifact_key = f"name-{artifact_counter}"
+        insert_artifact(artifact_key, f"{producer_uri}-{artifact_counter}")
 
     # migrate the artifact producer_uri
-    services.api.initial_data._migrate_artifact_producer_uri(
-        db, db_session, chunk_size=chunk_size
+    services.api.initial_data._migrate_data(
+        db,
+        db_session,
+        framework.db.sqldb.models.ArtifactV2,
+        "producer_uri",
+        services.api.initial_data._handle_artifact_producer_uri,
+        chunk_size,
     )
 
     for artifact_counter in range(num_of_artifacts):

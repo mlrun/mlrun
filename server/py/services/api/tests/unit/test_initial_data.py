@@ -259,13 +259,10 @@ def test_migrate_function_kind():
         assert db_function.struct["kind"] == "remote"
 
     # migrate the function kind
-    services.api.initial_data._migrate_data(
+    services.api.initial_data._migrate_function_kind(
         db,
         db_session,
-        framework.db.sqldb.models.Function,
-        "kind",
-        services.api.initial_data._handle_function_kind,
-        chunk_size,
+        chunk_size=chunk_size,
     )
 
     for fn_counter in range(num_of_functions):
@@ -395,13 +392,10 @@ def test_migrate_artifact_producer_uri():
         insert_artifact(artifact_key, f"{producer_uri}-{artifact_counter}")
 
     # migrate the artifact producer_uri
-    services.api.initial_data._migrate_data(
+    services.api.initial_data._migrate_artifact_producer_uri(
         db,
         db_session,
-        framework.db.sqldb.models.ArtifactV2,
-        "producer_uri",
-        services.api.initial_data._handle_artifact_producer_uri,
-        chunk_size,
+        chunk_size=chunk_size,
     )
 
     for artifact_counter in range(num_of_artifacts):

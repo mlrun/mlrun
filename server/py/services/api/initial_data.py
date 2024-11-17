@@ -877,85 +877,104 @@ def _perform_version_8_data_migrations(
 def _perform_version_9_data_migrations(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
+    _migrate_function_kind(db, db_session)
+    _migrate_artifact_producer_uri(db, db_session)
+
+
+def _migrate_function_kind(
+    db: framework.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    chunk_size: int = 500,
+):
+    def handle_function_kind(records: list, record):
+        function_dict = record.struct
+        record.kind = function_dict.pop("kind", None)
+        if record.kind is not None:
+            record.struct = function_dict
+            records.append(record)
+
+    def filter_function_kind():
+        return getattr(framework.db.sqldb.models.Function, "kind").is_(None)
+
     _migrate_data(
         db,
         db_session,
-        framework.db.sqldb.models.Function,
-        "kind",
-        _handle_function_kind,
+        model=framework.db.sqldb.models.Function,
+        filter_func=filter_function_kind,
+        handle_field_record_func=handle_function_kind,
+        chunk_size=chunk_size,
     )
+
+
+def _migrate_artifact_producer_uri(
+    db: framework.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    chunk_size: int = 500,
+):
+    def handle_artifact_producer_uri(records: list, record):
+        record.producer_uri = (
+            record.full_object.get("spec", {}).get("producer", {}).get("uri", None)
+        )
+        if record.producer_uri is not None:
+            records.append(record)
+
+    def filter_artifacts():
+        return getattr(framework.db.sqldb.models.ArtifactV2, "producer_uri").is_(None)
+
     _migrate_data(
         db,
         db_session,
-        framework.db.sqldb.models.ArtifactV2,
-        "producer_uri",
-        _handle_artifact_producer_uri,
+        model=framework.db.sqldb.models.ArtifactV2,
+        filter_func=filter_artifacts,
+        handle_field_record_func=handle_artifact_producer_uri,
+        chunk_size=chunk_size,
     )
-
-
-def _handle_function_kind(records: list, record):
-    function_dict = record.struct
-    record.kind = function_dict.pop("kind", None)
-    if record.kind is not None:
-        record.struct = function_dict
-        records.append(record)
-
-
-def _handle_artifact_producer_uri(records: list, record):
-    record.producer_uri = (
-        record.full_object.get("spec", {}).get("producer", {}).get("uri", None)
-    )
-    if record.producer_uri is not None:
-        records.append(record)
 
 
 def _migrate_data(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     model,
-    field_name: str,
+    filter_func,
     handle_field_record_func,
     chunk_size: int = 500,
 ):
     offset = 0
     # Get count of records to migrate
-    count = (
-        db._query(db_session, model)
-        .filter(getattr(model, field_name).is_(None))
-        .count()
-    )
+    count = db._query(db_session, model).filter(filter_func).count()
     logger.info(f"Number of {model.__name__.lower()}s to migrate: {count}")
 
-    while True:
+    while offset < count:
         logger.info(f"Fetching {model.__name__.lower()}s to migrate", offset=offset)
 
-        # Build query to fetch the data in chunks
-        query = (
+        # Fetch records in chunks
+        records = (
             db._query(db_session, model)
             .order_by(getattr(model, "id"))
             .limit(chunk_size)
             .offset(offset)
+            .all()
         )
-        records = []
 
-        # Process each record
-        for record in query.all():
-            handle_field_record_func(records, record)
+        # Process each record and apply the handler
+        to_commit = [
+            record for record in records if handle_field_record_func([], record)
+        ]
 
         # Commit if there are records to migrate
-        if records:
+        if to_commit:
             logger.info(
                 f"Committing migrated {model.__name__.lower()}s", count=len(records)
             )
             db_session.add_all(records)
             db._commit(db_session, records)
 
+        offset += chunk_size
+
         # Stop if there are fewer records than the chunk size
         if len(records) < chunk_size:
             logger.info(f"No more {model.__name__.lower()}s to migrate")
             break
-
-        offset += chunk_size
 
 
 def _create_project_summaries(db, db_session):

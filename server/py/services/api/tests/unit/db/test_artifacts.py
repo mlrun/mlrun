@@ -1287,7 +1287,7 @@ class TestArtifacts(TestDatabaseBase):
                 self._db_session, artifact_key, artifact_body, project=project
             )
 
-        producer_uri_without_iteration = f"{project}/{artifact_key}"
+        producer_uri_without_iteration = f"{project}/dummy-run-id"
         first_producer_uri = f"{producer_uri_without_iteration}-0"
         store_artifact_with_producer(
             artifact_key, project, first_producer_uri, tag="v1"

@@ -34,7 +34,7 @@ def delete_project_old_pipelines(
     project_name: str,
     end_date: str,
     start_date: str = "",
-    dry_run: bool = True,
+    dry_run: bool = False,
 ) -> None:
     """
     Delete old pipeline runs associated with a specific project.

@@ -35,7 +35,6 @@ def delete_project_old_pipelines(
     end_date: str,
     start_date: str = "",
     dry_run: bool = True,
-    target_path: str = "",
 ) -> None:
     """
     Delete old pipeline runs associated with a specific project.
@@ -51,8 +50,6 @@ def delete_project_old_pipelines(
                        runs created on or after this date will be considered for deletion.
                        Defaults to an empty string, which means no start date filtering.
     :param dry_run: If True, perform a dry run (only log what would be deleted).
-    :param target_path: The artifact path where the deletion results dataset will be saved.
-                          Defaults to the MLRun default artifact path.
 
     """
     # Validate and convert dates
@@ -72,12 +69,12 @@ def delete_project_old_pipelines(
 
     # Delete runs
     _delete_runs_and_empty_experiments(
-        context, kfp_client, runs, experiments_ids, target_path, dry_run
+        context, kfp_client, runs, experiments_ids, dry_run
     )
-    _delete_runs(context, kfp_client, runs, target_path, dry_run)
+    _delete_runs(context, kfp_client, runs, dry_run)
 
     # Find and delete empty experiments
-    _delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
+    _delete_empty_experiments(context, kfp_client, experiments_ids)
 
 
 def _validate_and_convert_date(date_input: str) -> str:
@@ -231,7 +228,6 @@ def _delete_runs_and_empty_experiments(
     kfp_client: Client,
     runs: list[tuple[str, str]],
     experiments_ids: set[str],
-    target_path: str,
     dry_run: bool,
 ) -> None:
     """
@@ -246,15 +242,14 @@ def _delete_runs_and_empty_experiments(
     :param kfp_client: The KFP client used to interact with the pipeline API.
     :param runs: A list of tuples representing the runs to delete, where each tuple contains (run_id, run_name).
     :param experiments_ids: A set of experiment IDs to check for emptiness after run deletion.
-    :param target_path: The artifact path where details of the deletion process (successes and failures) will be logged.
     :param dry_run: If True, perform a dry run by logging what would be deleted without actually deleting anything.
     """
     if not dry_run:
         # Delete runs
-        _delete_runs(context, kfp_client, runs, target_path)
+        _delete_runs(context, kfp_client, runs)
 
         # Find and delete empty experiments
-        _delete_empty_experiments(context, kfp_client, experiments_ids, target_path)
+        _delete_empty_experiments(context, kfp_client, experiments_ids)
 
     else:
         mlrun.utils.logger.info(f"Dry run: {len(runs)} runs would be deleted")
@@ -265,7 +260,6 @@ def _delete_runs(
     context: mlrun.MLClientCtx,
     kfp_client: Client,
     runs: list[tuple[str, str]],
-    target_path: str,
 ) -> None:
     """
     Delete pipeline runs based on the provided runs.
@@ -273,13 +267,11 @@ def _delete_runs(
     :param context: The context object to log results.
     :param runs: List of tuples containing run IDs and names.
     :param kfp_client: The KFP client used to interact with the pipeline API.
-    :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     """
     _delete_items(
         context,
         runs,
         lambda run_id: kfp_client._run_api.delete_run(run_id),
-        target_path=target_path,
     )
 
 
@@ -287,7 +279,6 @@ def _delete_empty_experiments(
     context: mlrun.MLClientCtx,
     kfp_client: Client,
     experiments_ids: set[str],
-    target_path: str,
 ) -> None:
     """
     Find and delete empty experiments based on the provided experiment IDs.
@@ -295,7 +286,6 @@ def _delete_empty_experiments(
     :param context: The context object to log results.
     :param kfp_client: The KFP client used to interact with the pipeline API.
     :param experiments_ids: Set of experiment IDs to check for emptiness.
-    :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     """
     empty_experiment_ids = _find_empty_experiments(kfp_client, experiments_ids)
 
@@ -305,7 +295,6 @@ def _delete_empty_experiments(
         lambda experiment_id: kfp_client._experiment_api.delete_experiment(
             id=experiment_id
         ),
-        target_path=target_path,
         item_type="experiment",
     )
 
@@ -333,7 +322,6 @@ def _delete_items(
     context: mlrun.MLClientCtx,
     items: list[tuple[str, str]],
     delete_func: typing.Callable[[str], None],
-    target_path: str,
     item_type: str = "run",
 ) -> None:
     """
@@ -343,7 +331,6 @@ def _delete_items(
     :param items: A list of tuples, where each tuple contains the item ID and name to be deleted.
     :param delete_func: The function responsible for deleting each item.
                         It should take an ID as its argument.
-    :param target_path: Path where details of successful and failed deletions will be logged as a dataset artifact
     :param item_type: The type of items being deleted (used for logging).
                       Defaults to "run".
     """
@@ -353,7 +340,7 @@ def _delete_items(
     mlrun.utils.logger.info(f"Deleting {total} {item_type}s")
 
     deleted, failed = _perform_deletion(items, delete_func, total, item_type)
-    _log_results(context, deleted, failed, target_path, item_type)
+    _log_results(context, deleted, failed, item_type)
 
 
 def _perform_deletion(
@@ -390,7 +377,8 @@ def _perform_deletion(
                 mlrun.utils.logger.info(
                     f"Deleted {deleted_count}/{total_items_amount} {item_type}s successfully"
                 )
-                sleep(10)
+                # A 5-second sleep is used to balance KFP load and limit the rate of deletion requests.
+                sleep(5)
         except Exception as exc:
             failed_items.append((name, item_id, exc, exc.reason))
             mlrun.utils.logger.warning(
@@ -403,7 +391,6 @@ def _log_results(
     context: mlrun.MLClientCtx,
     deleted_items: list[tuple[str, str]],
     failed_items: list[tuple[str, str, Exception, str]],
-    target_path: str,
     item_type: str = "run",
 ):
     # Log results
@@ -418,7 +405,6 @@ def _log_results(
         context.log_dataset(
             key=f"{item_type}s_deleted_details",
             df=df_succeeded,
-            target_path=target_path,
         )
 
     # Log the count of failed deletions
@@ -433,5 +419,4 @@ def _log_results(
         context.log_dataset(
             key=f"{item_type}s_failed_details",
             df=df_failed,
-            target_path=target_path,
         )

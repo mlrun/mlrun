@@ -42,12 +42,10 @@ The `delete_project_old_pipelines` function deletes old pipeline runs associated
 
 ```python
 end_date = "2024-10-20T10:10:06Z"
-target_path = "/path/to/logs"
 
 params = {
     "project_name": "remote-workflow-example1",
     "end_date": end_date,
-    "target_path": target_path,
     "dry_run": False,
 }
 ```
@@ -61,9 +59,6 @@ params = {
   - `YYYY-MM-DD`
   - `YYYY/MM/DD`
 - **start_date** (str, optional): If provided, only runs created on or after this date will be considered for deletion (default is empty, no filtering).
-- **target_path** (str, optional): The path where logs or output artifacts from the function run will be saved,
-  storing details on deleted pipeline runs, making it easier to verify cleanup activity and maintain a record of deletions.
-  Defaults to the MLRun default artifact path.
 - **dry_run** (bool): If True, only log what would be deleted (default: False).
 
 
@@ -86,6 +81,8 @@ function_build = project.build_function(
 ```python
 job = function_build.function.run(params=params)
 ```
+If you wish to store the script's logs or output artifacts in a custom location rather than the default artifact_path,
+you can specify your preferred paths using the `artifact_path` and `local_path` parameters in `func.run()`.
 
 ### Step 5: Check the Job Outputs
 

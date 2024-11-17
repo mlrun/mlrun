@@ -658,6 +658,7 @@ def test_feature_sets(create_server):
     assert len(feature_sets) == count
     assert not any([feature_set.status.stats for feature_set in feature_sets])
     assert not any([feature_set.status.preview for feature_set in feature_sets])
+    assert not any([feature_set.metadata.updated for feature_set in feature_sets])
     assert all([feature_set.status.state for feature_set in feature_sets])
 
     # Create a feature-set that has no labels

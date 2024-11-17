@@ -74,6 +74,23 @@ def verify_api_state(request: Request):
             )
             raise mlrun.errors.MLRunPreconditionFailedError(message)
 
+    # defensive approach, if we are not in online state we should not allow
+    # any requests. this is a safety net in case we missed adding a check on a specific
+    # state that the chief is waiting for.
+    if mlrun.mlconf.httpdb.state not in [mlrun.common.schemas.APIStates.online]:
+        enabled_endpoints = [
+            "healthz",
+            "background-tasks",
+            "client-spec",
+            "migrations",
+            "clusterization-spec",
+            "memory-reports",
+        ]
+        if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"API is in state {mlrun.mlconf.httpdb.state}"
+            )
+
 
 def expose_internal_endpoints(request: Request):
     if not mlrun.mlconf.debug.expose_internal_api_endpoints:

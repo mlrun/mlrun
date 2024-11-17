@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 import unittest.mock
 from datetime import datetime, timedelta, timezone
 
@@ -199,135 +198,133 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, len(list_namespaced_pods_calls)
         )
 
-    def test_ensure_run_not_stuck_on_non_terminal_state(
-        self, db: Session, client: TestClient
-    ):
-        for test_case in [
+    @pytest.mark.parametrize(
+        "runs_monitoring_interval, debouncing_interval, list_namespaced_pods_calls, "
+        "interval_time_to_add_to_run_update_time, start_run_states, expected_reached_state, monitor_cycles",
+        [
             # no monitoring interval and no debouncing interval which means if run found in non-terminal state
             # the monitoring will override to terminal status
-            {
-                "runs_monitoring_interval": 0,
-                "debouncing_interval": None,
-                "list_namespaced_pods_calls": [[], []],
-                "interval_time_to_add_to_run_update_time": 0,
-                "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.error,
-                "monitor_cycles": 1,
-            },
+            (
+                0,
+                None,
+                [[], []],
+                0,
+                RunStates.non_terminal_states(),
+                RunStates.error,
+                1,
+            ),
             # monitoring interval and debouncing interval are configured which means debouncing interval will
             # be the debounce period, run is still in the debounce period that's why expecting not to override state
             # to terminal state
-            {
-                "runs_monitoring_interval": 30,
-                "debouncing_interval": 100,
-                "list_namespaced_pods_calls": [[], [], []],
-                "interval_time_to_add_to_run_update_time": -70,
-                "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.non_terminal_states(),
-            },
+            (
+                30,
+                100,
+                [[], [], []],
+                -70,
+                RunStates.non_terminal_states(),
+                RunStates.non_terminal_states(),
+                None,
+            ),
             # monitoring interval and debouncing interval are configured which means debouncing interval will
             # be the debounce period, run update time passed the debounce period that's why expecting to override state
             # to terminal state
-            {
-                "runs_monitoring_interval": 30,
-                "debouncing_interval": 100,
-                "list_namespaced_pods_calls": [[], [], [], []],
-                "interval_time_to_add_to_run_update_time": -200,
-                "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.error,
-                "monitor_cycles": 3,
-            },
+            (
+                30,
+                100,
+                [[], [], [], []],
+                -200,
+                RunStates.non_terminal_states(),
+                RunStates.error,
+                3,
+            ),
             # monitoring interval configured and debouncing interval isn't configured which means
             # monitoring interval * 2 will be the debounce period.
             # run isn't in the debounce period that's why expecting to override state to terminal state
-            {
-                "runs_monitoring_interval": 30,
-                "debouncing_interval": None,
-                "list_namespaced_pods_calls": [[], [], [], []],
-                "interval_time_to_add_to_run_update_time": -65,
-                "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.error,
-                "monitor_cycles": 3,
-            },
+            (
+                30,
+                None,
+                [[], [], [], []],
+                -65,
+                RunStates.non_terminal_states(),
+                RunStates.error,
+                3,
+            ),
             # monitoring interval configured and debouncing interval isn't configured which means
             # monitoring interval * 2 will be the debounce period.
             # run is in the debounce period that's why expecting not to override state to terminal state
-            {
-                "runs_monitoring_interval": 30,
-                "debouncing_interval": None,
-                "list_namespaced_pods_calls": [[], [], []],
-                "interval_time_to_add_to_run_update_time": -35,
-                "start_run_states": RunStates.non_terminal_states(),
-                "expected_reached_state": RunStates.non_terminal_states(),
-            },
-        ]:
-            self._logger.info("running test case", test_case=test_case)
-            config.monitoring.runs.interval = test_case.get(
-                "runs_monitoring_interval", 0
-            )
+            (
+                30,
+                None,
+                [[], [], []],
+                -35,
+                RunStates.non_terminal_states(),
+                RunStates.non_terminal_states(),
+                None,
+            ),
+        ],
+    )
+    def test_ensure_run_not_stuck_on_non_terminal_state(
+        self,
+        db: Session,
+        client: TestClient,
+        runs_monitoring_interval,
+        debouncing_interval,
+        list_namespaced_pods_calls,
+        interval_time_to_add_to_run_update_time,
+        start_run_states,
+        expected_reached_state,
+        monitor_cycles,
+    ):
+        config.monitoring.runs.interval = runs_monitoring_interval or 0
+        config.monitoring.runs.missing_runtime_resources_debouncing_interval = (
+            debouncing_interval
+        )
+        monitor_cycles = monitor_cycles or len(list_namespaced_pods_calls)
+        for idx in range(len(start_run_states)):
+            self.run["status"]["state"] = start_run_states[idx]
 
-            config.monitoring.runs.missing_runtime_resources_debouncing_interval = (
-                test_case.get("debouncing_interval", None)
+            # using freeze enables us to set the now attribute when calling the sub-function
+            # _update_run_updated_time without the need to call the function directly
+            original_update_run_updated_time = (
+                server.api.utils.singletons.db.get_db()._update_run_updated_time
             )
-
-            list_namespaced_pods_calls = test_case.get(
-                "list_namespaced_pods_calls", [[]]
-            )
-            interval_time_to_add_to_run_update_time = test_case.get(
-                "interval_time_to_add_to_run_update_time", 0
-            )
-            expected_reached_state: typing.Union[str, list] = test_case.get(
-                "expected_reached_state", RunStates.running
-            )
-            start_run_states = test_case.get("start_run_states", [RunStates.running])
-            monitor_cycles = test_case.get(
-                "monitor_cycles", len(list_namespaced_pods_calls)
-            )
-            for idx in range(len(start_run_states)):
-                self.run["status"]["state"] = start_run_states[idx]
-
-                # using freeze enables us to set the now attribute when calling the sub-function
-                # _update_run_updated_time without the need to call the function directly
-                original_update_run_updated_time = (
-                    server.api.utils.singletons.db.get_db()._update_run_updated_time
+            server.api.utils.singletons.db.get_db()._update_run_updated_time = (
+                tests.conftest.freeze(
+                    original_update_run_updated_time,
+                    now=now_date()
+                    + timedelta(
+                        seconds=interval_time_to_add_to_run_update_time,
+                    ),
                 )
-                server.api.utils.singletons.db.get_db()._update_run_updated_time = (
-                    tests.conftest.freeze(
-                        original_update_run_updated_time,
-                        now=now_date()
-                        + timedelta(
-                            seconds=interval_time_to_add_to_run_update_time,
-                        ),
-                    )
-                )
-                server.api.crud.Runs().store_run(
-                    db, self.run, self.run_uid, project=self.project
-                )
-                server.api.utils.singletons.db.get_db()._update_run_updated_time = (
-                    original_update_run_updated_time
-                )
-                # Mocking pod that is still in non-terminal state
-                self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+            )
+            server.api.crud.Runs().store_run(
+                db, self.run, self.run_uid, project=self.project
+            )
+            server.api.utils.singletons.db.get_db()._update_run_updated_time = (
+                original_update_run_updated_time
+            )
+            # Mocking pod that is still in non-terminal state
+            self._mock_list_namespaced_pods(list_namespaced_pods_calls)
 
-                # Triggering monitor cycle
-                for i in range(monitor_cycles):
-                    self.runtime_handler.monitor_runs(get_db(), db)
+            # Triggering monitor cycle
+            for i in range(monitor_cycles):
+                self.runtime_handler.monitor_runs(get_db(), db)
 
-                expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-                self._assert_list_namespaced_pods_calls(
-                    self.runtime_handler, expected_number_of_list_pods_calls
+            expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+            self._assert_list_namespaced_pods_calls(
+                self.runtime_handler, expected_number_of_list_pods_calls
+            )
+
+            # verifying monitoring was debounced
+            if isinstance(expected_reached_state, list):
+                self._assert_run_reached_state(
+                    db, self.project, self.run_uid, expected_reached_state[idx]
                 )
-
-                # verifying monitoring was debounced
-                if isinstance(expected_reached_state, list):
-                    self._assert_run_reached_state(
-                        db, self.project, self.run_uid, expected_reached_state[idx]
-                    )
-                else:
-                    self._assert_run_reached_state(
-                        db, self.project, self.run_uid, expected_reached_state
-                    )
-                get_db().del_run(db, self.run_uid, self.project)
+            else:
+                self._assert_run_reached_state(
+                    db, self.project, self.run_uid, expected_reached_state
+                )
+            get_db().del_run(db, self.run_uid, self.project)
 
     @pytest.mark.asyncio
     async def test_delete_resources_with_force(self, db: Session, client: TestClient):

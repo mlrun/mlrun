@@ -40,6 +40,7 @@ import requests
 import yaml
 from mlrun_pipelines.models import PipelineNodeWrapper
 
+import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas.artifact
@@ -47,6 +48,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.lists
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
 import mlrun.runtimes.nuclio.api_gateway
@@ -3799,6 +3801,9 @@ class MlrunProject(ModelObj):
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         limit: int = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3829,6 +3834,7 @@ class MlrunProject(ModelObj):
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
         :param limit: Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3843,6 +3849,7 @@ class MlrunProject(ModelObj):
             kind=kind,
             category=category,
             tree=tree,
+            format_=format_,
             limit=limit,
         )
 
@@ -3856,6 +3863,10 @@ class MlrunProject(ModelObj):
         iter: int = None,
         best_iteration: bool = False,
         tree: str = None,
+        limit: int = None,
+        format_: Optional[
+            mlrun.common.formatters.ArtifactFormat
+        ] = mlrun.common.formatters.ArtifactFormat.full,
     ):
         """List models in project, filtered by various parameters.
 
@@ -3879,6 +3890,8 @@ class MlrunProject(ModelObj):
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param tree: Return artifacts of the requested tree.
+        :param limit: Maximum number of artifacts to return.
+        :param format_: The format in which to return the artifacts. Default is 'full'.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3892,6 +3905,8 @@ class MlrunProject(ModelObj):
             best_iteration=best_iteration,
             kind="model",
             tree=tree,
+            limit=limit,
+            format_=format_,
         ).to_objects()
 
     def list_functions(self, name=None, tag=None, labels=None):

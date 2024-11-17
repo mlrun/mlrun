@@ -19,7 +19,6 @@ from contextlib import nullcontext as does_not_raise
 from datetime import datetime
 from unittest.mock import Mock
 
-import dask.dataframe as dd
 import pandas as pd
 import pytest
 import pytz
@@ -60,26 +59,6 @@ def test_s3_fs_parquet_as_df():
         "part-00000-7de4c87e-242f-4568-b5d7-aae4cc75e9ad-c000.snappy.parquet"
     )
     data_item.as_df()
-
-
-def test_load_object_into_dask_dataframe():
-    # Load a parquet file from Azure Open Datasets
-    os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = "azureopendatastorage"
-    data_item = mlrun.datastore.store_manager.object(
-        "az://tutorials/noaa_isd_weather/demo_data.parquet"
-    )
-    ddf = data_item.as_df(df_module=dd)
-    assert isinstance(ddf, dd.DataFrame)
-
-
-def test_load_object_into_dask_dataframe_using_wasbs_url():
-    # Load a parquet file from Azure Open Datasets
-    os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = "azureopendatastorage"
-    data_item = mlrun.datastore.store_manager.object(
-        "wasbs://tutorials@dummyaccount/noaa_isd_weather/demo_data.parquet"
-    )
-    ddf = data_item.as_df(df_module=dd)
-    assert isinstance(ddf, dd.DataFrame)
 
 
 def test_kafka_source_with_attributes():

@@ -25,6 +25,8 @@ import pytest_asyncio
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 import mlrun.common.schemas
 import mlrun.common.secrets
@@ -102,6 +104,13 @@ def db() -> typing.Iterator[sqlalchemy.orm.Session]:
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests
     _init_engine(dsn=config.httpdb.dsn)
+
+    # SQLite foreign keys constraint must be enabled manually to allow cascade deletions on DB level
+    @event.listens_for(Engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)

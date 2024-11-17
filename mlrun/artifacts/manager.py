@@ -77,7 +77,6 @@ class ArtifactProducer:
             "name": self.name,
             "tag": self.tag,
             "owner": self.owner,
-            "uri": f"{self.project}/{self.tag}",
         }
 
     @property

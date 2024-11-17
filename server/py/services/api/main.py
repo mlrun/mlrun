@@ -24,7 +24,6 @@ import sqlalchemy.orm
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
-import mlrun.common.schemas.alert as alert_objects
 import mlrun.errors
 import mlrun.lists
 import mlrun.utils
@@ -41,17 +40,17 @@ import framework.service
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.notifications.notification_pusher
+import framework.utils.time_window_tracker
 import services.api.crud
 import services.api.initial_data
 import services.api.runtime_handlers
 import services.api.utils.db.partitioner
-import services.api.utils.time_window_tracker
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
     cancel_periodic_function,
     run_function_periodically,
 )
-from framework.utils.singletons.db import get_db, initialize_db
+from framework.utils.singletons.db import get_db
 from framework.utils.singletons.k8s import get_k8s_helper
 from framework.utils.singletons.project_member import (
     get_project_member,
@@ -73,46 +72,7 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
-    def _register_routes(self):
-        # TODO: This should be configurable and resolved in the base class
-        self.app.include_router(api_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX)
-        self.app.include_router(api_v2_router, prefix=self.V2_SERVICE_PREFIX)
-        # This is for backward compatibility, that is why we still leave it here but not include it in the schema
-        # so new users won't use the old un-versioned api.
-        # /api points to /api/v1 since it is used externally, and we don't want to break it.
-        # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
-        self.app.include_router(
-            api_router, prefix=self.SERVICE_PREFIX, include_in_schema=False
-        )
-
-    async def _custom_setup_service(self):
-        initialize_logs_dir()
-
-        # TODO: move code below to base class
-        initialize_db()
-        self._initialize_data()
-
-        if (
-            mlconf.httpdb.clusterization.worker.sync_with_chief.mode
-            == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
-            and mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.worker
-        ):
-            # in the background, wait for chief to reach online state
-            self._start_chief_clusterization_spec_sync_loop()
-
-    async def _custom_teardown_service(self):
-        if get_project_member():
-            get_project_member().shutdown()
-        if get_scheduler():
-            await get_scheduler().stop()
-
-    def _initialize_data(self):
-        if (
-            mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.chief
-        ):
-            services.api.initial_data.init_data()
+    service_name = "api"
 
     async def move_service_to_online(self):
         self._logger.info("Moving api to online")
@@ -141,6 +101,48 @@ class Service(framework.service.Service):
         ):
             services.api.initial_data.update_default_configuration_data()
             await self._start_periodic_functions()
+
+        await self._move_mounted_services_to_online()
+
+    def _register_routes(self):
+        # TODO: This should be configurable and resolved in the base class
+        self.app.include_router(api_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX)
+        self.app.include_router(api_v2_router, prefix=self.V2_SERVICE_PREFIX)
+        # This is for backward compatibility, that is why we still leave it here but not include it in the schema
+        # so new users won't use the old un-versioned api.
+        # /api points to /api/v1 since it is used externally, and we don't want to break it.
+        # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
+        self.app.include_router(
+            api_router, prefix=self.SERVICE_PREFIX, include_in_schema=False
+        )
+
+    async def _custom_setup_service(self):
+        initialize_logs_dir()
+
+        # TODO: move code below to base class
+        self._initialize_data()
+
+        if (
+            mlconf.httpdb.clusterization.worker.sync_with_chief.mode
+            == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
+            and mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.worker
+        ):
+            # in the background, wait for chief to reach online state
+            self._start_chief_clusterization_spec_sync_loop()
+
+    async def _custom_teardown_service(self):
+        if get_project_member():
+            get_project_member().shutdown()
+        if get_scheduler():
+            await get_scheduler().stop()
+
+    def _initialize_data(self):
+        if (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            services.api.initial_data.init_data()
 
     async def _start_periodic_functions(self):
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
@@ -214,94 +216,92 @@ class Service(framework.service.Service):
         :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
         """
         db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-        log_collection_cycle_tracker = services.api.utils.time_window_tracker.TimeWindowTracker(
-            key=services.api.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
-            # If the API was down for more than the grace period, we will only collect logs for runs which reached
-            # terminal state within the grace period and not since the API actually went down.
-            max_window_size_seconds=min(
-                int(mlconf.log_collector.api_downtime_grace_period),
-                int(mlconf.runtime_resources_deletion_grace_period),
-            ),
-        )
-        await fastapi.concurrency.run_in_threadpool(
-            log_collection_cycle_tracker.initialize, db_session
-        )
-        last_update_time = await fastapi.concurrency.run_in_threadpool(
-            log_collection_cycle_tracker.get_window, db_session
-        )
-        now = datetime.datetime.now(datetime.timezone.utc)
         try:
-            self._logger.debug(
-                "Getting all runs which are in non terminal state and require logs collection"
+            await framework.utils.time_window_tracker.run_with_time_window_tracker(
+                db_session,
+                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+                # If the API was down for more than the grace period, we will only collect logs for runs which reached
+                # terminal state within the grace period and not since the API actually went down.
+                max_window_size_seconds=min(
+                    int(mlconf.log_collector.api_downtime_grace_period),
+                    int(mlconf.runtime_resources_deletion_grace_period),
+                ),
+                ensure_window_update=True,
+                callback=self._verify_log_collection_started,
+                start_logs_limit=start_logs_limit,
             )
-            runs_uids = await fastapi.concurrency.run_in_threadpool(
+        finally:
+            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+    async def _verify_log_collection_started(
+        self, db_session, last_update_time: datetime.datetime, start_logs_limit
+    ):
+        self._logger.debug(
+            "Getting all runs which are in non terminal state and require logs collection"
+        )
+        runs_uids = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[None, False],
+            only_uids=True,
+            states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
+        )
+        self._logger.debug(
+            "Getting all runs which might have reached terminal state while the API was down",
+            api_downtime_grace_period=mlconf.log_collector.api_downtime_grace_period,
+        )
+        runs_uids.extend(
+            await fastapi.concurrency.run_in_threadpool(
                 get_db().list_distinct_runs_uids,
                 db_session,
                 requested_logs_modes=[None, False],
+                # get only uids as there might be many runs which reached terminal state while the API was down, the
+                # run objects will be fetched in the next step
                 only_uids=True,
-                states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
+                last_update_time_from=last_update_time,
+                states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
             )
+        )
+        if runs_uids:
+            skipped_run_uids = []
+            if len(runs_uids) > int(
+                mlrun.mlconf.log_collector.start_logs_startup_run_limit
+            ):
+                self._logger.warning(
+                    "Amount of runs requiring logs collection on startup exceeds configured limit, "
+                    "skipping the rest but marking them as requested",
+                    total_runs_count=len(runs_uids),
+                    start_logs_startup_run_limit=mlrun.mlconf.log_collector.start_logs_startup_run_limit,
+                )
+                skipped_run_uids = runs_uids[
+                    int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) :
+                ]
+                runs_uids = runs_uids[
+                    : int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
+                ]
+
             self._logger.debug(
-                "Getting all runs which might have reached terminal state while the API was down",
-                api_downtime_grace_period=mlconf.log_collector.api_downtime_grace_period,
+                "Found runs which require logs collection on startup",
+                runs_count=len(runs_uids),
             )
-            runs_uids.extend(
+
+            # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
+            # where the log collection failed (e.g. when the pod is not found for runs that might have reached
+            # terminal state while the API was down)
+            await self._start_log_and_update_runs(
+                start_logs_limit=start_logs_limit,
+                db_session=db_session,
+                runs_uids=runs_uids,
+                best_effort=True,
+            )
+
+            if skipped_run_uids:
                 await fastapi.concurrency.run_in_threadpool(
-                    get_db().list_distinct_runs_uids,
+                    get_db().update_runs_requested_logs,
                     db_session,
-                    requested_logs_modes=[None, False],
-                    # get only uids as there might be many runs which reached terminal state while the API was down, the
-                    # run objects will be fetched in the next step
-                    only_uids=True,
-                    last_update_time_from=last_update_time,
-                    states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
+                    uids=skipped_run_uids,
+                    requested_logs=True,
                 )
-            )
-            if runs_uids:
-                skipped_run_uids = []
-                if len(runs_uids) > int(
-                    mlrun.mlconf.log_collector.start_logs_startup_run_limit
-                ):
-                    self._logger.warning(
-                        "Amount of runs requiring logs collection on startup exceeds configured limit, "
-                        "skipping the rest but marking them as requested",
-                        total_runs_count=len(runs_uids),
-                        start_logs_startup_run_limit=mlrun.mlconf.log_collector.start_logs_startup_run_limit,
-                    )
-                    skipped_run_uids = runs_uids[
-                        int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) :
-                    ]
-                    runs_uids = runs_uids[
-                        : int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
-                    ]
-
-                self._logger.debug(
-                    "Found runs which require logs collection on startup",
-                    runs_count=len(runs_uids),
-                )
-
-                # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
-                # where the log collection failed (e.g. when the pod is not found for runs that might have reached
-                # terminal state while the API was down)
-                await self._start_log_and_update_runs(
-                    start_logs_limit=start_logs_limit,
-                    db_session=db_session,
-                    runs_uids=runs_uids,
-                    best_effort=True,
-                )
-
-                if skipped_run_uids:
-                    await fastapi.concurrency.run_in_threadpool(
-                        get_db().update_runs_requested_logs,
-                        db_session,
-                        uids=skipped_run_uids,
-                        requested_logs=True,
-                    )
-        finally:
-            await fastapi.concurrency.run_in_threadpool(
-                log_collection_cycle_tracker.update_window, db_session, now
-            )
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
     async def _initiate_logs_collection(self, start_logs_limit: asyncio.Semaphore):
         """
@@ -736,16 +736,13 @@ class Service(framework.service.Service):
             self._synchronize_with_chief_clusterization_spec.__name__
         )
 
-    async def _monitor_runs(
-        self,
-    ):
-        stale_runs = await fastapi.concurrency.run_in_threadpool(
-            framework.db.session.run_function_with_new_db_session,
-            self._monitor_runs_and_push_terminal_notifications,
+    async def _monitor_runs(self):
+        stale_runs = await framework.db.session.run_async_function_with_new_db_session(
+            self._monitor_runs_and_push_terminal_notifications
         )
         await self._abort_stale_runs(stale_runs)
 
-    def _monitor_runs_and_push_terminal_notifications(self, db_session):
+    async def _monitor_runs_and_push_terminal_notifications(self, db_session):
         db = get_db()
         stale_runs = []
         for kind in RuntimeKinds.runtime_with_handlers():
@@ -759,23 +756,17 @@ class Service(framework.service.Service):
                     exc=err_to_str(exc),
                     kind=kind,
                 )
-
         try:
-            runs_monitoring_cycle_tracker = services.api.utils.time_window_tracker.TimeWindowTracker(
-                key=services.api.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
+            await framework.utils.time_window_tracker.run_with_time_window_tracker(
+                db_session,
+                key=framework.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
                 max_window_size_seconds=int(
                     mlconf.runtime_resources_deletion_grace_period
                 ),
+                ensure_window_update=False,
+                callback=self._push_terminal_run_notifications,
+                db=db,
             )
-            runs_monitoring_cycle_tracker.initialize(db_session)
-            last_update_time = runs_monitoring_cycle_tracker.get_window(db_session)
-            now = datetime.datetime.now(datetime.timezone.utc)
-
-            if mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
-                self._generate_event_on_failed_runs(db, db_session, last_update_time)
-            self._push_terminal_run_notifications(db, db_session, last_update_time)
-
-            runs_monitoring_cycle_tracker.update_window(db_session, now)
         except Exception as exc:
             self._logger.warning(
                 "Failed pushing terminal run notifications. Ignoring",
@@ -801,7 +792,10 @@ class Service(framework.service.Service):
             close_session(db_session)
 
     def _push_terminal_run_notifications(
-        self, db: framework.db.base.DBInterface, db_session, last_update_time
+        self,
+        db_session,
+        last_update_time: datetime.datetime,
+        db: framework.db.base.DBInterface,
     ):
         """
         Get all runs with notification configs which became terminal since the last call to the function
@@ -843,44 +837,6 @@ class Service(framework.service.Service):
             unmasked_runs,
             run_notification_pusher_class.resolve_notifications_default_params(),
         ).push()
-
-    def _generate_event_on_failed_runs(
-        self, db: framework.db.base.DBInterface, db_session, last_update_time
-    ):
-        """
-        Send an event on the runs that ended with error state since the last call to the function
-        """
-
-        runs = db.list_runs(
-            db_session,
-            project="*",
-            states=[mlrun.common.runtimes.constants.RunStates.error],
-            last_update_time_from=last_update_time,
-        )
-
-        for run in runs:
-            project = run["metadata"]["project"]
-            run_uid = run["metadata"]["uid"]
-            run_name = run["metadata"]["name"]
-            entity = mlrun.common.schemas.alert.EventEntities(
-                kind=alert_objects.EventEntityKind.JOB,
-                project=project,
-                ids=[run_name],
-            )
-            event_value = {"uid": run_uid, "error": run["status"].get("error", None)}
-            event_data = mlrun.common.schemas.Event(
-                kind=alert_objects.EventKind.FAILED,
-                entity=entity,
-                value_dict=event_value,
-            )
-
-            services.api.crud.Events().process_event(
-                session=db_session,
-                event_data=event_data,
-                event_name=alert_objects.EventKind.FAILED,
-                project=project,
-                validate_event=True,
-            )
 
     async def _abort_stale_runs(self, stale_runs: list[dict]):
         semaphore = asyncio.Semaphore(

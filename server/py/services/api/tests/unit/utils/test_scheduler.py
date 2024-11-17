@@ -185,7 +185,7 @@ async def test_invoke_schedule(
     db: Session,
     client: services.api.tests.unit.conftest.TestClient,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
@@ -246,7 +246,7 @@ async def test_get_schedule_last_run_deleted(
     db: Session,
     client: services.api.tests.unit.conftest.TestClient,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
@@ -294,7 +294,7 @@ async def test_create_schedule_mlrun_function(
     db: Session,
     client: services.api.tests.unit.conftest.TestClient,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     project_name = config.default_project
     create_project(db, project_name)
@@ -372,7 +372,7 @@ async def test_create_schedule_success_cron_trigger_validation(
 async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     name = "schedule-name"
     project_name = config.default_project
@@ -842,7 +842,7 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
 async def test_rescheduling_secrets_storing(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
@@ -887,7 +887,7 @@ async def test_rescheduling_secrets_storing(
 async def test_schedule_crud_secrets_handling(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
@@ -950,7 +950,7 @@ async def test_schedule_crud_secrets_handling(
 async def test_schedule_access_key_generation(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
@@ -1002,7 +1002,7 @@ async def test_schedule_access_key_generation(
 async def test_schedule_access_key_reference_handling(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
@@ -1044,7 +1044,7 @@ async def test_update_schedule(
     db: Session,
     client: services.api.tests.unit.conftest.TestClient,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     labels_1 = {
         "label1": "value1",
@@ -1277,7 +1277,7 @@ async def test_schedule_job_concurrency_limit(
     concurrency_limit: int,
     run_amount: int,
     schedule_kind: mlrun.common.schemas.ScheduleKinds,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     global call_counter
     call_counter = 0
@@ -1346,7 +1346,7 @@ async def test_schedule_job_concurrency_limit(
 async def test_schedule_job_next_run_time(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     """
     This test checks that the next run time is updated after a schedule was skipped due to concurrency limit.
@@ -1706,7 +1706,7 @@ def _assert_schedule_get_and_list_credentials_enrichment(
     )
 
     secret_name = (
-        services.api.tests.unit.conftest.K8sSecretsMock.resolve_auth_secret_name(
+        services.api.tests.unit.conftest.APIK8sSecretsMock.resolve_auth_secret_name(
             expected_username, expected_access_key
         )
     )

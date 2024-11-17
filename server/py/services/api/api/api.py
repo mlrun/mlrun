@@ -15,17 +15,15 @@
 from fastapi import APIRouter, Depends
 
 from framework.api import deps
+from framework.routers import alerts, auth, events, healthz
 from services.api.api.endpoints import (
     alert_template,
-    alerts,
     artifacts,
     artifacts_v2,
-    auth,
     background_tasks,
     client_spec,
     clusterization_spec,
     datastore_profile,
-    events,
     feature_store,
     feature_store_v2,
     files,
@@ -33,7 +31,6 @@ from services.api.api.endpoints import (
     functions,
     functions_v2,
     grafana_proxy,
-    healthz,
     hub,
     internal,
     jobs,

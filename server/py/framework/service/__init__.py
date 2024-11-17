@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 import fastapi
 import fastapi.concurrency
 import fastapi.exception_handlers
+from dependency_injector import containers, providers
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -27,29 +28,47 @@ import mlrun.utils
 import mlrun.utils.version
 from mlrun import mlconf
 
+import framework.api.utils
 import framework.middlewares
 import framework.utils.periodic
+from framework.utils.singletons.db import initialize_db
 
 
 class Service(ABC):
+    service_name = None
+
     def __init__(self):
         # TODO: make the prefixes and service name configurable
-        service_name = "api"
-        self.SERVICE_PREFIX = f"/{service_name}"
+        self.SERVICE_PREFIX = f"/{self.service_name}"
         self.BASE_VERSIONED_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v1"
         self.V2_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v2"
         self.app: fastapi.FastAPI = None
-        self._logger = mlrun.utils.logger.get_child(service_name)
+        self._logger = mlrun.utils.logger.get_child(self.service_name)
+        self._mounted_services: list[Service] = []
 
-    def initialize(self):
+    def initialize(self, mounts: dict):
+        self._logger.info("Initializing service")
         self._initialize_app()
         self._register_routes()
+        self._mount_services(mounts)
         self._add_middlewares()
         self._add_exception_handlers()
+
+    def _mount_services(self, mounts: dict):
+        for path, service in mounts.items():
+            self.app.mount(path, service.app)
+            self._mounted_services.append(service)
 
     @abstractmethod
     async def move_service_to_online(self):
         pass
+
+    async def _move_mounted_services_to_online(self):
+        if not self._mounted_services:
+            return
+
+        tasks = [service.move_service_to_online() for service in self._mounted_services]
+        await asyncio.gather(*tasks)
 
     @abstractmethod
     def _register_routes(self):
@@ -71,40 +90,49 @@ class Service(ABC):
         )
 
     # https://fastapi.tiangolo.com/advanced/events/
-
     @contextlib.asynccontextmanager
     async def lifespan(self, app_: fastapi.FastAPI):
-        await self._setup_service()
+        setup_tasks = [self._setup_service()] + [
+            service._setup_service(mounted=True) for service in self._mounted_services
+        ]
+        await asyncio.gather(*setup_tasks)
 
         # Let the service run
         yield
 
-        await self._teardown_service()
+        teardown_tasks = [self._teardown_service()] + [
+            service._teardown_service(mounted=True)
+            for service in self._mounted_services
+        ]
+        await asyncio.gather(*teardown_tasks)
 
-    async def _setup_service(self):
-        self._logger.info(
-            "On startup event handler called",
-            config=mlconf.dump_yaml(),
-            version=mlrun.utils.version.Version().get(),
-        )
-        loop = asyncio.get_running_loop()
-        loop.set_default_executor(
-            concurrent.futures.ThreadPoolExecutor(
-                max_workers=int(mlconf.httpdb.max_workers)
+    async def _setup_service(self, mounted: bool = False):
+        if not mounted:
+            self._logger.info(
+                "On startup event handler called",
+                config=mlconf.dump_yaml(),
+                version=mlrun.utils.version.Version().get(),
             )
-        )
+            loop = asyncio.get_running_loop()
+            loop.set_default_executor(
+                concurrent.futures.ThreadPoolExecutor(
+                    max_workers=int(mlconf.httpdb.max_workers)
+                )
+            )
 
+            initialize_db()
         await self._custom_setup_service()
 
-        if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online:
+        if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online and not mounted:
             await self.move_service_to_online()
 
     async def _custom_setup_service(self):
         pass
 
-    async def _teardown_service(self):
+    async def _teardown_service(self, mounted: bool = False):
         await self._custom_teardown_service()
-        framework.utils.periodic.cancel_all_periodic_functions()
+        if not mounted:
+            framework.utils.periodic.cancel_all_periodic_functions()
 
     async def _custom_teardown_service(self):
         pass
@@ -171,6 +199,32 @@ class Service(ABC):
             fastapi.HTTPException(status_code=status_code, detail=error_message),
         )
 
+    async def handle_request(
+        self,
+        path,
+        request: fastapi.Request,
+        *args,
+        **kwargs,
+    ):
+        callback = getattr(self, path, None)
+        if path is None:
+            return await self._base_handler(request, *args, **kwargs)
+        return await callback(
+            request,
+            *args,
+            **kwargs,
+        )
+
+    async def _base_handler(
+        self,
+        request: fastapi.Request,
+        *args,
+        **kwargs,
+    ):
+        framework.api.utils.log_and_raise(
+            "Handler not implemented for request", request_url=request.url
+        )
+
     def _initialize_data(self):
         pass
 
@@ -180,15 +234,24 @@ class Service(ABC):
 
 class Daemon(ABC):
     def __init__(self, service_cls: Service.__class__):
-        self._service = service_cls()
+        self._service: Service = service_cls()
 
     def initialize(self):
-        self._service.initialize()
+        self._service.initialize(self.mounts)
 
     @property
-    def app(self):
+    def mounts(self) -> dict[str, Service]:
+        return {}
+
+    @property
+    def app(self) -> fastapi.FastAPI:
         return self._service.app
 
     @property
     def service(self) -> Service:
         return self._service
+
+
+class ServiceContainer(containers.DeclarativeContainer):
+    wiring_config = containers.WiringConfiguration(packages=["framework.routers"])
+    service = providers.Object(None)

@@ -82,7 +82,7 @@ function_build = project.build_function(
 job = function_build.function.run(params=params)
 ```
 If you wish to store the script's logs or output artifacts in a custom location rather than the default artifact_path,
-you can specify your preferred paths using the `artifact_path` and `local_path` parameters in `func.run()`.
+you can specify your preferred paths using the `artifact_path` and `out_path` parameters in `func.run()`.
 
 ### Step 5: Check the Job Outputs
 

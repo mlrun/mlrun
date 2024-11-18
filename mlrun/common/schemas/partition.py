@@ -63,7 +63,7 @@ class PartitionInterval(StrEnum):
         interval = partition_function_to_partitions_interval.get(partition_function)
         if interval and cls.is_valid(interval):
             return cls[interval]
-        return None
+        raise KeyError(f"Partition function: {partition_function} isn't supported")
 
     def get_partition_info(
         self,

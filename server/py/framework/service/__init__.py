@@ -16,6 +16,7 @@ import concurrent.futures
 import contextlib
 import http
 import traceback
+import typing
 from abc import ABC, abstractmethod
 
 import fastapi
@@ -49,7 +50,7 @@ class Service(ABC):
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
 
-    def initialize(self, mounts: dict = None):
+    def initialize(self, mounts: typing.Optional[dict] = None):
         self._logger.info("Initializing service")
         self._initialize_app()
         self._register_routes()
@@ -57,12 +58,14 @@ class Service(ABC):
         self._add_middlewares()
         self._add_exception_handlers()
 
+
     @abstractmethod
     async def move_service_to_online(self):
         pass
 
     @contextlib.asynccontextmanager
     async def lifespan(self, app_: fastapi.FastAPI):
+        # https://fastapi.tiangolo.com/advanced/events/
         setup_tasks = [self._setup_service()] + [
             service._setup_service(mounted=True) for service in self._mounted_services
         ]
@@ -93,7 +96,7 @@ class Service(ABC):
             **kwargs,
         )
 
-    def _mount_services(self, mounts: dict = None):
+    def _mount_services(self, mounts: typing.Optional[dict] = None):
         if not mounts:
             return
 
@@ -113,7 +116,6 @@ class Service(ABC):
     def _register_routes(self):
         pass
 
-    # https://fastapi.tiangolo.com/advanced/events/
     def _initialize_app(self):
         # Initializes fastAPI app - each service register the routers they implement
         # API gateway registers all routers, alerts service registers alert router

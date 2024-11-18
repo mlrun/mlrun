@@ -56,6 +56,7 @@ class Service(ABC):
 
     def _mount_services(self, mounts: dict):
         for path, service in mounts.items():
+            service.initialize()
             self.app.mount(path, service.app)
             self._mounted_services.append(service)
 
@@ -238,6 +239,12 @@ class Daemon(ABC):
 
     def initialize(self):
         self._service.initialize(self.mounts)
+
+    @staticmethod
+    def wire():
+        # Wire the service container to inject the providers to the routers
+        container = framework.service.ServiceContainer()
+        container.wire()
 
     @property
     def mounts(self) -> dict[str, Service]:

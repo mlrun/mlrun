@@ -14,11 +14,12 @@
 
 import enum
 import json
+import re
 import typing
 from datetime import datetime
 from typing import Any, NamedTuple, Optional, TypeVar
 
-from pydantic import BaseModel, Extra, constr, validator
+from pydantic import BaseModel, Extra, validator
 
 # TODO: remove the unused import below after `mlrun.datastore` and `mlrun.utils` usage is removed.
 # At the moment `make lint` fails if this is removed.
@@ -49,12 +50,22 @@ class ModelMonitoringStoreKinds:
 
 
 class ModelEndpointMetadata(BaseModel):
-    project: constr(pattern=PROJECT_PATTERN)
-    uid: constr(pattern=MODEL_ENDPOINT_ID_PATTERN)
+    project: str
+    uid: str
     labels: Optional[dict] = {}
 
     class Config:
         extra = Extra.allow
+
+    @validator("project", "uid")
+    @classmethod
+    def validate(cls, project, uid):
+        """Validate project and uid patterns"""
+        if not re.fullmatch(PROJECT_PATTERN, project):
+            raise ValueError("Project name is invalid")
+        if not re.fullmatch(MODEL_ENDPOINT_ID_PATTERN, uid):
+            raise ValueError("Model endpoint ID is invalid")
+        return project, uid
 
     @classmethod
     def from_flat_dict(

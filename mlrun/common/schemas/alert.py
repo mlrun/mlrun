@@ -30,7 +30,15 @@ class EventEntityKind(StrEnum):
 class EventEntities(pydantic.BaseModel):
     kind: EventEntityKind
     project: str
-    ids: pydantic.conlist(str, min_length=1, max_length=1)
+    ids: list[str]
+
+    @pydantic.validator("ids")
+    @classmethod
+    def validate(cls, ids):
+        """Validate single id in list of ids"""
+        if not len(ids) == 1:
+            raise ValueError("Only one id is allowed")
+        return ids
 
 
 class EventKind(StrEnum):
@@ -153,9 +161,17 @@ class AlertConfig(pydantic.BaseModel):
     trigger: AlertTrigger
     criteria: Optional[AlertCriteria]
     reset_policy: ResetPolicy = ResetPolicy.AUTO
-    notifications: pydantic.conlist(AlertNotification, min_length=1)
+    notifications: pydantic.conlist(AlertNotification)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
+
+    @pydantic.validator("notifications")
+    @classmethod
+    def validate(cls, notifications):
+        """Validate at least one notification"""
+        if not notifications:
+            raise ValueError("At least one notification is required")
+        return notifications
 
     def get_raw_notifications(self) -> list[Notification]:
         return [

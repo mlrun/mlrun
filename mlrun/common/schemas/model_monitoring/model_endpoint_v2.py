@@ -13,9 +13,11 @@
 # limitations under the License.
 #
 import abc
+import re
+import typing
 from typing import Optional
 
-from pydantic import BaseModel, Field, constr
+from pydantic import BaseModel, Field, validator
 
 from ..object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .constants import (
@@ -54,8 +56,16 @@ class ModelEndpointParser(abc.ABC, BaseModel):
 
 
 class ModelEndpointV2Metadata(ObjectMetadata, ModelEndpointParser):
-    project: constr(regex=PROJECT_PATTERN)
+    project: str
     endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP.value
+
+    @validator("project")
+    @classmethod
+    def validate(cls, project):
+        """Validate project pattern"""
+        if not re.fullmatch(PROJECT_PATTERN, project):
+            raise ValueError("Project name is invalid")
+        return project
 
 
 class ModelEndpointV2Spec(ObjectSpec, ModelEndpointParser):
@@ -90,7 +100,9 @@ class ModelEndpointV2Status(ObjectStatus, ModelEndpointParser):
 
 
 class ModelEndpointV2(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
+    kind: typing.Literal[ObjectKind.model_endpoint.value] = Field(
+        ObjectKind.model_endpoint.value
+    )
     metadata: ModelEndpointV2Metadata
     spec: ModelEndpointV2Spec
     status: ModelEndpointV2Status

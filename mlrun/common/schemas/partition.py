@@ -30,6 +30,21 @@ class PartitionInterval(StrEnum):
     def valid_intervals(cls) -> list:
         return list(cls._value2member_map_.keys())
 
+    def as_duration(self) -> timedelta:
+        """
+        Convert the partition interval to a duration-like timedelta.
+
+        Returns:
+            timedelta: A duration representing the partition interval.
+        """
+        if self == PartitionInterval.DAY:
+            return timedelta(days=1)
+        elif self == PartitionInterval.MONTH:
+            # Approximate a month as 30 days
+            return timedelta(days=30)
+        elif self == PartitionInterval.YEARWEEK:
+            return timedelta(weeks=1)
+
     @classmethod
     def from_function(cls, partition_function: str):
         """

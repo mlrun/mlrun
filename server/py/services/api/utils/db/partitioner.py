@@ -46,9 +46,9 @@ class MySQLPartitioner:
             table_name,
         )
 
-        # Ensure partitions for double the retention time.
+        # Ensure partitions for the retention time plus 3*partitioned_interval
         partition_number = partition_interval.get_number_of_partitions(
-            days=2 * retention_days
+            days=retention_days + 3 * partition_interval.as_duration().days
         )
 
         # Create the calculated number of partitions.

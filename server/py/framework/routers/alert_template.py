@@ -56,6 +56,7 @@ async def store_alert_template(
 )
 @inject
 async def get_alert_template(
+    request: Request,
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -65,6 +66,7 @@ async def get_alert_template(
 ) -> mlrun.common.schemas.AlertTemplate:
     return await service.handle_request(
         "get_alert_template",
+        request,
         name,
         auth_info,
         db_session,
@@ -74,6 +76,7 @@ async def get_alert_template(
 @router.get("", response_model=list[mlrun.common.schemas.AlertTemplate])
 @inject
 async def list_alert_templates(
+    request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     service: framework.service.Service = Depends(
@@ -82,6 +85,7 @@ async def list_alert_templates(
 ) -> list[mlrun.common.schemas.AlertTemplate]:
     return await service.handle_request(
         "list_alert_templates",
+        request,
         auth_info,
         db_session,
     )

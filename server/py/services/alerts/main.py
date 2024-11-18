@@ -314,7 +314,7 @@ class Service(framework.service.Service):
                 name=name, request=request, json=data
             )
 
-        self.logger.debug("Storing alert template", name=name)
+        self._logger.debug("Storing alert template", name=name)
 
         return await run_in_threadpool(
             services.alerts.crud.AlertTemplates().store_alert_template,
@@ -325,6 +325,7 @@ class Service(framework.service.Service):
 
     async def get_alert_template(
         self,
+        request: fastapi.Request,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
@@ -341,6 +342,7 @@ class Service(framework.service.Service):
 
     async def list_alert_templates(
         self,
+        request: fastapi.Request,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> list[mlrun.common.schemas.AlertTemplate]:
@@ -374,7 +376,7 @@ class Service(framework.service.Service):
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.delete_alert_template(name=name, request=request)
 
-        self.logger.debug("Deleting alert template", name=name)
+        self._logger.debug("Deleting alert template", name=name)
 
         await run_in_threadpool(
             services.alerts.crud.AlertTemplates().delete_alert_template,

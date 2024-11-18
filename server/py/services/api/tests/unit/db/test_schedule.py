@@ -14,117 +14,115 @@
 #
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy.orm import Session
-
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 
-from framework.db.base import DBInterface
 from framework.db.sqldb.db import SQLDB
 from framework.db.sqldb.models import Schedule
+from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
 
-def test_delete_schedules(db: DBInterface, db_session: Session):
-    names = ["some_name", "some_name2", "some_name3"]
-    labels = {
-        "key": "value",
-    }
-    for name in names:
-        db.store_schedule(
-            db_session,
+class TestSchedules(TestDatabaseBase):
+    def test_delete_schedules(self):
+        names = ["some_name", "some_name2", "some_name3"]
+        labels = {
+            "key": "value",
+        }
+        for name in names:
+            self._db.store_schedule(
+                self._db_session,
+                project="project1",
+                name=name,
+                labels=labels,
+                kind=mlrun.common.schemas.ScheduleKinds.job,
+                cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            )
+            self._db.store_schedule(
+                self._db_session,
+                project="project2",
+                name=name,
+                labels=labels,
+                kind=mlrun.common.schemas.ScheduleKinds.job,
+                cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            )
+
+        schedules = self._db.list_schedules(self._db_session, project="project1")
+        assert len(schedules) == len(names)
+        schedules = self._db.list_schedules(self._db_session, project="project2")
+        assert len(schedules) == len(names)
+
+        assert self._db_session.query(Schedule.Label).count() != 0
+        assert self._db_session.query(Schedule).count() != 0
+
+        self._db.delete_schedules(self._db_session, "*", names=names[:2])
+        schedules = self._db.list_schedules(self._db_session, project="project1")
+        assert len(schedules) == 1
+        schedules = self._db.list_schedules(self._db_session, project="project2")
+        assert len(schedules) == 1
+
+        assert self._db_session.query(Schedule.Label).count() == 2
+        assert self._db_session.query(Schedule).count() == 2
+
+        self._db.store_schedule(
+            self._db_session,
             project="project1",
-            name=name,
+            name="no_delete",
             labels=labels,
             kind=mlrun.common.schemas.ScheduleKinds.job,
             cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
         )
-        db.store_schedule(
-            db_session,
-            project="project2",
-            name=name,
-            labels=labels,
-            kind=mlrun.common.schemas.ScheduleKinds.job,
-            cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
-        )
+        self._db.delete_schedules(self._db_session, "*", names=names[:2])
+        assert self._db_session.query(Schedule.Label).count() == 3
+        assert self._db_session.query(Schedule).count() == 3
 
-    schedules = db.list_schedules(db_session, project="project1")
-    assert len(schedules) == len(names)
-    schedules = db.list_schedules(db_session, project="project2")
-    assert len(schedules) == len(names)
+    def test_calculate_schedules_counters(self):
+        next_minute = datetime.now(timezone.utc) + timedelta(hours=1)
 
-    assert db_session.query(Schedule.Label).count() != 0
-    assert db_session.query(Schedule).count() != 0
-
-    db.delete_schedules(db_session, "*", names=names[:2])
-    schedules = db.list_schedules(db_session, project="project1")
-    assert len(schedules) == 1
-    schedules = db.list_schedules(db_session, project="project2")
-    assert len(schedules) == 1
-
-    assert db_session.query(Schedule.Label).count() == 2
-    assert db_session.query(Schedule).count() == 2
-
-    db.store_schedule(
-        db_session,
-        project="project1",
-        name="no_delete",
-        labels=labels,
-        kind=mlrun.common.schemas.ScheduleKinds.job,
-        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
-    )
-    db.delete_schedules(db_session, "*", names=names[:2])
-    assert db_session.query(Schedule.Label).count() == 3
-    assert db_session.query(Schedule).count() == 3
-
-
-def test_calculate_schedules_counters(db: DBInterface, db_session: Session):
-    next_minute = datetime.now(timezone.utc) + timedelta(hours=1)
-
-    # Store schedule job
-    db.store_schedule(
-        db_session,
-        project="project1",
-        name="job1",
-        labels={
-            mlrun_constants.MLRunInternalLabels.kind: mlrun.runtimes.RuntimeKinds.job
-        },
-        kind=mlrun.common.schemas.ScheduleKinds.job,
-        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
-        next_run_time=next_minute,
-    )
-
-    pipelines_name = ["some_name", "some_name2", "some_name3"]
-    for name in pipelines_name:
-        # Store schedule pipeline
-        db.store_schedule(
-            db_session,
-            project="project2",
-            name=name,
+        # Store schedule job
+        self._db.store_schedule(
+            self._db_session,
+            project="project1",
+            name="job1",
             labels={
-                mlrun_constants.MLRunInternalLabels.kind: mlrun.runtimes.RuntimeKinds.job,
-                mlrun_constants.MLRunInternalLabels.workflow: name,
+                mlrun_constants.MLRunInternalLabels.kind: mlrun.runtimes.RuntimeKinds.job
             },
             kind=mlrun.common.schemas.ScheduleKinds.job,
             cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
             next_run_time=next_minute,
         )
 
-    db.store_schedule(
-        db_session,
-        project="project3",
-        name="no_kind_label",
-        kind=mlrun.common.schemas.ScheduleKinds.job,
-        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
-        next_run_time=next_minute,
-    )
+        pipelines_name = ["some_name", "some_name2", "some_name3"]
+        for name in pipelines_name:
+            # Store schedule pipeline
+            self._db.store_schedule(
+                self._db_session,
+                project="project2",
+                name=name,
+                labels={
+                    mlrun_constants.MLRunInternalLabels.kind: mlrun.runtimes.RuntimeKinds.job,
+                    mlrun_constants.MLRunInternalLabels.workflow: name,
+                },
+                kind=mlrun.common.schemas.ScheduleKinds.job,
+                cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+                next_run_time=next_minute,
+            )
 
-    counters = SQLDB._calculate_schedules_counters(db_session)
-    assert counters == (
-        {
-            "project1": 1,
-            "project2": 3,
-            "project3": 1,
-        },  # total schedule count per project
-        {"project1": 1, "project3": 1},  # pending jobs count per project
-        {"project2": 3},  # pending pipelines count per project
-    )
+        self._db.store_schedule(
+            self._db_session,
+            project="project3",
+            name="no_kind_label",
+            kind=mlrun.common.schemas.ScheduleKinds.job,
+            cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            next_run_time=next_minute,
+        )
+
+        counters = SQLDB._calculate_schedules_counters(self._db_session)
+        assert counters == (
+            {
+                "project1": 1,
+                "project2": 3,
+                "project3": 1,
+            },  # total schedule count per project
+            {"project1": 1, "project3": 1},  # pending jobs count per project
+            {"project2": 3},  # pending pipelines count per project
+        )

@@ -346,13 +346,15 @@ def test_add_producer_uri_to_artifact():
 
     for artifact_counter in range(num_of_artifacts):
         artifact_key = f"name-{artifact_counter}"
-        _insert_artifact(artifact_key, f"{producer_uri}-{artifact_counter}")
+        _insert_artifact(
+            db, db_session, artifact_key, f"{producer_uri}-{artifact_counter}"
+        )
 
     # Create artifact when uri field is not exists in spec.producer
-    _insert_artifact(f"name-{10}", None, with_uri=False)
+    _insert_artifact(db, db_session, f"name-{10}", None, with_uri=False)
 
     # Create artifact with producer_uri is None in spec.producer.uri
-    _insert_artifact(f"name-{11}", None)
+    _insert_artifact(db, db_session, f"name-{11}", None)
 
     # migrate the artifact producer_uri
     services.api.initial_data._add_producer_uri_to_artifact(

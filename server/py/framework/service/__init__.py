@@ -49,7 +49,7 @@ class Service(ABC):
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
 
-    def initialize(self, mounts: dict):
+    def initialize(self, mounts: dict = None):
         self._logger.info("Initializing service")
         self._initialize_app()
         self._register_routes()
@@ -93,8 +93,12 @@ class Service(ABC):
             **kwargs,
         )
 
-    def _mount_services(self, mounts: dict):
+    def _mount_services(self, mounts: dict = None):
+        if not mounts:
+            return
+
         for path, service in mounts.items():
+            service.initialize()
             self.app.mount(path, service.app)
             self._mounted_services.append(service)
 
@@ -243,6 +247,12 @@ class Daemon(ABC):
 
     def initialize(self):
         self._service.initialize(self.mounts)
+
+    @staticmethod
+    def wire():
+        # Wire the service container to inject the providers to the routers
+        container = framework.service.ServiceContainer()
+        container.wire()
 
     @property
     def mounts(self) -> dict[str, Service]:

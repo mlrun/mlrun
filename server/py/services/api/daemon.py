@@ -45,5 +45,7 @@ class APIServiceContainer(containers.DeclarativeContainer):
     service = providers.Object(daemon.service)
 
 
-daemon.initialize()
-app = daemon.app
+def app():
+    daemon.initialize()
+    daemon.wire()
+    return daemon.app

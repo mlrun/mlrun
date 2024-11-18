@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import typing
 from collections import namedtuple
 
 import mlrun.errors
@@ -19,7 +20,11 @@ import mlrun.errors
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 
-def _enrich_and_validate_v3io_mounts(remote="", volume_mounts=None, user=""):
+def _enrich_and_validate_v3io_mounts(
+    remote: str = "",
+    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    user: str = "",
+) -> tuple[list[VolumeMount], str]:
     if remote and not volume_mounts:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "volume_mounts must be specified when remote is given"
@@ -45,5 +50,5 @@ def _enrich_and_validate_v3io_mounts(remote="", volume_mounts=None, user=""):
     return volume_mounts, user
 
 
-def _resolve_mount_user(user=None):
+def _resolve_mount_user(user: typing.Optional[str] = None):
     return user or os.environ.get("V3IO_USERNAME")

@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
-from typing import Optional
+import typing
 
 import semver
 
@@ -22,11 +22,18 @@ from mlrun.config import config as mlconf
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.platforms.iguazio import v3io_to_vol
 from mlrun.utils import logger
-from mlrun_pipelines.common.mounts import _enrich_and_validate_v3io_mounts
 from mlrun_pipelines.imports import kfp
+from mlrun_pipelines.common.mounts import VolumeMount, _enrich_and_validate_v3io_mounts
+
+if typing.TYPE_CHECKING:
+    from mlrun.runtimes import KubeResource
 
 
-def v3io_cred(api="", user="", access_key=""):
+def v3io_cred(
+    api: str = "",
+    user: str = "",
+    access_key: str = "",
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to copy local v3io env vars to container
 
@@ -36,48 +43,42 @@ def v3io_cred(api="", user="", access_key=""):
         train.apply(use_v3io_cred())
     """
 
-    def _use_v3io_cred(container_op: kfp.dsl.ContainerOp):
-        from os import environ
+    def _use_v3io_cred(runtime: "KubeResource"):
+        web_api = api or os.environ.get("V3IO_API") or mlconf.v3io_api
+        _user = user or os.environ.get("V3IO_USERNAME")
+        _access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        v3io_framesd = mlconf.v3io_framesd or os.environ.get("V3IO_FRAMESD")
 
-        from kubernetes import client as k8s_client
-
-        web_api = api or environ.get("V3IO_API") or mlconf.v3io_api
-        _user = user or environ.get("V3IO_USERNAME")
-        _access_key = access_key or environ.get("V3IO_ACCESS_KEY")
-        v3io_framesd = mlconf.v3io_framesd or environ.get("V3IO_FRAMESD")
-
-        return (
-            container_op.container.add_env_variable(
-                k8s_client.V1EnvVar(name="V3IO_API", value=web_api)
-            )
-            .add_env_variable(k8s_client.V1EnvVar(name="V3IO_USERNAME", value=_user))
-            .add_env_variable(
-                k8s_client.V1EnvVar(name="V3IO_ACCESS_KEY", value=_access_key)
-            )
-            .add_env_variable(
-                k8s_client.V1EnvVar(name="V3IO_FRAMESD", value=v3io_framesd)
-            )
+        runtime.spec.env.extend(
+            [
+                {"name": "V3IO_API", "value": web_api},
+                {"name": "V3IO_USERNAME", "value": _user},
+                {"name": "V3IO_ACCESS_KEY", "value": _access_key},
+                {"name": "V3IO_FRAMESD", "value": v3io_framesd},
+            ]
         )
+
+        return runtime
 
     return _use_v3io_cred
 
 
 def mount_v3io(
-    name="v3io",
-    remote="",
-    access_key="",
-    user="",
-    secret=None,
-    volume_mounts=None,
-):
+    name: str = "v3io",
+    remote: str = "",
+    access_key: str = "",
+    user: str = "",
+    secret: typing.Optional[str] = None,
+    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to apply to a Container Op to volume mount a v3io path
 
-    :param name:            the volume name
-    :param remote:          the v3io path to use for the volume. ~/ prefix will be replaced with /users/<username>/
-    :param access_key:      the access key used to auth against v3io. if not given V3IO_ACCESS_KEY env var will be used
-    :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
-    :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
-    :param volume_mounts:   list of VolumeMount. empty volume mounts & remote will default to mount /v3io & /User.
+    :param name: the volume name
+    :param remote: the v3io path to use for the volume (~/ prefix will be replaced with /users/<username>/)
+    :param access_key: the access key used to auth against v3io (default: V3IO_ACCESS_KEY env var)
+    :param user: the username used to auth against v3io (default: V3IO_USERNAME env var)
+    :param secret: k8s secret name for the username and access key
+    :param volume_mounts: list of VolumeMount; if empty, defaults to mounting /v3io and /User
     """
     volume_mounts, user = _enrich_and_validate_v3io_mounts(
         remote=remote,
@@ -85,53 +86,62 @@ def mount_v3io(
         user=user,
     )
 
-    def _attach_volume_mounts_and_creds(container_op: kfp.dsl.ContainerOp):
-        from kubernetes import client as k8s_client
-
+    def _attach_volume_mounts_and_creds(runtime: "KubeResource"):
         vol = v3io_to_vol(name, remote, access_key, user, secret=secret)
-        container_op.add_volume(vol)
+        runtime.spec.with_volumes(vol)
+
         for volume_mount in volume_mounts:
-            container_op.container.add_volume_mount(
-                k8s_client.V1VolumeMount(
-                    mount_path=volume_mount.path,
-                    sub_path=volume_mount.sub_path,
-                    name=name,
-                )
+            runtime.spec.with_volume_mounts(
+                {
+                    "mountPath": volume_mount.path,
+                    "name": name,
+                    "subPath": volume_mount.sub_path,
+                }
             )
 
         if not secret:
-            container_op = v3io_cred(access_key=access_key, user=user)(container_op)
-        return container_op
+            runtime = v3io_cred(access_key=access_key, user=user)(runtime)
+        return runtime
 
     return _attach_volume_mounts_and_creds
 
 
-def mount_spark_conf():
-    def _mount_spark(container_op: kfp.dsl.ContainerOp):
-        from kubernetes import client as k8s_client
+def mount_spark_conf() -> typing.Callable[["KubeResource"], "KubeResource"]:
+    """Modifier function to mount Spark configuration."""
 
-        container_op.container.add_volume_mount(
-            k8s_client.V1VolumeMount(
-                name="spark-master-config", mount_path="/etc/config/spark"
-            )
+    def _mount_spark(runtime: "KubeResource"):
+        runtime.spec.with_volume_mounts(
+            {
+                "mountPath": "/etc/config/spark",
+                "name": "spark-master-config",
+            }
         )
-        return container_op
+        return runtime
 
     return _mount_spark
 
 
-def mount_v3iod(namespace, v3io_config_configmap):
-    def _mount_v3iod(container_op: kfp.dsl.ContainerOp):
-        from kubernetes import client as k8s_client
+def mount_v3iod(
+    namespace: str, v3io_config_configmap: str
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
+    """Modifier function to mount v3iod configuration."""
 
+    def _mount_v3iod(runtime: "KubeResource"):
         def add_vol(name, mount_path, host_path):
-            vol = k8s_client.V1Volume(
-                name=name,
-                host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
+            runtime.spec.with_volumes(
+                {
+                    "name": name,
+                    "hostPath": {
+                        "path": host_path,
+                        "type": "",
+                    },
+                }
             )
-            container_op.add_volume(vol)
-            container_op.container.add_volume_mount(
-                k8s_client.V1VolumeMount(mount_path=mount_path, name=name)
+            runtime.spec.with_volume_mounts(
+                {
+                    "mountPath": mount_path,
+                    "name": name,
+                }
             )
 
         # this is a legacy path for the daemon shared memory
@@ -141,87 +151,94 @@ def mount_v3iod(namespace, v3io_config_configmap):
         igz_version = mlconf.get_parsed_igz_version()
         if igz_version and igz_version >= semver.VersionInfo.parse("3.2.3-b1"):
             host_path = "/var/run/iguazio/dayman-shm/"
-        add_vol(name="shm", mount_path="/dev/shm", host_path=host_path + namespace)
 
+        add_vol(name="shm", mount_path="/dev/shm", host_path=host_path + namespace)
         add_vol(
             name="v3iod-comm",
             mount_path="/var/run/iguazio/dayman",
             host_path="/var/run/iguazio/dayman/" + namespace,
         )
 
-        vol = k8s_client.V1Volume(
-            name="daemon-health", empty_dir=k8s_client.V1EmptyDirVolumeSource()
-        )
-        container_op.add_volume(vol)
-        container_op.container.add_volume_mount(
-            k8s_client.V1VolumeMount(
-                mount_path="/var/run/iguazio/daemon_health", name="daemon-health"
-            )
-        )
-
-        vol = k8s_client.V1Volume(
-            name="v3io-config",
-            config_map=k8s_client.V1ConfigMapVolumeSource(
-                name=v3io_config_configmap, default_mode=420
-            ),
-        )
-        container_op.add_volume(vol)
-        container_op.container.add_volume_mount(
-            k8s_client.V1VolumeMount(mount_path="/etc/config/v3io", name="v3io-config")
+        # Add daemon-health and v3io-config volumes
+        runtime.spec.with_volumes(
+            [
+                {
+                    "name": "daemon-health",
+                    "emptyDir": {},
+                },
+                {
+                    "name": "v3io-config",
+                    "configMap": {
+                        "name": v3io_config_configmap,
+                        "defaultMode": 420,
+                    },
+                },
+            ]
         )
 
-        container_op.container.add_env_variable(
-            k8s_client.V1EnvVar(
-                name="CURRENT_NODE_IP",
-                value_from=k8s_client.V1EnvVarSource(
-                    field_ref=k8s_client.V1ObjectFieldSelector(
-                        api_version="v1", field_path="status.hostIP"
-                    )
-                ),
-            )
-        )
-        container_op.container.add_env_variable(
-            k8s_client.V1EnvVar(
-                name="IGZ_DATA_CONFIG_FILE", value="/igz/java/conf/v3io.conf"
-            )
+        # Add volume mounts
+        runtime.spec.with_volume_mounts(
+            [
+                {
+                    "mountPath": "/var/run/iguazio/daemon_health",
+                    "name": "daemon-health",
+                },
+                {
+                    "mountPath": "/etc/config/v3io",
+                    "name": "v3io-config",
+                },
+            ]
         )
 
-        return container_op
+        # Add environment variables
+        runtime.spec.env.extend(
+            [
+                {
+                    "name": "CURRENT_NODE_IP",
+                    "valueFrom": {
+                        "fieldRef": {
+                            "apiVersion": "v1",
+                            "fieldPath": "status.hostIP",
+                        }
+                    },
+                },
+                {
+                    "name": "IGZ_DATA_CONFIG_FILE",
+                    "value": "/igz/java/conf/v3io.conf",
+                },
+            ]
+        )
+
+        return runtime
 
     return _mount_v3iod
 
 
 def mount_s3(
-    secret_name=None,
-    aws_access_key="",
-    aws_secret_key="",
-    endpoint_url=None,
-    prefix="",
-    aws_region=None,
-    non_anonymous=False,
-):
+    secret_name: typing.Optional[str] = None,
+    aws_access_key: str = "",
+    aws_secret_key: str = "",
+    endpoint_url: typing.Optional[str] = None,
+    prefix: str = "",
+    aws_region: typing.Optional[str] = None,
+    non_anonymous: bool = False,
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to add s3 env vars or secrets to container
 
-    **Warning:**
-    Using this function to configure AWS credentials will expose these credentials in the pod spec of the runtime
-    created. It is recommended to use the `secret_name` parameter, or set the credentials as project-secrets and avoid
-    using this function.
+    :param secret_name: Kubernetes secret name for credentials
+    :param aws_access_key: AWS_ACCESS_KEY_ID value (default: env variable)
+    :param aws_secret_key: AWS_SECRET_ACCESS_KEY value (default: env variable)
+    :param endpoint_url: s3 endpoint address (for non-AWS s3)
+    :param prefix: prefix to add before the env var name (for multiple s3 data stores)
+    :param aws_region: Amazon region
+    :param non_anonymous: use non-anonymous connection even if no credentials are provided
+            (for authenticating externally, such as through IAM instance-roles)
 
-    :param secret_name: kubernetes secret name (storing the access/secret keys)
-    :param aws_access_key: AWS_ACCESS_KEY_ID value. If this parameter is not specified and AWS_ACCESS_KEY_ID env.
-                            variable is defined, the value will be taken from the env. variable
-    :param aws_secret_key: AWS_SECRET_ACCESS_KEY value. If this parameter is not specified and AWS_SECRET_ACCESS_KEY
-                            env. variable is defined, the value will be taken from the env. variable
-    :param endpoint_url: s3 endpoint address (for non AWS s3)
-    :param prefix: string prefix to add before the env var name (for working with multiple s3 data stores)
-    :param aws_region: amazon region
-    :param non_anonymous: force the S3 API to use non-anonymous connection, even if no credentials are provided
-        (for authenticating externally, such as through IAM instance-roles)
     """
 
     if secret_name and (aws_access_key or aws_secret_key):
         raise MLRunInvalidArgumentError(
-            "can use k8s_secret for credentials or specify them (aws_access_key, aws_secret_key) not both"
+            "Can use k8s_secret for credentials or specify them (aws_access_key, aws_secret_key) not both."
         )
 
     if not secret_name and (
@@ -231,72 +248,73 @@ def mount_s3(
         or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
     ):
         logger.warning(
-            "it is recommended to use k8s secret (specify secret_name), "
-            "specifying the aws_access_key/aws_secret_key directly is unsafe"
+            "It is recommended to use k8s secret (specify secret_name), "
+            "specifying aws_access_key/aws_secret_key directly is unsafe."
         )
 
-    def _use_s3_cred(container_op):
+    def _use_s3_cred(runtime: "KubeResource"):
         from os import environ
-
-        from kubernetes import client as k8s_client
 
         _access_key = aws_access_key or environ.get(prefix + "AWS_ACCESS_KEY_ID")
         _secret_key = aws_secret_key or environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
         _endpoint_url = endpoint_url or environ.get(prefix + "S3_ENDPOINT_URL")
 
-        container = container_op.container
         if _endpoint_url:
-            container.add_env_variable(
-                k8s_client.V1EnvVar(name=prefix + "S3_ENDPOINT_URL", value=endpoint_url)
+            runtime.spec.env.append(
+                {"name": prefix + "S3_ENDPOINT_URL", "value": _endpoint_url}
             )
         if aws_region:
-            container.add_env_variable(
-                k8s_client.V1EnvVar(name=prefix + "AWS_REGION", value=aws_region)
+            runtime.spec.env.append(
+                {"name": prefix + "AWS_REGION", "value": aws_region}
             )
         if non_anonymous:
-            container.add_env_variable(
-                k8s_client.V1EnvVar(name=prefix + "S3_NON_ANONYMOUS", value="true")
+            runtime.spec.env.append(
+                {"name": prefix + "S3_NON_ANONYMOUS", "value": "true"}
             )
 
         if secret_name:
-            container.add_env_variable(
-                k8s_client.V1EnvVar(
-                    name=prefix + "AWS_ACCESS_KEY_ID",
-                    value_from=k8s_client.V1EnvVarSource(
-                        secret_key_ref=k8s_client.V1SecretKeySelector(
-                            name=secret_name, key="AWS_ACCESS_KEY_ID"
-                        )
-                    ),
-                )
-            ).add_env_variable(
-                k8s_client.V1EnvVar(
-                    name=prefix + "AWS_SECRET_ACCESS_KEY",
-                    value_from=k8s_client.V1EnvVarSource(
-                        secret_key_ref=k8s_client.V1SecretKeySelector(
-                            name=secret_name, key="AWS_SECRET_ACCESS_KEY"
-                        )
-                    ),
-                )
+            runtime.spec.env.extend(
+                [
+                    {
+                        "name": prefix + "AWS_ACCESS_KEY_ID",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": secret_name,
+                                "key": "AWS_ACCESS_KEY_ID",
+                            }
+                        },
+                    },
+                    {
+                        "name": prefix + "AWS_SECRET_ACCESS_KEY",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "name": secret_name,
+                                "key": "AWS_SECRET_ACCESS_KEY",
+                            }
+                        },
+                    },
+                ]
+            )
+        else:
+            runtime.spec.env.extend(
+                [
+                    {"name": prefix + "AWS_ACCESS_KEY_ID", "value": _access_key},
+                    {"name": prefix + "AWS_SECRET_ACCESS_KEY", "value": _secret_key},
+                ]
             )
 
-        else:
-            return container_op.add_env_variable(
-                k8s_client.V1EnvVar(
-                    name=prefix + "AWS_ACCESS_KEY_ID", value=_access_key
-                )
-            ).add_env_variable(
-                k8s_client.V1EnvVar(
-                    name=prefix + "AWS_SECRET_ACCESS_KEY", value=_secret_key
-                )
-            )
+        return runtime
 
     return _use_s3_cred
 
 
-def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pipeline"):
+def mount_pvc(
+    pvc_name: typing.Optional[str] = None,
+    volume_name: str = "pipeline",
+    volume_mount_path: str = "/mnt/pipeline",
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
-    Modifier function to apply to a Container Op to simplify volume, volume mount addition and
-    enable better reuse of volumes, volume claims across container ops.
+    Modifier function to mount a PVC volume in the container, simplifying volume and volume mount addition.
 
     Usage::
 
@@ -321,23 +339,37 @@ def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pip
             "No PVC name: use the pvc_name parameter or configure the MLRUN_PVC_MOUNT environment variable"
         )
 
-    def _mount_pvc(task):
-        from kubernetes import client as k8s_client
+    def _mount_pvc(runtime: "KubeResource"):
+        local_pvc = {"claimName": pvc_name}
 
-        local_pvc = k8s_client.V1PersistentVolumeClaimVolumeSource(claim_name=pvc_name)
-        return task.add_volume(
-            k8s_client.V1Volume(name=volume_name, persistent_volume_claim=local_pvc)
-        ).add_volume_mount(
-            k8s_client.V1VolumeMount(mount_path=volume_mount_path, name=volume_name)
+        runtime.spec.with_volumes(
+            [
+                {
+                    "name": volume_name,
+                    "persistentVolumeClaim": local_pvc,
+                }
+            ]
         )
+        runtime.spec.with_volume_mounts(
+            {
+                "mountPath": volume_mount_path,
+                "name": volume_name,
+            }
+        )
+
+        return runtime
 
     return _mount_pvc
 
 
-def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
-    """choose the mount based on env variables and params
+def auto_mount(
+    pvc_name: str = "",
+    volume_mount_path: str = "",
+    volume_name: typing.Optional[str] = None,
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
+    """Choose the mount based on env variables and params
 
-    volume will be selected by the following order:
+    Volume will be selected by the following order:
     - k8s PVC volume when both pvc_name and volume_mount_path are set
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
     - k8s PVC volume if it's configured as the auto mount type
@@ -363,86 +395,136 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
     raise ValueError("failed to auto mount, need to set env vars")
 
 
-def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
-    """Modifier function to mount kubernetes secret as files(s)
+def mount_secret(
+    secret_name: str,
+    mount_path: str,
+    volume_name: str = "secret",
+    items: typing.Optional[list[dict]] = None,
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
+    """Modifier function to mount a Kubernetes secret as file(s).
 
-    :param secret_name:  k8s secret name
-    :param mount_path:   path to mount inside the container
-    :param volume_name:  unique volume name
+    :param secret_name: Kubernetes secret name
+    :param mount_path: Path inside the container to mount
+    :param volume_name: Unique volume name
     :param items:        If unspecified, each key-value pair in the Data field
                          of the referenced Secret will be projected into the
                          volume as a file whose name is the key and content is
                          the value.
                          If specified, the listed keys will be projected into
                          the specified paths, and unlisted keys will not be
-                         present.
-    """
+                         present."""
 
-    def _mount_secret(task):
-        from kubernetes import client as k8s_client
+    def _mount_secret(runtime: "KubeResource"):
+        # Define the secret volume source
+        secret_volume_source = {
+            "secretName": secret_name,
+            "items": items,
+        }
 
-        vol = k8s_client.V1SecretVolumeSource(secret_name=secret_name, items=items)
-        return task.add_volume(
-            k8s_client.V1Volume(name=volume_name, secret=vol)
-        ).add_volume_mount(
-            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        # Add the secret volume
+        runtime.spec.add_volumes(
+            {
+                "name": volume_name,
+                "secret": secret_volume_source,
+            }
         )
+
+        # Add the volume mount
+        runtime.spec.add_volume_mounts(
+            {
+                "mountPath": mount_path,
+                "name": volume_name,
+            }
+        )
+
+        return runtime
 
     return _mount_secret
 
 
-def mount_configmap(configmap_name, mount_path, volume_name="configmap", items=None):
-    """Modifier function to mount kubernetes configmap as files(s)
+def mount_configmap(
+    configmap_name: str,
+    mount_path: str,
+    volume_name: str = "configmap",
+    items: typing.Optional[list[dict]] = None,
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
+    """Modifier function to mount a Kubernetes ConfigMap as file(s).
 
-    :param configmap_name:  k8s configmap name
-    :param mount_path:      path to mount inside the container
-    :param volume_name:     unique volume name
+    :param configmap_name: Kubernetes ConfigMap name
+    :param mount_path: Path inside the container to mount
+    :param volume_name: Unique volume name
     :param items:           If unspecified, each key-value pair in the Data field
                             of the referenced Configmap will be projected into the
                             volume as a file whose name is the key and content is
                             the value.
                             If specified, the listed keys will be projected into
                             the specified paths, and unlisted keys will not be
-                            present.
-    """
+                            present."""
 
-    def _mount_configmap(task):
-        from kubernetes import client as k8s_client
+    def _mount_configmap(runtime: "KubeResource"):
+        # Construct the configMap dictionary
+        config_map_dict = {
+            "name": configmap_name,
+        }
+        if items is not None:
+            config_map_dict["items"] = items
 
-        vol = k8s_client.V1ConfigMapVolumeSource(name=configmap_name, items=items)
-        return task.add_volume(
-            k8s_client.V1Volume(name=volume_name, config_map=vol)
-        ).add_volume_mount(
-            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        vol = {
+            "name": volume_name,
+            "configMap": config_map_dict,
+        }
+
+        runtime.spec.with_volumes(vol)
+        runtime.spec.with_volume_mounts(
+            {
+                "mountPath": mount_path,
+                "name": volume_name,
+            }
         )
+
+        return runtime
 
     return _mount_configmap
 
 
-def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
-    """Modifier function to mount kubernetes configmap as files(s)
+def mount_hostpath(
+    host_path: str,
+    mount_path: str,
+    volume_name: str = "hostpath",
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
+    """
+    Modifier function to mount a host path inside a Kubernetes container.
 
-    :param host_path:  host path
-    :param mount_path:   path to mount inside the container
-    :param volume_name:  unique volume name
+    :param host_path: Host path on the node to be mounted.
+    :param mount_path: Path inside the container where the volume will be mounted.
+    :param volume_name: Unique name for the volume.
     """
 
-    def _mount_hostpath(task):
-        from kubernetes import client as k8s_client
-
-        return task.add_volume(
-            k8s_client.V1Volume(
-                name=volume_name,
-                host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
-            )
-        ).add_volume_mount(
-            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+    def _mount_hostpath(runtime: "KubeResource") -> "KubeResource":
+        runtime.spec.with_volumes(
+            {
+                "name": volume_name,
+                "hostPath": {
+                    "path": host_path,
+                    "type": "",
+                },
+            }
         )
+        runtime.spec.with_volume_mounts(
+            {
+                "mountPath": mount_path,
+                "name": volume_name,
+            }
+        )
+
+        return runtime
 
     return _mount_hostpath
 
 
-def set_env_variables(env_vars_dict: Optional[dict[str, str]] = None, **kwargs):
+def set_env_variables(
+    env_vars_dict: typing.Optional[dict[str, str]] = None, **kwargs
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to apply a set of environment variables to a runtime. Variables may be passed
     as either a dictionary of name-value pairs, or as arguments to the function.
@@ -454,21 +536,18 @@ def set_env_variables(env_vars_dict: Optional[dict[str, str]] = None, **kwargs):
         or
         function.apply(set_env_variables(ENV1=value1, ENV2=value2))
 
-    :param env_vars_dict: dictionary of env. variables
-    :param kwargs: environment variables passed as args
+    :param env_vars_dict: dictionary of environment variables
+    :param kwargs: environment variables passed as arguments
     """
 
     env_data = env_vars_dict.copy() if env_vars_dict else {}
     for key, value in kwargs.items():
         env_data[key] = value
 
-    def _set_env_variables(container_op: kfp.dsl.ContainerOp):
-        from kubernetes import client as k8s_client
+    def _set_env_variables(runtime: "KubeResource"):
+        for key, value in env_data.items():
+            runtime.spec.env.append({"name": key, "value": value})
 
-        for _key, _value in env_data.items():
-            container_op.container.add_env_variable(
-                k8s_client.V1EnvVar(name=_key, value=_value)
-            )
-        return container_op
+        return runtime
 
     return _set_env_variables

@@ -17,7 +17,7 @@ import json
 import mlrun
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
 from mlrun_pipelines.common.models import RunStatuses
-from mlrun_pipelines.imports import ContainerOp, kfp
+from mlrun_pipelines.imports import kfp
 from mlrun_pipelines.utils import apply_kfp
 
 
@@ -33,14 +33,7 @@ class KfpAdapterMixin:
         :return: the runtime (self) after the modifications
         """
 
-        # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
-        # we remove the hook to suppress kubeflow op registration and return it after the apply()
-        old_op_handler = kfp.dsl._container_op._register_op_handler
-        kfp.dsl._container_op._register_op_handler = lambda x: self.metadata.name
-        cop = ContainerOp("name", "image")
-        kfp.dsl._container_op._register_op_handler = old_op_handler
-
-        return apply_kfp(modify, cop, self)
+        return apply_kfp(modify, self)
 
 
 class PipelineProviderMixin:

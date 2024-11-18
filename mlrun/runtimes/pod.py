@@ -442,6 +442,26 @@ class KubeResourceSpec(FunctionSpec):
                         resource_value,
                     )
 
+    def add_volumes(self, volumes):
+        """Add volumes to the volumes dictionary."""
+        if isinstance(volumes, dict):
+            set_named_item(self._volumes, volumes)
+        elif isinstance(volumes, Iterable):
+            for volume in volumes:
+                set_named_item(self._volumes, volume)
+        else:
+            set_named_item(self._volumes, volumes)
+
+    def add_volume_mounts(self, volume_mounts):
+        """Add volume mounts to the volume mounts dictionary."""
+        if isinstance(volume_mounts, dict):
+            self._set_volume_mount(volume_mounts)
+        elif isinstance(volume_mounts, Iterable):
+            for volume_mount in volume_mounts:
+                self._set_volume_mount(volume_mount)
+        else:
+            self._set_volume_mount(volume_mounts)
+
     def discard_changes(self):
         """
         Certain pipeline engines might make temporary changes to a function spec to ensure expected behavior.

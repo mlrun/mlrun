@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import http
+import unittest.mock
 
 import fastapi.testclient
 import httpx
@@ -23,6 +24,7 @@ import mlrun
 import mlrun.common.schemas
 from tests.common_fixtures import aioresponses_mock
 
+import framework.utils.auth.verifier
 import services.api.tests.unit.api.utils
 import services.api.utils.singletons.scheduler
 from framework.utils.singletons.db import get_db
@@ -43,6 +45,10 @@ def test_list_schedules(
         "another-project",
         "yet-another-project",
     ]
+
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=project_names)
+    )
 
     for project in project_names:
         resp = client.get(f"projects/{project}/schedules")

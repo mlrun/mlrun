@@ -31,7 +31,7 @@ import services.api.crud
 
 def _generate_pydantic_schema_from_method_signature(
     method: typing.Callable,
-) -> pydantic.v1.main.ModelMetaclass:
+) -> pydantic.v1.BaseModel:
     """
     Generate a Pydantic model based on the signature of a method.
     This is used to save the given parameters to the method in the pagination cache as a serialized Pydantic

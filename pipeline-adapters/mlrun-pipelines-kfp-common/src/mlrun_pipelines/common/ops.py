@@ -581,7 +581,7 @@ def write_kfpmeta(struct):
         metrics = {
             "metrics": [
                 {"name": k, "number_value": v}
-                for k, v in struct.get("metrics").items()
+                for k, v in struct.get("metrics", {}).items()
                 if is_num(v)
             ],
         }

@@ -49,7 +49,9 @@ class MySQLPartitioner:
 
         # Ensure partitions for the retention time plus 3*partitioned_interval
         partition_number = partition_interval.get_number_of_partitions(
-            days=retention_days + mlrun.config.partitions_buffer_multiplier * partition_interval.as_duration().days
+            days=retention_days
+            + mlrun.config.partitions_buffer_multiplier
+            * partition_interval.as_duration().days
         )
 
         # Create the calculated number of partitions.

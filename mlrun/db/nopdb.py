@@ -127,6 +127,16 @@ class NopDB(RunDBInterface):
     ):
         return mlrun.lists.RunList()
 
+    def paginated_list_runs(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        return mlrun.lists.RunList(), None
+
     def del_run(self, uid, project="", iter=0):
         pass
 
@@ -220,14 +230,26 @@ class NopDB(RunDBInterface):
 
     def list_functions(
         self,
-        name=None,
-        project="",
-        tag="",
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since=None,
-        until=None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
     ):
         return []
+
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        return [], None
 
     def tag_objects(
         self,

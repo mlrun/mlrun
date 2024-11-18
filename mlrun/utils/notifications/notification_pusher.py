@@ -29,13 +29,13 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
+import mlrun.utils.notifications.notification as notification_module
+import mlrun.utils.notifications.notification.base as base
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
-
-from .notification import NotificationBase, NotificationTypes
 
 
 class _NotificationPusherBase:
@@ -107,10 +107,14 @@ class NotificationPusher(_NotificationPusherBase):
         self._runs = runs
         self._default_params = default_params or {}
         self._sync_notifications: list[
-            tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
+            tuple[
+                base.NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
+            ]
         ] = []
         self._async_notifications: list[
-            tuple[NotificationBase, mlrun.model.RunObject, mlrun.model.Notification]
+            tuple[
+                base.NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
+            ]
         ] = []
 
         for run in self._runs:
@@ -216,10 +220,10 @@ class NotificationPusher(_NotificationPusherBase):
 
     def _load_notification(
         self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification
-    ) -> NotificationBase:
+    ) -> base.NotificationBase:
         name = notification_object.name
-        notification_type = NotificationTypes(
-            notification_object.kind or NotificationTypes.console
+        notification_type = notification_module.NotificationTypes(
+            notification_object.kind or notification_module.NotificationTypes.console
         )
         params = {}
         params.update(notification_object.secret_params)
@@ -267,7 +271,7 @@ class NotificationPusher(_NotificationPusherBase):
 
     def _push_notification_sync(
         self,
-        notification: NotificationBase,
+        notification: base.NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
     ):
@@ -315,7 +319,7 @@ class NotificationPusher(_NotificationPusherBase):
 
     async def _push_notification_async(
         self,
-        notification: NotificationBase,
+        notification: base.NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
     ):
@@ -525,7 +529,9 @@ class NotificationPusher(_NotificationPusherBase):
 class CustomNotificationPusher(_NotificationPusherBase):
     def __init__(self, notification_types: typing.Optional[list[str]] = None):
         notifications = {
-            notification_type: NotificationTypes(notification_type).get_notification()()
+            notification_type: notification_module.NotificationTypes(
+                notification_type
+            ).get_notification()()
             for notification_type in notification_types
         }
         self._sync_notifications = {
@@ -581,7 +587,9 @@ class CustomNotificationPusher(_NotificationPusherBase):
         elif notification_type in self._sync_notifications:
             self._sync_notifications[notification_type].load_notification(params)
         else:
-            notification = NotificationTypes(notification_type).get_notification()(
+            notification = notification_module.NotificationTypes(
+                notification_type
+            ).get_notification()(
                 params=params,
             )
             if notification.is_async:
@@ -615,7 +623,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
 
         # get notification's inverse dependencies, and only push the notification if
         # none of its inverse dependencies are being sent
-        inverse_dependencies = NotificationTypes(
+        inverse_dependencies = notification_module.NotificationTypes(
             notification_type
         ).inverse_dependencies()
         for inverse_dependency in inverse_dependencies:

@@ -25,11 +25,9 @@ from mlrun.utils import get_in, logger
 
 import framework.constants
 import framework.db.base
+import framework.utils.notifications.notification_pusher as notification_pusher
 import framework.utils.singletons.k8s
 import services.api.crud
-from framework.utils.notifications.notification_pusher import (
-    resolve_notifications_default_params,
-)
 
 
 def delete_notification_params_secret(
@@ -207,7 +205,7 @@ def validate_and_mask_notification_list(
         # validate notification schema
         mlrun.common.schemas.Notification(**notification_object.to_dict())
 
-        default_notification_params = resolve_notifications_default_params()
+        default_notification_params = notification_pusher.RunNotificationPusher.resolve_notifications_default_params()
         notification_object.validate_notification_params(default_notification_params)
 
         notification_objects.append(notification_object)

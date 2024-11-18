@@ -16,6 +16,7 @@ import asyncio
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
+from datetime import datetime, timezone
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -60,6 +61,23 @@ def test_retry_until_successful_fatal_failure():
         mlrun.utils.helpers.retry_until_successful(
             0, 1, logger, True, _raise_fatal_failure
         )
+
+
+@pytest.mark.parametrize(
+    "d,expected",
+    [
+        (
+            "2024-11-11 07:44:56.255000+0000",
+            datetime(2024, 11, 11, 7, 44, 56, 255000, tzinfo=timezone.utc),
+        ),
+        (
+            "2024-11-11 07:44:56+0000",
+            datetime(2024, 11, 11, 7, 44, 56, tzinfo=timezone.utc),
+        ),
+    ],
+)
+def test_enrich_datetime_with_tz_info(d, expected: datetime):
+    assert expected == mlrun.utils.helpers.enrich_datetime_with_tz_info(d)
 
 
 def test_retry_until_successful_sync():

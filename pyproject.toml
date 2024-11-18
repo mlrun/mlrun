@@ -149,4 +149,6 @@ ignore_imports = [
     "server.py.framework.rundb.sqldb -> services",
     "server.py.framework.utils.projects.* -> services",
     "server.py.framework.utils.notifications -> services",
+    "server.py.framework.tests.unit.common_fixtures -> services",
+    "server.py.framework.tests.unit.db.common_fixtures -> services",
 ]

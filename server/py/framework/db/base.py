@@ -958,6 +958,21 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def store_alert_activation(
+        self,
+        session,
+        alert_data: mlrun.common.schemas.AlertConfig,
+        event_data: mlrun.common.schemas.Event,
+        notifications_states: list[mlrun.common.schemas.NotificationState],
+    ):
+        pass
+
+    def list_alert_activations(
+        self, session, project: Optional[str] = None
+    ) -> list[mlrun.common.schemas.AlertActivation]:
+        pass
+
+    @abstractmethod
     def store_run_notifications(
         self,
         session,

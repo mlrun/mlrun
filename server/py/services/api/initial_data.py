@@ -949,7 +949,6 @@ def _migrate_data(
     )
 
     while records:
-        # Apply the field handler and filter out None values
         to_commit = [handle_field_record_func(record) for record in records]
 
         # Commit if there are records to migrate

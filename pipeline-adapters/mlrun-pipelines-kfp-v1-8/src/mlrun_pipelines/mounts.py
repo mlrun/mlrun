@@ -13,16 +13,17 @@
 # limitations under the License.
 #
 import os
+from typing import Optional
 
 import kfp.dsl
 import semver
-from mlrun_pipelines.common.mounts import _enrich_and_validate_v3io_mounts
 
 from mlrun.config import config
 from mlrun.config import config as mlconf
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.platforms.iguazio import v3io_to_vol
 from mlrun.utils import logger
+from mlrun_pipelines.common.mounts import _enrich_and_validate_v3io_mounts
 
 # Disable the warning about reusing components
 kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
@@ -444,7 +445,7 @@ def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
     return _mount_hostpath
 
 
-def set_env_variables(env_vars_dict: dict[str, str] = None, **kwargs):
+def set_env_variables(env_vars_dict: Optional[dict[str, str]] = None, **kwargs):
     """
     Modifier function to apply a set of environment variables to a runtime. Variables may be passed
     as either a dictionary of name-value pairs, or as arguments to the function.

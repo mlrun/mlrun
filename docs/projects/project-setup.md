@@ -201,7 +201,7 @@ project.register_artifacts()
 ```
 
 ### Defining K8s Resource Requirements for Functions
-Add Kubernetes resources by setting requests/limits for a given MLRun function. See [CPU, GPU, and memory limits for user jobs](../runtimes/configuring-job-resources.html#cpu-gpu-and-memory-limits-for-user-jobs) for more info.
+Add Kubernetes resources by setting requests/limits for a given MLRun function. See [CPU, GPU, and memory limits for user jobs](../runtimes/configuring-job-resources.md#cpu-gpu-and-memory--requests-and-limits-for-user-jobs) for more info.
 
 ```python
 gpus = project.get_param("num_gpus_per_replica") or 4

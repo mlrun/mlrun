@@ -13,6 +13,7 @@
 # limitations under the License.
 import abc
 import os
+from typing import Optional
 
 from mlrun.config import config
 from mlrun.runtimes.kubejob import KubejobRuntime
@@ -117,7 +118,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         return {}
 
     def with_tracing(
-        self, log_file_path: str = None, enable_cycle_markers: bool = False
+        self, log_file_path: Optional[str] = None, enable_cycle_markers: bool = False
     ):
         """Add Horovod Timeline activity tracking to the job to analyse
         its performance.
@@ -149,11 +150,11 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     def with_autotune(
         self,
-        log_file_path: str = None,
-        warmup_samples: int = None,
-        steps_per_sample: int = None,
-        bayes_opt_max_samples: int = None,
-        gaussian_process_noise: float = None,
+        log_file_path: Optional[str] = None,
+        warmup_samples: Optional[int] = None,
+        steps_per_sample: Optional[int] = None,
+        bayes_opt_max_samples: Optional[int] = None,
+        gaussian_process_noise: Optional[float] = None,
     ):
         """Adds an Autotuner to help optimize Horovod's Parameters for better performance.
 

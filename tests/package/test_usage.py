@@ -16,7 +16,7 @@ import json
 import os
 import pathlib
 import tempfile
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -279,10 +279,10 @@ class BaseClassPackager(DefaultPackager):
         self,
         data_item: DataItem,
         pickle_module_name: str = "cloudpickle",
-        object_module_name: str = None,
-        python_version: str = None,
-        pickle_module_version: str = None,
-        object_module_version: str = None,
+        object_module_name: Optional[str] = None,
+        python_version: Optional[str] = None,
+        pickle_module_version: Optional[str] = None,
+        object_module_version: Optional[str] = None,
     ) -> Any:
         base_class = super().unpack_object(
             data_item=data_item,
@@ -300,18 +300,20 @@ class BaseClassPackager(DefaultPackager):
         return base_class
 
 
-def func_to_pack_base_class(a: int, b: str = None) -> BaseClass:
+def func_to_pack_base_class(a: int, b: Optional[str] = None) -> BaseClass:
     if b:
         return InheritingClass(a=a, b=b)
     return BaseClass(a=a)
 
 
-def func_to_unpack_base_class(base_class: BaseClass, a: int, b: str = None):
+def func_to_unpack_base_class(base_class: BaseClass, a: int, b: Optional[str] = None):
     assert isinstance(base_class, BaseClass)
     assert base_class.a == a - 1
 
 
-def func_to_unpack_inheriting_class(base_class: InheritingClass, a: int, b: str = None):
+def func_to_unpack_inheriting_class(
+    base_class: InheritingClass, a: int, b: Optional[str] = None
+):
     assert isinstance(base_class, InheritingClass)
     assert base_class.b == b
     assert base_class.a == a - 1

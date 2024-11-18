@@ -21,9 +21,9 @@ from mlrun.config import config
 
 
 def new_pipe_metadata(
-    artifact_path: str = None,
-    cleanup_ttl: int = None,
-    op_transformers: list[typing.Callable] = None,
+    artifact_path: typing.Optional[str] = None,
+    cleanup_ttl: typing.Optional[int] = None,
+    op_transformers: typing.Optional[list[typing.Callable]] = None,
 ):
     def _set_artifact_path(task):
         from kubernetes import client as k8s_client

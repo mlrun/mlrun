@@ -9,5 +9,5 @@ distributed-graph
 graph-example
 ```
 
-See the [MLRun demos](../tutorials/demos.html) for additional use cases and full end-to-end examples, including Fraud Prevention using 
+See the [MLRun demos](../tutorials/demos.md) for additional use cases and full end-to-end examples, including Fraud Prevention using 
 the Iguazio feature store, a mask detection demo, and converting existing ML code to an MLRun project.

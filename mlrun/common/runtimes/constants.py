@@ -15,9 +15,8 @@
 import enum
 import typing
 
-import mlrun_pipelines.common.models
-
 import mlrun.common.constants as mlrun_constants
+import mlrun_pipelines.common.models
 
 
 class PodPhases:

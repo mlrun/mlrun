@@ -13,7 +13,7 @@ The [MLOps Live Slack](https://mlopslive.slack.com) has numerous channels for di
 
 ## Support
 
-The [support team](mlrun@iguazio.com) is just an email away.
+The [support team](mailto:mlrun@iguazio.com) is just an email away.
 
 ## Release states
 

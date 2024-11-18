@@ -54,13 +54,13 @@ class GitNotification(NotificationBase):
     async def push(
         self,
         message: str,
-        severity: typing.Union[
-            mlrun.common.schemas.NotificationSeverity, str
+        severity: typing.Optional[
+            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Union[mlrun.lists.RunList, list] = None,
-        custom_html: str = None,
-        alert: mlrun.common.schemas.AlertConfig = None,
-        event_data: mlrun.common.schemas.Event = None,
+        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+        custom_html: typing.Optional[typing.Optional[str]] = None,
+        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
+        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
         git_repo = self.params.get("repo", None)
         git_issue = self.params.get("issue", None)
@@ -85,11 +85,11 @@ class GitNotification(NotificationBase):
     @staticmethod
     async def _pr_comment(
         message: str,
-        repo: str = None,
-        issue: int = None,
-        merge_request: int = None,
-        token: str = None,
-        server: str = None,
+        repo: typing.Optional[str] = None,
+        issue: typing.Optional[int] = None,
+        merge_request: typing.Optional[int] = None,
+        token: typing.Optional[str] = None,
+        server: typing.Optional[str] = None,
         gitlab: bool = False,
     ) -> str:
         """push comment message to Git system PR/issue

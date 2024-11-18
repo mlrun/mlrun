@@ -14,11 +14,10 @@
 import typing
 import warnings
 
-from mlrun_pipelines.common.ops import build_op
-
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
+from mlrun_pipelines.common.ops import build_op
 
 from ..model import RunObject
 from .pod import KubeResource
@@ -76,7 +75,7 @@ class KubejobRuntime(KubeResource):
         self,
         image="",
         base_image=None,
-        commands: list = None,
+        commands: typing.Optional[list] = None,
         secret=None,
         source=None,
         extra=None,
@@ -148,7 +147,7 @@ class KubejobRuntime(KubeResource):
         skip_deployed: bool = False,
         is_kfp: bool = False,
         mlrun_version_specifier: typing.Optional[bool] = None,
-        builder_env: dict = None,
+        builder_env: typing.Optional[dict] = None,
         show_on_failure: bool = False,
         force_build: bool = False,
     ) -> bool:
@@ -190,7 +189,7 @@ class KubejobRuntime(KubeResource):
         self,
         image=None,
         base_image=None,
-        commands: list = None,
+        commands: typing.Optional[list] = None,
         secret_name="",
         with_mlrun=True,
         skip_deployed=False,

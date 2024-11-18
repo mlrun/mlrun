@@ -48,6 +48,7 @@ MLRUN_RAISE_ON_ERROR ?= true
 MLRUN_SKIP_CLONE ?= false
 MLRUN_RELEASE_NOTES_OUTPUT_FILE ?=
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
+MLRUN_SYSTEM_TEST_MARKERS ?=
 MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL ?=
 MLRUN_GPU_CUDA_VERSION ?= 11.8.0-cudnn8-devel-ubuntu22.04
 
@@ -151,6 +152,25 @@ endif
 .PHONY: update-version-file
 update-version-file: ## Update the version file
 	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
+
+.PHONY: generate-dockerignore
+generate-dockerignore: ## Copies the root .dockerignore and removes the tests pattern from it
+	$(eval TARGET := dockerfiles/${DEST}/Dockerfile.dockerignore)
+	@if [ -f "$(TARGET)" ]; then \
+		temp_file=$$(mktemp) && \
+		sed '/\*\*\/tests/d' .dockerignore > $$temp_file && \
+		if cmp -s $$temp_file "$(TARGET)"; then \
+			echo "File $(TARGET) already exists and content is identical"; \
+			rm $$temp_file; \
+			exit 0; \
+		else \
+			echo "File $(TARGET) exists but content differs, updating..."; \
+			mv $$temp_file "$(TARGET)"; \
+		fi; \
+	else \
+		sed '/\*\*\/tests/d' .dockerignore > "$(TARGET)"; \
+	fi
+
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
@@ -330,7 +350,7 @@ log-collector: update-version-file
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/server/log-collector log-collector
+		make --no-print-directory -C $(shell pwd)/server/go log-collector
 
 .PHONY: push-log-collector
 push-log-collector: log-collector
@@ -339,7 +359,7 @@ push-log-collector: log-collector
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/server/log-collector push-log-collector
+		make --no-print-directory -C $(shell pwd)/server/go push-log-collector
 
 .PHONY: pull-log-collector
 pull-log-collector:
@@ -348,7 +368,7 @@ pull-log-collector:
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/server/log-collector pull-log-collector
+		make --no-print-directory -C $(shell pwd)/server/go pull-log-collector
 
 
 .PHONY: compile-schemas
@@ -356,8 +376,7 @@ compile-schemas: ## Compile schemas over docker
 ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 	@echo "Skipping compile schemas"
 else
-	cd server/log-collector && \
-	  make compile-schemas
+	$(MAKE) -C server/go compile-schemas
 endif
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
@@ -399,6 +418,7 @@ MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG)
 
 .PHONY: build-test
 build-test: compile-schemas update-version-file ## Build test docker image
+	$(MAKE) generate-dockerignore DEST=test
 	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/test/Dockerfile \
@@ -417,6 +437,7 @@ MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN
 
 .PHONY: build-test-system
 build-test-system: compile-schemas update-version-file ## Build system tests docker image
+	$(MAKE) generate-dockerignore DEST=test-system
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -462,10 +483,9 @@ test: clean ## Run mlrun tests
 		--ignore=tests/integration \
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
+		--ignore=server/py/services/api/migrations \
 		--forked \
-		-rf \
-		tests
-
+		-rf
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container
@@ -530,7 +550,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		-m "not enterprise" \
+		-m $(if $(MLRUN_SYSTEM_TEST_MARKERS),"$(MLRUN_SYSTEM_TEST_MARKERS)","not enterprise") \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-package compile-schemas
@@ -539,23 +559,19 @@ test-package: ## Run mlrun package tests
 
 .PHONY: test-go
 test-go-unit: ## Run mlrun go unit tests
-	cd server/log-collector && \
-		make test-unit-local
+	$(MAKE) -C server/go test-unit-local
 
 .PHONY: test-go-dockerized
 test-go-unit-dockerized: ## Run mlrun go unit tests in docker container
-	cd server/log-collector && \
-		make test-unit-dockerized
+	$(MAKE) -C server/go test-unit-dockerized
 
 .PHONY: test-go
 test-go-integration: ## Run mlrun go unit tests
-	cd server/log-collector && \
-		make test-integration-local
+	$(MAKE) -C server/go test-integration-local
 
 .PHONY: test-go-dockerized
 test-go-integration-dockerized: ## Run mlrun go integration tests in docker container
-	cd server/log-collector && \
-		make test-integration-dockerized
+	$(MAKE) -C server/go test-integration-dockerized
 
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
@@ -644,18 +660,20 @@ lint-check: ## Check the code (using ruff)
 
 .PHONY: lint-go
 lint-go:
-	cd server/log-collector && \
-		make lint
+	$(MAKE) -C server/go lint
 
 .PHONY: fmt-go
 fmt-go:
-	cd server/log-collector && \
-		make fmt
+	$(MAKE) -C server/go fmt
 
 .PHONY: vale-docs
 vale-docs: ## Run vale check for docs and sorts ignore.txt file
 	vale docs
 	@sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
+
+.PHONY: linkcheck
+linkcheck:
+	make -C docs/ linkcheck
 
 .PHONY: release
 release: ## Release a version
@@ -708,11 +726,18 @@ endif
 ifndef MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH
 	$(error MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH is undefined)
 endif
+	# Run tests for the base code
 	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
+	cd $(MLRUN_BC_TESTS_BASE_CODE_PATH) && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json && \
+	cd ..
+
+	# Run tests for the head code (feature branch)
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 tests/api/api/test_docs.py::test_save_openapi_json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json
+
+	# Run OpenAPI diff to check compatibility
 	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
 
 

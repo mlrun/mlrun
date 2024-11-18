@@ -48,7 +48,7 @@ class FileStats:
 class DataStore:
     using_bucket = False
 
-    def __init__(self, parent, name, kind, endpoint="", secrets: dict = None):
+    def __init__(self, parent, name, kind, endpoint="", secrets: Optional[dict] = None):
         self._parent = parent
         self.kind = kind
         self.name = name
@@ -500,12 +500,18 @@ class DataItem:
         """DataItem url e.g. /dir/path, s3://bucket/path"""
         return self._url
 
-    def get(self, size=None, offset=0, encoding=None):
+    def get(
+        self,
+        size: Optional[int] = None,
+        offset: int = 0,
+        encoding: Optional[str] = None,
+    ) -> Union[bytes, str]:
         """read all or a byte range and return the content
 
         :param size:     number of bytes to get
         :param offset:   fetch from offset (in bytes)
         :param encoding: encoding (e.g. "utf-8") for converting bytes to str
+        :return:         the bytes/str content
         """
         body = self._store.get(self._path, size=size, offset=offset)
         if encoding and isinstance(body, bytes):
@@ -519,7 +525,7 @@ class DataItem:
         """
         self._store.download(self._path, target_path)
 
-    def put(self, data, append=False):
+    def put(self, data: Union[bytes, str], append: bool = False) -> None:
         """write/upload the data, append is only supported by some datastores
 
         :param data:   data (bytes/str) to write
@@ -687,7 +693,9 @@ def basic_auth_header(user, password):
 
 
 class HttpStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+    def __init__(
+        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
+    ):
         super().__init__(parent, name, schema, endpoint, secrets)
         self._https_auth_token = None
         self._schema = schema

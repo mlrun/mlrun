@@ -21,7 +21,7 @@ on:
     - '[0-9]+.[0-9]+.x'
     - 'feature/**'
     paths:
-      - server/log-collector/**
+      - server/go/**
 
   # Run CI also on push to backport release branches - we sometimes push code there by cherry-picking, meaning it
   # doesn't go through CI (no PR)
@@ -32,7 +32,7 @@ on:
     - master
     - '[0-9]+.[0-9]+.x'
     paths:
-      - server/log-collector/**
+      - server/go/**
 
 env:
   NAMESPACE: mlrun-integ-test
@@ -49,8 +49,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: "server/log-collector/go.mod"
-          cache-dependency-path: "server/log-collector/go.sum"
+          go-version-file: "server/go/services/log-collector/go.mod"
+          cache-dependency-path: "server/go/services/log-collector/go.sum"
           cache: true
       - name: Install protobuf compiler
         run: |

@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 import deepdiff
-import mlrun_pipelines.mounts
 
 import mlrun
 import mlrun.errors
+import mlrun_pipelines.mounts
 
 
 def test_mount_configmap():

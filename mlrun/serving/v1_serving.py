@@ -18,6 +18,7 @@ import socket
 from copy import deepcopy
 from datetime import datetime
 from io import BytesIO
+from typing import Optional
 from urllib.request import urlopen
 
 import nuclio
@@ -33,7 +34,7 @@ serving_handler = "handler"
 def new_v1_model_server(
     name,
     model_class: str,
-    models: dict = None,
+    models: Optional[dict] = None,
     filename="",
     protocol="",
     image="",
@@ -68,7 +69,7 @@ def new_v1_model_server(
 
 
 class MLModelServer:
-    def __init__(self, name: str, model_dir: str = None, model=None):
+    def __init__(self, name: str, model_dir: Optional[str] = None, model=None):
         self.name = name
         self.ready = False
         self.model_dir = model_dir

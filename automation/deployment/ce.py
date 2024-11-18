@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import sys
+from typing import Optional
 
 import click
 from deployer import CommunityEditionDeployer
@@ -180,32 +181,32 @@ def cli():
 @add_options(common_deployment_options)
 def deploy(
     verbose: bool = False,
-    log_file: str = None,
+    log_file: Optional[str] = None,
     namespace: str = "mlrun",
-    remote: str = None,
-    remote_ssh_username: str = None,
-    remote_ssh_password: str = None,
-    mlrun_version: str = None,
-    chart_version: str = None,
-    registry_url: str = None,
-    registry_secret_name: str = None,
-    registry_username: str = None,
-    registry_password: str = None,
-    override_mlrun_api_image: str = None,
-    override_mlrun_log_collector_image: str = None,
-    override_mlrun_ui_image: str = None,
-    override_jupyter_image: str = None,
+    remote: Optional[str] = None,
+    remote_ssh_username: Optional[str] = None,
+    remote_ssh_password: Optional[str] = None,
+    mlrun_version: Optional[str] = None,
+    chart_version: Optional[str] = None,
+    registry_url: Optional[str] = None,
+    registry_secret_name: Optional[str] = None,
+    registry_username: Optional[str] = None,
+    registry_password: Optional[str] = None,
+    override_mlrun_api_image: Optional[str] = None,
+    override_mlrun_log_collector_image: Optional[str] = None,
+    override_mlrun_ui_image: Optional[str] = None,
+    override_jupyter_image: Optional[str] = None,
     disable_pipelines: bool = False,
     force_enable_pipelines: bool = False,
     disable_prometheus_stack: bool = False,
     disable_spark_operator: bool = False,
     disable_log_collector: bool = False,
     skip_registry_validation: bool = False,
-    sqlite: str = None,
+    sqlite: Optional[str] = None,
     devel: bool = False,
     minikube: bool = False,
     upgrade: bool = False,
-    set_: list[str] = None,
+    set_: Optional[list[str]] = None,
 ):
     deployer = CommunityEditionDeployer(
         namespace=namespace,
@@ -267,17 +268,17 @@ def deploy(
 @add_options(common_deployment_options)
 def delete(
     verbose: bool = False,
-    log_file: str = None,
+    log_file: Optional[str] = None,
     namespace: str = "mlrun",
-    remote: str = None,
-    remote_ssh_username: str = None,
-    remote_ssh_password: str = None,
-    registry_secret_name: str = None,
+    remote: Optional[str] = None,
+    remote_ssh_username: Optional[str] = None,
+    remote_ssh_password: Optional[str] = None,
+    registry_secret_name: Optional[str] = None,
     skip_uninstall: bool = False,
     skip_cleanup_registry_secret: bool = False,
     cleanup_volumes: bool = False,
     cleanup_namespace: bool = False,
-    sqlite: str = None,
+    sqlite: Optional[str] = None,
 ):
     deployer = CommunityEditionDeployer(
         namespace=namespace,
@@ -316,14 +317,14 @@ def delete(
 )
 @add_options(common_options)
 def patch_minikube_images(
-    remote: str = None,
-    remote_ssh_username: str = None,
-    remote_ssh_password: str = None,
+    remote: Optional[str] = None,
+    remote_ssh_username: Optional[str] = None,
+    remote_ssh_password: Optional[str] = None,
     verbose: bool = False,
-    log_file: str = None,
-    mlrun_api_image: str = None,
-    mlrun_ui_image: str = None,
-    jupyter_image: str = None,
+    log_file: Optional[str] = None,
+    mlrun_api_image: Optional[str] = None,
+    mlrun_ui_image: Optional[str] = None,
+    jupyter_image: Optional[str] = None,
 ):
     deployer = CommunityEditionDeployer(
         namespace="",

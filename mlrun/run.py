@@ -30,15 +30,15 @@ from typing import Optional, Union
 
 import nuclio
 import yaml
-from mlrun_pipelines.common.models import RunStatuses
-from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
-from mlrun_pipelines.utils import get_client
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
+from mlrun_pipelines.common.models import RunStatuses
+from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun_pipelines.utils import get_client
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -200,7 +200,7 @@ def get_or_create_ctx(
     event=None,
     spec: Optional[dict] = None,
     with_env: bool = True,
-    rundb: str = "",
+    rundb: Union[str, "mlrun.db.RunDBInterface"] = "",
     project: str = "",
     upload_artifacts: bool = False,
     labels: Optional[dict] = None,
@@ -306,7 +306,7 @@ def get_or_create_ctx(
     out = rundb or mlconf.dbpath or environ.get("MLRUN_DBPATH")
     if out:
         autocommit = True
-        logger.info(f"logging run results to: {out}")
+        logger.info(f"Logging run results to: {out}")
 
     newspec["metadata"]["project"] = (
         newspec["metadata"].get("project") or project or mlconf.default_project
@@ -434,7 +434,7 @@ def new_function(
     mode: Optional[str] = None,
     handler: Optional[str] = None,
     source: Optional[str] = None,
-    requirements: Union[str, list[str]] = None,
+    requirements: Optional[Union[str, list[str]]] = None,
     kfp: Optional[bool] = None,
     requirements_file: str = "",
 ):
@@ -909,10 +909,10 @@ def _run_pipeline(
 def wait_for_pipeline_completion(
     run_id,
     timeout=60 * 60,
-    expected_statuses: list[str] = None,
+    expected_statuses: Optional[list[str]] = None,
     namespace=None,
     remote=True,
-    project: str = None,
+    project: Optional[str] = None,
 ):
     """Wait for Pipeline status, timeout in sec
 
@@ -1004,7 +1004,7 @@ def get_pipeline(
     format_: Union[
         str, mlrun.common.formatters.PipelineFormat
     ] = mlrun.common.formatters.PipelineFormat.summary,
-    project: str = None,
+    project: Optional[str] = None,
     remote: bool = True,
 ):
     """Get Pipeline status

@@ -21,16 +21,17 @@ from enum import Enum
 
 import dotenv
 import kubernetes.client as k8s_client
-import mlrun_pipelines.mounts
-from mlrun_pipelines.mixins import KfpAdapterMixin
 
+import mlrun.common.constants
 import mlrun.errors
 import mlrun.utils.regex
+import mlrun_pipelines.mounts
 from mlrun.common.schemas import (
     NodeSelectorOperator,
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
+from mlrun_pipelines.mixins import KfpAdapterMixin
 
 from ..config import config as mlconf
 from ..k8s_utils import (
@@ -309,7 +310,7 @@ class KubeResourceSpec(FunctionSpec):
         return self._termination_grace_period_seconds
 
     def _serialize_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False
     ) -> typing.Any:
         """
         Serialize a field to a dict, list, or primitive type.
@@ -321,7 +322,7 @@ class KubeResourceSpec(FunctionSpec):
         return super()._serialize_field(struct, field_name, strip)
 
     def _enrich_field(
-        self, struct: dict, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False
     ) -> typing.Any:
         k8s_api = k8s_client.ApiClient()
         if strip:
@@ -380,9 +381,9 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_limits(
         self,
         resources_field_name,
-        mem: str = None,
-        cpu: str = None,
-        gpus: int = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        gpus: typing.Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -430,8 +431,8 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_requests(
         self,
         resources_field_name,
-        mem: str = None,
-        cpu: str = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
         patch: bool = False,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
@@ -456,9 +457,9 @@ class KubeResourceSpec(FunctionSpec):
 
     def with_limits(
         self,
-        mem: str = None,
-        cpu: str = None,
-        gpus: int = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        gpus: typing.Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -474,7 +475,12 @@ class KubeResourceSpec(FunctionSpec):
         """
         self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type, patch=patch)
 
-    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+    def with_requests(
+        self,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        patch: bool = False,
+    ):
         """
         Set requested (desired) pod cpu/memory resources
 
@@ -1050,7 +1056,11 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         self.spec.env.append(new_var)
         return self
 
-    def set_envs(self, env_vars: dict = None, file_path: str = None):
+    def set_envs(
+        self,
+        env_vars: typing.Optional[dict] = None,
+        file_path: typing.Optional[str] = None,
+    ):
         """set pod environment var from key/value dict or .env file
 
         :param env_vars:  dict with env key/values
@@ -1074,7 +1084,9 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         return self
 
     def set_image_pull_configuration(
-        self, image_pull_policy: str = None, image_pull_secret_name: str = None
+        self,
+        image_pull_policy: typing.Optional[str] = None,
+        image_pull_secret_name: typing.Optional[str] = None,
     ):
         """
         Configure the image pull parameters for the runtime.
@@ -1123,9 +1135,9 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
     def with_limits(
         self,
-        mem: str = None,
-        cpu: str = None,
-        gpus: int = None,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        gpus: typing.Optional[int] = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -1141,7 +1153,12 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         """
         self.spec.with_limits(mem, cpu, gpus, gpu_type, patch=patch)
 
-    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+    def with_requests(
+        self,
+        mem: typing.Optional[str] = None,
+        cpu: typing.Optional[str] = None,
+        patch: bool = False,
+    ):
         """
         Set requested (desired) pod cpu/memory resources
 
@@ -1412,20 +1429,32 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
     ):
         db = self._get_db()
         offset = 0
+        events_offset = 0
         try:
-            text, _ = db.get_builder_status(self, 0, logs=logs)
+            text, _, deploy_status_text_kind = db.get_builder_status(
+                self,
+                offset=0,
+                logs=logs,
+                events_offset=0,
+            )
         except mlrun.db.RunDBError:
-            raise ValueError("function or build process not found")
+            raise ValueError("Function or build process not found")
 
-        def print_log(text):
-            if text and (
+        def print_log(_text):
+            if _text and (
                 not show_on_failure
                 or self.status.state == mlrun.common.schemas.FunctionState.error
             ):
-                print(text, end="")
+                print(_text, end="")
 
         print_log(text)
-        offset += len(text)
+        if (
+            deploy_status_text_kind
+            == mlrun.common.constants.DeployStatusTextKind.events
+        ):
+            events_offset += len(text)
+        else:
+            offset += len(text)
         if watch:
             while self.status.state in [
                 mlrun.common.schemas.FunctionState.pending,
@@ -1434,14 +1463,30 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 time.sleep(2)
                 if show_on_failure:
                     text = ""
-                    db.get_builder_status(self, 0, logs=False)
+                    db.get_builder_status(self, offset=0, logs=False, events_offset=0)
                     if self.status.state == mlrun.common.schemas.FunctionState.error:
                         # re-read the full log on failure
-                        text, _ = db.get_builder_status(self, offset, logs=logs)
+                        text, _, deploy_status_text_kind = db.get_builder_status(
+                            self,
+                            offset=offset,
+                            logs=logs,
+                            events_offset=events_offset,
+                        )
                 else:
-                    text, _ = db.get_builder_status(self, offset, logs=logs)
+                    text, _, deploy_status_text_kind = db.get_builder_status(
+                        self,
+                        offset=offset,
+                        logs=logs,
+                        events_offset=events_offset,
+                    )
                 print_log(text)
-                offset += len(text)
+                if (
+                    deploy_status_text_kind
+                    == mlrun.common.constants.DeployStatusTextKind.events
+                ):
+                    events_offset += len(text)
+                else:
+                    offset += len(text)
 
         return self.status.state
 

@@ -36,7 +36,7 @@ To embed the online feature service in your model server, just create the featur
 
 You can import ready-made classes and functions from the MLRun [Function Hub](https://www.mlrun.org/hub/) or write your own.
 As example of a scikit-learn based model server:
-<!--- (taken from the [feature store demo](./end-to-end-demo/03-deploy-serving-model.html#define-model-class)) --->
+<!--- (taken from the [feature store demo](./end-to-end-demo/03-deploy-serving-model.ipynb#define-model-class)) --->
 
 ```python
 from cloudpickle import load

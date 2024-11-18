@@ -15,6 +15,7 @@
 import datetime
 import enum
 import typing
+from typing import Optional
 
 import pydantic
 
@@ -44,6 +45,13 @@ class NotificationKind(mlrun.common.types.StrEnum):
 
     slack: str = "slack"
     """**webhook** - The slack webhook to which to send the notification."""
+
+    mail: str = "mail"
+    """
+    **email_addresses** - The target mails\n
+    **subject** - The subject of the mail\n
+    **body** - The body of the mail\n
+    """
 
     webhook: str = "webhook"
     """
@@ -122,3 +130,10 @@ class Notification(pydantic.BaseModel):
 
 class SetNotificationRequest(pydantic.BaseModel):
     notifications: list[Notification] = None
+
+
+class NotificationState(pydantic.BaseModel):
+    kind: str
+    err: Optional[
+        str
+    ]  # empty error means that the notifications were sent successfully

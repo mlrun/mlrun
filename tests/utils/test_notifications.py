@@ -14,11 +14,9 @@
 
 import asyncio
 import builtins
-import copy
-import hashlib
-import json
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
+from typing import Optional
 
 import aiohttp
 import pytest
@@ -26,16 +24,29 @@ import tabulate
 
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
-import server.api.api.utils
-import server.api.constants
-import server.api.crud
+import mlrun.utils.notifications.notification.mail as mail
+from mlrun.utils import logger
 from mlrun.utils.notifications.notification.webhook import WebhookNotification
 
 
 @pytest.mark.parametrize(
-    "notification_kind", mlrun.common.schemas.notification.NotificationKind
+    "notification_kind, params, default_params, expected_params",
+    [
+        (
+            mlrun.common.schemas.notification.NotificationKind.webhook,
+            {"webhook": "some-webhook"},
+            {"webhook": "some-default"},
+            {"webhook": "some-webhook"},
+        ),
+        (
+            mlrun.common.schemas.notification.NotificationKind.webhook,
+            {"webhook": "some-webhook"},
+            {"hello": "world"},
+            {"webhook": "some-webhook", "hello": "world"},
+        ),
+    ],
 )
-def test_load_notification(notification_kind):
+def test_load_notification(notification_kind, params, default_params, expected_params):
     run_uid = "test-run-uid"
     notification_name = "test-notification-name"
     when_state = "completed"
@@ -45,6 +56,7 @@ def test_load_notification(notification_kind):
             "when": when_state,
             "status": "pending",
             "name": notification_name,
+            "params": params,
         }
     )
     run = mlrun.model.RunObject.from_dict(
@@ -55,8 +67,13 @@ def test_load_notification(notification_kind):
         }
     )
 
+    default_params = {
+        notification_kind: default_params,
+    }
     notification_pusher = (
-        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+        mlrun.utils.notifications.notification_pusher.NotificationPusher(
+            [run], default_params
+        )
     )
     notification_pusher._load_notification(run, notification)
     loaded_notifications = (
@@ -64,6 +81,7 @@ def test_load_notification(notification_kind):
         + notification_pusher._async_notifications
     )
     assert len(loaded_notifications) == 1
+    assert loaded_notifications[0][0].params == expected_params
     assert loaded_notifications[0][0].name == notification_name
 
 
@@ -264,7 +282,7 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     ],
 )
 def test_console_notification(monkeypatch, runs, expected, is_table):
-    console_notification = mlrun.utils.notifications.ConsoleNotification()
+    console_notification = mlrun.utils.notifications.console.ConsoleNotification()
     print_result = ""
 
     def set_result(result):
@@ -348,7 +366,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
     ],
 )
 def test_slack_notification(runs, expected):
-    slack_notification = mlrun.utils.notifications.SlackNotification()
+    slack_notification = mlrun.utils.notifications.slack.SlackNotification()
     slack_data = slack_notification._generate_slack_data("test-message", "info", runs)
 
     assert slack_data == expected
@@ -409,7 +427,7 @@ def test_slack_notification(runs, expected):
     ],
 )
 async def test_git_notification(monkeypatch, params, expected_url, expected_headers):
-    git_notification = mlrun.utils.notifications.GitNotification("git", params)
+    git_notification = mlrun.utils.notifications.git.GitNotification("git", params)
     expected_body = "[info] git: test-message"
 
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
@@ -436,7 +454,7 @@ async def test_webhook_notification(monkeypatch, test_method):
     test_message = "test-message"
     test_severity = "info"
     test_runs_info = ["some-run"]
-    webhook_notification = mlrun.utils.notifications.WebhookNotification(
+    webhook_notification = mlrun.utils.notifications.webhook.WebhookNotification(
         "webhook",
         {
             "url": test_url,
@@ -492,93 +510,19 @@ def test_inverse_dependencies(
     mock_console_push = unittest.mock.MagicMock(return_value=Exception())
     mock_ipython_push = unittest.mock.MagicMock(return_value=Exception())
     monkeypatch.setattr(
-        mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push
+        mlrun.utils.notifications.console.ConsoleNotification, "push", mock_console_push
     )
     monkeypatch.setattr(
-        mlrun.utils.notifications.IPythonNotification, "push", mock_ipython_push
+        mlrun.utils.notifications.ipython.IPythonNotification, "push", mock_ipython_push
     )
     monkeypatch.setattr(
-        mlrun.utils.notifications.IPythonNotification, "active", ipython_active
+        mlrun.utils.notifications.ipython.IPythonNotification, "active", ipython_active
     )
 
     custom_notification_pusher.push("test-message", "info", [])
 
     assert mock_console_push.call_count == expected_console_call_amount
     assert mock_ipython_push.call_count == expected_ipython_call_amount
-
-
-def test_notification_params_masking_on_run(monkeypatch):
-    def _store_project_secrets(*args, **kwargs):
-        pass
-
-    monkeypatch.setattr(
-        server.api.crud.Secrets, "store_project_secrets", _store_project_secrets
-    )
-    params = {"sensitive": "sensitive-value"}
-    params_hash = hashlib.sha224(
-        json.dumps(params, sort_keys=True).encode("utf-8")
-    ).hexdigest()
-    run_uid = "test-run-uid"
-    run = {
-        "metadata": {"uid": run_uid, "project": "test-project"},
-        "spec": {"notifications": [{"when": "completed", "secret_params": params}]},
-    }
-    server.api.api.utils.mask_notification_params_on_task(
-        run, server.api.constants.MaskOperations.CONCEAL
-    )
-    assert "sensitive" not in run["spec"]["notifications"][0]["secret_params"]
-    assert "secret" in run["spec"]["notifications"][0]["secret_params"]
-    assert (
-        run["spec"]["notifications"][0]["secret_params"]["secret"]
-        == f"mlrun.notifications.{params_hash}"
-    )
-
-
-def test_notification_params_unmasking_on_run(monkeypatch):
-    secret_value = {"sensitive": "sensitive-value"}
-    run = {
-        "metadata": {"uid": "test-run-uid", "project": "test-project"},
-        "spec": {
-            "notifications": [
-                {
-                    "name": "test-notification",
-                    "when": ["completed"],
-                    "secret_params": {"secret": "secret-name"},
-                },
-            ],
-        },
-    }
-
-    def _get_valid_project_secret(*args, **kwargs):
-        return json.dumps(secret_value)
-
-    def _get_invalid_project_secret(*args, **kwargs):
-        return json.dumps(secret_value)[:5]
-
-    db_mock = unittest.mock.Mock()
-    db_session_mock = unittest.mock.Mock()
-
-    monkeypatch.setattr(
-        server.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
-    )
-
-    unmasked_run = server.api.api.utils.unmask_notification_params_secret_on_task(
-        db_mock, db_session_mock, copy.deepcopy(run)
-    )
-    assert "sensitive" in unmasked_run.spec.notifications[0].secret_params
-    assert "secret" not in unmasked_run.spec.notifications[0].secret_params
-    assert unmasked_run.spec.notifications[0].secret_params == secret_value
-
-    monkeypatch.setattr(
-        server.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
-    )
-    unmasked_run = server.api.api.utils.unmask_notification_params_secret_on_task(
-        db_mock, db_session_mock, copy.deepcopy(run)
-    )
-    assert len(unmasked_run.spec.notifications) == 0
-    db_mock.store_run_notifications.assert_called_once()
-    args, _ = db_mock.store_run_notifications.call_args
-    assert args[1][0].status == mlrun.common.schemas.NotificationStatus.ERROR
 
 
 NOTIFICATION_VALIDATION_PARMETRIZE = [
@@ -1009,7 +953,9 @@ def _mock_async_response(monkeypatch, method, result):
     return requests_mock
 
 
-def _generate_run_result(state: str, error: str = None, results: dict = None):
+def _generate_run_result(
+    state: str, error: Optional[str] = None, results: Optional[dict] = None
+):
     run_example = {
         "status": {
             "notifications": {
@@ -1067,3 +1013,169 @@ def _generate_run_result(state: str, error: str = None, results: dict = None):
         run_example["status"]["error"] = error
         run_example["status"]["state"] = state
     return run_example
+
+
+class TestMailNotification:
+    DEFAULT_PARAMS = {
+        "server_host": "smtp.gmail.com",
+        "server_port": 587,
+        "sender_address": "sender@example.com",
+        "username": "user",
+        "password": "pass",
+        "email_addresses": "a@example.com",
+        "use_tls": True,
+        "validate_certs": True,
+        "start_tls": False,
+    }
+
+    @pytest.mark.parametrize(
+        "params, expectation",
+        [
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "b@example.com"],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                does_not_raise(),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": "a,b",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(ValueError, match="Invalid email address 'a'"),
+            ),
+            (
+                {
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": "a@example.com",
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'server_host' is required for MailNotification",
+                ),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", 1],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Email address '1' must be a string",
+                ),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "aaa"],
+                    "use_tls": True,
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(ValueError, match="Invalid email address 'aaa'"),
+            ),
+            (
+                {
+                    "server_host": "smtp.gmail.com",
+                    "server_port": 587,
+                    "sender_address": "sender@example.com",
+                    "username": "user",
+                    "password": "pass",
+                    "email_addresses": ["a@example.com", "aaa"],
+                    "use_tls": "True",
+                    "validate_certs": True,
+                    "start_tls": False,
+                },
+                pytest.raises(
+                    ValueError,
+                    match="Parameter 'use_tls' must be a boolean for MailNotification",
+                ),
+            ),
+        ],
+    )
+    def test_validate_mail_params(self, params, expectation):
+        with expectation:
+            mail.MailNotification.validate_params(params)
+
+    @pytest.mark.parametrize(
+        ["name", "params", "expected_params"],
+        [
+            (
+                "missing_all_params",
+                {},
+                DEFAULT_PARAMS,
+            ),
+            (
+                "overriding_some_params",
+                {
+                    "server_host": "another@smtp.com",
+                    "server_port": 589,
+                },
+                {
+                    "server_host": "another@smtp.com",
+                    "server_port": 589,
+                },
+            ),
+            (
+                "email_addresses_as_list",
+                {
+                    "email_addresses": ["a@b.com", "b@b.com", "c@c.com"],
+                },
+                {"email_addresses": "a@b.com,b@b.com,c@c.com"},
+            ),
+        ],
+    )
+    def test_enrich_default_params(self, name, params, expected_params):
+        logger.debug(f"Testing {name}")
+        enriched_params = mail.MailNotification.enrich_default_params(
+            params, TestMailNotification.DEFAULT_PARAMS
+        )
+        default_params_copy = TestMailNotification.DEFAULT_PARAMS.copy()
+        default_params_copy.update(expected_params)
+        assert enriched_params == default_params_copy

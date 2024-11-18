@@ -14,7 +14,6 @@
 
 import datetime
 import string
-import time
 import unittest.mock
 from collections.abc import Iterator
 from pathlib import Path
@@ -26,18 +25,7 @@ import pytest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-from mlrun.common.schemas.model_monitoring import (
-    MetricData,
-    ModelEndpointMonitoringMetric,
-    ModelEndpointMonitoringMetricType,
-    ProjectSecretKeys,
-    ResultData,
-    WriterEvent,
-    WriterEventKind,
-)
-from mlrun.model_monitoring.db.stores.sqldb import models
 from mlrun.model_monitoring.db.stores.sqldb.sql_store import SQLStoreBase
-from mlrun.model_monitoring.writer import _AppResultEvent
 
 
 class TestSQLStore:
@@ -73,65 +61,6 @@ class TestSQLStore:
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(state=state),
         )
-
-    @staticmethod
-    @pytest.fixture
-    def event(
-        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ) -> _AppResultEvent:
-        return _AppResultEvent(
-            {
-                WriterEvent.ENDPOINT_ID: _mock_random_endpoint.metadata.uid,
-                WriterEvent.START_INFER_TIME: "2023-09-19 14:26:06.501084",
-                WriterEvent.END_INFER_TIME: "2023-09-19 16:26:06.501084",
-                WriterEvent.APPLICATION_NAME: "dummy-app",
-                ResultData.RESULT_NAME: "data-drift-0",
-                ResultData.RESULT_KIND: 0,
-                ResultData.RESULT_VALUE: 0.32,
-                ResultData.RESULT_STATUS: 0,
-                ResultData.RESULT_EXTRA_DATA: "",
-            }
-        )
-
-    @staticmethod
-    @pytest.fixture
-    def event_v2(
-        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ) -> _AppResultEvent:
-        return _AppResultEvent(
-            {
-                WriterEvent.ENDPOINT_ID: _mock_random_endpoint.metadata.uid,
-                WriterEvent.START_INFER_TIME: "2023-09-20 14:26:06.501084",
-                WriterEvent.END_INFER_TIME: "2023-09-20 16:26:06.501084",
-                WriterEvent.APPLICATION_NAME: "dummy-app",
-                ResultData.RESULT_NAME: "data-drift-0",
-                ResultData.RESULT_KIND: 1,
-                ResultData.RESULT_VALUE: 5.15,
-                ResultData.RESULT_STATUS: 1,
-                ResultData.RESULT_EXTRA_DATA: "",
-            }
-        )
-
-    @staticmethod
-    @pytest.fixture
-    def metric_event(
-        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ) -> _AppResultEvent:
-        return _AppResultEvent(
-            {
-                WriterEvent.ENDPOINT_ID: _mock_random_endpoint.metadata.uid,
-                WriterEvent.START_INFER_TIME: "2023-09-22 14:26:06.501084",
-                WriterEvent.END_INFER_TIME: "2023-09-22 16:26:06.501084",
-                WriterEvent.APPLICATION_NAME: "smart-app",
-                MetricData.METRIC_NAME: "met-metric",
-                MetricData.METRIC_VALUE: 0.4,
-            }
-        )
-
-    @staticmethod
-    @pytest.fixture(autouse=True)
-    def init_sql_tables(new_sql_store: SQLStoreBase) -> None:
-        new_sql_store.create_tables()
 
     @classmethod
     @pytest.fixture
@@ -217,185 +146,17 @@ class TestSQLStore:
         assert endpoint_dict["model"] == "test_model"
         assert endpoint_dict["error_count"] == 2
 
-    @classmethod
-    def test_sql_write_application_event(
-        cls,
-        event: _AppResultEvent,
-        event_v2: _AppResultEvent,
-        new_sql_store: SQLStoreBase,
-        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ):
-        # Generate mock model endpoint
-        new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
-
-        # Write a dummy application result event
-        new_sql_store.write_application_event(event=event)
-
-        cls.assert_application_record(event=event, new_sql_store=new_sql_store)
-
-        # Write a 2nd application result event - we expect it to overwrite the existing record
-        new_sql_store.write_application_event(event=event_v2)
-
-        cls.assert_application_record(event=event_v2, new_sql_store=new_sql_store)
-
-    @staticmethod
-    def assert_application_record(event: _AppResultEvent, new_sql_store: SQLStoreBase):
-        criteria = [
-            new_sql_store.application_results_table.endpoint_id
-            == event[WriterEvent.ENDPOINT_ID],
-            new_sql_store.application_results_table.application_name
-            == event[WriterEvent.APPLICATION_NAME],
-        ]
-
-        application_record = new_sql_store._get(
-            table=new_sql_store.application_results_table, criteria=criteria
-        )
-
-        assert application_record.endpoint_id == event[WriterEvent.ENDPOINT_ID]
-        assert (
-            application_record.application_name == event[WriterEvent.APPLICATION_NAME]
-        )
-
-        assert application_record.result_value == event[ResultData.RESULT_VALUE]
-
-        assert application_record.uid == new_sql_store._generate_application_result_uid(
-            event=event
-        )
-
-    @staticmethod
-    def test_sql_last_analyzed_result(
-        event: _AppResultEvent,
-        new_sql_store: SQLStoreBase,
-        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ):
-        # Write mock model endpoint to DB
-        new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
-
-        # Try to get last analyzed value, we expect it to be empty
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            new_sql_store.get_last_analyzed(
-                endpoint_id=_mock_random_endpoint.metadata.uid,
-                application_name=event[WriterEvent.APPLICATION_NAME],
-            )
-
-        # Let's ingest a dummy epoch time record and validate it has been stored as expected
-        epoch_time = int(time.time())
-        new_sql_store.update_last_analyzed(
-            endpoint_id=_mock_random_endpoint.metadata.uid,
-            application_name=event[WriterEvent.APPLICATION_NAME],
-            last_analyzed=epoch_time,
-        )
-
-        last_analyzed = new_sql_store.get_last_analyzed(
-            endpoint_id=_mock_random_endpoint.metadata.uid,
-            application_name=event[WriterEvent.APPLICATION_NAME],
-        )
-
-        assert last_analyzed == epoch_time
-
-    @classmethod
-    def test_get_metrics(
-        cls,
-        new_sql_store: SQLStoreBase,
-        metric_event: _AppResultEvent,
-        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ) -> None:
-        def get_metrics() -> list[ModelEndpointMonitoringMetric]:
-            return new_sql_store.get_model_endpoint_metrics(
-                endpoint_id=cls._MODEL_ENDPOINT_ID,
-                type=ModelEndpointMonitoringMetricType.METRIC,
-            )
-
-        new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
-        new_sql_store.write_application_event(
-            event=metric_event, kind=WriterEventKind.METRIC
-        )
-        metrics = get_metrics()
-        assert len(metrics) == 1, "The metrics number is wrong"
-        assert (
-            metrics[0].full_name == f"{cls._TEST_PROJECT}.smart-app.metric.met-metric"
-        ), "The metric FQN is different than expected"
-        new_sql_store._delete_application_metrics(
-            endpoint_id=cls._MODEL_ENDPOINT_ID, application_name="smart-app"
-        )
-        assert get_metrics() == [], "Metric remained after deletion"
-
-
-class TestMonitoringSchedules:
-    @staticmethod
-    @pytest.fixture
-    def in_mem_connection() -> str:
-        return "sqlite://"
-
-    @staticmethod
-    @pytest.fixture
-    def sqlite_store(
-        in_mem_connection: str, monkeypatch: pytest.MonkeyPatch
-    ) -> SQLStoreBase:
-        with monkeypatch.context() as mp_ctx:
-            mp_ctx.setenv(
-                ProjectSecretKeys.ENDPOINT_STORE_CONNECTION, in_mem_connection
-            )
-            store = mlrun.model_monitoring.get_store_object(project="tmp_proj")
-        store._create_tables_if_not_exist()
-        return store
-
-    @staticmethod
-    def test_unique_last_analyzed_per_app(sqlite_store: SQLStoreBase) -> None:
-        endpoint_id = "ep-abc123"
-        app1_name = "app-A"
-        app1_last_analyzed = 1716720842
-        app2_name = "app-B"
-
-        sqlite_store.update_last_analyzed(
-            endpoint_id=endpoint_id,
-            application_name=app1_name,
-            last_analyzed=app1_last_analyzed,
-        )
-
-        assert (
-            sqlite_store.get_last_analyzed(
-                endpoint_id=endpoint_id, application_name=app1_name
-            )
-            == app1_last_analyzed
-        )
-
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            sqlite_store.get_last_analyzed(
-                endpoint_id=endpoint_id, application_name=app2_name
-            )
-
 
 @pytest.mark.parametrize(
-    ("connection_string", "expected_table"),
-    [
-        (None, models.SQLiteApplicationResultTable),
-        ("sqlite://", models.SQLiteApplicationResultTable),
-        (
-            "mysql+pymysql://<username>:<password>@<host>/<dbname>",
-            models.MySQLApplicationResultTable,
-        ),
-    ],
-)
-def test_get_app_metrics_table(
-    connection_string: Optional[str], expected_table: type
-) -> None:
-    assert (
-        models._get_application_result_table(connection_string=connection_string)
-        == expected_table
-    ), "The metrics table is different than expected"
-
-
-@pytest.mark.parametrize(
-    "time",
+    "time_var",
     [
         datetime.datetime.now(tz=ZoneInfo("Asia/Jerusalem")),
         "2020-05-22T08:59:54.279435+00:00",
     ],
 )
-def test_convert_to_datetime(time: Union[str, datetime.datetime]) -> None:
+def test_convert_to_datetime(time_var: Union[str, datetime.datetime]) -> None:
     time_key = "time"
-    event = {time_key: time}
+    event = {time_key: time_var}
     SQLStoreBase._convert_to_datetime(event=event, key=time_key)
     new_time = event[time_key]
     assert isinstance(new_time, datetime.datetime)

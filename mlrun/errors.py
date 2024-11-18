@@ -86,7 +86,7 @@ def raise_for_status(
         requests.Response,
         aiohttp.ClientResponse,
     ],
-    message: str = None,
+    message: typing.Optional[str] = None,
 ):
     """
     Raise a specific MLRunSDK error depending on the given response status code.
@@ -107,7 +107,7 @@ def raise_for_status(
             raise MLRunHTTPError(error_message, response=response) from exc
 
 
-def err_for_status_code(status_code: int, message: str = None):
+def err_for_status_code(status_code: int, message: typing.Optional[str] = None):
     """
     Return a specific MLRunSDK error depending on the given response status code.
     If no specific error exists, returns an MLRunHTTPError.
@@ -140,7 +140,13 @@ def err_to_str(err):
         error_strings.append(err_msg)
         err = err.__cause__
 
-    return ", caused by: ".join(error_strings)
+    err_msg = ", caused by: ".join(error_strings)
+
+    # in case the error string is longer than 32k, we truncate it
+    # the truncation takes the first 16k, then the last 16k characters
+    if len(err_msg) > 32_000:
+        err_msg = err_msg[:16_000] + "...truncated..." + err_msg[-16_000:]
+    return err_msg
 
 
 # Specific Errors

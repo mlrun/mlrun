@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-
 __all__ = [
     "DataItem",
     "get_store_resource",
@@ -131,9 +129,9 @@ class _DummyStream:
     def __init__(self, event_list=None, **kwargs):
         self.event_list = event_list or []
 
-    def push(self, data):
+    def push(self, data, **kwargs):
         if not isinstance(data, list):
             data = [data]
         for item in data:
-            logger.info(f"dummy stream got event: {item}")
+            logger.info(f"dummy stream got event: {item}, kwargs={kwargs}")
             self.event_list.append(item)

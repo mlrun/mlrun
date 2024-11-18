@@ -179,7 +179,7 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
+          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
 
@@ -188,7 +188,7 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
+          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
 
@@ -242,7 +242,6 @@ jobs:
           --mlrun-ui-version "${{ steps.computed_params.outputs.mlrun_ui_version }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}"
-          --kubeconfig-content "${{ secrets.LATEST_SYSTEM_TEST_KUBECONFIG }}"
 
     - name: Prepare System Test env.yml and MLRun installation from current branch
       timeout-minutes: 5
@@ -256,7 +255,8 @@ jobs:
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          --save-to-path "$GITHUB_WORKSPACE/env.yml"
+          --save-to-path "$GITHUB_WORKSPACE/env.yml" \
+          --kubeconfig-content "${{ secrets.LATEST_SYSTEM_TEST_KUBECONFIG }}"
 
     - name: Encrypt file
       id: encrypt_file
@@ -308,6 +308,7 @@ jobs:
         - datastore
         - logs
         - feature_store
+        - alerts
     steps:
     - name: Install Dependencies
       run: |

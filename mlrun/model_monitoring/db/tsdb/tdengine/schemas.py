@@ -26,7 +26,7 @@ _MODEL_MONITORING_DATABASE = "mlrun_model_monitoring"
 
 
 class _TDEngineColumnType:
-    def __init__(self, data_type: str, length: int = None):
+    def __init__(self, data_type: str, length: Optional[int] = None):
         self.data_type = data_type
         self.length = length
 
@@ -46,7 +46,7 @@ class _TDEngineColumn(mlrun.common.types.StrEnum):
     INT = _TDEngineColumnType("INT")
     BINARY_40 = _TDEngineColumnType("BINARY", 40)
     BINARY_64 = _TDEngineColumnType("BINARY", 64)
-    BINARY_10000 = _TDEngineColumnType("BINARY", 10000)
+    BINARY_1000 = _TDEngineColumnType("BINARY", 1000)
 
 
 def values_to_column(values, column_type):
@@ -61,7 +61,7 @@ def values_to_column(values, column_type):
         return taosws.binary_to_column(values)
     if column_type == _TDEngineColumn.BINARY_64:
         return taosws.binary_to_column(values)
-    if column_type == _TDEngineColumn.BINARY_10000:
+    if column_type == _TDEngineColumn.BINARY_1000:
         return taosws.binary_to_column(values)
 
     raise mlrun.errors.MLRunInvalidArgumentError(
@@ -159,14 +159,14 @@ class TDEngineSchema:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"values must contain at least one tag: {self.tags.keys()}"
             )
-        return f"SELECT tbname FROM {self.database}.{self.super_table} WHERE {values};"
+        return f"SELECT DISTINCT tbname FROM {self.database}.{self.super_table} WHERE {values};"
 
     @staticmethod
     def _get_records_query(
         table: str,
         start: datetime.datetime,
         end: datetime.datetime,
-        columns_to_filter: list[str] = None,
+        columns_to_filter: Optional[list[str]] = None,
         filter_query: Optional[str] = None,
         interval: Optional[str] = None,
         limit: int = 0,
@@ -174,6 +174,10 @@ class TDEngineSchema:
         sliding_window_step: Optional[str] = None,
         timestamp_column: str = "time",
         database: str = _MODEL_MONITORING_DATABASE,
+        group_by: Optional[Union[list[str], str]] = None,
+        preform_agg_funcs_columns: Optional[list[str]] = None,
+        order_by: Optional[str] = None,
+        desc: Optional[bool] = None,
     ) -> str:
         if agg_funcs and not columns_to_filter:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -190,15 +194,37 @@ class TDEngineSchema:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`interval` must be provided when using sliding window"
             )
+        if group_by and not agg_funcs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "aggregate functions must be provided when using group by"
+            )
+        if desc and not order_by:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`order_by` must be provided when using descending"
+            )
 
         with StringIO() as query:
             query.write("SELECT ")
             if interval:
                 query.write("_wstart, _wend, ")
             if agg_funcs:
+                preform_agg_funcs_columns = (
+                    columns_to_filter
+                    if preform_agg_funcs_columns is None
+                    else preform_agg_funcs_columns
+                )
                 query.write(
                     ", ".join(
-                        [f"{a}({col})" for a in agg_funcs for col in columns_to_filter]
+                        [
+                            f"{a}({col})"
+                            if col.upper()
+                            in map(
+                                str.upper, preform_agg_funcs_columns
+                            )  # Case-insensitive check
+                            else f"{col}"
+                            for a in agg_funcs
+                            for col in columns_to_filter
+                        ]
                     )
                 )
             elif columns_to_filter:
@@ -215,6 +241,13 @@ class TDEngineSchema:
                     query.write(f"{timestamp_column} >= '{start}' AND ")
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
+            if group_by:
+                if isinstance(group_by, list):
+                    group_by = ", ".join(group_by)
+                query.write(f" GROUP BY {group_by}")
+            if order_by:
+                desc = " DESC" if desc else ""
+                query.write(f" ORDER BY {order_by}{desc}")
             if interval:
                 query.write(f" INTERVAL({interval})")
             if sliding_window_step:
@@ -234,6 +267,7 @@ class AppResultTable(TDEngineSchema):
             mm_schemas.WriterEvent.START_INFER_TIME: _TDEngineColumn.TIMESTAMP,
             mm_schemas.ResultData.RESULT_VALUE: _TDEngineColumn.FLOAT,
             mm_schemas.ResultData.RESULT_STATUS: _TDEngineColumn.INT,
+            mm_schemas.ResultData.RESULT_EXTRA_DATA: _TDEngineColumn.BINARY_1000,
         }
         tags = {
             mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
@@ -270,10 +304,26 @@ class Predictions(TDEngineSchema):
         columns = {
             mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,
             mm_schemas.EventFieldType.LATENCY: _TDEngineColumn.FLOAT,
-            mm_schemas.EventKeyMetrics.CUSTOM_METRICS: _TDEngineColumn.BINARY_10000,
+            mm_schemas.EventKeyMetrics.CUSTOM_METRICS: _TDEngineColumn.BINARY_1000,
         }
         tags = {
             mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
             mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
+        }
+        super().__init__(super_table, columns, tags, database)
+
+
+@dataclass
+class Errors(TDEngineSchema):
+    def __init__(self, database: Optional[str] = None):
+        super_table = mm_schemas.TDEngineSuperTables.ERRORS
+        columns = {
+            mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,
+            mm_schemas.EventFieldType.MODEL_ERROR: _TDEngineColumn.BINARY_1000,
+        }
+        tags = {
+            mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
+            mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
+            mm_schemas.EventFieldType.ERROR_TYPE: _TDEngineColumn.BINARY_64,
         }
         super().__init__(super_table, columns, tags, database)

@@ -12,8 +12,13 @@ extend-select = [
     "UP",  # pyupgrade
     "CPY", # flake8-copyright
     "B006", # mutable default arguments
+    "RUF013",  # forbid implicit `Optional` type hints
 ]
 explicit-preview-rules = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["mlrun", "mlrun_pipelines"]
+known-local-folder = ["services", "framework"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
@@ -31,9 +36,12 @@ docstring-code-format = true
 
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
+pythonpath = "./server/py" # This allows running server side tests from the project root directory
 python_files = [
     "tests/*/test_*.py",
     "tests/test_*.py",
+    "server/py/*/tests/unit/test_*.py",
+    "server/py/*/tests/unit/*/test_*.py",
 ]
 timeout = 1800  # 30 minutes per test
 log_cli = true
@@ -43,7 +51,9 @@ asyncio_mode = "auto"
 [tool.importlinter]
 root_packages = [
     "mlrun",
-    "server",
+    "tests",
+    "server.py.services",
+    "server.py.framework",
 ]
 include_external_packages = true
 
@@ -54,7 +64,6 @@ source_modules = [
     "mlrun.common",
 ]
 forbidden_modules = [
-    "mlrun.api",
     "mlrun.artifacts",
     "mlrun.data_types",
     "mlrun.datastore",
@@ -89,7 +98,10 @@ name = "MLRun should not directly import kfp [use mlrun_pipelines instead]"
 type = "forbidden"
 source_modules = [
     "mlrun",
-    "server.api",
+    "services",
+    "framework",
+    "server.py.services",
+    "server.py.framework",
 ]
 forbidden_modules = [
     "kfp",
@@ -99,40 +111,44 @@ forbidden_modules = [
 name = "MLRun server may import mlrun but not the way around"
 type = "layers"
 layers = [
-    "server",
+    "server.py.services",
+    "services",
+    "framework",
     "mlrun",
 ]
 
 [[tool.importlinter.contracts]]
-name = "MLRun should not import mlrun.api"
+name = "MLRun tests shouldn't import server code"
 type = "forbidden"
 source_modules = [
-    "server.api",
-    "mlrun.common",
-    "mlrun.artifacts",
-    "mlrun.data_types",
-    "mlrun.datastore",
-    "mlrun.db",
-    "mlrun.feature_store",
-    "mlrun.frameworks",
-    "mlrun.launcher",
-    "mlrun.model_monitoring",
-    "mlrun.package",
-    "mlrun.platforms",
-    "mlrun.projects",
-    "mlrun.runtimes",
-    "mlrun.serving",
-    "mlrun.track",
-    "mlrun.execution",
-    "mlrun.features",
-    "mlrun.k8s_utils",
-    "mlrun.lists",
-    "mlrun.model",
-    "mlrun.render",
-    "mlrun.run",
-    "mlrun.secrets",
+    "tests",
 ]
-allow_indirect_imports=false
 forbidden_modules = [
-    "mlrun.api",
+    "services",
+    "framework",
+    "server.py.services",
+    "server.py.framework",
+]
+# Ignore integration tests until we have service specific integration tests infrastructure
+ignore_imports = [
+    "tests.integration.sdk_api.alerts.test_alerts -> framework",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun common server code should not import specific services"
+type = "forbidden"
+source_modules = [
+    "server.py.framework",
+]
+forbidden_modules = [
+    "services",
+]
+# TODO: Remove when crud moves to framework
+ignore_imports = [
+    "server.py.framework.api.utils -> services",
+    "server.py.framework.rundb.sqldb -> services",
+    "server.py.framework.utils.projects.* -> services",
+    "server.py.framework.utils.notifications -> services",
+    "server.py.framework.tests.unit.common_fixtures -> services",
+    "server.py.framework.tests.unit.db.common_fixtures -> services",
 ]

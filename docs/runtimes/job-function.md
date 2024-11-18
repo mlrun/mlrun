@@ -1,7 +1,7 @@
 (job-function)=
 # Function of type `job`
 
-You can deploy a model using a {py:meth}`~mlrun.runtimes.KubejobRuntime <job>` type function, which runs the code in a Kubernetes Pod. 
+You can deploy a model using a {py:meth}`~mlrun.runtimes.KubejobRuntime` type function, which runs the code in a Kubernetes Pod.
 
 You can create (register) a `job` function with basic attributes such as code, requirements, image, etc. using the 
 {py:meth}`~mlrun.projects.MlrunProject.set_function` method.
@@ -50,7 +50,7 @@ project.run_function("train")
 ```
 
 **See also**
-- [Create and register functions](../runtimes/create-and-use-functions.html)
-- [How to annotate notebooks (to be used as functions)](../runtimes/mlrun_code_annotations.html)
-- [How to run, build, or deploy functions](../projects/run-build-deploy.html)
-- [Using functions in workflows](../projects/build-run-workflows-pipelines.html)
+- [Create and register functions](../runtimes/create-and-use-functions.ipynb)
+- [How to annotate notebooks (to be used as functions)](../runtimes/mlrun_code_annotations.ipynb)
+- [How to run, build, or deploy functions](../projects/run-build-deploy.md)
+- [Using functions in workflows](../projects/build-run-workflows-pipelines.md)

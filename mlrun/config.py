@@ -49,6 +49,7 @@ _load_lock = Lock()
 _none_type = type(None)
 default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
+
 default_config = {
     "namespace": "",  # default kubernetes namespace
     "kubernetes": {
@@ -101,6 +102,9 @@ default_config = {
     "log_level": "INFO",
     # log formatter (options: human | human_extended | json)
     "log_formatter": "human",
+    # custom logger format, workes only with log_formatter: custom
+    # Note that your custom format must include those 4 fields - timestamp, level, message and more
+    "log_format_override": None,
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
@@ -130,6 +134,9 @@ default_config = {
         "resources": {
             "delete_crd_resources_timeout": "5 minutes",
         },
+    },
+    "object_retentions": {
+        "alert_activation": 14 * 7,  # days
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
@@ -305,7 +312,7 @@ default_config = {
                 },
                 "request_timeout": 45,  # seconds
             },
-            # see server.api.utils.helpers.ensure_running_on_chief
+            # see server.py.services.api.utils.helpers.ensure_running_on_chief
             "ensure_function_running_on_chief_mode": "enabled",
         },
         "port": 8080,
@@ -532,8 +539,55 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
-        "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
+        "serving_stream": {
+            "v3io": {
+                "shard_count": 2,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 2,
+                "max_replicas": 2,
+            },
+            "kafka": {
+                "partition_count": 8,
+                "replication_factor": 1,
+                "num_workers": 2,
+                "min_replicas": 1,
+                "max_replicas": 4,
+            },
+        },
+        "application_stream_args": {
+            "v3io": {
+                "shard_count": 1,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 1,
+                "replication_factor": 1,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
+        "writer_stream_args": {
+            "v3io": {
+                "shard_count": 1,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 1,
+                # TODO: add retention period configuration
+                "replication_factor": 1,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -556,6 +610,10 @@ default_config = {
         "tsdb_connection": "",
         # See mlrun.common.schemas.model_monitoring.constants.StreamKind for available options
         "stream_connection": "",
+        "tdengine": {
+            "timeout": 10,
+            "retries": 1,
+        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -740,13 +798,15 @@ default_config = {
         "max_allowed": 10000,
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
+        # interval for periodic events generation job
+        "events_generation_interval": "30",
     },
     "auth_with_client_id": {
         "enabled": False,
         "request_timeout": 5,
     },
+    "notifications": {"smtp": {"config_secret_name": "mlrun-smtp-config"}},
 }
-
 _is_running_as_api = None
 
 
@@ -791,6 +851,22 @@ class Config:
     def __repr__(self):
         name = self.__class__.__name__
         return f"{name}({self._cfg!r})"
+
+    def __iter__(self):
+        if isinstance(self._cfg, Mapping):
+            return self._cfg.__iter__()
+
+    def items(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self._cfg.items())
+
+    def keys(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self.data.keys())
+
+    def values(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self.data.values())
 
     def update(self, cfg, skip_errors=False):
         for key, value in cfg.items():
@@ -984,6 +1060,17 @@ class Config:
                 f"is not allowed for iguazio version: {igz_version} < 3.5.1"
             )
 
+    def validate_object_retentions(self):
+        for table_name, retention_days in self.object_retentions.items():
+            if retention_days < 7 and not os.getenv("PARTITION_INTERVAL"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{table_name} partition interval must be greater than a week"
+                )
+            elif retention_days > 53 * 7:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{table_name} partition interval must be less than a year"
+                )
+
     def resolve_chief_api_url(self) -> str:
         if self.httpdb.clusterization.chief.url:
             return self.httpdb.clusterization.chief.url
@@ -1142,9 +1229,9 @@ class Config:
 
     def get_model_monitoring_file_target_path(
         self,
-        project: str = "",
-        kind: str = "",
-        target: str = "online",
+        project: str,
+        kind: str,
+        target: typing.Literal["online", "offline"] = "online",
         artifact_path: typing.Optional[str] = None,
         function_name: typing.Optional[str] = None,
         **kwargs,
@@ -1322,9 +1409,12 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
+    config.validate_object_retentions()
 
 
-def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+def _verify_gpu_requests_and_limits(
+    requests_gpu: typing.Optional[str] = None, limits_gpu: typing.Optional[str] = None
+):
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if requests_gpu and not limits_gpu:
         raise mlrun.errors.MLRunConflictError(
@@ -1337,7 +1427,7 @@ def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = 
         )
 
 
-def _convert_resources_to_str(config: dict = None):
+def _convert_resources_to_str(config: typing.Optional[dict] = None):
     resources_types = ["cpu", "memory", "gpu"]
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):

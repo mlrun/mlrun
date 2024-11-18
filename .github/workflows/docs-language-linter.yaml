@@ -22,12 +22,6 @@ on:
       - ".vale.ini"
       - ".github/styles/**"
 
-    # when opening PRs from forks
-    types:
-      - opened
-      - edited
-      - synchronize
-
 jobs:
   vale:
     name: Review docs with Vale

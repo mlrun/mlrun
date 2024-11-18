@@ -64,6 +64,7 @@ class PaginatedMethods:
         services.api.crud.Runs().list_runs,
         services.api.crud.Functions().list_functions,
         services.api.crud.Artifacts().list_artifacts,
+        services.api.crud.AlertActivation().list_alert_activations,
     ]
     _method_map = {
         method.__name__: {

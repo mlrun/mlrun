@@ -84,6 +84,7 @@ import framework.utils.helpers
 from framework.db.base import DBInterface
 from framework.db.sqldb.helpers import (
     MemoizationCache,
+    generate_query_for_name_with_wildcard,
     generate_query_predicate_for_name,
     label_set,
     run_labels,
@@ -5936,13 +5937,54 @@ class SQLDB(DBInterface):
         self._upsert(session, [alert_activation_record])
 
     def list_alert_activations(
-        self, session: Session, project: typing.Optional[str] = None
+        self,
+        session: Session,
+        project_with_creation_time: list[tuple[str, datetime]],
+        name: typing.Optional[str] = None,
+        since: typing.Optional[str] = None,
+        until: typing.Optional[str] = None,
+        entity: typing.Optional[str] = None,
+        severity: typing.Optional[list[str]] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
-        # TODO: add filters
         query = self._query(session, AlertActivation)
 
-        if project and project != "*":
-            query = query.filter(AlertActivation.project == project)
+        conditions = []
+        for project, created in project_with_creation_time:
+            conditions.append(
+                and_(
+                    AlertActivation.project == project,
+                    AlertActivation.activation_time > created,
+                )
+            )
+
+        query = query.filter(or_(*conditions))
+
+        if name:
+            query = query.filter(
+                generate_query_predicate_for_name(AlertActivation.name, name)
+            )
+
+        if since or until:
+            since = since or datetime.min
+            until = until or datetime.max
+            query = query.filter(
+                and_(
+                    AlertActivation.activation_time >= since,
+                    AlertActivation.activation_time <= until,
+                )
+            )
+        if entity:
+            query = query.filter(
+                generate_query_for_name_with_wildcard(
+                    AlertActivation.entity_id, entity
+                )
+            )
+        if severity:
+            query = query.filter(AlertActivation.severity.in_(severity))
+
+        query = self._paginate_query(query, page, page_size)
 
         return [
             self._transform_alert_activation_record_to_scheme(record)

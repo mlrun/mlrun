@@ -14,6 +14,7 @@
 #
 
 import typing
+from typing import Any
 
 import mlrun.common.schemas
 import mlrun.common.types
@@ -30,10 +31,17 @@ class ProjectFormat(ObjectFormat, mlrun.common.types.StrEnum):
     # internal - allowed only in follower mode, only for the leader for upgrade purposes
     leader = "leader"
 
+    name_and_creation_time = "name_and_creation_time"
+
     @staticmethod
     def format_method(_format: str) -> typing.Optional[typing.Callable]:
         def _name_only(project: mlrun.common.schemas.Project) -> str:
             return project.metadata.name
+
+        def _name_and_creation_time(
+            project: mlrun.common.schemas.Project,
+        ) -> tuple[str, Any]:
+            return project.metadata.name, project.metadata.created
 
         def _minimal(
             project: mlrun.common.schemas.Project,
@@ -48,4 +56,5 @@ class ProjectFormat(ObjectFormat, mlrun.common.types.StrEnum):
             ProjectFormat.name_only: _name_only,
             ProjectFormat.minimal: _minimal,
             ProjectFormat.leader: None,
+            ProjectFormat.name_and_creation_time: _name_and_creation_time,
         }[_format]

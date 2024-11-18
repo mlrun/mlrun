@@ -967,8 +967,18 @@ class DBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
     def list_alert_activations(
-        self, session, project: Optional[str] = None
+        self,
+        session,
+        project_with_creation_time: list[tuple[str, datetime.datetime]],
+        name: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        entity: Optional[str] = None,
+        severity: Optional[list[str]] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         pass
 

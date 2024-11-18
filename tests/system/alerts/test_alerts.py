@@ -84,6 +84,18 @@ class TestAlerts(TestMLRunSystem):
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )
+        activations, _ = self._run_db._list_alert_activations(
+            project=self.project_name,
+            name=alert_name,
+            severity=[alert_objects.AlertSeverity.LOW, alert_objects.AlertSeverity.HIGH],
+            entity=f"~{run_id}*",
+        )
+        assert len(activations) == 1
+        assert activations[0]["name"] == alert_name
+        assert activations[0]["severity"] == alert_objects.AlertSeverity.LOW
+        assert run_id in activations[0]["entity_id"]
+        assert activations[0]["event_kind"] == alert_objects.EventKind.FAILED
+        assert activations[0]["number_of_events"] == 1
 
     @staticmethod
     def _generate_events(

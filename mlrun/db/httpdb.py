@@ -4631,6 +4631,43 @@ class HTTPRunDB(RunDBInterface):
             results.append(mlrun.common.schemas.AlertTemplate(**item))
         return results
 
+    def list_alert_activations(
+        self,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[list[str]] = None,
+    ):
+        alert_activations, _ = self._list_alert_activations(
+            project=project,
+            name=name,
+            since=since,
+            until=until,
+            entity=entity,
+            severity=severity,
+            return_all=True,
+        )
+        return alert_activations
+
+    def paginated_list_alert_activations(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        return self._list_alert_activations(
+            *args,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            return_all=False,
+            **kwargs,
+        )
+
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],
@@ -4879,6 +4916,42 @@ class HTTPRunDB(RunDBInterface):
         )
         paginated_responses, token = self.process_paginated_responses(responses, "runs")
         return RunList(paginated_responses), token
+
+    def _list_alert_activations(
+        self,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[list[str]] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ):
+        project = project or config.default_project
+        params = {
+            "name": name,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
+            "entity": entity,
+            "severity": severity,
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
+        }
+        error = "list alert activations"
+        path = f"projects/{project}/alert-activations"
+
+        # Fetch the responses, either one page or all based on `return_all`
+        responses = self.paginated_api_call(
+            "GET", path, error, params=params, return_all=return_all
+        )
+        paginated_responses, token = self.process_paginated_responses(
+            responses, "activations"
+        )
+        return paginated_responses, token
 
 
 def _as_json(obj):

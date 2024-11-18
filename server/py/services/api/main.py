@@ -558,7 +558,9 @@ class Service(framework.service.Service):
                 services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval,
                 table_name=table_name,
             )
-            interval_in_seconds = partition_interval.as_duration().total_seconds()
+            interval_in_seconds = int(
+                partition_interval.as_duration().total_seconds() / 2
+            )
             run_function_periodically(
                 interval_in_seconds,
                 f"{self._manage_partitions.__name__}_{table_name}",

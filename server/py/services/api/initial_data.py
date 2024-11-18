@@ -877,22 +877,20 @@ def _perform_version_8_data_migrations(
 def _perform_version_9_data_migrations(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    _migrate_function_kind(db, db_session)
-    _migrate_artifact_producer_uri(db, db_session)
+    _ensure_function_kind(db, db_session)
+    _add_producer_uri_to_artifact(db, db_session)
 
 
-def _migrate_function_kind(
+def _ensure_function_kind(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     chunk_size: int = 500,
 ):
     def handle_function_kind(record):
         function_dict = record.struct
-        record.kind = function_dict.pop("kind", None)
-        if record.kind is not None:
-            record.struct = function_dict
-            return record
-        return None
+        record.kind = function_dict.pop("kind", "")
+        record.struct = function_dict
+        return record
 
     def filter_function_kind():
         return getattr(framework.db.sqldb.models.Function, "kind").is_(None)
@@ -907,18 +905,16 @@ def _migrate_function_kind(
     )
 
 
-def _migrate_artifact_producer_uri(
+def _add_producer_uri_to_artifact(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     chunk_size: int = 500,
 ):
     def handle_artifact_producer_uri(record):
         record.producer_uri = (
-            record.full_object.get("spec", {}).get("producer", {}).get("uri", None)
+            record.full_object.get("spec", {}).get("producer", {}).get("uri", "")
         )
-        if record.producer_uri is not None:
-            return record
-        return None
+        return record
 
     def filter_artifacts():
         return getattr(framework.db.sqldb.models.ArtifactV2, "producer_uri").is_(None)
@@ -948,20 +944,20 @@ def _migrate_data(
         logger.info(f"No records to migrate for {model.__name__.lower()}")
         return
 
-    logger.info(f"Starting migration for {len(records)} {model.__name__.lower()}s")
+    logger.info(
+        f"Starting migration for {len(records)} {model.__name__.lower()} records"
+    )
 
     while records:
         # Apply the field handler and filter out None values
-        to_commit = [
-            handled_record
-            for record in records
-            if (handled_record := handle_field_record_func(record)) is not None
-        ]
+        to_commit = [handle_field_record_func(record) for record in records]
 
         # Commit if there are records to migrate
         if to_commit:
             logger.info(
-                f"Committing migrated {model.__name__.lower()}s", count=len(to_commit)
+                "Committing migrated records",
+                model=model.__name__,
+                count=len(to_commit),
             )
             db_session.add_all(to_commit)
             db._commit(db_session, to_commit)
@@ -973,7 +969,7 @@ def _migrate_data(
 
         # If no records left to migrate, stop
         if not records:
-            logger.info(f"No more {model.__name__.lower()}s to migrate")
+            logger.info("No more records to migrate", model=model.__name__)
             break
 
 

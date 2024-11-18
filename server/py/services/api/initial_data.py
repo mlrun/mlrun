@@ -914,6 +914,8 @@ def _add_producer_uri_to_artifact(
         record.producer_uri = (
             record.full_object.get("spec", {}).get("producer", {}).get("uri", "")
         )
+        if record.producer_uri is None:
+            record.producer_uri = ""
         return record
 
     def filter_artifacts():

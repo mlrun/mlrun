@@ -284,6 +284,9 @@ class Pipelines(
     ) -> tuple[list[mlrun_pipelines.models.PipelineRun], typing.Optional[int]]:
         next_page_token = -1
         if page_token or page_size:
+            # If page token or page size is given, the client is performing the pagination.
+            # So we don't need to paginate the runs ourselves, only pass on the page token and page size
+            # and ignore the filter if needed.
             runs, next_page_token = self._list_runs_from_kfp(
                 kfp_client,
                 page_token,
@@ -292,6 +295,7 @@ class Pipelines(
                 filter_,
             )
         else:
+            # Otherwise, we perform the pagination ourselves, and get all the runs to return.
             runs = []
             while next_page_token:
                 page_runs, next_page_token = self._list_runs_from_kfp(

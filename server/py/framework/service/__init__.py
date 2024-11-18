@@ -58,7 +58,6 @@ class Service(ABC):
         self._add_middlewares()
         self._add_exception_handlers()
 
-
     @abstractmethod
     async def move_service_to_online(self):
         pass
@@ -88,7 +87,7 @@ class Service(ABC):
         **kwargs,
     ):
         callback = getattr(self, path, None)
-        if path is None:
+        if callback is None:
             return await self._base_handler(request, *args, **kwargs)
         return await callback(
             request,

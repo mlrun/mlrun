@@ -166,12 +166,18 @@ class Client(BaseClient):
     async def forward_request(self, service_name: str, request: fastapi.Request):
         method = request.method
         service_instance = self._discovery.get_service(service_name)
-        # TODO: replace prefix
-        url = f"{service_instance.url}/{str(request.url.path)}"
-        return await self._forward_request(method, url, request)
+        if not service_instance:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Failed to forward request, service {service_name} not found"
+            )
+        # TODO: replace prefix with service name api/v1 -> alerts/v1, api -> alerts/v1
+        path = str(request.url.path).lstrip("/")
+        url = f"{service_instance.url}/{path}"
+        return await self._forward_request(service_name, method, url, request)
 
     async def _forward_request(
         self,
+        service_name: str,
         method: str,
         url: str,
         request: fastapi.Request = None,
@@ -185,6 +191,7 @@ class Client(BaseClient):
         )
 
         async with self._send_request(
+            service_name=service_name,
             method=method,
             url=url,
             version=version,
@@ -213,7 +220,7 @@ class Client(BaseClient):
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
             )
         logger.debug(
-            "Forwarding request to service",
+            "Sending request to service",
             service_name=service_name,
             method=method,
             url=url,

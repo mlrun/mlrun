@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import asyncio
 import datetime
 import http
@@ -32,8 +31,9 @@ import mlrun.common.schemas
 from mlrun.utils import logger
 
 import framework.api.deps
+import framework.utils.auth.verifier
 import framework.utils.background_tasks
-from services.api.daemon import daemon
+import framework.utils.clients.chief
 
 test_router = fastapi.APIRouter()
 
@@ -142,9 +142,12 @@ async def long_function(sleep_time):
 
 # must add it here since we're adding routes
 @pytest.fixture()
-def client() -> typing.Generator:
-    daemon.app.include_router(test_router, prefix="/test")
-    with fastapi.testclient.TestClient(daemon.app) as client:
+def client(app) -> typing.Generator:
+    # TODO: This is a hack to remove the alerts app mount because it blocks the test router.
+    #  Remove this when alerts is properly mounted with "alerts" prefix
+    app.routes.pop()
+    app.include_router(test_router, prefix="/test")
+    with fastapi.testclient.TestClient(app) as client:
         yield client
 
 
@@ -162,7 +165,7 @@ class ThreadedAsyncClient(httpx.AsyncClient):
 
 
 @pytest_asyncio.fixture
-async def async_client() -> typing.Iterator[ThreadedAsyncClient]:
+async def async_client(app) -> typing.Iterator[ThreadedAsyncClient]:
     """
     Async client that runs in a separate thread.
     When posting with the client, the request is sent on a different thread, and the method returns a future.
@@ -171,16 +174,16 @@ async def async_client() -> typing.Iterator[ThreadedAsyncClient]:
         result = await async_client.post(...)
         response = result.result()
     """
-    daemon.app.include_router(test_router, prefix="/test")
-    async with ThreadedAsyncClient(app=daemon.app, base_url="https://mlrun") as client:
+    app.include_router(test_router, prefix="/test")
+    async with ThreadedAsyncClient(app=app, base_url="https://mlrun") as client:
         yield client
 
 
-ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
-
-
 def test_redirection_from_worker_to_chief_trigger_migrations(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
+    prefix,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     task_name = "testy"
@@ -206,17 +209,20 @@ def test_redirection_from_worker_to_chief_trigger_migrations(
         expected_status = test_case.get("expected_status")
         expected_response = test_case.get("expected_body")
         httpserver.expect_ordered_request(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations", method="POST"
+            f"{prefix}/operations/migrations", method="POST"
         ).respond_with_json(expected_response, status=expected_status)
         url = httpserver.url_for("")
         mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.post(f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations")
+        response = client.post(f"{prefix}/operations/migrations")
         assert response.status_code == expected_status
         assert response.json() == expected_response
 
 
 def test_redirection_from_worker_to_chief_get_internal_background_tasks(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    httpserver,
+    prefix,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     task_name = "testy"
@@ -233,27 +239,25 @@ def test_redirection_from_worker_to_chief_get_internal_background_tasks(
         expected_status = test_case.get("expected_status")
         expected_response = test_case.get("expected_body")
         httpserver.expect_ordered_request(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{task_name}",
+            f"{prefix}/background-tasks/{task_name}",
             method="GET",
         ).respond_with_json(expected_response, status=expected_status)
         url = httpserver.url_for("")
         mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.get(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{task_name}"
-        )
+        response = client.get(f"{prefix}/background-tasks/{task_name}")
         assert response.status_code == expected_status
         assert response.json() == expected_response
 
 
 def test_create_project_background_task_in_chief_success(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, prefix
 ):
     project = "project"
     assert call_counter == 0
     response = client.post(f"/test/projects/{project}/background-tasks")
     background_task = _assert_background_task_creation(project, response)
     response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks/{background_task.metadata.name}"
+        f"{prefix}/projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
@@ -266,7 +270,7 @@ def test_create_project_background_task_in_chief_success(
 
 
 def test_create_project_background_task_in_chief_failure(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, prefix
 ):
     project = "project"
     response = client.post(
@@ -274,7 +278,7 @@ def test_create_project_background_task_in_chief_failure(
     )
     background_task = _assert_background_task_creation(project, response)
     response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks/{background_task.metadata.name}"
+        f"{prefix}/projects/{project}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
@@ -285,18 +289,16 @@ def test_create_project_background_task_in_chief_failure(
 
 
 def test_get_project_background_task_not_exists(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, prefix
 ):
     project = "project"
     name = "task-name"
-    response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks/{name}"
-    )
+    response = client.get(f"{prefix}/projects/{project}/background-tasks/{name}")
     assert response.status_code == http.HTTPStatus.NOT_FOUND.value
 
 
 def test_get_internal_background_task_auth(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, prefix
 ):
     framework.utils.auth.verifier.AuthVerifier().query_project_permissions = (
         unittest.mock.AsyncMock()
@@ -304,9 +306,7 @@ def test_get_internal_background_task_auth(
     response = client.post("/test/internal-background-tasks?project=my-proj")
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
-    )
+    response = client.get(f"{prefix}/background-tasks/{background_task.metadata.name}")
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
         framework.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
@@ -317,7 +317,7 @@ def test_get_internal_background_task_auth(
     response = client.post("/test/internal-background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
 
-    response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks")
+    response = client.get(f"{prefix}/background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
         framework.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
@@ -326,7 +326,10 @@ def test_get_internal_background_task_auth(
 
 
 def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    monkeypatch,
+    prefix,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
@@ -340,14 +343,17 @@ def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
-    response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{name}")
+    response = client.get(f"{prefix}/background-tasks/{name}")
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert background_task == expected_background_task
 
 
 def test_get_internal_background_task_from_worker_redirect_to_chief_doesnt_exists(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    monkeypatch,
+    prefix,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
@@ -361,20 +367,18 @@ def test_get_internal_background_task_from_worker_redirect_to_chief_doesnt_exist
         lambda *args, **kwargs: handler_mock,
     )
     with pytest.raises(mlrun.errors.MLRunHTTPError):
-        client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{name}")
+        client.get(f"{prefix}/background-tasks/{name}")
 
 
 def test_get_internal_background_task_in_chief_exists(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, prefix
 ):
     response = client.post("/test/internal-background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     assert background_task.metadata.project is None
 
-    response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
-    )
+    response = client.get(f"{prefix}/background-tasks/{background_task.metadata.name}")
     assert response.status_code == http.HTTPStatus.OK.value
 
 
@@ -415,7 +419,10 @@ async def test_internal_background_task_already_running(
 
 
 def test_trigger_migrations_from_worker_returns_same_response_as_chief(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    monkeypatch,
+    prefix,
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
 
@@ -452,23 +459,19 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
             "Client",
             lambda *args, **kwargs: handler_mock,
         )
-        response: requests.Response = client.post(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/operations/migrations"
-        )
+        response: requests.Response = client.post(f"{prefix}/operations/migrations")
         assert response.status_code == expected_response.status_code
         assert response.content == expected_response.body
 
 
 def test_list_project_background_tasks(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, prefix
 ):
     project = "project"
     curr_call_counter = call_counter
 
     # list no background tasks
-    response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks"
-    )
+    response = client.get(f"{prefix}/projects/{project}/background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     background_tasks = mlrun.common.schemas.BackgroundTaskList(**response.json())
     assert len(background_tasks.background_tasks) == 0
@@ -478,9 +481,7 @@ def test_list_project_background_tasks(
         response = client.post(f"/test/projects/{project}/background-tasks")
         _assert_background_task_creation(project, response)
 
-    response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks"
-    )
+    response = client.get(f"{prefix}/projects/{project}/background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     background_tasks = mlrun.common.schemas.BackgroundTaskList(**response.json())
     assert len(background_tasks.background_tasks) == 3
@@ -497,7 +498,7 @@ def test_list_project_background_tasks(
 
 @pytest.mark.asyncio
 async def test_list_timed_out_project_background_task(
-    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient, prefix
 ):
     project = "my-project"
     # create a background task that will not time out
@@ -508,9 +509,7 @@ async def test_list_timed_out_project_background_task(
 
     # sleep pass the short timeout
     await asyncio.sleep(1)
-    response = await async_client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/projects/{project}/background-tasks"
-    )
+    response = await async_client.get(f"{prefix}/projects/{project}/background-tasks")
 
     assert response.status_code == http.HTTPStatus.OK.value
     background_tasks = mlrun.common.schemas.BackgroundTaskList(**response.json())
@@ -533,7 +532,7 @@ def _generate_background_task(
     background_task_name,
     state: mlrun.common.schemas.BackgroundTaskState = mlrun.common.schemas.BackgroundTaskState.running,
 ) -> mlrun.common.schemas.BackgroundTask:
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now()
     return mlrun.common.schemas.BackgroundTask(
         metadata=mlrun.common.schemas.BackgroundTaskMetadata(
             name=background_task_name,

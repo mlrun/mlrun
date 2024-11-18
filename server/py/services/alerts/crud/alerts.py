@@ -24,8 +24,9 @@ from mlrun.config import config as mlconfig
 from mlrun.utils import logger
 
 import framework.utils.helpers
+import framework.utils.lru_cache
 import framework.utils.singletons.db
-import services.api.utils.lru_cache
+import services.alerts.crud
 from framework.utils.notifications.notification_pusher import AlertNotificationPusher
 
 
@@ -60,7 +61,7 @@ class Alerts(
             self._get_alert_by_id_cached().cache_remove(session, existing_alert.id)
 
             for kind in existing_alert.trigger.events:
-                services.api.crud.Events().remove_event_configuration(
+                services.alerts.crud.Events().remove_event_configuration(
                     project, kind, existing_alert.id
                 )
 
@@ -85,7 +86,7 @@ class Alerts(
         )
 
         for kind in new_alert.trigger.events:
-            services.api.crud.Events().add_event_configuration(
+            services.alerts.crud.Events().add_event_configuration(
                 project, kind, new_alert.id
             )
 
@@ -150,7 +151,7 @@ class Alerts(
             return
 
         for kind in alert.trigger.events:
-            services.api.crud.Events().remove_event_configuration(
+            services.alerts.crud.Events().remove_event_configuration(
                 project, kind, alert.id
             )
 
@@ -243,13 +244,13 @@ class Alerts(
             mlconfig.httpdb.state = mlrun.common.schemas.APIStates.offline
             return
 
-        services.api.crud.Events().cache_initialized = True
+        services.alerts.crud.Events().cache_initialized = True
         logger.debug("Finished populating event cache for alerts")
 
     @classmethod
     def _get_alert_by_id_cached(cls):
         if not cls._alert_cache:
-            cls._alert_cache = services.api.utils.lru_cache.LRUCache(
+            cls._alert_cache = framework.utils.lru_cache.LRUCache(
                 framework.utils.singletons.db.get_db().get_alert_by_id,
                 maxsize=1000,
                 ignore_args_for_hash=[0],
@@ -260,7 +261,7 @@ class Alerts(
     @classmethod
     def _get_alert_state_cached(cls):
         if not cls._alert_state_cache:
-            cls._alert_state_cache = services.api.utils.lru_cache.LRUCache(
+            cls._alert_state_cache = framework.utils.lru_cache.LRUCache(
                 framework.utils.singletons.db.get_db().get_alert_state_dict,
                 maxsize=1000,
                 ignore_args_for_hash=[0],
@@ -271,7 +272,7 @@ class Alerts(
     def _try_populate_event_cache(session: sqlalchemy.orm.Session):
         for alert in framework.utils.singletons.db.get_db().get_all_alerts(session):
             for event_name in alert.trigger.events:
-                services.api.crud.Events().add_event_configuration(
+                services.alerts.crud.Events().add_event_configuration(
                     alert.project, event_name, alert.id
                 )
 
@@ -328,7 +329,7 @@ class Alerts(
             ]:
                 raise mlrun.errors.MLRunBadRequestError(
                     f"Unsupported notification ({alert_notification.notification.kind}) "
-                    "for alert {name} for project {project}"
+                    f"for alert {name} for project {project}"
                 )
             notification_object = mlrun.model.Notification.from_dict(
                 alert_notification.notification.dict()

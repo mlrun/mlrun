@@ -37,6 +37,7 @@ from mlrun.utils import (
 )
 
 import framework.constants
+import framework.db.sqldb.db
 import framework.db.sqldb.models
 import framework.utils.db.mysql
 import services.api.crud.pagination_cache
@@ -139,20 +140,15 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 8
+latest_data_version = 9
 
 
 def update_default_configuration_data():
-    framework.db.session.run_function_with_new_db_session(
-        services.api.crud.Alerts().populate_event_cache
-    )
-
     logger.debug("Updating default configuration data")
     db_session = create_session()
     try:
         db = framework.db.sqldb.db.SQLDB()
         _add_default_hub_source_if_needed(db, db_session)
-        _add_default_alert_templates(db, db_session)
     finally:
         close_session(db_session)
 
@@ -247,6 +243,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_7_data_migrations(db, db_session)
             if current_data_version < 8:
                 _perform_version_8_data_migrations(db, db_session)
+            if current_data_version < 9:
+                _perform_version_9_data_migrations(db, db_session)
 
             db.create_data_version(db_session, str(latest_data_version))
 
@@ -845,15 +843,6 @@ def _delete_state_file():
         pass
 
 
-def _add_default_alert_templates(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    for template in framework.constants.pre_defined_templates:
-        record = db.get_alert_template(db_session, template.template_name)
-        if record is None or record.templates_differ(template):
-            db.store_alert_template(db_session, template)
-
-
 def _perform_version_6_data_migrations(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
@@ -883,6 +872,46 @@ def _perform_version_8_data_migrations(
     db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     db.align_schedule_labels(session=db_session)
+
+
+def _perform_version_9_data_migrations(
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_function_kind(db, db_session, chunk_size=500)
+
+
+def _migrate_function_kind(
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session, chunk_size: int
+):
+    offset = 0
+    number_of_functions_to_migrate = (
+        db._query(db_session, framework.db.sqldb.models.Function)
+        .filter(framework.db.sqldb.models.Function.kind.is_(None))
+        .count()
+    )
+    logger.info(f"Number of functions to migrate: {number_of_functions_to_migrate}")
+    while True:
+        logger.info("Fetching functions to migrate", offset=offset)
+        q = db._query(db_session, framework.db.sqldb.models.Function)
+        q = q.order_by(framework.db.sqldb.models.Function.id)
+        q = q.limit(chunk_size)
+        q = q.offset(offset)
+        functions = []
+        for function in q.all():
+            function_dict = function.struct
+            function.kind = function_dict.pop("kind", None)
+            if function.kind is None:
+                continue
+            function.struct = function_dict
+            functions.append(function)
+        if functions:
+            logger.info("Committing migrated functions", count=len(functions))
+            db_session.add_all(functions)
+            db._commit(db_session, functions)
+        if len(functions) < chunk_size:
+            logger.info("No more functions to migrate")
+            break
+        offset += chunk_size
 
 
 def _create_project_summaries(db, db_session):

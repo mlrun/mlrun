@@ -37,7 +37,7 @@ import mlrun.errors
 from tests.common_fixtures import aioresponses_mock
 
 import framework.utils.clients.iguazio
-from services.api.utils.asyncio import maybe_coroutine
+from framework.utils.asyncio import maybe_coroutine
 
 
 def patch_restful_request(

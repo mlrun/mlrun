@@ -14,6 +14,7 @@
 import asyncio
 import concurrent.futures
 import contextlib
+import http
 import traceback
 from abc import ABC, abstractmethod
 
@@ -30,6 +31,7 @@ from mlrun import mlconf
 
 import framework.api.utils
 import framework.middlewares
+import framework.utils.clients.discovery
 import framework.utils.periodic
 from framework.utils.singletons.db import initialize_db
 
@@ -39,7 +41,8 @@ class Service(ABC):
 
     def __init__(self):
         # TODO: make the prefixes and service name configurable
-        self.SERVICE_PREFIX = f"/{self.service_name}"
+        # self.SERVICE_PREFIX = f"/{self.service_name}"
+        self.SERVICE_PREFIX = "/api"
         self.BASE_VERSIONED_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v1"
         self.V2_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v2"
         self.app: fastapi.FastAPI = None
@@ -54,42 +57,10 @@ class Service(ABC):
         self._add_middlewares()
         self._add_exception_handlers()
 
-    def _mount_services(self, mounts: dict):
-        for path, service in mounts.items():
-            self.app.mount(path, service.app)
-            self._mounted_services.append(service)
-
     @abstractmethod
     async def move_service_to_online(self):
         pass
 
-    async def _move_mounted_services_to_online(self):
-        if not self._mounted_services:
-            return
-
-        tasks = [service.move_service_to_online() for service in self._mounted_services]
-        await asyncio.gather(*tasks)
-
-    @abstractmethod
-    def _register_routes(self):
-        pass
-
-    def _initialize_app(self):
-        # Initializes fastAPI app - each service register the routers they implement
-        # API gateway registers all routers, alerts service registers alert router
-        self.app = fastapi.FastAPI(
-            title="MLRun",  # TODO: configure
-            description="Machine Learning automation and tracking",  # TODO: configure
-            version=mlconf.version,
-            debug=mlconf.httpdb.debug,
-            openapi_url=f"{self.SERVICE_PREFIX}/openapi.json",
-            docs_url=f"{self.SERVICE_PREFIX}/docs",
-            redoc_url=f"{self.SERVICE_PREFIX}/redoc",
-            default_response_class=fastapi.responses.ORJSONResponse,
-            lifespan=self.lifespan,
-        )
-
-    # https://fastapi.tiangolo.com/advanced/events/
     @contextlib.asynccontextmanager
     async def lifespan(self, app_: fastapi.FastAPI):
         setup_tasks = [self._setup_service()] + [
@@ -105,6 +76,54 @@ class Service(ABC):
             for service in self._mounted_services
         ]
         await asyncio.gather(*teardown_tasks)
+
+    async def handle_request(
+        self,
+        path,
+        request: fastapi.Request,
+        *args,
+        **kwargs,
+    ):
+        callback = getattr(self, path, None)
+        if path is None:
+            return await self._base_handler(request, *args, **kwargs)
+        return await callback(
+            request,
+            *args,
+            **kwargs,
+        )
+
+    def _mount_services(self, mounts: dict):
+        for path, service in mounts.items():
+            self.app.mount(path, service.app)
+            self._mounted_services.append(service)
+
+    async def _move_mounted_services_to_online(self):
+        if not self._mounted_services:
+            return
+
+        tasks = [service.move_service_to_online() for service in self._mounted_services]
+        await asyncio.gather(*tasks)
+
+    @abstractmethod
+    def _register_routes(self):
+        pass
+
+    # https://fastapi.tiangolo.com/advanced/events/
+    def _initialize_app(self):
+        # Initializes fastAPI app - each service register the routers they implement
+        # API gateway registers all routers, alerts service registers alert router
+        self.app = fastapi.FastAPI(
+            title="MLRun",  # TODO: configure
+            description="Machine Learning automation and tracking",  # TODO: configure
+            version=mlconf.version,
+            debug=mlconf.httpdb.debug,
+            openapi_url=f"{self.SERVICE_PREFIX}/openapi.json",
+            docs_url=f"{self.SERVICE_PREFIX}/docs",
+            redoc_url=f"{self.SERVICE_PREFIX}/redoc",
+            default_response_class=fastapi.responses.ORJSONResponse,
+            lifespan=self.lifespan,
+        )
 
     async def _setup_service(self, mounted: bool = False):
         if not mounted:
@@ -199,22 +218,6 @@ class Service(ABC):
             fastapi.HTTPException(status_code=status_code, detail=error_message),
         )
 
-    async def handle_request(
-        self,
-        path,
-        request: fastapi.Request,
-        *args,
-        **kwargs,
-    ):
-        callback = getattr(self, path, None)
-        if path is None:
-            return await self._base_handler(request, *args, **kwargs)
-        return await callback(
-            request,
-            *args,
-            **kwargs,
-        )
-
     async def _base_handler(
         self,
         request: fastapi.Request,
@@ -222,7 +225,9 @@ class Service(ABC):
         **kwargs,
     ):
         framework.api.utils.log_and_raise(
-            "Handler not implemented for request", request_url=request.url
+            http.HTTPStatus.NOT_IMPLEMENTED.value,
+            reason="Handler not implemented for request",
+            request_url=request.url,
         )
 
     def _initialize_data(self):

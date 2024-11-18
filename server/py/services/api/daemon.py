@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dependency_injector import containers, providers
+
 import framework.service
 import services.api.main
 
 # The alerts import is to initialize the alerts daemon so that both services will run on the same instance
 # It shall be removed once they are completely split
-from services.alerts.daemon import daemon as alerts_daemon
 
 
 class Daemon(framework.service.Daemon):
@@ -27,7 +28,8 @@ class Daemon(framework.service.Daemon):
     @property
     def mounts(self) -> dict[str, framework.service.Service]:
         # Mount the alerts application until we have service routing/tunneling
-        return {"/": alerts_daemon.service}
+        # return {"/": alerts_daemon.service}
+        return {}
 
     @property
     def service(self) -> services.api.main.Service:
@@ -35,7 +37,13 @@ class Daemon(framework.service.Daemon):
 
 
 daemon = Daemon(service_cls=services.api.main.Service)
+
+
+# Overriding ``ServiceContainer`` with ``APIServiceContainer``:
+@containers.override(framework.service.ServiceContainer)
+class APIServiceContainer(containers.DeclarativeContainer):
+    service = providers.Object(daemon.service)
+
+
 daemon.initialize()
 app = daemon.app
-
-# TODO: Create a container, override ServiceContainer and implement forwarding requests to alerts service

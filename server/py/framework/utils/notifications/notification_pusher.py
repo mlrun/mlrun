@@ -16,6 +16,8 @@ import asyncio
 import datetime
 import typing
 
+from kubernetes.client import ApiException
+
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -59,11 +61,18 @@ class RunNotificationPusher(NotificationPusher):
         smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
         mail_notification_default_params = {}
         if framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
-            mail_notification_default_params = (
-                framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
-                    smtp_config_secret_name, load_as_json=True
+            try:
+                mail_notification_default_params = (
+                    framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
+                        smtp_config_secret_name, load_as_json=True
+                    )
                 )
-            )
+            except ApiException as exc:
+                logger.warning(
+                    "Failed to read SMTP configuration secret",
+                    secret_name=smtp_config_secret_name,
+                    body=mlrun.errors.err_to_str(exc.body),
+                )
 
         RunNotificationPusher.mail_notification_default_params = (
             mail_notification_default_params

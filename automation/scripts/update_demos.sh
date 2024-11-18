@@ -306,7 +306,7 @@ fi
 
 # Handling the case mlrun version is 0.0.0+unstable
 tag_prefix=`echo "${mlrun_version}" | cut -d . -f1-2`
-if [[ "$tag_prefix"=="0.0" ]]; then
+if [ "$tag_prefix" = "0.0" ]; then
     mlrun_version="1.7.0"
 fi
 

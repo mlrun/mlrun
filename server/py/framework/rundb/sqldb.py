@@ -121,7 +121,7 @@ class SQLRunDB(RunDBInterface):
         self,
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        project: Optional[str] = None,
+        project: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
         state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
@@ -348,7 +348,7 @@ class SQLRunDB(RunDBInterface):
     def list_functions(
         self,
         name: Optional[str] = None,
-        project: Optional[str] = None,
+        project: Optional[Union[str, list[str]]] = None,
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,

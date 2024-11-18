@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .alert import (
+    AlertActivation,
     AlertActiveState,
     AlertConfig,
     AlertNotification,
@@ -161,6 +162,7 @@ from .notification import (
     Notification,
     NotificationKind,
     NotificationSeverity,
+    NotificationState,
     NotificationStatus,
     SetNotificationRequest,
 )

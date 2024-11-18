@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 import pandas as pd
-import pydantic
+import pydantic.v1
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.helpers
@@ -427,7 +427,7 @@ class TSDBConnector(ABC):
                         ),  # pyright: ignore[reportArgumentType]
                     )
                 )
-            except pydantic.ValidationError:
+            except pydantic.v1.ValidationError:
                 logger.exception(
                     "Failed to convert data-frame into `ModelEndpointMonitoringResultValues`",
                     full_name=full_name,

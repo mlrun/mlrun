@@ -15,7 +15,7 @@
 import typing
 from typing import Optional
 
-import pydantic
+import pydantic.v1
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.types
@@ -49,9 +49,9 @@ class APIGatewayState(mlrun.common.types.StrEnum):
     waiting_for_provisioning = "waitingForProvisioning"
 
 
-class _APIGatewayBaseModel(pydantic.BaseModel):
+class _APIGatewayBaseModel(pydantic.v1.BaseModel):
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
 class APIGatewayMetadata(_APIGatewayBaseModel):

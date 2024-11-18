@@ -15,7 +15,7 @@
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 import mlrun.common.types
 from mlrun.common.schemas.auth import Credentials

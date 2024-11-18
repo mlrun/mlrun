@@ -17,7 +17,7 @@ from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from typing import Any, Optional
 
-import pydantic
+import pydantic.v1
 import pytest
 
 import mlrun.utils.regex
@@ -75,7 +75,7 @@ def test_fqn_parsing(
         (
             {},
             pytest.raises(
-                pydantic.ValidationError,
+                pydantic.v1.ValidationError,
                 match=re.escape(
                     "2 validation errors for ModelEndpointMetadata\nproject\n  field required "
                     "(type=value_error.missing)\nuid\n  field required (type=value_error.missing)"
@@ -85,7 +85,7 @@ def test_fqn_parsing(
         (
             {"project": "im-fine-10"},
             pytest.raises(
-                pydantic.ValidationError,
+                pydantic.v1.ValidationError,
                 match=(
                     re.escape(
                         "1 validation error for ModelEndpointMetadata\nuid\n  field required (type=value_error.missing)"
@@ -96,7 +96,7 @@ def test_fqn_parsing(
         (
             {"project": "im-fine-10", "uid": "xx' OR '1'='1"},
             pytest.raises(
-                pydantic.ValidationError,
+                pydantic.v1.ValidationError,
                 match=(
                     re.escape(
                         "1 validation error for ModelEndpointMetadata\nuid\n  string does not match regex "

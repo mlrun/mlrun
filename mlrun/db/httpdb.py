@@ -25,7 +25,7 @@ from os import path, remove
 from typing import Optional, Union
 from urllib.parse import urlparse
 
-import pydantic
+import pydantic.v1
 import requests
 import semver
 
@@ -4647,7 +4647,7 @@ class HTTPRunDB(RunDBInterface):
         """
         try:
             return mlrun.common.schemas.common.LabelsModel(labels=labels).labels
-        except pydantic.error_wrappers.ValidationError as exc:
+        except pydantic.v1.error_wrappers.ValidationError as exc:
             raise mlrun.errors.MLRunValueError(
                 "Invalid labels format. Must be a dictionary of strings, a list of strings, "
                 "or a comma-separated string."

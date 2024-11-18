@@ -29,6 +29,7 @@ router = APIRouter(prefix="/alert-templates")
 
 
 @router.put("/{name}", response_model=mlrun.common.schemas.AlertTemplate)
+@inject
 async def store_alert_template(
     request: Request,
     name: str,
@@ -53,6 +54,7 @@ async def store_alert_template(
     "/{name}",
     response_model=mlrun.common.schemas.AlertTemplate,
 )
+@inject
 async def get_alert_template(
     name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -70,6 +72,7 @@ async def get_alert_template(
 
 
 @router.get("", response_model=list[mlrun.common.schemas.AlertTemplate])
+@inject
 async def list_alert_templates(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -88,6 +91,7 @@ async def list_alert_templates(
     "/{name}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
+@inject
 async def delete_alert_template(
     request: Request,
     name: str,

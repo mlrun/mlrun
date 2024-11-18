@@ -46,7 +46,7 @@ class Service(ABC):
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
 
-    def initialize(self, mounts: dict):
+    def initialize(self, mounts: dict = None):
         self._logger.info("Initializing service")
         self._initialize_app()
         self._register_routes()
@@ -54,7 +54,10 @@ class Service(ABC):
         self._add_middlewares()
         self._add_exception_handlers()
 
-    def _mount_services(self, mounts: dict):
+    def _mount_services(self, mounts: dict = None):
+        if not mounts:
+            return
+
         for path, service in mounts.items():
             service.initialize()
             self.app.mount(path, service.app)

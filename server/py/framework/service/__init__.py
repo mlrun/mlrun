@@ -15,6 +15,7 @@ import asyncio
 import concurrent.futures
 import contextlib
 import traceback
+import typing
 from abc import ABC, abstractmethod
 
 import fastapi
@@ -46,7 +47,7 @@ class Service(ABC):
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
 
-    def initialize(self, mounts: dict = None):
+    def initialize(self, mounts: typing.Optional[dict] = None):
         self._logger.info("Initializing service")
         self._initialize_app()
         self._register_routes()
@@ -54,7 +55,7 @@ class Service(ABC):
         self._add_middlewares()
         self._add_exception_handlers()
 
-    def _mount_services(self, mounts: dict = None):
+    def _mount_services(self, mounts: typing.Optional[dict] = None):
         if not mounts:
             return
 

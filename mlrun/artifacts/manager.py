@@ -387,7 +387,7 @@ class ArtifactManager:
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: dict = None,
+        secrets: typing.Optional[dict] = None,
     ):
         self.artifact_db.del_artifact(
             key=item.db_key,

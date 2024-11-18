@@ -22,10 +22,11 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
-import services.api.crud
-import services.api.utils.asyncio
 from mlrun import mlconf
 from mlrun.utils import logger
+
+import framework.utils.asyncio
+import services.api.crud
 
 
 def _generate_pydantic_schema_from_method_signature(
@@ -123,7 +124,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size,
                 **method_kwargs,
             )
-            new_result = await services.api.utils.asyncio.await_or_call_in_threadpool(
+            new_result = await framework.utils.asyncio.await_or_call_in_threadpool(
                 filter_, new_result
             )
             result.extend(new_result)
@@ -165,7 +166,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             self._logger.debug(
                 "No token or page size provided, returning all records", method=method
             )
-            return await services.api.utils.asyncio.await_or_call_in_threadpool(
+            return await framework.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs
             ), None
 
@@ -194,7 +195,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size=page_size,
                 method=method.__name__,
             )
-            return await services.api.utils.asyncio.await_or_call_in_threadpool(
+            return await framework.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs, page=page, page_size=page_size
             ), mlrun.common.schemas.pagination.PaginationInfo(
                 page=page, page_size=page_size, page_token=token

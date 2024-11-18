@@ -118,10 +118,10 @@ class APIGatewayMetadata(ModelObj):
     def __init__(
         self,
         name: str,
-        namespace: str = None,
-        labels: dict = None,
-        annotations: dict = None,
-        creation_timestamp: str = None,
+        namespace: Optional[str] = None,
+        labels: Optional[dict] = None,
+        annotations: Optional[dict] = None,
+        creation_timestamp: Optional[str] = None,
     ):
         """
         :param name: The name of the API gateway
@@ -169,9 +169,9 @@ class APIGatewaySpec(ModelObj):
             "mlrun.runtimes.nuclio.serving.ServingRuntime",
             "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
-        project: str = None,
+        project: Optional[str] = None,
         description: str = "",
-        host: str = None,
+        host: Optional[str] = None,
         path: str = "/",
         authentication: Optional[APIGatewayAuthenticator] = NoneAuth(),
         canary: Optional[list[int]] = None,
@@ -389,7 +389,7 @@ class APIGateway(ModelObj):
     def invoke(
         self,
         method="POST",
-        headers: dict = None,
+        headers: Optional[dict] = None,
         credentials: Optional[tuple[str, str]] = None,
         path: Optional[str] = None,
         body: Optional[Union[str, bytes, dict]] = None,

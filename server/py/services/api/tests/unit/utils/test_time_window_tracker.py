@@ -15,14 +15,15 @@
 import time
 
 import mlrun.common.db.sql_session
-import services.api.db.base
-import services.api.utils.time_window_tracker
+
+import framework.db.base
+import framework.utils.time_window_tracker
 
 
-def test_time_window_tracker(db: services.api.db.base.DBInterface):
+def test_time_window_tracker(db: framework.db.base.DBInterface):
     db_session = mlrun.common.db.sql_session.create_session()
     max_window_size_seconds = 1
-    time_tracker = services.api.utils.time_window_tracker.TimeWindowTracker(
+    time_tracker = framework.utils.time_window_tracker.TimeWindowTracker(
         "test_key", max_window_size_seconds
     )
     time_tracker.initialize(db_session)

@@ -20,13 +20,13 @@ import json.decoder
 import os
 import unittest.mock
 from http import HTTPStatus
+from typing import Optional
 from uuid import uuid4
 
 import deepdiff
 import fastapi.testclient
 import kubernetes.client
 import mergedeep
-import mlrun_pipelines.common.models
 import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -39,32 +39,35 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
-import services.api.api.utils
+import mlrun_pipelines.common.models
+
+import framework.api.utils
+import framework.utils.auth.verifier
+import framework.utils.background_tasks
+import framework.utils.clients.log_collector
+import framework.utils.singletons.db
+import framework.utils.singletons.k8s
+import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.main
 import services.api.tests.unit.conftest
 import services.api.tests.unit.utils.clients.test_log_collector
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
-import services.api.utils.clients.log_collector
-import services.api.utils.singletons.db
-import services.api.utils.singletons.k8s
-import services.api.utils.singletons.project_member
 import services.api.utils.singletons.scheduler
-from services.api.db.sqldb.models import (
+from framework.db.sqldb.models import (
     ArtifactV2,
     Entity,
     Feature,
     FeatureSet,
     FeatureVector,
     Function,
+    ModelEndpoint,
     Project,
     Run,
     Schedule,
     _classes,
 )
+from services.api.daemon import daemon
 
-ORIGINAL_VERSIONED_API_PREFIX = services.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 LIST_FUNCTION_API = "projects/{project}/functions"
 
@@ -73,11 +76,11 @@ LIST_FUNCTION_API = "projects/{project}/functions"
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.mlconf.httpdb.projects.leader = "nop"
-        services.api.utils.singletons.project_member.initialize_project_member()
-        services.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
+        framework.utils.singletons.project_member.initialize_project_member()
+        framework.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
         mlrun.mlconf.httpdb.projects.leader = "mlrun"
-        services.api.utils.singletons.project_member.initialize_project_member()
+        framework.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
             f"Provided project member mode is not supported. mode={request.param}"
@@ -156,7 +159,7 @@ def test_get_non_existing_project(
     not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
     """
     project = "does-not-exist"
-    services.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
+    framework.utils.auth.verifier.AuthVerifier().query_project_permissions = (
         unittest.mock.AsyncMock(side_effect=mlrun.errors.MLRunUnauthorizedError("bla"))
     )
     response = client.get(f"projects/{project}")
@@ -231,7 +234,7 @@ def test_delete_project_with_resources(
 
     # deletion strategy - cascading - should succeed and remove all related resources
     # mock project configmaps
-    k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+    k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
 
     def _list_configmaps(*args, **kwargs):
         label_selector = kwargs.get("label_selector")
@@ -664,7 +667,13 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    services.api.utils.singletons.db.get_db()._delete_multi_objects = (
+    framework.utils.singletons.db.get_db()._delete_project_functions = (
+        unittest.mock.Mock()
+    )
+    framework.utils.singletons.db.get_db()._delete_project_feature_sets = (
+        unittest.mock.Mock()
+    )
+    framework.utils.singletons.db.get_db()._delete_project_feature_vectors = (
         unittest.mock.Mock()
     )
     # deletion strategy - check - should fail because there are resources
@@ -676,17 +685,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    deleted_from_tables = [
-        call_args.kwargs["main_table"]
-        for call_args in services.api.utils.singletons.db.get_db()._delete_multi_objects.call_args_list
-    ]
-    assert Function in deleted_from_tables
-    assert FeatureSet in deleted_from_tables
-    assert FeatureVector in deleted_from_tables
-    for (
-        call_args
-    ) in services.api.utils.singletons.db.get_db()._delete_multi_objects.call_args_list:
-        assert "main_table_identifier_values" not in call_args.kwargs
+    framework.utils.singletons.db.get_db()._delete_project_functions.assert_called_once()
+    framework.utils.singletons.db.get_db()._delete_project_feature_sets.assert_called_once()
+    framework.utils.singletons.db.get_db()._delete_project_feature_vectors.assert_called_once()
 
 
 def test_delete_project_deletion_strategy_check_external_resource(
@@ -736,9 +737,9 @@ def test_delete_project_with_stop_logs(
     mlrun.mlconf.namespace = "test-namespace"
     _create_project(client, project_name)
 
-    log_collector = services.api.utils.clients.log_collector.LogCollectorClient()
+    log_collector = framework.utils.clients.log_collector.LogCollectorClient()
     with unittest.mock.patch.object(
-        services.api.utils.clients.log_collector.LogCollectorClient,
+        framework.utils.clients.log_collector.LogCollectorClient,
         "_call",
         return_value=services.api.tests.unit.utils.clients.test_log_collector.BaseLogCollectorResponse(
             True, ""
@@ -789,7 +790,7 @@ def test_list_projects_leader_format(
         project = mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         )
-        services.api.utils.singletons.db.get_db().create_project(db, project)
+        framework.utils.singletons.db.get_db().create_project(db, project)
         project_names.append(project_name)
 
     # list in leader format
@@ -1064,7 +1065,7 @@ def test_delete_project_not_found_in_leader(
         if response.status_code == HTTPStatus.ACCEPTED.value:
             assert delete_api_version == "v2"
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                 background_task.metadata.name
             )
             assert (
@@ -1133,7 +1134,7 @@ def test_delete_project_fail_fast(
         else:
             assert response.status_code == HTTPStatus.ACCEPTED.value
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            background_task = services.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
                 background_task.metadata.name
             )
             assert (
@@ -1235,7 +1236,7 @@ def _create_resources_of_all_kinds(
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
     project: str,
 ):
-    db = services.api.utils.singletons.db.get_db()
+    db = framework.utils.singletons.db.get_db()
     # add labels to project
     project_schema = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
@@ -1243,7 +1244,7 @@ def _create_resources_of_all_kinds(
         ),
         spec=mlrun.common.schemas.ProjectSpec(description="some desc"),
     )
-    services.api.utils.singletons.project_member.get_project_member().store_project(
+    framework.utils.singletons.project_member.get_project_member().store_project(
         db_session, project, project_schema
     )
 
@@ -1260,18 +1261,21 @@ def _create_resources_of_all_kinds(
     }
     function_names = ["function_name_1", "function_name_2", "function_name_3"]
     function_tags = ["some_tag", "some_tag2", "some_tag3"]
+    functions_hashes = []
     for function_name in function_names:
         for function_tag in function_tags:
             # change spec a bit so different (un-tagged) versions will be created
             for index in range(3):
                 function["spec"]["index"] = index
-                db.store_function(
-                    db_session,
-                    function,
-                    function_name,
-                    project,
-                    tag=function_tag,
-                    versioned=True,
+                functions_hashes.append(
+                    db.store_function(
+                        db_session,
+                        function,
+                        function_name,
+                        project,
+                        tag=function_tag,
+                        versioned=True,
+                    )
                 )
 
     # Create several artifacts with several tags
@@ -1284,6 +1288,7 @@ def _create_resources_of_all_kinds(
     artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
     artifact_trees = ["some_tree", "some_tree2", "some_tree3"]
     artifact_tags = ["some-tag", "some-tag2", "some-tag3"]
+    artifact_uids = []
     for artifact_key in artifact_keys:
         for artifact_tree in artifact_trees:
             for artifact_tag in artifact_tags:
@@ -1295,14 +1300,16 @@ def _create_resources_of_all_kinds(
 
                     # pass a copy of the artifact to the store function, otherwise the store function will change the
                     # original artifact
-                    db.store_artifact(
-                        db_session,
-                        artifact_key,
-                        artifact,
-                        iter=artifact_iter,
-                        tag=artifact_tag,
-                        project=project,
-                        producer_id=artifact_tree,
+                    artifact_uids.append(
+                        db.store_artifact(
+                            db_session,
+                            artifact_key,
+                            artifact,
+                            iter=artifact_iter,
+                            tag=artifact_tag,
+                            project=project,
+                            producer_id=artifact_tree,
+                        )
                     )
 
     # Create several runs
@@ -1453,6 +1460,28 @@ def _create_resources_of_all_kinds(
     # create a datasource profile
     db.store_datastore_profile(db_session, ds_profile)
 
+    model_endpoint = mlrun.common.schemas.ModelEndpointV2(
+        metadata={
+            "name": "model-endpoint-1",
+            "project": project,
+            "labels": {"key": "value"},
+        },
+        spec={
+            "function_name": function_names[0],
+            "function_uid": functions_hashes[0],
+            "model_uid": artifact_uids[0],
+            "model_name": artifact_keys[0],
+        },
+        status={"monitoring_mode": "enabled"},
+    )
+
+    db.store_model_endpoint(
+        db_session,
+        model_endpoint,
+        name=model_endpoint.metadata.name,
+        project=model_endpoint.metadata.project,
+    )
+
 
 def _assert_resources_in_project(
     db_session: Session,
@@ -1499,7 +1528,7 @@ def _assert_logs_in_project(
     project: str,
     assert_no_resources: bool = False,
 ) -> int:
-    logs_path = services.api.api.utils.project_logs_path(project)
+    logs_path = framework.api.utils.project_logs_path(project)
     number_of_log_files = 0
     if logs_path.exists():
         number_of_log_files = len(
@@ -1646,6 +1675,13 @@ def _assert_db_resources_in_project(
                     .filter(Project.name == project)
                     .count()
                 )
+            if cls.__tablename__ == "model_endpoints_labels":
+                number_of_cls_records = (
+                    db_session.query(ModelEndpoint)
+                    .join(cls)
+                    .filter(ModelEndpoint.project == project)
+                    .count()
+                )
             if cls.__tablename__ == "artifacts_labels":
                 # Artifact table is deprecated, we are using ArtifactV2 instead
                 continue
@@ -1670,7 +1706,7 @@ def _assert_db_resources_in_project(
 
 
 def _list_project_names_and_assert(
-    client: TestClient, expected_names: list[str], params: dict = None
+    client: TestClient, expected_names: list[str], params: Optional[dict] = None
 ):
     params = params or {}
     params["format"] = mlrun.common.formatters.ProjectFormat.name_only
@@ -1690,7 +1726,9 @@ def _list_project_names_and_assert(
 
 
 def _assert_project_response(
-    expected_project: mlrun.common.schemas.Project, response, extra_exclude: dict = None
+    expected_project: mlrun.common.schemas.Project,
+    response,
+    extra_exclude: Optional[dict] = None,
 ):
     project = mlrun.common.schemas.Project(**response.json())
     _assert_project(expected_project, project, extra_exclude)
@@ -1730,7 +1768,7 @@ def _assert_project_summary(
 def _assert_project(
     expected_project: mlrun.common.schemas.Project,
     project: mlrun.common.schemas.Project,
-    extra_exclude: dict = None,
+    extra_exclude: Optional[dict] = None,
 ):
     exclude = {"id": ..., "metadata": {"created"}, "status": {"state"}}
     if extra_exclude:
@@ -1828,7 +1866,7 @@ def _create_schedule(
     client: TestClient,
     project_name,
     cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
-    labels: dict = None,
+    labels: Optional[dict] = None,
 ):
     if not labels:
         labels = {}

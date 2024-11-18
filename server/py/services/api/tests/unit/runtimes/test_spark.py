@@ -27,11 +27,12 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
-import services.api.tests.unit.runtimes.base
-import services.api.utils.singletons.k8s
 from mlrun.datastore import ParquetTarget
 from mlrun.feature_store import RunConfig
 from mlrun.feature_store.retrieval.job import _default_merger_handler
+
+import framework.utils.singletons.k8s
+import services.api.tests.unit.runtimes.base
 
 
 class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
@@ -103,13 +104,13 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         expected_executor_volume_mounts: typing.Optional[list] = None,
         expected_driver_java_options=None,
         expected_executor_java_options=None,
-        expected_driver_resources: dict = None,
-        expected_executor_resources: dict = None,
-        expected_cores: dict = None,
+        expected_driver_resources: typing.Optional[dict] = None,
+        expected_executor_resources: typing.Optional[dict] = None,
+        expected_cores: typing.Optional[dict] = None,
         expected_code: typing.Optional[str] = None,
     ):
         if assert_create_custom_object_called:
-            services.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_called_once()
+            framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_called_once()
 
         assert self._get_create_custom_object_namespace_arg() == self.namespace
 

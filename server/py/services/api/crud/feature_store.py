@@ -21,7 +21,8 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
-import services.api.utils.singletons.db
+
+import framework.utils.singletons.db
 
 
 class FeatureStore(
@@ -123,10 +124,10 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        state: str = None,
-        entities: list[str] = None,
-        features: list[str] = None,
-        labels: list[str] = None,
+        state: typing.Optional[str] = None,
+        entities: typing.Optional[list[str]] = None,
+        features: typing.Optional[list[str]] = None,
+        labels: typing.Optional[list[str]] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -134,7 +135,7 @@ class FeatureStore(
         format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> mlrun.common.schemas.FeatureSetsOutput:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_feature_sets(
+        return framework.utils.singletons.db.get_db().list_feature_sets(
             db_session,
             project,
             name,
@@ -174,11 +175,11 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        entities: list[str] = None,
-        labels: list[str] = None,
+        entities: typing.Optional[list[str]] = None,
+        labels: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.FeaturesOutput:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_features(
+        return framework.utils.singletons.db.get_db().list_features(
             db_session,
             project,
             name,
@@ -193,11 +194,11 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        entities: list[str] = None,
-        labels: list[str] = None,
+        entities: typing.Optional[list[str]] = None,
+        labels: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_features_v2(
+        return framework.utils.singletons.db.get_db().list_features_v2(
             db_session,
             project,
             name,
@@ -213,10 +214,10 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_entities(
+        return framework.utils.singletons.db.get_db().list_entities(
             db_session,
             project,
             name,
@@ -230,10 +231,10 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        labels: list[str] = None,
+        labels: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.EntitiesOutputV2:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_entities_v2(
+        return framework.utils.singletons.db.get_db().list_entities_v2(
             db_session,
             project,
             name,
@@ -326,15 +327,15 @@ class FeatureStore(
         project: str,
         name: str,
         tag: typing.Optional[str] = None,
-        state: str = None,
-        labels: list[str] = None,
+        state: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
     ) -> mlrun.common.schemas.FeatureVectorsOutput:
         project = project or mlrun.mlconf.default_project
-        return services.api.utils.singletons.db.get_db().list_feature_vectors(
+        return framework.utils.singletons.db.get_db().list_feature_vectors(
             db_session,
             project,
             name,
@@ -376,11 +377,11 @@ class FeatureStore(
         project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_creation(project, object_)
         if isinstance(object_, mlrun.common.schemas.FeatureSet):
-            return services.api.utils.singletons.db.get_db().create_feature_set(
+            return framework.utils.singletons.db.get_db().create_feature_set(
                 db_session, project, object_, versioned
             )
         elif isinstance(object_, mlrun.common.schemas.FeatureVector):
-            return services.api.utils.singletons.db.get_db().create_feature_vector(
+            return framework.utils.singletons.db.get_db().create_feature_vector(
                 db_session, project, object_, versioned
             )
         else:
@@ -405,7 +406,7 @@ class FeatureStore(
             object_, project, name, tag, uid
         )
         if isinstance(object_, mlrun.common.schemas.FeatureSet):
-            return services.api.utils.singletons.db.get_db().store_feature_set(
+            return framework.utils.singletons.db.get_db().store_feature_set(
                 db_session,
                 project,
                 name,
@@ -415,7 +416,7 @@ class FeatureStore(
                 versioned,
             )
         elif isinstance(object_, mlrun.common.schemas.FeatureVector):
-            return services.api.utils.singletons.db.get_db().store_feature_vector(
+            return framework.utils.singletons.db.get_db().store_feature_vector(
                 db_session,
                 project,
                 name,
@@ -450,7 +451,7 @@ class FeatureStore(
             uid,
         )
         if object_schema.__name__ == mlrun.common.schemas.FeatureSet.__name__:
-            return services.api.utils.singletons.db.get_db().patch_feature_set(
+            return framework.utils.singletons.db.get_db().patch_feature_set(
                 db_session,
                 project,
                 name,
@@ -460,7 +461,7 @@ class FeatureStore(
                 patch_mode,
             )
         elif object_schema.__name__ == mlrun.common.schemas.FeatureVector.__name__:
-            return services.api.utils.singletons.db.get_db().patch_feature_vector(
+            return framework.utils.singletons.db.get_db().patch_feature_vector(
                 db_session,
                 project,
                 name,
@@ -487,11 +488,11 @@ class FeatureStore(
     ]:
         project = project or mlrun.mlconf.default_project
         if object_schema.__name__ == mlrun.common.schemas.FeatureSet.__name__:
-            return services.api.utils.singletons.db.get_db().get_feature_set(
+            return framework.utils.singletons.db.get_db().get_feature_set(
                 db_session, project, name, tag, uid
             )
         elif object_schema.__name__ == mlrun.common.schemas.FeatureVector.__name__:
-            return services.api.utils.singletons.db.get_db().get_feature_vector(
+            return framework.utils.singletons.db.get_db().get_feature_vector(
                 db_session, project, name, tag, uid
             )
         else:
@@ -507,11 +508,11 @@ class FeatureStore(
     ) -> list[tuple[str, str, str]]:
         project = project or mlrun.mlconf.default_project
         if object_schema.__name__ == mlrun.common.schemas.FeatureSet.__name__:
-            return services.api.utils.singletons.db.get_db().list_feature_sets_tags(
+            return framework.utils.singletons.db.get_db().list_feature_sets_tags(
                 db_session, project
             )
         elif object_schema.__name__ == mlrun.common.schemas.FeatureVector.__name__:
-            return services.api.utils.singletons.db.get_db().list_feature_vectors_tags(
+            return framework.utils.singletons.db.get_db().list_feature_vectors_tags(
                 db_session, project
             )
         else:
@@ -530,11 +531,11 @@ class FeatureStore(
     ):
         project = project or mlrun.mlconf.default_project
         if object_schema.__name__ == mlrun.common.schemas.FeatureSet.__name__:
-            services.api.utils.singletons.db.get_db().delete_feature_set(
+            framework.utils.singletons.db.get_db().delete_feature_set(
                 db_session, project, name, tag, uid
             )
         elif object_schema.__name__ == mlrun.common.schemas.FeatureVector.__name__:
-            services.api.utils.singletons.db.get_db().delete_feature_vector(
+            framework.utils.singletons.db.get_db().delete_feature_vector(
                 db_session, project, name, tag, uid
             )
         else:

@@ -14,20 +14,22 @@
 #
 import mimetypes
 from http import HTTPStatus
+from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun
 import mlrun.common.schemas
-import services.api.api.deps
-import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.singletons.k8s
 from mlrun.datastore import store_manager
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
-from services.api.api.utils import get_obj_path, get_secrets, log_and_raise
+
+import framework.api.deps
+import framework.utils.auth.verifier
+import framework.utils.singletons.k8s
+import services.api.crud
+from framework.api.utils import get_obj_path, get_secrets, log_and_raise
 
 router = fastapi.APIRouter()
 
@@ -42,10 +44,10 @@ async def get_files_with_project_secrets(
     offset: int = 0,
     use_secrets: bool = fastapi.Query(True, alias="use-secrets"),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -74,12 +76,12 @@ async def get_filestat_with_project_secrets(
     schema: str = "",
     path: str = "",
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        services.api.api.deps.authenticate_request
+        framework.api.deps.authenticate_request
     ),
     user: str = "",
     use_secrets: bool = fastapi.Query(True, alias="use-secrets"),
 ):
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
@@ -106,7 +108,7 @@ def _get_files(
     size: int,
     offset: int,
     auth_info: mlrun.common.schemas.AuthInfo,
-    secrets: dict = None,
+    secrets: Optional[dict] = None,
     project: str = "",
 ):
     if size > mlrun.mlconf.artifacts.limits.max_chunk_size:
@@ -157,17 +159,19 @@ def _get_files(
 
 async def _verify_and_get_project_secrets(project, auth_info):
     # If running on Docker or locally, we cannot retrieve project secrets, so skip.
-    if not services.api.utils.singletons.k8s.get_k8s_helper(
+    if not framework.utils.singletons.k8s.get_k8s_helper(
         silent=True
     ).is_running_inside_kubernetes_cluster():
         return {}
 
-    await services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.secret,
-        project,
-        mlrun.common.schemas.SecretProviderName.kubernetes,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project,
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
     )
 
     secrets_data = await run_in_threadpool(

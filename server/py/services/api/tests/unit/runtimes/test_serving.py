@@ -25,19 +25,19 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.config
-import services.api.api.utils
-import services.api.crud
-import services.api.crud.runtimes.nuclio.function
 from mlrun import mlconf, new_function
 from mlrun.runtimes.nuclio.function import NuclioStatus
-from services.api.rundb.sqldb import SQLRunDB
-from services.api.utils.singletons.k8s import get_k8s_helper
 
+import framework.api.utils
+import services.api.crud
+import services.api.crud.runtimes.nuclio.function
 from .assets.serving_child_functions import *  # noqa
 
 # Needed for the serving test
 from .assets.serving_functions import *  # noqa
 from .test_nuclio import TestNuclioRuntime
+from framework.rundb.sqldb import SQLRunDB
+from framework.utils.singletons.k8s import get_k8s_helper
 
 
 class TestServingRuntime(TestNuclioRuntime):
@@ -305,7 +305,7 @@ class TestServingRuntime(TestNuclioRuntime):
         get_k8s_helper()._get_project_secrets_raw_data = unittest.mock.Mock(
             return_value={}
         )
-        services.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
+        framework.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
 
         function = self._create_serving_function()
 

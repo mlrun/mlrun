@@ -135,6 +135,9 @@ default_config = {
             "delete_crd_resources_timeout": "5 minutes",
         },
     },
+    "object_retentions": {
+        "alert_activation": 14 * 7,  # days
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
@@ -795,11 +798,14 @@ default_config = {
         "max_allowed": 10000,
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
+        # interval for periodic events generation job
+        "events_generation_interval": "30",
     },
     "auth_with_client_id": {
         "enabled": False,
         "request_timeout": 5,
     },
+    "notifications": {"smtp": {"config_secret_name": "mlrun-smtp-config"}},
 }
 _is_running_as_api = None
 
@@ -845,6 +851,22 @@ class Config:
     def __repr__(self):
         name = self.__class__.__name__
         return f"{name}({self._cfg!r})"
+
+    def __iter__(self):
+        if isinstance(self._cfg, Mapping):
+            return self._cfg.__iter__()
+
+    def items(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self._cfg.items())
+
+    def keys(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self.data.keys())
+
+    def values(self):
+        if isinstance(self._cfg, Mapping):
+            return iter(self.data.values())
 
     def update(self, cfg, skip_errors=False):
         for key, value in cfg.items():
@@ -1037,6 +1059,17 @@ class Config:
                 f"Security context enrichment mode enabled (override/retain) "
                 f"is not allowed for iguazio version: {igz_version} < 3.5.1"
             )
+
+    def validate_object_retentions(self):
+        for table_name, retention_days in self.object_retentions.items():
+            if retention_days < 7 and not os.getenv("PARTITION_INTERVAL"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{table_name} partition interval must be greater than a week"
+                )
+            elif retention_days > 53 * 7:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{table_name} partition interval must be less than a year"
+                )
 
     def resolve_chief_api_url(self) -> str:
         if self.httpdb.clusterization.chief.url:
@@ -1376,9 +1409,12 @@ def _validate_config(config):
         pass
 
     config.verify_security_context_enrichment_mode_is_allowed()
+    config.validate_object_retentions()
 
 
-def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
+def _verify_gpu_requests_and_limits(
+    requests_gpu: typing.Optional[str] = None, limits_gpu: typing.Optional[str] = None
+):
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if requests_gpu and not limits_gpu:
         raise mlrun.errors.MLRunConflictError(
@@ -1391,7 +1427,7 @@ def _verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = 
         )
 
 
-def _convert_resources_to_str(config: dict = None):
+def _convert_resources_to_str(config: typing.Optional[dict] = None):
     resources_types = ["cpu", "memory", "gpu"]
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):

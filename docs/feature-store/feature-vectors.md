@@ -154,10 +154,10 @@ task = mlrun.new_task(
 run = fn.run(task)
 ```
 
-See a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.html).
+See a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.ipynb).
 
 You can use `get_offline_features` for a feature vector whose data is not ingested. See 
-[Create a feature set without ingesting its data](./feature-sets.html#create-a-feature-set-without-ingesting-its-data).
+[Create a feature set without ingesting its data](./feature-sets.md#create-a-feature-set-without-ingesting-its-data).
 
 ### Using joins in an offline feature vector
 
@@ -292,6 +292,6 @@ You can use the parameter `entity_keys` to join features by relations, instead o
 and the starting place. 
 See {py:meth}`mlrun.feature_store.FeatureVector.get_online_feature_service`.
 
-See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.html).
+See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.ipynb).
 
 

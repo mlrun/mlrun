@@ -13,15 +13,17 @@
 # limitations under the License.
 #
 import urllib.parse
+from typing import Optional
 
 import semver
 
 import mlrun
 import mlrun.runtimes
-import services.api.utils.clients.nuclio
-import services.api.utils.runtimes.nuclio
-import services.api.utils.singletons.k8s
 from mlrun.utils import logger
+
+import framework.utils.clients.nuclio
+import framework.utils.runtimes.nuclio
+import framework.utils.singletons.k8s
 
 
 def resolve_function_http_trigger(function_spec):
@@ -32,7 +34,7 @@ def resolve_function_http_trigger(function_spec):
 
 
 def resolve_nuclio_runtime_python_image(
-    mlrun_client_version: str = None, python_version: str = None
+    mlrun_client_version: Optional[str] = None, python_version: Optional[str] = None
 ):
     if not python_version or not mlrun_client_version:
         return mlrun.mlconf.default_nuclio_runtime
@@ -199,7 +201,7 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     try:
         parsed_min_version = semver.VersionInfo.parse(min_version)
         parsed_max_version = semver.VersionInfo.parse(max_version)
-        nuclio_version = services.api.utils.runtimes.nuclio.resolve_nuclio_version()
+        nuclio_version = framework.utils.runtimes.nuclio.resolve_nuclio_version()
         parsed_current_version = semver.VersionInfo.parse(nuclio_version)
     except ValueError:
         logger.warning(
@@ -222,10 +224,10 @@ def compile_nuclio_archive_config(
     secrets = {}
     if (
         project
-        and services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
+        and framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
     ):
         secrets = (
-            services.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(
+            framework.utils.singletons.k8s.get_k8s_helper().get_project_secret_data(
                 project
             )
         )

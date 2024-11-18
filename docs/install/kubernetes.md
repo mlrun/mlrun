@@ -29,7 +29,7 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 - Storage: 
   - 8Gi
-  - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#the-storageclass-resource) for more information.
+  - Set a default storage class for the kubernetes cluster, in order for the pods to have persistent storage. See the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#storageclass-objects) for more information.
 - RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
 
 ``` {admonition} Note
@@ -341,7 +341,7 @@ be provided.
 
 ### Setting up S3 credentials and endpoint
 
-Set up the following project-secrets (refer to [**Data stores**](../store/datastore.html) and [**Project secrets**](../secrets.html#mlrun-managed-secrets)) 
+Set up the following project-secrets (refer to [**Data stores**](../store/datastore.md) and [**Project secrets**](../secrets.md#mlrun-managed-secrets)) 
 for any project used:
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; S3 credentials
@@ -354,7 +354,7 @@ for any project used:
 
 Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it, since by default
 auto-mount adds S3 configurations that point at the MinIO service (refer to 
-[**Function storage**](../runtimes/function-storage.html) for more details on auto-mount). This can be done in one
+[**Function storage**](../runtimes/function-storage.md) for more details on auto-mount). This can be done in one
 of following ways:
 
 * Set the client-side MLRun configuration to disable auto-mount. This disables auto-mount for any function run
@@ -382,7 +382,7 @@ the same path structure as the default, while modifying the bucket name. For exa
 s3://<bucket name>/projects/{{run.project}}/artifacts
 ```
 
-The artifact path can be set in several ways, refer to [**Artifact path**](../store/artifacts.html#artifact-path) 
+The artifact path can be set in several ways, refer to [**Artifact path**](../store/artifacts.md#artifact-path) 
 for more details.
 
 ```{admonition} Note

@@ -23,6 +23,7 @@ import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
+
 import services.api.crud
 import services.api.tests.unit.conftest
 
@@ -52,7 +53,7 @@ def test_store_project_secrets_verifications(
 def test_store_project_secrets_with_key_map_verifications(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
@@ -115,7 +116,7 @@ def test_store_project_secrets_with_key_map_verifications(
 def test_get_project_secret_verifications(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
@@ -145,7 +146,7 @@ def test_get_project_secret_verifications(
 def test_get_project_secret(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
@@ -228,7 +229,7 @@ def test_get_project_secret(
 def test_delete_project_secret_verifications(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
@@ -273,7 +274,7 @@ def test_delete_project_secret_verifications(
 def test_delete_project_secret(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
@@ -368,7 +369,7 @@ def test_delete_project_secret(
 def test_store_project_secrets_with_key_map_success(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     _mock_secrets_crud_uuid_generation()
     project = "project-name"
@@ -501,7 +502,7 @@ def _mock_secrets_crud_uuid_generation():
 def test_secrets_crud_internal_project_secrets(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     project = "project-name"
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
@@ -679,7 +680,7 @@ def test_store_auth_secret_verifications(
 def test_store_auth_secret(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     username = "some-username"
     access_key = "some-access-key"

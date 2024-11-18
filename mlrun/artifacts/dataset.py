@@ -149,16 +149,16 @@ class DatasetArtifact(Artifact):
 
     def __init__(
         self,
-        key: str = None,
+        key: Optional[str] = None,
         df=None,
-        preview: int = None,
+        preview: Optional[int] = None,
         format: str = "",  # TODO: should be changed to 'fmt'.
-        stats: bool = None,
-        target_path: str = None,
-        extra_data: dict = None,
-        column_metadata: dict = None,
+        stats: Optional[bool] = None,
+        target_path: Optional[str] = None,
+        extra_data: Optional[dict] = None,
+        column_metadata: Optional[dict] = None,
         ignore_preview_limits: bool = False,
-        label_column: str = None,
+        label_column: Optional[str] = None,
         **kwargs,
     ):
         if key or format or target_path:
@@ -207,7 +207,7 @@ class DatasetArtifact(Artifact):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", DatasetArtifactSpec)
 
-    def upload(self, artifact_path: str = None):
+    def upload(self, artifact_path: Optional[str] = None):
         """
         internal, upload to target store
         :param artifact_path: required only for when generating target_path from artifact hash
@@ -396,13 +396,13 @@ def get_df_stats(df):
 def update_dataset_meta(
     artifact,
     from_df=None,
-    schema: dict = None,
-    header: list = None,
-    preview: list = None,
-    stats: dict = None,
-    extra_data: dict = None,
-    column_metadata: dict = None,
-    labels: dict = None,
+    schema: Optional[dict] = None,
+    header: Optional[list] = None,
+    preview: Optional[list] = None,
+    stats: Optional[dict] = None,
+    extra_data: Optional[dict] = None,
+    column_metadata: Optional[dict] = None,
+    labels: Optional[dict] = None,
     ignore_preview_limits: bool = False,
 ):
     """Update dataset object attributes/metadata

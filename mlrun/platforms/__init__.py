@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 import json
 from pprint import pprint
 from time import sleep
+from typing import Optional
 
 from mlrun_pipelines.common.mounts import VolumeMount
 from mlrun_pipelines.mounts import (
@@ -39,8 +39,8 @@ from .iguazio import (
 
 def watch_stream(
     url,
-    shard_ids: list = None,
-    seek_to: str = None,
+    shard_ids: Optional[list] = None,
+    seek_to: Optional[str] = None,
     interval=None,
     is_json=False,
     **kwargs,

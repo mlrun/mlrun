@@ -31,10 +31,11 @@ import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
-import services.api.api.utils
+
+import framework.api.utils
+import framework.utils.helpers
 import services.api.crud
 import services.api.runtime_handlers
-import services.api.utils.helpers
 
 
 class ServerSideLauncher(launcher.BaseLauncher):
@@ -70,7 +71,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         schedule: Optional[
             Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
         ] = None,
-        hyperparams: dict[str, list] = None,
+        hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
         verbose: Optional[bool] = None,
         scrape_metrics: Optional[bool] = None,
@@ -195,7 +196,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         out_path=None,
         artifact_path=None,
         workdir=None,
-        notifications: list[mlrun.model.Notification] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
     ):
         run = super()._enrich_run(
@@ -256,7 +257,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
         # be able to communicate with the api
-        services.api.api.utils.ensure_function_has_auth_set(
+        framework.api.utils.ensure_function_has_auth_set(
             runtime, self._auth_info, allow_empty_access_key=not full
         )
 
@@ -264,7 +265,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             self._enrich_full_spec(runtime)
 
         # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
-        services.api.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
+        framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
@@ -297,15 +298,13 @@ class ServerSideLauncher(launcher.BaseLauncher):
         # If this was triggered by the UI, we will need to attempt auto-mount based on auto-mount
         # config and params passed in the auth_info.
         # If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
-        services.api.api.utils.try_perform_auto_mount(runtime, self._auth_info)
+        framework.api.utils.try_perform_auto_mount(runtime, self._auth_info)
 
         # Validate function's service-account, based on allowed SAs for the project,
         # if existing in a project-secret.
-        services.api.api.utils.process_function_service_account(runtime)
+        framework.api.utils.process_function_service_account(runtime)
 
-        services.api.api.utils.ensure_function_security_context(
-            runtime, self._auth_info
-        )
+        framework.api.utils.ensure_function_security_context(runtime, self._auth_info)
 
     def _save_notifications(self, runobj):
         if not self._run_has_valid_notifications(runobj):
@@ -388,7 +387,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 )
 
             try:
-                services.api.utils.helpers.time_string_to_seconds(threshold)
+                framework.utils.helpers.time_string_to_seconds(threshold)
             except Exception as exc:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. "

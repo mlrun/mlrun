@@ -30,17 +30,17 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.launcher.factory
-import services.api.crud
-import services.api.tests.unit.conftest
-import services.api.utils.auth
-import services.api.utils.auth.verifier
-import services.api.utils.helpers
-import services.api.utils.singletons.project_member
 from mlrun.common.runtimes.constants import RunStates
 from mlrun.config import config
 from mlrun.utils import logger
+
+import framework.utils.auth.verifier
+import framework.utils.helpers
+import framework.utils.singletons.project_member
+import services.api.crud
+import services.api.tests.unit.conftest
+from framework.utils.singletons.db import get_db
 from services.api.utils.scheduler import Scheduler
-from services.api.utils.singletons.db import get_db
 
 
 @pytest_asyncio.fixture()
@@ -55,7 +55,7 @@ async def scheduler(db: Session) -> typing.AsyncIterator[Scheduler]:
 
     scheduler = Scheduler()
     await scheduler.start(db)
-    services.api.utils.singletons.project_member.initialize_project_member()
+    framework.utils.singletons.project_member.initialize_project_member()
     yield scheduler
     logger.info("Stopping scheduler")
     await scheduler.stop()
@@ -85,7 +85,7 @@ async def do_nothing():
 
 
 def create_project(
-    db: Session, project_name: str = None
+    db: Session, project_name: typing.Optional[str] = None
 ) -> mlrun.common.schemas.Project:
     """API tests use sql db, so we need to create the project with its schema"""
     project = mlrun.common.schemas.Project(
@@ -185,7 +185,7 @@ async def test_invoke_schedule(
     db: Session,
     client: services.api.tests.unit.conftest.TestClient,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
@@ -246,7 +246,7 @@ async def test_get_schedule_last_run_deleted(
     db: Session,
     client: services.api.tests.unit.conftest.TestClient,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
@@ -294,7 +294,7 @@ async def test_create_schedule_mlrun_function(
     db: Session,
     client: services.api.tests.unit.conftest.TestClient,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     project_name = config.default_project
     create_project(db, project_name)
@@ -372,7 +372,7 @@ async def test_create_schedule_success_cron_trigger_validation(
 async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     name = "schedule-name"
     project_name = config.default_project
@@ -401,7 +401,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     )
     # stop scheduler, reconfigure to store credentials and start again (upgrade)
     await scheduler.stop()
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     await scheduler.start(db)
@@ -410,9 +410,11 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     # auth info, mock the functions for this
     username = "some-username"
     access_key = "some-access_key"
-    services.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
-        return_value=mlrun.common.schemas.ProjectOwner(
-            username=username, access_key=access_key
+    framework.utils.singletons.project_member.get_project_member().get_project_owner = (
+        unittest.mock.Mock(
+            return_value=mlrun.common.schemas.ProjectOwner(
+                username=username, access_key=access_key
+            )
         )
     )
     time_to_sleep = (
@@ -423,7 +425,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 3
     assert (
-        services.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
+        framework.utils.singletons.project_member.get_project_member().get_project_owner.call_count
         == 1
     )
 
@@ -840,9 +842,9 @@ async def test_rescheduling(db: Session, scheduler: Scheduler):
 async def test_rescheduling_secrets_storing(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     name = "schedule-name"
@@ -885,9 +887,9 @@ async def test_rescheduling_secrets_storing(
 async def test_schedule_crud_secrets_handling(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     for schedule_name in ["valid-secret-key", "invalid/secret/key"]:
@@ -948,9 +950,9 @@ async def test_schedule_crud_secrets_handling(
 async def test_schedule_access_key_generation(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     project = config.default_project
@@ -959,7 +961,7 @@ async def test_schedule_access_key_generation(
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     access_key = "generated-access-key"
     get_or_create_access_key_mock = unittest.mock.Mock(return_value=access_key)
-    services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
+    framework.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
         get_or_create_access_key_mock
     )
     scheduler.create_schedule(
@@ -978,7 +980,7 @@ async def test_schedule_access_key_generation(
 
     access_key = "generated-access-key-2"
     get_or_create_access_key_mock = unittest.mock.Mock(return_value=access_key)
-    services.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
+    framework.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
         get_or_create_access_key_mock
     )
     scheduler.update_schedule(
@@ -1000,9 +1002,9 @@ async def test_schedule_access_key_generation(
 async def test_schedule_access_key_reference_handling(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
-    services.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     project = config.default_project
@@ -1042,7 +1044,7 @@ async def test_update_schedule(
     db: Session,
     client: services.api.tests.unit.conftest.TestClient,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     labels_1 = {
         "label1": "value1",
@@ -1275,7 +1277,7 @@ async def test_schedule_job_concurrency_limit(
     concurrency_limit: int,
     run_amount: int,
     schedule_kind: mlrun.common.schemas.ScheduleKinds,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     global call_counter
     call_counter = 0
@@ -1344,7 +1346,7 @@ async def test_schedule_job_concurrency_limit(
 async def test_schedule_job_next_run_time(
     db: Session,
     scheduler: Scheduler,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
 ):
     """
     This test checks that the next run time is updated after a schedule was skipped due to concurrency limit.
@@ -1529,7 +1531,7 @@ def test_store_schedule(db: Session, scheduler: Scheduler):
 def test_merge_schedule_and_schedule_object_labels(
     scheduler, labels, scheduled_object, expected
 ):
-    result = services.api.utils.helpers.merge_schedule_and_schedule_object_labels(
+    result = framework.utils.helpers.merge_schedule_and_schedule_object_labels(
         labels,
         scheduled_object,
     )
@@ -1677,7 +1679,7 @@ def test_merge_schedule_and_db_schedule_labels(
     db_schedule.scheduled_object = db_scheduled_object
 
     result_labels, result_scheduled_object = (
-        services.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+        framework.utils.helpers.merge_schedule_and_db_schedule_labels(
             labels,
             scheduled_object,
             db_schedule,
@@ -1704,7 +1706,7 @@ def _assert_schedule_get_and_list_credentials_enrichment(
     )
 
     secret_name = (
-        services.api.tests.unit.conftest.K8sSecretsMock.resolve_auth_secret_name(
+        services.api.tests.unit.conftest.APIK8sSecretsMock.resolve_auth_secret_name(
             expected_username, expected_access_key
         )
     )
@@ -1785,8 +1787,8 @@ def _assert_schedule(
     kind: mlrun.common.schemas.ScheduleKinds,
     cron_trigger: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger],
     next_run_time: typing.Optional[datetime] = None,
-    labels: dict = None,
-    concurrency_limit: int = None,
+    labels: typing.Optional[dict] = None,
+    concurrency_limit: typing.Optional[int] = None,
 ):
     assert schedule.name == name
     assert schedule.project == project

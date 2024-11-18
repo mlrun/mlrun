@@ -57,7 +57,9 @@ class ModelEndpointMetadata(BaseModel):
         extra = Extra.allow
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: list = None):
+    def from_flat_dict(
+        cls, endpoint_dict: dict, json_parse_values: Optional[list] = None
+    ):
         """Create a `ModelEndpointMetadata` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
@@ -88,7 +90,9 @@ class ModelEndpointSpec(ObjectSpec):
     monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled.value
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: list = None):
+    def from_flat_dict(
+        cls, endpoint_dict: dict, json_parse_values: Optional[list] = None
+    ):
         """Create a `ModelEndpointSpec` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
@@ -189,7 +193,9 @@ class ModelEndpointStatus(ObjectStatus):
         extra = Extra.allow
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: list = None):
+    def from_flat_dict(
+        cls, endpoint_dict: dict, json_parse_values: Optional[list] = None
+    ):
         """Create a `ModelEndpointStatus` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
@@ -285,7 +291,14 @@ class ModelEndpointMonitoringMetric(BaseModel):
     app: str
     type: ModelEndpointMonitoringMetricType
     name: str
-    full_name: str
+    full_name: Optional[str] = None
+    kind: Optional[ResultKindApp] = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.full_name = _compose_full_name(
+            project=self.project, app=self.app, name=self.name, type=self.type
+        )
 
 
 def _compose_full_name(
@@ -367,8 +380,10 @@ def _mapping_attributes(
                 dict_to_parse[field_key] = _json_loads_if_not_none(
                     flattened_dictionary[field_key]
                 )
-            else:
+            elif flattened_dictionary[field_key] != "null":
                 dict_to_parse[field_key] = flattened_dictionary[field_key]
+            else:
+                dict_to_parse[field_key] = None
 
     return model_class.parse_obj(dict_to_parse)
 

@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-
 __all__ = [
     "BaseRuntime",
     "KubejobRuntime",
@@ -60,7 +58,7 @@ from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip
 def new_model_server(
     name,
     model_class: str,
-    models: dict = None,
+    models: typing.Optional[dict] = None,
     filename="",
     protocol="",
     image="",

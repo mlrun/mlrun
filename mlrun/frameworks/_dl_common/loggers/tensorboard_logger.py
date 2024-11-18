@@ -15,7 +15,7 @@
 import os
 from abc import abstractmethod
 from datetime import datetime
-from typing import Any, Callable, Generic, Union
+from typing import Any, Callable, Generic, Optional, Union
 
 import yaml
 
@@ -64,8 +64,8 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
             Callable[[DLTypes.WeightType], Union[float, DLTypes.WeightType]]
         ],
         context: mlrun.MLClientCtx = None,
-        tensorboard_directory: str = None,
-        run_name: str = None,
+        tensorboard_directory: Optional[str] = None,
+        run_name: Optional[str] = None,
         update_frequency: Union[int, str] = "epoch",
     ):
         """

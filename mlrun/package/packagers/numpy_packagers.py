@@ -16,7 +16,7 @@ import os
 import pathlib
 import tempfile
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -371,7 +371,10 @@ class NumPyNDArrayPackager(DefaultPackager):
         return artifact, {}
 
     def unpack_file(
-        self, data_item: DataItem, file_format: str = None, allow_pickle: bool = False
+        self,
+        data_item: DataItem,
+        file_format: Optional[str] = None,
+        allow_pickle: bool = False,
     ) -> np.ndarray:
         """
         Unpack a numppy array from file.
@@ -474,7 +477,7 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: str = None,
+        file_format: Optional[str] = None,
         allow_pickle: bool = False,
     ) -> dict[str, np.ndarray]:
         """
@@ -548,7 +551,10 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
     PACKABLE_OBJECT_TYPE = dict[str, np.ndarray]
 
     def is_packable(
-        self, obj: Any, artifact_type: str = None, configurations: dict = None
+        self,
+        obj: Any,
+        artifact_type: Optional[str] = None,
+        configurations: Optional[dict] = None,
     ) -> bool:
         """
         Check if the object provided is a dictionary of numpy arrays.
@@ -602,7 +608,7 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: str = None,
+        file_format: Optional[str] = None,
         allow_pickle: bool = False,
     ) -> dict[str, np.ndarray]:
         """
@@ -633,7 +639,10 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
     PACKABLE_OBJECT_TYPE = list[np.ndarray]
 
     def is_packable(
-        self, obj: Any, artifact_type: str = None, configurations: dict = None
+        self,
+        obj: Any,
+        artifact_type: Optional[str] = None,
+        configurations: Optional[dict] = None,
     ) -> bool:
         """
         Check if the object provided is a list of numpy arrays.
@@ -679,7 +688,7 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
     def unpack_file(
         self,
         data_item: DataItem,
-        file_format: str = None,
+        file_format: Optional[str] = None,
         allow_pickle: bool = False,
     ) -> list[np.ndarray]:
         """

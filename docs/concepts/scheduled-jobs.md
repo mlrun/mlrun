@@ -55,7 +55,7 @@ project.run("main", schedule='0 * * * *')
 
 Remote/Scheduled workflows can be performed by a project with a remote source or one that is contained on the image. 
 Remote source will be pulled each time the workflow is run, while the local source will be loaded from the image.  
-To use a remote source you can either put your code in Git or archive it and then set a source to it (e.g. git://github.com/mlrun/something.git, http://some/url/file.zip, s3://some/url/file.tar.gz etc.). By default, the defined project source will be used.
+To use a remote source you can either put your code in Git or archive it and then set a source to it (e.g. `git://github.com/mlrun/something.git`, `http://some/url/file.zip`, `s3://some/url/file.tar.gz` etc.). By default, the defined project source will be used.
 * To set project source use the `project.set_source` method.
 * To set workflow use the `project.set_workflow` method.  
 

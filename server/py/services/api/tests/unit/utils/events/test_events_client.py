@@ -13,12 +13,14 @@
 # limitations under the License.
 #
 import unittest.mock
+from typing import Optional
 
 import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.utils.events.events_factory
@@ -38,7 +40,7 @@ class TestEventClient:
         monkeypatch,
         db: sqlalchemy.orm.Session,
         client: fastapi.testclient.TestClient,
-        k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+        k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
         iguazio_version: str,
     ):
         # since auth secrets are internal we don't emit events when they are created/updated/deleted,
@@ -70,7 +72,7 @@ class TestEventClient:
         monkeypatch,
         db: sqlalchemy.orm.Session,
         client: fastapi.testclient.TestClient,
-        k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+        k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
         iguazio_version: str,
     ):
         self._initialize_and_mock_client(monkeypatch, iguazio_version)
@@ -105,7 +107,7 @@ class TestEventClient:
             lambda *args, **kwargs: self.client,
         )
 
-    def _initialize_client(self, version: str = None):
+    def _initialize_client(self, version: Optional[str] = None):
         mlrun.mlconf.igz_version = version
         self.client = (
             services.api.utils.events.events_factory.EventsFactory.get_events_client()

@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from abc import ABC
-from typing import Union
+from typing import Optional, Union
 
 import sklearn
 from sklearn.preprocessing import LabelBinarizer
@@ -39,10 +39,12 @@ class MetricsLibrary(ABC):
     @classmethod
     def get_metrics(
         cls,
-        metrics: Union[
-            list[Metric],
-            list[SKLearnTypes.MetricEntryType],
-            dict[str, SKLearnTypes.MetricEntryType],
+        metrics: Optional[
+            Union[
+                list[Metric],
+                list[SKLearnTypes.MetricEntryType],
+                dict[str, SKLearnTypes.MetricEntryType],
+            ]
         ] = None,
         context: mlrun.MLClientCtx = None,
         include_default: bool = True,
@@ -262,7 +264,7 @@ class MetricsLibrary(ABC):
     def _to_metric_class(
         cls,
         metric_entry: SKLearnTypes.MetricEntryType,
-        metric_name: str = None,
+        metric_name: Optional[str] = None,
     ) -> Metric:
         """
         Create a Metric instance from a user given metric entry.

@@ -15,11 +15,11 @@
 import json
 
 import kfp
+
+import mlrun
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.utils import apply_kfp
-
-import mlrun
 
 # Disable the warning about reusing components
 kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True

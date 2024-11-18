@@ -489,7 +489,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             )
 
 
-def datastore_profile_read(url, project_name="", secrets: dict = None):
+def datastore_profile_read(url, project_name="", secrets: typing.Optional[dict] = None):
     parsed_url = urlparse(url)
     if parsed_url.scheme.lower() != "ds":
         raise mlrun.errors.MLRunInvalidArgumentError(

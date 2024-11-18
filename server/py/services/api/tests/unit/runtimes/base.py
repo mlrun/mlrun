@@ -34,17 +34,19 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
-import services.api.api.endpoints.functions
-import services.api.crud
-import services.api.tests.unit.api.utils
-import services.api.tests.unit.conftest
-import services.api.utils.functions
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.utils import create_test_logger
 from mlrun.utils.azure_vault import AzureVaultStore
-from services.api.utils.singletons.k8s import get_k8s_helper
+
+import framework.utils.singletons.k8s
+import services.api.api.endpoints.functions
+import services.api.crud
+import services.api.tests.unit.api.utils
+import services.api.tests.unit.conftest
+import services.api.utils.functions
+from framework.utils.singletons.k8s import get_k8s_helper
 
 logger = create_test_logger(name="test-runtime")
 
@@ -143,8 +145,8 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     def _create_project(
         self,
         client: fastapi.testclient.TestClient,
-        project_name: str = None,
-        default_function_node_selector: dict = None,
+        project_name: typing.Optional[str] = None,
+        default_function_node_selector: typing.Optional[dict] = None,
     ):
         services.api.tests.unit.api.utils.create_project(
             client=client,
@@ -441,7 +443,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         get_k8s_helper().v1api.read_namespaced_pod_log.reset_mock()
 
     def _reset_custom_object_mocks(self):
-        services.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.reset_mock()
+        framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.reset_mock()
         get_k8s_helper().v1api.list_namespaced_pod.reset_mock()
 
     def _execute_run(self, runtime, **kwargs):
@@ -588,14 +590,14 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         (
             _,
             kwargs,
-        ) = services.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
+        ) = framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["body"]
 
     def _get_create_custom_object_namespace_arg(self):
         (
             _,
             kwargs,
-        ) = services.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
+        ) = framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["namespace"]
 
     def _get_create_pod_namespace_arg(self):

@@ -70,7 +70,7 @@ class ObjectStoreFactory(enum.Enum):
 
 def get_model_endpoint_store(
     project: str,
-    access_key: str = None,
+    access_key: typing.Optional[str] = None,
     secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
 ) -> StoreBase:
     # Leaving here for backwards compatibility

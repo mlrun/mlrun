@@ -13,7 +13,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://<data-container>/path/to/file`
-* **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
+* **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.md), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
 
@@ -45,7 +45,7 @@ You can also use [data store profiles](#data-store-profiles) to provide credenti
 
 ```{warning}
 Passing secrets as environment variables to runtimes is discouraged, as they are exposed in the pod spec.
-Refer to [Working with secrets](../secrets.html) for details on secret handling in MLRun.
+Refer to [Working with secrets](../secrets.md) for details on secret handling in MLRun.
 ```
 
 For example, running a function locally:
@@ -143,7 +143,7 @@ the profiles. Access to private attributes is restricted to applications running
 
 * `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
   parameters
-* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: `https://oss-cn-hangzhou.aliyuncs.com`
 
 
 ## Azure data store
@@ -211,15 +211,15 @@ This variable is sensitive information and is kept confidential.
 - `container` &mdash; A string representing the container. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
 This parameter will become mandatory starting with version 1.9.
 
-## Databricks file system 
+## Databricks file system
 ### DBFS credentials and parameters
 
 ```{Admonition} Note
 Not supported by the spark and remote-spark runtimes.
 ```
-* `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
+* `DATABRICKS_HOST` &mdash; hostname in the format: `https://abc-d1e2345f-a6b2.cloud.databricks.com`'
 * `DATABRICKS_TOKEN` &mdash; Databricks access token. 
-   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth.html#databricks-personal-access-token-authentication).
+   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth/pat.html).
    
 ### DBFS data store profile
 
@@ -366,7 +366,7 @@ This parameter will become mandatory starting with version 1.9.
 ### V3IO credentials and parameters
 When running in an Iguazio system, MLRun automatically configures the executed functions to use `v3io` storage, and passes 
 the needed parameters (such as access-key) for authentication. Refer to the 
-[auto-mount](../runtimes/function-storage.html) section for more details on this process.
+[auto-mount](../runtimes/function-storage.md) section for more details on this process.
 
 In some cases, the V3IO configuration needs to be overridden. The following parameters can be configured:
 

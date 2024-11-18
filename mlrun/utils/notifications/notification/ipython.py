@@ -28,10 +28,11 @@ class IPythonNotification(NotificationBase):
 
     def __init__(
         self,
-        name: str = None,
-        params: dict[str, str] = None,
+        name: typing.Optional[str] = None,
+        params: typing.Optional[dict[str, str]] = None,
+        default_params: typing.Optional[dict[str, str]] = None,
     ):
-        super().__init__(name, params)
+        super().__init__(name, params, default_params)
         self._ipython = None
         try:
             import IPython
@@ -48,13 +49,13 @@ class IPythonNotification(NotificationBase):
     def push(
         self,
         message: str,
-        severity: typing.Union[
-            mlrun.common.schemas.NotificationSeverity, str
+        severity: typing.Optional[
+            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Union[mlrun.lists.RunList, list] = None,
-        custom_html: str = None,
-        alert: mlrun.common.schemas.AlertConfig = None,
-        event_data: mlrun.common.schemas.Event = None,
+        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+        custom_html: typing.Optional[typing.Optional[str]] = None,
+        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
+        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
         if not self._ipython:
             mlrun.utils.helpers.logger.debug(

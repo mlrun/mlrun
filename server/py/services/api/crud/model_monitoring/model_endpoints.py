@@ -21,20 +21,26 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.datastore
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
-import services.api.api.utils
-import services.api.crud.model_monitoring.deployment
-import services.api.crud.model_monitoring.helpers
-import services.api.crud.secrets
-import services.api.rundb.sqldb
 from mlrun.model_monitoring.db._schedules import (
     ModelMonitoringSchedulesFile,
     delete_model_monitoring_schedules_folder,
 )
+from mlrun.model_monitoring.db._stats import (
+    ModelMonitoringCurrentStatsFile,
+    ModelMonitoringDriftMeasuresFile,
+    delete_model_monitoring_stats_folder,
+)
 from mlrun.utils import logger
+
+import framework.api.utils
+import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring.helpers
+import services.api.crud.secrets
 
 
 class ModelEndpoints:
@@ -70,7 +76,7 @@ class ModelEndpoints:
             logger.info(
                 "Getting model object, inferring column names and collecting feature stats"
             )
-            run_db = services.api.api.utils.get_run_db_instance(db_session)
+            run_db = framework.api.utils.get_run_db_instance(db_session)
             model_obj: mlrun.artifacts.ModelArtifact = (
                 mlrun.datastore.store_resources.get_store_resource(
                     model_endpoint.spec.model_uri, db=run_db
@@ -159,10 +165,22 @@ class ModelEndpoints:
         ):
             # Create model monitoring schedules file
             ModelMonitoringSchedulesFile.from_model_endpoint(model_endpoint).create()
-
+            # Create model monitoring stats files:
+            cls._create_model_monitoring_stats_files(model_endpoint=model_endpoint)
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
         return model_endpoint
+
+    @classmethod
+    def _create_model_monitoring_stats_files(
+        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
+    ):
+        ModelMonitoringCurrentStatsFile.from_model_endpoint(
+            model_endpoint=model_endpoint
+        ).create()
+        ModelMonitoringDriftMeasuresFile.from_model_endpoint(
+            model_endpoint=model_endpoint
+        ).create()
 
     def patch_model_endpoint(
         self,
@@ -204,7 +222,7 @@ class ModelEndpoints:
     def _get_features(
         model: mlrun.artifacts.ModelArtifact,
         project: str,
-        run_db: services.api.rundb.sqldb.SQLRunDB,
+        run_db: mlrun.db.RunDBInterface,
     ) -> list[mlrun.feature_store.Feature]:
         """Get features to the feature set according to the model object"""
         features = []
@@ -278,7 +296,7 @@ class ModelEndpoints:
         )
         # Set the run db instance with the current db session
         feature_set._override_run_db(
-            services.api.api.utils.get_run_db_instance(db_session)
+            framework.api.utils.get_run_db_instance(db_session)
         )
         feature_set.spec.features = features
         feature_set.metadata.project = model_endpoint.metadata.project
@@ -337,6 +355,13 @@ class ModelEndpoints:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
             logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
+        # Delete stats files
+        ModelMonitoringCurrentStatsFile(
+            project=project, endpoint_id=endpoint_id
+        ).delete()
+        ModelMonitoringDriftMeasuresFile(
+            project=project, endpoint_id=endpoint_id
+        ).delete()
 
         ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id).delete()
 
@@ -344,7 +369,7 @@ class ModelEndpoints:
         self,
         project: str,
         endpoint_id: str,
-        metrics: list[str] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
@@ -407,14 +432,14 @@ class ModelEndpoints:
     def list_model_endpoints(
         self,
         project: str,
-        model: str = None,
-        function: str = None,
-        labels: list[str] = None,
-        metrics: list[str] = None,
+        model: typing.Optional[str] = None,
+        function: typing.Optional[str] = None,
+        labels: typing.Optional[list[str]] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
         top_level: bool = False,
-        uids: list[str] = None,
+        uids: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects, wrapped in `ModelEndpointList` object. Each `ModelEndpoint`
@@ -600,6 +625,8 @@ class ModelEndpoints:
             model_monitoring_applications=model_monitoring_applications,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+        # Delete model monitoring stats folder.
+        delete_model_monitoring_stats_folder(project=project_name)
 
         # Delete model monitoring schedules folder
         delete_model_monitoring_schedules_folder(project_name)
@@ -608,6 +635,47 @@ class ModelEndpoints:
             "Successfully deleted model monitoring endpoints resources",
             project_name=project_name,
         )
+
+    @staticmethod
+    def get_model_endpoints_metrics(
+        project: str,
+        endpoint_id: str,
+        type: str,
+    ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        """
+        Get the metrics for a given model endpoint.
+
+        :param project:     The name of the project.
+        :param endpoint_id: The unique id of the model endpoint.
+        :param type:        metric or result.
+
+        :return: A dictionary of metrics.
+        """
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=project
+                ),
+            )
+        except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+            logger.debug(
+                f"Failed to list model endpoint {type}s because tsdb connection is not defined."
+                " Returning an empty list of metrics",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return []
+
+        if type == "metric":
+            df = tsdb_connector.get_metrics_metadata(endpoint_id=endpoint_id)
+        elif type == "result":
+            df = tsdb_connector.get_results_metadata(endpoint_id=endpoint_id)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Type must be either 'metric' or 'result'"
+            )
+
+        return tsdb_connector.df_to_metrics_list(df=df, type=type, project=project)
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(
@@ -710,7 +778,7 @@ class ModelEndpoints:
     @staticmethod
     def _add_real_time_metrics(
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
-        metrics: list[str] = None,
+        metrics: typing.Optional[list[str]] = None,
         start: str = "now-1h",
         end: str = "now",
     ) -> mlrun.common.schemas.ModelEndpoint:

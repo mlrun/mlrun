@@ -8,10 +8,10 @@ Nuclio also supports streaming protocols (Kafka, Kinesis, MQTT, etc.). When stre
 
 The APIs are:
 * [explain](#explain)
-* [get model health / readiness](#get-model-health-readiness)
+* [get model health / readiness](#get-model-health--readiness)
 * [get model metadata](#get-model-metadata)
 * [get server info](#get-server-info)
-* [infer / predict](#infer-predict)
+* [infer / predict](#infer--predict)
 * [list models](#list-models)
 
 ## explain

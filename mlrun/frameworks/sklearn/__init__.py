@@ -11,10 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
 import warnings
-from typing import Union
+from typing import Optional, Union
 
 import mlrun
 from mlrun.frameworks.sklearn.metric import Metric
@@ -36,26 +35,28 @@ def apply_mlrun(
     model: SKLearnTypes.ModelType = None,
     model_name: str = "model",
     tag: str = "",
-    model_path: str = None,
-    modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
-    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
-    custom_objects_directory: str = None,
+    model_path: Optional[str] = None,
+    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
+    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
+    custom_objects_directory: Optional[str] = None,
     context: mlrun.MLClientCtx = None,
-    artifacts: Union[list[MLPlan], list[str], dict[str, dict]] = None,
-    metrics: Union[
-        list[Metric],
-        list[SKLearnTypes.MetricEntryType],
-        dict[str, SKLearnTypes.MetricEntryType],
+    artifacts: Optional[Union[list[MLPlan], list[str], dict[str, dict]]] = None,
+    metrics: Optional[
+        Union[
+            list[Metric],
+            list[SKLearnTypes.MetricEntryType],
+            dict[str, SKLearnTypes.MetricEntryType],
+        ]
     ] = None,
     x_test: SKLearnTypes.DatasetType = None,
     y_test: SKLearnTypes.DatasetType = None,
     sample_set: Union[SKLearnTypes.DatasetType, mlrun.DataItem, str] = None,
-    y_columns: Union[list[str], list[int]] = None,
-    feature_vector: str = None,
-    feature_weights: list[float] = None,
-    labels: dict[str, Union[str, int, float]] = None,
-    parameters: dict[str, Union[str, int, float]] = None,
-    extra_data: dict[str, SKLearnTypes.ExtraDataType] = None,
+    y_columns: Optional[Union[list[str], list[int]]] = None,
+    feature_vector: Optional[str] = None,
+    feature_weights: Optional[list[float]] = None,
+    labels: Optional[dict[str, Union[str, int, float]]] = None,
+    parameters: Optional[dict[str, Union[str, int, float]]] = None,
+    extra_data: Optional[dict[str, SKLearnTypes.ExtraDataType]] = None,
     auto_log: bool = True,
     **kwargs,
 ) -> SKLearnModelHandler:

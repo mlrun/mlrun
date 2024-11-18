@@ -13,7 +13,7 @@
 # limitations under the License.
 import pytest
 
-import services.api.utils.helpers
+import framework.utils.helpers
 
 
 @pytest.mark.parametrize(
@@ -38,8 +38,6 @@ import services.api.utils.helpers
 )
 def test_validate_client_version(client_version, min_versions, expected_compatible):
     assert (
-        services.api.utils.helpers.validate_client_version(
-            client_version, *min_versions
-        )
+        framework.utils.helpers.validate_client_version(client_version, *min_versions)
         == expected_compatible
     )

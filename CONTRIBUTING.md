@@ -2,6 +2,9 @@
 
 ## Creating a development environment
 
+> Configure your project `PYTHONPATH=<project-root>:<project-root>/server/py` to direct python to the server side packages as well.  
+> Some IDEs can manage this for you, for example on PyCharm - right click on `server/py`  folder ➜ mark directory as ➜ source root.
+
 If you are working with an ARM64 machine, please see  [Developing with ARM64 machines](#developing-with-arm64-machines).
 
 We recommend using [pyenv](https://github.com/pyenv/pyenv#installation) to manage your python versions.
@@ -377,3 +380,34 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 ```
 4. Minimize imports and avoid unnecessary dependencies in client code.
 5. Scale performance: be caution when executing large queries in order to prevent overloading the database.
+
+## MySQL changes
+
+### Table partitioning
+
+Table partitioning is a database optimization technique that divides a large table into smaller, more manageable segments called partitions, based on a specified column. 
+This can improve query performance by allowing the database to access only relevant partitions instead of scanning the entire table.
+
+Key considerations:
+
+1. Unique and Primary index 
+Every unique key (with the primary key also being a unique key) in the table must include every column used in the table’s partitioning expression.
+For more information, refer to the [documentation](https://dev.mysql.com/doc/refman/8.0/en/partitioning-limitations-partitioning-keys-unique-keys.html).
+
+2. Auto-incremental columns
+If you need a column to be auto-incremented, it must be part of the primary key and positioned as the first column in the primary key definition. 
+This is essential because otherwise, auto-increment functionality will not work.
+
+3. Influence on MLRun unit tests
+In MLRun, unit tests are run on an SQLite database, not MySQL. SQLite does not support auto-increment on composite primary keys. 
+To support both MySQL deployments and unit tests, avoid setting `autoincrementable=True` in the column’s model in `models.py` for partitioned tables with auto-increment columns.
+Instead, enable auto-increment in MySQL by adding the following to the migration file:
+```python
+op.execute(
+    """
+            ALTER TABLE <table_name>
+            MODIFY COLUMN <column> INT NOT NULL AUTO_INCREMENT
+            """
+)
+```
+

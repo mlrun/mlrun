@@ -27,12 +27,13 @@ from sqlalchemy.orm import Session
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
-import services.api.crud
-import services.api.utils.auth.verifier
-import services.api.utils.background_tasks
 from mlrun.config import config
-from services.api.db.sqldb.models import Run
-from services.api.utils.singletons.db import get_db
+
+import framework.utils.auth.verifier
+import framework.utils.background_tasks
+import services.api.crud
+from framework.db.sqldb.models import Run
+from framework.utils.singletons.db import get_db
 
 RUNS_API_ENDPOINT = "/projects/{project}/runs"
 
@@ -168,7 +169,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    background_task = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+    background_task = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db, background_task.metadata.name, project
     )
     assert (
@@ -184,7 +185,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    background_task = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+    background_task = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db, background_task.metadata.name, project
     )
     assert (
@@ -200,7 +201,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    background_task = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+    background_task = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db, background_task.metadata.name, project
     )
     assert (
@@ -213,7 +214,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-    background_task = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+    background_task = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
         db, background_task.metadata.name, project
     )
     assert (
@@ -611,7 +612,9 @@ def test_list_runs_with_pagination(db: Session, client: TestClient):
 
 
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
-    services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.AsyncMock()
+    framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.AsyncMock()
+    )
 
     # delete runs from specific project
     project = "some-project"
@@ -636,8 +639,8 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
 
 
 def test_delete_runs_without_permissions(db: Session, client: TestClient):
-    services.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunUnauthorizedError()
+    framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError())
     )
 
     # try delete runs with no permission to project (project doesn't contain any runs)
@@ -741,7 +744,7 @@ def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
     )
 
     # mock abortion already in progress
-    services.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+    framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
         db,
         project,
         fastapi.BackgroundTasks(),
@@ -787,7 +790,7 @@ def test_abort_aborted_run_with_background_task(
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_1 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_1 = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_1 = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_1.metadata.name, project
         )
         assert (
@@ -806,7 +809,7 @@ def test_abort_aborted_run_with_background_task(
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_2 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_2 = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_2 = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_2.metadata.name, project
         )
         assert (
@@ -840,7 +843,7 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_1 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_1 = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_1 = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_1.metadata.name, project
         )
         assert (
@@ -859,7 +862,7 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_2 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_2 = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_2 = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_2.metadata.name, project
         )
         assert (
@@ -899,7 +902,7 @@ def test_abort_run_background_task_not_found(db: Session, client: TestClient) ->
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task_1 = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task_1 = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task_1 = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task_1.metadata.name, project
         )
         assert (
@@ -937,7 +940,7 @@ def test_abort_aborted_run_failure(db: Session, client: TestClient) -> None:
         )
         assert response.status_code == HTTPStatus.ACCEPTED.value
         background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-        background_task = services.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        background_task = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
             db, background_task.metadata.name, project
         )
         assert (

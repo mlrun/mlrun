@@ -24,11 +24,12 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+
+import framework.utils.clients.log_collector
+import framework.utils.singletons.k8s
 import services.api.crud
 import services.api.runtime_handlers
 import services.api.tests.unit.conftest
-import services.api.utils.clients.log_collector
-import services.api.utils.singletons.k8s
 
 
 class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
@@ -54,7 +55,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         run = services.api.crud.Runs().get_run(db, "uid", 0, project)
         assert run["metadata"]["name"] == "run-name"
 
-        k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
         with (
             unittest.mock.patch.object(
                 k8s_helper.v1api, "delete_namespaced_pod"
@@ -88,7 +89,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                 "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
-                services.api.utils.clients.log_collector.LogCollectorClient,
+                framework.utils.clients.log_collector.LogCollectorClient,
                 "delete_logs",
             ) as delete_logs_mock,
         ):
@@ -125,7 +126,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         runs = services.api.crud.Runs().list_runs(db, run_name, project=project)
         assert len(runs) == 20
 
-        k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
         with (
             unittest.mock.patch.object(
                 k8s_helper.v1api, "delete_namespaced_pod"
@@ -142,7 +143,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                 "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
-                services.api.utils.clients.log_collector.LogCollectorClient,
+                framework.utils.clients.log_collector.LogCollectorClient,
                 "delete_logs",
             ) as delete_logs_mock,
         ):
@@ -183,7 +184,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         runs = services.api.crud.Runs().list_runs(db, run_name, project=project)
         assert len(runs) == 3
 
-        k8s_helper = services.api.utils.singletons.k8s.get_k8s_helper()
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
         with (
             unittest.mock.patch.object(k8s_helper.v1api, "delete_namespaced_pod"),
             unittest.mock.patch.object(
@@ -200,7 +201,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                 "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
-                services.api.utils.clients.log_collector.LogCollectorClient,
+                framework.utils.clients.log_collector.LogCollectorClient,
                 "delete_logs",
             ) as delete_logs_mock,
         ):
@@ -539,7 +540,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         )
 
         for artifact in best_iteration_artifacts:
-            services.api.utils.singletons.db.get_db().store_artifact(
+            framework.utils.singletons.db.get_db().store_artifact(
                 db,
                 artifact["spec"]["db_key"],
                 artifact,

@@ -21,7 +21,8 @@ requests~=2.32
 tabulate~=0.8.6
 v3io~=0.6.9
 # pydantic 2 requires python kfp 2
-pydantic>=1.10.8, <2.0.0
+# pydantic 1.10.15 introduces the v1 namespace, so we can later upgrade to pydantic 2 without breaking the code
+pydantic>=1.10.15, <2.0.0
 mergedeep~=1.3
 v3io-frames~=0.10.14
 semver~=3.0

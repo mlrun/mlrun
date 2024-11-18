@@ -554,10 +554,11 @@ class Service(framework.service.Service):
                 f"Starting periodic partition management for table {table_name}",
                 retention_days=retention_days,
             )
-            partition_interval: mlrun.common.schemas.partition.PartitionInterval = framework.db.session.run_function_with_new_db_session(
+            partition_interval: mlrun.common.schemas.partition.PartitionInterval = (
+                framework.db.session.run_function_with_new_db_session(
                 services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval,
                 table_name=table_name,
-            )
+            ))
             interval_in_seconds = partition_interval.as_duration().total_seconds()
             run_function_periodically(
                 interval_in_seconds,

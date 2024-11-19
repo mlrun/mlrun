@@ -87,7 +87,10 @@ class TestAlerts(TestMLRunSystem):
         activations, _ = self._run_db._list_alert_activations(
             project=self.project_name,
             name=alert_name,
-            severity=[alert_objects.AlertSeverity.LOW, alert_objects.AlertSeverity.HIGH],
+            severity=[
+                alert_objects.AlertSeverity.LOW,
+                alert_objects.AlertSeverity.HIGH,
+            ],
             entity=f"~{run_id}*",
         )
         assert len(activations) == 1

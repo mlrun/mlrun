@@ -13,8 +13,8 @@
 # limitations under the License.
 #
 
+import datetime
 import typing
-from typing import Any
 
 import mlrun.common.schemas
 import mlrun.common.types
@@ -40,7 +40,7 @@ class ProjectFormat(ObjectFormat, mlrun.common.types.StrEnum):
 
         def _name_and_creation_time(
             project: mlrun.common.schemas.Project,
-        ) -> tuple[str, Any]:
+        ) -> tuple[str, datetime.datetime]:
             return project.metadata.name, project.metadata.created
 
         def _minimal(

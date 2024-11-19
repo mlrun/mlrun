@@ -5977,9 +5977,7 @@ class SQLDB(DBInterface):
             )
         if entity:
             query = query.filter(
-                generate_query_for_name_with_wildcard(
-                    AlertActivation.entity_id, entity
-                )
+                generate_query_for_name_with_wildcard(AlertActivation.entity_id, entity)
             )
         if severity:
             query = query.filter(AlertActivation.severity.in_(severity))

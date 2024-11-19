@@ -15,7 +15,7 @@
 import abc
 from typing import Optional
 
-from pydantic import BaseModel, Field, constr
+from pydantic.v1 import BaseModel, Field, constr
 
 from ..object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .constants import (

@@ -24,6 +24,7 @@ import mlrun.common.schemas.alert
 import mlrun.common.schemas.alert as alert_objects
 
 import services.alerts.crud
+import services.alerts.tests.unit.crud.utils
 from framework.tests.unit.common_fixtures import K8sSecretsMock, TestServiceBase
 
 
@@ -51,14 +52,13 @@ class TestAlerts(TestServiceBase):
             ids=[123],
         )
         event_kind = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
-        alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
 
-        alert_data = self._generate_alert_data(
+        alert_data = services.alerts.tests.unit.crud.utils.generate_alert_data(
             project=project,
             name=alert_name,
             entity=alert_entity,
             summary=alert_summary,
-            trigger=alert_trigger,
+            event_kind=event_kind,
             reset_policy=alert_reset_policy,
         )
 
@@ -114,14 +114,13 @@ class TestAlerts(TestServiceBase):
             ids=[123],
         )
         event_kind = alert_objects.EventKind.FAILED
-        alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
 
-        alert_data = self._generate_alert_data(
+        alert_data = services.alerts.tests.unit.crud.utils.generate_alert_data(
             project=project,
             name=alert_name,
             entity=alert_entity,
             summary=alert_summary,
-            trigger=alert_trigger,
+            event_kind=event_kind,
         )
         with expectation:
             services.alerts.crud.Alerts().store_alert(
@@ -256,14 +255,13 @@ class TestAlerts(TestServiceBase):
             ids=[123],
         )
         event_kind = alert_objects.EventKind.FAILED
-        alert_trigger = alert_objects.AlertTrigger(events=[event_kind])
 
-        alert_data = self._generate_alert_data(
+        alert_data = services.alerts.tests.unit.crud.utils.generate_alert_data(
             project=project,
             name=alert_name,
             entity=alert_entity,
             summary=alert_summary,
-            trigger=alert_trigger,
+            event_kind=event_kind,
             reset_policy=alert_reset_policy,
         )
 
@@ -320,38 +318,3 @@ class TestAlerts(TestServiceBase):
             else alert_objects.AlertActiveState.ACTIVE
         )
         assert alert.state == expected_state
-
-    def _generate_alert_data(
-        self,
-        project,
-        name,
-        entity,
-        summary,
-        trigger,
-        description=None,
-        severity=alert_objects.AlertSeverity.LOW,
-        notifications=None,
-        criteria=None,
-        reset_policy=alert_objects.ResetPolicy.AUTO,
-    ):
-        if notifications is None:
-            notification = mlrun.common.schemas.Notification(
-                kind="slack",
-                name="slack_notification",
-                secret_params={
-                    "webhook": "https://hooks.slack.com/services/",
-                },
-            )
-            notifications = [alert_objects.AlertNotification(notification=notification)]
-        return alert_objects.AlertConfig(
-            project=project,
-            name=name,
-            description=description,
-            summary=summary,
-            severity=severity,
-            entities=entity,
-            trigger=trigger,
-            criteria=criteria,
-            notifications=notifications,
-            reset_policy=reset_policy,
-        )

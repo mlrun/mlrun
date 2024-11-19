@@ -17,8 +17,8 @@ import json
 import re
 from abc import ABC, abstractmethod
 
-from pydantic import validator
-from pydantic.dataclasses import dataclass
+from pydantic.v1 import validator
+from pydantic.v1.dataclasses import dataclass
 
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers

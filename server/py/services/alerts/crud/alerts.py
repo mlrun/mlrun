@@ -15,6 +15,7 @@
 
 import datetime
 import re
+import typing
 
 import sqlalchemy.orm
 
@@ -111,7 +112,7 @@ class Alerts(
     def list_alerts(
         self,
         session: sqlalchemy.orm.Session,
-        project: str = "",
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().list_alerts(session, project)
@@ -210,6 +211,9 @@ class Alerts(
 
                 if alert.reset_policy == "auto":
                     self.reset_alert(session, alert.project, alert.name)
+                    services.api.crud.AlertActivation().store_alert_activation(
+                        session, alert, event_data
+                    )
                     update_state = False
                 else:
                     active = True

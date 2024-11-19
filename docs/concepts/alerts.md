@@ -75,7 +75,7 @@ notification = mlrun.model.Notification(
 ).to_dict()
 
 endpoints = mlrun.get_run_db().list_model_endpoints(project=project_name)
-
+# or project.list_model_endpoints()
 endpoint_id = endpoints[0].metadata.uid
 
 # Generate a unique ID for the EventEntity

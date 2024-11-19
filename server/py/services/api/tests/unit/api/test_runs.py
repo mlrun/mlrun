@@ -350,6 +350,9 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     suffixes = ["first", "second", "third"]
     iterations = 3
     for project in projects:
+        services.api.crud.Projects().store_project(
+            db, project, _generate_project(project)
+        )
         for name in run_names:
             for suffix in suffixes:
                 uid = f"{name}-uid-{suffix}"
@@ -990,3 +993,18 @@ def assert_time_range_request(client: TestClient, expected_run_uids: list, **fil
     assert len(runs) == len(expected_run_uids)
     for run in runs:
         assert run["metadata"]["uid"] in expected_run_uids
+
+
+def _generate_project(name="project-name"):
+    return mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(
+            name=name,
+            created=datetime.utcnow() - timedelta(seconds=1),
+            labels={
+                "some-label": "some-label-value",
+            },
+        ),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="some description", owner="owner-name"
+        ),
+    )

@@ -194,7 +194,9 @@ class _V3IORecordsChecker:
         else:
             # TDEngine
             predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=mm_constants.TDEngineSuperTables.PREDICTIONS,
+                table=cls._tsdb_storage.tables[
+                    mm_constants.TDEngineSuperTables.PREDICTIONS
+                ].super_table,
                 start=datetime.min,
                 end=datetime.now().astimezone(),
             )
@@ -248,27 +250,23 @@ class _V3IORecordsChecker:
         run_db: mlrun.db.httpdb.HTTPRunDB,
         type: typing.Literal["metrics", "results"] = "results",
     ) -> list[str]:
-        cls._logger.debug("Checking GET /metrics API", type=type)
-        response = run_db.api_call(
-            method=mlrun.common.types.HTTPMethod.GET,
-            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type={type}",
+        cls._logger.debug("Checking the metrics", type=type)
+        monitoring_metrics = run_db.get_model_endpoint_monitoring_metrics(
+            project=cls.project_name, endpoint_id=ep_id, type=type
         )
         get_app_results: set[str] = set()
         app_results_full_names: list[str] = []
-
-        parsed_response = json.loads(response.content.decode())
-
         if type == "metrics":
             assert (
                 mlrun.model_monitoring.helpers.get_invocations_metric(
                     cls.project_name
                 ).dict()
-                in parsed_response
+                in monitoring_metrics
             ), "The invocations metric is missing"
 
-        for result in parsed_response:
-            get_app_results.add(result["name"])
-            app_results_full_names.append(result["full_name"])
+        for result in monitoring_metrics:
+            get_app_results.add(result.name)
+            app_results_full_names.append(result.full_name)
 
         expected_results = set().union(
             *[getattr(app_data, type) for app_data in cls.apps_data]

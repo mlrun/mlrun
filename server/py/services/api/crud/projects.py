@@ -29,6 +29,7 @@ import mlrun.utils.singleton
 from mlrun.utils import logger, retry_until_successful
 
 import framework.db.session
+import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.nuclio
 import framework.utils.projects.remotes.follower as project_follower
@@ -286,6 +287,36 @@ class Projects(
     ) -> mlrun.common.schemas.ProjectsOutput:
         return framework.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
+        )
+
+    async def list_allowed_project_names(
+        self,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
+        project: typing.Optional[str] = None,
+        **project_filters,
+    ) -> list[str]:
+        project = project or mlrun.mlconf.default_project
+        if project != "*":
+            await (
+                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                    project,
+                    mlrun.common.schemas.AuthorizationAction.read,
+                    auth_info,
+                )
+            )
+            return [project]
+
+        projects_output = self.list_projects(
+            session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            **project_filters,
+        )
+        return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            projects_output.projects,
+            auth_info,
+            action=action,
         )
 
     async def list_project_summaries(

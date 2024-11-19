@@ -805,7 +805,12 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
     },
-    "notifications": {"smtp": {"config_secret_name": "mlrun-smtp-config"}},
+    "notifications": {
+        "smtp": {
+            "config_secret_name": "mlrun-smtp-config",
+            "refresh_interval": "30",
+        }
+    },
 }
 _is_running_as_api = None
 

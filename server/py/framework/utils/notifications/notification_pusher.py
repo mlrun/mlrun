@@ -54,21 +54,6 @@ class RunNotificationPusher(NotificationPusher):
         }
 
     @staticmethod
-    def store_mail_notifications_default_params_to_secret(default_params: dict):
-        smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
-        if framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
-            try:
-                return framework.utils.singletons.k8s.get_k8s_helper().store_secrets(
-                    smtp_config_secret_name, secrets=default_params
-                )
-            except ApiException as exc:
-                logger.warning(
-                    "Failed to store SMTP configuration secret",
-                    secret_name=smtp_config_secret_name,
-                    body=mlrun.errors.err_to_str(exc.body),
-                )
-
-    @staticmethod
     def get_mail_notification_default_params(refresh=False):
         if (
             not refresh

@@ -18,6 +18,7 @@ import typing
 import fastapi
 from fastapi import Depends
 from fastapi.concurrency import run_in_threadpool
+from kfp_server_api import ApiException
 
 import mlrun.common.schemas
 from mlrun.utils import logger
@@ -97,22 +98,30 @@ async def refresh_smtp_configuration(
         framework.api.deps.authenticate_request
     ),
 ):
-    if not framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
+    # we want that only the chief will store the secret in the k8s secret store for preventing
+    # race conditions
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
+        logger.info("Requesting to refresh smtp configuration, re-routing to chief")
+        chief_client = framework.utils.clients.chief.Client()
+        return await chief_client.trigger_migrations(request)
+
+    if not framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
         raise mlrun.errors.MLRunPreconditionFailedError(
             "SMTP configuration can be refreshed only when running inside a Kubernetes cluster"
         )
 
-    task_callback, background_task, task_name = await run_in_threadpool(
+    task_callback, task_name = await run_in_threadpool(
         _create_refresh_smtp_configuration_background_task,
         auth_info.session,
     )
 
-    if not background_task:
-        # No task in progress, creating a new one
-        background_tasks.add_task(task_callback)
-        background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
-            task_name
-        )
+    background_tasks.add_task(task_callback)
+    background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+        task_name
+    )
 
     response.status_code = http.HTTPStatus.ACCEPTED.value
     return background_task
@@ -170,7 +179,6 @@ def _create_refresh_smtp_configuration_background_task(
     session: str,
 ) -> tuple[
     typing.Optional[typing.Callable],
-    typing.Optional[mlrun.common.schemas.BackgroundTask],
     str,
 ]:
     logger.info("Starting the refresh smtp configuration process")
@@ -183,7 +191,7 @@ def _create_refresh_smtp_configuration_background_task(
         _perform_refresh_smtp,
         session=session,
     )
-    return task, None, task_name
+    return task, task_name
 
 
 async def _perform_refresh_smtp(session: str):
@@ -198,9 +206,22 @@ async def _perform_refresh_smtp(session: str):
         "username": returned_smtp_configuration.auth_username,
         "password": returned_smtp_configuration.auth_password,
     }
-    notification_pusher.RunNotificationPusher.store_mail_notifications_default_params_to_secret(
-        updated_params
-    )
+    _store_mail_notifications_default_params_to_secret(updated_params)
     notification_pusher.RunNotificationPusher.get_mail_notification_default_params(
         refresh=True
     )
+
+
+def _store_mail_notifications_default_params_to_secret(default_params: dict):
+    smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
+    if framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
+        try:
+            return framework.utils.singletons.k8s.get_k8s_helper().store_secrets(
+                smtp_config_secret_name, secrets=default_params
+            )
+        except ApiException as exc:
+            logger.warning(
+                "Failed to store SMTP configuration secret",
+                secret_name=smtp_config_secret_name,
+                body=mlrun.errors.err_to_str(exc.body),
+            )

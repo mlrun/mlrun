@@ -74,6 +74,7 @@ class TestAlerts(TestMLRunSystem):
         )
 
         with pytest.raises(Exception):
+            self.project.run_function("test-func", watch=False)
             self.project.run_function("test-func")
 
         # in order to trigger the periodic monitor runs function, to detect the failed run and send an event on it
@@ -84,7 +85,8 @@ class TestAlerts(TestMLRunSystem):
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )
-        activations, _ = self._run_db._list_alert_activations(
+        # get all activations
+        activations = self._run_db.list_alert_activations(
             project=self.project_name,
             name=alert_name,
             severity=[
@@ -93,12 +95,47 @@ class TestAlerts(TestMLRunSystem):
             ],
             entity=f"~{run_id}*",
         )
+        assert len(activations) == 2
+        entities = []
+        for activation in activations:
+            assert activation["name"] == alert_name
+            assert activation["severity"] == alert_objects.AlertSeverity.LOW
+            assert run_id in activation["entity_id"]
+            assert activation["event_kind"] == alert_objects.EventKind.FAILED
+            assert activation["number_of_events"] == 1
+
+            # save entity_ids to check pagination below
+            entities.append(activation["entity_id"])
+
+        # get paginated activations
+        activations, token = self._run_db.paginated_list_alert_activations(
+            project=self.project_name,
+            name=alert_name,
+            severity=[
+                alert_objects.AlertSeverity.LOW,
+                alert_objects.AlertSeverity.HIGH,
+            ],
+            entity=f"~{run_id}*",
+            page_size=1,
+        )
         assert len(activations) == 1
-        assert activations[0]["name"] == alert_name
-        assert activations[0]["severity"] == alert_objects.AlertSeverity.LOW
-        assert run_id in activations[0]["entity_id"]
-        assert activations[0]["event_kind"] == alert_objects.EventKind.FAILED
-        assert activations[0]["number_of_events"] == 1
+        entities.remove(activations[0]["entity_id"])
+
+        activations, token = self._run_db.paginated_list_alert_activations(
+            project=self.project_name,
+            name=alert_name,
+            severity=[
+                alert_objects.AlertSeverity.LOW,
+                alert_objects.AlertSeverity.HIGH,
+            ],
+            entity=f"~{run_id}*",
+            page_token=token,
+        )
+        assert len(activations) == 1
+        entities.remove(activations[0]["entity_id"])
+
+        # ensure that paginated requests returned different values
+        assert len(entities) == 0
 
     @staticmethod
     def _generate_events(

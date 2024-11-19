@@ -5932,14 +5932,14 @@ class SQLDB(DBInterface):
     def list_alert_activations(
         self,
         session: Session,
-        project_with_creation_time: list[tuple[str, datetime]],
+        projects_with_creation_time: list[tuple[str, datetime]],
         name: typing.Optional[str] = None,
         since: typing.Optional[str] = None,
         until: typing.Optional[str] = None,
         entity: typing.Optional[str] = None,
         severity: typing.Optional[list[str]] = None,
-        entity_kind: Optional[str] = None,
-        event_kind: Optional[str] = None,
+        entity_kind: typing.Optional[str] = None,
+        event_kind: typing.Optional[str] = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
@@ -5953,7 +5953,7 @@ class SQLDB(DBInterface):
                 AlertActivation.project == project,
                 AlertActivation.activation_time > created,
             )
-            for project, created in project_with_creation_time
+            for project, created in projects_with_creation_time
         ]
 
         query = query.filter(or_(*conditions))

@@ -100,7 +100,7 @@ class AlertActivation(
     def list_alert_activations(
         self,
         session: sqlalchemy.orm.Session,
-        project_with_creation_time: list[tuple[str, datetime.datetime]],
+        projects_with_creation_time: list[tuple[str, datetime.datetime]],
         name: Optional[str] = None,
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
@@ -113,7 +113,7 @@ class AlertActivation(
     ) -> list[mlrun.common.schemas.AlertActivation]:
         return framework.utils.singletons.db.get_db().list_alert_activations(
             session=session,
-            project_with_creation_time=project_with_creation_time,
+            projects_with_creation_time=projects_with_creation_time,
             name=name,
             since=since,
             until=until,

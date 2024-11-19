@@ -971,7 +971,7 @@ class DBInterface(ABC):
     def list_alert_activations(
         self,
         session,
-        project_with_creation_time: list[tuple[str, datetime.datetime]],
+        projects_with_creation_time: list[tuple[str, datetime.datetime]],
         name: Optional[str] = None,
         since: Optional[str] = None,
         until: Optional[str] = None,

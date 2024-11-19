@@ -21,12 +21,6 @@ class Daemon(framework.service.Daemon):
     def __init__(self, service_cls: framework.service.Service.__class__):
         self._service = service_cls()
 
-    def initialize(self):
-        # Wire the service container to inject the providers to the routers
-        container = framework.service.ServiceContainer()
-        container.wire()
-        super().initialize()
-
     @property
     def service(self) -> services.alerts.main.Service:
         return self._service
@@ -41,6 +35,8 @@ class AlertsServiceContainer(containers.DeclarativeContainer):
     service = providers.Object(daemon.service)
 
 
-# Initialization must be after the service container override
-daemon.initialize()
-app = daemon.app
+def app():
+    # Initialization must be after the service container override
+    daemon.initialize()
+    daemon.wire()
+    return daemon.app

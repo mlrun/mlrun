@@ -17,6 +17,7 @@ import pathlib
 import fastapi
 import pytest
 
+import services.alerts.daemon
 from services.alerts.daemon import daemon
 
 tests_root_directory = pathlib.Path(__file__).absolute().parent
@@ -33,7 +34,7 @@ if str(tests_root_directory) in os.getcwd():
 
 @pytest.fixture()
 def app() -> fastapi.FastAPI:
-    yield daemon.app
+    yield services.alerts.daemon.app()
 
 
 @pytest.fixture()

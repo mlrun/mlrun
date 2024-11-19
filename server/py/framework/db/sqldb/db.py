@@ -5985,8 +5985,8 @@ class SQLDB(DBInterface):
         if entity_kind:
             query = query.filter(AlertActivation.entity_kind == entity_kind)
 
+        query = query.order_by(AlertActivation.activation_time.desc())
         query = self._paginate_query(query, page, page_size)
-
         return [
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()

@@ -5021,7 +5021,7 @@ class HTTPRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         return_all: bool = False,
-    ):
+    ) -> tuple[list, Optional[str]]:
         project = project or config.default_project
         params = {
             "name": name,

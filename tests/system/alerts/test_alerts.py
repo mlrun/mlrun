@@ -94,6 +94,8 @@ class TestAlerts(TestMLRunSystem):
                 alert_objects.AlertSeverity.HIGH,
             ],
             entity=f"~{run_id}*",
+            entity_kind=alert_objects.EventEntityKind.JOB,
+            event_kind=alert_objects.EventKind.FAILED,
         )
         assert len(activations) == 2
         entities = []
@@ -117,18 +119,14 @@ class TestAlerts(TestMLRunSystem):
             ],
             entity=f"~{run_id}*",
             page_size=1,
+            entity_kind=alert_objects.EventEntityKind.JOB,
+            event_kind=alert_objects.EventKind.FAILED,
         )
         assert len(activations) == 1
         entities.remove(activations[0]["entity_id"])
 
         activations, token = self._run_db.paginated_list_alert_activations(
             project=self.project_name,
-            name=alert_name,
-            severity=[
-                alert_objects.AlertSeverity.LOW,
-                alert_objects.AlertSeverity.HIGH,
-            ],
-            entity=f"~{run_id}*",
             page_token=token,
         )
         assert len(activations) == 1
@@ -136,6 +134,7 @@ class TestAlerts(TestMLRunSystem):
 
         # ensure that paginated requests returned different values
         assert len(entities) == 0
+        assert token is None
 
     @staticmethod
     def _generate_events(

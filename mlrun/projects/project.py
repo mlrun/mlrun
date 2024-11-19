@@ -1995,8 +1995,6 @@ class MlrunProject(ModelObj):
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
-
-        function_object: RemoteRuntime = None
         (
             resolved_function_name,
             function_object,

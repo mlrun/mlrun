@@ -73,8 +73,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip~=24.0
           pip install -r dev-requirements.txt
-      - name: Set MLRUN_PYTHON_VERSION env variable
-        run: echo "MLRUN_PYTHON_VERSION=py${{ matrix.python-version }}.replace('3.', '')" >> $GITHUB_ENV
       - name: Lint
-        run: SKIP_VALE_CHECK=true make lint-docs
+        run: |
+          # Set the MLRUN_PYTHON_VERSION environment variable based on matrix
+          echo "MLRUN_PYTHON_VERSION=${{ matrix.python-version }}" >> $GITHUB_ENV
+          make lint-docs
 

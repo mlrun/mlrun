@@ -633,13 +633,20 @@ fmt: ## Format the code using Ruff and blacken-docs
 	python -m ruff check --fix-only
 	python -m ruff format
 	@echo "Formatting the code blocks with blacken-docs..."
+	# TODO: Update format to use py311 for Python 3.11
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
 	@echo "Checking the code blocks with blacken-docs"
-	python_version=$(or $(MLRUN_PYTHON_VERSION), py39)
-	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=$(python_version) --check
+	@if [ "$(MLRUN_PYTHON_VERSION)" = "3.9" ]; then \
+	    git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39 --check; \
+	elif [ "$(MLRUN_PYTHON_VERSION)" = "3.11" ]; then \
+	    git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py311 --check; \
+	else \
+	    echo "Unsupported Python version: $(MLRUN_PYTHON_VERSION)"; \
+	    exit 1; \
+	fi
 	@if [ "$(SKIP_VALE_CHECK)" != "true" ]; then \
 	    make vale-docs; \
 	fi

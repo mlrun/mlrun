@@ -88,6 +88,7 @@ jobs:
         python-version: [ "3.9", "3.11" ]
     steps:
     - uses: actions/checkout@v4
+
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
@@ -125,6 +126,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: pip
+
     # TODO: re-use the next 2 actions instead of duplicating
     - name: Extract git branch
       id: git_info
@@ -137,11 +144,6 @@ jobs:
         export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
 
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-integration-dockerized

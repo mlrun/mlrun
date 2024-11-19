@@ -39,4 +39,4 @@ def app() -> fastapi.FastAPI:
 
 @pytest.fixture()
 def prefix():
-    yield daemon.service.BASE_VERSIONED_SERVICE_PREFIX
+    yield daemon.service.base_versioned_service_prefix

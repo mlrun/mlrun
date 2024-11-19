@@ -5943,6 +5943,9 @@ class SQLDB(DBInterface):
     ) -> list[mlrun.common.schemas.AlertActivation]:
         query = self._query(session, AlertActivation)
 
+        # Filter alert activations for the project created after the project creation date,
+        # excluding activations linked to any previous instances of the project.
+        # TODO: reconsider this approach when we move alerts out of main MLRun db
         conditions = []
         for project, created in project_with_creation_time:
             conditions.append(

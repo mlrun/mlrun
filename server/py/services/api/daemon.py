@@ -24,11 +24,11 @@ from services.alerts.daemon import daemon as alerts_daemon
 
 class Daemon(framework.service.Daemon):
     @property
-    def mounts(self) -> dict[str, framework.service.Service]:
+    def mounts(self) -> list[framework.service.Service]:
         if mlconf.services.hydra.services == "*":
             # Mount the alerts application until we have proper hydra
-            return {"/": alerts_daemon.service}
-        return {}
+            return [alerts_daemon.service]
+        return []
 
     @property
     def service(self) -> services.api.main.Service:

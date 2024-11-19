@@ -37,9 +37,11 @@ if str(tests_root_directory) in os.getcwd():
 @pytest.fixture()
 def app() -> fastapi.FastAPI:
     old_service_name = mlconf.services.service_name
-    mlconf.services.service_name = "alert"
-    yield services.alerts.daemon.app()
-    mlconf.services.service_name = old_service_name
+    try:
+        mlconf.services.service_name = "alert"
+        yield services.alerts.daemon.app()
+    finally:
+        mlconf.services.service_name = old_service_name
 
 
 @pytest.fixture()

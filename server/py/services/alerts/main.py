@@ -478,6 +478,15 @@ class Service(framework.service.Service):
 
     @staticmethod
     def _is_chief_or_standalone():
+        """
+        Check if the service is running as part of a chief instance or as a standalone service.
+        mlconf.services.service_name determines the running service.
+        Possible options are:
+            1. Clusterization role is chief and service name is API - return True
+            2. Clusterization role is worker and service name is API - return False
+            3. Clusterization role is worker and service name is alerts (running as a standalone) - return True.
+               This assumes a single alerts service replica.
+        """
         return (
             mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief

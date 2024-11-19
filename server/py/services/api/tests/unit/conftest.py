@@ -24,7 +24,6 @@ import httpx
 import pytest
 import pytest_asyncio
 import semver
-import sqlalchemy
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
@@ -72,7 +71,7 @@ if str(tests_root_directory) in os.getcwd():
 def app() -> fastapi.FastAPI:
     # TODO: This is a hack to remove the alerts app mount because it blocks the test router.
     #  Remove this when alerts is properly mounted with "alerts" prefix
-    _app = daemon.app
+    _app = services.api.daemon.app()
     _app.routes.pop()
     yield _app
 

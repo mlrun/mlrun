@@ -40,6 +40,7 @@ if [[ -n "$MLRUN_MEMRAY_LOWER"  && ( "$MLRUN_MEMRAY_LOWER" == "1" || "$MLRUN_MEM
     fi
 else
     exec uvicorn services.api.daemon:app \
+        --factory \
         --proxy-headers \
         --host 0.0.0.0 \
         --log-config server/py/services/uvicorn_log_config.yaml

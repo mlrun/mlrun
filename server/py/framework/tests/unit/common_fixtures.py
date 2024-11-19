@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import typing
+import unittest
 from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
@@ -207,15 +208,22 @@ class TestServiceBase:
 
     @pytest.fixture()
     def client(self, app, prefix) -> Generator:
-        with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
-            mlconf.httpdb.logs_path = log_dir
-            mlconf.monitoring.runs.interval = 0
-            mlconf.runtimes_cleanup_interval = 0
-            mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-            mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = "false"
-            with TestClient(app) as test_client:
-                self.set_base_url_for_test_client(test_client, prefix)
-                yield test_client
+        # skip partition management because it cannot be run on SQLite
+        with unittest.mock.patch(
+            "services.api.main.Service._start_periodic_partition_management",
+            return_value=None,
+        ):
+            with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+                mlconf.httpdb.logs_path = log_dir
+                mlconf.monitoring.runs.interval = 0
+                mlconf.runtimes_cleanup_interval = 0
+                mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+                mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = (
+                    "false"
+                )
+                with TestClient(app) as test_client:
+                    self.set_base_url_for_test_client(test_client, prefix)
+                    yield test_client
 
     @pytest.fixture()
     def k8s_secrets_mock(self, monkeypatch) -> K8sSecretsMock:

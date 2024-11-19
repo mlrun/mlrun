@@ -15,10 +15,9 @@
 from fastapi import APIRouter, Depends
 
 from framework.api import deps
-from framework.routers import alerts, auth, events, healthz
+from framework.routers import alert_template, alerts, auth, events, healthz
 from services.api.api.endpoints import (
     alert_activations,
-    alert_template,
     artifacts,
     artifacts_v2,
     background_tasks,

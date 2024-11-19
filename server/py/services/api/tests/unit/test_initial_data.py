@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 import unittest.mock
 
 import pytest
@@ -25,6 +26,7 @@ from mlrun.config import config
 
 import framework.db.init_db
 import framework.db.sqldb.db
+import framework.db.sqldb.models
 import framework.utils.singletons.db
 import services.api.initial_data
 
@@ -232,46 +234,27 @@ def test_migrate_function_kind():
     num_of_functions = 10
     chunk_size = 1
 
+    # Insert multiple functions
     for fn_counter in range(num_of_functions):
         fn_name = f"name-{fn_counter}"
-        function_body = {
-            "metadata": {"name": fn_name},
-            "kind": "remote",
-            "status": {"state": "online"},
-            "spec": {
-                "description": "some_description",
-            },
-        }
-        db.store_function(db_session, function_body, fn_name)
+        _insert_function(db, db_session, fn_name)
 
-        # make sure the function is inserted the legacy way
-        db_function, _ = db._get_function_db_object(db_session, fn_name)
-        db_function.kind = None
-        fn_struct = db_function.struct
-        fn_struct["kind"] = "remote"
-        db_function.struct = fn_struct
-        db_session.add(db_function)
-        db._commit(db_session, db_function)
-        db_session.flush()
-        db_function, _ = db._get_function_db_object(db_session, fn_name)
-        assert db_function.kind is None
-        assert db_function.struct["kind"] == "remote"
+    # Insert a function with None as kind
+    fn_name_none_kind = "name-10"
+    _insert_function(db, db_session, fn_name_none_kind, function_kind=None)
 
-    # migrate the function kind
-    services.api.initial_data._migrate_function_kind(
+    # Migrate function kind
+    services.api.initial_data._ensure_function_kind(
         db, db_session, chunk_size=chunk_size
     )
 
+    # Verify the migration for the first set of functions
     for fn_counter in range(num_of_functions):
-        # check that the function kind was migrated
         fn_name = f"name-{fn_counter}"
-        db_function, _ = db._get_function_db_object(db_session, fn_name)
-        assert "kind" not in db_function.struct
-        assert db_function.kind == "remote"
+        _verify_function_kind(db, db_session, fn_name, expected_kind="remote")
 
-        # make sure the function kind was stored and retrieved correctly
-        migrated_function = db.get_function(db_session, fn_name)
-        assert migrated_function["kind"] == "remote"
+    # Verify the migration for the function with None as kind
+    _verify_function_kind(db, db_session, fn_name_none_kind, expected_kind="")
 
 
 def test_create_project_summaries():
@@ -354,6 +337,44 @@ def test_align_schedule_labels(
     )
 
 
+def test_add_producer_uri_to_artifact():
+    db, db_session = _initialize_db_without_migrations()
+    num_of_artifacts = 10
+    chunk_size = 1
+
+    producer_uri = "some-proj/some-uid"
+
+    for artifact_counter in range(num_of_artifacts):
+        artifact_key = f"name-{artifact_counter}"
+        _insert_artifact(
+            db, db_session, artifact_key, f"{producer_uri}-{artifact_counter}"
+        )
+
+    # Create artifact when uri field is not exists in spec.producer
+    _insert_artifact(db, db_session, f"name-{10}", None, with_uri=False)
+
+    # Create artifact with producer_uri is None in spec.producer.uri
+    _insert_artifact(db, db_session, f"name-{11}", None)
+
+    # migrate the artifact producer_uri
+    services.api.initial_data._add_producer_uri_to_artifact(
+        db,
+        db_session,
+        chunk_size=chunk_size,
+    )
+
+    # Verify migrated producer_uri for artifacts with expected values
+    for artifact_counter in range(num_of_artifacts):
+        artifact_key = f"name-{artifact_counter}"
+        _verify_artifact_producer_uri(
+            db, db_session, artifact_key, f"{producer_uri}-{artifact_counter}"
+        )
+
+    # Verify producer_uri for the artifacts with None as URI in spec.producer
+    _verify_artifact_producer_uri(db, db_session, "name-10", "")
+    _verify_artifact_producer_uri(db, db_session, "name-11", "")
+
+
 def _initialize_db_without_migrations() -> (
     tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):
@@ -366,3 +387,73 @@ def _initialize_db_without_migrations() -> (
     db.initialize(db_session)
     framework.db.init_db()
     return db, db_session
+
+
+def _insert_function(
+    db, db_session, fn_name, function_kind: typing.Optional[str] = "remote"
+):
+    function_body = {
+        "metadata": {"name": fn_name},
+        "kind": function_kind,
+        "status": {"state": "online"},
+        "spec": {"description": "some_description"},
+    }
+
+    # Insert function via db
+    db.store_function(db_session, function_body, fn_name)
+
+    # Ensure the function is inserted the legacy way
+    db_function, _ = db._get_function_db_object(db_session, fn_name)
+    db_function.kind = None
+    fn_struct = db_function.struct
+    fn_struct["kind"] = function_kind
+    db_function.struct = fn_struct
+    db_session.add(db_function)
+    db._commit(db_session, db_function)
+    db_session.flush()
+
+    # Verify the function was inserted correctly
+    db_function, _ = db._get_function_db_object(db_session, fn_name)
+    assert db_function.kind is None
+    assert db_function.struct["kind"] == function_kind
+
+
+def _verify_function_kind(db, db_session, fn_name, expected_kind):
+    db_function, _ = db._get_function_db_object(db_session, fn_name)
+    assert "kind" not in db_function.struct
+    assert db_function.kind == expected_kind
+
+    # Verify migration was stored correctly
+    migrated_function = db.get_function(db_session, fn_name)
+    assert migrated_function["kind"] == expected_kind
+
+
+def _insert_artifact(db, db_session, artifact_key, artifact_uri=None, with_uri=True):
+    artifact = {
+        "metadata": {"key": artifact_key},
+        "spec": {"producer": {"uri": artifact_uri} if with_uri else {}},
+    }
+    uid = db.store_artifact(db_session, key=artifact_key, artifact=artifact)
+
+    # Legacy insert: set producer_uri to None
+    db_artifact = db._query(
+        db_session, framework.db.sqldb.db.ArtifactV2, uid=uid
+    ).one_or_none()
+    db_artifact.producer_uri = None
+    db_session.add(db_artifact)
+    db._commit(db_session, db_artifact)
+    db_session.flush()
+
+    # Ensure producer_uri is None after insertion
+    db_artifact = db._query(
+        db_session, framework.db.sqldb.db.ArtifactV2, uid=uid
+    ).one_or_none()
+    assert db_artifact.producer_uri is None
+    return uid, artifact_key
+
+
+def _verify_artifact_producer_uri(db, db_session, artifact_key, expected_uri):
+    artifact = db._query(
+        db_session, framework.db.sqldb.db.ArtifactV2, key=artifact_key
+    ).one_or_none()
+    assert artifact.producer_uri == expected_uri

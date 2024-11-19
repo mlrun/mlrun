@@ -136,7 +136,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         assert endpoint_after_update.status.current_stats == current_stats
 
     def test_list_endpoints_on_empty_project(self):
-        endpoints_out = mlrun.get_run_db().list_model_endpoints(self.project_name)
+        endpoints_out = self.project.list_model_endpoints()
         assert len(endpoints_out) == 0
 
     def test_list_endpoints(self):
@@ -152,7 +152,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
                 endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
             )
 
-        endpoints_out = db.list_model_endpoints(self.project_name)
+        endpoints_out = self.project.list_model_endpoints()
 
         in_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_in))
         out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out))
@@ -183,7 +183,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
                 endpoint_details.dict(),
             )
 
-        filter_model = db.list_model_endpoints(self.project_name, model="filterme")
+        filter_model = self.project.list_model_endpoints(model="filterme")
         assert len(filter_model) == 1
 
         # TODO: Uncomment the following assertions once the KV labels filters is fixed.
@@ -348,6 +348,12 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         self._assert_model_endpoint_metrics(endpoint=endpoint)
 
         self._assert_model_uri(model_obj=model_obj, endpoint=endpoint)
+
+        metrics = mlrun.get_run_db().get_model_endpoint_monitoring_metrics(
+            self.project_name, endpoint.metadata.uid
+        )
+        assert len(metrics) == 1
+        assert metrics[0] == f"{self.project_name}.mlrun-infra.metric.invocations"
 
     def _assert_model_uri(
         self,

@@ -138,6 +138,9 @@ default_config = {
     "object_retentions": {
         "alert_activation": 14 * 7,  # days
     },
+    # A safety margin to account for delays
+    # This ensures that extra partitions are available beyond the specified retention period
+    "partitions_buffer_multiplier": 3,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",

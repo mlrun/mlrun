@@ -14,7 +14,7 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 
 import mlrun.common.types
 
@@ -24,23 +24,23 @@ class ListRuntimeResourcesGroupByField(mlrun.common.types.StrEnum):
     project = "project"
 
 
-class RuntimeResource(pydantic.BaseModel):
+class RuntimeResource(pydantic.v1.BaseModel):
     name: str
     labels: dict[str, str] = {}
     status: typing.Optional[dict]
 
 
-class RuntimeResources(pydantic.BaseModel):
+class RuntimeResources(pydantic.v1.BaseModel):
     crd_resources: list[RuntimeResource] = []
     pod_resources: list[RuntimeResource] = []
     # only for dask runtime
     service_resources: typing.Optional[list[RuntimeResource]] = None
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
-class KindRuntimeResources(pydantic.BaseModel):
+class KindRuntimeResources(pydantic.v1.BaseModel):
     kind: str
     resources: RuntimeResources
 

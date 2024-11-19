@@ -14,6 +14,10 @@
 
 ## v1.7.1 (26 November 2024)
 
+### Model monitoring| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7731|Scale out of stream pods. To benefit from the scale out of stream-pods: in projects that have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
+
 ### Breaking changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|

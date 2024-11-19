@@ -218,7 +218,7 @@ To change the default function preemption mode, you need to override the API con
 ### SDK configuration
 
 Configure preemption mode by adding the {py:meth}`~mlrun.runtimes.KubeResource.with_preemption_mode` parameter, specifying a mode from the list of values above. <br>
-This example illustrates a function that cannot be scheduled on preemptible nodes:
+This example illustrates a function that can be scheduled on preemptible nodes:
 
 ```
 # Can be scheduled on a preemptible (spot) node
@@ -248,12 +248,9 @@ import os
 train_fn = mlrun.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
-train_fn.with_preemption_mode(mode="prevent") 
+train_fn.with_priority_class(name="default-priority")
+train_fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
 train_fn.run(inputs={"dataset" :my_data})
-
-fn.with_priority_class(name="default-priority")
-fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
-
 ```
 
 ### UI configuration

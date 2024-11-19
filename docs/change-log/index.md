@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.7.1](#v171-26-november-2024) | [v1.7.0](#v170-1-november-2024)
+- [v1.7.1](#v171-24-november-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-30-june-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
 - [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
 - [v1.4.1](#v141-8-august-2023) | [v1.4.0](#v140-23-july-2023)
@@ -12,9 +12,10 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.1 (26 November 2024)
+## v1.7.1 (24 November 2024)
 
-### Model monitoring| ID    |Description                                                                 |
+### Model monitoring
+| ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7731|Scale out of stream pods. To benefit from the scale out of stream-pods: in projects that have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
 
@@ -26,11 +27,11 @@
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-8001|The red Job failure status indicator now has a description of the error.|
 |ML-8097|UI: Now displays the pod status in **Monitor Jobs** when you hover over the status symbol.|
-|ML-8110|The cross-project summary is now aligned with per project summary.|
+|ML-8001|Job failures are now described in the job details and when hovering over the status (in the Projects > Jobs monitoring > **Jobs** page).|
+|ML-8110|The cross-project summary is now aligned with per-project summary.|
 |ML-8124|Fixed the `kind` label of schedules. Scheduled functions that are not kubejobs are now calculated in the summary counters.|
-|ML-8215|You can now see an asterisk "\*" in the project name parameter to retrieve from all projects.|
+|ML-8215|You can now use an asterisk ( "\*") in the project name parameter of `run_db.list_functions()` to retrieve all projects.|
 
 ## v1.7.0 (1 November 2024)
 

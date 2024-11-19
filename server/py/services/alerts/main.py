@@ -69,7 +69,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        if self._is_chief_or_standalone():
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             data = await request.json()
             return await chief_client.store_alert(
@@ -173,7 +173,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        if self._is_chief_or_standalone():
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.delete_alert(
                 project=project, name=name, request=request
@@ -207,7 +207,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        if self._is_chief_or_standalone():
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.reset_alert(
                 project=project, name=name, request=request

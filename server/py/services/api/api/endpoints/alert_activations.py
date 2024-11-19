@@ -44,8 +44,12 @@ async def list_alert_activations(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    allowed_projects_with_creation_time = await services.api.crud.Projects().list_allowed_project_names_with_creation_time(
-        db_session, auth_info, project=project
+    allowed_projects_with_creation_time = await (
+        services.api.crud.Projects().list_allowed_project_names_with_creation_time(
+            db_session,
+            auth_info,
+            project=project,
+        )
     )
     paginator = services.api.utils.pagination.Paginator()
 

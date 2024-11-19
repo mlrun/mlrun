@@ -78,7 +78,7 @@ class TestAlerts(TestServiceBase):
             event,
         )
 
-        alert = services.alerts.crud.Alerts().get_enriched_alert(
+        alert = services.alerts.crud.Alerts().get_alert(
             session=db,
             project=project,
             name=alert_name,
@@ -281,12 +281,13 @@ class TestAlerts(TestServiceBase):
             event.kind,
             event,
         )
-        alert = services.alerts.crud.Alerts().get_enriched_alert(
+        alert = services.alerts.crud.Alerts().get_alert(
             session=db,
             project=project,
             name=alert_name,
         )
         assert alert.state == alert_objects.AlertActiveState.ACTIVE
+        assert alert.count == 1
 
         # modify the alert data based on the parameterized field
         if isinstance(modify_field, list):
@@ -305,11 +306,13 @@ class TestAlerts(TestServiceBase):
         )
 
         # fetch the updated alert
-        alert = services.alerts.crud.Alerts().get_enriched_alert(
+        alert = services.alerts.crud.Alerts().get_alert(
             session=db,
             project=project,
             name=alert_name,
         )
+        # validate that the counter of the alert was reset after storing it again
+        assert alert.count == 0
 
         # validate the state based on whether it should have reset
         expected_state = (

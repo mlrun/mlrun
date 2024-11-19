@@ -117,9 +117,7 @@ class Alerts(
         project = project or mlrun.mlconf.default_project
         return framework.utils.singletons.db.get_db().list_alerts(session, project)
 
-    def get_enriched_alert(
-        self, session: sqlalchemy.orm.Session, project: str, name: str
-    ):
+    def get_alert(self, session: sqlalchemy.orm.Session, project: str, name: str):
         alert = framework.utils.singletons.db.get_db().get_alert(session, project, name)
         if alert is None:
             raise mlrun.errors.MLRunNotFoundError(
@@ -128,15 +126,6 @@ class Alerts(
 
         framework.utils.singletons.db.get_db().enrich_alert(session, alert)
         return alert
-
-    def get_alert(
-        self,
-        session: sqlalchemy.orm.Session,
-        project: str,
-        name: str,
-    ) -> mlrun.common.schemas.AlertConfig:
-        project = project or mlrun.mlconf.default_project
-        return framework.utils.singletons.db.get_db().get_alert(session, project, name)
 
     def delete_alert(
         self,

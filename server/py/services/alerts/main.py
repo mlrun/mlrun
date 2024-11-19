@@ -116,7 +116,7 @@ class Service(framework.service.Service):
         )
 
         return await run_in_threadpool(
-            services.alerts.crud.Alerts().get_enriched_alert, db_session, project, name
+            services.alerts.crud.Alerts().get_alert, db_session, project, name
         )
 
     async def list_alerts(

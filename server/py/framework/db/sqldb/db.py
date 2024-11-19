@@ -5568,6 +5568,7 @@ class SQLDB(DBInterface):
             return self._create_alert(session, alert)
         alert_record.full_object = alert.dict()
         alert_state = self.get_alert_state(session, alert_record.id)
+        alert_state.count = 0
 
         self._delete_alert_notifications(session, alert.name, alert, alert.project)
         self._store_notifications(

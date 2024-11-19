@@ -35,7 +35,12 @@ class Daemon(framework.service.Daemon):
 
 
 daemon = Daemon(service_cls=services.api.main.Service)
-daemon.initialize()
-app = daemon.app
+
+
+def app():
+    daemon.initialize()
+    daemon.wire()
+    return daemon.app
+
 
 # TODO: Create a container, override ServiceContainer and implement forwarding requests to alerts service

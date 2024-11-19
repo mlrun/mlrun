@@ -69,6 +69,15 @@ class Alerts(
             # preserve the original creation time and id of the alert so that modifying the alert does not change them
             alert_data.created = existing_alert.created
             alert_data.id = existing_alert.id
+
+            old_state = framework.utils.singletons.db.get_db().get_alert_state_dict(
+                session, existing_alert.id
+            )
+            existing_alert.state = (
+                mlrun.common.schemas.AlertActiveState.ACTIVE
+                if old_state["active"]
+                else mlrun.common.schemas.AlertActiveState.INACTIVE
+            )
         else:
             num_alerts = (
                 framework.utils.singletons.db.get_db().get_num_configured_alerts(
@@ -393,9 +402,18 @@ class Alerts(
         if force_reset:
             return True
 
+        # reset the alert if the policy was modified from manual to auto while the state is active
+        old_reset_policy = getattr(old_alert_data, "reset_policy")
+        new_reset_policy = getattr(alert_data, "reset_policy")
+        reset_due_to_policy_change = (
+            old_alert_data.state == mlrun.common.schemas.AlertActiveState.ACTIVE
+            and old_reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
+            and new_reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO
+        )
+
         # reset the alert if a functional parameter (entities, trigger, or criteria) has changed, as these affect the
         # conditions for alert activation.
-        return any(
+        reset_due_to_functional_parameters_changed = any(
             getattr(old_alert_data, attr) != getattr(alert_data, attr)
             for attr in [
                 "entities",
@@ -403,6 +421,8 @@ class Alerts(
                 "criteria",
             ]
         )
+
+        return reset_due_to_policy_change or reset_due_to_functional_parameters_changed
 
     @staticmethod
     def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):

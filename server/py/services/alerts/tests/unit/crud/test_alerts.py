@@ -152,7 +152,7 @@ class TestAlerts(TestServiceBase):
                 ],
                 False,
             ),
-            ("reset_policy", alert_objects.ResetPolicy.AUTO, False),
+            ("reset_policy", alert_objects.ResetPolicy.AUTO, True),
             # Functional fields:
             (
                 "entities",
@@ -203,7 +203,7 @@ class TestAlerts(TestServiceBase):
                     alert_objects.AlertSeverity.HIGH,
                     alert_objects.ResetPolicy.AUTO,
                 ],
-                False,
+                True,
             ),
             (
                 ["summary", "severity", "trigger"],

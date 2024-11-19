@@ -4676,7 +4676,7 @@ class HTTPRunDB(RunDBInterface):
         severity: Optional[list[str]] = None,
         entity_kind: Optional[str] = None,
         event_kind: Optional[str] = None,
-    ):
+    ) -> list:
         """
         Retrieve list of all alert activations.
 
@@ -4702,7 +4702,7 @@ class HTTPRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         **kwargs,
-    ):
+    ) -> tuple[list, Optional[str]]:
         """List alerts activations with support for pagination and various filtering options.
 
         This method retrieves a paginated list of alert activations based on the specified filter parameters.

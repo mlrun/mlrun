@@ -1279,8 +1279,10 @@ class SQLRunDB(RunDBInterface):
         until: Optional[datetime.datetime] = None,
         entity: Optional[str] = None,
         severity: Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
     ):
-        pass
+        raise NotImplementedError
 
     def paginated_list_alert_activations(
         self,
@@ -1290,7 +1292,7 @@ class SQLRunDB(RunDBInterface):
         page_token: Optional[str] = None,
         **kwargs,
     ):
-        pass
+        raise NotImplementedError
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

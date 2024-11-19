@@ -854,6 +854,8 @@ class RunDBInterface(ABC):
         until: Optional[datetime.datetime] = None,
         entity: Optional[str] = None,
         severity: Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
     ):
         pass
 

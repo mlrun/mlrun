@@ -977,6 +977,8 @@ class DBInterface(ABC):
         until: Optional[str] = None,
         entity: Optional[str] = None,
         severity: Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:

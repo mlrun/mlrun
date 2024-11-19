@@ -90,10 +90,40 @@ def generate_query_predicate_for_name(column, query_string):
 
 
 def generate_query_for_name_with_wildcard(column, query_string):
+    """
+    Generate a query condition for a database column based on a query string with optional wildcard support.
+
+    This function processes the query string to determine whether to apply
+    an equality comparison or a wildcard-based `ilike` query.
+
+    :param column: The database column to apply the query condition to.
+    :param query_string: The string used to filter the column. If the string starts with `~`,
+    it is treated as a wildcard search.
+
+    :returns: a column with condition applied.
+
+    Example:
+        ```python
+        # For a wildcard query
+        query_string = "~test*"
+        condition = generate_query_for_name_with_wildcard(
+            my_table.column_name, query_string
+        )
+        # condition evaluates to: column_name.ilike("test%")
+
+        # For a direct equality query
+        query_string = "test"
+        condition = generate_query_for_name_with_wildcard(
+            my_table.column_name, query_string
+        )
+        # condition evaluates to: column_name == "test"
+        ```
+    """
+
     if query_string.startswith("~"):
         return column.ilike(translate_wildcard_to_sql(query_string[1:]))
     else:
-        column.__eq__(query_string)
+        return column.__eq__(query_string)
 
 
 def translate_wildcard_to_sql(query_string: str) -> str:

@@ -38,6 +38,8 @@ async def list_alert_activations(
     until: Optional[str] = None,
     entity: Optional[str] = None,
     severity: Optional[list[str]] = None,
+    entity_kind: Optional[str] = None,
+    event_kind: Optional[str] = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),

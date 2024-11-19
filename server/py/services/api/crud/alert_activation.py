@@ -106,6 +106,8 @@ class AlertActivation(
         until: Optional[datetime.datetime] = None,
         entity: Optional[str] = None,
         severity: Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
@@ -117,6 +119,8 @@ class AlertActivation(
             until=until,
             entity=entity,
             severity=severity,
+            entity_kind=entity_kind,
+            event_kind=event_kind,
             page=page,
             page_size=page_size,
         )

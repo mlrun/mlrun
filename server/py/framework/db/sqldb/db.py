@@ -5938,6 +5938,8 @@ class SQLDB(DBInterface):
         until: typing.Optional[str] = None,
         entity: typing.Optional[str] = None,
         severity: typing.Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
@@ -5946,14 +5948,13 @@ class SQLDB(DBInterface):
         # Filter alert activations for the project created after the project creation date,
         # excluding activations linked to any previous instances of the project.
         # TODO: reconsider this approach when we move alerts out of main MLRun db
-        conditions = []
-        for project, created in project_with_creation_time:
-            conditions.append(
-                and_(
-                    AlertActivation.project == project,
-                    AlertActivation.activation_time > created,
-                )
+        conditions = [
+            and_(
+                AlertActivation.project == project,
+                AlertActivation.activation_time > created,
             )
+            for project, created in project_with_creation_time
+        ]
 
         query = query.filter(or_(*conditions))
 
@@ -5977,6 +5978,12 @@ class SQLDB(DBInterface):
             )
         if severity:
             query = query.filter(AlertActivation.severity.in_(severity))
+
+        if event_kind:
+            query = query.filter(AlertActivation.event_kind == event_kind)
+
+        if entity_kind:
+            query = query.filter(AlertActivation.entity_kind == entity_kind)
 
         query = self._paginate_query(query, page, page_size)
 

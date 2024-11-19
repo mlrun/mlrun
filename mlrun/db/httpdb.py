@@ -4674,7 +4674,14 @@ class HTTPRunDB(RunDBInterface):
         until: Optional[datetime] = None,
         entity: Optional[str] = None,
         severity: Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
     ):
+        """
+        Retrieve list of all alert activations.
+
+        :returns: All the alert activations in the database.
+        """
         alert_activations, _ = self._list_alert_activations(
             project=project,
             name=name,
@@ -4682,6 +4689,8 @@ class HTTPRunDB(RunDBInterface):
             until=until,
             entity=entity,
             severity=severity,
+            entity_kind=entity_kind,
+            event_kind=event_kind,
             return_all=True,
         )
         return alert_activations
@@ -4694,6 +4703,52 @@ class HTTPRunDB(RunDBInterface):
         page_token: Optional[str] = None,
         **kwargs,
     ):
+        """List alerts activations with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of alert activations based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of alert activations that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_alert_activations method:
+            See :py:func:`~list_alert_activations` for more details.
+
+        Examples::
+
+            # Fetch first page of alert activations with page size of 5
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page_size=5
+            )
+            # Fetch next page using the pagination token from the previous response
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page_token=token
+            )
+            # Fetch alert activations for a specific page (e.g., page 3)
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page=3, page_size=5
+            )
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            alert_activations = []
+            token = None
+            while True:
+                page_alert_activations, token = db.paginated_list_alert_activations(
+                    project="my-project", page_token=token, page_size=5
+                )
+                alert_activations.extend(page_alert_activations)
+
+                # If token is None and page_alert_activations is empty, we've reached the end (no more activations).
+                # If token is None and page_alert_activations is not empty, we've fetched the last page of activations.
+                if not token:
+                    break
+            print(f"Total alert activations retrieved: {len(alert_activations)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of alert activations and an optional `page_token` for pagination.
+        """
         return self._list_alert_activations(
             *args,
             page=page,
@@ -4960,6 +5015,8 @@ class HTTPRunDB(RunDBInterface):
         until: Optional[datetime] = None,
         entity: Optional[str] = None,
         severity: Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
@@ -4972,6 +5029,8 @@ class HTTPRunDB(RunDBInterface):
             "until": datetime_to_iso(until),
             "entity": entity,
             "severity": severity,
+            "entity-kind": entity_kind,
+            "event-kind": event_kind,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,

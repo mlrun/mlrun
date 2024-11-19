@@ -201,6 +201,12 @@ class Client(
         response_json = response.json()
         return response_json["data"]["attributes"]["uid"]
 
+    def get_smtp_configuration(self, session: str) -> igz_mgmt.SmtpConnection:
+        smtp_configurations = igz_mgmt.SmtpConnection.list(
+            self._get_igz_client(session),
+        )
+        return typing.cast(igz_mgmt.SmtpConnection, smtp_configurations[0])
+
     def get_or_create_access_key(
         self, session: str, planes: typing.Optional[list[str]] = None
     ) -> str:

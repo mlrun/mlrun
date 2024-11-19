@@ -16,23 +16,29 @@ import http
 import typing
 
 import fastapi
+from fastapi import Depends
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 from mlrun.utils import logger
 
+import framework.api.deps
 import framework.utils.background_tasks
 import framework.utils.clients.chief
+import framework.utils.clients.iguazio as iguazio_client
+import framework.utils.notifications.notification_pusher as notification_pusher
+import framework.utils.singletons
 import services.api.initial_data
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(prefix="/operations")
 
 
 current_migration_background_task_name = None
+current_refresh_smtp_configuration_task_name = None
 
 
 @router.post(
-    "/operations/migrations",
+    "/migrations",
     responses={
         http.HTTPStatus.OK.value: {},
         http.HTTPStatus.ACCEPTED.value: {"model": mlrun.common.schemas.BackgroundTask},
@@ -73,6 +79,42 @@ async def trigger_migrations(
 
     response.status_code = http.HTTPStatus.ACCEPTED.value
     current_migration_background_task_name = background_task.metadata.name
+    return background_task
+
+
+@router.post(
+    "/refresh_smtp_configuration",
+    responses={
+        http.HTTPStatus.OK.value: {},
+        http.HTTPStatus.ACCEPTED.value: {"model": mlrun.common.schemas.BackgroundTask},
+    },
+)
+async def refresh_smtp_configuration(
+    background_tasks: fastapi.BackgroundTasks,
+    response: fastapi.Response,
+    request: fastapi.Request,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        framework.api.deps.authenticate_request
+    ),
+):
+    if not framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
+        raise mlrun.errors.MLRunPreconditionFailedError(
+            "SMTP configuration can be refreshed only when running inside a Kubernetes cluster"
+        )
+
+    task_callback, background_task, task_name = await run_in_threadpool(
+        _create_refresh_smtp_configuration_background_task,
+        auth_info.session,
+    )
+
+    if not background_task:
+        # No task in progress, creating a new one
+        background_tasks.add_task(task_callback)
+        background_task = framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            task_name
+        )
+
+    response.status_code = http.HTTPStatus.ACCEPTED.value
     return background_task
 
 
@@ -122,3 +164,43 @@ async def _perform_migration():
     )
     await daemon.service.move_service_to_online()
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
+
+
+def _create_refresh_smtp_configuration_background_task(
+    session: str,
+) -> tuple[
+    typing.Optional[typing.Callable],
+    typing.Optional[mlrun.common.schemas.BackgroundTask],
+    str,
+]:
+    logger.info("Starting the refresh smtp configuration process")
+    (
+        task,
+        task_name,
+    ) = framework.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        framework.utils.background_tasks.BackgroundTaskKinds.refresh_smtp_configuration,
+        None,
+        _perform_refresh_smtp,
+        session=session,
+    )
+    return task, None, task_name
+
+
+async def _perform_refresh_smtp(session: str):
+    iguazio_client_instance = iguazio_client.Client()
+    returned_smtp_configuration = iguazio_client_instance.get_smtp_configuration(
+        session
+    )
+    updated_params = {
+        "server_host": returned_smtp_configuration.host,
+        "server_port": str(returned_smtp_configuration.port),
+        "sender_address": returned_smtp_configuration.sender_address,
+        "username": returned_smtp_configuration.auth_username,
+        "password": returned_smtp_configuration.auth_password,
+    }
+    notification_pusher.RunNotificationPusher.store_mail_notifications_default_params_to_secret(
+        updated_params
+    )
+    notification_pusher.RunNotificationPusher.get_mail_notification_default_params(
+        refresh=True
+    )

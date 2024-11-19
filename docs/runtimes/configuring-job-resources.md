@@ -234,7 +234,7 @@ import os
 train_fn = mlrun.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
-train_fn.with_preemption_mode(mode="prevent") 
+train_fn.with_preemption_mode(mode="constrain") 
 train_fn.run(inputs={"dataset": my_data})
 ```
 

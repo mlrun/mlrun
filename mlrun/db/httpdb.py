@@ -4678,10 +4678,20 @@ class HTTPRunDB(RunDBInterface):
         event_kind: Optional[str] = None,
     ) -> list:
         """
-        Retrieve list of all alert activations.
+        Retrieve a list of all alert activations.
 
-        :returns: All the alert activations in the database.
+        :param project: The project name to filter by. If None, results are not filtered by project.
+        :param name: The alert name to filter by. Supports exact matching or partial matching if prefixed with `~`.
+        :param since: Filters for alert activations occurring after this timestamp.
+        :param until: Filters for alert activations occurring before this timestamp.
+        :param entity: The entity ID to filter by. Supports wildcard matching if prefixed with `~`.
+        :param severity: A list of severity levels to filter by (e.g., ["critical", "warning"]).
+        :param entity_kind: The kind of entity (e.g., "job", "model") to filter by.
+        :param event_kind: The kind of event (e.g., "data_drift", "threshold_breach") to filter by.
+
+        :returns: A list of alert activations matching the provided filters.
         """
+
         alert_activations, _ = self._list_alert_activations(
             project=project,
             name=name,

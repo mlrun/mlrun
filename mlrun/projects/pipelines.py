@@ -983,14 +983,25 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
-def load_and_run(
+def load_and_run(context, *args, **kwargs):
+    """
+    This function serves as an alias to `load_and_run_workflow`,
+    allowing to continue using `load_and_run` without modifying existing workflows or exported runs.
+    This approach ensures backward compatibility,
+    while directing all new calls to the updated `load_and_run_workflow` function.
+    """
+    kwargs.pop("load_only", None)
+    kwargs.pop("save", None)
+    load_and_run_workflow(context, *args, **kwargs)
+
+
+def load_and_run_workflow(
     context: mlrun.execution.MLClientCtx,
     url: typing.Optional[str] = None,
     project_name: str = "",
     init_git: typing.Optional[bool] = None,
     subpath: typing.Optional[str] = None,
     clone: bool = False,
-    save: bool = True,
     workflow_name: typing.Optional[str] = None,
     workflow_path: typing.Optional[str] = None,
     workflow_arguments: typing.Optional[dict[str, typing.Any]] = None,
@@ -1003,14 +1014,12 @@ def load_and_run(
     local: typing.Optional[bool] = None,
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: typing.Optional[int] = None,
-    load_only: bool = False,
     wait_for_completion: bool = False,
     project_context: typing.Optional[str] = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
     This function loads a project from a given remote source and then runs the workflow.
-
     :param context:             mlrun context.
     :param url:                 remote url that represents the project's source.
                                 See 'mlrun.load_project()' for details
@@ -1018,7 +1027,6 @@ def load_and_run(
     :param init_git:            if True, will git init the context dir
     :param subpath:             project subpath (within the archive)
     :param clone:               if True, always clone (delete any existing content)
-    :param save:                whether to save the created project and artifact in the DB
     :param workflow_name:       name of the workflow
     :param workflow_path:       url to a workflow file, if not a project workflow
     :param workflow_arguments:  kubeflow pipelines arguments (parameters)
@@ -1034,48 +1042,31 @@ def load_and_run(
     :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
     :param cleanup_ttl:         pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                                 workflow and all its resources are deleted)
-    :param load_only:           for just loading the project, inner use.
     :param wait_for_completion: wait for workflow completion before returning
     :param project_context:     project context path (used for loading the project)
     """
-    try:
-        project = mlrun.load_project(
-            context=project_context or f"./{project_name}",
-            url=url,
-            name=project_name,
-            init_git=init_git,
-            subpath=subpath,
-            clone=clone,
-            save=save,
-            sync_functions=True,
-        )
-    except Exception as error:
-        if schedule:
-            notification_pusher = mlrun.utils.notifications.CustomNotificationPusher(
-                ["slack"]
-            )
-            url = get_ui_url(project_name, context.uid)
-            link = f"<{url}|*view workflow job details*>"
-            message = (
-                f":x: Failed to run scheduled workflow {workflow_name} in Project {project_name} !\n"
-                f"error: ```{error}```\n{link}"
-            )
-            # Sending Slack Notification without losing the original error:
-            try:
-                notification_pusher.push(
-                    message=message,
-                    severity=mlrun.common.schemas.NotificationSeverity.ERROR,
-                )
+    project_context = project_context or f"./{project_name}"
 
-            except Exception as exc:
-                logger.error("Failed to send slack notification", exc=err_to_str(exc))
+    # Load the project to fetch files which the runner needs, such as remote source files
+    pull_remote_project_files(
+        context=context,
+        project_context=project_context,
+        url=url,
+        project_name=project_name,
+        init_git=init_git,
+        subpath=subpath,
+        clone=clone,
+        schedule=schedule,
+        workflow_name=workflow_name,
+    )
 
-        raise error
-
-    context.logger.info(f"Loaded project {project.name} successfully")
-
-    if load_only:
-        return
+    # Retrieve the project object:
+    # - If the project exists in the MLRun database, it will be loaded from there.
+    # - If it doesn't exist in the database, it will be created from the previously loaded local directory.
+    project = mlrun.get_or_create_project(
+        context=project_context or f"./{project_name}",
+        name=project_name,
+    )
 
     # extract "start" notification if exists
     start_notifications = [
@@ -1108,18 +1099,156 @@ def load_and_run(
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
 
     if wait_for_completion:
+        handle_workflow_completion(
+            run=run,
+            project=project,
+            context=context,
+            workflow_log_message=workflow_log_message,
+        )
+
+
+def pull_remote_project_files(
+    context: mlrun.execution.MLClientCtx,
+    project_context: str,
+    url: str,
+    project_name: str,
+    init_git: typing.Optional[bool],
+    subpath: typing.Optional[str],
+    clone: bool,
+    schedule: typing.Optional[
+        typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger]
+    ],
+    workflow_name: typing.Optional[str],
+) -> None:
+    """
+    Load the project to clone remote files if they exist.
+    If an exception occurs during project loading, send a notification if the workflow is scheduled.
+
+    :param context:        MLRun execution context.
+    :param project_context: Path to the project context.
+    :param url:            URL of the project repository.
+    :param project_name:   Name of the project.
+    :param init_git:       Initialize a git repository.
+    :param subpath:        Project subpath within the repository.
+    :param clone:          Whether to clone the repository.
+    :param schedule:       Schedule for running the workflow.
+    :param workflow_name:  Name of the workflow to run.
+    """
+    try:
+        # Load the project to clone remote files if they exist.
+        # Using save=False to avoid overriding changes from the database if it already exists.
+        mlrun.load_project(
+            context=project_context,
+            url=url,
+            name=project_name,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+            save=False,
+        )
+    except Exception as error:
+        notify_scheduled_workflow_failure(
+            schedule=schedule,
+            project_name=project_name,
+            workflow_name=workflow_name,
+            error=error,
+            context_uid=context.uid,
+        )
+        raise error
+
+
+def notify_scheduled_workflow_failure(
+    schedule,
+    project_name: str,
+    workflow_name: str,
+    error: Exception,
+    context_uid: str,
+) -> None:
+    if schedule:
+        notification_pusher = mlrun.utils.notifications.CustomNotificationPusher(
+            ["slack"]
+        )
+        url = get_ui_url(project_name, context_uid)
+        link = f"<{url}|*view workflow job details*>"
+        message = (
+            f":x: Failed to run scheduled workflow {workflow_name} "
+            f"in Project {project_name}!\n"
+            f"Error: ```{err_to_str(error)}```\n{link}"
+        )
+        # Sending Slack Notification without losing the original error:
         try:
-            run.wait_for_completion()
-        except Exception as exc:
-            logger.error(
-                "Failed waiting for workflow completion",
-                workflow=workflow_log_message,
-                exc=err_to_str(exc),
+            notification_pusher.push(
+                message=message,
+                severity=mlrun.common.schemas.NotificationSeverity.ERROR,
             )
 
-        pipeline_state, _, _ = project.get_run_status(run)
-        context.log_result(key="workflow_state", value=pipeline_state, commit=True)
-        if pipeline_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
-            raise RuntimeError(
-                f"Workflow {workflow_log_message} failed, state={pipeline_state}"
-            )
+        except Exception as exc:
+            logger.error("Failed to send slack notification", exc=err_to_str(exc))
+
+
+def handle_workflow_completion(
+    run: _PipelineRunStatus,
+    project,
+    context: mlrun.execution.MLClientCtx,
+    workflow_log_message: str,
+) -> None:
+    """
+    Handle workflow completion by waiting for it to finish and logging the final state.
+
+    :param run:                 Run object containing workflow execution details.
+    :param project:             MLRun project object.
+    :param context:             MLRun execution context.
+    :param workflow_log_message: Message used for logging.
+    """
+    try:
+        run.wait_for_completion()
+    except Exception as exc:
+        mlrun.utils.logger.error(
+            "Failed waiting for workflow completion",
+            workflow=workflow_log_message,
+            exc=err_to_str(exc),
+        )
+
+    pipeline_state, _, _ = project.get_run_status(run)
+    context.log_result(key="workflow_state", value=pipeline_state, commit=True)
+    if pipeline_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
+        raise RuntimeError(
+            f"Workflow {workflow_log_message} failed, state={pipeline_state}"
+        )
+
+
+def import_remote_project(
+    context: mlrun.execution.MLClientCtx,
+    url: typing.Optional[str] = None,
+    project_name: str = "",
+    init_git: typing.Optional[bool] = None,
+    subpath: typing.Optional[str] = None,
+    clone: bool = False,
+    save: bool = True,
+    project_context: typing.Optional[str] = None,
+):
+    """
+    This function loads a project from a given remote source.
+
+    :param context:             mlrun context.
+    :param url:                 remote url that represents the project's source.
+                                See 'mlrun.load_project()' for details
+    :param project_name:        project name
+    :param init_git:            if True, will git init the context dir
+    :param subpath:             project subpath (within the archive)
+    :param clone:               if True, always clone (delete any existing content)
+    :param save:                whether to save the created project and artifact in the DB
+    :param project_context:     project context path (used for loading the project)
+    """
+    project = mlrun.load_project(
+        context=project_context or f"./{project_name}",
+        url=url,
+        name=project_name,
+        init_git=init_git,
+        subpath=subpath,
+        clone=clone,
+        save=save,
+        sync_functions=True,
+    )
+
+    context.logger.info(f"Loaded project {project.name} successfully")

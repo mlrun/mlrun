@@ -54,6 +54,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
+import mlrun.utils.db
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
@@ -91,6 +92,7 @@ from framework.db.sqldb.helpers import (
     update_labels,
 )
 from framework.db.sqldb.models import (
+    AlertActivation,
     AlertConfig,
     AlertState,
     AlertTemplate,
@@ -415,7 +417,7 @@ class SQLDB(DBInterface):
         session,
         name: typing.Optional[str] = None,
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
-        project: str = "",
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
@@ -1910,7 +1912,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         tag: typing.Optional[str] = None,
         kind: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
@@ -2408,7 +2410,7 @@ class SQLDB(DBInterface):
     def list_schedules(
         self,
         session: Session,
-        project: typing.Optional[str] = None,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         name: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
@@ -2416,8 +2418,8 @@ class SQLDB(DBInterface):
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
-        if project and project != "*":
-            query = query.filter(Schedule.project == project)
+        query = self._filter_query_by_resource_project(query, Schedule, project)
+
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
@@ -2525,6 +2527,7 @@ class SQLDB(DBInterface):
             )
             return 0
 
+        # TODO: add project permissions handling like in the list methods
         if project != "*":
             where_clause = main_table.project == project
             # To allow deleting all project resources - don't require main_table_identifier
@@ -2951,6 +2954,18 @@ class SQLDB(DBInterface):
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
         )
+
+    @staticmethod
+    def _filter_query_by_resource_project(
+        query: sqlalchemy.orm.query.Query,
+        resource: type[mlrun.utils.db.BaseModel],
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
+    ) -> sqlalchemy.orm.query.Query:
+        if isinstance(project, list):
+            query = query.filter(resource.project.in_(project))
+        elif project and project != "*":
+            query = query.filter(resource.project == project)
+        return query
 
     @staticmethod
     def _calculate_functions_counters(session) -> dict[str, int]:
@@ -4749,9 +4764,10 @@ class SQLDB(DBInterface):
 
     def _find_runs(self, session, uid, project, labels):
         labels = label_set(labels)
-        if project == "*":
-            project = None
-        query = self._query(session, Run, project=project)
+
+        query = self._query(session, Run)
+        query = self._filter_query_by_resource_project(query, Run, project)
+
         if uid:
             # uid may be either a single uid (string) or a list of uids
             uid = mlrun.utils.helpers.as_list(uid)
@@ -4780,7 +4796,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: str,
-        project: str,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: typing.Union[str, list[str], None] = None,
         tag: typing.Optional[str] = None,
         hash_key: typing.Optional[str] = None,
@@ -4806,9 +4822,7 @@ class SQLDB(DBInterface):
         :param page_size: The page size to query.
         """
         query = session.query(Function, Function.Tag.name)
-
-        if project != "*":
-            query = query.filter(Function.project == project)
+        query = self._filter_query_by_resource_project(query, Function, project)
 
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
@@ -5592,12 +5606,10 @@ class SQLDB(DBInterface):
         self._delete(session, AlertConfig, project=project, name=name)
 
     def list_alerts(
-        self, session, project: typing.Optional[str] = None
+        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
-
-        if project and project != "*":
-            query = query.filter(AlertConfig.project == project)
+        query = self._filter_query_by_resource_project(query, AlertConfig, project)
 
         alerts = list(map(self._transform_alert_config_record_to_schema, query.all()))
         for alert in alerts:
@@ -5886,6 +5898,80 @@ class SQLDB(DBInterface):
 
         if commit:
             session.commit()
+
+    def store_alert_activation(
+        self,
+        session,
+        alert_data: mlrun.common.schemas.AlertConfig,
+        event_data: mlrun.common.schemas.Event,
+        notifications_states: list[mlrun.common.schemas.NotificationState],
+    ):
+        extra_data = {
+            "notifications": [
+                notification.dict() for notification in notifications_states
+            ],
+            "criteria": alert_data.criteria.dict() if alert_data.criteria else None,
+        }
+
+        # For JOB entities, construct entity_id as "name.uid" format
+        if alert_data.entities.kind == mlrun.common.schemas.alert.EventEntityKind.JOB:
+            run_name = alert_data.entities.ids[0]
+            run_uid = event_data.value_dict.get("uid")
+            entity_id = f"{run_name}.{run_uid}" if run_uid else run_name
+        else:
+            entity_id = alert_data.entities.ids[0]
+
+        alert_activation_record = AlertActivation(
+            name=alert_data.name,
+            project=alert_data.project,
+            activation_time=event_data.timestamp,
+            entity_id=entity_id,
+            entity_kind=alert_data.entities.kind,
+            event_kind=event_data.kind,
+            severity=alert_data.severity,
+            number_of_events=alert_data.criteria.count,
+            data=extra_data,
+        )
+
+        self._upsert(session, [alert_activation_record])
+
+    def list_alert_activations(
+        self, session: Session, project: typing.Optional[str] = None
+    ) -> list[mlrun.common.schemas.AlertActivation]:
+        # TODO: add filters
+        query = self._query(session, AlertActivation)
+
+        if project and project != "*":
+            query = query.filter(AlertActivation.project == project)
+
+        return [
+            self._transform_alert_activation_record_to_scheme(record)
+            for record in query.all()
+        ]
+
+    @staticmethod
+    def _transform_alert_activation_record_to_scheme(
+        alert_activation_record: typing.Optional[AlertActivation],
+    ) -> typing.Optional[mlrun.common.schemas.AlertActivation]:
+        if alert_activation_record is None:
+            return None
+
+        return mlrun.common.schemas.AlertActivation(
+            name=alert_activation_record.name,
+            project=alert_activation_record.project,
+            severity=alert_activation_record.severity,
+            # the activation_time is already stored in UTC in the database as a naive datetime.
+            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
+            activation_time=alert_activation_record.activation_time.replace(
+                tzinfo=timezone.utc
+            ),
+            entity_id=alert_activation_record.entity_id,
+            entity_kind=alert_activation_record.entity_kind,
+            event_kind=alert_activation_record.event_kind,
+            number_of_events=alert_activation_record.number_of_events,
+            notifications=alert_activation_record.data.get("notifications", []),
+            criteria=alert_activation_record.data.get("criteria"),
+        )
 
     # ---- Background Tasks ----
 
@@ -6213,6 +6299,7 @@ class SQLDB(DBInterface):
                 )
             run_id = run.id
 
+        # TODO: add project permissions handling like in the list methods
         project = project or config.default_project
         if project == "*":
             project = None

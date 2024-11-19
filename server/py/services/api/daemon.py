@@ -28,8 +28,7 @@ class Daemon(framework.service.Daemon):
         if mlconf.services.hydra.services == "*":
             # Mount the alerts application until we have proper hydra
             return {"/": alerts_daemon.service}
-        else:
-            return {}
+        return {}
 
     @property
     def service(self) -> services.api.main.Service:

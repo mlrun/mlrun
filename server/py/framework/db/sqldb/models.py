@@ -855,6 +855,7 @@ with warnings.catch_warnings():
             PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
             Index("ix_alert_activation_project_name", "project", "name"),
             Index("ix_alert_activation_activation_time", "activation_time"),
+            Index("ix_project_name", "project"),
         )
 
         id = Column(Integer)

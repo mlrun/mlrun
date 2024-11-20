@@ -18,9 +18,6 @@ import services.alerts.main
 
 
 class Daemon(framework.service.Daemon):
-    def __init__(self, service_cls: framework.service.Service.__class__):
-        self._service = service_cls()
-
     @property
     def service(self) -> services.alerts.main.Service:
         return self._service

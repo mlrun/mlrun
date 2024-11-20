@@ -18,6 +18,7 @@ import fastapi
 import semver
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
+from starlette.responses import Response
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -44,10 +45,6 @@ from framework.routers import alert_template, alerts, auth, healthz
 
 
 class Service(framework.service.Service):
-    # TODO: Change service name to alerts once they are fully separated - this allows to mount the application on the
-    #  api Router without implementing tunneling
-    service_name = "api"
-
     async def store_alert(
         self,
         request: fastapi.Request,
@@ -72,11 +69,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        # TODO: Remove chief requirement when alerts is standalone
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             data = await request.json()
             return await chief_client.store_alert(
@@ -180,11 +173,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.delete_alert(
                 project=project, name=name, request=request
@@ -218,11 +207,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.reset_alert(
                 project=project, name=name, request=request
@@ -265,11 +250,7 @@ class Service(framework.service.Service):
             )
             return
 
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             data = await request.json()
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.set_event(
@@ -298,18 +279,14 @@ class Service(framework.service.Service):
         alert_data: mlrun.common.schemas.AlertTemplate,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
-    ) -> mlrun.common.schemas.AlertTemplate:
+    ) -> Response:
         await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
             self._get_authorization_resource_for_alert_template(),
             mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
 
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             data = await request.json()
             return await chief_client.store_alert_template(
@@ -370,11 +347,7 @@ class Service(framework.service.Service):
             mlrun.common.schemas.AuthorizationAction.delete,
             auth_info,
         )
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.delete_alert_template(name=name, request=request)
 
@@ -388,11 +361,7 @@ class Service(framework.service.Service):
 
     async def move_service_to_online(self):
         self._logger.info("Moving alerts to online")
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if self._is_chief_or_standalone():
             services.alerts.initial_data.update_default_configuration_data(self._logger)
             await self._start_periodic_functions()
 
@@ -418,7 +387,7 @@ class Service(framework.service.Service):
             dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
         )
         self.app.include_router(
-            alerts_v1_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX
+            alerts_v1_router, prefix=self.base_versioned_service_prefix
         )
 
     async def _custom_setup_service(self):
@@ -506,3 +475,20 @@ class Service(framework.service.Service):
                 project=project,
                 validate_event=True,
             )
+
+    @staticmethod
+    def _is_chief_or_standalone():
+        """
+        Check if the service is running as part of a chief instance or as a standalone service.
+        mlconf.services.service_name determines the running service.
+        Possible options are:
+            1. Clusterization role is chief and service name is API - return True
+            2. Clusterization role is worker and service name is API - return False
+            3. Clusterization role is worker and service name is alerts (running as a standalone) - return True.
+               This assumes a single alerts service replica.
+        """
+        return (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+            or mlconf.services.service_name == "alerts"
+        )

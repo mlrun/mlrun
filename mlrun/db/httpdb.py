@@ -4673,9 +4673,13 @@ class HTTPRunDB(RunDBInterface):
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         entity: Optional[str] = None,
-        severity: Optional[list[str]] = None,
-        entity_kind: Optional[str] = None,
-        event_kind: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
     ) -> list:
         """
         Retrieve a list of all alert activations.
@@ -4685,9 +4689,9 @@ class HTTPRunDB(RunDBInterface):
         :param since: Filters for alert activations occurring after this timestamp.
         :param until: Filters for alert activations occurring before this timestamp.
         :param entity: The entity ID to filter by. Supports wildcard matching if prefixed with `~`.
-        :param severity: A list of severity levels to filter by (e.g., ["critical", "warning"]).
-        :param entity_kind: The kind of entity (e.g., "job", "model") to filter by.
-        :param event_kind: The kind of event (e.g., "data_drift", "threshold_breach") to filter by.
+        :param severity: A list of severity levels to filter by (e.g., ["high", "low"]).
+        :param entity_kind: The kind of entity (e.g., "job", "endpoint") to filter by.
+        :param event_kind: The kind of event (e.g., ""data-drift-detected"", "failed") to filter by.
 
         :returns: A list of alert activations matching the provided filters.
         """
@@ -5024,9 +5028,13 @@ class HTTPRunDB(RunDBInterface):
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         entity: Optional[str] = None,
-        severity: Optional[list[str]] = None,
-        entity_kind: Optional[str] = None,
-        event_kind: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,

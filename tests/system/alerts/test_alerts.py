@@ -109,6 +109,8 @@ class TestAlerts(TestMLRunSystem):
             # save entity_ids to check pagination below
             entities.append(activation["entity_id"])
 
+        assert activations[0]["activation_time"] >= activations[1]["activation_time"]
+
         # get paginated activations
         activations, token = self._run_db.paginated_list_alert_activations(
             project=self.project_name,

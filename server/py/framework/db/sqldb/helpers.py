@@ -13,8 +13,11 @@
 # limitations under the License.
 #
 import re
+import typing
+from datetime import datetime
 
 from dateutil import parser
+from sqlalchemy import and_
 
 import mlrun.common.runtimes.constants
 from mlrun.utils import get_in
@@ -92,8 +95,8 @@ def generate_query_predicate_for_name(column, query_string):
 def generate_time_range_query(
     query,
     field,
-    since: Optional[datetime] = None,
-    until: Optional[datetime] = None,
+    since: typing.Optional[datetime] = None,
+    until: typing.Optional[datetime] = None,
 ):
     """
     Generate a query to filter results within a specified time range.

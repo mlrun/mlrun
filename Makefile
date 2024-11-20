@@ -482,7 +482,6 @@ test: clean ## Run mlrun tests
 		--durations=100 \
 		--ignore=tests/integration \
 		--ignore=tests/system \
-		--ignore=tests/rundb/test_httpdb.py \
 		--ignore=server/py/services/api/migrations \
 		--forked \
 		-rf
@@ -504,8 +503,7 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		tests/rundb/test_httpdb.py
+		tests/integration
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container

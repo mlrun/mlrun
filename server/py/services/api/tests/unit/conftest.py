@@ -24,7 +24,6 @@ import httpx
 import pytest
 import pytest_asyncio
 import semver
-import sqlalchemy
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
@@ -72,14 +71,14 @@ if str(tests_root_directory) in os.getcwd():
 def app() -> fastapi.FastAPI:
     # TODO: This is a hack to remove the alerts app mount because it blocks the test router.
     #  Remove this when alerts is properly mounted with "alerts" prefix
-    _app = daemon.app
+    _app = services.api.daemon.app()
     _app.routes.pop()
     yield _app
 
 
 @pytest.fixture()
 def prefix() -> str:
-    yield daemon.service.BASE_VERSIONED_SERVICE_PREFIX
+    yield daemon.service.base_versioned_service_prefix
 
 
 # TODO: This is a hack to allow sharing fixtures between services in non-root directives because pytest behavior
@@ -129,7 +128,7 @@ def unversioned_client(db, app) -> Generator:
 
         with TestClient(app) as unversioned_test_client:
             set_base_url_for_test_client(
-                unversioned_test_client, daemon.service.SERVICE_PREFIX
+                unversioned_test_client, daemon.service.service_prefix
             )
             yield unversioned_test_client
 

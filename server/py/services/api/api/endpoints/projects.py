@@ -491,7 +491,7 @@ async def load_project(
 
     # Creating the auxiliary function for loading the project:
     load_project_runner = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.WorkflowRunners().create_runner,
+        services.api.crud.LoadRunner().create_runner,
         run_name=f"load-{name}",
         project=name,
         db_session=db_session,
@@ -508,10 +508,8 @@ async def load_project(
     )
 
     run = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.WorkflowRunners().run,
+        services.api.crud.LoadRunner().run,
         runner=load_project_runner,
         project=project,
-        workflow_request=None,
-        load_only=True,
     )
     return {"data": run.to_dict()}

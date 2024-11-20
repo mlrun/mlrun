@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from .alert_activation import AlertActivation
-from .alert_template import AlertTemplates
 from .artifacts import Artifacts
 from .client_spec import ClientSpec
 from .clusterization_spec import ClusterizationSpec
@@ -32,4 +31,4 @@ from .runs import Runs
 from .runtime_resources import RuntimeResources
 from .secrets import Secrets, SecretsClientType
 from .tags import Tags
-from .workflows import WorkflowRunners
+from .workflows import LoadRunner, WorkflowRunners

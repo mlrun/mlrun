@@ -14,7 +14,7 @@
 
 import datetime
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from deprecated import deprecated
 
@@ -23,6 +23,7 @@ import mlrun.common
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 
 
@@ -307,6 +308,14 @@ class RunDBInterface(ABC):
         return mlrun.common.schemas.TagObjects(
             kind="artifact", identifiers=artifact_identifiers
         )
+
+    def get_model_endpoint_monitoring_metrics(
+        self,
+        project: str,
+        endpoint_id: str,
+        type: Literal["results", "metrics", "all"] = "all",
+    ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        pass
 
     @abstractmethod
     def delete_project(
@@ -668,7 +677,9 @@ class RunDBInterface(ABC):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,
-    ):
+        top_level: bool = False,
+        uids: Optional[list[str]] = None,
+    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         pass
 
     @abstractmethod

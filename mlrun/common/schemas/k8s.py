@@ -14,18 +14,18 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 
 import mlrun.common.types
 
 
-class ResourceSpec(pydantic.BaseModel):
+class ResourceSpec(pydantic.v1.BaseModel):
     cpu: typing.Optional[str]
     memory: typing.Optional[str]
     gpu: typing.Optional[str]
 
 
-class Resources(pydantic.BaseModel):
+class Resources(pydantic.v1.BaseModel):
     requests: ResourceSpec = ResourceSpec()
     limits: ResourceSpec = ResourceSpec()
 

@@ -12,11 +12,85 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections
 
+import sqlalchemy.orm
+
+import mlrun.common.schemas.alert
 import mlrun.utils.singleton
+
+import framework.utils.singletons.db
 
 
 class AlertActivation(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    pass
+    def store_alert_activation(
+        self,
+        session: sqlalchemy.orm.Session,
+        alert_data: mlrun.common.schemas.AlertConfig,
+        event_data: mlrun.common.schemas.Event,
+    ):
+        notifications_states = self._prepare_notifications_states(
+            alert_data.notifications
+        )
+        framework.utils.singletons.db.get_db().store_alert_activation(
+            session, alert_data, event_data, notifications_states
+        )
+
+    @staticmethod
+    def _prepare_notifications_states(
+        notifications: list[mlrun.common.schemas.AlertNotification],
+    ) -> list[mlrun.common.schemas.NotificationState]:
+        """
+        Processes a list of alert notifications to construct a list of NotificationState objects.
+
+        Each NotificationState represents a unique type of notification (e.g., "slack", "email") and its status.
+        For each notification type, this method aggregates error messages if any notifications of that type have failed.
+        The resulting NotificationState has:
+        - An empty 'err' if all notifications of that type succeeded.
+        - An 'err' with all unique errors if all notifications of that type failed.
+        - An 'err' with unique errors if some, but not all, notifications of that type failed.
+        """
+
+        notification_errors = collections.defaultdict(
+            lambda: {
+                "errors": set(),
+                "success_count": 0,
+            },
+        )
+        # process each notification and gather errors by type
+        for alert_notification in notifications:
+            kind = alert_notification.notification.kind
+            reason = alert_notification.notification.reason
+
+            # count successes and collect unique errors for failures
+            if reason:
+                notification_errors[kind]["errors"].add(reason)
+            else:
+                notification_errors[kind]["success_count"] += 1
+
+        # construct NotificationState objects based on the aggregated error data
+        notification_states = []
+        for kind, status_info in notification_errors.items():
+            errors = list(status_info["errors"])
+            success_count = status_info["success_count"]
+
+            if errors:
+                if success_count == 0:
+                    error_message = (
+                        f"All {kind} notifications failed. Errors: {', '.join(errors)}"
+                    )
+                else:
+                    error_message = (
+                        f"Some {kind} notifications failed. Errors: {', '.join(errors)}"
+                    )
+            else:
+                # indicates success if there are no errors
+                error_message = ""
+
+            notification_states.append(
+                mlrun.common.schemas.NotificationState(kind=kind, err=error_message)
+            )
+
+        return notification_states

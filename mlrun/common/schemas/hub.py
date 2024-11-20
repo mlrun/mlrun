@@ -15,7 +15,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, Extra, Field
+from pydantic.v1 import BaseModel, Extra, Field
 
 import mlrun.common.types
 import mlrun.config

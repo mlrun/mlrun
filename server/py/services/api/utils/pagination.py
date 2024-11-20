@@ -16,7 +16,7 @@ import inspect
 import typing
 
 import orjson
-import pydantic
+import pydantic.v1
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -31,7 +31,7 @@ import services.api.crud
 
 def _generate_pydantic_schema_from_method_signature(
     method: typing.Callable,
-) -> pydantic.main.ModelMetaclass:
+) -> pydantic.v1.BaseModel:
     """
     Generate a Pydantic model based on the signature of a method.
     This is used to save the given parameters to the method in the pagination cache as a serialized Pydantic
@@ -53,7 +53,7 @@ def _generate_pydantic_schema_from_method_signature(
         # ignore the session parameter as the methods get a new session each time
         if parameter.annotation != sqlalchemy.orm.Session
     }
-    return pydantic.create_model(
+    return pydantic.v1.create_model(
         f"{method.__name__}_schema", __config__=Config, **fields
     )
 
@@ -83,7 +83,7 @@ class PaginatedMethods:
         return cls._method_map[method_name]["method"]
 
     @classmethod
-    def get_method_schema(cls, method_name: str) -> pydantic.BaseModel:
+    def get_method_schema(cls, method_name: str) -> pydantic.v1.BaseModel:
         return cls._method_map[method_name]["schema"]
 
 

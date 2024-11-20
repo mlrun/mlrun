@@ -61,16 +61,16 @@ from .run import (
     new_function,
     wait_for_pipeline_completion,
 )
-from .runtimes import new_model_server
+from .runtimes import mounts, new_model_server
 from .secrets import get_secret_or_env
 from .utils.version import Version
 
 __version__ = Version().get()["version"]
 
-VolumeMount = runtimes.mounts.VolumeMount
-mount_v3io = runtimes.mounts.mount_v3io
-v3io_cred = runtimes.mounts.v3io_cred
-auto_mount = runtimes.mounts.auto_mount
+VolumeMount = mounts.VolumeMount
+mount_v3io = mounts.mount_v3io
+v3io_cred = mounts.v3io_cred
+auto_mount = mounts.auto_mount
 
 
 def get_version():

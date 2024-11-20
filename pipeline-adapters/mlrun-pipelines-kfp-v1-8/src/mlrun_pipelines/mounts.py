@@ -22,7 +22,6 @@ from mlrun.config import config as mlconf
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.platforms.iguazio import v3io_to_vol
 from mlrun.utils import logger
-from mlrun_pipelines.imports import kfp
 from mlrun_pipelines.common.mounts import VolumeMount, _enrich_and_validate_v3io_mounts
 
 if typing.TYPE_CHECKING:
@@ -422,7 +421,7 @@ def mount_secret(
         }
 
         # Add the secret volume
-        runtime.spec.add_volumes(
+        runtime.spec.with_volumes(
             {
                 "name": volume_name,
                 "secret": secret_volume_source,
@@ -430,7 +429,7 @@ def mount_secret(
         )
 
         # Add the volume mount
-        runtime.spec.add_volume_mounts(
+        runtime.spec.with_volume_mounts(
             {
                 "mountPath": mount_path,
                 "name": volume_name,

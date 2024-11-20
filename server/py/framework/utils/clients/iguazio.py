@@ -208,7 +208,7 @@ class Client(
             )
         except Exception as exc:
             raise mlrun.errors.MLRunInternalServerError(
-                "Failed getting smtp configuration from Iguazio"
+                "Failed getting SMTP configuration from Iguazio"
             ) from exc
 
         return typing.cast(igz_mgmt.SmtpConnection, smtp_configurations[0])

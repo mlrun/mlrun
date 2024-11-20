@@ -181,7 +181,7 @@ def _create_refresh_smtp_configuration_background_task(
     typing.Optional[typing.Callable],
     str,
 ]:
-    logger.info("Starting the refresh smtp configuration process")
+    logger.info("Starting the SMTP configuration refresh process")
     (
         task,
         task_name,

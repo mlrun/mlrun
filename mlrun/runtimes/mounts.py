@@ -14,16 +14,55 @@
 
 import os
 import typing
+from collections import namedtuple
 
 from mlrun.config import config
 from mlrun.config import config as mlconf
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.platforms.iguazio import v3io_to_vol
 from mlrun.utils import logger
-from mlrun_pipelines.common.mounts import VolumeMount, _enrich_and_validate_v3io_mounts
 
 if typing.TYPE_CHECKING:
     from mlrun.runtimes import KubeResource
+
+
+VolumeMount = namedtuple("Mount", ["path", "sub_path"])
+
+
+def _enrich_and_validate_v3io_mounts(
+    remote: str = "",
+    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    user: str = "",
+) -> tuple[list[VolumeMount], str]:
+    if volume_mounts is None:
+        volume_mounts = []
+    if remote and not volume_mounts:
+        raise MLRunInvalidArgumentError(
+            "volume_mounts must be specified when remote is given"
+        )
+
+    # Empty remote & volume_mounts defaults are volume mounts of /v3io and /User
+    if not remote and not volume_mounts:
+        user = _resolve_mount_user(user)
+        if not user:
+            raise MLRunInvalidArgumentError(
+                "user name/env must be specified when using empty remote and volume_mounts"
+            )
+        volume_mounts = [
+            VolumeMount(path="/v3io", sub_path=""),
+            VolumeMount(path="/User", sub_path="users/" + user),
+        ]
+
+    if not isinstance(volume_mounts, list) and any(
+        [not isinstance(x, VolumeMount) for x in volume_mounts]
+    ):
+        raise TypeError("mounts should be a list of Mount")
+
+    return volume_mounts, user
+
+
+def _resolve_mount_user(user: typing.Optional[str] = None):
+    return user or os.environ.get("V3IO_USERNAME")
 
 
 def v3io_cred(

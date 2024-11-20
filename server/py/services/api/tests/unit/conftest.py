@@ -78,7 +78,7 @@ def app() -> fastapi.FastAPI:
 
 @pytest.fixture()
 def prefix() -> str:
-    yield daemon.service.BASE_VERSIONED_SERVICE_PREFIX
+    yield daemon.service.base_versioned_service_prefix
 
 
 # TODO: This is a hack to allow sharing fixtures between services in non-root directives because pytest behavior
@@ -128,7 +128,7 @@ def unversioned_client(db, app) -> Generator:
 
         with TestClient(app) as unversioned_test_client:
             set_base_url_for_test_client(
-                unversioned_test_client, daemon.service.SERVICE_PREFIX
+                unversioned_test_client, daemon.service.service_prefix
             )
             yield unversioned_test_client
 

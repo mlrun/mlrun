@@ -48,7 +48,7 @@ import services.api.utils.functions
 from services.api.daemon import daemon
 
 PROJECT = "project-name"
-ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 
 

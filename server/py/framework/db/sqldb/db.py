@@ -772,6 +772,16 @@ class SQLDB(DBInterface):
         most_recent: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: typing.Optional[int] = None,
+        partition_by: typing.Optional[
+            mlrun.common.schemas.ArtifactPartitionByField
+        ] = None,
+        rows_per_partition: typing.Optional[int] = 1,
+        partition_sort_by: typing.Optional[
+            mlrun.common.schemas.SortField
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: typing.Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> typing.Union[list, ArtifactList]:
@@ -800,6 +810,10 @@ class SQLDB(DBInterface):
             most_recent=most_recent,
             attach_tags=not as_records,
             limit=limit,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
             page=page,
             page_size=page_size,
         )
@@ -1426,6 +1440,16 @@ class SQLDB(DBInterface):
         attach_tags: bool = False,
         limit: typing.Optional[int] = None,
         with_entities: typing.Optional[list[Any]] = None,
+        partition_by: typing.Optional[
+            mlrun.common.schemas.ArtifactPartitionByField
+        ] = None,
+        rows_per_partition: typing.Optional[int] = 1,
+        partition_sort_by: typing.Optional[
+            mlrun.common.schemas.SortField
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: typing.Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> typing.Union[list[Any],]:
@@ -1452,6 +1476,13 @@ class SQLDB(DBInterface):
         :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
         :param limit: Maximum number of artifacts to return
         :param with_entities: List of columns to return
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`. Default is `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :param page: The page number to query.
         :param page_size: The page size to query.
 
@@ -1520,6 +1551,22 @@ class SQLDB(DBInterface):
             # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
             query = query.outerjoin(
                 ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            )
+
+        if partition_by:
+            self._assert_partition_by_parameters(
+                mlrun.common.schemas.ArtifactPartitionByField,
+                partition_by,
+                partition_sort_by,
+            )
+            query = self._create_partitioned_query(
+                session,
+                query,
+                ArtifactV2,
+                partition_by,
+                rows_per_partition,
+                partition_sort_by,
+                partition_order,
             )
 
         if limit:
@@ -3810,6 +3857,7 @@ class SQLDB(DBInterface):
         partition_by: typing.Union[
             mlrun.common.schemas.FeatureStorePartitionByField,
             mlrun.common.schemas.RunPartitionByField,
+            mlrun.common.schemas.ArtifactPartitionByField,
         ],
         rows_per_partition: int,
         partition_sort_by: mlrun.common.schemas.SortField,

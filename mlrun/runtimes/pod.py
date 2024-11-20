@@ -442,26 +442,6 @@ class KubeResourceSpec(FunctionSpec):
                         resource_value,
                     )
 
-    def add_volumes(self, volumes):
-        """Add volumes to the volumes dictionary."""
-        if isinstance(volumes, dict):
-            set_named_item(self._volumes, volumes)
-        elif isinstance(volumes, Iterable):
-            for volume in volumes:
-                set_named_item(self._volumes, volume)
-        else:
-            set_named_item(self._volumes, volumes)
-
-    def add_volume_mounts(self, volume_mounts):
-        """Add volume mounts to the volume mounts dictionary."""
-        if isinstance(volume_mounts, dict):
-            self._set_volume_mount(volume_mounts)
-        elif isinstance(volume_mounts, Iterable):
-            for volume_mount in volume_mounts:
-                self._set_volume_mount(volume_mount)
-        else:
-            self._set_volume_mount(volume_mounts)
-
     def discard_changes(self):
         """
         Certain pipeline engines might make temporary changes to a function spec to ensure expected behavior.
@@ -627,7 +607,9 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = node_selector
+        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+            node_selector
+        )
 
     def enrich_function_preemption_spec(
         self,
@@ -788,13 +770,17 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        if not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution:
+        if (
+            not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        ):
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
 
-        node_selector = self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        node_selector = (
+            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        )
         new_node_selector_terms = []
 
         for node_selector_term_to_add in node_selector_terms:
@@ -816,9 +802,9 @@ class KubeResourceSpec(FunctionSpec):
     def _initialize_node_affinity(self, affinity_field_name: str):
         if not getattr(getattr(self, affinity_field_name), "node_affinity"):
             # self.affinity.node_affinity:
-            getattr(
-                self, affinity_field_name
-            ).node_affinity = k8s_client.V1NodeAffinity()
+            getattr(self, affinity_field_name).node_affinity = (
+                k8s_client.V1NodeAffinity()
+            )
             # self.affinity.node_affinity = k8s_client.V1NodeAffinity()
 
     def _prune_affinity_node_selector_requirement(

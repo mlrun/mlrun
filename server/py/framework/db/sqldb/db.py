@@ -86,6 +86,7 @@ from framework.db.sqldb.helpers import (
     MemoizationCache,
     generate_query_for_name_with_wildcard,
     generate_query_predicate_for_name,
+    generate_time_range_query,
     label_set,
     run_labels,
     run_start_time,
@@ -1500,10 +1501,11 @@ class SQLDB(DBInterface):
             labels = label_set(labels)
             query = self._add_labels_filter(session, query, ArtifactV2, labels)
         if since or until:
-            since = since or datetime.min
-            until = until or datetime.max
-            query = query.filter(
-                and_(ArtifactV2.updated >= since, ArtifactV2.updated <= until)
+            query = generate_time_range_query(
+                query=query,
+                field=ArtifactV2.updated,
+                since=since,
+                until=until,
             )
         if kind:
             query = query.filter(ArtifactV2.kind == kind)
@@ -4828,10 +4830,8 @@ class SQLDB(DBInterface):
             query = query.filter(Function.kind == kind)
 
         if since or until:
-            since = since or datetime.min
-            until = until or datetime.max
-            query = query.filter(
-                and_(Function.updated >= since, Function.updated <= until)
+            query = generate_time_range_query(
+                query=query, field=Function.updated, since=since, until=until
             )
 
         if not tag:
@@ -5934,8 +5934,8 @@ class SQLDB(DBInterface):
         session: Session,
         projects_with_creation_time: list[tuple[str, datetime]],
         name: typing.Optional[str] = None,
-        since: typing.Optional[str] = None,
-        until: typing.Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
         entity: typing.Optional[str] = None,
         severity: Optional[
             list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
@@ -5968,13 +5968,11 @@ class SQLDB(DBInterface):
             )
 
         if since or until:
-            since = since or datetime.min
-            until = until or datetime.max
-            query = query.filter(
-                and_(
-                    AlertActivation.activation_time >= since,
-                    AlertActivation.activation_time <= until,
-                )
+            query = generate_time_range_query(
+                query=query,
+                field=AlertActivation.activation_time,
+                since=since,
+                until=until,
             )
         if entity:
             query = query.filter(

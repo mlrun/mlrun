@@ -89,6 +89,28 @@ def generate_query_predicate_for_name(column, query_string):
         return column.__eq__(query_string)
 
 
+def generate_time_range_query(
+    query,
+    field,
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
+):
+    """
+    Generate a query to filter results within a specified time range.
+
+    :param query: The SQLAlchemy query object to which the filter will be applied.
+    :param field: The field (SQLAlchemy column) to filter by using the time range.
+    :param since: The start of the time range. If None, defaults to the earliest possible datetime.
+    :param until: The end of the time range. If None, defaults to the latest possible datetime.
+
+    :returns: The modified query filtered by the specified time range.
+    """
+    since = since or datetime.min
+    until = until or datetime.max
+
+    return query.filter(and_(field >= since, field <= until))
+
+
 def generate_query_for_name_with_wildcard(column, query_string):
     """
     Generate a query condition for a database column based on a query string with optional wildcard support.

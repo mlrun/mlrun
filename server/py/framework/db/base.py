@@ -973,8 +973,8 @@ class DBInterface(ABC):
         session,
         projects_with_creation_time: list[tuple[str, datetime.datetime]],
         name: Optional[str] = None,
-        since: Optional[str] = None,
-        until: Optional[str] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
         entity: Optional[str] = None,
         severity: Optional[
             list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]

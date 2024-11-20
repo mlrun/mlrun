@@ -569,7 +569,7 @@ class Service(framework.service.Service):
         interval = int(mlconf.notifications.smtp.refresh_interval)
         if interval > 0:
             self._logger.info(
-                "Starting periodic refresh smtp configuration", interval=interval
+                "Starting periodic refresh SMTP configuration", interval=interval
             )
             run_function_periodically(
                 interval,

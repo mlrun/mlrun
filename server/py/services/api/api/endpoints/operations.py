@@ -104,9 +104,9 @@ async def refresh_smtp_configuration(
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        logger.info("Requesting to refresh smtp configuration, re-routing to chief")
+        logger.info("Requesting to refresh SMTP configuration, re-routing to chief")
         chief_client = framework.utils.clients.chief.Client()
-        return await chief_client.trigger_migrations(request)
+        return await chief_client.refresh_smtp_configuration(request)
 
     if not framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
         raise mlrun.errors.MLRunPreconditionFailedError(
@@ -196,9 +196,17 @@ def _create_refresh_smtp_configuration_background_task(
 
 async def _perform_refresh_smtp(session: str):
     iguazio_client_instance = iguazio_client.Client()
-    returned_smtp_configuration = iguazio_client_instance.get_smtp_configuration(
-        session
-    )
+    try:
+        returned_smtp_configuration = iguazio_client_instance.get_smtp_configuration(
+            session
+        )
+    except mlrun.errors.MLRunInternalServerError as exc:
+        logger.warning(
+            "Failed to get SMTP configuration from Iguazio",
+            exc=mlrun.errors.err_to_str(exc),
+        )
+        return
+
     updated_params = {
         "server_host": returned_smtp_configuration.host,
         "server_port": str(returned_smtp_configuration.port),

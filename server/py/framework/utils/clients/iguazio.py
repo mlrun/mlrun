@@ -202,9 +202,15 @@ class Client(
         return response_json["data"]["attributes"]["uid"]
 
     def get_smtp_configuration(self, session: str) -> igz_mgmt.SmtpConnection:
-        smtp_configurations = igz_mgmt.SmtpConnection.list(
-            self._get_igz_client(session),
-        )
+        try:
+            smtp_configurations = igz_mgmt.SmtpConnection.list(
+                self._get_igz_client(session),
+            )
+        except Exception as exc:
+            raise mlrun.errors.MLRunInternalServerError(
+                "Failed getting smtp configuration from Iguazio"
+            ) from exc
+
         return typing.cast(igz_mgmt.SmtpConnection, smtp_configurations[0])
 
     def get_or_create_access_key(

@@ -119,10 +119,8 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
     def store_secrets(self, secret_name, secrets: dict):
         secret_data = self.secrets_map.get(secret_name, {}).copy()
 
-        for key, value in secrets.items():
-            # we don't care about encoding the value we want to store
-            secret_data[key] = value
-
+        # we don't care about encoding the value we want to store
+        secret_data.update(secrets)
         self.secrets_map[secret_name] = secret_data
 
     def read_secret_data(self, secret_name, *args, **kwargs):

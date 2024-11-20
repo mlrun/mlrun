@@ -1226,14 +1226,24 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     return time_obj.isoformat()
 
 
-def enrich_datetime_with_tz_info(timestamp_string):
+def enrich_datetime_with_tz_info(timestamp_string) -> Optional[datetime]:
     if not timestamp_string:
         return timestamp_string
 
     if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
         timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
 
-    return datetime.strptime(timestamp_string, "%Y-%m-%d %H:%M:%S.%f%z")
+    for _format in [
+        # e.g: 2021-08-25 12:00:00.000Z
+        "%Y-%m-%d %H:%M:%S.%f%z",
+        # e.g: 2024-11-11 07:44:56+0000
+        "%Y-%m-%d %H:%M:%S%z",
+    ]:
+        try:
+            return datetime.strptime(timestamp_string, _format)
+        except ValueError as exc:
+            last_exc = exc
+    raise last_exc
 
 
 def has_timezone(timestamp):

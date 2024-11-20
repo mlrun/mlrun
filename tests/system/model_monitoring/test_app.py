@@ -177,7 +177,9 @@ class _V3IORecordsChecker:
         else:
             # TDEngine
             df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=mm_constants.TDEngineSuperTables.APP_RESULTS,
+                table=cls._tsdb_storage.tables[
+                    mm_constants.TDEngineSuperTables.APP_RESULTS
+                ].super_table,
                 start=datetime.now().astimezone()
                 - timedelta(minutes=10 * cls.app_interval),
                 end=datetime.now().astimezone(),
@@ -240,7 +242,9 @@ class _V3IORecordsChecker:
         else:
             # TDEngine
             predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=mm_constants.TDEngineSuperTables.PREDICTIONS,
+                table=cls._tsdb_storage.tables[
+                    mm_constants.TDEngineSuperTables.PREDICTIONS
+                ].super_table,
                 start=datetime.min,
                 end=datetime.now().astimezone(),
             )
@@ -285,8 +289,9 @@ class _V3IORecordsChecker:
         error_count: float = None,
     ) -> None:
         cls._test_parquet(ep_id, inputs, outputs)
-        cls._test_results_kv_record(ep_id)
-        cls._test_metrics_kv_record(ep_id)
+        if cls._kv_storage.type == mm_constants.ModelEndpointTargetSchemas.V3IO:
+            cls._test_results_kv_record(ep_id)
+            cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
 
     @classmethod

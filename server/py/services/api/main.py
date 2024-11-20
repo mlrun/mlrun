@@ -74,8 +74,6 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
-    service_name = "api"
-
     async def move_service_to_online(self):
         self._logger.info("Moving api to online")
 
@@ -120,14 +118,14 @@ class Service(framework.service.Service):
 
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class
-        self.app.include_router(api_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX)
-        self.app.include_router(api_v2_router, prefix=self.V2_SERVICE_PREFIX)
+        self.app.include_router(api_router, prefix=self.base_versioned_service_prefix)
+        self.app.include_router(api_v2_router, prefix=self.v2_service_prefix)
         # This is for backward compatibility, that is why we still leave it here but not include it in the schema
         # so new users won't use the old un-versioned api.
         # /api points to /api/v1 since it is used externally, and we don't want to break it.
         # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
         self.app.include_router(
-            api_router, prefix=self.SERVICE_PREFIX, include_in_schema=False
+            api_router, prefix=self.service_prefix, include_in_schema=False
         )
 
     async def _custom_setup_service(self):
@@ -568,7 +566,13 @@ class Service(framework.service.Service):
                 f"Starting periodic partition management for table {table_name}",
                 retention_days=retention_days,
             )
-            interval_in_seconds = retention_days * 24 * 60 * 60
+            partition_interval = framework.db.session.run_function_with_new_db_session(
+                services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval,
+                table_name=table_name,
+            )
+            interval_in_seconds = int(
+                partition_interval.as_duration().total_seconds() / 2
+            )
             run_function_periodically(
                 interval_in_seconds,
                 f"{self._manage_partitions.__name__}_{table_name}",

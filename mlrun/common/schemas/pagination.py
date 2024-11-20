@@ -14,13 +14,13 @@
 
 import typing
 
-import pydantic
+import pydantic.v1
 
 
-class PaginationInfo(pydantic.BaseModel):
+class PaginationInfo(pydantic.v1.BaseModel):
     class Config:
         allow_population_by_field_name = True
 
     page: typing.Optional[int]
-    page_size: typing.Optional[int] = pydantic.Field(alias="page-size")
-    page_token: typing.Optional[str] = pydantic.Field(alias="page-token")
+    page_size: typing.Optional[int] = pydantic.v1.Field(alias="page-size")
+    page_token: typing.Optional[str] = pydantic.v1.Field(alias="page-token")

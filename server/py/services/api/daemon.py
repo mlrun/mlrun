@@ -14,22 +14,23 @@
 
 from dependency_injector import containers, providers
 
+from mlrun import mlconf
+
 import framework.service
 import services.api.main
 
 # The alerts import is to initialize the alerts daemon so that both services will run on the same instance
 # It shall be removed once they are completely split
+from services.alerts.daemon import daemon as alerts_daemon
 
 
 class Daemon(framework.service.Daemon):
-    def __init__(self, service_cls: framework.service.Service.__class__):
-        self._service: framework.service.Service = service_cls()
-
     @property
-    def mounts(self) -> dict[str, framework.service.Service]:
-        # Mount the alerts application until we have service routing/tunneling
-        # return {"/": alerts_daemon.service}
-        return {}
+    def mounts(self) -> list[framework.service.Service]:
+        if mlconf.services.hydra.services == "*":
+            # Mount the alerts application until we have proper hydra
+            return [alerts_daemon.service]
+        return []
 
     @property
     def service(self) -> services.api.main.Service:

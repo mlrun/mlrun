@@ -30,7 +30,7 @@ import services.api.utils.singletons.scheduler
 from framework.utils.singletons.db import get_db
 from services.api.daemon import daemon
 
-ORIGINAL_VERSIONED_API_PREFIX = daemon.service.BASE_VERSIONED_SERVICE_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 
 
 async def do_nothing():

@@ -251,6 +251,7 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         kind = Column(String(255, collation=SQLTypesUtil.collation()), index=True)
         producer_id = Column(String(255, collation=SQLTypesUtil.collation()))
+        producer_uri = Column(String(255, collation=SQLTypesUtil.collation()))
         iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)
         uid = Column(String(255, collation=SQLTypesUtil.collation()))

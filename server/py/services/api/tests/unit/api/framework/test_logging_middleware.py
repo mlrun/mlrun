@@ -17,7 +17,7 @@ from collections.abc import Iterator
 from http import HTTPStatus
 
 import fastapi
-import pydantic
+import pydantic.v1
 import pytest
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.testclient import TestClient
@@ -86,7 +86,7 @@ def unhandled_exception():
     raise UnhandledError("Unhandled exception")
 
 
-class SomeScheme(pydantic.BaseModel):
+class SomeScheme(pydantic.v1.BaseModel):
     id: str
 
 

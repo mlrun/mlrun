@@ -17,6 +17,8 @@ import pathlib
 import fastapi
 import pytest
 
+from mlrun import mlconf
+
 import services.alerts.daemon
 from services.alerts.daemon import daemon
 
@@ -34,9 +36,14 @@ if str(tests_root_directory) in os.getcwd():
 
 @pytest.fixture()
 def app() -> fastapi.FastAPI:
-    yield services.alerts.daemon.app()
+    old_service_name = mlconf.services.service_name
+    try:
+        mlconf.services.service_name = "alert"
+        yield services.alerts.daemon.app()
+    finally:
+        mlconf.services.service_name = old_service_name
 
 
 @pytest.fixture()
 def prefix():
-    yield daemon.service.BASE_VERSIONED_SERVICE_PREFIX
+    yield daemon.service.base_versioned_service_prefix

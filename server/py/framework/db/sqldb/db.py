@@ -5952,7 +5952,7 @@ class SQLDB(DBInterface):
         # Filter alert activations for the project created after the project creation date,
         # excluding activations linked to any previous instances of the project.
         # TODO: reconsider this approach when we move alerts out of main MLRun db
-        conditions = [
+        project_filter_conditions = [
             and_(
                 AlertActivation.project == project,
                 AlertActivation.activation_time > created,
@@ -5960,7 +5960,7 @@ class SQLDB(DBInterface):
             for project, created in projects_with_creation_time
         ]
 
-        query = query.filter(or_(*conditions))
+        query = query.filter(or_(*project_filter_conditions))
 
         if name:
             query = query.filter(

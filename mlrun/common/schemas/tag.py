@@ -13,17 +13,17 @@
 # limitations under the License.
 #
 
-import pydantic
+import pydantic.v1
 
 from .artifact import ArtifactIdentifier
 
 
-class Tag(pydantic.BaseModel):
+class Tag(pydantic.v1.BaseModel):
     name: str
     project: str
 
 
-class TagObjects(pydantic.BaseModel):
+class TagObjects(pydantic.v1.BaseModel):
     """Tag object"""
 
     kind: str

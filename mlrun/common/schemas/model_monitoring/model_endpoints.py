@@ -17,7 +17,7 @@ import json
 from datetime import datetime
 from typing import Any, NamedTuple, Optional, TypeVar
 
-from pydantic import BaseModel, Extra, Field, constr, validator
+from pydantic.v1 import BaseModel, Extra, Field, constr, validator
 
 # TODO: remove the unused import below after `mlrun.datastore` and `mlrun.utils` usage is removed.
 # At the moment `make lint` fails if this is removed.

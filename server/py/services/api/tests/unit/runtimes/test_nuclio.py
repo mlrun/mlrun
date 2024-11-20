@@ -40,7 +40,7 @@ from mlrun.utils import logger
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
-from services.api.tests.unit.conftest import K8sSecretsMock
+from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 from services.api.utils.functions import build_function
 
@@ -563,7 +563,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             assert expected_env_var in config["spec"]["env"]
 
     def test_deploy_with_project_secrets(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         secret_keys = ["secret1", "secret2", "secret3"]
         secrets = {key: "some-secret-value" for key in secret_keys}
@@ -582,7 +582,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_deploy_with_project_service_accounts(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
         auth_info = mlrun.common.schemas.AuthInfo()
@@ -609,7 +609,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlconf.function.spec.service_account.default = None
 
     def test_deploy_with_security_context_enrichment(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         user_unix_id = 1000
         auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=user_unix_id)
@@ -634,7 +634,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_deploy_mlrun_requirements(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         auth_info = mlrun.common.schemas.AuthInfo()
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
@@ -651,7 +651,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert "mlrun[complete]==0.6.0" in function.spec.build.requirements
 
     def test_deploy_with_global_service_account(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         service_account_name = "default-sa"
         mlconf.function.spec.service_account.default = service_account_name
@@ -673,7 +673,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
     def test_deploy_build_base_image(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         expected_build_base_image = "mlrun/base_mlrun:latest"
         self.image_name = None
@@ -688,7 +688,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_deploy_populate_nuclio_errors(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         function = self._generate_runtime(self.runtime_kind)
 
@@ -708,7 +708,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert "custom message from nuclio" in str(exc.value)
 
     def test_deploy_image_name_and_build_base_image(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         """When spec.image and also spec.build.base_image are both defined the spec.image should be applied
         to spec.baseImage in nuclio."""
@@ -720,7 +720,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
     def test_deploy_without_image_and_build_base_image(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         self.image_name = None
 

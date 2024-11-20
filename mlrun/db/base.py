@@ -14,7 +14,7 @@
 
 import datetime
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from deprecated import deprecated
 
@@ -23,6 +23,7 @@ import mlrun.common
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 
 
@@ -93,6 +94,17 @@ class RunDBInterface(ABC):
         ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
+    ):
+        pass
+
+    @abstractmethod
+    def paginated_list_runs(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
     ):
         pass
 
@@ -202,11 +214,24 @@ class RunDBInterface(ABC):
     def list_functions(
         self,
         name: Optional[str] = None,
-        project: Optional[str] = "",
-        tag: Optional[str] = "",
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since=None,
-        until=None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def paginated_list_functions(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
     ):
         pass
 
@@ -283,6 +308,14 @@ class RunDBInterface(ABC):
         return mlrun.common.schemas.TagObjects(
             kind="artifact", identifiers=artifact_identifiers
         )
+
+    def get_model_endpoint_monitoring_metrics(
+        self,
+        project: str,
+        endpoint_id: str,
+        type: Literal["results", "metrics", "all"] = "all",
+    ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        pass
 
     @abstractmethod
     def delete_project(
@@ -644,7 +677,9 @@ class RunDBInterface(ABC):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,
-    ):
+        top_level: bool = False,
+        uids: Optional[list[str]] = None,
+    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         pass
 
     @abstractmethod

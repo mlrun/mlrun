@@ -30,6 +30,7 @@ import mlrun.model_monitoring.db
 import mlrun.serving.states
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
+    EndpointType,
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
@@ -801,11 +802,15 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     },
                 )
 
-                update_monitoring_feature_set(
-                    endpoint_record=endpoint_record,
-                    feature_names=feature_names,
-                    feature_values=feature_values,
-                )
+                if (
+                    endpoint_record.get(EventFieldType.ENDPOINT_TYPE)
+                    != EndpointType.ROUTER
+                ):
+                    update_monitoring_feature_set(
+                        endpoint_record=endpoint_record,
+                        feature_names=feature_names,
+                        feature_values=feature_values,
+                    )
 
             # Similar process with label columns
             if not label_columns and self._infer_columns_from_data:

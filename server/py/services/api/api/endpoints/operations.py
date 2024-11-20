@@ -84,7 +84,7 @@ async def trigger_migrations(
 
 
 @router.post(
-    "/refresh_smtp_configuration",
+    "/refresh-smtp-configuration",
     responses={
         http.HTTPStatus.OK.value: {},
         http.HTTPStatus.ACCEPTED.value: {"model": mlrun.common.schemas.BackgroundTask},

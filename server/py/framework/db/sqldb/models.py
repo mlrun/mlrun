@@ -251,6 +251,7 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         kind = Column(String(255, collation=SQLTypesUtil.collation()), index=True)
         producer_id = Column(String(255, collation=SQLTypesUtil.collation()))
+        producer_uri = Column(String(255, collation=SQLTypesUtil.collation()))
         iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -303,6 +304,7 @@ with warnings.catch_warnings():
         name = Column(String(255, collation=SQLTypesUtil.collation()))
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        kind = Column(String(255, collation=SQLTypesUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
         updated = Column(SQLTypesUtil.timestamp())
@@ -847,6 +849,38 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+    class AlertActivation(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "alert_activation"
+        __table_args__ = (
+            PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
+            Index("ix_alert_activation_project_name", "project", "name"),
+            Index("ix_alert_activation_activation_time", "activation_time"),
+        )
+
+        id = Column(Integer)
+        activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
+        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        data = Column(JSON)
+        entity_id = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        entity_kind = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        event_kind = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        number_of_events = Column(Integer, nullable=False)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}/{self.id}"
+
     class ProjectSummary(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "project_summaries"
         __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
@@ -927,38 +961,6 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}_{self.name}_{self.created}"
-
-    class AlertActivation(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "alert_activation"
-        __table_args__ = (
-            PrimaryKeyConstraint("activation_time", "id", name="_alert_activation_uc"),
-            Index("ix_alert_activation_project_name", "project", "name"),
-            Index("ix_alert_activation_activation_time", "activation_time"),
-        )
-
-        id = Column(Integer)
-        activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
-        )
-        data = Column(JSON)
-        entity_id = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
-        )
-        entity_kind = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
-        )
-        event_kind = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
-        )
-        severity = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
-        )
-        number_of_events = Column(Integer, nullable=False)
-
-        def get_identifier_string(self) -> str:
-            return f"{self.project}/{self.name}/{self.id}"
 
 
 # Must be after all table definitions

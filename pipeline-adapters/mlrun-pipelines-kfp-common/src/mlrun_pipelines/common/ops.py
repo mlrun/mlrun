@@ -571,11 +571,20 @@ def write_kfpmeta(struct):
         return
 
     results = struct["status"].get("results", {})
-    metrics = {
-        "metrics": [
-            {"name": k, "numberValue": v} for k, v in results.items() if is_num(v)
-        ],
-    }
+    if results:
+        metrics = {
+            "metrics": [
+                {"name": k, "numberValue": v} for k, v in results.items() if is_num(v)
+            ],
+        }
+    else:  # KFP v2 server
+        metrics = {
+            "metrics": [
+                {"name": k, "number_value": v}
+                for k, v in struct.get("metrics", {}).items()
+                if is_num(v)
+            ],
+        }
     with open(os.path.join(KFPMETA_DIR, "mlpipeline-metrics.json"), "w") as f:
         json.dump(metrics, f)
 

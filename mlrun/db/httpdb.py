@@ -22,18 +22,20 @@ import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
 from os import path, remove
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
-import pydantic
+import pydantic.v1
 import requests
 import semver
+from pydantic import parse_obj_as
 
 import mlrun
 import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
 import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
@@ -1392,6 +1394,8 @@ class HTTPRunDB(RunDBInterface):
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
+        kind: Optional[str] = None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
@@ -1407,13 +1411,17 @@ class HTTPRunDB(RunDBInterface):
             the specified key-value pairs or key existence.
         :param since: Return functions updated after this date (as datetime object).
         :param until: Return functions updated before this date (as datetime object).
+        :param kind: Return only functions of a specific kind.
+        :param format_: The format in which to return the functions. Default is 'full'.
         :returns: List of function objects (as dictionary).
         """
         functions, _ = self._list_functions(
             name=name,
             project=project,
             tag=tag,
+            kind=kind,
             labels=labels,
+            format_=format_,
             since=since,
             until=until,
             return_all=True,
@@ -3359,6 +3367,37 @@ class HTTPRunDB(RunDBInterface):
             params=params,
         )
 
+    def get_model_endpoint_monitoring_metrics(
+        self,
+        project: str,
+        endpoint_id: str,
+        type: Literal["results", "metrics", "all"] = "all",
+    ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        """Get application metrics/results by endpoint id and project.
+
+        :param project: The name of the project.
+        :param endpoint_id: The unique id of the model endpoint.
+        :param type: The type of the metrics to return. "all" means "results" and "metrics".
+
+        :return: A list of the application metrics or/and results for this model endpoint.
+        """
+        path = f"projects/{project}/model-endpoints/{endpoint_id}/metrics"
+        params = {"type": type}
+        error_message = (
+            f"Failed to get model endpoint monitoring metrics,"
+            f" endpoint_id: {endpoint_id}, project: {project}"
+        )
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.GET,
+            path,
+            error_message,
+            params=params,
+        )
+        monitoring_metrics = response.json()
+        return parse_obj_as(
+            list[mm_endpoints.ModelEndpointMonitoringMetric], monitoring_metrics
+        )
+
     def create_user_secrets(
         self,
         user: str,
@@ -3536,6 +3575,8 @@ class HTTPRunDB(RunDBInterface):
                       `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
+
+        :returns: Returns a list of `ModelEndpoint` objects.
         """
 
         path = f"projects/{project}/model-endpoints"
@@ -4641,7 +4682,7 @@ class HTTPRunDB(RunDBInterface):
         """
         try:
             return mlrun.common.schemas.common.LabelsModel(labels=labels).labels
-        except pydantic.error_wrappers.ValidationError as exc:
+        except pydantic.v1.error_wrappers.ValidationError as exc:
             raise mlrun.errors.MLRunValueError(
                 "Invalid labels format. Must be a dictionary of strings, a list of strings, "
                 "or a comma-separated string."
@@ -4719,7 +4760,9 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         project: Optional[str] = None,
         tag: Optional[str] = None,
+        kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        format_: Optional[str] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         page: Optional[int] = None,
@@ -4734,9 +4777,11 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "tag": tag,
+            "kind": kind,
             "label": labels,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
+            "format": format_,
             "page": page,
             "page-size": page_size,
             "page-token": page_token,

@@ -14,13 +14,13 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 
 from .function import Function
 from .k8s import Resources
 
 
-class ClientSpec(pydantic.BaseModel):
+class ClientSpec(pydantic.v1.BaseModel):
     version: typing.Optional[str]
     namespace: typing.Optional[str]
     docker_registry: typing.Optional[str]

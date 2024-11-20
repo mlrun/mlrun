@@ -75,6 +75,16 @@ class Client(
             "POST", "operations/migrations", request
         )
 
+    async def refresh_smtp_configuration(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
+        """
+        To avoid raise condition we want only that the chief will store the secret in the k8s secret store
+        """
+        return await self._proxy_request_to_chief(
+            "POST", "operations/refresh-smtp-configuration", request
+        )
+
     async def create_schedule(
         self, project: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:

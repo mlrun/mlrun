@@ -16,7 +16,7 @@ import inspect
 import typing
 
 import orjson
-import pydantic
+import pydantic.v1
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -25,13 +25,13 @@ import mlrun.utils.singleton
 from mlrun import mlconf
 from mlrun.utils import logger
 
+import framework.utils.asyncio
 import services.api.crud
-import services.api.utils.asyncio
 
 
 def _generate_pydantic_schema_from_method_signature(
     method: typing.Callable,
-) -> pydantic.main.ModelMetaclass:
+) -> pydantic.v1.BaseModel:
     """
     Generate a Pydantic model based on the signature of a method.
     This is used to save the given parameters to the method in the pagination cache as a serialized Pydantic
@@ -53,7 +53,7 @@ def _generate_pydantic_schema_from_method_signature(
         # ignore the session parameter as the methods get a new session each time
         if parameter.annotation != sqlalchemy.orm.Session
     }
-    return pydantic.create_model(
+    return pydantic.v1.create_model(
         f"{method.__name__}_schema", __config__=Config, **fields
     )
 
@@ -83,7 +83,7 @@ class PaginatedMethods:
         return cls._method_map[method_name]["method"]
 
     @classmethod
-    def get_method_schema(cls, method_name: str) -> pydantic.BaseModel:
+    def get_method_schema(cls, method_name: str) -> pydantic.v1.BaseModel:
         return cls._method_map[method_name]["schema"]
 
 
@@ -124,7 +124,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size,
                 **method_kwargs,
             )
-            new_result = await services.api.utils.asyncio.await_or_call_in_threadpool(
+            new_result = await framework.utils.asyncio.await_or_call_in_threadpool(
                 filter_, new_result
             )
             result.extend(new_result)
@@ -166,7 +166,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             self._logger.debug(
                 "No token or page size provided, returning all records", method=method
             )
-            return await services.api.utils.asyncio.await_or_call_in_threadpool(
+            return await framework.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs
             ), None
 
@@ -195,7 +195,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size=page_size,
                 method=method.__name__,
             )
-            return await services.api.utils.asyncio.await_or_call_in_threadpool(
+            return await framework.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs, page=page, page_size=page_size
             ), mlrun.common.schemas.pagination.PaginationInfo(
                 page=page, page_size=page_size, page_token=token

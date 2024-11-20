@@ -15,7 +15,7 @@
 
 import typing
 
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 
 class DatastoreProfile(BaseModel):

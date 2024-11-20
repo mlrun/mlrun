@@ -14,13 +14,13 @@
 
 import typing
 
-import pydantic
+import pydantic.v1
 from deprecated import deprecated
 
 import mlrun.common.types
 
 
-class RunIdentifier(pydantic.BaseModel):
+class RunIdentifier(pydantic.v1.BaseModel):
     kind: typing.Literal["run"] = "run"
     uid: typing.Optional[str]
     iter: typing.Optional[int]

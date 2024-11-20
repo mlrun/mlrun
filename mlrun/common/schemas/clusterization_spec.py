@@ -14,12 +14,12 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 
 import mlrun.common.types
 
 
-class ClusterizationSpec(pydantic.BaseModel):
+class ClusterizationSpec(pydantic.v1.BaseModel):
     chief_api_state: typing.Optional[str]
     chief_version: typing.Optional[str]
 

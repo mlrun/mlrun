@@ -44,7 +44,7 @@ from mlrun.db.auth_utils import StaticTokenProvider
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
-project_dir_path = Path(__file__).absolute().parent.parent.parent
+project_dir_path = Path(__file__).absolute().parent.parent.parent.parent
 Server = namedtuple("Server", "url conn workdir")
 
 docker_tag = "mlrun/test-api"

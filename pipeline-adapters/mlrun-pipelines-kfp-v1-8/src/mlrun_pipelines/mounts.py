@@ -15,8 +15,6 @@
 import os
 import typing
 
-import semver
-
 from mlrun.config import config
 from mlrun.config import config as mlconf
 from mlrun.errors import MLRunInvalidArgumentError
@@ -148,7 +146,7 @@ def mount_v3iod(
 
         # path to shared memory for daemon was changed in Iguazio 3.2.3-b1
         igz_version = mlconf.get_parsed_igz_version()
-        if igz_version and igz_version >= semver.VersionInfo.parse("3.2.3-b1"):
+        if igz_version:
             host_path = "/var/run/iguazio/dayman-shm/"
 
         add_vol(name="shm", mount_path="/dev/shm", host_path=host_path + namespace)
@@ -252,24 +250,16 @@ def mount_s3(
         )
 
     def _use_s3_cred(runtime: "KubeResource"):
-        from os import environ
-
-        _access_key = aws_access_key or environ.get(prefix + "AWS_ACCESS_KEY_ID")
-        _secret_key = aws_secret_key or environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
-        _endpoint_url = endpoint_url or environ.get(prefix + "S3_ENDPOINT_URL")
+        _access_key = aws_access_key or os.environ.get(prefix + "AWS_ACCESS_KEY_ID")
+        _secret_key = aws_secret_key or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
+        _endpoint_url = endpoint_url or os.environ.get(prefix + "S3_ENDPOINT_URL")
 
         if _endpoint_url:
-            runtime.spec.env.append(
-                {"name": prefix + "S3_ENDPOINT_URL", "value": _endpoint_url}
-            )
+            runtime.set_envs({prefix + "S3_ENDPOINT_URL": _endpoint_url})
         if aws_region:
-            runtime.spec.env.append(
-                {"name": prefix + "AWS_REGION", "value": aws_region}
-            )
+            runtime.set_envs({prefix + "AWS_REGION": aws_region})
         if non_anonymous:
-            runtime.spec.env.append(
-                {"name": prefix + "S3_NON_ANONYMOUS", "value": "true"}
-            )
+            runtime.set_envs({prefix + "S3_NON_ANONYMOUS": "true"})
 
         if secret_name:
             runtime.spec.env.extend(
@@ -545,7 +535,7 @@ def set_env_variables(
 
     def _set_env_variables(runtime: "KubeResource"):
         for key, value in env_data.items():
-            runtime.spec.env.append({"name": key, "value": value})
+            runtime.set_envs({"name": key, "value": value})
 
         return runtime
 

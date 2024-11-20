@@ -24,13 +24,16 @@ if typing.TYPE_CHECKING:
     from mlrun.runtimes import KubeResource
 
 
-def apply_kfp(modify: typing.Callable, runtime: "KubeResource"):
-    modify(runtime)
+def apply_modifier(
+    modifier: typing.Callable[["KubeResource"], "KubeResource"],
+    runtime: "KubeResource",
+) -> "KubeResource":
+    modifier(runtime)
 
     # Have to do it here to avoid circular dependencies
     from mlrun.runtimes.pod import AutoMountType
 
-    if AutoMountType.is_auto_modifier(modify):
+    if AutoMountType.is_auto_modifier(modifier):
         runtime.spec.disable_auto_mount = True
 
     api = client.ApiClient()

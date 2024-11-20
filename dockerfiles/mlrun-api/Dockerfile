@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
  && rm -rf /var/lib/apt/lists/*
 
 # Install uv
-ARG MLRUN_UV_VERSION=0.5.1
+ARG MLRUN_UV_VERSION=0.5.3
 ADD https://astral.sh/uv/${MLRUN_UV_VERSION}/install.sh /uv-installer.sh
 
 RUN sh /uv-installer.sh && rm /uv-installer.sh

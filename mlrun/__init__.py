@@ -31,8 +31,7 @@ from typing import Optional
 
 import dotenv
 
-import mlrun_pipelines
-
+from . import runtimes
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -69,10 +68,10 @@ from .utils.version import Version
 
 __version__ = Version().get()["version"]
 
-VolumeMount = mlrun_pipelines.common.mounts.VolumeMount
-mount_v3io = mlrun_pipelines.mounts.mount_v3io
-v3io_cred = mlrun_pipelines.mounts.v3io_cred
-auto_mount = mlrun_pipelines.mounts.auto_mount
+VolumeMount = runtimes.mounts.VolumeMount
+mount_v3io = runtimes.mounts.mount_v3io
+v3io_cred = runtimes.mounts.v3io_cred
+auto_mount = runtimes.mounts.auto_mount
 
 
 def get_version():

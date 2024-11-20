@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# Standard library imports
 import base64
 import json
 import os
@@ -27,8 +28,8 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun import mlconf
+from mlrun.runtimes.mounts import auto_mount
 from mlrun.runtimes.utils import generate_resources
-from mlrun_pipelines.mounts import auto_mount
 
 import services.api.api.endpoints.functions
 import services.api.runtime_handlers.daskjob

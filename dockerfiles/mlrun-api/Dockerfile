@@ -68,12 +68,15 @@ ENV MLRUN_IGNORE_ENV_FILE=true
 ENV UVICORN_PORT=${MLRUN_HTTPDB__PORT}
 ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE}
 
+COPY ./pipeline-adapters ./pipeline-adapters
+
+RUN uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+
 COPY . .
 ENV PYTHONPATH=/mlrun/server/py
 
-RUN uv pip install .[complete-api] && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+RUN uv pip install .[complete-api]
 
 VOLUME /mlrun/db
 

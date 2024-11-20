@@ -15,9 +15,8 @@
 
 import typing
 
-from kfp.dsl import PipelineConf
-
 from mlrun.config import config
+from mlrun_pipelines.imports import PipelineConf
 
 
 def new_pipe_metadata(

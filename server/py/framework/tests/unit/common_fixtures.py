@@ -117,6 +117,16 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
             == {}
         )
 
+    def store_secrets(self, secret_name, secrets: dict):
+        secret_data = self.secrets_map.get(secret_name, {}).copy()
+
+        # we don't care about encoding the value we want to store
+        secret_data.update(secrets)
+        self.secrets_map[secret_name] = secret_data
+
+    def read_secret_data(self, secret_name, *args, **kwargs):
+        return self.secrets_map.get(secret_name, {})
+
     def mock_functions(self, mocked_object, monkeypatch):
         mocked_function_names = [
             "is_running_inside_kubernetes_cluster",
@@ -128,6 +138,8 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
             "delete_auth_secret",
             "read_auth_secret",
             "get_secret_data",
+            "store_secrets",
+            "read_secret_data",
         ]
 
         for mocked_function_name in mocked_function_names:

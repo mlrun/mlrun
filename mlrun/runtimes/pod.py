@@ -373,7 +373,7 @@ class KubeResourceSpec(FunctionSpec):
         self,
         volumes: typing.Union[list[dict], dict, V1Volume],
     ) -> "KubeResourceSpec":
-        """Add volumes to the volumes dictionary."""
+        """Add volumes to the volumes dictionary, only used as part of the mlrun_pipelines mount functions."""
         if isinstance(volumes, dict):
             set_named_item(self._volumes, volumes)
         elif isinstance(volumes, Iterable):
@@ -387,7 +387,7 @@ class KubeResourceSpec(FunctionSpec):
         self,
         volume_mounts: typing.Union[list[dict], dict, V1VolumeMount],
     ) -> "KubeResourceSpec":
-        """Add volume mounts to the volume mounts dictionary."""
+        """Add volume mounts to the volume mounts dictionary, only used as part of the mlrun_pipelines mount functions."""
         if isinstance(volume_mounts, dict):
             self._set_volume_mount(volume_mounts)
         elif isinstance(volume_mounts, Iterable):

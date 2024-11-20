@@ -33,7 +33,6 @@ from mlrun.common.schemas import (
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
-from mlrun_pipelines.mixins import KfpAdapterMixin
 
 from ..config import config as mlconf
 from ..k8s_utils import (
@@ -608,7 +607,9 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = node_selector
+        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+            node_selector
+        )
 
     def enrich_function_preemption_spec(
         self,
@@ -769,13 +770,17 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        if not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution:
+        if (
+            not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        ):
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
 
-        node_selector = self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        node_selector = (
+            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        )
         new_node_selector_terms = []
 
         for node_selector_term_to_add in node_selector_terms:
@@ -797,9 +802,9 @@ class KubeResourceSpec(FunctionSpec):
     def _initialize_node_affinity(self, affinity_field_name: str):
         if not getattr(getattr(self, affinity_field_name), "node_affinity"):
             # self.affinity.node_affinity:
-            getattr(
-                self, affinity_field_name
-            ).node_affinity = k8s_client.V1NodeAffinity()
+            getattr(self, affinity_field_name).node_affinity = (
+                k8s_client.V1NodeAffinity()
+            )
             # self.affinity.node_affinity = k8s_client.V1NodeAffinity()
 
     def _prune_affinity_node_selector_requirement(
@@ -1015,7 +1020,7 @@ class AutoMountType(str, Enum):
         }[self]
 
 
-class KubeResource(BaseRuntime, KfpAdapterMixin):
+class KubeResource(BaseRuntime):
     """
     A parent class for runtimes that generate k8s resources when executing.
     """
@@ -1113,7 +1118,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 raise mlrun.errors.MLRunNotFoundError(f"{file_path} does not exist")
         for name, value in env_vars.items():
             if isinstance(value, dict) and "valueFrom" in value:
-                self._set_env(name, value_from=value["valueFrom"])
+                self.set_env(name, value_from=value["valueFrom"])
             else:
                 self.set_env(name, value)
         return self
@@ -1304,6 +1309,34 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 "Security context is handled internally when enrichment mode is not disabled"
             )
         self.spec.security_context = security_context
+
+    def apply(
+        self,
+        modifier: typing.Callable[["KubeResource"], "KubeResource"],
+    ) -> "KubeResource":
+        """
+        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
+        All modifiers accept Kube, apply some changes on its spec and return it so modifiers can be chained
+        one after the other.
+
+        :param modifier: a modifier callable object
+        :return: the runtime (self) after the modifications
+        """
+        modifier(self)
+        if AutoMountType.is_auto_modifier(modifier):
+            self.spec.disable_auto_mount = True
+
+        api_client = k8s_client.ApiClient()
+        if self.spec.env:
+            for index, env in enumerate(api_client.sanitize_for_serialization(self.spec.env)):
+                self.spec.env[index] = env
+
+        if self.spec.volumes and self.spec.volume_mounts:
+            vols = api_client.sanitize_for_serialization(self.spec.volumes)
+            mounts = api_client.sanitize_for_serialization(self.spec.volume_mounts)
+            self.spec.update_vols_and_mounts(vols, mounts)
+
+        return self
 
     def list_valid_priority_class_names(self):
         return mlconf.get_valid_function_priority_class_names()

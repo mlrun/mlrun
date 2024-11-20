@@ -15,46 +15,8 @@
 import tempfile
 import typing
 
-from kubernetes import client
-
 from mlrun_pipelines.helpers import new_pipe_metadata
 from mlrun_pipelines.imports import compiler, kfp  # noqa: F401
-
-if typing.TYPE_CHECKING:
-    from mlrun.runtimes import KubeResource
-
-
-def apply_modifier(
-    modifier: typing.Callable[["KubeResource"], "KubeResource"],
-    runtime: "KubeResource",
-) -> "KubeResource":
-    modifier(runtime)
-
-    # Have to do it here to avoid circular dependencies
-    from mlrun.runtimes.pod import AutoMountType
-
-    if AutoMountType.is_auto_modifier(modifier):
-        runtime.spec.disable_auto_mount = True
-
-    api = client.ApiClient()
-    if runtime.spec.env:
-        env_names = [
-            e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
-        ]
-        for e in api.sanitize_for_serialization(runtime.spec.env):
-            name = e["name"]
-            if name in env_names:
-                runtime.spec.env[env_names.index(name)] = e
-            else:
-                runtime.spec.env.append(e)
-                env_names.append(name)
-
-    if runtime.spec.volumes and runtime.spec.volume_mounts:
-        vols = api.sanitize_for_serialization(runtime.spec.volumes)
-        mounts = api.sanitize_for_serialization(runtime.spec.volume_mounts)
-        runtime.spec.update_vols_and_mounts(vols, mounts)
-
-    return runtime
 
 
 def compile_pipeline(

@@ -251,11 +251,11 @@ def mount_s3(
         _endpoint_url = endpoint_url or os.environ.get(prefix + "S3_ENDPOINT_URL")
 
         if _endpoint_url:
-            runtime.set_envs({prefix + "S3_ENDPOINT_URL": _endpoint_url})
+            runtime.set_env({prefix + "S3_ENDPOINT_URL": _endpoint_url})
         if aws_region:
-            runtime.set_envs({prefix + "AWS_REGION": aws_region})
+            runtime.set_env({prefix + "AWS_REGION": aws_region})
         if non_anonymous:
-            runtime.set_envs({prefix + "S3_NON_ANONYMOUS": "true"})
+            runtime.set_env({prefix + "S3_NON_ANONYMOUS": "true"})
 
         if secret_name:
             runtime.set_envs(

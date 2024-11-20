@@ -13,32 +13,10 @@
 # limitations under the License.
 #
 import json
-import typing
 
 import mlrun
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
 from mlrun_pipelines.common.models import RunStatuses
-from mlrun_pipelines.utils import apply_modifier
-
-if typing.TYPE_CHECKING:
-    from mlrun.runtimes import KubeResource
-
-
-class KfpAdapterMixin:
-    def apply(
-        self,
-        modifier: typing.Callable[["KubeResource"], "KubeResource"],
-    ) -> "KubeResource":
-        """
-        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
-        All modifiers accept Kube, apply some changes on its spec and return it so modifiers can be chained
-        one after the other.
-
-        :param modifier: a modifier callable object
-        :return: the runtime (self) after the modifications
-        """
-
-        return apply_modifier(modifier, self)
 
 
 class PipelineProviderMixin:

@@ -607,9 +607,7 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
-            node_selector
-        )
+        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = node_selector
 
     def enrich_function_preemption_spec(
         self,
@@ -770,17 +768,13 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        if (
-            not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        ):
+        if not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution:
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
 
-        node_selector = (
-            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        )
+        node_selector = self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
         new_node_selector_terms = []
 
         for node_selector_term_to_add in node_selector_terms:
@@ -802,9 +796,9 @@ class KubeResourceSpec(FunctionSpec):
     def _initialize_node_affinity(self, affinity_field_name: str):
         if not getattr(getattr(self, affinity_field_name), "node_affinity"):
             # self.affinity.node_affinity:
-            getattr(self, affinity_field_name).node_affinity = (
-                k8s_client.V1NodeAffinity()
-            )
+            getattr(
+                self, affinity_field_name
+            ).node_affinity = k8s_client.V1NodeAffinity()
             # self.affinity.node_affinity = k8s_client.V1NodeAffinity()
 
     def _prune_affinity_node_selector_requirement(

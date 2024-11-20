@@ -165,6 +165,7 @@ class Service(framework.service.Service):
         ):
             self._start_periodic_project_summaries_calculation()
         self._start_periodic_partition_management()
+        self._start_periodic_refresh_smtp_configuration()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -566,6 +567,20 @@ class Service(framework.service.Service):
                 self._manage_partitions,
                 table_name=table_name,
                 retention_days=retention_days,
+            )
+
+    def _start_periodic_refresh_smtp_configuration(self):
+        interval = int(mlconf.notifications.smtp.refresh_interval)
+        if interval > 0:
+            self._logger.info(
+                "Starting periodic refresh SMTP configuration", interval=interval
+            )
+            run_function_periodically(
+                interval,
+                framework.utils.notifications.notification_pusher.RunNotificationPusher.get_mail_notification_default_params.__name__,
+                False,
+                framework.utils.notifications.notification_pusher.RunNotificationPusher.get_mail_notification_default_params,
+                refresh=True,
             )
 
     @staticmethod

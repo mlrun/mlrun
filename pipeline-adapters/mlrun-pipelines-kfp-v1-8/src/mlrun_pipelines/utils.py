@@ -15,17 +15,20 @@
 import tempfile
 import typing
 
-import kfp
-import kfp.compiler
 from kubernetes import client
 
 from mlrun_pipelines.helpers import new_pipe_metadata
+from mlrun_pipelines.imports import compiler, kfp  # noqa: F401
 
-# Disable the warning about reusing components
-kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
+if typing.TYPE_CHECKING:
+    from mlrun.runtimes import BaseRuntime
 
 
-def apply_kfp(modify, cop, runtime):
+def apply_kfp(
+    modify: typing.Callable,
+    cop: kfp.dsl.ContainerOp,
+    runtime: "BaseRuntime",
+) -> kfp.dsl.ContainerOp:
     modify(cop)
 
     # Have to do it here to avoid circular dependencies
@@ -77,7 +80,7 @@ def compile_pipeline(
         cleanup_ttl=cleanup_ttl,
         op_transformers=ops,
     )
-    kfp.compiler.Compiler().compile(
+    compiler.Compiler().compile(
         pipeline, pipe_file, type_check=type_check, pipeline_conf=conf
     )
     return pipe_file

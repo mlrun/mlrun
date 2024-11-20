@@ -129,6 +129,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    - name: Freeing up disk space
+      run: |
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:

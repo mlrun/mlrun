@@ -46,13 +46,13 @@ def v3io_cred(
         _access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         v3io_framesd = mlconf.v3io_framesd or os.environ.get("V3IO_FRAMESD")
 
-        runtime.spec.env.extend(
-            [
-                {"name": "V3IO_API", "value": web_api},
-                {"name": "V3IO_USERNAME", "value": _user},
-                {"name": "V3IO_ACCESS_KEY", "value": _access_key},
-                {"name": "V3IO_FRAMESD", "value": v3io_framesd},
-            ]
+        runtime.set_envs(
+            {
+                "V3IO_API": web_api,
+                "V3IO_USERNAME": _user,
+                "V3IO_ACCESS_KEY": _access_key,
+                "V3IO_FRAMESD": v3io_framesd,
+            },
         )
 
         return runtime
@@ -188,10 +188,9 @@ def mount_v3iod(
         )
 
         # Add environment variables
-        runtime.spec.env.extend(
-            [
-                {
-                    "name": "CURRENT_NODE_IP",
+        runtime.set_envs(
+            {
+                "CURRENT_NODE_IP": {
                     "valueFrom": {
                         "fieldRef": {
                             "apiVersion": "v1",
@@ -199,11 +198,8 @@ def mount_v3iod(
                         }
                     },
                 },
-                {
-                    "name": "IGZ_DATA_CONFIG_FILE",
-                    "value": "/igz/java/conf/v3io.conf",
-                },
-            ]
+                "IGZ_DATA_CONFIG_FILE": "/igz/java/conf/v3io.conf",
+            }
         )
 
         return runtime
@@ -262,19 +258,17 @@ def mount_s3(
             runtime.set_envs({prefix + "S3_NON_ANONYMOUS": "true"})
 
         if secret_name:
-            runtime.spec.env.extend(
-                [
-                    {
-                        "name": prefix + "AWS_ACCESS_KEY_ID",
+            runtime.set_envs(
+                {
+                    f"{prefix}AWS_ACCESS_KEY_ID": {
                         "valueFrom": {
                             "secretKeyRef": {
                                 "name": secret_name,
                                 "key": "AWS_ACCESS_KEY_ID",
                             }
-                        },
+                        }
                     },
-                    {
-                        "name": prefix + "AWS_SECRET_ACCESS_KEY",
+                    f"{prefix}AWS_SECRET_ACCESS_KEY": {
                         "valueFrom": {
                             "secretKeyRef": {
                                 "name": secret_name,
@@ -282,14 +276,14 @@ def mount_s3(
                             }
                         },
                     },
-                ]
+                }
             )
         else:
-            runtime.spec.env.extend(
-                [
-                    {"name": prefix + "AWS_ACCESS_KEY_ID", "value": _access_key},
-                    {"name": prefix + "AWS_SECRET_ACCESS_KEY", "value": _secret_key},
-                ]
+            runtime.set_envs(
+                {
+                    f"{prefix}AWS_ACCESS_KEY_ID": _access_key,
+                    f"{prefix}AWS_SECRET_ACCESS_KEY": _secret_key,
+                },
             )
 
         return runtime
@@ -534,8 +528,7 @@ def set_env_variables(
         env_data[key] = value
 
     def _set_env_variables(runtime: "KubeResource"):
-        for key, value in env_data.items():
-            runtime.set_envs({"name": key, "value": value})
+        runtime.set_envs(env_data)
 
         return runtime
 

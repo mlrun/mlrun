@@ -387,7 +387,8 @@ class KubeResourceSpec(FunctionSpec):
         self,
         volume_mounts: typing.Union[list[dict], dict, V1VolumeMount],
     ) -> "KubeResourceSpec":
-        """Add volume mounts to the volume mounts dictionary, only used as part of the mlrun_pipelines mount functions."""
+        """Add volume mounts to the volume mounts dictionary,
+        only used as part of the mlrun_pipelines mount functions."""
         if isinstance(volume_mounts, dict):
             self._set_volume_mount(volume_mounts)
         elif isinstance(volume_mounts, Iterable):
@@ -1111,7 +1112,10 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
             else:
                 raise mlrun.errors.MLRunNotFoundError(f"{file_path} does not exist")
         for name, value in env_vars.items():
-            self.set_env(name, value)
+            if isinstance(value, dict) and "valueFrom" in value:
+                self._set_env(name, value_from=value["valueFrom"])
+            else:
+                self.set_env(name, value)
         return self
 
     def set_image_pull_configuration(

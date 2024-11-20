@@ -14,7 +14,7 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
@@ -106,12 +106,12 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 
-class AuthorizationVerificationInput(pydantic.BaseModel):
+class AuthorizationVerificationInput(pydantic.v1.BaseModel):
     resource: str
     action: AuthorizationAction
 
 
-class AuthInfo(pydantic.BaseModel):
+class AuthInfo(pydantic.v1.BaseModel):
     # Basic + Iguazio auth
     username: typing.Optional[str] = None
     # Basic auth
@@ -145,5 +145,5 @@ class AuthInfo(pydantic.BaseModel):
         return self.data_session or self.session
 
 
-class Credentials(pydantic.BaseModel):
+class Credentials(pydantic.v1.BaseModel):
     access_key: typing.Optional[str]

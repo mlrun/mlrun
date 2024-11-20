@@ -1274,6 +1274,45 @@ class TestArtifacts(TestDatabaseBase):
                 self._db_session, project=project, limit=10, page_size=5
             )
 
+    def test_list_artifacts_producer_uri(self):
+        project = "artifact_project"
+        artifact_key = "dummy-artifact"
+
+        def store_artifact_with_producer(artifact_key, project, producer_uri, tag):
+            producer = {"uri": producer_uri}
+            artifact_body = self._generate_artifact(
+                artifact_key, project=project, producer=producer, tag=tag
+            )
+            self._db.store_artifact(
+                self._db_session, artifact_key, artifact_body, project=project
+            )
+
+        producer_uri_without_iteration = f"{project}/dummy-run-id"
+        first_producer_uri = f"{producer_uri_without_iteration}-0"
+        store_artifact_with_producer(
+            artifact_key, project, first_producer_uri, tag="v1"
+        )
+
+        second_producer_uri = f"{producer_uri_without_iteration}-1"
+        store_artifact_with_producer(
+            artifact_key, project, second_producer_uri, tag="v2"
+        )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session,
+            project=project,
+            producer_uri=producer_uri_without_iteration,
+        )
+
+        assert len(artifacts) == 2, f"Expected 2 artifacts, but found {len(artifacts)}"
+        assert (
+            artifacts[0]["spec"]["producer"]["uri"] == second_producer_uri
+        ), f"Expected producer URI {second_producer_uri}, but got {artifacts[0]['spec']['producer']['uri']}"
+
+        assert (
+            artifacts[1]["spec"]["producer"]["uri"] == first_producer_uri
+        ), f"Expected producer URI {first_producer_uri}, but got {artifacts[1]['spec']['producer']['uri']}"
+
     def test_iterations_with_latest_tag(self):
         project = "artifact_project"
         artifact_key = "artifact_key"
@@ -2054,6 +2093,7 @@ class TestArtifacts(TestDatabaseBase):
         project=None,
         labels=None,
         tag=None,
+        producer=None,
     ):
         artifact = {
             "metadata": {"key": key},
@@ -2073,6 +2113,8 @@ class TestArtifacts(TestDatabaseBase):
             artifact["metadata"]["labels"] = labels
         if tag:
             artifact["metadata"]["tag"] = tag
+        if producer:
+            artifact["spec"]["producer"] = producer
 
         return artifact
 

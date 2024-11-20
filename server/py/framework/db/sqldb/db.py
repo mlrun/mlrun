@@ -795,6 +795,7 @@ class SQLDB(DBInterface):
             iter=iter,
             uid=uid,
             producer_id=producer_id,
+            producer_uri=producer_uri,
             best_iteration=best_iteration,
             most_recent=most_recent,
             attach_tags=not as_records,
@@ -808,24 +809,6 @@ class SQLDB(DBInterface):
         artifacts = ArtifactList()
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
-
-            # TODO: filtering by producer uri may be a heavy operation when there are many artifacts in a workflow.
-            #  We should filter the artifacts before loading them into memory with query.all()
-            # Producer URI usually points to a run and is used to filter artifacts by the run that produced them.
-            # When the artifact was produced by a workflow, the producer id is a workflow id.
-            if producer_uri:
-                artifact_struct.setdefault("spec", {}).setdefault("producer", {})
-                artifact_producer_uri = artifact_struct["spec"]["producer"].get(
-                    "uri", None
-                )
-                # We check if the producer uri is a substring of the artifact producer uri because it
-                # may contain additional information (like the run iteration) that we don't want to filter by.
-                if (
-                    artifact_producer_uri is not None
-                    and producer_uri not in artifact_producer_uri
-                ):
-                    continue
-
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -1311,6 +1294,9 @@ class SQLDB(DBInterface):
         artifact_record.producer_id = producer_id or artifact_dict["metadata"].get(
             "tree"
         )
+        artifact_record.producer_uri = (
+            artifact_dict.get("spec", {}).get("producer", {}).get("uri", None)
+        )
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
         created = (
@@ -1434,6 +1420,7 @@ class SQLDB(DBInterface):
         iter: typing.Optional[int] = None,
         uid: typing.Optional[str] = None,
         producer_id: typing.Optional[str] = None,
+        producer_uri: typing.Optional[str] = None,
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
@@ -1458,6 +1445,8 @@ class SQLDB(DBInterface):
         :param iter: Artifact iteration to filter by
         :param uid: Artifact UID to filter by
         :param producer_id: Artifact producer ID to filter by
+        :param producer_uri: The producer URI (usually a run URI) to filter artifacts by. The producer URI is
+            typically used to filter artifacts produced by a specific run or workflow.
         :param best_iteration: Filter by best iteration artifacts
         :param most_recent: Filter by most recent artifacts
         :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
@@ -1502,6 +1491,10 @@ class SQLDB(DBInterface):
             query = query.filter(ArtifactV2.best_iteration == best_iteration)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
+        if producer_uri:
+            # We check if the producer uri is a substring of the artifact producer uri because it
+            # may contain additional information (like the run iteration) that we don't want to filter by.
+            query = query.filter(ArtifactV2.producer_uri.like(f"%{producer_uri}%"))
         if labels:
             labels = label_set(labels)
             query = self._add_labels_filter(session, query, ArtifactV2, labels)
@@ -3215,7 +3208,7 @@ class SQLDB(DBInterface):
         return project_record
 
     def verify_project_has_no_related_resources(self, session: Session, name: str):
-        artifacts = self._find_artifacts(session, name, "*")
+        artifacts = self._find_artifacts(session, project=name, ids="*")
         self._verify_empty_list_of_project_related_resources(
             name, artifacts, "artifacts"
         )

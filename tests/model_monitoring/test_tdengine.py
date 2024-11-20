@@ -32,6 +32,7 @@ _COLUMNS_TEST = {
     "column3": _TDEngineColumn.BINARY_40,
 }
 _TAG_TEST = {"tag1": _TDEngineColumn.INT, "tag2": _TDEngineColumn.BINARY_64}
+_PROJECT = "project-test"
 
 
 class TestTDEngineSchema:
@@ -42,7 +43,10 @@ class TestTDEngineSchema:
     @pytest.fixture
     def super_table() -> TDEngineSchema:
         return TDEngineSchema(
-            super_table=_SUPER_TABLE_TEST, columns=_COLUMNS_TEST, tags=_TAG_TEST
+            super_table=_SUPER_TABLE_TEST,
+            columns=_COLUMNS_TEST,
+            tags=_TAG_TEST,
+            project=_PROJECT,
         )
 
     @staticmethod
@@ -118,6 +122,14 @@ class TestTDEngineSchema:
         assert (
             super_table._drop_subtable_query(subtable="subtable_1")
             == f"DROP TABLE if EXISTS {_MODEL_MONITORING_DATABASE}.subtable_1;"
+        )
+
+    def test_drop_supertable(self, super_table: TDEngineSchema):
+        assert (
+            super_table.drop_supertable_query()
+            == f"DROP STABLE if EXISTS {_MODEL_MONITORING_DATABASE}.{_SUPER_TABLE_TEST}_{_PROJECT};".replace(
+                "-", "_"
+            )
         )
 
     @pytest.mark.parametrize(

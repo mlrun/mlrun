@@ -15,7 +15,7 @@
 from datetime import datetime
 from typing import Annotated, Optional, Union
 
-import pydantic
+import pydantic.v1
 
 import mlrun.common.schemas.notification as notification_objects
 from mlrun.common.types import StrEnum
@@ -27,10 +27,10 @@ class EventEntityKind(StrEnum):
     JOB = "job"
 
 
-class EventEntities(pydantic.BaseModel):
+class EventEntities(pydantic.v1.BaseModel):
     kind: EventEntityKind
     project: str
-    ids: pydantic.conlist(str, min_items=1, max_items=1)
+    ids: pydantic.v1.conlist(str, min_items=1, max_items=1)
 
 
 class EventKind(StrEnum):
@@ -64,11 +64,11 @@ _event_kind_entity_map = {
 }
 
 
-class Event(pydantic.BaseModel):
+class Event(pydantic.v1.BaseModel):
     kind: EventKind
     timestamp: Union[str, datetime] = None  # occurrence time
     entity: EventEntities
-    value_dict: Optional[dict] = pydantic.Field(default_factory=dict)
+    value_dict: Optional[dict] = pydantic.v1.Field(default_factory=dict)
 
     def is_valid(self):
         return self.entity.kind in _event_kind_entity_map[self.kind]
@@ -86,7 +86,7 @@ class AlertSeverity(StrEnum):
 
 
 # what should trigger the alert. must be either event (at least 1), or prometheus query
-class AlertTrigger(pydantic.BaseModel):
+class AlertTrigger(pydantic.v1.BaseModel):
     events: list[EventKind] = []
     prometheus_alert: str = None
 
@@ -97,16 +97,16 @@ class AlertTrigger(pydantic.BaseModel):
         )
 
 
-class AlertCriteria(pydantic.BaseModel):
+class AlertCriteria(pydantic.v1.BaseModel):
     count: Annotated[
         int,
-        pydantic.Field(
+        pydantic.v1.Field(
             description="Number of events to wait until notification is sent"
         ),
     ] = 1
     period: Annotated[
         str,
-        pydantic.Field(
+        pydantic.v1.Field(
             description="Time period during which event occurred. e.g. 1d, 3h, 5m, 15s"
         ),
     ] = None
@@ -120,11 +120,11 @@ class ResetPolicy(StrEnum):
     AUTO = "auto"
 
 
-class AlertNotification(pydantic.BaseModel):
+class AlertNotification(pydantic.v1.BaseModel):
     notification: notification_objects.Notification
     cooldown_period: Annotated[
         str,
-        pydantic.Field(
+        pydantic.v1.Field(
             description="Period during which notifications "
             "will not be sent after initial send. The format of this would be in time."
             " e.g. 1d, 3h, 5m, 15s"
@@ -132,14 +132,14 @@ class AlertNotification(pydantic.BaseModel):
     ] = None
 
 
-class AlertConfig(pydantic.BaseModel):
+class AlertConfig(pydantic.v1.BaseModel):
     project: str
     id: int = None
     name: str
     description: Optional[str] = ""
     summary: Annotated[
         str,
-        pydantic.Field(
+        pydantic.v1.Field(
             description=(
                 "String to be sent in the notifications generated."
                 "e.g. 'Model {{project}}/{{entity}} is drifting.'"
@@ -153,7 +153,7 @@ class AlertConfig(pydantic.BaseModel):
     trigger: AlertTrigger
     criteria: Optional[AlertCriteria]
     reset_policy: ResetPolicy = ResetPolicy.AUTO
-    notifications: pydantic.conlist(AlertNotification, min_items=1)
+    notifications: pydantic.v1.conlist(AlertNotification, min_items=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
 
@@ -169,7 +169,7 @@ class AlertsModes(StrEnum):
 
 
 class AlertTemplate(
-    pydantic.BaseModel
+    pydantic.v1.BaseModel
 ):  # Template fields that are not shared with created configs
     template_id: int = None
     template_name: str
@@ -202,7 +202,7 @@ class AlertTemplate(
         )
 
 
-class AlertActivation(pydantic.BaseModel):
+class AlertActivation(pydantic.v1.BaseModel):
     name: str
     project: str
     severity: AlertSeverity

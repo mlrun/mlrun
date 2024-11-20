@@ -14,14 +14,14 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 
 from mlrun.common.schemas.notification import Notification
 from mlrun.common.schemas.schedule import ScheduleCronTrigger
 from mlrun.common.types import StrEnum
 
 
-class WorkflowSpec(pydantic.BaseModel):
+class WorkflowSpec(pydantic.v1.BaseModel):
     name: str
     engine: typing.Optional[str] = None
     code: typing.Optional[str] = None
@@ -36,7 +36,7 @@ class WorkflowSpec(pydantic.BaseModel):
     workflow_runner_node_selector: typing.Optional[dict[str, str]] = None
 
 
-class WorkflowRequest(pydantic.BaseModel):
+class WorkflowRequest(pydantic.v1.BaseModel):
     spec: typing.Optional[WorkflowSpec] = None
     arguments: typing.Optional[dict] = None
     artifact_path: typing.Optional[str] = None
@@ -46,7 +46,7 @@ class WorkflowRequest(pydantic.BaseModel):
     notifications: typing.Optional[list[Notification]] = None
 
 
-class WorkflowResponse(pydantic.BaseModel):
+class WorkflowResponse(pydantic.v1.BaseModel):
     project: str = None
     name: str = None
     status: str = None
@@ -54,7 +54,7 @@ class WorkflowResponse(pydantic.BaseModel):
     schedule: typing.Union[str, ScheduleCronTrigger] = None
 
 
-class GetWorkflowResponse(pydantic.BaseModel):
+class GetWorkflowResponse(pydantic.v1.BaseModel):
     workflow_id: str = None
 
 

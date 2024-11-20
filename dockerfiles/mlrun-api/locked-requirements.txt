@@ -796,7 +796,9 @@ docker==7.1.0 \
 docstring-parser==0.16 \
     --hash=sha256:538beabd0af1e2db0146b6bd3caa526c35a34d61af9fd2887f3a8a27a739aa6e \
     --hash=sha256:bf0a1387354d3691d102edef7ec124f219ef639982d096e26e3b60aeffa90637
-    # via kfp
+    # via
+    #   -r requirements.txt
+    #   kfp
 entrypoints==0.4 \
     --hash=sha256:b706eddaa9218a19ebcd67b56818f05bb27589b1ca9e8d797b74affad4ccacd4 \
     --hash=sha256:f174b5ff827504fd3cd97cc3f8649f3693f51538c7e4bdf3ef002c8429d42f9f
@@ -1512,7 +1514,9 @@ kfp-pipeline-spec==0.1.16 \
     # via kfp
 kfp-server-api==1.8.5 \
     --hash=sha256:482d71765ba57c003164dbb980a8cb1a18d234b578d064dc88dbeb3e4c7ab6de
-    # via kfp
+    # via
+    #   kfp
+    #   mlrun-pipelines-kfp-v1-8
 kiwisolver==1.4.7 \
     --hash=sha256:073a36c8273647592ea332e816e75ef8da5c303236ec0167196793eb1e34657a \
     --hash=sha256:08471d4d86cbaec61f86b217dd938a83d85e03785f51121e791a6e6689a3be95 \
@@ -1844,13 +1848,13 @@ mlflow==2.14.3 \
     --hash=sha256:292cae4b83574a0cb223117e224caa6798933078af0233719c2b612bea645617 \
     --hash=sha256:2de915346c8e34a9d13efbd6469551980923619274db57fd2253621a2c666e18
     # via -r extras-requirements.txt
-mlrun-pipelines-kfp-common==0.2.1 \
-    --hash=sha256:579757b322b746f0e63a1e0be6cdfa3216489c8608be0639789ab20c4e6ada51 \
-    --hash=sha256:8c26d64080fab92d77042ce84ed669e583e244caa6c7c0fab954ca38f36b0e40
+mlrun-pipelines-kfp-common==0.2.2 \
+    --hash=sha256:4b7bee990bba5401e351d2e32cc0eef558d558683b6af80b141ed49e7f36df44 \
+    --hash=sha256:a1079a0ff5b24a8e29e8c18701591da6610464bed1473c78704c8148be874e0e
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.2.0 \
-    --hash=sha256:599ca1725cf48dfd9c6c2217013ef1d74836a74cecc81f05c541a346cc1364eb \
-    --hash=sha256:f3f36196ba6091a0c480ff6af385e350a5885e54269d7b8d875a40658c8c76f3
+mlrun-pipelines-kfp-v1-8==0.2.1 \
+    --hash=sha256:61a39d4e779abfe0d9c0cfa7d3405541c3c0b249798a2fd872f6f5127dc59380 \
+    --hash=sha256:ac6893a87b5bd5351cf3258cafee08b390aecc617f1fc0cf71b423cba8b6e6c5
     # via -r requirements.txt
 msal==1.31.1 \
     --hash=sha256:11b5e6a3f802ffd3a72107203e20c4eac6ef53401961b880af2835b723d80578 \

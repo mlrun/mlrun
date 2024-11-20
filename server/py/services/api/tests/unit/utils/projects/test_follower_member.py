@@ -227,7 +227,7 @@ def test_delete_project(
     db: sqlalchemy.orm.Session,
     # k8s_secrets_mock fixture uses the client fixture which intializes the project member so must be declared
     # before the projects follower
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+    k8s_secrets_mock: services.api.tests.unit.conftest.APIK8sSecretsMock,
     projects_follower: framework.utils.projects.follower.Member,
     nop_leader: framework.utils.projects.remotes.leader.Member,
 ):

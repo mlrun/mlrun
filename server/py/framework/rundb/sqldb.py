@@ -121,7 +121,7 @@ class SQLRunDB(RunDBInterface):
         self,
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        project: Optional[str] = None,
+        project: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
         state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
@@ -348,7 +348,7 @@ class SQLRunDB(RunDBInterface):
     def list_functions(
         self,
         name: Optional[str] = None,
-        project: Optional[str] = None,
+        project: Optional[Union[str, list[str]]] = None,
         tag: Optional[str] = None,
         kind: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
@@ -1017,7 +1017,9 @@ class SQLRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,
-    ):
+        top_level: bool = False,
+        uids: Optional[list[str]] = None,
+    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         raise NotImplementedError()
 
     def get_model_endpoint(

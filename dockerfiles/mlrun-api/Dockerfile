@@ -77,6 +77,8 @@ RUN uv pip install .[complete-api] && \
 
 VOLUME /mlrun/db
 
+ENV MLRUN__SERVICES__SERVICE_NAME=api
+
 # use tini as entrypoint to allow signal handling
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]

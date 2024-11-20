@@ -16,6 +16,8 @@ import asyncio
 import datetime
 import typing
 
+from kubernetes.client import ApiException
+
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -59,11 +61,18 @@ class RunNotificationPusher(NotificationPusher):
         smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
         mail_notification_default_params = {}
         if framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
-            mail_notification_default_params = (
-                framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
-                    smtp_config_secret_name, load_as_json=True
+            try:
+                mail_notification_default_params = (
+                    framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
+                        smtp_config_secret_name, load_as_json=True
+                    )
                 )
-            )
+            except ApiException as exc:
+                logger.warning(
+                    "Failed to read SMTP configuration secret",
+                    secret_name=smtp_config_secret_name,
+                    body=mlrun.errors.err_to_str(exc.body),
+                )
 
         RunNotificationPusher.mail_notification_default_params = (
             mail_notification_default_params
@@ -189,6 +198,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 alert.project,
                 notification_object,
                 status=mlrun.common.schemas.NotificationStatus.ERROR,
+                reason=str(exc),
             )
             raise exc
 
@@ -213,10 +223,20 @@ class AlertNotificationPusher(_NotificationPusherBase):
         notification: mlrun.common.schemas.Notification,
         status: typing.Optional[str] = None,
         sent_time: typing.Optional[datetime.datetime] = None,
+        reason: typing.Optional[str] = None,
     ):
         db = mlrun.get_run_db()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
+
+        # fill reason only if failed
+        if notification.status == mlrun.common.schemas.NotificationStatus.ERROR:
+            notification.reason = reason or notification.reason
+
+            # limit reason to a max of 255 characters (for db reasons) but also for human readability reasons.
+            notification.reason = notification.reason[:255]
+        else:
+            notification.reason = None
 
         # There is no need to mask the params as the secrets are already loaded
         db.store_alert_notifications(

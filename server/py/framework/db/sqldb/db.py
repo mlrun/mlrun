@@ -23,7 +23,7 @@ import typing
 import urllib.parse
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional, Union
 
 import fastapi.concurrency
 import mergedeep
@@ -5937,9 +5937,13 @@ class SQLDB(DBInterface):
         since: typing.Optional[str] = None,
         until: typing.Optional[str] = None,
         entity: typing.Optional[str] = None,
-        severity: typing.Optional[list[str]] = None,
-        entity_kind: typing.Optional[str] = None,
-        event_kind: typing.Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:

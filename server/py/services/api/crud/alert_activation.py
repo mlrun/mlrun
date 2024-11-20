@@ -14,7 +14,7 @@
 #
 import collections
 import datetime
-from typing import Optional
+from typing import Optional, Union
 
 import sqlalchemy.orm
 
@@ -105,9 +105,13 @@ class AlertActivation(
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
         entity: Optional[str] = None,
-        severity: Optional[list[str]] = None,
-        entity_kind: Optional[str] = None,
-        event_kind: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:

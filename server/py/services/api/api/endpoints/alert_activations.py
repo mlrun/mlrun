@@ -14,7 +14,7 @@
 #
 
 
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -37,9 +37,15 @@ async def list_alert_activations(
     since: Optional[str] = None,
     until: Optional[str] = None,
     entity: Optional[str] = None,
-    severity: Optional[list[str]] = None,
-    entity_kind: Optional[str] = Query(None, alias="entity-kind"),
-    event_kind: Optional[str] = Query(None, alias="event-kind"),
+    severity: Optional[
+        list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+    ] = None,
+    entity_kind: Optional[
+        Union[mlrun.common.schemas.alert.EventEntityKind, str]
+    ] = Query(None, alias="entity-kind"),
+    event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = Query(
+        None, alias="event-kind"
+    ),
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),

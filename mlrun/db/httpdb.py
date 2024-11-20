@@ -4680,7 +4680,7 @@ class HTTPRunDB(RunDBInterface):
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-    ) -> list:
+    ) -> list[mlrun.common.schemas.AlertActivation]:
         """
         Retrieve a list of all alert activations.
 
@@ -5039,7 +5039,7 @@ class HTTPRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         return_all: bool = False,
-    ) -> tuple[list, Optional[str]]:
+    ) -> tuple[list[mlrun.common.schemas.AlertActivation], Optional[str]]:
         project = project or config.default_project
         params = {
             "name": name,

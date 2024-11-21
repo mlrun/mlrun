@@ -407,7 +407,7 @@ def auto_mount(
         return mount_pvc(
             volume_name=volume_name or "shared-persistency",
         )
-    # In the case of MLRun-kit when working remotely, no env variables will be defined but auto-mount
+    # In the case of CE when working remotely, no env variables will be defined but auto-mount
     # parameters may still be declared - use them in that case.
     if config.storage.auto_mount_type == "pvc":
         return mount_pvc(**config.get_storage_auto_mount_params())

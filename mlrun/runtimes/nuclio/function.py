@@ -44,12 +44,11 @@ from mlrun.platforms.iguazio import (
     split_path,
 )
 from mlrun.runtimes.base import FunctionStatus, RunError
+from mlrun.runtimes.mounts import VolumeMount, mount_v3io, v3io_cred
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
 from mlrun.runtimes.utils import get_item_name, log_std
 from mlrun.utils import get_in, logger, update_in
-from mlrun_pipelines.common.mounts import VolumeMount
 from mlrun_pipelines.common.ops import deploy_op
-from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 
 
 def validate_nuclio_version_compatibility(*min_versions):

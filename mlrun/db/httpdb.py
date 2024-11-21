@@ -4229,8 +4229,7 @@ class HTTPRunDB(RunDBInterface):
     def refresh_smtp_configuration(
         self,
     ) -> Optional[mlrun.common.schemas.BackgroundTask]:
-        """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
-        triggered
+        """Refresh smtp configuration and wait for the task to finish
 
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """

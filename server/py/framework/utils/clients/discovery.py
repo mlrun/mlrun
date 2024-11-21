@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections
+import re
 import typing
 from dataclasses import dataclass
 
@@ -22,6 +24,7 @@ from mlrun import mlconf
 class ServiceInstance:
     name: str
     url: str
+    method_routes: dict[str, list[re.Pattern]] = None
     status: str = "UP"  # UP, DOWN, UNKNOWN
 
 
@@ -29,72 +32,119 @@ class Client(
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self):
-        self.services: dict[str, list[ServiceInstance]] = {}
         self._logger = mlrun.utils.logger.get_child(__name__)
+        self.services = None
         self.initialize()
 
     def initialize(self):
-        # TODO: resolve from config
-        self.register_service(
-            "alerts",
-            url=f"http://mlrun-alerts.{mlconf.namespace}.svc.cluster.local:8080",
-        )
-        self.register_service(
-            "api", url=f"http://mlrun-api.{mlconf.namespace}.svc.cluster.local:8080"
-        )
+        # We use an ordered dict for control over service matching order.
+        # This is important for services that may have overlapping routes.
+        self.services: dict[str, ServiceInstance] = collections.OrderedDict()
+        if mlconf.services.hydra.services != "*":
+            self.register_service(service_name="alerts")
+        self.register_service(service_name="api")
+        # Chief is last to allow other services to override its routes
+        self.register_service(service_name="api-chief")
 
     def register_service(
         self,
         service_name: str,
-        url: str,
     ) -> bool:
         """Register a new service instance."""
-        instance = ServiceInstance(
+        method_routes = self._resolve_service_method_routes(service_name)
+        url = self._resolve_service_url(service_name)
+        self.services[service_name] = ServiceInstance(
             name=service_name,
             url=url,
+            method_routes=method_routes,
         )
-
-        if service_name not in self.services:
-            self.services[service_name] = []
-
-        # Check for duplicate registration
-        for existing in self.services[service_name]:
-            if existing.url == url:
-                self._logger.warning(
-                    "Service already registered",
-                    service_name=service_name,
-                    url=url,
-                )
-                return False
-
-        self.services[service_name].append(instance)
         self._logger.info("Registered service", service_name=service_name, url=url)
         return True
 
-    def deregister_service(self, service_name: str, url: str) -> bool:
+    def deregister_service(self, service_name: str):
         """Deregister a service instance."""
-        if service_name not in self.services:
-            return False
+        if service_name in self.services:
+            del self.services[service_name]
 
-        for instance in self.services[service_name]:
-            if instance.url == url:
-                self.services[service_name].remove(instance)
-                self._logger.info(
-                    "Deregistered service",
-                    service_name=service_name,
-                    url=url,
-                )
+        self._logger.info(
+            "Deregistered service",
+            service_name=service_name,
+        )
 
-                # Remove empty service list
-                if not self.services[service_name]:
-                    del self.services[service_name]
-                return True
+    def resolve_service_by_request(
+        self, method: str, path: str
+    ) -> typing.Optional[ServiceInstance]:
+        """
+        Resolve path and returns the matching service instance for the request.
+
+        :param method: HTTP method of the request
+        :param path: URL path to match against service patterns
+        :return: ServiceInstance matching the request or None if no match
+        """
+        if service_name := self._find_service(method, path):
+            return self.get_service(service_name)
+        return None
 
     def get_service(self, service_name: str) -> typing.Optional[ServiceInstance]:
         """Get all healthy instances of a service."""
-        if service_name not in self.services:
-            return None
+        return self.services.get(service_name, None)
 
-        for instance in self.services[service_name]:
-            if instance.status == "UP":
-                return instance
+    def _resolve_service_method_routes(
+        self, service_name: str
+    ) -> dict[str, list[re.Pattern]]:
+        """Resolve service routes per method for a service"""
+        method_routes = {
+            "get": [],
+            "post": [],
+            "put": [],
+            "delete": [],
+        }
+        routes = self._service_routes(service_name)
+        for methods, path in routes:
+            if methods == ["*"]:
+                for method in method_routes:
+                    method_routes[method].append(re.compile(path))
+                continue
+
+            for method in methods:
+                method_routes[method].append(re.compile(path))
+
+        return method_routes
+
+    def _find_service(self, method: str, path: str):
+        """
+        Find first service matching the given request URL
+
+        :param method: HTTP method of the request
+        :param path: URL path to match against service patterns
+        :return: Name of matching service or None if no match
+        """
+        for service_name, service_instance in self.services.items():
+            routes_patterns = service_instance.method_routes[method]
+            for route_pattern in routes_patterns:
+                if route_pattern.match(path):
+                    return service_name
+        return None
+
+    @staticmethod
+    def _resolve_service_url(service_name: str) -> str:
+        """Resolve service URL by service name."""
+        return f"http://mlrun-{service_name}.{mlconf.namespace}.svc.cluster.local:8080"
+
+    @staticmethod
+    def _service_routes(service_name: str) -> list:
+        """Get all routes for a service."""
+        return {
+            "api-chief": [
+                # Alerts routes that require chief capabilities
+                (["put", "delete"], "alert_templates.*"),
+                (["*"], "projects/.+/alerts.*"),
+                (["post"], "projects/.+/events.*"),
+            ],
+            "api": [],
+            "alerts": [
+                (["put", "get", "delete"], "alert_templates.*"),
+                (["*"], "projects/.+/alerts.*"),
+                (["post"], "projects/.+/events.*"),
+            ],
+        }[service_name]

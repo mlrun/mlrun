@@ -111,10 +111,7 @@ class Service(framework.service.Service):
         **kwargs,
     ):
         messaging_client = framework.utils.clients.messaging.Client()
-        # TODO: resolve service name dynamically
-        return await messaging_client.forward_request(
-            service_name="alerts", request=request
-        )
+        return await messaging_client.forward_request(request=request)
 
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class

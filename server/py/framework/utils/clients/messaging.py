@@ -15,6 +15,7 @@ import contextlib
 import copy
 import http
 import http.cookies
+import re
 import typing
 import urllib
 import urllib.parse
@@ -28,6 +29,8 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 import framework.utils.clients.discovery
+
+PREFIX_GROUPING = re.compile(r"([a-z]+)/((?:v\d+)?)")
 
 
 class BaseClient(
@@ -163,17 +166,23 @@ class Client(BaseClient):
     def get(self):
         pass
 
-    async def forward_request(self, service_name: str, request: fastapi.Request):
+    async def forward_request(self, request: fastapi.Request):
         method = request.method
-        service_instance = self._discovery.get_service(service_name)
+        path = str(request.url.path)
+        match = PREFIX_GROUPING.match(path)
+        prefix = match.group(1)
+        version = match.group(2) or "v1"
+        path = path.lstrip(f"/{prefix}/")
+        if version:
+            path = path.lstrip(f"{version}/")
+
+        service_instance = self._discovery.resolve_service_by_request(method, path)
         if not service_instance:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Failed to forward request, service {service_name} not found"
+                f"Failed to forward request, service for path {path} not found"
             )
-        # TODO: replace prefix with service name api/v1 -> alerts/v1, api -> alerts/v1
-        path = str(request.url.path).lstrip("/")
-        url = f"{service_instance.url}/{path}"
-        return await self._forward_request(service_name, method, url, request)
+        url = f"{service_instance.url}/{prefix}/{version}/{path}"
+        return await self._forward_request(service_instance.name, method, url, request)
 
     async def _forward_request(
         self,

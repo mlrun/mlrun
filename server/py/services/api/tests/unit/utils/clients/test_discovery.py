@@ -11,36 +11,68 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import re
+
+from mlrun import mlconf
+
 import framework.utils.clients.discovery
 
 
-def test_discovery_register_service_twice():
-    service_name = "test-service"
-    service_url = "http://mock-server"
+def test_discovery_register_api_hydra():
+    mlconf.services.hydra.services = "*"
+    mlconf.namespace = "default"
     discovery = framework.utils.clients.discovery.Client()
-    discovery.register_service(service_name, url=service_url)
-    service_instance = discovery.get_service(service_name)
-    assert service_instance.name == service_name
-    assert service_instance.url == service_url
-    assert service_instance.status == "UP"
+    service_instance = discovery.get_service("api")
+    assert service_instance.name == "api"
+    assert (
+        service_instance.url
+        == discovery._resolve_service_url("api")
+        == "http://mlrun-api.default.svc.cluster.local:8080"
+    )
 
-    # register another service
-    service_url_2 = "http://mock-2-server"
-    discovery.register_service(service_name, service_url_2)
-    # should return 1st service
-    service_instance = discovery.get_service(service_name)
-    assert service_instance.name == service_name
-    assert service_instance.url == service_url
-    assert service_instance.status == "UP"
+    services_names = list(discovery.services.keys())
+    assert services_names[-1] == "api-chief"
 
-    # remove 1st service
-    discovery.deregister_service(service_name, service_url)
-    # should get 2nd service
-    service_instance = discovery.get_service(service_name)
-    assert service_instance.name == service_name
-    assert service_instance.url == service_url_2
-    assert service_instance.status == "UP"
+    service_instance = discovery.get_service("api-chief")
+    assert service_instance.name == "api-chief"
+    assert (
+        service_instance.url
+        == discovery._resolve_service_url("api-chief")
+        == "http://mlrun-api-chief.default.svc.cluster.local:8080"
+    )
+    assert re.compile("alert_templates.*") in service_instance.method_routes["put"]
 
-    # remove 2nd service
-    discovery.deregister_service(service_name, service_url_2)
-    assert not discovery.get_service(service_name)
+
+def test_star_notation_translation():
+    mlconf.services.hydra.services = "*"
+    star_pattern = "projects/.+/alerts.*"
+    discovery = framework.utils.clients.discovery.Client()
+
+    chief_routes = discovery._service_routes("api-chief")
+    for methods, pattern in chief_routes:
+        if pattern == star_pattern:
+            assert methods == ["*"]
+            break
+    else:
+        assert False, f"pattern {star_pattern} not found in chief routes"
+
+    service_instance = discovery.get_service("api-chief")
+    route_regex = re.compile(star_pattern)
+    assert route_regex in service_instance.method_routes["put"]
+    assert route_regex in service_instance.method_routes["post"]
+    assert route_regex in service_instance.method_routes["delete"]
+    assert route_regex in service_instance.method_routes["get"]
+
+
+def test_find_service():
+    method, path = "get", "projects/test/alerts"
+    mlconf.services.hydra.services = "*"
+    discovery = framework.utils.clients.discovery.Client()
+    service_instance = discovery.resolve_service_by_request(method, path)
+    assert service_instance.name == "api-chief"
+
+    mlconf.services.hydra.services = ""
+    discovery.initialize()
+    service_instance = discovery.resolve_service_by_request(method, path)
+    assert service_instance.name == "alerts"

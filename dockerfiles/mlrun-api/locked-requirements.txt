@@ -1375,9 +1375,9 @@ idna==3.10 \
     #   requests
     #   snowflake-connector-python
     #   yarl
-igz-mgmt==0.4.0 \
-    --hash=sha256:208636c4bc8eabf0bf37467aaa1a5562fb116eb9341e12d5228528fadcf0b85e \
-    --hash=sha256:d1b9c7127dd0b36d72500cae0ed3126903bdbf1d5a71249c633f85d6a8ad1731
+igz-mgmt==0.4.1 \
+    --hash=sha256:58021a7ba168bc49b1aa9afcd7b6d62e9ef517016990a95f1740846a89d1b09d \
+    --hash=sha256:679cae18c6e5aebbf4c2c6de414efcf46dbf7425211e95f829057d657c7003d3
     # via -r dockerfiles/mlrun-api/requirements.txt
 importlib-metadata==7.2.1 \
     --hash=sha256:509ecb2ab77071db5137c655e24ceb3eee66e7bbc6574165d0d114d9fc4bbe68 \
@@ -3137,9 +3137,9 @@ s3fs==2024.6.1 \
     --hash=sha256:6c2106d6c34fbfbb88e3d20c6f3572896d5ee3d3512896696301c21a3c541bea \
     --hash=sha256:ecd20863437409eec1cbfff0b7df5e9772cf7c1926008efab2e17e46f6d52c63
     # via -r extras-requirements.txt
-s3transfer==0.10.3 \
-    --hash=sha256:263ed587a5803c6c708d3ce44dc4dfedaab4c1a32e8329bab818933d79ddcf5d \
-    --hash=sha256:4f50ed74ab84d474ce614475e0b8d5047ff080810aac5d01ea25231cfc944b0c
+s3transfer==0.10.4 \
+    --hash=sha256:244a76a24355363a68164241438de1b72f8781664920260c48465896b712a41e \
+    --hash=sha256:29edc09801743c21eb5ecbc617a152df41d3c287f67b615f73e5f750583666a7
     # via boto3
 scikit-learn==1.5.2 \
     --hash=sha256:03b6158efa3faaf1feea3faa884c840ebd61b6484167c711548fce208ea09445 \
@@ -3208,9 +3208,9 @@ send2trash==1.8.3 \
     --hash=sha256:0c31227e0bd08961c7665474a3d1ef7193929fedda4233843689baa056be46c9 \
     --hash=sha256:b18e7a3966d99871aefeb00cfbcfdced55ce4871194810fc71f4aa484b953abf
     # via jupyter-server
-setuptools==75.5.0 \
-    --hash=sha256:5c4ccb41111392671f02bb5f8436dfc5a9a7185e80500531b133f5775c4163ef \
-    --hash=sha256:87cb777c3b96d638ca02031192d40390e0ad97737e27b6b4fa831bea86f2f829
+setuptools==75.6.0 \
+    --hash=sha256:8199222558df7c86216af4f84c30e9b34a61d8ba19366cc914424cdbd28252f6 \
+    --hash=sha256:ce74b49e8f7110f9bf04883b730f4765b774ef3ef28f722cce7c273d253aaf7d
     # via
     #   -r requirements.txt
     #   grpcio-tools

@@ -130,7 +130,6 @@ def test_requirement_specifiers_convention():
         "distributed": {"~=2023.12.1"},
         "dask": {"~=2023.12.1"},
         "gitpython": {"~=3.1, >=3.1.41"},
-        "pydantic": {"~=1.10, >=1.10.8"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
@@ -228,6 +227,20 @@ def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     requirements_file_paths = list(
         pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
     )
+    gitfiles = set(
+        subprocess.check_output(
+            "git ls-files | grep requirements", shell=True, cwd=tests.conftest.root_path
+        )
+        .decode()
+        .splitlines()
+    )
+    # filter out paths matching gitignore as we dont want to include requirements from gitignored directories
+    requirements_file_paths = list(
+        filter(
+            lambda path: path in gitfiles,
+            requirements_file_paths,
+        )
+    )
     venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
     requirements_file_paths = list(
         filter(lambda path: str(venv_path) not in str(path), requirements_file_paths)
@@ -265,9 +278,9 @@ def _parse_requirement_specifiers_list(
         assert (
             match is not None
         ), f"Requirement specifier did not matched regex. {requirement_specifier}"
-        requirement_specifiers_map[match.groupdict()["requirementName"].lower()].add(
-            match.groupdict()["requirementSpecifier"]
-        )
+        requirement_name = match.groupdict()["requirementName"].lower()
+        requirement_specifier = match.groupdict()["requirementSpecifier"]
+        requirement_specifiers_map[requirement_name].add(requirement_specifier)
     return requirement_specifiers_map
 
 

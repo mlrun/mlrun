@@ -414,7 +414,7 @@ def auto_mount(
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
 
-    raise ValueError("failed to auto mount, need to set env vars")
+    raise ValueError("Failed to auto mount, need to set env vars")
 
 
 def mount_secret(

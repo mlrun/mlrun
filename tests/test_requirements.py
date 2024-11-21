@@ -227,20 +227,6 @@ def _generate_all_requirement_specifiers_map() -> dict[str, set]:
     requirements_file_paths = list(
         pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
     )
-    gitfiles = set(
-        subprocess.check_output(
-            "git ls-files | grep requirements", shell=True, cwd=tests.conftest.root_path
-        )
-        .decode()
-        .splitlines()
-    )
-    # filter out paths matching gitignore as we dont want to include requirements from gitignored directories
-    requirements_file_paths = list(
-        filter(
-            lambda path: path in gitfiles,
-            requirements_file_paths,
-        )
-    )
     venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
     requirements_file_paths = list(
         filter(lambda path: str(venv_path) not in str(path), requirements_file_paths)

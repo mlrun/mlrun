@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 import collections
+import datetime
+from typing import Optional, Union
 
 import sqlalchemy.orm
 
@@ -94,3 +96,35 @@ class AlertActivation(
             )
 
         return notification_states
+
+    def list_alert_activations(
+        self,
+        session: sqlalchemy.orm.Session,
+        projects_with_creation_time: list[tuple[str, datetime.datetime]],
+        name: Optional[str] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+    ) -> list[mlrun.common.schemas.AlertActivation]:
+        return framework.utils.singletons.db.get_db().list_alert_activations(
+            session=session,
+            projects_with_creation_time=projects_with_creation_time,
+            name=name,
+            since=since,
+            until=until,
+            entity=entity,
+            severity=severity,
+            entity_kind=entity_kind,
+            event_kind=event_kind,
+            page=page,
+            page_size=page_size,
+        )

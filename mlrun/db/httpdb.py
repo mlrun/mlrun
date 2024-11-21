@@ -4666,6 +4666,112 @@ class HTTPRunDB(RunDBInterface):
             results.append(mlrun.common.schemas.AlertTemplate(**item))
         return results
 
+    def list_alert_activations(
+        self,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+    ) -> list[mlrun.common.schemas.AlertActivation]:
+        """
+        Retrieve a list of all alert activations.
+
+        :param project: The project name to filter by. If None, results are not filtered by project.
+        :param name: The alert name to filter by. Supports exact matching or partial matching if prefixed with `~`.
+        :param since: Filters for alert activations occurring after this timestamp.
+        :param until: Filters for alert activations occurring before this timestamp.
+        :param entity: The entity ID to filter by. Supports wildcard matching if prefixed with `~`.
+        :param severity: A list of severity levels to filter by (e.g., ["high", "low"]).
+        :param entity_kind: The kind of entity (e.g., "job", "endpoint") to filter by.
+        :param event_kind: The kind of event (e.g., ""data-drift-detected"", "failed") to filter by.
+
+        :returns: A list of alert activations matching the provided filters.
+        """
+
+        alert_activations, _ = self._list_alert_activations(
+            project=project,
+            name=name,
+            since=since,
+            until=until,
+            entity=entity,
+            severity=severity,
+            entity_kind=entity_kind,
+            event_kind=event_kind,
+            return_all=True,
+        )
+        return alert_activations
+
+    def paginated_list_alert_activations(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[list, Optional[str]]:
+        """List alerts activations with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of alert activations based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of alert activations that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_alert_activations method:
+            See :py:func:`~list_alert_activations` for more details.
+
+        Examples::
+
+            # Fetch first page of alert activations with page size of 5
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page_size=5
+            )
+            # Fetch next page using the pagination token from the previous response
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page_token=token
+            )
+            # Fetch alert activations for a specific page (e.g., page 3)
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page=3, page_size=5
+            )
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            alert_activations = []
+            token = None
+            while True:
+                page_alert_activations, token = db.paginated_list_alert_activations(
+                    project="my-project", page_token=token, page_size=5
+                )
+                alert_activations.extend(page_alert_activations)
+
+                # If token is None and page_alert_activations is empty, we've reached the end (no more activations).
+                # If token is None and page_alert_activations is not empty, we've fetched the last page of activations.
+                if not token:
+                    break
+            print(f"Total alert activations retrieved: {len(alert_activations)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of alert activations and an optional `page_token` for pagination.
+        """
+        return self._list_alert_activations(
+            *args,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            return_all=False,
+            **kwargs,
+        )
+
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],
@@ -4914,6 +5020,50 @@ class HTTPRunDB(RunDBInterface):
         )
         paginated_responses, token = self.process_paginated_responses(responses, "runs")
         return RunList(paginated_responses), token
+
+    def _list_alert_activations(
+        self,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ) -> tuple[list[mlrun.common.schemas.AlertActivation], Optional[str]]:
+        project = project or config.default_project
+        params = {
+            "name": name,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
+            "entity": entity,
+            "severity": severity,
+            "entity-kind": entity_kind,
+            "event-kind": event_kind,
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
+        }
+        error = "list alert activations"
+        path = f"projects/{project}/alert-activations"
+
+        # Fetch the responses, either one page or all based on `return_all`
+        responses = self.paginated_api_call(
+            "GET", path, error, params=params, return_all=return_all
+        )
+        paginated_responses, token = self.process_paginated_responses(
+            responses, "activations"
+        )
+        return paginated_responses, token
 
 
 def _as_json(obj):

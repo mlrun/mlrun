@@ -784,10 +784,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             if not feature_names and self._infer_columns_from_data:
                 feature_names = self._infer_feature_names_from_data(event)
 
-            is_router_endpoint = endpoint_record.get(
-                EventFieldType.ENDPOINT_TYPE
-            ) == str(EndpointType.ROUTER.value)
-
+            endpoint_type = int(endpoint_record.get(EventFieldType.ENDPOINT_TYPE))
             if not feature_names:
                 logger.warn(
                     "Feature names are not initialized, they will be automatically generated",
@@ -806,7 +803,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     },
                 )
 
-                if not is_router_endpoint:
+                if endpoint_type != EndpointType.ROUTER.value:
                     update_monitoring_feature_set(
                         endpoint_record=endpoint_record,
                         feature_names=feature_names,
@@ -831,7 +828,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     endpoint_id=endpoint_id,
                     attributes={EventFieldType.LABEL_NAMES: json.dumps(label_columns)},
                 )
-                if not is_router_endpoint:
+                if endpoint_type != EndpointType.ROUTER.value:
                     update_monitoring_feature_set(
                         endpoint_record=endpoint_record,
                         feature_names=label_columns,
@@ -849,7 +846,6 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             )
 
             # Update the endpoint type within the endpoint types dictionary
-            endpoint_type = int(endpoint_record.get(EventFieldType.ENDPOINT_TYPE))
             self.endpoint_type[endpoint_id] = endpoint_type
 
         # Add feature_name:value pairs along with a mapping dictionary of all of these pairs

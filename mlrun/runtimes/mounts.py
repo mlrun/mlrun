@@ -29,42 +29,6 @@ if typing.TYPE_CHECKING:
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 
-def _enrich_and_validate_v3io_mounts(
-    remote: str = "",
-    volume_mounts: typing.Optional[list[VolumeMount]] = None,
-    user: str = "",
-) -> tuple[list[VolumeMount], str]:
-    if volume_mounts is None:
-        volume_mounts = []
-    if remote and not volume_mounts:
-        raise MLRunInvalidArgumentError(
-            "volume_mounts must be specified when remote is given"
-        )
-
-    # Empty remote & volume_mounts defaults are volume mounts of /v3io and /User
-    if not remote and not volume_mounts:
-        user = _resolve_mount_user(user)
-        if not user:
-            raise MLRunInvalidArgumentError(
-                "user name/env must be specified when using empty remote and volume_mounts"
-            )
-        volume_mounts = [
-            VolumeMount(path="/v3io", sub_path=""),
-            VolumeMount(path="/User", sub_path="users/" + user),
-        ]
-
-    if not isinstance(volume_mounts, list) and any(
-        [not isinstance(x, VolumeMount) for x in volume_mounts]
-    ):
-        raise TypeError("mounts should be a list of Mount")
-
-    return volume_mounts, user
-
-
-def _resolve_mount_user(user: typing.Optional[str] = None):
-    return user or os.environ.get("V3IO_USERNAME")
-
-
 def v3io_cred(
     api: str = "",
     user: str = "",
@@ -180,15 +144,7 @@ def mount_v3iod(
                 }
             )
 
-        # this is a legacy path for the daemon shared memory
-        host_path = "/dev/shm/"
-
-        # path to shared memory for daemon was changed in Iguazio 3.2.3-b1
-        igz_version = mlconf.get_parsed_igz_version()
-        if igz_version:
-            host_path = "/var/run/iguazio/dayman-shm/"
-
-        add_vol(name="shm", mount_path="/dev/shm", host_path=host_path + namespace)
+        add_vol(name="shm", mount_path="/dev/shm", host_path=f"/var/run/iguazio/dayman-shm/{namespace}")
         add_vol(
             name="v3iod-comm",
             mount_path="/var/run/iguazio/dayman",
@@ -423,7 +379,8 @@ def mount_secret(
     volume_name: str = "secret",
     items: typing.Optional[list[dict]] = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
-    """Modifier function to mount a Kubernetes secret as file(s).
+    """
+    Modifier function to mount a Kubernetes secret as file(s).
 
     :param secret_name: Kubernetes secret name
     :param mount_path: Path inside the container to mount
@@ -470,7 +427,8 @@ def mount_configmap(
     volume_name: str = "configmap",
     items: typing.Optional[list[dict]] = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
-    """Modifier function to mount a Kubernetes ConfigMap as file(s).
+    """
+    Modifier function to mount a Kubernetes ConfigMap as file(s).
 
     :param configmap_name: Kubernetes ConfigMap name
     :param mount_path: Path inside the container to mount
@@ -572,3 +530,39 @@ def set_env_variables(
         return runtime
 
     return _set_env_variables
+
+
+def _enrich_and_validate_v3io_mounts(
+    remote: str = "",
+    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    user: str = "",
+) -> tuple[list[VolumeMount], str]:
+    if volume_mounts is None:
+        volume_mounts = []
+    if remote and not volume_mounts:
+        raise MLRunInvalidArgumentError(
+            "volume_mounts must be specified when remote is given"
+        )
+
+    # Empty remote & volume_mounts defaults are volume mounts of /v3io and /User
+    if not remote and not volume_mounts:
+        user = _resolve_mount_user(user)
+        if not user:
+            raise MLRunInvalidArgumentError(
+                "user name/env must be specified when using empty remote and volume_mounts"
+            )
+        volume_mounts = [
+            VolumeMount(path="/v3io", sub_path=""),
+            VolumeMount(path="/User", sub_path="users/" + user),
+        ]
+
+    if not isinstance(volume_mounts, list) and any(
+        [not isinstance(x, VolumeMount) for x in volume_mounts]
+    ):
+        raise TypeError("mounts should be a list of Mount")
+
+    return volume_mounts, user
+
+
+def _resolve_mount_user(user: typing.Optional[str] = None):
+    return user or os.environ.get("V3IO_USERNAME")

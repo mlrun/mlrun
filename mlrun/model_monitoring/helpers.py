@@ -439,7 +439,7 @@ def _get_monitoring_schedules_file_path(*, project: str, endpoint_id: str) -> st
 
 def get_monitoring_schedules_data(
     *, project: str, endpoint_id: str
-) -> mlrun.datastore.DataItem:
+) -> "DataItem":
     """
     Get the model monitoring schedules' data item of the project's model endpoint.
     """

@@ -144,7 +144,11 @@ def mount_v3iod(
                 }
             )
 
-        add_vol(name="shm", mount_path="/dev/shm", host_path=f"/var/run/iguazio/dayman-shm/{namespace}")
+        add_vol(
+            name="shm",
+            mount_path="/dev/shm",
+            host_path=f"/var/run/iguazio/dayman-shm/{namespace}",
+        )
         add_vol(
             name="v3iod-comm",
             mount_path="/var/run/iguazio/dayman",

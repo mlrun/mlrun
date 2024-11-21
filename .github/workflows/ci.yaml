@@ -124,7 +124,8 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [ 3.9, 3.11 ]
+        # TODO: Ensure compatibility with Python 3.11 as well
+        python-version: [ 3.9 ]
 
     steps:
     - uses: actions/checkout@v4

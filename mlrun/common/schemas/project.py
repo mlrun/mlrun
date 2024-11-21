@@ -175,7 +175,12 @@ class IguazioProject(pydantic.v1.BaseModel):
 # to add a specific classes for them. it's frustrating but couldn't find other workaround, see:
 # https://github.com/samuelcolvin/pydantic/issues/1423, https://github.com/samuelcolvin/pydantic/issues/619
 ProjectOutput = typing.TypeVar(
-    "ProjectOutput", ProjectOut, str, ProjectSummary, IguazioProject
+    "ProjectOutput",
+    ProjectOut,
+    str,
+    ProjectSummary,
+    IguazioProject,
+    tuple[str, datetime.datetime],
 )
 
 

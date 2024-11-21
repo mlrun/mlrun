@@ -319,6 +319,40 @@ class Projects(
             action=action,
         )
 
+    async def list_allowed_project_names_with_creation_time(
+        self,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
+        project: typing.Optional[str] = None,
+        **project_filters,
+    ) -> list[tuple[str, datetime.datetime]]:
+        project = project or mlrun.mlconf.default_project
+        if project != "*":
+            await (
+                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                    project,
+                    mlrun.common.schemas.AuthorizationAction.read,
+                    auth_info,
+                )
+            )
+            project_obj = self.get_project(
+                session,
+                name=project,
+            )
+            return [(project, project_obj.metadata.created)]
+
+        projects_output = self.list_projects(
+            session,
+            format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
+            **project_filters,
+        )
+        return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            [project[0] for project in projects_output.projects],
+            auth_info,
+            action=action,
+        )
+
     async def list_project_summaries(
         self,
         session: sqlalchemy.orm.Session,

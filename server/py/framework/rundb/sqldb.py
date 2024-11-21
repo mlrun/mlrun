@@ -1271,6 +1271,29 @@ class SQLRunDB(RunDBInterface):
     def list_alert_templates(self):
         pass
 
+    def list_alert_activations(
+        self,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
+    ):
+        raise NotImplementedError
+
+    def paginated_list_alert_activations(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        raise NotImplementedError
+
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)
 @containers.override(mlrun.db.factory.RunDBContainer)

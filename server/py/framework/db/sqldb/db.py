@@ -23,7 +23,7 @@ import typing
 import urllib.parse
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional, Union
 
 import fastapi.concurrency
 import mergedeep
@@ -84,7 +84,9 @@ import framework.utils.helpers
 from framework.db.base import DBInterface
 from framework.db.sqldb.helpers import (
     MemoizationCache,
+    generate_query_for_name_with_wildcard,
     generate_query_predicate_for_name,
+    generate_time_range_query,
     label_set,
     run_labels,
     run_start_time,
@@ -1499,10 +1501,11 @@ class SQLDB(DBInterface):
             labels = label_set(labels)
             query = self._add_labels_filter(session, query, ArtifactV2, labels)
         if since or until:
-            since = since or datetime.min
-            until = until or datetime.max
-            query = query.filter(
-                and_(ArtifactV2.updated >= since, ArtifactV2.updated <= until)
+            query = generate_time_range_query(
+                query=query,
+                field=ArtifactV2.updated,
+                since=since,
+                until=until,
             )
         if kind:
             query = query.filter(ArtifactV2.kind == kind)
@@ -4827,10 +4830,8 @@ class SQLDB(DBInterface):
             query = query.filter(Function.kind == kind)
 
         if since or until:
-            since = since or datetime.min
-            until = until or datetime.max
-            query = query.filter(
-                and_(Function.updated >= since, Function.updated <= until)
+            query = generate_time_range_query(
+                query=query, field=Function.updated, since=since, until=until
             )
 
         if not tag:
@@ -5929,14 +5930,65 @@ class SQLDB(DBInterface):
         self._upsert(session, [alert_activation_record])
 
     def list_alert_activations(
-        self, session: Session, project: typing.Optional[str] = None
+        self,
+        session: Session,
+        projects_with_creation_time: list[tuple[str, datetime]],
+        name: typing.Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        entity: typing.Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
-        # TODO: add filters
         query = self._query(session, AlertActivation)
 
-        if project and project != "*":
-            query = query.filter(AlertActivation.project == project)
+        # Filter alert activations for the project created after the project creation date,
+        # excluding activations linked to any previous instances of the project.
+        # TODO: reconsider this approach when we move alerts out of main MLRun db
+        project_filter_conditions = [
+            and_(
+                AlertActivation.project == project,
+                AlertActivation.activation_time > created,
+            )
+            for project, created in projects_with_creation_time
+        ]
 
+        query = query.filter(or_(*project_filter_conditions))
+
+        if name:
+            query = query.filter(
+                generate_query_predicate_for_name(AlertActivation.name, name)
+            )
+
+        if since or until:
+            query = generate_time_range_query(
+                query=query,
+                field=AlertActivation.activation_time,
+                since=since,
+                until=until,
+            )
+        if entity:
+            query = query.filter(
+                generate_query_for_name_with_wildcard(AlertActivation.entity_id, entity)
+            )
+        if severity:
+            query = query.filter(AlertActivation.severity.in_(severity))
+
+        if event_kind:
+            query = query.filter(AlertActivation.event_kind == event_kind)
+
+        if entity_kind:
+            query = query.filter(AlertActivation.entity_kind == entity_kind)
+
+        query = query.order_by(AlertActivation.activation_time.desc())
+        query = self._paginate_query(query, page, page_size)
         return [
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()

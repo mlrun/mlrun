@@ -407,14 +407,14 @@ def auto_mount(
         return mount_pvc(
             volume_name=volume_name or "shared-persistency",
         )
-    # In the case of MLRun-kit when working remotely, no env variables will be defined but auto-mount
+    # In the case of CE when working remotely, no env variables will be defined but auto-mount
     # parameters may still be declared - use them in that case.
     if config.storage.auto_mount_type == "pvc":
         return mount_pvc(**config.get_storage_auto_mount_params())
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
 
-    raise ValueError("failed to auto mount, need to set env vars")
+    raise ValueError("Failed to auto mount, need to set env vars")
 
 
 def mount_secret(

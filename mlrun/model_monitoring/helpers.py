@@ -134,9 +134,7 @@ def _get_monitoring_drift_measures_file_path(project: str, endpoint_id: str) -> 
     )
 
 
-def get_monitoring_current_stats_data(
-    project: str, endpoint_id: str
-) -> "DataItem":
+def get_monitoring_current_stats_data(project: str, endpoint_id: str) -> "DataItem":
     """
     getter for data item of current stats for project and endpoint
     :param project: project name str
@@ -150,9 +148,7 @@ def get_monitoring_current_stats_data(
     )
 
 
-def get_monitoring_drift_measures_data(
-    project: str, endpoint_id: str
-) -> "DataItem":
+def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataItem":
     """
     getter for data item of drift measures for project and endpoint
     :param project: project name str
@@ -437,9 +433,7 @@ def _get_monitoring_schedules_file_path(*, project: str, endpoint_id: str) -> st
     )
 
 
-def get_monitoring_schedules_data(
-    *, project: str, endpoint_id: str
-) -> "DataItem":
+def get_monitoring_schedules_data(*, project: str, endpoint_id: str) -> "DataItem":
     """
     Get the model monitoring schedules' data item of the project's model endpoint.
     """

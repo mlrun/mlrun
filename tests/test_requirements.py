@@ -126,6 +126,7 @@ def test_requirement_specifiers_convention():
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
         "databricks-sdk": {"~=0.13.0"},
+        "docstring_parser": {"~=0.16"},
         "distributed": {"~=2023.12.1"},
         "dask": {"~=2023.12.1"},
         "gitpython": {"~=3.1, >=3.1.41"},

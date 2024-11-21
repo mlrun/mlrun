@@ -4193,9 +4193,8 @@ class MlrunProject(ModelObj):
             page_token=page_token,
             **kwargs,
         )
-        if functions:
-            # convert dict to function objects
-            return [mlrun.new_function(runtime=func) for func in functions], token
+        # convert dict to function objects
+        return [mlrun.new_function(runtime=func) for func in functions], token
 
     def list_model_monitoring_functions(
         self,

@@ -4224,12 +4224,22 @@ class HTTPRunDB(RunDBInterface):
             "operations/migrations",
             "Failed triggering migrations",
         )
-        if response.status_code == http.HTTPStatus.ACCEPTED:
-            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
-                background_task.metadata.name
-            )
-        return None
+        return self._wait_for_background_task_from_response(response)
+
+    def refresh_smtp_configuration(
+        self,
+    ) -> Optional[mlrun.common.schemas.BackgroundTask]:
+        """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
+        triggered
+
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        response = self.api_call(
+            "POST",
+            "operations/refresh-smtp-configuration",
+            "Failed refreshing smtp configuration",
+        )
+        return self._wait_for_background_task_from_response(response)
 
     def set_run_notifications(
         self,
@@ -5064,6 +5074,14 @@ class HTTPRunDB(RunDBInterface):
             responses, "activations"
         )
         return paginated_responses, token
+
+    def _wait_for_background_task_from_response(self, response):
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name
+            )
+        return None
 
 
 def _as_json(obj):

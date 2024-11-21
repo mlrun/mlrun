@@ -81,6 +81,7 @@ class Client(
         :param path: URL path to match against service patterns
         :return: ServiceInstance matching the request or None if no match
         """
+        method = method.lower()
         if service_name := self._find_service(method, path):
             return self.get_service(service_name)
         return None

@@ -328,7 +328,7 @@ class Client(
                 method, url, verify_ssl=False, **kwargs
             )
             if not response.ok:
-                await self._on_request_api_failure(
+                await self._on_request_failure(
                     method, path, response, raise_on_failure, **kwargs
                 )
             else:

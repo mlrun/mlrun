@@ -30,7 +30,7 @@ from mlrun.utils import logger
 
 import framework.utils.clients.discovery
 
-PREFIX_GROUPING = re.compile(r"([a-z]+)/((?:v\d+)?)")
+PREFIX_GROUPING = re.compile(r"^([a-z/-]+)/((?:v\d+)?).*")
 
 
 class BaseClient(
@@ -72,7 +72,7 @@ class BaseClient(
             media_type="application/json",
         )
 
-    async def _on_request_api_failure(
+    async def _on_request_failure(
         self, service_name, method, path, response, raise_on_failure, **kwargs
     ):
         log_kwargs = copy.deepcopy(kwargs)
@@ -170,18 +170,18 @@ class Client(BaseClient):
         method = request.method
         path = str(request.url.path)
         match = PREFIX_GROUPING.match(path)
-        prefix = match.group(1)
-        version = match.group(2) or "v1"
-        path = path.lstrip(f"/{prefix}/")
-        if version:
-            path = path.lstrip(f"{version}/")
+        prefix, version = match.group(1), match.group(2) or "v1"
 
+        # Remove the service and version prefix from the path
+        # The service prefix is to be replaced with the new service name
+        # The version will be re-added or default to v1 if not present
+        path = path.removeprefix(f"{prefix}/").removeprefix(f"{version}/")
         service_instance = self._discovery.resolve_service_by_request(method, path)
         if not service_instance:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Failed to forward request, service for path {path} not found"
             )
-        url = f"{service_instance.url}/{prefix}/{version}/{path}"
+        url = f"{service_instance.url}/{service_instance.name}/{version}/{path}"
         return await self._forward_request(service_instance.name, method, url, request)
 
     async def _forward_request(
@@ -191,7 +191,6 @@ class Client(BaseClient):
         url: str,
         request: fastapi.Request = None,
         json: typing.Optional[dict] = None,
-        version: typing.Optional[str] = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
@@ -203,7 +202,6 @@ class Client(BaseClient):
             service_name=service_name,
             method=method,
             url=url,
-            version=version,
             raise_on_failure=raise_on_failure,
             **request_kwargs,
         ) as service_response:
@@ -217,13 +215,10 @@ class Client(BaseClient):
         service_name: str,
         method: str,
         url: str,
-        version: typing.Optional[str] = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:
-        # version = version or mlrun.mlconf.api_base_version
         await self._ensure_session()
-
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
@@ -241,7 +236,7 @@ class Client(BaseClient):
                 method, url, verify_ssl=False, **kwargs
             )
             if not response.ok:
-                await self._on_request_api_failure(
+                await self._on_request_failure(
                     service_name, method, url, response, raise_on_failure, **kwargs
                 )
             else:

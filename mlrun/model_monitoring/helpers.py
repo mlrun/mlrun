@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 if typing.TYPE_CHECKING:
+    from mlrun.datastore import DataItem
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
 
@@ -28,7 +29,6 @@ import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
-import mlrun.datastore
 import mlrun.model_monitoring
 import mlrun.utils.helpers
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -136,7 +136,7 @@ def _get_monitoring_drift_measures_file_path(project: str, endpoint_id: str) -> 
 
 def get_monitoring_current_stats_data(
     project: str, endpoint_id: str
-) -> mlrun.datastore.DataItem:
+) -> "DataItem":
     """
     getter for data item of current stats for project and endpoint
     :param project: project name str
@@ -152,7 +152,7 @@ def get_monitoring_current_stats_data(
 
 def get_monitoring_drift_measures_data(
     project: str, endpoint_id: str
-) -> mlrun.datastore.DataItem:
+) -> "DataItem":
     """
     getter for data item of drift measures for project and endpoint
     :param project: project name str

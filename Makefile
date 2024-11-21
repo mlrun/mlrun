@@ -737,8 +737,8 @@ endif
 
 	# Run tests for the head code (feature branch)
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
-	pip install ./mlrun-pipelines-kfp-common && \
-	pip install ./mlrun-pipelines-kfp-v1-8 && \
+	pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+	pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json
 
 	# Run OpenAPI diff to check compatibility

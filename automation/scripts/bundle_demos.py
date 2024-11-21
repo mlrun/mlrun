@@ -15,7 +15,9 @@
 import os
 import shutil
 import tarfile
+import traceback
 
+import requests
 from git import Repo
 
 # List of repositories to archive
@@ -28,6 +30,19 @@ repos = [
     },
     # Add more repositories as needed
 ]
+demos_files = {
+    "heart": [  # azure-ml
+        "https://s3.us-east-1.wasabisys.com/iguazio/data/heart/heart.csv"
+    ],
+    "fraud-demo-mlrun-fs-docs": [  # fraud
+        "https://s3.us-east-1.wasabisys.com/iguazio/data/fraud-demo-mlrun-fs-docs/user_events.csv",
+        "https://s3.us-east-1.wasabisys.com/iguazio/data/fraud-demo-mlrun-fs-docs/events.csv",
+        "https://s3.us-east-1.wasabisys.com/iguazio/data/fraud-demo-mlrun-fs-docs/data.csv",
+    ],
+    "prajnasb-generated-mask-detection": [  # mask detection
+        "https://s3.us-east-1.wasabisys.com/iguazio/data/prajnasb-generated-mask-detection/prajnasb_generated_mask_detection.zip"
+    ],
+}
 
 # Directory where repositories will be cloned and extracted
 temp_dir = "demos"
@@ -50,6 +65,21 @@ for repo_info in repos:
 
 # Copying update_demos.sh from mlrun
 shutil.copy2("automation/scripts/update_demos.sh", "demos/update_demos.sh")
+
+for demo, files in demos_files.items():
+    print(f"Downloading {len(files)} files for demo {demo}...")
+    for url in files:
+        file_name = os.path.join(temp_dir, "data", demo, url.split("/")[-1])
+        os.makedirs(os.path.join(temp_dir, "data", demo), exist_ok=True)
+        print(f"Downloading {url}...")
+        # Download the file and save it
+        try:
+            response = requests.get(url)
+            with open(file_name, "wb") as f:
+                f.write(response.content)
+        except Exception:
+            print(f"could not download {url}")
+            traceback.print_exc()
 
 # Create a tar archive of the temporary directory
 with tarfile.open("mlrun-demos.tar", "w") as tar:

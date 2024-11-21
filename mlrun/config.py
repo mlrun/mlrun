@@ -808,7 +808,23 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
     },
-    "notifications": {"smtp": {"config_secret_name": "mlrun-smtp-config"}},
+    "services": {
+        # The running service name. One of: "api", "alerts"
+        "service_name": "api",
+        "hydra": {
+            # Comma separated list of services to run on the instance.
+            # Currently, this is only considered when the service_name is "api".
+            # "*" starts all services on the same instance,
+            # other options are considered as running only the api service.
+            "services": "*",
+        },
+    },
+    "notifications": {
+        "smtp": {
+            "config_secret_name": "mlrun-smtp-config",
+            "refresh_interval": "30",
+        }
+    },
 }
 _is_running_as_api = None
 

@@ -36,18 +36,16 @@ from framework.utils.singletons.db import initialize_db
 
 
 class Service(ABC):
-    service_name = None
-
     def __init__(self):
-        # TODO: make the prefixes and service name configurable
-        self.SERVICE_PREFIX = f"/{self.service_name}"
-        self.BASE_VERSIONED_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v1"
-        self.V2_SERVICE_PREFIX = f"{self.SERVICE_PREFIX}/v2"
+        self.service_name = mlconf.services.service_name
+        self.service_prefix = f"/{self.service_name}"
+        self.base_versioned_service_prefix = f"{self.service_prefix}/v1"
+        self.v2_service_prefix = f"{self.service_prefix}/v2"
         self.app: fastapi.FastAPI = None
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
 
-    def initialize(self, mounts: typing.Optional[dict] = None):
+    def initialize(self, mounts: typing.Optional[list] = None):
         self._logger.info("Initializing service")
         self._initialize_app()
         self._register_routes()
@@ -55,14 +53,14 @@ class Service(ABC):
         self._add_middlewares()
         self._add_exception_handlers()
 
-    def _mount_services(self, mounts: typing.Optional[dict] = None):
+    def _mount_services(self, mounts: typing.Optional[list] = None):
         if not mounts:
             return
 
-        for path, service in mounts.items():
+        self._mounted_services = mounts
+        for service in self._mounted_services:
             service.initialize()
-            self.app.mount(path, service.app)
-            self._mounted_services.append(service)
+            self.app.mount("/", service.app)
 
     @abstractmethod
     async def move_service_to_online(self):
@@ -87,9 +85,9 @@ class Service(ABC):
             description="Machine Learning automation and tracking",  # TODO: configure
             version=mlconf.version,
             debug=mlconf.httpdb.debug,
-            openapi_url=f"{self.SERVICE_PREFIX}/openapi.json",
-            docs_url=f"{self.SERVICE_PREFIX}/docs",
-            redoc_url=f"{self.SERVICE_PREFIX}/redoc",
+            openapi_url=f"{self.service_prefix}/openapi.json",
+            docs_url=f"{self.service_prefix}/docs",
+            redoc_url=f"{self.service_prefix}/redoc",
             default_response_class=fastapi.responses.ORJSONResponse,
             lifespan=self.lifespan,
         )
@@ -251,8 +249,8 @@ class Daemon(ABC):
         container.wire()
 
     @property
-    def mounts(self) -> dict[str, Service]:
-        return {}
+    def mounts(self) -> list[Service]:
+        return []
 
     @property
     def app(self) -> fastapi.FastAPI:

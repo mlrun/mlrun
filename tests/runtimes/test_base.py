@@ -254,7 +254,7 @@ class TestAutoMount:
         # This won't work if mount type is not pvc
         mlconf.storage.auto_mount_type = "auto"
         with pytest.raises(
-            ValueError, match="failed to auto mount, need to set env vars"
+            ValueError, match="Failed to auto mount, need to set env vars"
         ):
             runtime.apply(mlrun.runtimes.mounts.auto_mount())
 

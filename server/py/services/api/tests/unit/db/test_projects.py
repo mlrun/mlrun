@@ -197,6 +197,36 @@ class TestProjects(TestDatabaseBase):
 
         assert projects_output.projects == []
 
+    def test_list_project_name_and_created_only(self):
+        project_names = [
+            "project-1",
+            "project-2",
+        ]
+        for project in project_names:
+            self._db.create_project(
+                self._db_session,
+                mlrun.common.schemas.Project(
+                    metadata=mlrun.common.schemas.ProjectMetadata(name=project),
+                ),
+            )
+        projects_output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
+        )
+        projects_output_names = [project[0] for project in projects_output.projects]
+
+        assert projects_output_names == project_names
+
+        # Assert creation times
+        for project in projects_output.projects:
+            project_name, creation_time = project
+
+            # Ensure creation_time is a datetime object
+            assert isinstance(creation_time, datetime.datetime)
+
+            # Ensure creation_time is today's date
+            assert creation_time.date() == datetime.datetime.today().date()
+
     def test_create_project(self):
         project = self._generate_project()
         project_summary = self._generate_project_summary()

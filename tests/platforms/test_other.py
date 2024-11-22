@@ -16,7 +16,7 @@ import deepdiff
 
 import mlrun
 import mlrun.errors
-import mlrun_pipelines.mounts
+import mlrun.runtimes.mounts
 
 
 def test_mount_configmap():
@@ -27,7 +27,7 @@ def test_mount_configmap():
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
     function.apply(
-        mlrun_pipelines.mounts.mount_configmap(
+        mlrun.runtimes.mounts.mount_configmap(
             configmap_name="my-config-map",
             mount_path="/myConfMapPath",
             volume_name="my-volume",
@@ -60,7 +60,7 @@ def test_mount_hostpath():
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
     function.apply(
-        mlrun_pipelines.mounts.mount_hostpath(
+        mlrun.runtimes.mounts.mount_hostpath(
             host_path="/tmp", mount_path="/myHostPath", volume_name="my-volume"
         )
     )
@@ -88,7 +88,7 @@ def test_mount_s3():
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
     function.apply(
-        mlrun_pipelines.mounts.mount_s3(
+        mlrun.runtimes.mounts.mount_s3(
             aws_access_key="xx", aws_secret_key="yy", endpoint_url="a.b"
         )
     )
@@ -102,7 +102,7 @@ def test_mount_s3():
     function = mlrun.new_function(
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
-    function.apply(mlrun_pipelines.mounts.mount_s3(secret_name="s", endpoint_url="a.b"))
+    function.apply(mlrun.runtimes.mounts.mount_s3(secret_name="s", endpoint_url="a.b"))
     env_dict = {
         var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
     }
@@ -130,7 +130,7 @@ def test_set_env_variables():
     assert function.spec.env == []
 
     # Using a dictionary
-    function.apply(mlrun_pipelines.mounts.set_env_variables(env_variables))
+    function.apply(mlrun.runtimes.mounts.set_env_variables(env_variables))
     env_dict = {var["name"]: var.get("value") for var in function.spec.env}
 
     assert env_dict == env_variables
@@ -141,7 +141,7 @@ def test_set_env_variables():
     assert function.spec.env == []
 
     # And using key=value parameters
-    function.apply(mlrun_pipelines.mounts.set_env_variables(**env_variables))
+    function.apply(mlrun.runtimes.mounts.set_env_variables(**env_variables))
     env_dict = {var["name"]: var.get("value") for var in function.spec.env}
 
     assert env_dict == env_variables

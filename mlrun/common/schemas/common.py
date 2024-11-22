@@ -14,12 +14,12 @@
 
 import typing
 
-import pydantic
+import pydantic.v1
 
 import mlrun.errors
 
 
-class ImageBuilder(pydantic.BaseModel):
+class ImageBuilder(pydantic.v1.BaseModel):
     functionSourceCode: typing.Optional[str] = None  # noqa: N815
     codeEntryType: typing.Optional[str] = None  # noqa: N815
     codeEntryAttributes: typing.Optional[str] = None  # noqa: N815
@@ -42,10 +42,10 @@ class ImageBuilder(pydantic.BaseModel):
     source_code_target_dir: typing.Optional[str] = None
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
-class LabelsModel(pydantic.BaseModel):
+class LabelsModel(pydantic.v1.BaseModel):
     """
     This class accepts either a dictionary, a list, or a string for filtering by labels.
 
@@ -65,7 +65,7 @@ class LabelsModel(pydantic.BaseModel):
         typing.Union[str, dict[str, typing.Optional[str]], list[str]]
     ]
 
-    @pydantic.validator("labels")
+    @pydantic.v1.validator("labels")
     @classmethod
     def validate(cls, labels) -> list[str]:
         if labels is None:

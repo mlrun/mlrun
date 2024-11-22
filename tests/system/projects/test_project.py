@@ -623,12 +623,6 @@ class TestProject(TestMLRunSystem):
             **project_default_function_node_selector,
             **runner_node_selector,
         }
-        # The workflow execution includes a load_project, which clears the node_selector from the project.
-        # As a result, we need to reapply the node_selector
-        project.spec.default_function_node_selector = (
-            project_default_function_node_selector
-        )
-        project.save()
 
         # Test scheduled workflow
         schedule = "0 0 30 2 *"
@@ -693,6 +687,35 @@ class TestProject(TestMLRunSystem):
             db.get_pipeline(
                 "25811259-6d21-4caf-86e8-badc0ffee000", project=project_name
             )
+
+    def test_workflow_run_preserves_project_fields(self):
+        project_name = "rmtpipe-kfp-github"
+        self.custom_project_names_to_delete.append(project_name)
+
+        workflow_name = "newflow"
+        project_default_function_node_selector = {"kubernetes.io/os": "linux"}
+
+        project = self._load_remote_pipeline_project(name=project_name)
+        project.default_function_node_selector = project_default_function_node_selector
+        project.save()
+
+        run = project.run(
+            workflow_name,
+            engine="remote",
+        )
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.running
+        ), "pipeline failed"
+
+        # Retrieve the project from the database or create it from the context
+        context = f"{projects_dir}/get-{project_name}"
+        project_from_db = mlrun.get_or_create_project(project_name, context)
+
+        # Assert that the project's fields remains unchanged
+        assert (
+            project_from_db.default_function_node_selector
+            == project_default_function_node_selector
+        )
 
     def test_remote_from_archive(self):
         name = "pipe6"

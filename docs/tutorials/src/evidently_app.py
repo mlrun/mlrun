@@ -9,6 +9,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
+from mlrun.feature_store.api import norm_column_name
 from mlrun.model_monitoring.applications import (
     _HAS_EVIDENTLY,
     EvidentlyModelMonitoringApplicationBase,
@@ -130,7 +131,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     ) -> None:
         if self.train_set is None:
             iris = load_iris()
-            self.columns = monitoring_context.feature_names
+            self.columns = [norm_column_name(col) for col in iris.feature_names]
             self.train_set = pd.DataFrame(iris.data, columns=self.columns)
 
     def _init_evidently_project(self) -> None:

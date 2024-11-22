@@ -234,12 +234,11 @@ async def list_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if project != "*":
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
+    allowed_project_names = (
+        await services.api.crud.Projects().list_allowed_project_names(
+            db_session, auth_info, project=project
         )
+    )
 
     paginator = services.api.utils.pagination.Paginator()
 
@@ -264,7 +263,7 @@ async def list_runs(
         page_size=page_size,
         name=name,
         uid=uid,
-        project=project,
+        project=allowed_project_names,
         labels=labels,
         states=states,
         sort=sort,
@@ -305,6 +304,8 @@ async def delete_runs(
     db_session: Session = Depends(deps.get_db_session),
 ):
     runs = []
+
+    # TODO: handle project permissions like in the list endpoints
     if not project or project != "*":
         # Currently we don't differentiate between runs permissions inside a project.
         # Meaning there is no reason at the moment to query the permission for each run under the project

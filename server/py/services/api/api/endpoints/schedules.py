@@ -160,22 +160,21 @@ async def list_schedules(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if project != "*":
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
+    allowed_project_names = (
+        await services.api.crud.Projects().list_allowed_project_names(
+            db_session, auth_info, project=project
         )
+    )
 
     schedules = await run_in_threadpool(
         get_scheduler().list_schedules,
         db_session,
-        project,
-        name,
-        kind,
-        labels or _labels,
-        include_last_run,
-        include_credentials,
+        project=allowed_project_names,
+        name=name,
+        kind=kind,
+        labels=labels or _labels,
+        include_last_run=include_last_run,
+        include_credentials=include_credentials,
     )
     filtered_schedules = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,

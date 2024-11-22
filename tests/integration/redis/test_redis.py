@@ -17,7 +17,7 @@ import uuid
 
 import pytest
 import yaml
-from pydantic.error_wrappers import ValidationError
+from pydantic.v1.error_wrappers import ValidationError
 from redis.exceptions import AuthenticationError
 
 import mlrun.datastore

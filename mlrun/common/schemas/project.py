@@ -15,7 +15,7 @@
 import datetime
 import typing
 
-import pydantic
+import pydantic.v1
 from deprecated import deprecated
 
 import mlrun.common.types
@@ -40,14 +40,14 @@ class ProjectsFormat(mlrun.common.types.StrEnum):
     leader = "leader"
 
 
-class ProjectMetadata(pydantic.BaseModel):
+class ProjectMetadata(pydantic.v1.BaseModel):
     name: str
     created: typing.Optional[datetime.datetime] = None
     labels: typing.Optional[dict] = {}
     annotations: typing.Optional[dict] = {}
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
 class ProjectDesiredState(mlrun.common.types.StrEnum):
@@ -77,7 +77,7 @@ class ProjectStatus(ObjectStatus):
     state: typing.Optional[ProjectState]
 
 
-class ProjectSpec(pydantic.BaseModel):
+class ProjectSpec(pydantic.v1.BaseModel):
     description: typing.Optional[str] = None
     owner: typing.Optional[str] = None
     goals: typing.Optional[str] = None
@@ -97,10 +97,10 @@ class ProjectSpec(pydantic.BaseModel):
     default_function_node_selector: typing.Optional[dict] = {}
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
-class ProjectSpecOut(pydantic.BaseModel):
+class ProjectSpecOut(pydantic.v1.BaseModel):
     description: typing.Optional[str] = None
     owner: typing.Optional[str] = None
     goals: typing.Optional[str] = None
@@ -120,11 +120,11 @@ class ProjectSpecOut(pydantic.BaseModel):
     default_function_node_selector: typing.Optional[dict] = {}
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
-class Project(pydantic.BaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
+class Project(pydantic.v1.BaseModel):
+    kind: ObjectKind = pydantic.v1.Field(ObjectKind.project, const=True)
     metadata: ProjectMetadata
     spec: ProjectSpec = ProjectSpec()
     status: ObjectStatus = ObjectStatus()
@@ -132,19 +132,19 @@ class Project(pydantic.BaseModel):
 
 # The reason we have a different schema for the response model is that we don't want to validate project.spec.build in
 # the response as the validation was added late and there may be corrupted values in the DB.
-class ProjectOut(pydantic.BaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
+class ProjectOut(pydantic.v1.BaseModel):
+    kind: ObjectKind = pydantic.v1.Field(ObjectKind.project, const=True)
     metadata: ProjectMetadata
     spec: ProjectSpecOut = ProjectSpecOut()
     status: ObjectStatus = ObjectStatus()
 
 
-class ProjectOwner(pydantic.BaseModel):
+class ProjectOwner(pydantic.v1.BaseModel):
     username: str
     access_key: str
 
 
-class ProjectSummary(pydantic.BaseModel):
+class ProjectSummary(pydantic.v1.BaseModel):
     name: str
     files_count: int = 0
     feature_sets_count: int = 0
@@ -161,7 +161,7 @@ class ProjectSummary(pydantic.BaseModel):
     updated: typing.Optional[datetime.datetime] = None
 
 
-class IguazioProject(pydantic.BaseModel):
+class IguazioProject(pydantic.v1.BaseModel):
     data: dict
 
 
@@ -175,13 +175,18 @@ class IguazioProject(pydantic.BaseModel):
 # to add a specific classes for them. it's frustrating but couldn't find other workaround, see:
 # https://github.com/samuelcolvin/pydantic/issues/1423, https://github.com/samuelcolvin/pydantic/issues/619
 ProjectOutput = typing.TypeVar(
-    "ProjectOutput", ProjectOut, str, ProjectSummary, IguazioProject
+    "ProjectOutput",
+    ProjectOut,
+    str,
+    ProjectSummary,
+    IguazioProject,
+    tuple[str, datetime.datetime],
 )
 
 
-class ProjectsOutput(pydantic.BaseModel):
+class ProjectsOutput(pydantic.v1.BaseModel):
     projects: list[ProjectOutput]
 
 
-class ProjectSummariesOutput(pydantic.BaseModel):
+class ProjectSummariesOutput(pydantic.v1.BaseModel):
     project_summaries: list[ProjectSummary]

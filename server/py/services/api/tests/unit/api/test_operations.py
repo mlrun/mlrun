@@ -17,6 +17,7 @@ import unittest.mock
 from datetime import datetime
 
 import fastapi.testclient
+import igz_mgmt
 import pytest
 import sqlalchemy.orm
 
@@ -27,9 +28,12 @@ import mlrun.runtimes
 from mlrun.utils import logger
 
 import framework.utils.background_tasks
+import framework.utils.clients.iguazio as iguazio_client
+import framework.utils.notifications.notification_pusher as notification_pusher
 import services.api.api.endpoints.operations
 import services.api.crud
 import services.api.initial_data
+import services.api.tests.unit.conftest as tests_unit_conftest
 import services.api.utils.singletons.scheduler
 
 
@@ -125,6 +129,40 @@ def test_migrations_success(
     assert response.status_code == http.HTTPStatus.OK.value
     # should be initialized
     assert services.api.utils.singletons.scheduler.get_scheduler() is not None
+
+
+@pytest.mark.asyncio
+async def test_perform_refresh_smtp(
+    monkeypatch, k8s_secrets_mock: tests_unit_conftest.APIK8sSecretsMock
+):
+    assert (
+        notification_pusher.RunNotificationPusher.mail_notification_default_params
+        is None
+    )
+    smtp_configuration = igz_mgmt.SmtpConnection()
+    smtp_configuration.server_address = "smtp.gmail.com:1234"
+    smtp_configuration.sender_address = "a@a.com"
+    smtp_configuration.auth_username = "user"
+    smtp_configuration.auth_password = "pass"
+    monkeypatch.setattr(
+        iguazio_client.Client,
+        "get_smtp_configuration",
+        lambda *args, **kwargs: smtp_configuration,
+    )
+    monkeypatch.setattr(
+        framework.utils.singletons.k8s, "get_k8s_helper", lambda: k8s_secrets_mock
+    )
+    await services.api.api.endpoints.operations._perform_refresh_smtp("")
+    mail_notification_default_params = (
+        notification_pusher.RunNotificationPusher.mail_notification_default_params
+    )
+    assert mail_notification_default_params == {
+        "server_host": smtp_configuration.host,
+        "server_port": str(smtp_configuration.port),
+        "sender_address": smtp_configuration.sender_address,
+        "username": smtp_configuration.auth_username,
+        "password": smtp_configuration.auth_password,
+    }
 
 
 def _generate_background_task_schema(

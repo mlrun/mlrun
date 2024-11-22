@@ -29,10 +29,12 @@ import mlrun.utils.singleton
 from mlrun.utils import logger, retry_until_successful
 
 import framework.db.session
+import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.nuclio
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
+import services.alerts.crud
 import services.api.crud
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio
@@ -200,7 +202,8 @@ class Projects(
             "Deleting project alert events",
             project_name=name,
         )
-        services.api.crud.Events().delete_project_alert_events(name)
+        # TODO: Forward to alerts service
+        services.alerts.crud.Events().delete_project_alert_events(name)
 
         # get model monitoring application names, important for deleting model monitoring resources
         model_monitoring_deployment = (
@@ -284,6 +287,70 @@ class Projects(
     ) -> mlrun.common.schemas.ProjectsOutput:
         return framework.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
+        )
+
+    async def list_allowed_project_names(
+        self,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
+        project: typing.Optional[str] = None,
+        **project_filters,
+    ) -> list[str]:
+        project = project or mlrun.mlconf.default_project
+        if project != "*":
+            await (
+                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                    project,
+                    mlrun.common.schemas.AuthorizationAction.read,
+                    auth_info,
+                )
+            )
+            return [project]
+
+        projects_output = self.list_projects(
+            session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            **project_filters,
+        )
+        return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            projects_output.projects,
+            auth_info,
+            action=action,
+        )
+
+    async def list_allowed_project_names_with_creation_time(
+        self,
+        session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
+        project: typing.Optional[str] = None,
+        **project_filters,
+    ) -> list[tuple[str, datetime.datetime]]:
+        project = project or mlrun.mlconf.default_project
+        if project != "*":
+            await (
+                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                    project,
+                    mlrun.common.schemas.AuthorizationAction.read,
+                    auth_info,
+                )
+            )
+            project_obj = self.get_project(
+                session,
+                name=project,
+            )
+            return [(project, project_obj.metadata.created)]
+
+        projects_output = self.list_projects(
+            session,
+            format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
+            **project_filters,
+        )
+        return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            [project[0] for project in projects_output.projects],
+            auth_info,
+            action=action,
         )
 
     async def list_project_summaries(

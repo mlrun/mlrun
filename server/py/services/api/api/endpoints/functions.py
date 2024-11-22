@@ -37,7 +37,6 @@ import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.common.helpers import parse_versioned_object_uri
-from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds
@@ -219,6 +218,7 @@ async def list_functions(
     hash_key: Optional[str] = None,
     since: Optional[str] = None,
     until: Optional[str] = None,
+    kind: Optional[str] = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -226,15 +226,11 @@ async def list_functions(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if project is None:
-        project = config.default_project
-
-    if project != "*":
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
+    allowed_project_names = (
+        await services.api.crud.Projects().list_allowed_project_names(
+            db_session, auth_info, project=project
         )
+    )
 
     paginator = services.api.utils.pagination.Paginator()
 
@@ -259,11 +255,12 @@ async def list_functions(
         token=page_token,
         page=page,
         page_size=page_size,
-        project=project,
+        project=allowed_project_names,
         name=name,
         tag=tag,
         labels=labels,
         hash_key=hash_key,
+        kind=kind,
         format_=format_,
         since=mlrun.utils.datetime_from_iso(since),
         until=mlrun.utils.datetime_from_iso(until),

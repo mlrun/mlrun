@@ -28,12 +28,12 @@ import mlrun.errors
 import mlrun.k8s_utils
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
+from mlrun.runtimes.mounts import auto_mount
 from mlrun.runtimes.utils import generate_resources
-from mlrun_pipelines.mounts import auto_mount
 
 import services.api.utils.builder
 from framework.utils.singletons.db import get_db
-from services.api.tests.unit.conftest import K8sSecretsMock
+from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 
 
@@ -418,7 +418,9 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._assert_pod_creation_config()
         self._assert_pvc_mount_configured(pvc_name, pvc_mount_path, volume_name)
 
-    def test_run_with_k8s_secrets(self, db: Session, k8s_secrets_mock: K8sSecretsMock):
+    def test_run_with_k8s_secrets(
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
+    ):
         secret_keys = ["secret1", "secret2", "secret3", "mlrun.internal_secret"]
         secrets = {key: "some-secret-value" for key in secret_keys}
 
@@ -460,7 +462,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
 
     def test_run_with_global_secrets(
-        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, k8s_secrets_mock: APIK8sSecretsMock
     ):
         project_secret_keys = ["secret1", "secret2", "secret3", "mlrun.internal_secret"]
         project_secrets = {key: "some-secret-value" for key in project_secret_keys}

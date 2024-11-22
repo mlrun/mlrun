@@ -15,51 +15,8 @@
 import tempfile
 import typing
 
-import kfp
-import kfp.compiler
-from kubernetes import client
-
 from mlrun_pipelines.helpers import new_pipe_metadata
-
-# Disable the warning about reusing components
-kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
-
-
-def apply_kfp(modify, cop, runtime):
-    modify(cop)
-
-    # Have to do it here to avoid circular dependencies
-    from mlrun.runtimes.pod import AutoMountType
-
-    if AutoMountType.is_auto_modifier(modify):
-        runtime.spec.disable_auto_mount = True
-
-    api = client.ApiClient()
-    for k, v in cop.pod_labels.items():
-        runtime.metadata.labels[k] = v
-    for k, v in cop.pod_annotations.items():
-        runtime.metadata.annotations[k] = v
-    if cop.container.env:
-        env_names = [
-            e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
-        ]
-        for e in api.sanitize_for_serialization(cop.container.env):
-            name = e["name"]
-            if name in env_names:
-                runtime.spec.env[env_names.index(name)] = e
-            else:
-                runtime.spec.env.append(e)
-                env_names.append(name)
-        cop.container.env.clear()
-
-    if cop.volumes and cop.container.volume_mounts:
-        vols = api.sanitize_for_serialization(cop.volumes)
-        mounts = api.sanitize_for_serialization(cop.container.volume_mounts)
-        runtime.spec.update_vols_and_mounts(vols, mounts)
-        cop.volumes.clear()
-        cop.container.volume_mounts.clear()
-
-    return runtime
+from mlrun_pipelines.imports import compiler, kfp  # noqa: F401
 
 
 def compile_pipeline(
@@ -77,7 +34,7 @@ def compile_pipeline(
         cleanup_ttl=cleanup_ttl,
         op_transformers=ops,
     )
-    kfp.compiler.Compiler().compile(
+    compiler.Compiler().compile(
         pipeline, pipe_file, type_check=type_check, pipeline_conf=conf
     )
     return pipe_file

@@ -17,7 +17,7 @@ import pathlib
 import pytest
 
 import mlrun
-import mlrun_pipelines.mounts
+import mlrun.runtimes.mounts
 from tests.system.base import TestMLRunSystem
 from tests.system.demos.base import TestDemo
 
@@ -35,7 +35,7 @@ class TestHorovodTFv2(TestDemo):
             self.project_name, str(self.assets_path), init_git=True
         )
 
-        mlrun_pipelines.mounts.mount_v3io()
+        mlrun.runtimes.mounts.mount_v3io()
 
         self._logger.debug("Uploading training file")
         trainer_src_path = str(self.assets_path / "horovod_training.py")

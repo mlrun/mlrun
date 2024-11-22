@@ -113,6 +113,7 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
         "storey": {"~=1.8.0"},
+        "pydantic": {">=1.10.15"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "sphinx-book-theme": {"~=1.0.1"},
@@ -126,14 +127,16 @@ def test_requirement_specifiers_convention():
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
         "databricks-sdk": {"~=0.13.0"},
+        "docstring_parser": {"~=0.16"},
         "distributed": {"~=2023.12.1"},
         "dask": {"~=2023.12.1"},
         "gitpython": {"~=3.1, >=3.1.41"},
-        "pydantic": {"~=1.10, >=1.10.8"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
+        # due to a bug in 3.11
+        "aiohttp": {"~=3.10.0"},
         "aiohttp-retry": {"~=2.8.0"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
         "apscheduler": {"~=3.6, !=3.10.2"},
@@ -262,9 +265,9 @@ def _parse_requirement_specifiers_list(
         assert (
             match is not None
         ), f"Requirement specifier did not matched regex. {requirement_specifier}"
-        requirement_specifiers_map[match.groupdict()["requirementName"].lower()].add(
-            match.groupdict()["requirementSpecifier"]
-        )
+        requirement_name = match.groupdict()["requirementName"].lower()
+        requirement_specifier = match.groupdict()["requirementSpecifier"]
+        requirement_specifiers_map[requirement_name].add(requirement_specifier)
     return requirement_specifiers_map
 
 

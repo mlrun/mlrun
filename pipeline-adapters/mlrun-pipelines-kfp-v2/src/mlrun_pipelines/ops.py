@@ -16,9 +16,6 @@
 import os
 from typing import Optional
 
-from kfp import dsl
-from kfp import kubernetes as kfp_k8s
-
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
@@ -32,6 +29,8 @@ from mlrun_pipelines.common.helpers import (
     RUN_ANNOTATION,
 )
 from mlrun_pipelines.common.ops import PipelineRunType
+from mlrun_pipelines.imports import dsl
+from mlrun_pipelines.imports import kubernetes as kfp_k8s
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):

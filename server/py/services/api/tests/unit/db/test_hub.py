@@ -12,44 +12,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from sqlalchemy.orm import Session
 
 import framework.db.sqldb.models
 import services.api.initial_data
-from framework.db.base import DBInterface
+from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
 
-def test_data_migration_rename_marketplace_kind_to_hub(
-    db: DBInterface, db_session: Session
-):
-    # create hub sources
-    for i in range(3):
-        source_name = f"source-{i}"
-        source_dict = {
-            "metadata": {
-                "name": source_name,
-            },
-            "spec": {
-                "path": "/local/path/to/source",
-            },
-            "kind": "MarketplaceSource",
-        }
-        # id and index are multiplied by 2 to avoid sqlalchemy unique constraint error
-        source = framework.db.sqldb.models.HubSource(
-            id=i * 2,
-            name=source_name,
-            index=i * 2,
+class TestHub(TestDatabaseBase):
+    def test_data_migration_rename_marketplace_kind_to_hub(
+        self,
+    ):
+        # create hub sources
+        for i in range(3):
+            source_name = f"source-{i}"
+            source_dict = {
+                "metadata": {
+                    "name": source_name,
+                },
+                "spec": {
+                    "path": "/local/path/to/source",
+                },
+                "kind": "MarketplaceSource",
+            }
+            # id and index are multiplied by 2 to avoid sqlalchemy unique constraint error
+            source = framework.db.sqldb.models.HubSource(
+                id=i * 2,
+                name=source_name,
+                index=i * 2,
+            )
+            source.full_object = source_dict
+            self._db_session.add(source)
+            self._db_session.commit()
+
+        # run migration
+        services.api.initial_data._rename_marketplace_kind_to_hub(
+            self._db, self._db_session
         )
-        source.full_object = source_dict
-        db_session.add(source)
-        db_session.commit()
 
-    # run migration
-    services.api.initial_data._rename_marketplace_kind_to_hub(db, db_session)
-
-    # check that all hub sources are now of kind 'HubSource'
-    hubs = db._list_hub_sources_without_transform(db_session)
-    for hub in hubs:
-        hub_dict = hub.full_object
-        assert "kind" in hub_dict
-        assert hub_dict["kind"] == "HubSource"
+        # check that all hub sources are now of kind 'HubSource'
+        hubs = self._db._list_hub_sources_without_transform(self._db_session)
+        for hub in hubs:
+            hub_dict = hub.full_object
+            assert "kind" in hub_dict
+            assert hub_dict["kind"] == "HubSource"

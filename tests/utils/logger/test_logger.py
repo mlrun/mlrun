@@ -17,7 +17,7 @@ import datetime
 from collections.abc import Generator
 from io import StringIO
 
-import pydantic
+import pydantic.v1
 import pytest
 
 import mlrun
@@ -60,7 +60,7 @@ def test_log_arbitrary_structures(make_stream_logger):
     class UnboundClass:
         pass
 
-    class SomePydanticObject(pydantic.BaseModel):
+    class SomePydanticObject(pydantic.v1.BaseModel):
         name: str
         date: datetime.datetime
 

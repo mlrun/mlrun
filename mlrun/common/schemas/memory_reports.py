@@ -15,14 +15,14 @@
 
 import typing
 
-import pydantic
+import pydantic.v1
 
 
-class MostCommonObjectTypesReport(pydantic.BaseModel):
+class MostCommonObjectTypesReport(pydantic.v1.BaseModel):
     object_types: list[tuple[str, int]]
 
 
-class ObjectTypeReport(pydantic.BaseModel):
+class ObjectTypeReport(pydantic.v1.BaseModel):
     object_type: str
     sample_size: int
     start_index: typing.Optional[int]

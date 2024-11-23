@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas.partition
-import mlrun.config
+import mlrun.mlconf
 
 import framework.db.sqldb.db
 import framework.utils.singletons.db

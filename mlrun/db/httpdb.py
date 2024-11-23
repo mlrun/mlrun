@@ -5063,7 +5063,11 @@ class HTTPRunDB(RunDBInterface):
         paginated_responses, token = self.process_paginated_responses(
             responses, "activations"
         )
-        return paginated_responses, token
+        paginated_results = [
+            mlrun.common.schemas.AlertActivation(**item) for item in paginated_responses
+        ]
+
+        return paginated_results, token
 
 
 def _as_json(obj):

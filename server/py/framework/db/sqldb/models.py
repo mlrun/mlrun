@@ -861,7 +861,7 @@ with warnings.catch_warnings():
             ),
         )
 
-        id = Column(Integer)
+        id = Column(Integer, autoincrement=True)
         activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(

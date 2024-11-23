@@ -4691,6 +4691,16 @@ class SQLDB(DBInterface):
             session.add(object_)
         self._commit(session, objects, ignore, silent)
 
+    def _upsert_object_and_flush_to_get_field(self, session, object_, field):
+        session.add(object_)  # Add the object to the session
+        session.flush()  # Flush the session to generate the database values
+
+        # Dynamically retrieve the specified field's value
+        field_value = getattr(object_, field, None)
+
+        self._commit(session, [object_])
+        return field_value
+
     @staticmethod
     def _commit(session, objects, ignore=False, silent=False):
         def _try_commit_obj():
@@ -5899,7 +5909,7 @@ class SQLDB(DBInterface):
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
         notifications_states: list[mlrun.common.schemas.NotificationState],
-    ):
+    ) -> Optional[str]:
         extra_data = {
             "notifications": [
                 notification.dict() for notification in notifications_states
@@ -5927,7 +5937,30 @@ class SQLDB(DBInterface):
             data=extra_data,
         )
 
-        self._upsert(session, [alert_activation_record])
+        # if reset_policy is MANUAL, we need to keep id to be able to update number_of_events
+        # when policy is reset
+        if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
+            return self._upsert_object_and_flush_to_get_field(
+                session, alert_activation_record, "id"
+            )
+        else:
+            return self._upsert(session, [alert_activation_record])
+
+    def update_alert_activation(
+        self,
+        session,
+        activation_id: int,
+        activation_time: datetime,
+        number_of_events: int,
+    ):
+        query = self._query(
+            session, AlertActivation, id=activation_id, activation_time=activation_time
+        )
+        activation = query.one_or_none()
+        if not activation:
+            raise ValueError(f"Activation with id {activation_id} not found")
+        activation.number_of_events = number_of_events
+        self._upsert(session, [activation])
 
     def list_alert_activations(
         self,

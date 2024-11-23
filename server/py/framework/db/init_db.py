@@ -15,8 +15,17 @@
 
 from mlrun.common.db.sql_session import get_engine
 
-from framework.db.sqldb.models import Base
+from framework.db.sqldb.models import AlertActivation, Base
 
 
 def init_db() -> None:
-    Base.metadata.create_all(bind=get_engine())
+    engine = get_engine()
+    if engine.name == "sqlite":
+        tables_to_create = [
+            table
+            for table in Base.metadata.tables.values()
+            if table.name != AlertActivation.__tablename__
+        ]
+        Base.metadata.create_all(bind=engine, tables=tables_to_create)
+    else:
+        Base.metadata.create_all(bind=engine)

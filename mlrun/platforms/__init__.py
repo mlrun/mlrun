@@ -17,11 +17,26 @@ from pprint import pprint
 from time import sleep
 from typing import Optional
 
+import mlrun.runtimes.mounts as mlrun_mounts
+
 from .iguazio import (
     V3ioStreamClient,
     add_or_refresh_credentials,
     is_iguazio_session_cookie,
 )
+
+# For backwards compatibility
+VolumeMount = mlrun_mounts.VolumeMount
+auto_mount = mlrun_mounts.auto_mount
+mount_configmap = mlrun_mounts.mount_configmap
+mount_hostpath = mlrun_mounts.mount_hostpath
+mount_pvc = mlrun_mounts.mount_pvc
+mount_s3 = mlrun_mounts.mount_s3
+mount_secret = mlrun_mounts.mount_secret
+mount_v3io = mlrun_mounts.mount_v3io
+set_env_variables = mlrun_mounts.set_env_variables
+v3io_cred = mlrun_mounts.v3io_cred
+# eof 'For backwards compatibility'
 
 
 def watch_stream(

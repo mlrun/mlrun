@@ -186,6 +186,12 @@ Kubernetes has a few methods for configuring which nodes to run on. To get a dee
 Also, you must understand the configuration of the spot nodes as specified by the cloud provider.
 
 Preemption mode uses [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration) to enforce the selected mode. 
+The specific taints and tolerations in use differ between the different cloud providers (and in an on-prem deployment may be non-standard). 
+MLRun aims to hide this complexity from the user by creating a standard interface that lets users specify the preemption mode type, and translates 
+it to the underlying Kubernetes constructs per the deployment type.<br>
+You still have the option of manually setting these low-level configurations, given that you know the specific configurations that are needed.
+
+
 
 ### Choosing the node type
 

@@ -27,12 +27,12 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun import mlconf
+from mlrun.runtimes.mounts import auto_mount
 from mlrun.runtimes.utils import generate_resources
-from mlrun_pipelines.mounts import auto_mount
 
 import services.api.api.endpoints.functions
 import services.api.runtime_handlers.daskjob
-from services.api.tests.unit.conftest import K8sSecretsMock
+from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 
 
@@ -532,7 +532,7 @@ class TestDaskRuntime(TestRuntimeBase):
         assert function.generate_runtime_k8s_env.call_count == 2
 
     def test_deploy_dask_function_with_enriched_security_context(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient, k8s_secrets_mock: APIK8sSecretsMock
     ):
         runtime = self._generate_runtime()
         user_unix_id = 1000

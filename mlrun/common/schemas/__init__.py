@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .alert import (
+    AlertActivation,
     AlertActiveState,
     AlertConfig,
     AlertNotification,
@@ -161,11 +162,13 @@ from .notification import (
     Notification,
     NotificationKind,
     NotificationSeverity,
+    NotificationState,
     NotificationStatus,
     SetNotificationRequest,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pagination import PaginationInfo
+from .partition import PartitionInterval
 from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,

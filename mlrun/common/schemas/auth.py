@@ -14,7 +14,7 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
@@ -59,6 +59,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     hub_source = "hub-source"
     workflow = "workflow"
     alert = "alert"
+    alert_activations = "alert-activations"
     alert_templates = "alert-templates"
     event = "event"
     datastore_profile = "datastore-profile"
@@ -90,6 +91,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.run: "/projects/{project_name}/runs/{resource_name}",
             AuthorizationResourceTypes.event: "/projects/{project_name}/events/{resource_name}",
             AuthorizationResourceTypes.alert: "/projects/{project_name}/alerts/{resource_name}",
+            AuthorizationResourceTypes.alert_activations: "/projects/{project_name}/alerts/{resource_name}/activations",
             AuthorizationResourceTypes.alert_templates: "/alert-templates/{resource_name}",
             # runtime resource doesn't have an identifier, we don't need any auth granularity behind project level
             AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
@@ -106,12 +108,12 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 
-class AuthorizationVerificationInput(pydantic.BaseModel):
+class AuthorizationVerificationInput(pydantic.v1.BaseModel):
     resource: str
     action: AuthorizationAction
 
 
-class AuthInfo(pydantic.BaseModel):
+class AuthInfo(pydantic.v1.BaseModel):
     # Basic + Iguazio auth
     username: typing.Optional[str] = None
     # Basic auth
@@ -145,5 +147,5 @@ class AuthInfo(pydantic.BaseModel):
         return self.data_session or self.session
 
 
-class Credentials(pydantic.BaseModel):
+class Credentials(pydantic.v1.BaseModel):
     access_key: typing.Optional[str]

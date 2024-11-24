@@ -75,7 +75,7 @@ notification = mlrun.model.Notification(
 ).to_dict()
 
 endpoints = mlrun.get_run_db().list_model_endpoints(project=project_name)
-
+# or project.list_model_endpoints()
 endpoint_id = endpoints[0].metadata.uid
 
 # Generate a unique ID for the EventEntity
@@ -157,7 +157,8 @@ The `ResetPolicy` options are:
 - manual &mdash; for manual reset of the alert
 - auto &mdash; if the criteria contains a time period such that the alert is reset once there are no more invocations in the relevant time window.
 
-
+**Note:** If an alert is in an active state and its reset policy is changed from manual to auto, the alert is immediately reset. 
+This ensures that the behavior aligns with the new reset policy and avoids leaving the alert in an inconsistent state.
 
 ## Alert templates
 Alert templates simplify the creation of alerts by providing a predefined set of configurations. The system comes with several 

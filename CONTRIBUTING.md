@@ -400,14 +400,5 @@ This is essential because otherwise, auto-increment functionality will not work.
 
 3. Influence on MLRun unit tests
 In MLRun, unit tests are run on an SQLite database, not MySQL. SQLite does not support auto-increment on composite primary keys. 
-To support both MySQL deployments and unit tests, make sure that this table isn't created for SQLite tests:
-```
-    if engine.name == "sqlite":
-        tables_to_create = [
-            table
-            for table in Base.metadata.tables.values()
-            if table.name != AlertActivation.__tablename__
-        ]
-        Base.metadata.create_all(bind=engine, tables=tables_to_create)
-```
+To support both MySQL deployments and unit tests, make sure that this table isn't created for SQLite tests by adding it to the `get_partitioned_table_names()`.
 

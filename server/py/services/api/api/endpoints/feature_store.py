@@ -28,7 +28,7 @@ from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
 from mlrun.model import DataSource, DataTargetBase
-from mlrun_pipelines.mounts import v3io_cred
+from mlrun.runtimes.mounts import v3io_cred
 
 import framework.utils.auth.verifier
 import framework.utils.singletons.project_member

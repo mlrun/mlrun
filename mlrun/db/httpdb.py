@@ -5038,7 +5038,11 @@ class HTTPRunDB(RunDBInterface):
         until: Optional[datetime] = None,
         entity: Optional[str] = None,
         severity: Optional[
-            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+            Union[
+                mlrun.common.schemas.alert.AlertSeverity,
+                str,
+                list[Union[mlrun.common.schemas.alert.AlertSeverity, str]],
+            ]
         ] = None,
         entity_kind: Optional[
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
@@ -5055,7 +5059,7 @@ class HTTPRunDB(RunDBInterface):
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
             "entity": entity,
-            "severity": severity,
+            "severity": mlrun.utils.helpers.as_list(severity) if severity else None,
             "entity-kind": entity_kind,
             "event-kind": event_kind,
             "page": page,

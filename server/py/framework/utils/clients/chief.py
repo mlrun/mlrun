@@ -21,7 +21,6 @@ import fastapi
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.utils import logger
 
 import framework.utils.clients.messaging
 
@@ -314,31 +313,14 @@ class Client(
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:
+        service_name = "api-chief"
         version = version or mlrun.mlconf.api_base_version
-        await self._ensure_session()
         url = f"{self._api_url}/api/{version}/{path}"
-        if kwargs.get("timeout") is None:
-            kwargs["timeout"] = (
-                mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
-            )
-        logger.debug("Sending request to chief", method=method, url=url, **kwargs)
-        response = None
-        try:
-            response = await self._session.request(
-                method, url, verify_ssl=False, **kwargs
-            )
-            if not response.ok:
-                await self._on_request_failure(
-                    method, path, response, raise_on_failure, **kwargs
-                )
-            else:
-                logger.debug(
-                    "Request to chief succeeded",
-                    method=method,
-                    url=url,
-                    **kwargs,
-                )
+        async with self._send_request(
+            service_name=service_name,
+            method=method,
+            url=url,
+            raise_on_failure=raise_on_failure,
+            **kwargs,
+        ) as response:
             yield response
-        finally:
-            if response:
-                response.release()

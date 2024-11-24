@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import typing
-import unittest
+import unittest.mock
 from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 import deepdiff
+import fastapi
 import httpx
 import pytest
 import sqlalchemy.orm
@@ -151,6 +152,18 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 class TestServiceBase:
+    @pytest.fixture()
+    def app(self) -> fastapi.FastAPI:
+        raise NotImplementedError(
+            "This fixture is ment to be implemented by the inheriting class"
+        )
+
+    @pytest.fixture()
+    def prefix(self):
+        raise NotImplementedError(
+            "This fixture is ment to be implemented by the inheriting class"
+        )
+
     @pytest.fixture(autouse=True)
     def service_config_test(self):
         framework.utils.singletons.db.db = None

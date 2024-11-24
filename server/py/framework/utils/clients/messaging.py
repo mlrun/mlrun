@@ -41,6 +41,54 @@ class BaseClient(
         # Session is used to forward request thus retry is disabled
         self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
 
+    @contextlib.asynccontextmanager
+    async def _send_request(
+        self,
+        service_name: str,
+        method: str,
+        url: str,
+        raise_on_failure: bool = False,
+        **kwargs,
+    ) -> aiohttp.ClientResponse:
+        await self._ensure_session()
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = (
+                mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
+            )
+        logger.debug(
+            "Sending request to service",
+            service_name=service_name,
+            method=method,
+            url=url,
+            **kwargs,
+        )
+        response = None
+        try:
+            response = await self._session.request(
+                method, url, verify_ssl=False, **kwargs
+            )
+            if not response.ok:
+                await self._on_request_failure(
+                    service_name=service_name,
+                    method=method,
+                    path=url,
+                    response=response,
+                    raise_on_failure=raise_on_failure,
+                    **kwargs,
+                )
+            else:
+                logger.debug(
+                    "Request to service succeeded",
+                    service_name=service_name,
+                    method=method,
+                    url=url,
+                    **kwargs,
+                )
+            yield response
+        finally:
+            if response:
+                response.release()
+
     async def _ensure_session(self):
         if not self._session:
             self._session = mlrun.utils.AsyncClientWithRetry(
@@ -73,7 +121,13 @@ class BaseClient(
         )
 
     async def _on_request_failure(
-        self, service_name, method, path, response, raise_on_failure, **kwargs
+        self,
+        service_name: str,
+        method: str,
+        path: str,
+        response: aiohttp.ClientResponse,
+        raise_on_failure: bool,
+        **kwargs,
     ):
         log_kwargs = copy.deepcopy(kwargs)
         log_kwargs.update({"method": method, "path": path})
@@ -208,49 +262,6 @@ class Client(BaseClient):
             return await self._convert_requests_response_to_fastapi_response(
                 service_response
             )
-
-    @contextlib.asynccontextmanager
-    async def _send_request(
-        self,
-        service_name: str,
-        method: str,
-        url: str,
-        raise_on_failure: bool = False,
-        **kwargs,
-    ) -> aiohttp.ClientResponse:
-        await self._ensure_session()
-        if kwargs.get("timeout") is None:
-            kwargs["timeout"] = (
-                mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
-            )
-        logger.debug(
-            "Sending request to service",
-            service_name=service_name,
-            method=method,
-            url=url,
-            **kwargs,
-        )
-        response = None
-        try:
-            response = await self._session.request(
-                method, url, verify_ssl=False, **kwargs
-            )
-            if not response.ok:
-                await self._on_request_failure(
-                    service_name, method, url, response, raise_on_failure, **kwargs
-                )
-            else:
-                logger.debug(
-                    "Request to service succeeded",
-                    service_name=service_name,
-                    method=method,
-                    url=url,
-                    **kwargs,
-                )
-            yield response
-        finally:
-            if response:
-                response.release()
 
     async def _ensure_retry_session(self):
         if not self._retry_session:

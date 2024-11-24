@@ -155,13 +155,13 @@ class TestServiceBase:
     @pytest.fixture()
     def app(self) -> fastapi.FastAPI:
         raise NotImplementedError(
-            "This fixture is ment to be implemented by the inheriting class"
+            "Service application fixture should be implemented by the inheriting class"
         )
 
     @pytest.fixture()
     def prefix(self):
         raise NotImplementedError(
-            "This fixture is ment to be implemented by the inheriting class"
+            "Service API prefix fixture should be implemented by the inheriting class"
         )
 
     @pytest.fixture(autouse=True)

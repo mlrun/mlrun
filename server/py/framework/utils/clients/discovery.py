@@ -49,7 +49,7 @@ class Client(
     def register_service(
         self,
         service_name: str,
-    ) -> bool:
+    ):
         """Register a new service instance."""
         method_routes = self._resolve_service_method_routes(service_name)
         url = self._resolve_service_url(service_name)
@@ -59,7 +59,6 @@ class Client(
             method_routes=method_routes,
         )
         self._logger.info("Registered service", service_name=service_name, url=url)
-        return True
 
     def deregister_service(self, service_name: str):
         """Deregister a service instance."""

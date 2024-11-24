@@ -5946,7 +5946,7 @@ class SQLDB(DBInterface):
                 session, alert_activation_record, "id"
             )
         else:
-            return self._upsert(session, [alert_activation_record])
+            self._upsert(session, [alert_activation_record])
 
     def update_alert_activation_number_of_events(
         self,

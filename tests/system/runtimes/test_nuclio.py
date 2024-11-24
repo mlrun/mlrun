@@ -25,7 +25,7 @@ from storey import MapClass
 from v3io.dataplane import RaiseForStatus
 
 import mlrun
-import mlrun_pipelines.mounts
+import mlrun.runtimes.mounts
 import tests.system.base
 from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
@@ -406,7 +406,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         func.spec.max_replicas = 1
 
         run_config = fstore.RunConfig(local=False, function=func).apply(
-            mlrun_pipelines.mounts.auto_mount()
+            mlrun.runtimes.mounts.auto_mount()
         )
         stocks_set_endpoint, _ = stocks_set.deploy_ingestion_service(
             source=kafka_source,

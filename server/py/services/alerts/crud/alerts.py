@@ -181,20 +181,19 @@ class Alerts(
         if not self._event_entity_matches(alert.entities, event_data.entity):
             return
 
-        state_obj = self._states.get(alert.id, {"events": []})
+        state_obj = self._states.get(alert.id, {"event_timestamps": []})
 
         # Append the event timestamp if the alert is active or has criteria.
         # If the alert is active, it follows a manual reset policy, so we need to continue counting events.
         # If the criteria is None and the alert is inactive, we trigger the alert immediately and do not cache events.
         if state["active"] or alert.criteria is not None:
-            state_obj["events"].append(event_data.timestamp)
+            state_obj["event_timestamps"].append(event_data.timestamp)
 
         # Exit early if state is active (no further processing needed)
         if state["active"]:
             self._states[alert.id] = state_obj
             return
 
-        # Check notification criteria and send notification if needed
         send_notification = self._should_send_notification(alert, state_obj)
         update_state = True
         if send_notification:
@@ -232,12 +231,12 @@ class Alerts(
                         alert.criteria.period, offset, raise_on_error=False
                     ),
                 )
-            return len(state_obj["events"]) >= alert.criteria.count
+            return len(state_obj["event_timestamps"]) >= alert.criteria.count
         return True
 
     def _get_number_of_events(self, alert_id: int) -> int:
-        state_obj = self._states.get(alert_id, {"events": []})
-        return len(state_obj["events"])
+        state_obj = self._states.get(alert_id, {"event_timestamps": []})
+        return len(state_obj["event_timestamps"])
 
     @staticmethod
     def _get_event_offset(alert: mlrun.common.schemas.AlertConfig) -> int:
@@ -399,7 +398,7 @@ class Alerts(
     @staticmethod
     def _normalize_events(obj, period):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        events = obj["events"]
+        events = obj["event_timestamps"]
         for event in events:
             if isinstance(event, str):
                 event_time = datetime.datetime.fromisoformat(event)

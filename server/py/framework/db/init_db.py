@@ -15,17 +15,20 @@
 
 from mlrun.common.db.sql_session import get_engine
 
-from framework.db.sqldb.models import AlertActivation, Base
+import framework.db.sqldb.models
 
 
 def init_db() -> None:
     engine = get_engine()
+    partitioned_table_names = framework.db.sqldb.models.get_partitioned_table_names()
     if engine.name == "sqlite":
         tables_to_create = [
             table
-            for table in Base.metadata.tables.values()
-            if table.name != AlertActivation.__tablename__
+            for table in framework.db.sqldb.models.Base.metadata.tables.values()
+            if table.name not in partitioned_table_names
         ]
-        Base.metadata.create_all(bind=engine, tables=tables_to_create)
+        framework.db.sqldb.models.Base.metadata.create_all(
+            bind=engine, tables=tables_to_create
+        )
     else:
-        Base.metadata.create_all(bind=engine)
+        framework.db.sqldb.models.Base.metadata.create_all(bind=engine)

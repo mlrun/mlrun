@@ -967,5 +967,11 @@ with warnings.catch_warnings():
             return f"{self.project}_{self.name}_{self.created}"
 
 
+def get_partitioned_table_names():
+    return [
+        AlertActivation.__tablename__,
+    ]
+
+
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

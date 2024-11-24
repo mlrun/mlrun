@@ -82,13 +82,13 @@ class TDEngineConnector(TSDBConnector):
         """Initialize the super tables for the TSDB."""
         self.tables = {
             mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(
-                self.database
+                project=self.project, database=self.database
             ),
             mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(
-                self.database
+                project=self.project, database=self.database
             ),
             mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
-                self.database
+                project=self.project, database=self.database
             ),
         }
 
@@ -112,11 +112,9 @@ class TDEngineConnector(TSDBConnector):
         """
 
         table_name = (
-            f"{self.project}_"
             f"{event[mm_schemas.WriterEvent.ENDPOINT_ID]}_"
-            f"{event[mm_schemas.WriterEvent.APPLICATION_NAME]}_"
+            f"{event[mm_schemas.WriterEvent.APPLICATION_NAME]}"
         )
-        event[mm_schemas.EventFieldType.PROJECT] = self.project
 
         if kind == mm_schemas.WriterEventKind.RESULT:
             # Write a new result
@@ -187,7 +185,9 @@ class TDEngineConnector(TSDBConnector):
                 name=name,
                 after=after,
                 url=self._tdengine_connection_string,
-                supertable=mm_schemas.TDEngineSuperTables.PREDICTIONS,
+                supertable=self.tables[
+                    mm_schemas.TDEngineSuperTables.PREDICTIONS
+                ].super_table,
                 table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
                 time_col=mm_schemas.EventFieldType.TIME,
                 database=self.database,
@@ -220,22 +220,23 @@ class TDEngineConnector(TSDBConnector):
             "Deleting all project resources using the TDEngine connector",
             project=self.project,
         )
+        drop_statements = []
         for table in self.tables:
-            get_subtable_names_query = self.tables[table]._get_subtables_query(
-                values={mm_schemas.EventFieldType.PROJECT: self.project}
-            )
-            subtables = self.connection.run(
-                query=get_subtable_names_query,
+            drop_statements.append(self.tables[table].drop_supertable_query())
+
+        try:
+            self.connection.run(
+                statements=drop_statements,
                 timeout=self._timeout,
                 retries=self._retries,
-            ).data
-            drop_statements = []
-            for subtable in subtables:
-                drop_statements.append(
-                    self.tables[table]._drop_subtable_query(subtable=subtable[0])
-                )
-            self.connection.run(
-                statements=drop_statements, timeout=self._timeout, retries=self._retries
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to drop TDEngine tables. You may need to drop them manually. "
+                "These can be found under the following supertables: app_results, "
+                "metrics, and predictions.",
+                project=self.project,
+                error=mlrun.errors.err_to_str(e),
             )
         logger.debug(
             "Deleted all project resources using the TDEngine connector",
@@ -288,13 +289,6 @@ class TDEngineConnector(TSDBConnector):
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
         """
 
-        project_condition = f"project = '{self.project}'"
-        filter_query = (
-            f"({filter_query}) AND ({project_condition})"
-            if filter_query
-            else project_condition
-        )
-
         full_query = tdengine_schemas.TDEngineSchema._get_records_query(
             table=table,
             start=start,
@@ -346,12 +340,12 @@ class TDEngineConnector(TSDBConnector):
         timestamp_column = mm_schemas.WriterEvent.END_INFER_TIME
         columns = [timestamp_column, mm_schemas.WriterEvent.APPLICATION_NAME]
         if type == "metrics":
-            table = mm_schemas.TDEngineSuperTables.METRICS
+            table = self.tables[mm_schemas.TDEngineSuperTables.METRICS].super_table
             name = mm_schemas.MetricData.METRIC_NAME
             columns += [name, mm_schemas.MetricData.METRIC_VALUE]
             df_handler = self.df_to_metrics_values
         elif type == "results":
-            table = mm_schemas.TDEngineSuperTables.APP_RESULTS
+            table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS].super_table
             name = mm_schemas.ResultData.RESULT_NAME
             columns += [
                 name,
@@ -417,7 +411,7 @@ class TDEngineConnector(TSDBConnector):
                 "both or neither of `aggregation_window` and `agg_funcs` must be provided"
             )
         df = self._get_records(
-            table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
+            table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,
             start=start,
             end=end,
             columns=[mm_schemas.EventFieldType.LATENCY],

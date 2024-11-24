@@ -607,7 +607,7 @@ class ServingRuntime(RemoteRuntime):
         ):
             # initialize or create required streams/queues
             self.spec.graph.check_and_process_graph()
-            self.spec.graph.init_queues()
+            self.spec.graph.create_queue_streams()
             functions_in_steps = self.spec.graph.list_child_functions()
             child_functions = list(self._spec.function_refs.keys())
             for function in functions_in_steps:

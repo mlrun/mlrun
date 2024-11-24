@@ -48,11 +48,12 @@ class _DeprecationHelper:
     def _warn(self):
         warnings.warn(
             f"mlrun.platforms.{self._new_target} is deprecated since version {self._version}, "
-            f"Use mlrun.runtimes.mounts.{self._new_target} instead.",
+            f"and will be removed in 1.10. Use mlrun.runtimes.mounts.{self._new_target} instead.",
             FutureWarning,
         )
 
 
+# TODO: Remove in 1.10
 # For backwards compatibility
 VolumeMount = _DeprecationHelper("VolumeMount")
 auto_mount = _DeprecationHelper("auto_mount")

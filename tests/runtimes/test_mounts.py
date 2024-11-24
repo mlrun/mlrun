@@ -312,7 +312,7 @@ def test_mount_v3io():
 )
 def test_mount_import_backwards_compatibility(mount, args, kwargs):
     """Test that the deprecated mlrun.platforms.mount_* functions import the new mlrun.runtimes.mounts.* functions."""
-    assert isinstance(mount, mlrun.platforms.DeprecationHelper)
+    assert isinstance(mount, mlrun.platforms._DeprecationHelper)
     assert type(mount(*args, **kwargs)) is type(
         getattr(mlrun.runtimes.mounts, mount._new_target)(*args, **kwargs)
     )

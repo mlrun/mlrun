@@ -14,7 +14,7 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 from deprecated import deprecated
 
 import mlrun.common.types
@@ -48,7 +48,7 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
             )
 
 
-class ArtifactIdentifier(pydantic.BaseModel):
+class ArtifactIdentifier(pydantic.v1.BaseModel):
     # artifact kind
     kind: typing.Optional[str]
     key: typing.Optional[str]
@@ -69,7 +69,7 @@ class ArtifactsFormat(mlrun.common.types.StrEnum):
     full = "full"
 
 
-class ArtifactMetadata(pydantic.BaseModel):
+class ArtifactMetadata(pydantic.v1.BaseModel):
     key: str
     project: str
     iter: typing.Optional[int]
@@ -77,10 +77,10 @@ class ArtifactMetadata(pydantic.BaseModel):
     tag: typing.Optional[str]
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
-class ArtifactSpec(pydantic.BaseModel):
+class ArtifactSpec(pydantic.v1.BaseModel):
     src_path: typing.Optional[str]
     target_path: typing.Optional[str]
     viewer: typing.Optional[str]
@@ -91,10 +91,10 @@ class ArtifactSpec(pydantic.BaseModel):
     unpackaging_instructions: typing.Optional[dict[str, typing.Any]]
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
-class Artifact(pydantic.BaseModel):
+class Artifact(pydantic.v1.BaseModel):
     kind: str
     metadata: ArtifactMetadata
     spec: ArtifactSpec

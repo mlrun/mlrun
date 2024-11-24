@@ -15,8 +15,10 @@ import datetime
 import http
 
 import fastapi
+import semver
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
+from starlette.responses import Response
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -39,14 +41,10 @@ import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
 from framework.db.session import close_session, create_session
-from framework.routers import alerts, auth, healthz
+from framework.routers import alert_template, alerts, auth, healthz
 
 
 class Service(framework.service.Service):
-    # TODO: Change service name to alerts once they are fully separated - this allows to mount the application on the
-    #  api Router without implementing tunneling
-    service_name = "api"
-
     async def store_alert(
         self,
         request: fastapi.Request,
@@ -71,11 +69,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        # TODO: Remove chief requirement when alerts is standalone
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             data = await request.json()
             return await chief_client.store_alert(
@@ -132,14 +126,16 @@ class Service(framework.service.Service):
             project,
             auth_info=auth_info,
         )
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
+        allowed_project_names = (
+            await services.api.crud.Projects().list_allowed_project_names(
+                db_session, auth_info, project=project
+            )
         )
 
         alerts = await run_in_threadpool(
-            services.alerts.crud.Alerts().list_alerts, db_session, project
+            services.alerts.crud.Alerts().list_alerts,
+            db_session,
+            project=allowed_project_names,
         )
 
         alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -177,11 +173,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.delete_alert(
                 project=project, name=name, request=request
@@ -215,11 +207,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.reset_alert(
                 project=project, name=name, request=request
@@ -262,11 +250,7 @@ class Service(framework.service.Service):
             )
             return
 
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if not self._is_chief_or_standalone():
             data = await request.json()
             chief_client = framework.utils.clients.chief.Client()
             return await chief_client.set_event(
@@ -288,13 +272,96 @@ class Service(framework.service.Service):
             project,
         )
 
+    async def store_alert_template(
+        self,
+        request: fastapi.Request,
+        name: str,
+        alert_data: mlrun.common.schemas.AlertTemplate,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> Response:
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            self._get_authorization_resource_for_alert_template(),
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+
+        if not self._is_chief_or_standalone():
+            chief_client = framework.utils.clients.chief.Client()
+            data = await request.json()
+            return await chief_client.store_alert_template(
+                name=name, request=request, json=data
+            )
+
+        self._logger.debug("Storing alert template", name=name)
+
+        return await run_in_threadpool(
+            services.alerts.crud.AlertTemplates().store_alert_template,
+            db_session,
+            name,
+            alert_data,
+        )
+
+    async def get_alert_template(
+        self,
+        request: fastapi.Request,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> mlrun.common.schemas.AlertTemplate:
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            self._get_authorization_resource_for_alert_template(),
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+
+        return await run_in_threadpool(
+            services.alerts.crud.AlertTemplates().get_alert_template, db_session, name
+        )
+
+    async def list_alert_templates(
+        self,
+        request: fastapi.Request,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> list[mlrun.common.schemas.AlertTemplate]:
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            self._get_authorization_resource_for_alert_template(),
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+
+        return await run_in_threadpool(
+            services.alerts.crud.AlertTemplates().list_alert_templates, db_session
+        )
+
+    async def delete_alert_template(
+        self,
+        request: fastapi.Request,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ):
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            self._get_authorization_resource_for_alert_template(),
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+        if not self._is_chief_or_standalone():
+            chief_client = framework.utils.clients.chief.Client()
+            return await chief_client.delete_alert_template(name=name, request=request)
+
+        self._logger.debug("Deleting alert template", name=name)
+
+        await run_in_threadpool(
+            services.alerts.crud.AlertTemplates().delete_alert_template,
+            db_session,
+            name,
+        )
+
     async def move_service_to_online(self):
         self._logger.info("Moving alerts to online")
-        # TODO: Once alerts runs in its own pod - remove chief check
-        if (
-            mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.chief
-        ):
+        if self._is_chief_or_standalone():
             services.alerts.initial_data.update_default_configuration_data(self._logger)
             await self._start_periodic_functions()
 
@@ -314,8 +381,13 @@ class Service(framework.service.Service):
             tags=["alerts"],
             dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
         )
+        alerts_v1_router.include_router(
+            alert_template.router,
+            tags=["alert-templates"],
+            dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
+        )
         self.app.include_router(
-            alerts_v1_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX
+            alerts_v1_router, prefix=self.base_versioned_service_prefix
         )
 
     async def _custom_setup_service(self):
@@ -356,6 +428,16 @@ class Service(framework.service.Service):
         finally:
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
+    @staticmethod
+    def _get_authorization_resource_for_alert_template():
+        igz_version = mlrun.mlconf.get_parsed_igz_version()
+        if igz_version and igz_version < semver.VersionInfo.parse("3.6.0"):
+            # alert_templates is not in OFA manifest prior to 3.6, so we use
+            # the permissions of hub_source as they are the same
+            return mlrun.common.schemas.AuthorizationResourceTypes.hub_source
+
+        return mlrun.common.schemas.AuthorizationResourceTypes.alert_templates
+
     def _generate_event_on_failed_runs(
         self, db_session: sqlalchemy.orm.Session, last_update_time: datetime.datetime
     ):
@@ -393,3 +475,20 @@ class Service(framework.service.Service):
                 project=project,
                 validate_event=True,
             )
+
+    @staticmethod
+    def _is_chief_or_standalone():
+        """
+        Check if the service is running as part of a chief instance or as a standalone service.
+        mlconf.services.service_name determines the running service.
+        Possible options are:
+            1. Clusterization role is chief and service name is API - return True
+            2. Clusterization role is worker and service name is API - return False
+            3. Clusterization role is worker and service name is alerts (running as a standalone) - return True.
+               This assumes a single alerts service replica.
+        """
+        return (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+            or mlconf.services.service_name == "alerts"
+        )

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import typing
+import unittest
 from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
@@ -116,6 +117,16 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
             == {}
         )
 
+    def store_secrets(self, secret_name, secrets: dict):
+        secret_data = self.secrets_map.get(secret_name, {}).copy()
+
+        # we don't care about encoding the value we want to store
+        secret_data.update(secrets)
+        self.secrets_map[secret_name] = secret_data
+
+    def read_secret_data(self, secret_name, *args, **kwargs):
+        return self.secrets_map.get(secret_name, {})
+
     def mock_functions(self, mocked_object, monkeypatch):
         mocked_function_names = [
             "is_running_inside_kubernetes_cluster",
@@ -127,6 +138,8 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
             "delete_auth_secret",
             "read_auth_secret",
             "get_secret_data",
+            "store_secrets",
+            "read_secret_data",
         ]
 
         for mocked_function_name in mocked_function_names:
@@ -207,15 +220,22 @@ class TestServiceBase:
 
     @pytest.fixture()
     def client(self, app, prefix) -> Generator:
-        with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
-            mlconf.httpdb.logs_path = log_dir
-            mlconf.monitoring.runs.interval = 0
-            mlconf.runtimes_cleanup_interval = 0
-            mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-            mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = "false"
-            with TestClient(app) as test_client:
-                self.set_base_url_for_test_client(test_client, prefix)
-                yield test_client
+        # skip partition management because it cannot be run on SQLite
+        with unittest.mock.patch(
+            "services.api.main.Service._start_periodic_partition_management",
+            return_value=None,
+        ):
+            with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+                mlconf.httpdb.logs_path = log_dir
+                mlconf.monitoring.runs.interval = 0
+                mlconf.runtimes_cleanup_interval = 0
+                mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+                mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = (
+                    "false"
+                )
+                with TestClient(app) as test_client:
+                    self.set_base_url_for_test_client(test_client, prefix)
+                    yield test_client
 
     @pytest.fixture()
     def k8s_secrets_mock(self, monkeypatch) -> K8sSecretsMock:

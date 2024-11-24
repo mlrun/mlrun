@@ -14,7 +14,7 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 
 import mlrun.common.types
 
@@ -90,42 +90,42 @@ class SecurityContextEnrichmentModes(mlrun.common.types.StrEnum):
     disabled = "disabled"
 
 
-class ImagePullSecret(pydantic.BaseModel):
+class ImagePullSecret(pydantic.v1.BaseModel):
     default: typing.Optional[str]
 
 
-class Pipelines(pydantic.BaseModel):
+class Pipelines(pydantic.v1.BaseModel):
     kfp_pod_user_unix_id: typing.Optional[int]
 
 
-class SecurityContext(pydantic.BaseModel):
+class SecurityContext(pydantic.v1.BaseModel):
     default: typing.Optional[str]
     enrichment_mode: typing.Optional[SecurityContextEnrichmentModes]
     enrichment_group_id: typing.Optional[int]
     pipelines: typing.Optional[Pipelines]
 
 
-class ServiceAccount(pydantic.BaseModel):
+class ServiceAccount(pydantic.v1.BaseModel):
     default: typing.Optional[str]
 
 
-class StateThresholds(pydantic.BaseModel):
+class StateThresholds(pydantic.v1.BaseModel):
     default: typing.Optional[dict[str, str]]
 
 
-class FunctionSpec(pydantic.BaseModel):
+class FunctionSpec(pydantic.v1.BaseModel):
     image_pull_secret: typing.Optional[ImagePullSecret]
     security_context: typing.Optional[SecurityContext]
     service_account: typing.Optional[ServiceAccount]
     state_thresholds: typing.Optional[StateThresholds]
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
-class Function(pydantic.BaseModel):
+class Function(pydantic.v1.BaseModel):
     spec: typing.Optional[FunctionSpec]
     application: typing.Optional[dict[str, typing.Any]]
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow

@@ -51,6 +51,9 @@ def test_list_pipelines_empty_list(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+    )
     runs = []
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get("projects/*/pipelines")
@@ -65,6 +68,9 @@ def test_list_pipelines_formats(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+    )
     for format_ in [
         mlrun.common.formatters.PipelineFormat.full,
         mlrun.common.formatters.PipelineFormat.metadata_only,
@@ -173,6 +179,9 @@ def test_list_pipelines_time_fields_default(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
+    )
     created_at = datetime.datetime.now()
     workflow_manifest = _generate_workflow_manifest()
     runs = [
@@ -228,21 +237,22 @@ def test_list_pipelines_name_contains(
     run_name_filter: str,
     expected_runs_ids: list,
 ) -> None:
-    project_name = "test-project"
+    project_names = (
+        [project_name] if project_name != "*" else ["test-project", "another"]
+    )
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=project_names)
+    )
     services.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-        return_value=project_name
+        return_value="test-project"
     )
     runs = _generate_list_runs_project_name_mocks()
-    expected_page_size = (
-        mlrun.common.schemas.PipelinesPagination.default_page_size
-        if project_name == "*"
-        else mlrun.common.schemas.PipelinesPagination.max_page_size
-    )
     _mock_list_runs(
         kfp_client_mock,
         runs,
-        expected_page_size=expected_page_size,
-        expected_filter=mlrun.utils.get_kfp_project_filter(project_name=project_name),
+        expected_filter=mlrun.utils.get_kfp_project_filter(project_name=project_name)
+        if project_name != "*"
+        else "",
     )
     response = client.get(
         f"projects/{project_name}/pipelines",
@@ -266,6 +276,9 @@ def test_list_pipelines_specific_project(
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
 ) -> None:
     project = "project-name"
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[project])
+    )
     runs = _generate_list_runs_mocks()
     expected_runs = [run.name for run in runs]
     _mock_list_runs_with_one_run_per_page(kfp_client_mock, runs)
@@ -615,7 +628,7 @@ def _mock_list_runs(
     kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
     runs,
     expected_page_token="",
-    expected_page_size=mlrun.common.schemas.PipelinesPagination.default_page_size,
+    expected_page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
     expected_sort_by="",
     expected_filter="",
 ):

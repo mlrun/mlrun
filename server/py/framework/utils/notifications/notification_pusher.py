@@ -49,18 +49,32 @@ class RunNotificationPusher(NotificationPusher):
             notification_module.NotificationTypes.git: {},
             notification_module.NotificationTypes.ipython: {},
             notification_module.NotificationTypes.slack: {},
-            notification_module.NotificationTypes.mail: RunNotificationPusher._get_mail_notification_default_params(),
+            notification_module.NotificationTypes.mail: RunNotificationPusher.get_mail_notification_default_params(),
             notification_module.NotificationTypes.webhook: {},
         }
 
     @staticmethod
-    def _get_mail_notification_default_params():
-        if RunNotificationPusher.mail_notification_default_params is not None:
+    def get_mail_notification_default_params(refresh=False):
+        if (
+            not refresh
+            and RunNotificationPusher.mail_notification_default_params is not None
+        ):
             return RunNotificationPusher.mail_notification_default_params
 
+        mail_notification_default_params = (
+            RunNotificationPusher._get_mail_notifications_default_params_from_secret()
+        )
+
+        RunNotificationPusher.mail_notification_default_params = (
+            mail_notification_default_params
+        )
+        return RunNotificationPusher.mail_notification_default_params
+
+    @staticmethod
+    def _get_mail_notifications_default_params_from_secret():
         smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
         mail_notification_default_params = {}
-        if framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
+        if framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             try:
                 mail_notification_default_params = (
                     framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
@@ -73,11 +87,7 @@ class RunNotificationPusher(NotificationPusher):
                     secret_name=smtp_config_secret_name,
                     body=mlrun.errors.err_to_str(exc.body),
                 )
-
-        RunNotificationPusher.mail_notification_default_params = (
-            mail_notification_default_params
-        )
-        return RunNotificationPusher.mail_notification_default_params
+        return mail_notification_default_params
 
     def _prepare_notification_args(
         self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification
@@ -198,6 +208,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 alert.project,
                 notification_object,
                 status=mlrun.common.schemas.NotificationStatus.ERROR,
+                reason=str(exc),
             )
             raise exc
 
@@ -222,10 +233,20 @@ class AlertNotificationPusher(_NotificationPusherBase):
         notification: mlrun.common.schemas.Notification,
         status: typing.Optional[str] = None,
         sent_time: typing.Optional[datetime.datetime] = None,
+        reason: typing.Optional[str] = None,
     ):
         db = mlrun.get_run_db()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
+
+        # fill reason only if failed
+        if notification.status == mlrun.common.schemas.NotificationStatus.ERROR:
+            notification.reason = reason or notification.reason
+
+            # limit reason to a max of 255 characters (for db reasons) but also for human readability reasons.
+            notification.reason = notification.reason[:255]
+        else:
+            notification.reason = None
 
         # There is no need to mask the params as the secrets are already loaded
         db.store_alert_notifications(

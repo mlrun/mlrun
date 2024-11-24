@@ -14,7 +14,7 @@
 #
 import typing
 
-import pydantic
+import pydantic.v1
 from deprecated import deprecated
 
 import mlrun.common.types
@@ -39,7 +39,7 @@ class PipelinesPagination(str):
     max_page_size = 200
 
 
-class PipelinesOutput(pydantic.BaseModel):
+class PipelinesOutput(pydantic.v1.BaseModel):
     # use the format query param to control what is returned
     runs: list[typing.Union[dict, str]]
     total_size: int

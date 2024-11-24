@@ -30,6 +30,7 @@ from framework.api import deps
 router = APIRouter()
 
 
+@router.get("/projects/{project}/alerts/{name}/activations")
 @router.get("/projects/{project}/alert-activations")
 async def list_alert_activations(
     project: str,

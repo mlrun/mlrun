@@ -21,7 +21,7 @@ import requests
 
 import mlrun
 import mlrun.errors
-import mlrun_pipelines.common.mounts
+import mlrun.runtimes.mounts
 from mlrun import mlconf
 from mlrun.platforms import add_or_refresh_credentials
 from mlrun.platforms.iguazio import min_iguazio_versions
@@ -115,7 +115,7 @@ def test_mount_v3io():
         {"remote": "~/custom-remote", "expect_failure": True},
         {
             "volume_mounts": [
-                mlrun_pipelines.common.mounts.VolumeMount(
+                mlrun.runtimes.mounts.VolumeMount(
                     "/volume-mount-path", "volume-sub-path"
                 )
             ],
@@ -124,10 +124,10 @@ def test_mount_v3io():
         },
         {
             "volume_mounts": [
-                mlrun_pipelines.common.mounts.VolumeMount(
+                mlrun.runtimes.mounts.VolumeMount(
                     "/volume-mount-path", "volume-sub-path"
                 ),
-                mlrun_pipelines.common.mounts.VolumeMount(
+                mlrun.runtimes.mounts.VolumeMount(
                     "/volume-mount-path-2", "volume-sub-path-2"
                 ),
             ],
@@ -160,10 +160,10 @@ def test_mount_v3io():
         },
         {
             "volume_mounts": [
-                mlrun_pipelines.common.mounts.VolumeMount(
+                mlrun.runtimes.mounts.VolumeMount(
                     "/volume-mount-path", "volume-sub-path"
                 ),
-                mlrun_pipelines.common.mounts.VolumeMount(
+                mlrun.runtimes.mounts.VolumeMount(
                     "/volume-mount-path-2", "volume-sub-path-2"
                 ),
             ],

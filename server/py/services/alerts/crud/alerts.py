@@ -195,13 +195,13 @@ class Alerts(
             return
 
         send_notification = self._should_send_notification(alert, state_obj)
-        update_state = True
+        update_state_cache = True
         if send_notification:
-            update_state = self._handle_notification(
+            update_state_cache = self._handle_notification(
                 session, alert, state, state_obj, event_data
             )
 
-        if update_state:
+        if update_state_cache:
             # we don't want to update the state if reset_alert() was called, as we will override the reset
             self._states[alert.id] = state_obj
 

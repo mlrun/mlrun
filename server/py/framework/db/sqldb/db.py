@@ -5940,7 +5940,7 @@ class SQLDB(DBInterface):
         )
 
         # if reset_policy is MANUAL, we need to keep id to be able to update number_of_events
-        # when policy is reset
+        # when the alert is reset
         if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
             return self._upsert_object_and_flush_to_get_field(
                 session, alert_activation_record, "id"
@@ -5960,7 +5960,9 @@ class SQLDB(DBInterface):
         )
         activation = query.one_or_none()
         if not activation:
-            raise ValueError(f"Activation with id {activation_id} not found")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found for id: {activation_id}"
+            )
         activation.number_of_events = number_of_events
         self._upsert(session, [activation])
 

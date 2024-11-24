@@ -4692,8 +4692,10 @@ class SQLDB(DBInterface):
         self._commit(session, objects, ignore, silent)
 
     def _upsert_object_and_flush_to_get_field(self, session, object_, field):
-        session.add(object_)  # Add the object to the session
-        session.flush()  # Flush the session to generate the database values
+        # Add the object to the session
+        session.add(object_)
+        # Flush the session to generate the database values
+        session.flush()
 
         # Dynamically retrieve the specified field's value
         field_value = getattr(object_, field, None)
@@ -5946,7 +5948,7 @@ class SQLDB(DBInterface):
         else:
             return self._upsert(session, [alert_activation_record])
 
-    def update_alert_activation(
+    def update_alert_activation_number_of_events(
         self,
         session,
         activation_id: int,

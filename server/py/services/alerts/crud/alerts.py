@@ -183,7 +183,9 @@ class Alerts(
 
         state_obj = self._states.get(alert.id, {"events": []})
 
-        # Append event timestamp for active state or criteria
+        # Append the event timestamp if the alert is active or has criteria.
+        # If the alert is active, it follows a manual reset policy, so we need to continue counting events.
+        # If the criteria is None and the alert is inactive, we trigger the alert immediately and do not cache events.
         if state["active"] or alert.criteria is not None:
             state_obj["events"].append(event_data.timestamp)
 
@@ -193,7 +195,7 @@ class Alerts(
             return
 
         # Check notification criteria and send notification if needed
-        send_notification = self.should_send_notification(alert, state_obj)
+        send_notification = self._should_send_notification(alert, state_obj)
         update_state = True
         if send_notification:
             update_state = self._handle_notification(
@@ -218,7 +220,9 @@ class Alerts(
         services.alerts.crud.Events().cache_initialized = True
         logger.debug("Finished populating event cache for alerts")
 
-    def should_send_notification(self, alert, state_obj):
+    def _should_send_notification(
+        self, alert: mlrun.common.schemas.AlertConfig, state_obj: dict
+    ) -> bool:
         if alert.criteria:
             if alert.criteria.period:
                 offset = self._get_event_offset(alert)
@@ -231,18 +235,25 @@ class Alerts(
             return len(state_obj["events"]) >= alert.criteria.count
         return True
 
-    def get_number_of_events(self, alert_id: int) -> int:
+    def _get_number_of_events(self, alert_id: int) -> int:
         state_obj = self._states.get(alert_id, {"events": []})
         return len(state_obj["events"])
 
     @staticmethod
-    def _get_event_offset(alert):
+    def _get_event_offset(alert: mlrun.common.schemas.AlertConfig) -> int:
         if alert.entities.kind == mlrun.common.schemas.alert.EventEntityKind.JOB:
             return int(mlconfig.monitoring.runs.interval)
         return 0
 
-    def _handle_notification(self, session, alert, state, state_obj, event_data):
-        update_state = True
+    def _handle_notification(
+        self,
+        session: sqlalchemy.orm.Session,
+        alert: mlrun.common.schemas.AlertConfig,
+        state: dict,
+        state_obj: dict,
+        event_data: mlrun.common.schemas.Event,
+    ) -> bool:
+        keep_cache = True
         active = False
         state["count"] += 1
         logger.debug("Sending notifications for alert", name=alert.name)
@@ -253,7 +264,7 @@ class Alerts(
             services.api.crud.AlertActivation().store_alert_activation(
                 session, alert, event_data
             )
-            update_state = False
+            keep_cache = False
         else:
             active = True
             state["active"] = True
@@ -271,7 +282,7 @@ class Alerts(
             obj=state_obj,
             active=active,
         )
-        return update_state
+        return keep_cache
 
     @classmethod
     def _get_alert_by_id_cached(cls):
@@ -406,7 +417,7 @@ class Alerts(
 
         if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
             # before resetting an alert, update number_of_events if required
-            number_of_events = self.get_number_of_events(alert.id)
+            number_of_events = self._get_number_of_events(alert.id)
             if number_of_events > alert.criteria.count:
                 alert_state = (
                     framework.utils.singletons.db.get_db().get_alert_state_dict(
@@ -418,7 +429,7 @@ class Alerts(
                     "last_activation_id"
                 )
                 if activation_time and activation_id:
-                    framework.utils.singletons.db.get_db().update_alert_activation(
+                    framework.utils.singletons.db.get_db().update_alert_activation_number_of_events(
                         session,
                         activation_id=activation_id,
                         activation_time=activation_time,

@@ -968,7 +968,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_alert_activation(
+    def update_alert_activation_number_of_events(
         self,
         session,
         activation_id: int,

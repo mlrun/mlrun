@@ -83,7 +83,7 @@ class Client(
         return None
 
     def get_service(self, service_name: str) -> typing.Optional[ServiceInstance]:
-        """Get the registered instances of a service."""
+        """Get the registered instance of a service."""
         return self.services.get(service_name, None)
 
     def _resolve_service_method_routes(

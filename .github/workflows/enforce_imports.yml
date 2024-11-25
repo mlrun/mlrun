@@ -29,4 +29,4 @@ jobs:
 
     - name: Run Import Check
       run: |
-        python automation/scripts/check_imports.py $(cat modified_files.txt)
+        python automation/scripts/check_fully_qualified_imports.py.py $(cat modified_files.txt)

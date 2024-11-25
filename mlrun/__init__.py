@@ -39,6 +39,7 @@ from .execution import MLClientCtx
 from .model import RunObject, RunTemplate, new_task
 from .package import ArtifactType, DefaultPackager, Packager, handler
 from .projects import (
+    MlrunProject,
     ProjectMetadata,
     build_function,
     deploy_function,
@@ -162,7 +163,7 @@ def set_environment(
     return mlconf.default_project, mlconf.artifact_path
 
 
-def get_current_project(silent=False):
+def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
     if not pipeline_context.project and not silent:
         raise MLRunInvalidArgumentError(
             "current project is not initialized, use new, get or load project methods first"

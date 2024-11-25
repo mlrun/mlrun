@@ -730,7 +730,6 @@ def generate_artifact_uri(project, key, tag=None, iter=None, tree=None, uid=None
     if tree is not None:
         artifact_uri = f"{artifact_uri}@{tree}"
     if uid is not None:
-        logger.info("Yaelllll!!!", uid=uid)
         artifact_uri = f"{artifact_uri}^{uid}"
     return artifact_uri
 

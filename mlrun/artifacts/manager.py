@@ -314,7 +314,6 @@ class ArtifactManager:
 
         if db_key:
             uid = self._log_to_db(db_key, project, producer.inputs, item)
-            mlrun.utils.logger.info("Yaelllll2", uid=uid)
             if uid is not None:
                 item.uid = uid
         size = str(item.size) or "?"

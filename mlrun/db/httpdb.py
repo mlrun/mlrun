@@ -1040,7 +1040,6 @@ class HTTPRunDB(RunDBInterface):
             "PUT", endpoint_path, error, body=body, params=params, version="v2"
         )
         artifact_item = response.json()
-        mlrun.utils.logger.info("Yaellll3", res=artifact_item["metadata"]["uid"])
         return artifact_item["metadata"]["uid"]
 
 

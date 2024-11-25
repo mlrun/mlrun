@@ -68,9 +68,15 @@ if str(tests_root_directory) in os.getcwd():
 class TestAPIBase(TestServiceBase):
     @pytest.fixture()
     def app(self) -> fastapi.FastAPI:
-        mlconf.services.service_name = "api"
-        mlconf.services.hydra.services = ""
-        yield services.api.daemon.app()
+        old_service_name = mlconf.services.service_name
+        old_hydra_services = mlconf.services.hydra.services
+        try:
+            mlconf.services.service_name = "api"
+            mlconf.services.hydra.services = ""
+            yield services.api.daemon.app()
+        finally:
+            mlconf.services.service_name = old_service_name
+            mlconf.services.hydra.services = old_hydra_services
 
     @pytest.fixture()
     def prefix(self):

@@ -28,6 +28,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import mlrun_pipelines.common.models
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.mixins
 import mlrun_pipelines.models
@@ -228,6 +229,13 @@ class Pipelines(
                 f"Failed getting kfp run: {err_to_str(exc)}"
             ) from exc
         run = mlrun_pipelines.models.PipelineRun(api_run_detail)
+        
+        # Check if the pipeline is in a completed state
+        if run.status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Pipeline run {run_id} is not in a completed state. Current status: {run.status}"
+            )
+
         if run:
             if project and project != "*":
                 run_project = self.resolve_project_from_pipeline(run)

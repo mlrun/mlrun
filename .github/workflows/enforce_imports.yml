@@ -40,4 +40,4 @@ jobs:
 
     - name: Run Import Check
       run: |
-        python /home/runner/work/mlrun/automation/scripts/check_fully_qualified_imports.py.py $(cat modified_files.txt)
+        python /home/runner/work/mlrun/automation/scripts/check_fully_qualified_imports.py $(cat modified_files.txt)

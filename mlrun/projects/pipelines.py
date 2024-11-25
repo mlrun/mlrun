@@ -984,14 +984,16 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
-def load_and_run(*args, **kwargs):
+def load_and_run(context, *args, **kwargs):
     """
     This function serves as an alias to `load_and_run_workflow`,
     allowing to continue using `load_and_run` without modifying existing workflows or exported runs.
     This approach ensures backward compatibility,
     while directing all new calls to the updated `load_and_run_workflow` function.
     """
-    load_and_run_workflow(kwargs.pop("load_only", None))
+    kwargs.pop("load_only", None)
+    kwargs.pop("save", None)
+    load_and_run_workflow(context, *args, **kwargs)
 
 
 def load_and_run_workflow(

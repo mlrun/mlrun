@@ -1036,9 +1036,11 @@ class HTTPRunDB(RunDBInterface):
             params["tree"] = tree
 
         body = _as_json(artifact)
-        self.api_call(
+        response = self.api_call(
             "PUT", endpoint_path, error, body=body, params=params, version="v2"
         )
+        return response.json()["data"]
+
 
     def read_artifact(
         self,

@@ -1039,7 +1039,7 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "PUT", endpoint_path, error, body=body, params=params, version="v2"
         )
-        mlrun.utils.logger("Yaellll3", res=response.json())
+        mlrun.utils.logger.info("Yaellll3", res=response.json())
         return response.json()
 
 

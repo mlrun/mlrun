@@ -101,16 +101,13 @@ class Alerts(
             )
 
         # if the alert already exists we should check if it should be reset or not
-        if existing_alert is not None and self._should_reset_alert(
-            existing_alert, alert_data, force_reset
-        ):
-            logger.debug(
-                "Resetting alert due to %s",
-                "force_reset being True"
-                if force_reset
-                else "changes in entities, criteria, or trigger of the alert",
+        if existing_alert is not None:
+            should_reset, reset_reason = self._should_reset_alert(
+                existing_alert, alert_data, force_reset
             )
-            self.reset_alert(session, project, new_alert.name)
+            if should_reset:
+                logger.debug("Resetting alert due to %s", reset_reason)
+                self.reset_alert(session, project, new_alert.name)
 
         framework.utils.singletons.db.get_db().enrich_alert(session, new_alert)
 
@@ -400,8 +397,9 @@ class Alerts(
     @staticmethod
     def _should_reset_alert(old_alert_data, alert_data, force_reset):
         if force_reset:
-            return True
+            return True, "force_reset being True"
 
+        reasons = []
         # reset the alert if the policy was modified from manual to auto while the state is active
         old_reset_policy = getattr(old_alert_data, "reset_policy")
         new_reset_policy = getattr(alert_data, "reset_policy")
@@ -410,19 +408,20 @@ class Alerts(
             and old_reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
             and new_reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO
         )
+        if reset_due_to_policy_change:
+            reasons.append("reset-policy changed from manual to auto")
 
         # reset the alert if a functional parameter (entities, trigger, or criteria) has changed, as these affect the
         # conditions for alert activation.
-        reset_due_to_functional_parameters_changed = any(
-            getattr(old_alert_data, attr) != getattr(alert_data, attr)
-            for attr in [
-                "entities",
-                "trigger",
-                "criteria",
-            ]
-        )
+        functional_parameters = ["entities", "trigger", "criteria"]
+        for attr in functional_parameters:
+            if getattr(old_alert_data, attr) != getattr(alert_data, attr):
+                reasons.append(f"changes in {attr}")
 
-        return reset_due_to_policy_change or reset_due_to_functional_parameters_changed
+        if reasons:
+            return True, ", ".join(reasons)
+
+        return False, ""
 
     @staticmethod
     def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):

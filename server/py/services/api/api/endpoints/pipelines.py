@@ -122,6 +122,33 @@ async def create_pipeline(
     return response
 
 
+@router.get("/{run_id}/retry")
+async def retry_pipeline(
+    run_id: str,
+    project: str,
+    namespace: str = Query(config.namespace),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            run_id,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+    )
+    await run_in_threadpool(
+        services.api.crud.Pipelines().retry_pipeline,
+        db_session,
+        run_id,
+        project,
+        namespace,
+    )
+    return run_id
+
+
 @router.get("/{run_id}")
 async def get_pipeline(
     run_id: str,

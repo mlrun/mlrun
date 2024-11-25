@@ -209,6 +209,47 @@ class Pipelines(
 
         return run
 
+    def retry_pipeline(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run_id: str,
+        project: typing.Optional[str] = None,
+        namespace: typing.Optional[str] = None,
+    ):
+        kfp_client = self.initialize_kfp_client(namespace)
+        try:
+            api_run_detail = kfp_client.get_run(run_id)
+        except kfp_server_api.ApiException as exc:
+            raise mlrun.errors.err_for_status_code(exc.status, err_to_str(exc)) from exc
+        except mlrun.errors.MLRunHTTPStatusError:
+            raise
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed getting kfp run: {err_to_str(exc)}"
+            ) from exc
+        run = mlrun_pipelines.models.PipelineRun(api_run_detail)
+        if run:
+            if project and project != "*":
+                run_project = self.resolve_project_from_pipeline(run)
+                if run_project != project:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"Pipeline run with id {run_id} is not of project {project}"
+                    )
+        logger.debug(
+            "Retrying KFP run",
+            run_id=run_id,
+            run_name=run.get("name"),
+            project=project,
+            pipeline_id=api_run_detail.pipeline_spec.pipeline_id,
+        )
+        kfp_client.run_pipeline(
+            experiment_id=run.experiment_id,
+            job_name=run.name,
+            pipeline_id=api_run_detail.pipeline_spec.pipeline_id,
+        )
+
+        return run
+
     def create_pipeline(
         self,
         experiment_name: str,

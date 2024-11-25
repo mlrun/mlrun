@@ -22,12 +22,12 @@ from mlrun.serving.utils import MonitoringApplicationToDict
 
 class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     """
-    A base class for a model monitoring application.
+    The base class for a model monitoring application.
     Inherit from this class to create a custom model monitoring application.
 
-    example for very simple custom application::
+    For example, :code:`MyApp` below is a simplistic custom application::
 
-        class MyApp(ApplicationBase):
+        class MyApp(ModelMonitoringApplicationBase):
             def do_tracking(
                 self,
                 monitoring_context: mm_context.MonitoringApplicationContext,
@@ -43,8 +43,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     kind=mm_constant.ResultKindApp.data_drift,
                     status=mm_constant.ResultStatusApp.detected,
                 )
-
-
     """
 
     kind = "monitoring_application"
@@ -62,6 +60,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     ]:
         """
         Process the monitoring event and return application results & metrics.
+        Note: this method is internal and should not be called directly or overridden.
 
         :param monitoring_context:   (MonitoringApplicationContext) The monitoring application context.
         :returns:                    A tuple of:

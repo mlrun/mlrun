@@ -76,7 +76,6 @@ class EvidentlyModelMonitoringApplicationBase(
 
         :param evidently_workspace_path:    (str) The path to the Evidently workspace.
         :param evidently_project_id:        (str) The ID of the Evidently project.
-
         """
 
         # TODO : more then one project (mep -> project)

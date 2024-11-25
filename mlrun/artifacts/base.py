@@ -48,6 +48,7 @@ class ArtifactMetadata(ModelObj):
         description=None,
         hash=None,
         tag=None,
+        uid=None,
     ):
         self.key = key
         self.project = project
@@ -58,6 +59,7 @@ class ArtifactMetadata(ModelObj):
         self.labels = {}
         self.updated = None
         self.tag = tag  # temp store of the tag
+        self.uid = uid
 
     def base_dict(self):
         return super().to_dict()

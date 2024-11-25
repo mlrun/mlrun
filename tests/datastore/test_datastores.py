@@ -110,100 +110,115 @@ def test_parse_url_preserve_case():
     assert expected_endpoint, endpoint
 
 
-def test_get_store_artifact_url_parsing():
+@pytest.mark.parametrize(
+    "url,expected_project,expected_key,expected_tag,expected_iter,expected_tree,expected_uid",
+    [
+        ("store:///artifact_key", "default", "artifact_key", None, 0, None, None),
+        (
+            "store://project_name/artifact_key",
+            "project_name",
+            "artifact_key",
+            None,
+            0,
+            None,
+            None,
+        ),
+        (
+            "store://Project_Name/Artifact_Key@ABC",
+            "Project_Name",
+            "Artifact_Key",
+            None,
+            0,
+            "ABC",
+            None,
+        ),
+        (
+            "store://project_name/artifact_key@a5dc8e34a46240bb9a07cd9deb3609c7",
+            "project_name",
+            "artifact_key",
+            None,
+            0,
+            "a5dc8e34a46240bb9a07cd9deb3609c7",
+            None,
+        ),
+        (
+            "store://project_name/artifact_key#1",
+            "project_name",
+            "artifact_key",
+            None,
+            1,
+            None,
+            None,
+        ),
+        (
+            "store://project_name/artifact_key:latest",
+            "project_name",
+            "artifact_key",
+            "latest",
+            0,
+            None,
+            None,
+        ),
+        (
+            "store:///ArtifacT_key#1:some_Tag",
+            "default",
+            "ArtifacT_key",
+            "some_Tag",
+            1,
+            None,
+            None,
+        ),
+        (
+            "store:///ArtifacT_key#1@Some_Tree",
+            "default",
+            "ArtifacT_key",
+            None,
+            1,
+            "Some_Tree",
+            None,
+        ),
+        (
+            "store://Project_Name/Artifact_Key:ABC",
+            "Project_Name",
+            "Artifact_Key",
+            "ABC",
+            0,
+            None,
+            None,
+        ),
+        (
+            "store://project_name/ArtifactKey:v1^uid1234",
+            "project_name",
+            "ArtifactKey",
+            "v1",
+            0,
+            None,
+            "uid1234",
+        ),
+    ],
+)
+def test_get_store_artifact_url_parsing(
+    url,
+    expected_project,
+    expected_key,
+    expected_tag,
+    expected_iter,
+    expected_tree,
+    expected_uid,
+):
     db = Mock()
-    cases = [
-        {
-            "url": "store:///artifact_key",
-            "project": "default",
-            "key": "artifact_key",
-            "tag": None,
-            "iter": 0,
-            "tree": None,
-        },
-        {
-            "url": "store://project_name/artifact_key",
-            "project": "project_name",
-            "key": "artifact_key",
-            "tag": None,
-            "iter": 0,
-            "tree": None,
-        },
-        {
-            "url": "store://Project_Name/Artifact_Key@ABC",
-            "project": "Project_Name",
-            "key": "Artifact_Key",
-            "tag": None,
-            "iter": 0,
-            "tree": "ABC",
-        },
-        {
-            "url": "store://project_name/artifact_key@a5dc8e34a46240bb9a07cd9deb3609c7",
-            "project": "project_name",
-            "key": "artifact_key",
-            "tag": None,
-            "iter": 0,
-            "tree": "a5dc8e34a46240bb9a07cd9deb3609c7",
-        },
-        {
-            "url": "store://project_name/artifact_key#1",
-            "project": "project_name",
-            "key": "artifact_key",
-            "tag": None,
-            "iter": 1,
-            "tree": None,
-        },
-        {
-            "url": "store://project_name/artifact_key:latest",
-            "project": "project_name",
-            "key": "artifact_key",
-            "tag": "latest",
-            "iter": 0,
-            "tree": None,
-        },
-        {
-            "url": "store:///ArtifacT_key#1:some_Tag",
-            "project": "default",
-            "key": "ArtifacT_key",
-            "tag": "some_Tag",
-            "iter": 1,
-            "tree": None,
-        },
-        {
-            "url": "store:///ArtifacT_key#1@Some_Tree",
-            "project": "default",
-            "key": "ArtifacT_key",
-            "tag": None,
-            "iter": 1,
-            "tree": "Some_Tree",
-        },
-        {
-            "url": "store://Project_Name/Artifact_Key:ABC",
-            "project": "Project_Name",
-            "key": "Artifact_Key",
-            "tag": "ABC",
-            "iter": 0,
-            "tree": None,
-        },
-    ]
-    for case in cases:
-        url = case["url"]
-        expected_project = case["project"]
-        expected_key = case["key"]
-        expected_tag = case["tag"]
-        expected_iter = case["iter"]
-        expected_tree = case["tree"]
 
-        def mock_read_artifact(key, tag=None, iter=None, project="", tree=None):
-            assert expected_project == project
-            assert expected_key == key
-            assert expected_tag == tag
-            assert expected_iter == iter
-            assert expected_tree == tree
-            return {}
+    def mock_read_artifact(key, tag=None, iter=None, project="", tree=None, uid=None):
+        assert expected_project == project, f"Project mismatch for URL: {url}"
+        assert expected_key == key, f"Key mismatch for URL: {url}"
+        assert expected_tag == tag, f"Tag mismatch for URL: {url}"
+        assert expected_iter == iter, f"Iteration mismatch for URL: {url}"
+        assert expected_tree == tree, f"Tree mismatch for URL: {url}"
+        assert expected_uid == uid, f"UID mismatch for URL: {url}"
+        return {}
 
-        db.read_artifact = mock_read_artifact
-        mlrun.datastore.store_resources.get_store_resource(url, db)
+    db.read_artifact = mock_read_artifact
+    mlrun.datastore.store_resources.get_store_resource(url, db)
 
 
 def test_get_store_resource_with_linked_artifacts():
@@ -226,7 +241,7 @@ def test_get_store_resource_with_linked_artifacts():
 
     mock_artifacts = [link_artifact, model_artifact]
 
-    def mock_read_artifact(key, tag=None, iter=None, project="", tree=None):
+    def mock_read_artifact(key, tag=None, iter=None, project="", tree=None, uid=None):
         for artifact in mock_artifacts:
             key_ = f"{key}#{iter}" if iter else key
             if artifact.key == key_:

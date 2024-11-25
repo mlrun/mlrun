@@ -944,6 +944,7 @@ class TestBatchDrift(TestMLRunSystem):
             key=model_obj.key,
             iter=model_obj.iter,
             tree=model_obj.tree,
+            uid=model_obj.metadata.uid,
         )
 
         # Enrich the uri schema with the store prefix

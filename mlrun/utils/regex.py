@@ -96,7 +96,14 @@ v3io_stream_consumer_group = [r"^(?!_)[a-zA-Z0-9_]{1,256}$"]
 # URI patterns
 run_uri_pattern = r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
 
-artifact_uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
+artifact_uri_pattern = (
+    r"^((?P<project>.*)/)?"  # Optional project
+    r"(?P<key>.*?)"  # Key
+    r"(\#(?P<iteration>.*?))?"  # Optional iteration
+    r"(:(?P<tag>.*?))?"  # Optional tag
+    r"(@(?P<tree>.*?))?"  # Optional tree
+    r"(\^(?P<uid>.*))?$"  # Optional uid
+)
 
 artifact_producer_uri_pattern = (
     r"^((?P<project>.*)/)?(?P<uid>.*?)(\-(?P<iteration>.*?))?$"

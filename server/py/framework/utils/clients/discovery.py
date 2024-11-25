@@ -25,7 +25,6 @@ class ServiceInstance:
     name: str
     url: str
     method_routes: dict[str, list[re.Pattern]] = None
-    status: str = "UP"  # UP, DOWN, UNKNOWN
 
 
 class Client(
@@ -43,7 +42,7 @@ class Client(
         if mlconf.services.hydra.services != "*":
             self.register_service(service_name="alerts")
         self.register_service(service_name="api")
-        # Chief is last to allow other services to override its routes
+        # Must be last. Allowing other services to override its routes
         self.register_service(service_name="api-chief")
 
     def register_service(
@@ -62,9 +61,7 @@ class Client(
 
     def deregister_service(self, service_name: str):
         """Deregister a service instance."""
-        if service_name in self.services:
-            del self.services[service_name]
-
+        self.services.pop(service_name, None)
         self._logger.info(
             "Deregistered service",
             service_name=service_name,
@@ -86,7 +83,7 @@ class Client(
         return None
 
     def get_service(self, service_name: str) -> typing.Optional[ServiceInstance]:
-        """Get all healthy instances of a service."""
+        """Get the registered instances of a service."""
         return self.services.get(service_name, None)
 
     def _resolve_service_method_routes(

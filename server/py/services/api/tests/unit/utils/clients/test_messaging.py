@@ -49,7 +49,7 @@ async def test_messaging_client_forward_request(
             "state": {"request_id": "test"},
         },
     )
-    response = await messaging_client.forward_request(request)
+    response = await messaging_client.proxy_request(request)
     decoded_body = str(response.body.decode("utf-8"))
     assert decoded_body == "success"
     assert response.status_code == http.HTTPStatus.OK

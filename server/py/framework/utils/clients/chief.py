@@ -28,7 +28,7 @@ import framework.utils.clients.messaging
 # we were thinking to simply use httpdb, but decided to have a separated class for simplicity for now until
 # this class evolves, but this should be reconsidered when adding more functionality to the class
 class Client(
-    framework.utils.clients.messaging.BaseClient,
+    metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     """
     We chose chief-workers architecture to provide multi-instance API.
@@ -41,6 +41,7 @@ class Client(
 
     def __init__(self) -> None:
         super().__init__()
+        self._messaging_client = framework.utils.clients.messaging.Client()
         self._api_url = mlrun.mlconf.resolve_chief_api_url()
         self._api_url = self._api_url.rstrip("/")
 
@@ -198,7 +199,7 @@ class Client(
             raise_on_failure=raise_on_failure,
         ) as chief_response:
             if return_fastapi_response:
-                return await self._convert_requests_response_to_fastapi_response(
+                return await self._messaging_client.convert_requests_response_to_fastapi_response(
                     chief_response
                 )
 
@@ -289,20 +290,16 @@ class Client(
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(
-            request, json, **kwargs
-        )
-
-        async with self._send_request_to_api(
+        service_name, url = self._resolve_chief_params(path, version)
+        return await self._messaging_client.proxy_request_to_service(
+            service_name=service_name,
             method=method,
-            path=path,
-            version=version,
+            url=url,
+            request=request,
+            json=json,
             raise_on_failure=raise_on_failure,
-            **request_kwargs,
-        ) as chief_response:
-            return await self._convert_requests_response_to_fastapi_response(
-                chief_response
-            )
+            **kwargs,
+        )
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api(
@@ -313,10 +310,8 @@ class Client(
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:
-        service_name = "api-chief"
-        version = version or mlrun.mlconf.api_base_version
-        url = f"{self._api_url}/api/{version}/{path}"
-        async with self._send_request(
+        service_name, url = self._resolve_chief_params(path, version)
+        async with self._messaging_client.send_request(
             service_name=service_name,
             method=method,
             url=url,
@@ -324,3 +319,9 @@ class Client(
             **kwargs,
         ) as response:
             yield response
+
+    def _resolve_chief_params(self, path, version):
+        service_name = "api-chief"
+        version = version or mlrun.mlconf.api_base_version
+        url = f"{self._api_url}/api/{version}/{path}"
+        return service_name, url

@@ -36,7 +36,7 @@ from ..utils import (
 
 
 class ArtifactMetadata(ModelObj):
-    _dict_fields = ["key", "project", "iter", "tree", "description", "hash", "tag"]
+    _dict_fields = ["key", "project", "iter", "tree", "description", "hash", "tag", "uid"]
     _extra_fields = ["updated", "labels"]
 
     def __init__(
@@ -370,6 +370,7 @@ class Artifact(ModelObj):
             iter=self.metadata.iter,
             tree=tree,
             tag=tag,
+            uid=self.metadata.uid,
         )
         return mlrun.datastore.get_store_uri(self._store_prefix, uri)
 

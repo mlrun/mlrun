@@ -1039,7 +1039,8 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "PUT", endpoint_path, error, body=body, params=params, version="v2"
         )
-        return response.json()["data"]
+        mlrun.utils.logger("Yaellll3", res=response.json())
+        return response.json()
 
 
     def read_artifact(

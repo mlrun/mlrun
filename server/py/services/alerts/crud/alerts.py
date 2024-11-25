@@ -182,12 +182,7 @@ class Alerts(
             return
 
         state_obj = self._states.get(alert.id, {"event_timestamps": []})
-
-        # Append the event timestamp if the alert is active or has criteria.
-        # If the alert is active, it follows a manual reset policy, so we need to continue counting events.
-        # If the criteria is 1 and the alert is inactive, we trigger the alert immediately and do not cache events.
-        if state["active"] or alert.criteria.count > 1:
-            state_obj["event_timestamps"].append(event_data.timestamp)
+        state_obj["event_timestamps"].append(event_data.timestamp)
 
         # Exit early if state is active (no further processing needed)
         if state["active"]:

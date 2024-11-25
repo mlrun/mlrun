@@ -229,7 +229,7 @@ class Pipelines(
                 f"Failed getting kfp run: {err_to_str(exc)}"
             ) from exc
         run = mlrun_pipelines.models.PipelineRun(api_run_detail)
-        
+
         # Check if the pipeline is in a completed state
         if run.status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses:
             raise mlrun.errors.MLRunBadRequestError(

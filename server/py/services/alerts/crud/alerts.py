@@ -185,8 +185,8 @@ class Alerts(
 
         # Append the event timestamp if the alert is active or has criteria.
         # If the alert is active, it follows a manual reset policy, so we need to continue counting events.
-        # If the criteria is None and the alert is inactive, we trigger the alert immediately and do not cache events.
-        if state["active"] or alert.criteria is not None:
+        # If the criteria is 1 and the alert is inactive, we trigger the alert immediately and do not cache events.
+        if state["active"] or alert.criteria.count > 1:
             state_obj["event_timestamps"].append(event_data.timestamp)
 
         # Exit early if state is active (no further processing needed)
@@ -222,17 +222,15 @@ class Alerts(
     def _should_send_notification(
         self, alert: mlrun.common.schemas.AlertConfig, state_obj: dict
     ) -> bool:
-        if alert.criteria:
-            if alert.criteria.period:
-                offset = self._get_event_offset(alert)
-                self._normalize_events(
-                    state_obj,
-                    framework.utils.helpers.string_to_timedelta(
-                        alert.criteria.period, offset, raise_on_error=False
-                    ),
-                )
-            return len(state_obj["event_timestamps"]) >= alert.criteria.count
-        return True
+        if alert.criteria.period:
+            offset = self._get_event_offset(alert)
+            self._normalize_events(
+                state_obj,
+                framework.utils.helpers.string_to_timedelta(
+                    alert.criteria.period, offset, raise_on_error=False
+                ),
+            )
+        return len(state_obj["event_timestamps"]) >= alert.criteria.count
 
     def _get_number_of_events(self, alert_id: int) -> int:
         state_obj = self._states.get(alert_id, {"event_timestamps": []})

@@ -135,7 +135,7 @@ class Client(
             "api-chief": [],
             "api": [],
             "alerts": [
-                (["put", "get", "delete"], "alert_templates.*"),
+                (["put", "get", "delete"], "alert-templates.*"),
                 (["*"], "projects/.+/alerts.*"),
                 (["post"], "projects/.+/events.*"),
             ],

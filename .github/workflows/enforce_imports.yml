@@ -1,0 +1,32 @@
+name: Enforce Fully Qualified Imports
+
+on:
+  pull_request:
+    paths:
+      - '**/*.py'
+
+jobs:
+  check_imports:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Get Modified Files
+      run: |
+        BASE_BRANCH=${{ github.event.pull_request.base.ref }}
+        git diff --name-only $(git merge-base HEAD $BASE_BRANCH) > modified_files.txt
+
+
+
+    - name: Run Import Check
+      run: |
+        python automation/scripts/check_imports.py $(cat modified_files.txt)

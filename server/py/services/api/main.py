@@ -38,7 +38,9 @@ import framework.constants
 import framework.db.base
 import framework.service
 import framework.utils.clients.chief
+import framework.utils.clients.discovery
 import framework.utils.clients.log_collector
+import framework.utils.clients.messaging
 import framework.utils.notifications.notification_pusher
 import framework.utils.time_window_tracker
 import services.api.crud
@@ -101,6 +103,15 @@ class Service(framework.service.Service):
             await self._start_periodic_functions()
 
         await self._move_mounted_services_to_online()
+
+    async def _base_handler(
+        self,
+        request: fastapi.Request,
+        *args,
+        **kwargs,
+    ):
+        messaging_client = framework.utils.clients.messaging.Client()
+        return await messaging_client.proxy_request(request=request)
 
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class

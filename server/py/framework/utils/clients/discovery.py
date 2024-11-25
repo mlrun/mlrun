@@ -132,12 +132,7 @@ class Client(
     def _service_routes(service_name: str) -> list:
         """Get all routes for a service."""
         return {
-            "api-chief": [
-                # Alerts routes that require chief capabilities
-                (["put", "delete"], "alert_templates.*"),
-                (["*"], "projects/.+/alerts.*"),
-                (["post"], "projects/.+/events.*"),
-            ],
+            "api-chief": [],
             "api": [],
             "alerts": [
                 (["put", "get", "delete"], "alert_templates.*"),

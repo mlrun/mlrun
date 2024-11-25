@@ -20,9 +20,7 @@ from datetime import datetime
 from tempfile import TemporaryDirectory
 
 import fastapi
-import httpx
 import pytest
-import pytest_asyncio
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -66,19 +64,13 @@ if str(tests_root_directory) in os.getcwd():
 
 
 class TestAPIBase(TestServiceBase):
-    @pytest.fixture()
+    @pytest.fixture(scope="module")
     def app(self) -> fastapi.FastAPI:
-        old_service_name = mlconf.services.service_name
-        old_hydra_services = mlconf.services.hydra.services
-        try:
-            mlconf.services.service_name = "api"
-            mlconf.services.hydra.services = ""
-            yield services.api.daemon.app()
-        finally:
-            mlconf.services.service_name = old_service_name
-            mlconf.services.hydra.services = old_hydra_services
+        mlconf.services.service_name = "api"
+        mlconf.services.hydra.services = ""
+        yield services.api.daemon.app()
 
-    @pytest.fixture()
+    @pytest.fixture(scope="module")
     def prefix(self):
         yield daemon.service.base_versioned_service_prefix
 
@@ -101,22 +93,6 @@ class TestAPIBase(TestServiceBase):
                     unversioned_test_client, daemon.service.service_prefix
                 )
                 yield unversioned_test_client
-
-    @pytest_asyncio.fixture()
-    async def async_client(
-        self, db, app, prefix
-    ) -> typing.AsyncIterator[httpx.AsyncClient]:
-        with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
-            mlconf.httpdb.logs_path = log_dir
-            mlconf.monitoring.runs.interval = 0
-            mlconf.runtimes_cleanup_interval = 0
-            mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-
-            async with httpx.AsyncClient(
-                app=app, base_url="http://test"
-            ) as async_client:
-                self.set_base_url_for_test_client(async_client, prefix)
-                yield async_client
 
 
 # TODO: This is a hack to allow sharing fixtures between services in non-root directives because pytest behavior

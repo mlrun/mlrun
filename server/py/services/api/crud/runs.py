@@ -146,7 +146,7 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         name: typing.Optional[str] = None,
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
-        project: str = "",
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
         state: typing.Optional[
             mlrun.common.runtimes.constants.RunStates

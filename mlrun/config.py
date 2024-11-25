@@ -138,6 +138,9 @@ default_config = {
     "object_retentions": {
         "alert_activation": 14 * 7,  # days
     },
+    # A safety margin to account for delays
+    # This ensures that extra partitions are available beyond the specified retention period
+    "partitions_buffer_multiplier": 3,
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
@@ -798,12 +801,30 @@ default_config = {
         "max_allowed": 10000,
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
+        # interval for periodic events generation job
+        "events_generation_interval": "30",
     },
     "auth_with_client_id": {
         "enabled": False,
         "request_timeout": 5,
     },
-    "notifications": {"smtp": {"config_secret_name": "mlrun-smtp-config"}},
+    "services": {
+        # The running service name. One of: "api", "alerts"
+        "service_name": "api",
+        "hydra": {
+            # Comma separated list of services to run on the instance.
+            # Currently, this is only considered when the service_name is "api".
+            # "*" starts all services on the same instance,
+            # other options are considered as running only the api service.
+            "services": "*",
+        },
+    },
+    "notifications": {
+        "smtp": {
+            "config_secret_name": "mlrun-smtp-config",
+            "refresh_interval": "30",
+        }
+    },
 }
 _is_running_as_api = None
 

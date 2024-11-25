@@ -24,7 +24,7 @@ from datetime import datetime
 from os import environ
 from typing import Any, Optional, Union
 
-import pydantic.error_wrappers
+import pydantic.v1.error_wrappers
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -739,7 +739,7 @@ class Notification(ModelObj):
     def validate_notification(self):
         try:
             mlrun.common.schemas.notification.Notification(**self.to_dict())
-        except pydantic.error_wrappers.ValidationError as exc:
+        except pydantic.v1.error_wrappers.ValidationError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid notification object"
             ) from exc

@@ -14,7 +14,7 @@
 #
 from typing import Optional
 
-import pydantic
+import pydantic.v1
 
 from .auth import AuthorizationResourceTypes, Credentials
 from .object import (
@@ -27,7 +27,7 @@ from .object import (
 )
 
 
-class FeatureStoreBaseModel(pydantic.BaseModel):
+class FeatureStoreBaseModel(pydantic.v1.BaseModel):
     """
     Intermediate base class, in order to override pydantic's configuration, as per
     https://docs.pydantic.dev/1.10/usage/model_config/#change-behaviour-globally
@@ -43,7 +43,7 @@ class Feature(FeatureStoreBaseModel):
     labels: Optional[dict] = {}
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
 class Entity(FeatureStoreBaseModel):
@@ -52,17 +52,17 @@ class Entity(FeatureStoreBaseModel):
     labels: Optional[dict] = {}
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
 class FeatureSetSpec(ObjectSpec):
     entities: list[Entity] = []
     features: list[Feature] = []
-    engine: Optional[str] = pydantic.Field(default="storey")
+    engine: Optional[str] = pydantic.v1.Field(default="storey")
 
 
 class FeatureSet(FeatureStoreBaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.feature_set, const=True)
+    kind: ObjectKind = pydantic.v1.Field(ObjectKind.feature_set, const=True)
     metadata: ObjectMetadata
     spec: FeatureSetSpec
     status: ObjectStatus
@@ -155,7 +155,7 @@ class EntitiesOutput(FeatureStoreBaseModel):
 
 
 class FeatureVector(FeatureStoreBaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.feature_vector, const=True)
+    kind: ObjectKind = pydantic.v1.Field(ObjectKind.feature_vector, const=True)
     metadata: ObjectMetadata
     spec: ObjectSpec
     status: ObjectStatus
@@ -183,7 +183,7 @@ class DataSource(FeatureStoreBaseModel):
     path: str
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
 class DataTarget(FeatureStoreBaseModel):
@@ -192,7 +192,7 @@ class DataTarget(FeatureStoreBaseModel):
     path: Optional[str]
 
     class Config:
-        extra = pydantic.Extra.allow
+        extra = pydantic.v1.Extra.allow
 
 
 class FeatureSetIngestInput(FeatureStoreBaseModel):

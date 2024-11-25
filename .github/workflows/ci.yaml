@@ -109,6 +109,10 @@ jobs:
       id: git_info
       run: |
         echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    - name: Freeing up disk space
+      run: |
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
     - name: Resolve docker cache tag
       id: docker_cache
       run: |

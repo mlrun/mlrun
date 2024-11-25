@@ -121,7 +121,7 @@ class SQLRunDB(RunDBInterface):
         self,
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        project: Optional[str] = None,
+        project: Optional[Union[str, list[str]]] = None,
         labels: Optional[Union[str, list[str]]] = None,
         state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
@@ -346,7 +346,15 @@ class SQLRunDB(RunDBInterface):
         )
 
     def list_functions(
-        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        name: Optional[str] = None,
+        project: Optional[Union[str, list[str]]] = None,
+        tag: Optional[str] = None,
+        kind: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
     ):
         return self._transform_db_error(
             services.api.crud.Functions().list_functions,
@@ -354,9 +362,11 @@ class SQLRunDB(RunDBInterface):
             project=project,
             name=name,
             tag=tag,
+            kind=kind,
             labels=labels,
             since=since,
             until=until,
+            format_=format_,
         )
 
     def paginated_list_functions(
@@ -1007,7 +1017,9 @@ class SQLRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,
-    ):
+        top_level: bool = False,
+        uids: Optional[list[str]] = None,
+    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         raise NotImplementedError()
 
     def get_model_endpoint(
@@ -1258,6 +1270,29 @@ class SQLRunDB(RunDBInterface):
 
     def list_alert_templates(self):
         pass
+
+    def list_alert_activations(
+        self,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[list[str]] = None,
+        entity_kind: Optional[str] = None,
+        event_kind: Optional[str] = None,
+    ):
+        raise NotImplementedError
+
+    def paginated_list_alert_activations(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ):
+        raise NotImplementedError
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

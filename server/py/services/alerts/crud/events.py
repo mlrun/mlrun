@@ -21,7 +21,7 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 from mlrun.utils import logger
 
-import services.api.crud
+import services.alerts.crud
 
 
 class Events(
@@ -73,14 +73,16 @@ class Events(
         event_data.timestamp = datetime.datetime.now(datetime.timezone.utc)
 
         if not self.cache_initialized:
-            services.api.crud.Alerts().process_event_no_cache(
+            services.alerts.crud.Alerts().process_event_no_cache(
                 session, event_name, event_data
             )
             return
 
         try:
             for alert_id in self._cache[(project, event_name)]:
-                services.api.crud.Alerts().process_event(session, alert_id, event_data)
+                services.alerts.crud.Alerts().process_event(
+                    session, alert_id, event_data
+                )
         except KeyError:
             logger.debug(
                 "Received event has no associated alert",

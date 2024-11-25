@@ -160,51 +160,54 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
         assert run.spec.handler == "mlrun.projects.load_and_run"
 
     @pytest.mark.parametrize(
-        "source, load_only, expected_save",
+        "runner_class, source, expected_save",
         [
-            ("./project-name", False, False),
-            ("", False, True),
-            ("s3://project-name", True, True),
-            ("", True, True),
+            (services.api.crud.WorkflowRunners, "./project-name", False),
+            (services.api.crud.WorkflowRunners, "", True),
+            (services.api.crud.LoadRunner, "s3://project-name", True),
+            (services.api.crud.LoadRunner, "", True),
         ],
     )
     def test_run_workflow_save_project(
         self,
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock,
+        runner_class,
         source: str,
-        load_only: bool,
         expected_save: bool,
     ):
         project = mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
-            spec=mlrun.common.schemas.ProjectSpec(source="s3://some-source"),
+            spec=mlrun.common.schemas.ProjectSpec(
+                source="s3://some-source", artifact_path="/home/mlrun/artifacts"
+            ),
         )
         services.api.crud.Projects().create_project(db, project)
 
         run_name = "run-name"
-        runner = services.api.crud.WorkflowRunners().create_runner(
+        runner = runner_class().create_runner(
             run_name=run_name,
             project=project.metadata.name,
             db_session=db,
             auth_info=mlrun.common.schemas.AuthInfo(),
             image="mlrun/mlrun",
         )
-
-        run = services.api.crud.WorkflowRunners().run(
-            runner=runner,
-            project=project,
-            workflow_request=mlrun.common.schemas.WorkflowRequest(
-                spec=mlrun.common.schemas.WorkflowSpec(
-                    name=run_name,
-                    engine="remote",
-                    image="mlrun/mlrun",
-                ),
-                source=source,
-                artifact_path="/home/mlrun/artifacts",
-            ),
-            auth_info=mlrun.common.schemas.AuthInfo(),
-            load_only=load_only,
+        params = dict(
+            runner=runner, project=project, auth_info=mlrun.common.schemas.AuthInfo()
         )
-
+        if runner_class == services.api.crud.WorkflowRunners:
+            params.update(
+                dict(
+                    workflow_request=mlrun.common.schemas.WorkflowRequest(
+                        spec=mlrun.common.schemas.WorkflowSpec(
+                            name=run_name,
+                            engine="remote",
+                            image="mlrun/mlrun",
+                        ),
+                        source=source,
+                        artifact_path="/home/mlrun/artifacts",
+                    ),
+                )
+            )
+        run = runner_class().run(**params)
         assert run.spec.parameters["save"] == expected_save

@@ -15,15 +15,10 @@
 
 import typing
 
-import kfp.compiler
-from kfp import dsl
-
 import mlrun
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
-
-# Disable the warning about reusing components
-kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
+from mlrun_pipelines.imports import dsl, kfp
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and

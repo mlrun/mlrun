@@ -179,7 +179,7 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
+          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
 
@@ -188,7 +188,7 @@ jobs:
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
+          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit --abbrev=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
 

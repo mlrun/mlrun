@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas.partition
+import mlrun.config
 
 import framework.db.sqldb.db
 import framework.utils.singletons.db
@@ -46,9 +47,11 @@ class MySQLPartitioner:
             table_name,
         )
 
-        # Ensure partitions for double the retention time.
+        # Ensure partitions for the retention time plus a buffer
         partition_number = partition_interval.get_number_of_partitions(
-            days=2 * retention_days
+            days=retention_days
+            + mlrun.mlconf.partitions_buffer_multiplier
+            * partition_interval.as_duration().days
         )
 
         # Create the calculated number of partitions.

@@ -15,8 +15,9 @@
 import datetime
 import enum
 import typing
+from typing import Optional
 
-import pydantic
+import pydantic.v1
 
 import mlrun.common.types
 
@@ -93,7 +94,7 @@ class NotificationLimits(enum.Enum):
     )  # 900KB (k8s secret size limit is 1MB minus buffer for metadata)
 
 
-class Notification(pydantic.BaseModel):
+class Notification(pydantic.v1.BaseModel):
     """
     Notification object schema
 
@@ -127,5 +128,12 @@ class Notification(pydantic.BaseModel):
     reason: typing.Optional[str] = None
 
 
-class SetNotificationRequest(pydantic.BaseModel):
+class SetNotificationRequest(pydantic.v1.BaseModel):
     notifications: list[Notification] = None
+
+
+class NotificationState(pydantic.v1.BaseModel):
+    kind: str
+    err: Optional[
+        str
+    ]  # empty error means that the notifications were sent successfully

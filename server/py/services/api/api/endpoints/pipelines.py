@@ -55,12 +55,11 @@ async def list_pipelines(
 ):
     if namespace is None:
         namespace = config.namespace
-    if project != "*":
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
+    allowed_project_names = (
+        await services.api.crud.Projects().list_allowed_project_names(
+            db_session, auth_info, project=project
         )
+    )
     total_size, next_page_token, runs = None, None, []
     if framework.utils.singletons.k8s.get_k8s_helper(
         silent=True
@@ -75,7 +74,7 @@ async def list_pipelines(
         total_size, next_page_token, runs = await run_in_threadpool(
             services.api.crud.Pipelines().list_pipelines,
             db_session,
-            project,
+            allowed_project_names,
             namespace,
             sort_by,
             page_token,

@@ -59,9 +59,9 @@ class Service(ABC):
     async def move_service_to_online(self):
         pass
 
+    # https://fastapi.tiangolo.com/advanced/events/
     @contextlib.asynccontextmanager
     async def lifespan(self, app_: fastapi.FastAPI):
-        # https://fastapi.tiangolo.com/advanced/events/
         setup_tasks = [self._setup_service()] + [
             service._setup_service(mounted=True) for service in self._mounted_services
         ]

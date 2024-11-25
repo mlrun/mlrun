@@ -37,13 +37,13 @@ if str(tests_root_directory) in os.getcwd():
 
 
 class TestAlertsBase(TestServiceBase):
-    @pytest.fixture(scope="module")
+    @pytest.fixture()
     def app(self) -> fastapi.FastAPI:
         mlconf.services.service_name = "alert"
         mlconf.services.hydra.services = ""
         yield services.alerts.daemon.app()
 
-    @pytest.fixture(scope="module")
+    @pytest.fixture()
     def prefix(self):
         yield daemon.service.base_versioned_service_prefix
 

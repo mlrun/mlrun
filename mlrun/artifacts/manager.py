@@ -313,7 +313,10 @@ class ArtifactManager:
             item.upload(artifact_path=artifact_path)
 
         if db_key:
-            self._log_to_db(db_key, project, producer.inputs, item)
+            uid = self._log_to_db(db_key, project, producer.inputs, item)
+            mlrun.utils.logger.info("Yaelllll2", uid=uid)
+            if uid is not None:
+                item.uid = uid
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
@@ -325,12 +328,12 @@ class ArtifactManager:
         self.artifact_uris[item.key] = item.uri
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
-    def _log_to_db(self, key, project, sources, item, tag=None):
+    def _log_to_db(self, key, project, sources, item, tag=None) -> typing.Optional[str]:
         """
         log artifact to db
         :param key: Identifying key of the artifact.
         :param project: Project that the artifact belongs to.
-        :param sources: List of artifact sources ( Mainly passed from the producer.items ).
+        :param sources: List of artifact sources ( Mainly passed from the `producer.items` ).
         :param item: The actual artifact to store.
         :param tag: The name of the Tag of the artifact.
         """
@@ -338,7 +341,7 @@ class ArtifactManager:
             item.updated = None
             if sources:
                 item.sources = [{"name": k, "path": str(v)} for k, v in sources.items()]
-            self.artifact_db.store_artifact(
+            return self.artifact_db.store_artifact(
                 key,
                 item.to_dict(),
                 iter=item.iter,

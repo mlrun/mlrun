@@ -645,6 +645,14 @@ class Artifact(ModelObj):
     def hash(self, hash):
         self.metadata.hash = hash
 
+    @property
+    def uid(self):
+        return self.metadata.uid
+
+    @uid.setter
+    def uid(self, uid):
+        self.metadata.uid = uid
+
     def generate_target_path(self, artifact_path, producer):
         return generate_target_path(self, artifact_path, producer)
 

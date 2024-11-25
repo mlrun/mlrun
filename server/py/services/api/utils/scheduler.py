@@ -1024,6 +1024,9 @@ class Scheduler:
     def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
     ):
+        if cron_trigger.timezone:
+            if isinstance(cron_trigger.timezone, str):
+                cron_trigger.timezone = cron_trigger.timezone.upper()
         return APSchedulerCronTrigger(
             cron_trigger.year,
             cron_trigger.month,

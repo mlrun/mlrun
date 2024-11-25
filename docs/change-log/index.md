@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.7.1](#v171-24-november-2024) | [v1.7.0](#v170-1-november-2024)
+- [v1.7.1](#v171-26-november-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-30-june-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
 - [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
 - [v1.4.1](#v141-8-august-2023) | [v1.4.0](#v140-23-july-2023)
@@ -12,12 +12,12 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.1 (24 November 2024)
+## v1.7.1 (26 November 2024)
 
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-7731|Supports larger scale of model monitoring with additional replicas/workers. To benefit from the scale-out: in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
+|ML-7731|Supports larger scale of model monitoring with additional replicas/workers. To benefit from the scale-out: After upgrading to v1.7.1, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -27,20 +27,32 @@
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-8012|You can now use the same tag on more than one model.|
-|ML=8046|The umber of TSDB records is not correct when using user app.|
-|ML-8097|UI: Now displays the pod status in **Monitor Jobs** when you hover over the status symbol.|
+|ML-7285|Improved the loading response time for the **Feature sets** page.|
+|ML-7967|Fixed the `_ApplicationErrorHandler` message.|
 |ML-8001|Job failures are now described in the job details and when hovering over the status (in the Projects > Jobs monitoring > **Jobs** page).|
-|ML-8110|The cross-project summary is now aligned with per-project summary.|
-|ML-8124|Fixed the `kind` label of schedules. Scheduled functions that are not kubejobs are now calculated in the summary counters.|
-|ML-8215|You can now use an asterisk ( "\*") in the project name parameter of `run_db.list_functions()` to retrieve all projects.|
+|ML-8006|Fixed the pipelines error message for a failed step (previously included messages from other (skipped) steps of the workflow).|
+|ML-8012|You can now use the same tag on more than one model.|
+|ML-8046|The number of TSDB records is now correct when running model monitoring with a user app.|
+|ML-8080|Projects with many artifact tags can now be deleted without complications.|
+|ML-8082 / 8246|You can now delete projects with large number of resources in TDEngine.|
+|ML-8097|UI: Now displays the pod status in **Monitor Jobs** when you hover over the status symbol.|
+|ML-8110|The cross-project summary is now aligned with the per-project summary.|
+|ML-8112|Logging a model with a training set that has large number of columns now displays the model feature statistics.|
+|ML-8150|Fixed the 03-model-serving tutorial so that all tutorials can be run sequentially.|
+|ML-8151|Fixed the error message that displays when deploying monitoring without setting the required credentials.|
+|ML-8171|The **Projects** page does not refresh every time you click in the Search box (the previous behavior).|
+|ML-8195|You can now use `format_` and `limit` flags to all project `list_artifacts` methods, improving queries of large numbers of artifacts.| 
+|ML-8215|You can now use an asterisk ( "\`*`") in the project name parameter of `run_db.list_functions()` to retrieve all projects.|
+|ML-8217|The counters in the **Projects** page now have tooltips.|
+|ML-8224|Kafka topics are now deleted together with the project during project deletion.|
+|ML-8286|The tooltip for failed jobs now differentiate between Error and Reason.|
 
 ## v1.7.0 (1 November 2024)
 
 ### Model monitoring
 
 ```{admonition} Note
-{ref}`model-monitoring-overview` is in TechPreview status in v1.7.0.
+{ref}`model-monitoring-overview` is in TechPreview.
 ```
 
 | ID    | Description                                                                                                                                                                                                                        |

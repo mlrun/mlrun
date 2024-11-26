@@ -106,7 +106,12 @@ class Alerts(
                 existing_alert, alert_data, force_reset
             )
             if should_reset:
-                logger.debug("Resetting alert due to %s", reset_reason)
+                logger.debug(
+                    "Resetting alert before storing",
+                    project=project,
+                    alert_name=name,
+                    reason=reset_reason,
+                )
                 self.reset_alert(session, project, new_alert.name)
 
         framework.utils.singletons.db.get_db().enrich_alert(session, new_alert)

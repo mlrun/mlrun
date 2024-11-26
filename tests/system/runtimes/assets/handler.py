@@ -23,6 +23,8 @@ def my_func(context, p1: int = 1, p2="a-string"):
     print(f"Params: p1={p1}, p2={p2}")
     context.logger.info("running function")
 
+    context.log_artifact("test", body=str(p1))
+
     # RUN some useful code e.g. ML training, data prep, etc.
 
     # log scalar result values (job result metrics)

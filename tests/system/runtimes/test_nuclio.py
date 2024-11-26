@@ -575,6 +575,15 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         # accuracy = max(p1) * 2
         assert run_result.output("accuracy") == 22, "unexpected results"
 
+        artifacts = mlrun.get_run_db().list_artifacts(
+            partition_by=mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+            tag="latest",
+        )
+        assert len(artifacts) == 3  # iteration_results + parallel_coordinates + test
+        for artifact in artifacts:
+            # We are not checking the best iteration here because it is not guaranteed
+            assert artifact["metadate"]["tag"] == "latest"
+
         # test early stop
         hyper_param_options = mlrun.model.HyperParamOptions(
             parallel_runs=1,

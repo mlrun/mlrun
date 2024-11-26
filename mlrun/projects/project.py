@@ -41,6 +41,7 @@ import mlrun.artifacts.model
 import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.runtimes.constants
+import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -58,7 +59,6 @@ import mlrun.utils.regex
 import mlrun_pipelines.common.models
 import mlrun_pipelines.mounts
 from mlrun.alerts.alert import AlertConfig
-from mlrun.common.schemas.alert import AlertActivation, AlertTemplate
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
 from mlrun_pipelines.models import PipelineNodeWrapper
@@ -4614,7 +4614,9 @@ class MlrunProject(ModelObj):
             alert_name = alert_data.name
         db.reset_alert_config(alert_name, self.metadata.name)
 
-    def get_alert_template(self, template_name: str) -> AlertTemplate:
+    def get_alert_template(
+        self, template_name: str
+    ) -> mlrun.common.schemas.alert.AlertTemplate:
         """
         Retrieve a specific alert template.
 
@@ -4624,7 +4626,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_template(template_name)
 
-    def list_alert_templates(self) -> list[AlertTemplate]:
+    def list_alert_templates(self) -> list[mlrun.common.schemas.alert.AlertTemplate]:
         """
         Retrieve list of all alert templates.
 
@@ -4646,7 +4648,7 @@ class MlrunProject(ModelObj):
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-    ) -> list[AlertActivation]:
+    ) -> list[mlrun.common.schemas.alert.AlertActivation]:
         """
         Retrieve a list of alert activations for a project.
 
@@ -4662,7 +4664,7 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_alert_activations(
-            project=self.name,
+            project=self.metadata.name,
             name=name,
             since=since,
             until=until,
@@ -4679,7 +4681,7 @@ class MlrunProject(ModelObj):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         **kwargs,
-    ) -> tuple[AlertActivation, Optional[str]]:
+    ) -> tuple[mlrun.common.schemas.alert.AlertActivation, Optional[str]]:
         """
         List alerts activations with support for pagination and various filtering options.
 
@@ -4693,24 +4695,22 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Fetch first page of alert activations with page size of 5
-            alert_activations, token = db.paginated_list_alert_activations(
-                project="my-project", page_size=5
-            )
+            alert_activations, token = project.paginated_list_alert_activations(page_size=5)
             # Fetch next page using the pagination token from the previous response
-            alert_activations, token = db.paginated_list_alert_activations(
-                project="my-project", page_token=token
+            alert_activations, token = project.paginated_list_alert_activations(
+                page_token=token
             )
             # Fetch alert activations for a specific page (e.g., page 3)
-            alert_activations, token = db.paginated_list_alert_activations(
-                project="my-project", page=3, page_size=5
+            alert_activations, token = project.paginated_list_alert_activations(
+                page=3, page_size=5
             )
 
             # Automatically iterate over all pages without explicitly specifying the page number
             alert_activations = []
             token = None
             while True:
-                page_alert_activations, token = db.paginated_list_alert_activations(
-                    project="my-project", page_token=token, page_size=5
+                page_alert_activations, token = project.paginated_list_alert_activations(
+                    page_token=token, page_size=5
                 )
                 alert_activations.extend(page_alert_activations)
 
@@ -4730,6 +4730,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.paginated_list_alert_activations(
             *args,
+            project=self.metadata.name,
             page=page,
             page_size=page_size,
             page_token=page_token,

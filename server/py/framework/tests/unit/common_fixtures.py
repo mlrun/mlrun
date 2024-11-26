@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import typing
-import unittest
+import unittest.mock
 from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 import deepdiff
+import fastapi
 import httpx
 import pytest
+import pytest_asyncio
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy import event
@@ -151,6 +153,18 @@ class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
 
 
 class TestServiceBase:
+    @pytest.fixture(scope="module")
+    def app(self) -> fastapi.FastAPI:
+        raise NotImplementedError(
+            "Service application fixture should be implemented by the inheriting class"
+        )
+
+    @pytest.fixture(scope="module")
+    def prefix(self):
+        raise NotImplementedError(
+            "Service API prefix fixture should be implemented by the inheriting class"
+        )
+
     @pytest.fixture(autouse=True)
     def service_config_test(self):
         framework.utils.singletons.db.db = None
@@ -245,3 +259,19 @@ class TestServiceBase:
             framework.utils.singletons.k8s.get_k8s_helper(), monkeypatch
         )
         yield k8s_secrets_mock
+
+    @pytest_asyncio.fixture()
+    async def async_client(
+        self, db, app, prefix
+    ) -> typing.AsyncIterator[httpx.AsyncClient]:
+        with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+            mlconf.httpdb.logs_path = log_dir
+            mlconf.monitoring.runs.interval = 0
+            mlconf.runtimes_cleanup_interval = 0
+            mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+
+            async with httpx.AsyncClient(
+                app=app, base_url="http://test"
+            ) as async_client:
+                self.set_base_url_for_test_client(async_client, prefix)
+                yield async_client

@@ -1,0 +1,6 @@
+> --------------- Iteration: (4) ---------------
+2024-11-26 15:56:16.189048  info   logging run results to: http://mlrun-api:8080  worker_id=0
+2024-11-26 15:56:16.189905  info   running function  worker_id=0
+> --------------- Iteration: (2) ---------------
+2024-11-26 15:56:16.204587  info   logging run results to: http://mlrun-api:8080  worker_id=1
+2024-11-26 15:56:16.205465  info   running function  worker_id=1

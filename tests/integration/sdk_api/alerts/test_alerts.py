@@ -299,10 +299,15 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         activations = project.list_alert_activations(name=alert_name)
         assert len(activations) == 2
 
-        for severity in [
+        severity_list = [
             mlrun.common.schemas.alert.AlertSeverity.LOW,
             mlrun.common.schemas.alert.AlertSeverity.HIGH,
-        ]:
+        ]
+
+        activations = project.list_alert_activations(name=alert_name, severity=severity_list)
+        assert len(activations) == 2
+
+        for severity in severity_list:
             activations = project.list_alert_activations(
                 name=alert_name,
                 severity=severity,
@@ -692,17 +697,17 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
     ):
         # Use provided values or fallback to the current alert's attributes
         alert_data = self._generate_alert_create_request(
-            project_name,
-            alert.name,
-            alert_entity_kind or alert.entities.kind,
-            alert_entity_project or alert.project,
-            alert_summary or alert.summary,
-            event_name or alert.trigger.events[0].name,
-            severity or alert.severity,
-            criteria or alert.criteria,
+            project=project_name,
+            name=alert.name,
+            entity_kind=alert_entity_kind or alert.entities.kind,
+            entity_project=alert_entity_project or alert.project,
+            summary=alert_summary or alert.summary,
+            event_name=event_name or alert.trigger.events[0].name,
+            severity=severity or alert.severity,
+            criteria=criteria or alert.criteria,
             # notification needs to be sent every time due to not having secret params in the client side
-            notifications,
-            reset_policy or alert.reset_policy,
+            notifications=notifications,
+            reset_policy=reset_policy or alert.reset_policy,
         )
         return mlrun.get_run_db().store_alert_config(
             alert.name, alert_data, project_name

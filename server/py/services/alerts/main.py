@@ -41,7 +41,11 @@ import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
 from framework.db.session import close_session, create_session
-from framework.routers import alert_template, alerts, auth, healthz
+from framework.routers import alert_template, alerts, auth, events, healthz
+from framework.utils.singletons.project_member import (
+    get_project_member,
+    initialize_project_member,
+)
 
 
 class Service(framework.service.Service):
@@ -361,6 +365,11 @@ class Service(framework.service.Service):
 
     async def move_service_to_online(self):
         self._logger.info("Moving alerts to online")
+
+        if not get_project_member():
+            await fastapi.concurrency.run_in_threadpool(initialize_project_member)
+            get_project_member().start()
+
         if self._is_chief_or_standalone():
             services.alerts.initial_data.update_default_configuration_data(self._logger)
             await self._start_periodic_functions()
@@ -378,6 +387,11 @@ class Service(framework.service.Service):
         )
         alerts_v1_router.include_router(
             alerts.router,
+            tags=["alerts"],
+            dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
+        )
+        alerts_v1_router.include_router(
+            events.router,
             tags=["alerts"],
             dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
         )

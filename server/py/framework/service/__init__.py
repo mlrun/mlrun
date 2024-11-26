@@ -49,16 +49,16 @@ class Service(ABC):
         self._mounted_services: list[Service] = []
 
     def initialize(self, mounts: typing.Optional[list] = None):
-        self._logger.info("Initializing service")
+        self._logger.info("Initializing service", service_name=self.service_name)
         self._initialize_app()
         self._register_routes()
         self._mount_services(mounts)
         self._add_middlewares()
         self._add_exception_handlers()
 
-    @abstractmethod
     async def move_service_to_online(self):
-        pass
+        self._logger.info("Moving service to online", service_name=self.service_name)
+        await self._move_service_to_online()
 
     # https://fastapi.tiangolo.com/advanced/events/
     @contextlib.asynccontextmanager
@@ -92,6 +92,10 @@ class Service(ABC):
             *args,
             **kwargs,
         )
+
+    @abstractmethod
+    async def _move_service_to_online(self):
+        pass
 
     def _mount_services(self, mounts: typing.Optional[list] = None):
         if not mounts:
@@ -134,6 +138,7 @@ class Service(ABC):
                 "On startup event handler called",
                 config=mlconf.dump_yaml(),
                 version=mlrun.utils.version.Version().get(),
+                service_name=self.service_name,
             )
             loop = asyncio.get_running_loop()
             loop.set_default_executor(
@@ -311,15 +316,19 @@ class Service(ABC):
 
         if chief_state == mlrun.common.schemas.APIStates.online:
             self._logger.info(
-                "Chief reached online state! Switching worker state to online"
+                "Chief reached online state! Switching service state to online",
+                service_name=self.service_name,
             )
             await self.move_service_to_online()
-            self._logger.info("Worker state reached online")
+            self._logger.info(
+                "Service state reached online", service_name=self.service_name
+            )
 
         else:
             self._logger.info(
-                "Chief state is terminal, canceling worker periodic chief clusterization spec pulling",
+                "Chief state is terminal, canceling periodic chief clusterization spec pulling",
                 state=mlconf.httpdb.state,
+                service_name=self.service_name,
             )
 
         mlconf.httpdb.state = chief_state

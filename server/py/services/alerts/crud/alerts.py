@@ -410,6 +410,7 @@ class Alerts(
         if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
             # before resetting an alert, update number_of_events if required
             number_of_events = self._get_number_of_events(alert.id)
+            # if they are equal, the number_of_events is already set to the correct value
             if number_of_events > alert.criteria.count:
                 alert_state = (
                     framework.utils.singletons.db.get_db().get_alert_state_dict(

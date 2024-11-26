@@ -3883,12 +3883,9 @@ class SQLDB(DBInterface):
 
         # Retrieve only the ID from the subquery to minimize the inner table,
         # in the final step we inner join the inner table with the full table.
-        query = query.with_entities(cls.id)
-        if with_tagged:
-            query = query.with_entities(cls.id, cls.Tag.name)
-        else:
-            query = query.with_entities(cls.id)
-        query = query.add_column(row_number_column)
+        query = query.with_entities(
+            cls.id, cls.Tag.name if with_tagged else None
+        ).add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
                 func.max(sort_by_field)

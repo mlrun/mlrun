@@ -160,6 +160,16 @@ class Artifacts(
         producer_id: typing.Optional[str] = None,
         producer_uri: typing.Optional[str] = None,
         limit: typing.Optional[int] = None,
+        partition_by: typing.Optional[
+            mlrun.common.schemas.ArtifactPartitionByField
+        ] = None,
+        rows_per_partition: typing.Optional[int] = 1,
+        partition_sort_by: typing.Optional[
+            mlrun.common.schemas.SortField
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: typing.Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list:
@@ -182,6 +192,10 @@ class Artifacts(
             producer_uri=producer_uri,
             format_=format_,
             limit=limit,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
             page=page,
             page_size=page_size,
         )

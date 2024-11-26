@@ -407,12 +407,11 @@ class Alerts(
         # reset the alert if the policy was modified from manual to auto while the state is active
         old_reset_policy = getattr(old_alert_data, "reset_policy")
         new_reset_policy = getattr(alert_data, "reset_policy")
-        reset_due_to_policy_change = (
+        if (
             old_alert_data.state == mlrun.common.schemas.AlertActiveState.ACTIVE
             and old_reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
             and new_reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO
-        )
-        if reset_due_to_policy_change:
+        ):
             return "reset-policy changed from manual to auto"
 
         # reset the alert if a functional parameter (entities, trigger, or criteria) has changed, as these affect the

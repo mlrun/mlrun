@@ -17,7 +17,7 @@
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-7731|Supports larger scale of model monitoring with additional replicas/workers. To benefit from the scale-out: After upgrading to v1.7.1, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
+|ML-7731|Model monitoring can now be run on a larger scale, with additional replicas/workers. To benefit from the scale-out: After upgrading to v1.7.1, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -42,10 +42,10 @@
 |ML-8151|Fixed the error message that displays when deploying monitoring without setting the required credentials.|
 |ML-8171|The **Projects** page does not refresh every time you click in the Search box (the previous behavior).|
 |ML-8195|You can now use `format_` and `limit` flags to all project `list_artifacts` methods, improving queries of large numbers of artifacts.| 
-|ML-8215|You can now use an asterisk ( "\`*`") in the project name parameter of `run_db.list_functions()` to retrieve all projects.|
+|ML-8215|You can now use an asterisk ( "\*") in the project name parameter of `run_db.list_functions()` to retrieve all projects.|
 |ML-8217|The counters in the **Projects** page now have tooltips.|
 |ML-8224|Kafka topics are now deleted together with the project during project deletion.|
-|ML-8286|The tooltip for failed jobs now differentiate between Error and Reason.|
+|ML-8286|The tooltip for failed jobs now differentiates between Error and Reason.|
 
 ## v1.7.0 (1 November 2024)
 
@@ -1111,12 +1111,13 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. | Keep the name combination at a maximum of 63 chars.                                                                                                                                                                                                                                                                                                                      |v1.6.0|
 |ML-7159/7704|The evidently app pod memory consumption grows continuously due to use of the evidently workspace and project.|External dependency. Do not use (or only rarely use) these evidently APIs.|v1.7.0|
 |ML-7196|The models features statistics `feature_stats` is limited to 16MB. Further limitation to 1MB when using model-monitoring over V3IO-KV will be removed in 1.8.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.7.0|
-|ML-7347|MM-app: Logging artifacts leaks memory due to artifact manager saving each logged artifact.|Using the same artifact key to prevent accumulation.|v1.7.0|
+|ML-7347|MM-app: Logging artifacts leaks memory due to artifact manager saving each logged artifact.|Use the same artifact key to prevent accumulation.|v1.7.0|
 |ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. | See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.md#preventing-and-resolving-conflicts).| v1.7.0    |                                                                                                                                                                                                                                        |
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. | NA   | v1.7.0|                                                                                                                                                                                                                                                                                                                                                                    | v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA | v1.7.0|                                                                                                                                                                                                                                                                                                                                                                | v1.7.0|              
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA| v1.7.0|                                                                                                                                                                                                                                                                                                                                               | v1.7.0|
 |ML-8064|When using notifications with `when=running` the user always gets a default notification.|NA| v1.7.0|
+|ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 
 ## Limitations
 

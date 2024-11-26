@@ -32,10 +32,11 @@ from mlrun import mlconf
 
 import framework.api.utils
 import framework.middlewares
+import framework.utils.clients.chief
 import framework.utils.clients.discovery
 import framework.utils.periodic
 from framework.utils.singletons.db import initialize_db
-import framework.utils.clients.chief
+
 
 class Service(ABC):
     def __init__(self):

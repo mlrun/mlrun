@@ -49,7 +49,6 @@ import services.api.runtime_handlers
 import services.api.utils.db.partitioner
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
-    cancel_periodic_function,
     run_function_periodically,
 )
 from framework.utils.singletons.db import get_db

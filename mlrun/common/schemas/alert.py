@@ -213,3 +213,4 @@ class AlertActivation(pydantic.v1.BaseModel):
     event_kind: EventKind
     number_of_events: int
     notifications: list[notification_objects.NotificationState]
+    reset_time: Optional[datetime] = None

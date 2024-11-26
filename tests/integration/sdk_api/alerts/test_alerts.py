@@ -665,6 +665,53 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         mlrun.get_run_db().generate_event(event_name, event_data)
 
+    def _validate_alert_activation(
+        self,
+        alert_activation: mlrun.common.schemas.alert.AlertActivation,
+        project_name=None,
+        alert_name=None,
+        alert_event_name=None,
+        alert_severity=None,
+        alert_criteria=None,
+        alert_entity_id=None,
+        alert_entity_kind=None,
+        alert_event_kind=None,
+        number_of_events=None,
+        alert_notifications=None,
+    ):
+        if project_name:
+            assert alert_activation.project == project_name
+        if alert_name:
+            assert alert_activation.name == alert_name
+        if alert_event_name:
+            assert alert_event_name in [
+                notification.event_name
+                for notification in alert_activation.notifications
+            ]
+        if alert_severity:
+            assert alert_activation.severity == alert_severity
+        if alert_criteria:
+            assert alert_activation.criteria.period == alert_criteria.period
+            assert alert_activation.criteria.count == alert_criteria.count
+        if alert_entity_id:
+            assert alert_activation.entity_id == alert_entity_id
+        if alert_entity_kind:
+            assert alert_activation.entity_kind == alert_entity_kind
+        if alert_event_kind:
+            assert alert_activation.event_kind == alert_event_kind
+        if number_of_events:
+            assert alert_activation.number_of_events == number_of_events
+        if alert_notifications:
+            assert alert_activation.notifications == alert_notifications
+
+        alert = self._get_alerts(project_name, alert_name)
+        if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO:
+            assert alert_activation.activation_time == alert_activation.reset_time
+        elif alert.state == "active":
+            assert alert_activation.reset_time is None
+        else:
+            assert alert_activation.reset_time > alert_activation.activation_time
+
     @staticmethod
     def _get_alerts(project_name, name=None):
         if name:
@@ -731,45 +778,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             assert alert.notifications == alert_notifications
         if alert_count:
             assert alert.count == alert_count
-
-    @staticmethod
-    def _validate_alert_activation(
-        alert_activation,
-        project_name=None,
-        alert_name=None,
-        alert_event_name=None,
-        alert_severity=None,
-        alert_criteria=None,
-        alert_entity_id=None,
-        alert_entity_kind=None,
-        alert_event_kind=None,
-        number_of_events=None,
-        alert_notifications=None,
-    ):
-        if project_name:
-            assert alert_activation.project == project_name
-        if alert_name:
-            assert alert_activation.name == alert_name
-        if alert_event_name:
-            assert alert_event_name in [
-                notification.event_name
-                for notification in alert_activation.notifications
-            ]
-        if alert_severity:
-            assert alert_activation.severity == alert_severity
-        if alert_criteria:
-            assert alert_activation.criteria.period == alert_criteria.period
-            assert alert_activation.criteria.count == alert_criteria.count
-        if alert_entity_id:
-            assert alert_activation.entity_id == alert_entity_id
-        if alert_entity_kind:
-            assert alert_activation.entity_kind == alert_entity_kind
-        if alert_event_kind:
-            assert alert_activation.event_kind == alert_event_kind
-        if number_of_events:
-            assert alert_activation.number_of_events == number_of_events
-        if alert_notifications:
-            assert alert_activation.notifications == alert_notifications
 
     @staticmethod
     def _generate_event_request(project, event_kind, entity_kind):

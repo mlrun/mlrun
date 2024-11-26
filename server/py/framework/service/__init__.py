@@ -32,6 +32,7 @@ from mlrun import mlconf
 
 import framework.api.utils
 import framework.middlewares
+import framework.utils.clients.chief
 import framework.utils.clients.discovery
 import framework.utils.periodic
 from framework.utils.singletons.db import initialize_db
@@ -48,16 +49,16 @@ class Service(ABC):
         self._mounted_services: list[Service] = []
 
     def initialize(self, mounts: typing.Optional[list] = None):
-        self._logger.info("Initializing service")
+        self._logger.info("Initializing service", service_name=self.service_name)
         self._initialize_app()
         self._register_routes()
         self._mount_services(mounts)
         self._add_middlewares()
         self._add_exception_handlers()
 
-    @abstractmethod
     async def move_service_to_online(self):
-        pass
+        self._logger.info("Moving service to online", service_name=self.service_name)
+        await self._move_service_to_online()
 
     # https://fastapi.tiangolo.com/advanced/events/
     @contextlib.asynccontextmanager
@@ -91,6 +92,10 @@ class Service(ABC):
             *args,
             **kwargs,
         )
+
+    @abstractmethod
+    async def _move_service_to_online(self):
+        pass
 
     def _mount_services(self, mounts: typing.Optional[list] = None):
         if not mounts:
@@ -133,6 +138,7 @@ class Service(ABC):
                 "On startup event handler called",
                 config=mlconf.dump_yaml(),
                 version=mlrun.utils.version.Version().get(),
+                service_name=self.service_name,
             )
             loop = asyncio.get_running_loop()
             loop.set_default_executor(
@@ -143,6 +149,16 @@ class Service(ABC):
 
             initialize_db()
         await self._custom_setup_service()
+
+        self._initialize_data()
+        if (
+            mlconf.httpdb.clusterization.worker.sync_with_chief.mode
+            == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
+            and mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.worker
+        ):
+            # in the background, wait for chief to reach online state
+            self._start_chief_clusterization_spec_sync_loop()
 
         if mlconf.httpdb.state == mlrun.common.schemas.APIStates.online and not mounted:
             await self.move_service_to_online()
@@ -237,6 +253,90 @@ class Service(ABC):
 
     async def _start_periodic_functions(self):
         pass
+
+    def _start_chief_clusterization_spec_sync_loop(self):
+        # put it here first, because we need to set it before the periodic function starts
+        # so the worker will be aligned with the chief state
+        mlconf.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
+
+        interval = int(mlconf.httpdb.clusterization.worker.sync_with_chief.interval)
+        if interval > 0:
+            self._logger.info(
+                "Starting chief clusterization spec sync loop", interval=interval
+            )
+            framework.utils.periodic.run_function_periodically(
+                interval,
+                self._synchronize_with_chief_clusterization_spec.__name__,
+                False,
+                self._synchronize_with_chief_clusterization_spec,
+            )
+
+    async def _synchronize_with_chief_clusterization_spec(
+        self,
+    ):
+        # sanity
+        # if we are still in the periodic function and the worker has reached the terminal state, then cancel it
+        if mlconf.httpdb.state in mlrun.common.schemas.APIStates.terminal_states():
+            framework.utils.periodic.cancel_periodic_function(
+                self._synchronize_with_chief_clusterization_spec.__name__
+            )
+
+        try:
+            chief_client = framework.utils.clients.chief.Client()
+            clusterization_spec = await chief_client.get_clusterization_spec(
+                return_fastapi_response=False, raise_on_failure=True
+            )
+        except Exception as exc:
+            self._logger.debug(
+                "Failed receiving clusterization spec",
+                exc=mlrun.errors.err_to_str(exc),
+                traceback=traceback.format_exc(),
+            )
+        else:
+            await self._align_worker_state_with_chief_state(clusterization_spec)
+
+    async def _align_worker_state_with_chief_state(
+        self,
+        clusterization_spec: mlrun.common.schemas.ClusterizationSpec,
+    ):
+        chief_state = clusterization_spec.chief_api_state
+        if not chief_state:
+            self._logger.warning("Chief did not return any state")
+            return
+
+        if chief_state not in mlrun.common.schemas.APIStates.terminal_states():
+            self._logger.debug(
+                "Chief did not reach online state yet, will retry after sync interval",
+                interval=mlconf.httpdb.clusterization.worker.sync_with_chief.interval,
+                chief_state=chief_state,
+            )
+            # we want the worker to be aligned with chief state
+            mlconf.httpdb.state = chief_state
+            return
+
+        if chief_state == mlrun.common.schemas.APIStates.online:
+            self._logger.info(
+                "Chief reached online state! Switching service state to online",
+                service_name=self.service_name,
+            )
+            await self.move_service_to_online()
+            self._logger.info(
+                "Service state reached online", service_name=self.service_name
+            )
+
+        else:
+            self._logger.info(
+                "Chief state is terminal, canceling periodic chief clusterization spec pulling",
+                state=mlconf.httpdb.state,
+                service_name=self.service_name,
+            )
+
+        mlconf.httpdb.state = chief_state
+        # if reached terminal state we cancel the periodic function
+        # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
+        framework.utils.periodic.cancel_periodic_function(
+            self._synchronize_with_chief_clusterization_spec.__name__
+        )
 
 
 class Daemon(ABC):

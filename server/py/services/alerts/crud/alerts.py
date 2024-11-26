@@ -251,14 +251,14 @@ class Alerts(
             self._try_populate_event_cache(session)
         except Exception as exc:
             logger.error(
-                "Error populating event cache for alerts. Transitioning state to offline!",
+                "Error populating event cache. Transitioning state to offline!",
                 exc=mlrun.errors.err_to_str(exc),
             )
             mlconfig.httpdb.state = mlrun.common.schemas.APIStates.offline
             return
 
         services.alerts.crud.Events().cache_initialized = True
-        logger.debug("Finished populating event cache for alerts")
+        logger.debug("Finished populating event cache")
 
     @classmethod
     def _get_alert_by_id_cached(cls):

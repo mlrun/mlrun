@@ -49,7 +49,6 @@ import services.api.runtime_handlers
 import services.api.utils.db.partitioner
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
-    cancel_periodic_function,
     run_function_periodically,
 )
 from framework.utils.singletons.db import get_db
@@ -127,18 +126,6 @@ class Service(framework.service.Service):
 
     async def _custom_setup_service(self):
         initialize_logs_dir()
-
-        # TODO: move code below to base class
-        self._initialize_data()
-
-        if (
-            mlconf.httpdb.clusterization.worker.sync_with_chief.mode
-            == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
-            and mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.worker
-        ):
-            # in the background, wait for chief to reach online state
-            self._start_chief_clusterization_spec_sync_loop()
 
     async def _custom_teardown_service(self):
         if get_project_member():
@@ -685,86 +672,6 @@ class Service(framework.service.Service):
                 await self._stop_logs_for_runs(runs)
         finally:
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
-
-    def _start_chief_clusterization_spec_sync_loop(self):
-        # put it here first, because we need to set it before the periodic function starts
-        # so the worker will be aligned with the chief state
-        mlconf.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
-
-        interval = int(mlconf.httpdb.clusterization.worker.sync_with_chief.interval)
-        if interval > 0:
-            self._logger.info(
-                "Starting chief clusterization spec sync loop", interval=interval
-            )
-            run_function_periodically(
-                interval,
-                self._synchronize_with_chief_clusterization_spec.__name__,
-                False,
-                self._synchronize_with_chief_clusterization_spec,
-            )
-
-    async def _synchronize_with_chief_clusterization_spec(
-        self,
-    ):
-        # sanity
-        # if we are still in the periodic function and the worker has reached the terminal state, then cancel it
-        if mlconf.httpdb.state in mlrun.common.schemas.APIStates.terminal_states():
-            cancel_periodic_function(
-                self._synchronize_with_chief_clusterization_spec.__name__
-            )
-
-        try:
-            chief_client = framework.utils.clients.chief.Client()
-            clusterization_spec = await chief_client.get_clusterization_spec(
-                return_fastapi_response=False, raise_on_failure=True
-            )
-        except Exception as exc:
-            self._logger.debug(
-                "Failed receiving clusterization spec",
-                exc=err_to_str(exc),
-                traceback=traceback.format_exc(),
-            )
-        else:
-            await self._align_worker_state_with_chief_state(clusterization_spec)
-
-    async def _align_worker_state_with_chief_state(
-        self,
-        clusterization_spec: mlrun.common.schemas.ClusterizationSpec,
-    ):
-        chief_state = clusterization_spec.chief_api_state
-        if not chief_state:
-            self._logger.warning("Chief did not return any state")
-            return
-
-        if chief_state not in mlrun.common.schemas.APIStates.terminal_states():
-            self._logger.debug(
-                "Chief did not reach online state yet, will retry after sync interval",
-                interval=mlconf.httpdb.clusterization.worker.sync_with_chief.interval,
-                chief_state=chief_state,
-            )
-            # we want the worker to be aligned with chief state
-            mlconf.httpdb.state = chief_state
-            return
-
-        if chief_state == mlrun.common.schemas.APIStates.online:
-            self._logger.info(
-                "Chief reached online state! Switching worker state to online"
-            )
-            await self.move_service_to_online()
-            self._logger.info("Worker state reached online")
-
-        else:
-            self._logger.info(
-                "Chief state is terminal, canceling worker periodic chief clusterization spec pulling",
-                state=mlconf.httpdb.state,
-            )
-
-        mlconf.httpdb.state = chief_state
-        # if reached terminal state we cancel the periodic function
-        # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
-        cancel_periodic_function(
-            self._synchronize_with_chief_clusterization_spec.__name__
-        )
 
     async def _monitor_runs(self):
         stale_runs = await framework.db.session.run_async_function_with_new_db_session(

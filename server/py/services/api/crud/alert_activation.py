@@ -32,11 +32,11 @@ class AlertActivation(
         session: sqlalchemy.orm.Session,
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
-    ):
+    ) -> Optional[str]:
         notifications_states = self._prepare_notifications_states(
             alert_data.notifications
         )
-        framework.utils.singletons.db.get_db().store_alert_activation(
+        return framework.utils.singletons.db.get_db().store_alert_activation(
             session, alert_data, event_data, notifications_states
         )
 

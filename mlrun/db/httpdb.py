@@ -1041,7 +1041,6 @@ class HTTPRunDB(RunDBInterface):
         )
         return response.json()
 
-
     def read_artifact(
         self,
         key,

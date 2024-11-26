@@ -36,7 +36,16 @@ from ..utils import (
 
 
 class ArtifactMetadata(ModelObj):
-    _dict_fields = ["key", "project", "iter", "tree", "description", "hash", "tag", "uid"]
+    _dict_fields = [
+        "key",
+        "project",
+        "iter",
+        "tree",
+        "description",
+        "hash",
+        "tag",
+        "uid",
+    ]
     _extra_fields = ["updated", "labels"]
 
     def __init__(

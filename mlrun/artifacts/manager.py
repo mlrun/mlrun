@@ -328,7 +328,9 @@ class ArtifactManager:
         self.artifact_uris[item.key] = item.uri
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
-    def _log_to_db(self, key, project, sources, item, tag=None) -> typing.Optional[dict[str, str]]:
+    def _log_to_db(
+        self, key, project, sources, item, tag=None
+    ) -> typing.Optional[dict[str, str]]:
         """
         log artifact to db
         :param key: Identifying key of the artifact.

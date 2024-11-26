@@ -14,6 +14,7 @@
 import asyncio
 import concurrent.futures
 import contextlib
+import http
 import traceback
 import typing
 from abc import ABC, abstractmethod
@@ -31,6 +32,7 @@ from mlrun import mlconf
 
 import framework.api.utils
 import framework.middlewares
+import framework.utils.clients.discovery
 import framework.utils.periodic
 from framework.utils.singletons.db import initialize_db
 
@@ -53,6 +55,43 @@ class Service(ABC):
         self._add_middlewares()
         self._add_exception_handlers()
 
+    @abstractmethod
+    async def move_service_to_online(self):
+        pass
+
+    # https://fastapi.tiangolo.com/advanced/events/
+    @contextlib.asynccontextmanager
+    async def lifespan(self, app_: fastapi.FastAPI):
+        setup_tasks = [self._setup_service()] + [
+            service._setup_service(mounted=True) for service in self._mounted_services
+        ]
+        await asyncio.gather(*setup_tasks)
+
+        # Let the service run
+        yield
+
+        teardown_tasks = [self._teardown_service()] + [
+            service._teardown_service(mounted=True)
+            for service in self._mounted_services
+        ]
+        await asyncio.gather(*teardown_tasks)
+
+    async def handle_request(
+        self,
+        path,
+        request: fastapi.Request,
+        *args,
+        **kwargs,
+    ):
+        callback = getattr(self, path, None)
+        if callback is None:
+            return await self._base_handler(request, *args, **kwargs)
+        return await callback(
+            request,
+            *args,
+            **kwargs,
+        )
+
     def _mount_services(self, mounts: typing.Optional[list] = None):
         if not mounts:
             return
@@ -61,10 +100,6 @@ class Service(ABC):
         for service in self._mounted_services:
             service.initialize()
             self.app.mount("/", service.app)
-
-    @abstractmethod
-    async def move_service_to_online(self):
-        pass
 
     async def _move_mounted_services_to_online(self):
         if not self._mounted_services:
@@ -91,23 +126,6 @@ class Service(ABC):
             default_response_class=fastapi.responses.ORJSONResponse,
             lifespan=self.lifespan,
         )
-
-    # https://fastapi.tiangolo.com/advanced/events/
-    @contextlib.asynccontextmanager
-    async def lifespan(self, app_: fastapi.FastAPI):
-        setup_tasks = [self._setup_service()] + [
-            service._setup_service(mounted=True) for service in self._mounted_services
-        ]
-        await asyncio.gather(*setup_tasks)
-
-        # Let the service run
-        yield
-
-        teardown_tasks = [self._teardown_service()] + [
-            service._teardown_service(mounted=True)
-            for service in self._mounted_services
-        ]
-        await asyncio.gather(*teardown_tasks)
 
     async def _setup_service(self, mounted: bool = False):
         if not mounted:
@@ -202,22 +220,6 @@ class Service(ABC):
             fastapi.HTTPException(status_code=status_code, detail=error_message),
         )
 
-    async def handle_request(
-        self,
-        path,
-        request: fastapi.Request,
-        *args,
-        **kwargs,
-    ):
-        callback = getattr(self, path, None)
-        if path is None:
-            return await self._base_handler(request, *args, **kwargs)
-        return await callback(
-            request,
-            *args,
-            **kwargs,
-        )
-
     async def _base_handler(
         self,
         request: fastapi.Request,
@@ -225,7 +227,9 @@ class Service(ABC):
         **kwargs,
     ):
         framework.api.utils.log_and_raise(
-            "Handler not implemented for request", request_url=request.url
+            http.HTTPStatus.NOT_IMPLEMENTED.value,
+            reason="Handler not implemented for request",
+            request_url=request.url,
         )
 
     def _initialize_data(self):

@@ -269,6 +269,63 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             number_of_events=1,
         )
 
+    def test_list_alert_activations_by_severity(self):
+        project_name = "my-new-project"
+        event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
+        alert_name = "drift"
+        alert_summary = "Model {{project}}/{{entity}} is drifting."
+        alert_entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+        alert_entity_project = project_name
+
+        project = mlrun.new_project(alert_entity_project)
+        self._create_alert(
+            alert_entity_project,
+            alert_name,
+            alert_entity_kind,
+            alert_entity_project,
+            alert_summary,
+            event_name,
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+        )
+        self._post_event(alert_entity_project, event_name, alert_entity_kind)
+        self._create_alert(
+            alert_entity_project,
+            alert_name,
+            alert_entity_kind,
+            alert_entity_project,
+            alert_summary,
+            event_name,
+            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+        )
+        self._post_event(alert_entity_project, event_name, alert_entity_kind)
+
+        activations = project.list_alert_activations(name=alert_name)
+        assert len(activations) == 2
+
+        activations = project.list_alert_activations(
+            name=alert_name, severity=mlrun.common.schemas.alert.AlertSeverity.LOW
+        )
+        assert len(activations) == 1
+        self._validate_alert_activation(
+            activations[0],
+            project_name,
+            alert_name,
+            alert_severity=mlrun.common.schemas.alert.AlertSeverity.LOW,
+        )
+
+        activations = project.list_alert_activations(
+            name=alert_name, severity=mlrun.common.schemas.alert.AlertSeverity.HIGH
+        )
+        assert len(activations) == 1
+        self._validate_alert_activation(
+            activations[0],
+            project_name,
+            alert_name,
+            alert_severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+        )
+        mlrun.get_run_db().delete_project(project_name, "cascade")
+
     def test_alert_templates(self):
         project_name = "my-project"
         project = mlrun.new_project(project_name)

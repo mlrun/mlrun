@@ -175,90 +175,106 @@ class Alerts(
         event_data: mlrun.common.schemas.Event,
     ):
         state = self._get_alert_state_cached()(session, alert_id)
-        if state["active"]:
-            return
-
         alert = self._get_alert_by_id_cached()(session, alert_id)
 
-        state_obj = None
         # check if the entity of the alert matches the one in event
-        if self._event_entity_matches(alert.entities, event_data.entity):
-            send_notification = False
+        if not self._event_entity_matches(alert.entities, event_data.entity):
+            return
 
-            if alert.criteria is not None:
-                state_obj = self._states.get(alert.id, {"events": []})
-                state_obj["events"].append(event_data.timestamp)
+        state_obj = self._states.get(alert.id, {"event_timestamps": []})
+        state_obj["event_timestamps"].append(event_data.timestamp)
 
-                if alert.criteria.period is not None:
-                    # adjust the sliding window of events
-                    # in case the EventEntityKind is JOB then we should consider the runs monitoring interval here
-                    # because the monitoring runs might miss events occurring just before the interval.
-                    offset = 0
-                    if (
-                        alert.entities.kind
-                        == mlrun.common.schemas.alert.EventEntityKind.JOB
-                    ):
-                        offset = int(mlconfig.monitoring.runs.interval)
-                    self._normalize_events(
-                        state_obj,
-                        framework.utils.helpers.string_to_timedelta(
-                            alert.criteria.period, offset, raise_on_error=False
-                        ),
-                    )
+        # Exit early if state is active (no further processing needed)
+        if state["active"]:
+            self._states[alert.id] = state_obj
+            return
 
-                if len(state_obj["events"]) >= alert.criteria.count:
-                    send_notification = True
-            else:
-                send_notification = True
+        send_notification = self._should_send_notification(alert, state_obj)
+        update_state_cache = True
+        if send_notification:
+            update_state_cache = self._handle_notification(
+                session, alert, state, state_obj, event_data
+            )
 
-            active = False
-            update_state = True
-            if send_notification:
-                state["count"] += 1
-                logger.debug("Sending notifications for alert", name=alert.name)
-                AlertNotificationPusher().push(alert, event_data)
-
-                if alert.reset_policy == "auto":
-                    self.reset_alert(session, alert.project, alert.name)
-                    services.api.crud.AlertActivation().store_alert_activation(
-                        session, alert, event_data
-                    )
-                    update_state = False
-                else:
-                    active = True
-                    state["active"] = True
-                    self._get_alert_state_cached().cache_replace(
-                        state, session, alert.id
-                    )
-
-                # we store the state along with the events that triggered the alert
-                framework.utils.singletons.db.get_db().store_alert_state(
-                    session,
-                    alert.project,
-                    alert.name,
-                    count=state["count"],
-                    last_updated=event_data.timestamp,
-                    obj=state_obj,
-                    active=active,
-                )
-
-            if update_state:
-                # we don't want to update the state if reset_alert() was called, as we will override the reset
-                self._states[alert.id] = state_obj
+        if update_state_cache:
+            # we don't want to update the state if reset_alert() was called, as we will override the reset
+            self._states[alert.id] = state_obj
 
     def populate_event_cache(self, session: sqlalchemy.orm.Session):
         try:
             self._try_populate_event_cache(session)
         except Exception as exc:
             logger.error(
-                "Error populating event cache for alerts. Transitioning state to offline!",
+                "Error populating event cache. Transitioning state to offline!",
                 exc=mlrun.errors.err_to_str(exc),
             )
             mlconfig.httpdb.state = mlrun.common.schemas.APIStates.offline
             return
 
         services.alerts.crud.Events().cache_initialized = True
-        logger.debug("Finished populating event cache for alerts")
+        logger.debug("Finished populating event cache")
+
+    def _should_send_notification(
+        self, alert: mlrun.common.schemas.AlertConfig, state_obj: dict
+    ) -> bool:
+        if alert.criteria.period:
+            offset = self._get_event_offset(alert)
+            self._normalize_events(
+                state_obj,
+                framework.utils.helpers.string_to_timedelta(
+                    alert.criteria.period, offset, raise_on_error=False
+                ),
+            )
+        return len(state_obj["event_timestamps"]) >= alert.criteria.count
+
+    def _get_number_of_events(self, alert_id: int) -> int:
+        state_obj = self._states.get(alert_id, {"event_timestamps": []})
+        return len(state_obj["event_timestamps"])
+
+    @staticmethod
+    def _get_event_offset(alert: mlrun.common.schemas.AlertConfig) -> int:
+        if alert.entities.kind == mlrun.common.schemas.alert.EventEntityKind.JOB:
+            return int(mlconfig.monitoring.runs.interval)
+        return 0
+
+    def _handle_notification(
+        self,
+        session: sqlalchemy.orm.Session,
+        alert: mlrun.common.schemas.AlertConfig,
+        state: dict,
+        state_obj: dict,
+        event_data: mlrun.common.schemas.Event,
+    ) -> bool:
+        keep_cache = True
+        active = False
+        state["count"] += 1
+        logger.debug("Sending notifications for alert", name=alert.name)
+        AlertNotificationPusher().push(alert, event_data)
+
+        if alert.reset_policy == "auto":
+            self.reset_alert(session, alert.project, alert.name)
+            services.api.crud.AlertActivation().store_alert_activation(
+                session, alert, event_data
+            )
+            keep_cache = False
+        else:
+            active = True
+            state["active"] = True
+            activation_id = services.api.crud.AlertActivation().store_alert_activation(
+                session, alert, event_data
+            )
+            state_obj["last_activation_id"] = activation_id
+
+        framework.utils.singletons.db.get_db().store_alert_state(
+            session,
+            alert.project,
+            alert.name,
+            count=state["count"],
+            last_updated=event_data.timestamp,
+            obj=state_obj,
+            active=active,
+        )
+        return keep_cache
 
     @classmethod
     def _get_alert_by_id_cached(cls):
@@ -375,7 +391,7 @@ class Alerts(
     @staticmethod
     def _normalize_events(obj, period):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        events = obj["events"]
+        events = obj["event_timestamps"]
         for event in events:
             if isinstance(event, str):
                 event_time = datetime.datetime.fromisoformat(event)
@@ -390,6 +406,28 @@ class Alerts(
             raise mlrun.errors.MLRunNotFoundError(
                 f"Alert {name} for project {project} does not exist"
             )
+
+        if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
+            # before resetting an alert, update number_of_events if required
+            number_of_events = self._get_number_of_events(alert.id)
+            # if they are equal, the number_of_events is already set to the correct value
+            if number_of_events > alert.criteria.count:
+                alert_state = (
+                    framework.utils.singletons.db.get_db().get_alert_state_dict(
+                        session, alert.id
+                    )
+                )
+                activation_time = alert_state.get("last_updated")
+                activation_id = alert_state.get("full_object", {}).get(
+                    "last_activation_id"
+                )
+                if activation_time and activation_id:
+                    framework.utils.singletons.db.get_db().update_alert_activation_number_of_events(
+                        session,
+                        activation_id=activation_id,
+                        activation_time=activation_time,
+                        number_of_events=number_of_events,
+                    )
 
         framework.utils.singletons.db.get_db().store_alert_state(
             session, project, name, last_updated=None

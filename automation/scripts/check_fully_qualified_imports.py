@@ -1,11 +1,12 @@
-import sys
 import re
+import sys
 
 TARGET_MODULES = {"mlrun", "mlrun_pipelines"}
 
+
 def check_disallowed_imports(file_path):
     violations = []
-    with open(file_path, "r") as file:
+    with open(file_path) as file:
         for line_num, line in enumerate(file, start=1):
             stripped_line = line.strip()
 
@@ -13,8 +14,12 @@ def check_disallowed_imports(file_path):
             disallowed_pattern = r"^\s*from\s+(mlrun|mlrun_pipelines)\s+import"
 
             if re.match(disallowed_pattern, stripped_line):
-                violations.append(f"{file_path}:{line_num}: Disallowed import '{stripped_line}'. Use 'import mlrun' or 'import mlrun_pipelines' instead.")
+                violations.append(
+                    f"{file_path}:{line_num}: Disallowed import '{stripped_line}'."
+                    f"Use 'import mlrun' or 'import mlrun_pipelines' instead."
+                )
     return violations
+
 
 if __name__ == "__main__":
     files = sys.argv[1:]

@@ -313,9 +313,10 @@ class ArtifactManager:
             item.upload(artifact_path=artifact_path)
 
         if db_key:
-            uid = self._log_to_db(db_key, project, producer.inputs, item)
-            if uid is not None:
-                item.uid = uid
+            artifact_item = self._log_to_db(db_key, project, producer.inputs, item)
+            artifact_uid = artifact_item.get("metadata", {}).get("uid")
+            if artifact_uid is not None:
+                item.uid = artifact_uid
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
@@ -327,7 +328,7 @@ class ArtifactManager:
         self.artifact_uris[item.key] = item.uri
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
-    def _log_to_db(self, key, project, sources, item, tag=None) -> typing.Optional[str]:
+    def _log_to_db(self, key, project, sources, item, tag=None) -> typing.Optional[dict[str, str]]:
         """
         log artifact to db
         :param key: Identifying key of the artifact.

@@ -73,9 +73,7 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
-    async def move_service_to_online(self):
-        self._logger.info("Moving api to online")
-
+    async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
         # on workers - it allows to us to list/get scheduler(s)
         # on chief - it allows to us to create/update/delete schedule(s)

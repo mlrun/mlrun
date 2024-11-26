@@ -50,6 +50,7 @@ import mlrun.k8s_utils
 import mlrun.lists
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.runtimes
+import mlrun.runtimes.mounts
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
@@ -57,7 +58,6 @@ import mlrun.serving
 import mlrun.utils
 import mlrun.utils.regex
 import mlrun_pipelines.common.models
-import mlrun_pipelines.mounts
 from mlrun.alerts.alert import AlertConfig
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 from mlrun.runtimes.nuclio.function import RemoteRuntime
@@ -4300,9 +4300,11 @@ class MlrunProject(ModelObj):
             uid,
             self.metadata.name,
             labels=labels,
-            states=mlrun.utils.helpers.as_list(state)
-            if state is not None
-            else states or None,
+            states=(
+                mlrun.utils.helpers.as_list(state)
+                if state is not None
+                else states or None
+            ),
             sort=sort,
             last=last,
             iter=iter,
@@ -4850,23 +4852,29 @@ class MlrunProject(ModelObj):
                 )
 
             if producer_dict.get("kind", "") == "run":
-                return ArtifactProducer(
-                    name=producer_dict.get("name", ""),
-                    kind=producer_dict.get("kind", ""),
-                    project=producer_project,
-                    tag=producer_tag,
-                    owner=producer_dict.get("owner", ""),
-                ), True
+                return (
+                    ArtifactProducer(
+                        name=producer_dict.get("name", ""),
+                        kind=producer_dict.get("kind", ""),
+                        project=producer_project,
+                        tag=producer_tag,
+                        owner=producer_dict.get("owner", ""),
+                    ),
+                    True,
+                )
 
         # do not retain the artifact's producer, replace it with the project as the producer
         project_producer_tag = project_producer_tag or self._get_project_tag()
-        return ArtifactProducer(
-            kind="project",
-            name=self.metadata.name,
-            project=self.metadata.name,
-            tag=project_producer_tag,
-            owner=self._resolve_artifact_owner(),
-        ), False
+        return (
+            ArtifactProducer(
+                kind="project",
+                name=self.metadata.name,
+                project=self.metadata.name,
+                tag=project_producer_tag,
+                owner=self._resolve_artifact_owner(),
+            ),
+            False,
+        )
 
     def _resolve_existing_artifact(
         self,

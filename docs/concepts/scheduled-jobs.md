@@ -76,7 +76,7 @@ The remote files are primarily retrieved for:
 - Syncing function files.
 This behavior may be unexpected for users who rely on project.yaml in the remote source (for the project configuration).
 Be sure to update MLRun DB with the latest project configuration to ensure consistent configuration management (use `project.save()`).<br>
-Project configuration in this context refers to `project.node_selector` or `project.artifact_path`, and not function configurations like: function resources or function node selector.
+Project configuration in this context could be, for example, `project.node_selector` or `project.artifact_path`, and not function configurations like: function resources or function node selector.
 ```
 ```
 import mlrun

@@ -1935,6 +1935,7 @@ class SQLDB(DBInterface):
             page_size=page_size,
         ):
             function_dict = function.struct
+            function_dict["kind"] = function.kind
             if not function_tag:
                 # function status should be added only to tagged functions
                 # TODO: remove explicit cleaning; we also

@@ -102,10 +102,10 @@ class Alerts(
 
         # if the alert already exists we should check if it should be reset or not
         if existing_alert is not None:
-            reset_reason = self._should_reset_alert(
+            should_reset, reset_reason = self._should_reset_alert(
                 existing_alert, alert_data, force_reset
             )
-            if reset_reason:
+            if should_reset:
                 logger.debug(
                     "Resetting alert before storing",
                     project=project,
@@ -402,7 +402,7 @@ class Alerts(
     @staticmethod
     def _should_reset_alert(old_alert_data, alert_data, force_reset):
         if force_reset:
-            return "force_reset being True"
+            return True, "force_reset being True"
 
         # reset the alert if the policy was modified from manual to auto while the state is active
         old_reset_policy = getattr(old_alert_data, "reset_policy")
@@ -412,16 +412,16 @@ class Alerts(
             and old_reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
             and new_reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO
         ):
-            return "reset-policy changed from manual to auto"
+            return True, "reset-policy changed from manual to auto"
 
         # reset the alert if a functional parameter (entities, trigger, or criteria) has changed, as these affect the
         # conditions for alert activation.
         functional_parameters = ["entities", "trigger", "criteria"]
         for attr in functional_parameters:
             if getattr(old_alert_data, attr) != getattr(alert_data, attr):
-                return f"changes in {attr}"
+                return True, f"changes in {attr}"
 
-        return None
+        return False, None
 
     @staticmethod
     def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):

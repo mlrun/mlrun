@@ -1570,6 +1570,7 @@ class SQLDB(DBInterface):
                 rows_per_partition,
                 partition_sort_by,
                 partition_order,
+                with_tagged=True,
             )
 
         if limit:
@@ -3866,6 +3867,7 @@ class SQLDB(DBInterface):
         partition_sort_by: mlrun.common.schemas.SortField,
         partition_order: mlrun.common.schemas.OrderType,
         max_partitions: int = 0,
+        with_tagged: bool = False,
     ):
         partition_field = partition_by.to_partition_by_db_field(cls)
         sort_by_field = partition_sort_by.to_db_field(cls)
@@ -3881,7 +3883,12 @@ class SQLDB(DBInterface):
 
         # Retrieve only the ID from the subquery to minimize the inner table,
         # in the final step we inner join the inner table with the full table.
-        query = query.with_entities(cls.id).add_column(row_number_column)
+        query = query.with_entities(cls.id)
+        if with_tagged:
+            query = query.with_entities(cls.id, cls.Tag.name)
+        else:
+            query = query.with_entities(cls.id)
+        query = query.add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
                 func.max(sort_by_field)
@@ -3896,10 +3903,11 @@ class SQLDB(DBInterface):
         # is a window function using over().
         subquery = query.subquery()
         if max_partitions == 0:
-            result_query = (
-                session.query(cls)
-                .join(subquery, cls.id == subquery.c.id)
-                .filter(subquery.c.row_number <= rows_per_partition)
+            result_query = session.query(cls)
+            if with_tagged:
+                result_query = result_query.add_column(subquery.c.name)
+            result_query = result_query.join(subquery, cls.id == subquery.c.id).filter(
+                subquery.c.row_number <= rows_per_partition
             )
             return result_query
 

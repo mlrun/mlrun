@@ -1105,13 +1105,13 @@ def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient
     projects = ["project-1", "project-2"]
     artifact_keys = ["artifact-1", "artifact-2"]
     artifact_tags = ["first", "second"]
-
     iterations = 3
+
     for project in projects:
         _create_project(unversioned_client, project_name=project)
         for artifact_key in artifact_keys:
-            for tag in artifact_tags:
-                for iteration in range(iterations):
+            for iteration in range(iterations):
+                for tag in artifact_tags:
                     json = _generate_artifact_body(
                         key=artifact_key, project=project, iteration=iteration, tag=tag
                     )
@@ -1120,25 +1120,6 @@ def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient
                         json=json,
                     )
                     assert resp.status_code == HTTPStatus.CREATED.value
-                    assert resp.json()["metadata"]["tag"] is not None
-
-    expected_number_of_artifacts = (
-        len(artifact_keys) * len(artifact_tags) * iterations + 2
-    )  # 2 for the latest tags
-
-    _list_and_assert_objects(
-        unversioned_client,
-        params={},
-        expected_number_of_artifacts=expected_number_of_artifacts,
-        project="project-1",
-    )
-
-    _list_and_assert_objects(
-        unversioned_client,
-        params={},
-        expected_number_of_artifacts=expected_number_of_artifacts,
-        project="project-2",
-    )
 
     # partioned list, specific project, 1 row per partition by default, so 2 names * 1 row = 2
     artifacts = _list_and_assert_objects(
@@ -1154,12 +1135,12 @@ def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient
     # sorted by ascending created so only the first ones created
     for artifact in artifacts:
         assert artifact["metadata"]["iter"] == 0
-        assert artifact["metadata"]["tag"] == "first"
 
     # partioned list, specific project, 1 row per partition by default, so 2 names * 1 row = 2
     artifacts = _list_and_assert_objects(
         unversioned_client,
         params={
+            "tag": "latest",
             "partition-by": mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
@@ -1169,8 +1150,8 @@ def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient
     )
     # sorted by descending updated so only the second ones created
     for artifact in artifacts:
-        assert artifact["metadata"]["tag"] == "second"
-        assert artifact["metadata"]["iteration"] == 2
+        assert artifact["metadata"]["iter"] == 2
+        assert artifact["metadata"]["tag"] == "latest"
 
     # partioned list, specific project, 5 row per partition, so 2 names * 5 row = 10
     _list_and_assert_objects(

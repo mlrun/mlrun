@@ -3858,6 +3858,16 @@ class MlrunProject(ModelObj):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3894,6 +3904,13 @@ class MlrunProject(ModelObj):
         :param tree: Return artifacts of the requested tree.
         :param limit: Maximum number of artifacts to return.
         :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3910,6 +3927,10 @@ class MlrunProject(ModelObj):
             tree=tree,
             format_=format_,
             limit=limit,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
         )
 
     def paginated_list_artifacts(

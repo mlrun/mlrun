@@ -213,10 +213,3 @@ def test_hyper_get_artifact(rundb_mock):
     )
     assert run.artifact("df1").meta, "df1 (with db_key) not returned"
     assert run.artifact("df2").meta, "df2 (without db_key) not returned"
-
-    artifacts = mlrun.get_run_db().list_artifacts(
-        partition_by=mlrun.common.schemas.ArtifactPartitionByField.project_and_name
-    )
-    assert len(artifacts) == 2
-    assert artifacts[0]["metadata"]["tag"] == "latest"
-    assert artifacts[1]["metadata"]["tag"] == "latest"

@@ -1219,13 +1219,8 @@ def _generate_artifact_body(
     return data
 
 
-def _get_artifact_url(
-    uid: Optional[str] = None,
-    tag: Optional[str] = None,
-    project: str = PROJECT,
-    key: str = KEY,
-) -> str:
-    url = GET_API_ARTIFACT_V2_PATH.format(project=project, key=key)
+def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> str:
+    url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
     params = []
 
     if uid:

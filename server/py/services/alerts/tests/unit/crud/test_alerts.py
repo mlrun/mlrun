@@ -27,7 +27,8 @@ import mlrun.common.schemas.alert as alert_objects
 import framework.utils.singletons.db
 import services.alerts.crud
 import services.alerts.tests.unit.crud.utils
-from framework.tests.unit.common_fixtures import K8sSecretsMock, TestServiceBase
+from framework.tests.unit.common_fixtures import K8sSecretsMock
+from services.alerts.tests.unit.conftest import TestAlertsBase
 
 
 @pytest.fixture
@@ -37,7 +38,7 @@ def reset_alert_caches():
     services.alerts.crud.Alerts()._alert_state_cache.cache_clear()
 
 
-class TestAlerts(TestServiceBase):
+class TestAlerts(TestAlertsBase):
     @pytest.mark.asyncio
     @unittest.mock.patch.object(
         framework.utils.singletons.db.SQLDB, "update_alert_activation_number_of_events"

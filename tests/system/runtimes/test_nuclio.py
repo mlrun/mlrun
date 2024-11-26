@@ -25,6 +25,7 @@ from storey import MapClass
 from v3io.dataplane import RaiseForStatus
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.runtimes.mounts
 import tests.system.base
 from mlrun import feature_store as fstore

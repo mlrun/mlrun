@@ -304,7 +304,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             mlrun.common.schemas.alert.AlertSeverity.HIGH,
         ]
 
-        activations = project.list_alert_activations(name=alert_name, severity=severity_list)
+        activations = project.list_alert_activations(
+            name=alert_name, severity=severity_list
+        )
         assert len(activations) == 2
 
         for severity in severity_list:

@@ -26,15 +26,15 @@ import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import mlrun_pipelines.common.models
 import mlrun_pipelines.common.ops
+import mlrun_pipelines.imports
 import mlrun_pipelines.mixins
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
-from mlrun.errors import err_to_str
-from mlrun.utils import logger
 
 import framework.api.utils
 import services.api.crud
@@ -76,7 +76,7 @@ class Pipelines(
         # is a substring of the pipeline's name. This ensures that only pipelines
         # with the project name in their name are returned, helping narrow down the results.
         if not filter_ and project_names and len(project_names) == 1:
-            logger.debug(
+            mlrun.utils.logger.debug(
                 "No filter provided. "
                 "Applying project-based filter for project to match pipelines with project name as a substring",
                 project=project_names[0],
@@ -110,7 +110,7 @@ class Pipelines(
         kfp_client = self.initialize_kfp_client()
 
         if project_pipeline_runs:
-            logger.debug(
+            mlrun.utils.logger.debug(
                 "Detected pipeline runs for project, deleting them",
                 project_name=project_name,
                 pipeline_run_ids=[run["id"] for run in project_pipeline_runs],
@@ -130,14 +130,14 @@ class Pipelines(
             except Exception as exc:
                 # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
                 # so it won't fail the delete project operation. we will log the error and continue
-                logger.warning(
+                mlrun.utils.logger.warning(
                     "Failed to delete pipeline run",
                     project_name=project_name,
                     pipeline_run_id=pipeline_run.id,
                     exc_info=exc,
                 )
                 failed += 1
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Finished deleting pipeline runs",
             project_name=project_name,
             succeeded=succeeded,
@@ -148,7 +148,7 @@ class Pipelines(
         failed = 0
         for experiment_id in experiment_ids:
             try:
-                logger.debug(
+                mlrun.utils.logger.debug(
                     f"Detected experiment for project {project_name} and deleting it",
                     project_name=project_name,
                     experiment_id=experiment_id,
@@ -157,13 +157,13 @@ class Pipelines(
                 succeeded += 1
             except Exception as exc:
                 failed += 1
-                logger.warning(
+                mlrun.utils.logger.warning(
                     "Failed to delete an experiment",
                     project_name=project_name,
                     experiment_id=experiment_id,
-                    exc_info=err_to_str(exc),
+                    exc_info=mlrun.errors.err_to_str(exc),
                 )
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Finished deleting project experiments",
             project_name=project_name,
             succeeded=succeeded,
@@ -191,7 +191,7 @@ class Pipelines(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )
 
-                logger.debug(
+                mlrun.utils.logger.debug(
                     "Got kfp run",
                     run_id=run_id,
                     run_name=run.get("name"),
@@ -200,12 +200,12 @@ class Pipelines(
                 )
                 run = self._format_run(run, format_, kfp_client)
         except kfp_server_api.ApiException as exc:
-            raise mlrun.errors.err_for_status_code(exc.status, err_to_str(exc)) from exc
+            raise mlrun.errors.err_for_status_code(exc.status, mlrun.errors.err_to_str(exc)) from exc
         except mlrun.errors.MLRunHTTPStatusError:
             raise
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting kfp run: {err_to_str(exc)}"
+                f"Failed getting kfp run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
 
         return run
@@ -221,17 +221,17 @@ class Pipelines(
         try:
             api_run_detail = kfp_client.get_run(run_id)
         except kfp_server_api.ApiException as exc:
-            raise mlrun.errors.err_for_status_code(exc.status, err_to_str(exc)) from exc
+            raise mlrun.errors.err_for_status_code(exc.status, mlrun.errors.err_to_str(exc)) from exc
         except mlrun.errors.MLRunHTTPStatusError:
             raise
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting kfp run: {err_to_str(exc)}"
+                f"Failed getting kfp run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
         run = mlrun_pipelines.models.PipelineRun(api_run_detail)
 
         # Check if the pipeline is in a completed state
-        if run.status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses:
+        if run.status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses():
             raise mlrun.errors.MLRunBadRequestError(
                 f"Pipeline run {run_id} is not in a completed state. Current status: {run.status}"
             )
@@ -243,17 +243,14 @@ class Pipelines(
                     raise mlrun.errors.MLRunNotFoundError(
                         f"Pipeline run with id {run_id} is not of project {project}"
                     )
-        logger.debug(
+        mlrun.utils.logger.debug(
             "Retrying KFP run",
             run_id=run_id,
             run_name=run.get("name"),
             project=project,
-            pipeline_id=api_run_detail.pipeline_spec.pipeline_id,
         )
-        kfp_client.run_pipeline(
-            experiment_id=run.experiment_id,
-            job_name=run.name,
-            pipeline_id=api_run_detail.pipeline_spec.pipeline_id,
+        kfp_client.retry_run(
+            run_id=run_id,
         )
 
         return run
@@ -277,7 +274,7 @@ class Pipelines(
                 http.HTTPStatus.BAD_REQUEST.value,
                 reason=f"unsupported pipeline type {content_type}",
             )
-        logger.debug("Writing pipeline to temp file", content_type=content_type)
+        mlrun.utils.logger.debug("Writing pipeline to temp file", content_type=content_type)
         data = mlrun_pipelines.common.ops.replace_kfp_plaintext_secret_env_vars_with_secret_refs(
             byte_buffer=data,
             content_type=content_type,
@@ -288,7 +285,7 @@ class Pipelines(
         with open(pipeline_file.name, "wb") as fp:
             fp.write(data)
 
-        logger.info(
+        mlrun.utils.logger.info(
             "Creating pipeline",
             experiment_name=experiment_name,
             run_name=run_name,
@@ -306,13 +303,13 @@ class Pipelines(
                 )
             )
         except Exception as exc:
-            logger.warning(
+            mlrun.utils.logger.warning(
                 "Failed creating pipeline",
                 traceback=traceback.format_exc(),
-                exc=err_to_str(exc),
+                exc=mlrun.errors.err_to_str(exc),
             )
             raise mlrun.errors.MLRunBadRequestError(
-                f"Failed creating pipeline: {err_to_str(exc)}"
+                f"Failed creating pipeline: {mlrun.errors.err_to_str(exc)}"
             )
         finally:
             pipeline_file.close()
@@ -325,7 +322,7 @@ class Pipelines(
 
     def _paginate_runs(
         self,
-        kfp_client: mlrun_pipelines.utils.kfp.Client,
+        kfp_client: mlrun_pipelines.imports.kfp.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -361,7 +358,7 @@ class Pipelines(
 
     def _list_runs_from_kfp(
         self,
-        kfp_client: mlrun_pipelines.utils.kfp.Client,
+        kfp_client: mlrun_pipelines.imports.kfp.Client,
         page_token: typing.Optional[str] = None,
         page_size: typing.Optional[int] = None,
         sort_by: typing.Optional[str] = None,
@@ -381,7 +378,7 @@ class Pipelines(
             if "message" in error_message:
                 error_message = error_message["message"]
             raise mlrun.errors.err_for_status_code(
-                exc.status, err_to_str(error_message)
+                exc.status, mlrun.errors.err_to_str(error_message)
             ) from exc
 
         return [
@@ -392,7 +389,7 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.utils.kfp.Client = None,
+        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
@@ -403,7 +400,7 @@ class Pipelines(
         self,
         run: mlrun_pipelines.models.PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.utils.kfp.Client = None,
+        kfp_client: mlrun_pipelines.imports.kfp.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
         if kfp_client:
@@ -452,10 +449,10 @@ class Pipelines(
                     try:
                         parsed_runtime = ast.literal_eval(runtime)
                     except Exception as exc:
-                        logger.warning(
+                        mlrun.utils.logger.warning(
                             "Failed parsing runtime. Skipping",
                             runtime=runtime,
-                            exc=err_to_str(exc),
+                            exc=mlrun.errors.err_to_str(exc),
                         )
                     else:
                         if isinstance(parsed_runtime, dict):

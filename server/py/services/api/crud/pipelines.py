@@ -200,7 +200,9 @@ class Pipelines(
                 )
                 run = self._format_run(run, format_, kfp_client)
         except kfp_server_api.ApiException as exc:
-            raise mlrun.errors.err_for_status_code(exc.status, mlrun.errors.err_to_str(exc)) from exc
+            raise mlrun.errors.err_for_status_code(
+                exc.status, mlrun.errors.err_to_str(exc)
+            ) from exc
         except mlrun.errors.MLRunHTTPStatusError:
             raise
         except Exception as exc:
@@ -221,7 +223,9 @@ class Pipelines(
         try:
             api_run_detail = kfp_client.get_run(run_id)
         except kfp_server_api.ApiException as exc:
-            raise mlrun.errors.err_for_status_code(exc.status, mlrun.errors.err_to_str(exc)) from exc
+            raise mlrun.errors.err_for_status_code(
+                exc.status, mlrun.errors.err_to_str(exc)
+            ) from exc
         except mlrun.errors.MLRunHTTPStatusError:
             raise
         except Exception as exc:
@@ -231,7 +235,10 @@ class Pipelines(
         run = mlrun_pipelines.models.PipelineRun(api_run_detail)
 
         # Check if the pipeline is in a completed state
-        if run.status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses():
+        if (
+            run.status
+            not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+        ):
             raise mlrun.errors.MLRunBadRequestError(
                 f"Pipeline run {run_id} is not in a completed state. Current status: {run.status}"
             )
@@ -274,7 +281,9 @@ class Pipelines(
                 http.HTTPStatus.BAD_REQUEST.value,
                 reason=f"unsupported pipeline type {content_type}",
             )
-        mlrun.utils.logger.debug("Writing pipeline to temp file", content_type=content_type)
+        mlrun.utils.logger.debug(
+            "Writing pipeline to temp file", content_type=content_type
+        )
         data = mlrun_pipelines.common.ops.replace_kfp_plaintext_secret_env_vars_with_secret_refs(
             byte_buffer=data,
             content_type=content_type,

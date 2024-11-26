@@ -62,11 +62,11 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
         }
         if run_status in valid_states_for_retry:
             # Retry the run via the retry endpoint
-            response = self._experiment_api.api_client.call_api(
-                f'/apis/v1beta1/runs/{run_id}/retry',
-                'POST',
-                response_type='ApiRun',
-                auth_settings=['BearerToken'],
+            self._experiment_api.api_client.call_api(
+                f"/apis/v1beta1/runs/{run_id}/retry",
+                "POST",
+                response_type="ApiRun",
+                auth_settings=["BearerToken"],
             )
             return run_id
         else:
@@ -84,7 +84,7 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
             workflow_manifest_path = None
             if not pipeline_spec.pipeline_id:
                 with tempfile.NamedTemporaryFile(
-                        mode="w", suffix=".yaml", delete=False
+                    mode="w", suffix=".yaml", delete=False
                 ) as temp_file:
                     temp_file.write(pipeline_spec.workflow_manifest)
                     workflow_manifest_path = temp_file.name
@@ -106,12 +106,12 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
 
 
 def compile_pipeline(
-        artifact_path,
-        cleanup_ttl,
-        ops,
-        pipeline,
-        pipe_file: typing.Optional[str] = None,
-        type_check: bool = False,
+    artifact_path,
+    cleanup_ttl,
+    ops,
+    pipeline,
+    pipe_file: typing.Optional[str] = None,
+    type_check: bool = False,
 ):
     if not pipe_file:
         pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
@@ -127,7 +127,7 @@ def compile_pipeline(
 
 
 def get_client(
-        url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
+    url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
 ) -> ExtendedKfpClient:
     if url or namespace:
         return ExtendedKfpClient(host=url, namespace=namespace)

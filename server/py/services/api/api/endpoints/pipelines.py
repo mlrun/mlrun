@@ -51,8 +51,12 @@ async def list_pipelines(
         mlrun.common.formatters.PipelineFormat.metadata_only, alias="format"
     ),
     page_size: int = fastapi.Query(None, gt=0, le=200),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(framework.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(framework.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
 ):
     if namespace is None:
         namespace = mlrun.config.config.namespace
@@ -111,7 +115,9 @@ async def create_pipeline(
     request: fastapi.Request,
     experiment_name: str = fastapi.Query("Default", alias="experiment"),
     run_name: str = fastapi.Query("", alias="run"),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(framework.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
 ):
     response = await _create_pipeline(
         auth_info=auth_info,
@@ -128,8 +134,12 @@ async def retry_pipeline(
     run_id: str,
     project: str,
     namespace: str = fastapi.Query(mlrun.config.config.namespace),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(framework.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(framework.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -158,8 +168,12 @@ async def get_pipeline(
     format_: mlrun.common.formatters.PipelineFormat = fastapi.Query(
         mlrun.common.formatters.PipelineFormat.summary, alias="format"
     ),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(framework.api.deps.authenticate_request),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(framework.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
 ):
     pipeline = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().get_pipeline,
@@ -231,7 +245,9 @@ async def _create_pipeline(
 
     data = await request.body()
     if not data:
-        framework.api.utils.log_and_raise(http.HTTPStatus.BAD_REQUEST.value, reason="Request body is empty")
+        framework.api.utils.log_and_raise(
+            http.HTTPStatus.BAD_REQUEST.value, reason="Request body is empty"
+        )
     content_type = request.headers.get("content-type", "")
 
     workflow_project = _try_resolve_project_from_body(content_type, data)

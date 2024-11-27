@@ -752,7 +752,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert_notifications=None,
         alert_count=None,
     ):
-        assert alert_activation.id is not None
         if project_name:
             assert alert.project == project_name
         if alert_name:

@@ -49,18 +49,32 @@ class RunNotificationPusher(NotificationPusher):
             notification_module.NotificationTypes.git: {},
             notification_module.NotificationTypes.ipython: {},
             notification_module.NotificationTypes.slack: {},
-            notification_module.NotificationTypes.mail: RunNotificationPusher._get_mail_notification_default_params(),
+            notification_module.NotificationTypes.mail: RunNotificationPusher.get_mail_notification_default_params(),
             notification_module.NotificationTypes.webhook: {},
         }
 
     @staticmethod
-    def _get_mail_notification_default_params():
-        if RunNotificationPusher.mail_notification_default_params is not None:
+    def get_mail_notification_default_params(refresh=False):
+        if (
+            not refresh
+            and RunNotificationPusher.mail_notification_default_params is not None
+        ):
             return RunNotificationPusher.mail_notification_default_params
 
+        mail_notification_default_params = (
+            RunNotificationPusher._get_mail_notifications_default_params_from_secret()
+        )
+
+        RunNotificationPusher.mail_notification_default_params = (
+            mail_notification_default_params
+        )
+        return RunNotificationPusher.mail_notification_default_params
+
+    @staticmethod
+    def _get_mail_notifications_default_params_from_secret():
         smtp_config_secret_name = mlrun.mlconf.notifications.smtp.config_secret_name
         mail_notification_default_params = {}
-        if framework.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster:
+        if framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             try:
                 mail_notification_default_params = (
                     framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
@@ -73,11 +87,7 @@ class RunNotificationPusher(NotificationPusher):
                     secret_name=smtp_config_secret_name,
                     body=mlrun.errors.err_to_str(exc.body),
                 )
-
-        RunNotificationPusher.mail_notification_default_params = (
-            mail_notification_default_params
-        )
-        return RunNotificationPusher.mail_notification_default_params
+        return mail_notification_default_params
 
     def _prepare_notification_args(
         self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification

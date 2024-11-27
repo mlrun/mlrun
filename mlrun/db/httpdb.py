@@ -22,18 +22,20 @@ import warnings
 from copy import deepcopy
 from datetime import datetime, timedelta
 from os import path, remove
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
-import pydantic
+import pydantic.v1
 import requests
 import semver
+from pydantic import parse_obj_as
 
 import mlrun
 import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
 import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
@@ -856,8 +858,8 @@ class HTTPRunDB(RunDBInterface):
         :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
-        :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
-            the `partition_sort_by` parameter must be provided as well.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
             to return per group. Default value is 1.
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
@@ -1135,6 +1137,16 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1176,6 +1188,13 @@ class HTTPRunDB(RunDBInterface):
             is a workflow id (artifact was created as part of a workflow).
         :param format_:         The format in which to return the artifacts. Default is 'full'.
         :param limit:           Maximum number of artifacts to return.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
 
         artifacts, _ = self._list_artifacts(
@@ -1193,6 +1212,10 @@ class HTTPRunDB(RunDBInterface):
             producer_uri=producer_uri,
             format_=format_,
             limit=limit,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
             return_all=True,
         )
         return artifacts
@@ -2469,7 +2492,6 @@ class HTTPRunDB(RunDBInterface):
 
     @staticmethod
     def _generate_partition_by_params(
-        partition_by_cls,
         partition_by,
         rows_per_partition,
         sort_by,
@@ -2549,7 +2571,6 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    mlrun.common.schemas.FeatureStorePartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,
@@ -2774,7 +2795,6 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    mlrun.common.schemas.FeatureStorePartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,
@@ -3365,6 +3385,37 @@ class HTTPRunDB(RunDBInterface):
             params=params,
         )
 
+    def get_model_endpoint_monitoring_metrics(
+        self,
+        project: str,
+        endpoint_id: str,
+        type: Literal["results", "metrics", "all"] = "all",
+    ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        """Get application metrics/results by endpoint id and project.
+
+        :param project: The name of the project.
+        :param endpoint_id: The unique id of the model endpoint.
+        :param type: The type of the metrics to return. "all" means "results" and "metrics".
+
+        :return: A list of the application metrics or/and results for this model endpoint.
+        """
+        path = f"projects/{project}/model-endpoints/{endpoint_id}/metrics"
+        params = {"type": type}
+        error_message = (
+            f"Failed to get model endpoint monitoring metrics,"
+            f" endpoint_id: {endpoint_id}, project: {project}"
+        )
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.GET,
+            path,
+            error_message,
+            params=params,
+        )
+        monitoring_metrics = response.json()
+        return parse_obj_as(
+            list[mm_endpoints.ModelEndpointMonitoringMetric], monitoring_metrics
+        )
+
     def create_user_secrets(
         self,
         user: str,
@@ -3542,6 +3593,8 @@ class HTTPRunDB(RunDBInterface):
                       `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
+
+        :returns: Returns a list of `ModelEndpoint` objects.
         """
 
         path = f"projects/{project}/model-endpoints"
@@ -4189,12 +4242,21 @@ class HTTPRunDB(RunDBInterface):
             "operations/migrations",
             "Failed triggering migrations",
         )
-        if response.status_code == http.HTTPStatus.ACCEPTED:
-            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
-                background_task.metadata.name
-            )
-        return None
+        return self._wait_for_background_task_from_response(response)
+
+    def refresh_smtp_configuration(
+        self,
+    ) -> Optional[mlrun.common.schemas.BackgroundTask]:
+        """Refresh smtp configuration and wait for the task to finish
+
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        response = self.api_call(
+            "POST",
+            "operations/refresh-smtp-configuration",
+            "Failed refreshing smtp configuration",
+        )
+        return self._wait_for_background_task_from_response(response)
 
     def set_run_notifications(
         self,
@@ -4631,6 +4693,112 @@ class HTTPRunDB(RunDBInterface):
             results.append(mlrun.common.schemas.AlertTemplate(**item))
         return results
 
+    def list_alert_activations(
+        self,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+    ) -> list[mlrun.common.schemas.AlertActivation]:
+        """
+        Retrieve a list of all alert activations.
+
+        :param project: The project name to filter by. If None, results are not filtered by project.
+        :param name: The alert name to filter by. Supports exact matching or partial matching if prefixed with `~`.
+        :param since: Filters for alert activations occurring after this timestamp.
+        :param until: Filters for alert activations occurring before this timestamp.
+        :param entity: The entity ID to filter by. Supports wildcard matching if prefixed with `~`.
+        :param severity: A list of severity levels to filter by (e.g., ["high", "low"]).
+        :param entity_kind: The kind of entity (e.g., "job", "endpoint") to filter by.
+        :param event_kind: The kind of event (e.g., ""data-drift-detected"", "failed") to filter by.
+
+        :returns: A list of alert activations matching the provided filters.
+        """
+
+        alert_activations, _ = self._list_alert_activations(
+            project=project,
+            name=name,
+            since=since,
+            until=until,
+            entity=entity,
+            severity=severity,
+            entity_kind=entity_kind,
+            event_kind=event_kind,
+            return_all=True,
+        )
+        return alert_activations
+
+    def paginated_list_alert_activations(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[list, Optional[str]]:
+        """List alerts activations with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of alert activations based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of alert activations that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_alert_activations method:
+            See :py:func:`~list_alert_activations` for more details.
+
+        Examples::
+
+            # Fetch first page of alert activations with page size of 5
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page_size=5
+            )
+            # Fetch next page using the pagination token from the previous response
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page_token=token
+            )
+            # Fetch alert activations for a specific page (e.g., page 3)
+            alert_activations, token = db.paginated_list_alert_activations(
+                project="my-project", page=3, page_size=5
+            )
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            alert_activations = []
+            token = None
+            while True:
+                page_alert_activations, token = db.paginated_list_alert_activations(
+                    project="my-project", page_token=token, page_size=5
+                )
+                alert_activations.extend(page_alert_activations)
+
+                # If token is None and page_alert_activations is empty, we've reached the end (no more activations).
+                # If token is None and page_alert_activations is not empty, we've fetched the last page of activations.
+                if not token:
+                    break
+            print(f"Total alert activations retrieved: {len(alert_activations)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of alert activations and an optional `page_token` for pagination.
+        """
+        return self._list_alert_activations(
+            *args,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            return_all=False,
+            **kwargs,
+        )
+
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],
@@ -4647,7 +4815,7 @@ class HTTPRunDB(RunDBInterface):
         """
         try:
             return mlrun.common.schemas.common.LabelsModel(labels=labels).labels
-        except pydantic.error_wrappers.ValidationError as exc:
+        except pydantic.v1.error_wrappers.ValidationError as exc:
             raise mlrun.errors.MLRunValueError(
                 "Invalid labels format. Must be a dictionary of strings, a list of strings, "
                 "or a comma-separated string."
@@ -4671,6 +4839,16 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
@@ -4700,6 +4878,15 @@ class HTTPRunDB(RunDBInterface):
             "page-token": page_token,
         }
 
+        if partition_by:
+            params.update(
+                self._generate_partition_by_params(
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
+                )
+            )
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
 
@@ -4862,7 +5049,6 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    mlrun.common.schemas.RunPartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,
@@ -4879,6 +5065,62 @@ class HTTPRunDB(RunDBInterface):
         )
         paginated_responses, token = self.process_paginated_responses(responses, "runs")
         return RunList(paginated_responses), token
+
+    def _list_alert_activations(
+        self,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        return_all: bool = False,
+    ) -> tuple[list[mlrun.common.schemas.AlertActivation], Optional[str]]:
+        project = project or config.default_project
+        params = {
+            "name": name,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
+            "entity": entity,
+            "severity": severity,
+            "entity-kind": entity_kind,
+            "event-kind": event_kind,
+            "page": page,
+            "page-size": page_size,
+            "page-token": page_token,
+        }
+        error = "list alert activations"
+        path = f"projects/{project}/alert-activations"
+
+        # Fetch the responses, either one page or all based on `return_all`
+        responses = self.paginated_api_call(
+            "GET", path, error, params=params, return_all=return_all
+        )
+        paginated_responses, token = self.process_paginated_responses(
+            responses, "activations"
+        )
+        paginated_results = [
+            mlrun.common.schemas.AlertActivation(**item) for item in paginated_responses
+        ]
+
+        return paginated_results, token
+
+    def _wait_for_background_task_from_response(self, response):
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name
+            )
+        return None
 
 
 def _as_json(obj):

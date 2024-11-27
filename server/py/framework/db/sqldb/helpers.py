@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
+import typing
+from datetime import datetime
+
 from dateutil import parser
+from sqlalchemy import and_
 
 import mlrun.common.runtimes.constants
 from mlrun.utils import get_in
@@ -85,6 +90,71 @@ def generate_query_predicate_for_name(column, query_string):
         return column.ilike(f"%{query_string[1:]}%")
     else:
         return column.__eq__(query_string)
+
+
+def generate_time_range_query(
+    query,
+    field,
+    since: typing.Optional[datetime] = None,
+    until: typing.Optional[datetime] = None,
+):
+    """
+    Generate a query to filter results within a specified time range.
+
+    :param query: The SQLAlchemy query object to which the filter will be applied.
+    :param field: The field (SQLAlchemy column) to filter by using the time range.
+    :param since: The start of the time range. If None, defaults to the earliest possible datetime.
+    :param until: The end of the time range. If None, defaults to the latest possible datetime.
+
+    :returns: The modified query filtered by the specified time range.
+    """
+    since = since or datetime.min
+    until = until or datetime.max
+
+    return query.filter(and_(field >= since, field <= until))
+
+
+def generate_query_for_name_with_wildcard(column, query_string):
+    """
+    Generate a query condition for a database column based on a query string with optional wildcard support.
+
+    This function processes the query string to determine whether to apply
+    an equality comparison or a wildcard-based `ilike` query.
+
+    :param column: The database column to apply the query condition to.
+    :param query_string: The string used to filter the column. If the string starts with `~`,
+    it is treated as a wildcard search.
+
+    :returns: a column with condition applied.
+
+    Example:
+        ```python
+        # For a wildcard query
+        query_string = "~test*"
+        condition = generate_query_for_name_with_wildcard(
+            my_table.column_name, query_string
+        )
+        # condition evaluates to: column_name.ilike("test%")
+
+        # For a direct equality query
+        query_string = "test"
+        condition = generate_query_for_name_with_wildcard(
+            my_table.column_name, query_string
+        )
+        # condition evaluates to: column_name == "test"
+        ```
+    """
+
+    if query_string.startswith("~"):
+        return column.ilike(translate_wildcard_to_sql(query_string[1:]))
+    else:
+        return column.__eq__(query_string)
+
+
+def translate_wildcard_to_sql(query_string: str) -> str:
+    # Sanitize the query to allow only alphanumeric, space, *, ., -, and _
+    sanitized_query = re.sub(r"[^\w\s*.\-_]", "", query_string)
+    return sanitized_query.replace("*", "%")
 
 
 def ensure_max_length(string: str):

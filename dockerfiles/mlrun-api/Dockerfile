@@ -72,14 +72,18 @@ ENV MLRUN_IGNORE_ENV_FILE=true
 ENV UVICORN_PORT=${MLRUN_HTTPDB__PORT}
 ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE}
 
+COPY ./pipeline-adapters ./pipeline-adapters
+
+RUN pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+
 COPY . .
 ENV PYTHONPATH=/mlrun/server/py
 
-RUN python -m pip install .[complete-api] &&\
-    pip install ./pipeline-adapters/mlrun-pipelines-kfp-common &&\
-    pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+RUN pip install .[complete-api]
 
 VOLUME /mlrun/db
+
+ENV MLRUN_SERVICES__SERVICE_NAME=api
 
 # use tini as entrypoint to allow signal handling
 # and avoid zombie processes

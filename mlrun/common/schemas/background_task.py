@@ -15,7 +15,7 @@
 import datetime
 import typing
 
-import pydantic
+import pydantic.v1
 
 import mlrun.common.types
 
@@ -35,7 +35,7 @@ class BackgroundTaskState(mlrun.common.types.StrEnum):
         ]
 
 
-class BackgroundTaskMetadata(pydantic.BaseModel):
+class BackgroundTaskMetadata(pydantic.v1.BaseModel):
     name: str
     kind: typing.Optional[str]
     project: typing.Optional[str]
@@ -44,21 +44,21 @@ class BackgroundTaskMetadata(pydantic.BaseModel):
     timeout: typing.Optional[int]
 
 
-class BackgroundTaskSpec(pydantic.BaseModel):
+class BackgroundTaskSpec(pydantic.v1.BaseModel):
     pass
 
 
-class BackgroundTaskStatus(pydantic.BaseModel):
+class BackgroundTaskStatus(pydantic.v1.BaseModel):
     state: BackgroundTaskState
     error: typing.Optional[str]
 
 
-class BackgroundTask(pydantic.BaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.background_task, const=True)
+class BackgroundTask(pydantic.v1.BaseModel):
+    kind: ObjectKind = pydantic.v1.Field(ObjectKind.background_task, const=True)
     metadata: BackgroundTaskMetadata
     spec: BackgroundTaskSpec
     status: BackgroundTaskStatus
 
 
-class BackgroundTaskList(pydantic.BaseModel):
+class BackgroundTaskList(pydantic.v1.BaseModel):
     background_tasks: list[BackgroundTask]

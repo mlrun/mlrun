@@ -38,7 +38,9 @@ import framework.constants
 import framework.db.base
 import framework.service
 import framework.utils.clients.chief
+import framework.utils.clients.discovery
 import framework.utils.clients.log_collector
+import framework.utils.clients.messaging
 import framework.utils.notifications.notification_pusher
 import framework.utils.time_window_tracker
 import services.api.crud
@@ -47,7 +49,6 @@ import services.api.runtime_handlers
 import services.api.utils.db.partitioner
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
-    cancel_periodic_function,
     run_function_periodically,
 )
 from framework.utils.singletons.db import get_db
@@ -72,11 +73,7 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
-    service_name = "api"
-
-    async def move_service_to_online(self):
-        self._logger.info("Moving api to online")
-
+    async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
         # on workers - it allows to us to list/get scheduler(s)
         # on chief - it allows to us to create/update/delete schedule(s)
@@ -104,32 +101,29 @@ class Service(framework.service.Service):
 
         await self._move_mounted_services_to_online()
 
+    async def _base_handler(
+        self,
+        request: fastapi.Request,
+        *args,
+        **kwargs,
+    ):
+        messaging_client = framework.utils.clients.messaging.Client()
+        return await messaging_client.proxy_request(request=request)
+
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class
-        self.app.include_router(api_router, prefix=self.BASE_VERSIONED_SERVICE_PREFIX)
-        self.app.include_router(api_v2_router, prefix=self.V2_SERVICE_PREFIX)
+        self.app.include_router(api_router, prefix=self.base_versioned_service_prefix)
+        self.app.include_router(api_v2_router, prefix=self.v2_service_prefix)
         # This is for backward compatibility, that is why we still leave it here but not include it in the schema
         # so new users won't use the old un-versioned api.
         # /api points to /api/v1 since it is used externally, and we don't want to break it.
         # TODO: make sure UI and all relevant Iguazio versions uses /api/v1 and deprecate this
         self.app.include_router(
-            api_router, prefix=self.SERVICE_PREFIX, include_in_schema=False
+            api_router, prefix=self.service_prefix, include_in_schema=False
         )
 
     async def _custom_setup_service(self):
         initialize_logs_dir()
-
-        # TODO: move code below to base class
-        self._initialize_data()
-
-        if (
-            mlconf.httpdb.clusterization.worker.sync_with_chief.mode
-            == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
-            and mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.worker
-        ):
-            # in the background, wait for chief to reach online state
-            self._start_chief_clusterization_spec_sync_loop()
 
     async def _custom_teardown_service(self):
         if get_project_member():
@@ -167,6 +161,7 @@ class Service(framework.service.Service):
         ):
             self._start_periodic_project_summaries_calculation()
         self._start_periodic_partition_management()
+        self._start_periodic_refresh_smtp_configuration()
         if mlconf.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
             await self._start_periodic_logs_collection()
         if mlconf.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
@@ -554,7 +549,13 @@ class Service(framework.service.Service):
                 f"Starting periodic partition management for table {table_name}",
                 retention_days=retention_days,
             )
-            interval_in_seconds = retention_days * 24 * 60 * 60
+            partition_interval = framework.db.session.run_function_with_new_db_session(
+                services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval,
+                table_name=table_name,
+            )
+            interval_in_seconds = int(
+                partition_interval.as_duration().total_seconds() / 2
+            )
             run_function_periodically(
                 interval_in_seconds,
                 f"{self._manage_partitions.__name__}_{table_name}",
@@ -562,6 +563,20 @@ class Service(framework.service.Service):
                 self._manage_partitions,
                 table_name=table_name,
                 retention_days=retention_days,
+            )
+
+    def _start_periodic_refresh_smtp_configuration(self):
+        interval = int(mlconf.notifications.smtp.refresh_interval)
+        if interval > 0:
+            self._logger.info(
+                "Starting periodic refresh SMTP configuration", interval=interval
+            )
+            run_function_periodically(
+                interval,
+                framework.utils.notifications.notification_pusher.RunNotificationPusher.get_mail_notification_default_params.__name__,
+                False,
+                framework.utils.notifications.notification_pusher.RunNotificationPusher.get_mail_notification_default_params,
+                refresh=True,
             )
 
     @staticmethod
@@ -655,86 +670,6 @@ class Service(framework.service.Service):
                 await self._stop_logs_for_runs(runs)
         finally:
             await fastapi.concurrency.run_in_threadpool(close_session, db_session)
-
-    def _start_chief_clusterization_spec_sync_loop(self):
-        # put it here first, because we need to set it before the periodic function starts
-        # so the worker will be aligned with the chief state
-        mlconf.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
-
-        interval = int(mlconf.httpdb.clusterization.worker.sync_with_chief.interval)
-        if interval > 0:
-            self._logger.info(
-                "Starting chief clusterization spec sync loop", interval=interval
-            )
-            run_function_periodically(
-                interval,
-                self._synchronize_with_chief_clusterization_spec.__name__,
-                False,
-                self._synchronize_with_chief_clusterization_spec,
-            )
-
-    async def _synchronize_with_chief_clusterization_spec(
-        self,
-    ):
-        # sanity
-        # if we are still in the periodic function and the worker has reached the terminal state, then cancel it
-        if mlconf.httpdb.state in mlrun.common.schemas.APIStates.terminal_states():
-            cancel_periodic_function(
-                self._synchronize_with_chief_clusterization_spec.__name__
-            )
-
-        try:
-            chief_client = framework.utils.clients.chief.Client()
-            clusterization_spec = await chief_client.get_clusterization_spec(
-                return_fastapi_response=False, raise_on_failure=True
-            )
-        except Exception as exc:
-            self._logger.debug(
-                "Failed receiving clusterization spec",
-                exc=err_to_str(exc),
-                traceback=traceback.format_exc(),
-            )
-        else:
-            await self._align_worker_state_with_chief_state(clusterization_spec)
-
-    async def _align_worker_state_with_chief_state(
-        self,
-        clusterization_spec: mlrun.common.schemas.ClusterizationSpec,
-    ):
-        chief_state = clusterization_spec.chief_api_state
-        if not chief_state:
-            self._logger.warning("Chief did not return any state")
-            return
-
-        if chief_state not in mlrun.common.schemas.APIStates.terminal_states():
-            self._logger.debug(
-                "Chief did not reach online state yet, will retry after sync interval",
-                interval=mlconf.httpdb.clusterization.worker.sync_with_chief.interval,
-                chief_state=chief_state,
-            )
-            # we want the worker to be aligned with chief state
-            mlconf.httpdb.state = chief_state
-            return
-
-        if chief_state == mlrun.common.schemas.APIStates.online:
-            self._logger.info(
-                "Chief reached online state! Switching worker state to online"
-            )
-            await self.move_service_to_online()
-            self._logger.info("Worker state reached online")
-
-        else:
-            self._logger.info(
-                "Chief state is terminal, canceling worker periodic chief clusterization spec pulling",
-                state=mlconf.httpdb.state,
-            )
-
-        mlconf.httpdb.state = chief_state
-        # if reached terminal state we cancel the periodic function
-        # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
-        cancel_periodic_function(
-            self._synchronize_with_chief_clusterization_spec.__name__
-        )
 
     async def _monitor_runs(self):
         stale_runs = await framework.db.session.run_async_function_with_new_db_session(

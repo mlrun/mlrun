@@ -19,7 +19,7 @@ import typing
 import warnings
 from urllib.parse import ParseResult, urlparse, urlunparse
 
-import pydantic
+import pydantic.v1
 from mergedeep import merge
 
 import mlrun
@@ -28,15 +28,15 @@ import mlrun.errors
 from ..secrets import get_secret_or_env
 
 
-class DatastoreProfile(pydantic.BaseModel):
+class DatastoreProfile(pydantic.v1.BaseModel):
     type: str
     name: str
     _private_attributes: list = ()
 
     class Config:
-        extra = pydantic.Extra.forbid
+        extra = pydantic.v1.Extra.forbid
 
-    @pydantic.validator("name")
+    @pydantic.v1.validator("name")
     @classmethod
     def lower_case(cls, v):
         return v.lower()
@@ -75,14 +75,32 @@ class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton
 
 
 class DatastoreProfileBasic(DatastoreProfile):
-    type: str = pydantic.Field("basic")
+    type: str = pydantic.v1.Field("basic")
     _private_attributes = "private"
     public: str
     private: typing.Optional[str] = None
 
 
+class VectorStoreProfile(DatastoreProfile):
+    type: str = pydantic.Field("vector")
+    _private_attributes = ("kwargs_private",)
+    vector_store_class: str
+    kwargs_public: typing.Optional[dict] = None
+    kwargs_private: typing.Optional[dict] = None
+
+    def attributes(self, kwargs=None):
+        attributes = {}
+        if self.kwargs_public:
+            attributes = merge(attributes, self.kwargs_public)
+        if self.kwargs_private:
+            attributes = merge(attributes, self.kwargs_private)
+        if kwargs:
+            attributes = merge(attributes, kwargs)
+        return attributes
+
+
 class DatastoreProfileKafkaTarget(DatastoreProfile):
-    type: str = pydantic.Field("kafka_target")
+    type: str = pydantic.v1.Field("kafka_target")
     _private_attributes = "kwargs_private"
     bootstrap_servers: typing.Optional[str] = None
     brokers: typing.Optional[str] = None
@@ -123,7 +141,7 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
 
 
 class DatastoreProfileKafkaSource(DatastoreProfile):
-    type: str = pydantic.Field("kafka_source")
+    type: str = pydantic.v1.Field("kafka_source")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
     brokers: typing.Union[str, list[str]]
     topics: typing.Union[str, list[str]]
@@ -162,7 +180,7 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
 
 
 class DatastoreProfileV3io(DatastoreProfile):
-    type: str = pydantic.Field("v3io")
+    type: str = pydantic.v1.Field("v3io")
     v3io_access_key: typing.Optional[str] = None
     _private_attributes = "v3io_access_key"
 
@@ -178,7 +196,7 @@ class DatastoreProfileV3io(DatastoreProfile):
 
 
 class DatastoreProfileS3(DatastoreProfile):
-    type: str = pydantic.Field("s3")
+    type: str = pydantic.v1.Field("s3")
     _private_attributes = ("access_key_id", "secret_key")
     endpoint_url: typing.Optional[str] = None
     force_non_anonymous: typing.Optional[str] = None
@@ -188,7 +206,7 @@ class DatastoreProfileS3(DatastoreProfile):
     secret_key: typing.Optional[str] = None
     bucket: typing.Optional[str] = None
 
-    @pydantic.validator("bucket")
+    @pydantic.v1.validator("bucket")
     @classmethod
     def check_bucket(cls, v):
         if not v:
@@ -226,7 +244,7 @@ class DatastoreProfileS3(DatastoreProfile):
 
 
 class DatastoreProfileRedis(DatastoreProfile):
-    type: str = pydantic.Field("redis")
+    type: str = pydantic.v1.Field("redis")
     _private_attributes = ("username", "password")
     endpoint_url: str
     username: typing.Optional[str] = None
@@ -269,7 +287,7 @@ class DatastoreProfileRedis(DatastoreProfile):
 
 
 class DatastoreProfileDBFS(DatastoreProfile):
-    type: str = pydantic.Field("dbfs")
+    type: str = pydantic.v1.Field("dbfs")
     _private_attributes = ("token",)
     endpoint_url: typing.Optional[str] = None  # host
     token: typing.Optional[str] = None
@@ -287,13 +305,13 @@ class DatastoreProfileDBFS(DatastoreProfile):
 
 
 class DatastoreProfileGCS(DatastoreProfile):
-    type: str = pydantic.Field("gcs")
+    type: str = pydantic.v1.Field("gcs")
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
     gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
     bucket: typing.Optional[str] = None
 
-    @pydantic.validator("bucket")
+    @pydantic.v1.validator("bucket")
     @classmethod
     def check_bucket(cls, v):
         if not v:
@@ -304,7 +322,7 @@ class DatastoreProfileGCS(DatastoreProfile):
             )
         return v
 
-    @pydantic.validator("gcp_credentials", pre=True, always=True)
+    @pydantic.v1.validator("gcp_credentials", pre=True, always=True)
     @classmethod
     def convert_dict_to_json(cls, v):
         if isinstance(v, dict):
@@ -332,7 +350,7 @@ class DatastoreProfileGCS(DatastoreProfile):
 
 
 class DatastoreProfileAzureBlob(DatastoreProfile):
-    type: str = pydantic.Field("az")
+    type: str = pydantic.v1.Field("az")
     _private_attributes = (
         "connection_string",
         "account_key",
@@ -350,7 +368,7 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     credential: typing.Optional[str] = None
     container: typing.Optional[str] = None
 
-    @pydantic.validator("container")
+    @pydantic.v1.validator("container")
     @classmethod
     def check_container(cls, v):
         if not v:
@@ -392,7 +410,7 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
 
 
 class DatastoreProfileHdfs(DatastoreProfile):
-    type: str = pydantic.Field("hdfs")
+    type: str = pydantic.v1.Field("hdfs")
     _private_attributes = "token"
     host: typing.Optional[str] = None
     port: typing.Optional[int] = None
@@ -415,7 +433,7 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
-class DatastoreProfile2Json(pydantic.BaseModel):
+class DatastoreProfile2Json(pydantic.v1.BaseModel):
     @staticmethod
     def _to_json(attributes):
         # First, base64 encode the values
@@ -476,6 +494,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "gcs": DatastoreProfileGCS,
             "az": DatastoreProfileAzureBlob,
             "hdfs": DatastoreProfileHdfs,
+            "vector": VectorStoreProfile,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

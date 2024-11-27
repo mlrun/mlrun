@@ -237,6 +237,14 @@ class DBInterface(ABC):
         producer_uri: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
+        partition_by: Optional[mlrun.common.schemas.ArtifactPartitionByField] = None,
+        rows_per_partition: Optional[int] = 1,
+        partition_sort_by: Optional[
+            mlrun.common.schemas.SortField
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
     ) -> typing.Union[list, mlrun.lists.ArtifactList]:
@@ -967,8 +975,34 @@ class DBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
+    def update_alert_activation_number_of_events(
+        self,
+        session,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        number_of_events: int,
+    ):
+        pass
+
+    @abstractmethod
     def list_alert_activations(
-        self, session, project: Optional[str] = None
+        self,
+        session,
+        projects_with_creation_time: list[tuple[str, datetime.datetime]],
+        name: Optional[str] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         pass
 

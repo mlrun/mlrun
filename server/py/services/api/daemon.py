@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dependency_injector import containers, providers
+
+from mlrun import mlconf
+
 import framework.service
 import services.api.main
 
@@ -21,13 +25,12 @@ from services.alerts.daemon import daemon as alerts_daemon
 
 
 class Daemon(framework.service.Daemon):
-    def __init__(self, service_cls: framework.service.Service.__class__):
-        self._service: framework.service.Service = service_cls()
-
     @property
-    def mounts(self) -> dict[str, framework.service.Service]:
-        # Mount the alerts application until we have service routing/tunneling
-        return {"/": alerts_daemon.service}
+    def mounts(self) -> list[framework.service.Service]:
+        if mlconf.services.hydra.services == "*":
+            # Mount the alerts application until we have proper hydra
+            return [alerts_daemon.service]
+        return []
 
     @property
     def service(self) -> services.api.main.Service:
@@ -35,7 +38,26 @@ class Daemon(framework.service.Daemon):
 
 
 daemon = Daemon(service_cls=services.api.main.Service)
-daemon.initialize()
-app = daemon.app
 
-# TODO: Create a container, override ServiceContainer and implement forwarding requests to alerts service
+
+# This is used to inject the alerts service when in hydra mode until we have proper hydra
+def _service_selector() -> str:
+    if mlconf.services.hydra.services == "*":
+        return "alerts"
+    return "api"
+
+
+# Overriding ``ServiceContainer`` with ``APIServiceContainer``:
+@containers.override(framework.service.ServiceContainer)
+class APIServiceContainer(containers.DeclarativeContainer):
+    service = providers.Selector(
+        _service_selector,
+        alerts=providers.Object(alerts_daemon.service),
+        api=providers.Object(daemon.service),
+    )
+
+
+def app():
+    daemon.initialize()
+    daemon.wire()
+    return daemon.app

@@ -251,6 +251,7 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         kind = Column(String(255, collation=SQLTypesUtil.collation()), index=True)
         producer_id = Column(String(255, collation=SQLTypesUtil.collation()))
+        producer_uri = Column(String(255, collation=SQLTypesUtil.collation()))
         iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)
         uid = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -853,10 +854,14 @@ with warnings.catch_warnings():
         __table_args__ = (
             PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
             Index("ix_alert_activation_project_name", "project", "name"),
-            Index("ix_alert_activation_activation_time", "activation_time"),
+            Index(
+                "ix_alert_activation_project_activation_time",
+                "project",
+                "activation_time",
+            ),
         )
 
-        id = Column(Integer)
+        id = Column(Integer, autoincrement=True)
         activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(
@@ -960,6 +965,12 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}_{self.name}_{self.created}"
+
+
+def get_partitioned_table_names():
+    return [
+        AlertActivation.__tablename__,
+    ]
 
 
 # Must be after all table definitions

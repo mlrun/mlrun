@@ -13,10 +13,7 @@
 # limitations under the License.
 #
 import contextlib
-import copy
-import http.cookies
 import typing
-import urllib.parse
 
 import aiohttp
 import fastapi
@@ -24,7 +21,8 @@ import fastapi
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.utils import logger
+
+import framework.utils.clients.messaging
 
 
 # we were thinking to simply use httpdb, but decided to have a separated class for simplicity for now until
@@ -43,7 +41,7 @@ class Client(
 
     def __init__(self) -> None:
         super().__init__()
-        self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
+        self._messaging_client = framework.utils.clients.messaging.Client()
         self._api_url = mlrun.mlconf.resolve_chief_api_url()
         self._api_url = self._api_url.rstrip("/")
 
@@ -73,6 +71,16 @@ class Client(
         """
         return await self._proxy_request_to_chief(
             "POST", "operations/migrations", request
+        )
+
+    async def refresh_smtp_configuration(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
+        """
+        To avoid raise condition we want only that the chief will store the secret in the k8s secret store
+        """
+        return await self._proxy_request_to_chief(
+            "POST", "operations/refresh-smtp-configuration", request
         )
 
     async def create_schedule(
@@ -191,7 +199,7 @@ class Client(
             raise_on_failure=raise_on_failure,
         ) as chief_response:
             if return_fastapi_response:
-                return await self._convert_requests_response_to_fastapi_response(
+                return await self._messaging_client.convert_requests_response_to_fastapi_response(
                     chief_response
                 )
 
@@ -282,80 +290,15 @@ class Client(
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(
-            request, json, **kwargs
-        )
-
-        async with self._send_request_to_api(
+        service_name, url = self._resolve_chief_params(path, version)
+        return await self._messaging_client.proxy_request_to_service(
+            service_name=service_name,
             method=method,
-            path=path,
-            version=version,
+            url=url,
+            request=request,
+            json=json,
             raise_on_failure=raise_on_failure,
-            **request_kwargs,
-        ) as chief_response:
-            return await self._convert_requests_response_to_fastapi_response(
-                chief_response
-            )
-
-    @staticmethod
-    def _resolve_request_kwargs_from_request(
-        request: fastapi.Request = None, json: typing.Optional[dict] = None, **kwargs
-    ) -> dict:
-        request_kwargs = {}
-        if request:
-            json = json if json else {}
-            request_kwargs.update({"json": json})
-            request_kwargs.update({"headers": dict(request.headers)})
-            request_kwargs.update({"params": dict(request.query_params)})
-            request_kwargs.update({"cookies": request.cookies})
-            request_kwargs["headers"].setdefault(
-                "x-request-id", request.state.request_id
-            )
-
-        # mask clients host with worker's host
-        origin_host = request_kwargs.get("headers", {}).pop("host", None)
-        if origin_host:
-            # original host requested by client
-            request_kwargs["headers"]["x-forwarded-host"] = origin_host
-
-        # let the http client calculate it itself
-        # or we will hit serious issues with reverse-proxying (client<->worker<->chief) requests
-        request_kwargs.get("headers", {}).pop("content-length", None)
-
-        for cookie_name in list(request_kwargs.get("cookies", {}).keys()):
-            # defensive programming - to avoid setting reserved cookie names and explode
-            # e.g.: when setting "domain" cookie, it will explode, see python internal http client for more details.
-            if http.cookies.Morsel().isReservedKey(cookie_name):
-                del request_kwargs["cookies"][cookie_name]
-
-            # iguazio auth cookies might include special characters. to ensure the http client wont escape them
-            # we will url-encode them (aka quote), so the value would be safe against such escaping.
-            # e.g.: instead of having "x":"y" being escaped to "\"x\":\"y\"", it will be escaped to "%22x%22:%22y%22"
-            elif cookie_name == "session" and mlrun.mlconf.is_running_on_iguazio():
-                # unquote first, to avoid double quoting ourselves, in case the cookie is already quoted
-                unquoted_session = urllib.parse.unquote(
-                    request_kwargs["cookies"][cookie_name]
-                )
-                request_kwargs["cookies"][cookie_name] = urllib.parse.quote(
-                    unquoted_session
-                )
-
-        request_kwargs.update(**kwargs)
-        return request_kwargs
-
-    @staticmethod
-    async def _convert_requests_response_to_fastapi_response(
-        chief_response: aiohttp.ClientResponse,
-    ) -> fastapi.Response:
-        # based on the way we implemented the exception handling for endpoints in MLRun we can expect the media type
-        # of the response to be of type application/json, see services.api.http_status_error_handler for reference
-        return fastapi.responses.Response(
-            content=await chief_response.text(),
-            status_code=chief_response.status,
-            headers=dict(
-                chief_response.headers
-            ),  # chief_response.headers is of type CaseInsensitiveDict
-            media_type="application/json",
+            **kwargs,
         )
 
     @contextlib.asynccontextmanager
@@ -367,74 +310,18 @@ class Client(
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:
-        version = version or mlrun.mlconf.api_base_version
-        await self._ensure_session()
-        url = f"{self._api_url}/api/{version}/{path}"
-        if kwargs.get("timeout") is None:
-            kwargs["timeout"] = (
-                mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
-            )
-        logger.debug("Sending request to chief", method=method, url=url, **kwargs)
-        response = None
-        try:
-            response = await self._session.request(
-                method, url, verify_ssl=False, **kwargs
-            )
-            if not response.ok:
-                await self._on_request_api_failure(
-                    method, path, response, raise_on_failure, **kwargs
-                )
-            else:
-                logger.debug(
-                    "Request to chief succeeded",
-                    method=method,
-                    url=url,
-                    **kwargs,
-                )
+        service_name, url = self._resolve_chief_params(path, version)
+        async with self._messaging_client.send_request(
+            service_name=service_name,
+            method=method,
+            url=url,
+            raise_on_failure=raise_on_failure,
+            **kwargs,
+        ) as response:
             yield response
-        finally:
-            if response:
-                response.release()
 
-    async def _ensure_session(self):
-        if not self._session:
-            self._session = mlrun.utils.AsyncClientWithRetry(
-                # This client handles forwarding requests from worker to chief.
-                # if we receive 5XX error, the code will be returned to the client.
-                #  if client is the SDK - it will handle and retry the request itself, upon its own retry policy
-                #  if the client is UI  - it will propagate the error to the user.
-                # Thus, do not retry.
-                # only exceptions (e.g.: connection initiating).
-                raise_for_status=False,
-            )
-
-            # if we go any HTTP response, return it, do not retry.
-            # by returning `True`, we tell the client the response is "legit" and so, it returns it to its callee.
-            self._session.retry_options.evaluate_response_callback = lambda _: True
-
-    async def _on_request_api_failure(
-        self, method, path, response, raise_on_failure, **kwargs
-    ):
-        log_kwargs = copy.deepcopy(kwargs)
-        log_kwargs.update({"method": method, "path": path})
-        log_kwargs.update(
-            {
-                "status_code": response.status,
-                "reason": response.reason,
-                "real_url": response.real_url,
-            }
-        )
-        if response.content:
-            try:
-                data = await response.json()
-                error = data.get("error")
-                error_stack_trace = data.get("errorStackTrace")
-            except Exception:
-                pass
-            else:
-                log_kwargs.update(
-                    {"error": error, "error_stack_trace": error_stack_trace}
-                )
-        logger.warning("Request to chief failed", **log_kwargs)
-        if raise_on_failure:
-            mlrun.errors.raise_for_status(response)
+    def _resolve_chief_params(self, path, version):
+        service_name = "api-chief"
+        version = version or mlrun.mlconf.api_base_version
+        url = f"{self._api_url}/api/{version}/{path}"
+        return service_name, url

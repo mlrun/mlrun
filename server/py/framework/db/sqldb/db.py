@@ -23,7 +23,7 @@ import typing
 import urllib.parse
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional, Union
 
 import fastapi.concurrency
 import mergedeep
@@ -84,7 +84,9 @@ import framework.utils.helpers
 from framework.db.base import DBInterface
 from framework.db.sqldb.helpers import (
     MemoizationCache,
+    generate_query_for_name_with_wildcard,
     generate_query_predicate_for_name,
+    generate_time_range_query,
     label_set,
     run_labels,
     run_start_time,
@@ -772,6 +774,16 @@ class SQLDB(DBInterface):
         most_recent: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: typing.Optional[int] = None,
+        partition_by: typing.Optional[
+            mlrun.common.schemas.ArtifactPartitionByField
+        ] = None,
+        rows_per_partition: typing.Optional[int] = 1,
+        partition_sort_by: typing.Optional[
+            mlrun.common.schemas.SortField
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: typing.Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> typing.Union[list, ArtifactList]:
@@ -795,10 +807,15 @@ class SQLDB(DBInterface):
             iter=iter,
             uid=uid,
             producer_id=producer_id,
+            producer_uri=producer_uri,
             best_iteration=best_iteration,
             most_recent=most_recent,
             attach_tags=not as_records,
             limit=limit,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
             page=page,
             page_size=page_size,
         )
@@ -808,24 +825,6 @@ class SQLDB(DBInterface):
         artifacts = ArtifactList()
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
-
-            # TODO: filtering by producer uri may be a heavy operation when there are many artifacts in a workflow.
-            #  We should filter the artifacts before loading them into memory with query.all()
-            # Producer URI usually points to a run and is used to filter artifacts by the run that produced them.
-            # When the artifact was produced by a workflow, the producer id is a workflow id.
-            if producer_uri:
-                artifact_struct.setdefault("spec", {}).setdefault("producer", {})
-                artifact_producer_uri = artifact_struct["spec"]["producer"].get(
-                    "uri", None
-                )
-                # We check if the producer uri is a substring of the artifact producer uri because it
-                # may contain additional information (like the run iteration) that we don't want to filter by.
-                if (
-                    artifact_producer_uri is not None
-                    and producer_uri not in artifact_producer_uri
-                ):
-                    continue
-
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(
                 mlrun.common.formatters.ArtifactFormat.format_obj(
@@ -1311,6 +1310,9 @@ class SQLDB(DBInterface):
         artifact_record.producer_id = producer_id or artifact_dict["metadata"].get(
             "tree"
         )
+        artifact_record.producer_uri = (
+            artifact_dict.get("spec", {}).get("producer", {}).get("uri", None)
+        )
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
         created = (
@@ -1434,11 +1436,22 @@ class SQLDB(DBInterface):
         iter: typing.Optional[int] = None,
         uid: typing.Optional[str] = None,
         producer_id: typing.Optional[str] = None,
+        producer_uri: typing.Optional[str] = None,
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
         limit: typing.Optional[int] = None,
         with_entities: typing.Optional[list[Any]] = None,
+        partition_by: typing.Optional[
+            mlrun.common.schemas.ArtifactPartitionByField
+        ] = None,
+        rows_per_partition: typing.Optional[int] = 1,
+        partition_sort_by: typing.Optional[
+            mlrun.common.schemas.SortField
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: typing.Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> typing.Union[list[Any],]:
@@ -1458,11 +1471,20 @@ class SQLDB(DBInterface):
         :param iter: Artifact iteration to filter by
         :param uid: Artifact UID to filter by
         :param producer_id: Artifact producer ID to filter by
+        :param producer_uri: The producer URI (usually a run URI) to filter artifacts by. The producer URI is
+            typically used to filter artifacts produced by a specific run or workflow.
         :param best_iteration: Filter by best iteration artifacts
         :param most_recent: Filter by most recent artifacts
         :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
         :param limit: Maximum number of artifacts to return
         :param with_entities: List of columns to return
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`. Default is `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :param page: The page number to query.
         :param page_size: The page size to query.
 
@@ -1502,14 +1524,19 @@ class SQLDB(DBInterface):
             query = query.filter(ArtifactV2.best_iteration == best_iteration)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
+        if producer_uri:
+            # We check if the producer uri is a substring of the artifact producer uri because it
+            # may contain additional information (like the run iteration) that we don't want to filter by.
+            query = query.filter(ArtifactV2.producer_uri.like(f"%{producer_uri}%"))
         if labels:
             labels = label_set(labels)
             query = self._add_labels_filter(session, query, ArtifactV2, labels)
         if since or until:
-            since = since or datetime.min
-            until = until or datetime.max
-            query = query.filter(
-                and_(ArtifactV2.updated >= since, ArtifactV2.updated <= until)
+            query = generate_time_range_query(
+                query=query,
+                field=ArtifactV2.updated,
+                since=since,
+                until=until,
             )
         if kind:
             query = query.filter(ArtifactV2.kind == kind)
@@ -1527,6 +1554,23 @@ class SQLDB(DBInterface):
             # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
             query = query.outerjoin(
                 ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            )
+
+        if partition_by:
+            self._assert_partition_by_parameters(
+                mlrun.common.schemas.ArtifactPartitionByField,
+                partition_by,
+                partition_sort_by,
+            )
+            query = self._create_partitioned_query(
+                session,
+                query,
+                ArtifactV2,
+                partition_by,
+                rows_per_partition,
+                partition_sort_by,
+                partition_order,
+                with_tagged=True,
             )
 
         if limit:
@@ -1939,6 +1983,7 @@ class SQLDB(DBInterface):
             page_size=page_size,
         ):
             function_dict = function.struct
+            function_dict["kind"] = function.kind
             if not function_tag:
                 # function status should be added only to tagged functions
                 # TODO: remove explicit cleaning; we also
@@ -3215,7 +3260,7 @@ class SQLDB(DBInterface):
         return project_record
 
     def verify_project_has_no_related_resources(self, session: Session, name: str):
-        artifacts = self._find_artifacts(session, name, "*")
+        artifacts = self._find_artifacts(session, project=name, ids="*")
         self._verify_empty_list_of_project_related_resources(
             name, artifacts, "artifacts"
         )
@@ -3817,11 +3862,13 @@ class SQLDB(DBInterface):
         partition_by: typing.Union[
             mlrun.common.schemas.FeatureStorePartitionByField,
             mlrun.common.schemas.RunPartitionByField,
+            mlrun.common.schemas.ArtifactPartitionByField,
         ],
         rows_per_partition: int,
         partition_sort_by: mlrun.common.schemas.SortField,
         partition_order: mlrun.common.schemas.OrderType,
         max_partitions: int = 0,
+        with_tagged: bool = False,
     ):
         partition_field = partition_by.to_partition_by_db_field(cls)
         sort_by_field = partition_sort_by.to_db_field(cls)
@@ -3837,7 +3884,9 @@ class SQLDB(DBInterface):
 
         # Retrieve only the ID from the subquery to minimize the inner table,
         # in the final step we inner join the inner table with the full table.
-        query = query.with_entities(cls.id).add_column(row_number_column)
+        query = query.with_entities(
+            cls.id, cls.Tag.name if with_tagged else None
+        ).add_column(row_number_column)
         if max_partitions > 0:
             max_partition_value = (
                 func.max(sort_by_field)
@@ -3852,10 +3901,11 @@ class SQLDB(DBInterface):
         # is a window function using over().
         subquery = query.subquery()
         if max_partitions == 0:
-            result_query = (
-                session.query(cls)
-                .join(subquery, cls.id == subquery.c.id)
-                .filter(subquery.c.row_number <= rows_per_partition)
+            result_query = session.query(cls)
+            if with_tagged:
+                result_query = result_query.add_column(subquery.c.name)
+            result_query = result_query.join(subquery, cls.id == subquery.c.id).filter(
+                subquery.c.row_number <= rows_per_partition
             )
             return result_query
 
@@ -4695,6 +4745,18 @@ class SQLDB(DBInterface):
             session.add(object_)
         self._commit(session, objects, ignore, silent)
 
+    def _upsert_object_and_flush_to_get_field(self, session, object_, field):
+        # Add the object to the session
+        session.add(object_)
+        # Flush the session to generate the database values
+        session.flush()
+
+        # Dynamically retrieve the specified field's value
+        field_value = getattr(object_, field, None)
+
+        self._commit(session, [object_])
+        return field_value
+
     @staticmethod
     def _commit(session, objects, ignore=False, silent=False):
         def _try_commit_obj():
@@ -4834,10 +4896,8 @@ class SQLDB(DBInterface):
             query = query.filter(Function.kind == kind)
 
         if since or until:
-            since = since or datetime.min
-            until = until or datetime.max
-            query = query.filter(
-                and_(Function.updated >= since, Function.updated <= until)
+            query = generate_time_range_query(
+                query=query, field=Function.updated, since=since, until=until
             )
 
         if not tag:
@@ -5905,7 +5965,7 @@ class SQLDB(DBInterface):
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
         notifications_states: list[mlrun.common.schemas.NotificationState],
-    ):
+    ) -> Optional[str]:
         extra_data = {
             "notifications": [
                 notification.dict() for notification in notifications_states
@@ -5933,17 +5993,93 @@ class SQLDB(DBInterface):
             data=extra_data,
         )
 
-        self._upsert(session, [alert_activation_record])
+        # if reset_policy is MANUAL, we need to keep id to be able to update number_of_events
+        # when the alert is reset
+        if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
+            return self._upsert_object_and_flush_to_get_field(
+                session, alert_activation_record, "id"
+            )
+        else:
+            self._upsert(session, [alert_activation_record])
+
+    def update_alert_activation_number_of_events(
+        self,
+        session,
+        activation_id: int,
+        activation_time: datetime,
+        number_of_events: int,
+    ):
+        query = self._query(
+            session, AlertActivation, id=activation_id, activation_time=activation_time
+        )
+        activation = query.one_or_none()
+        if not activation:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found for id: {activation_id}"
+            )
+        activation.number_of_events = number_of_events
+        self._upsert(session, [activation])
 
     def list_alert_activations(
-        self, session: Session, project: typing.Optional[str] = None
+        self,
+        session: Session,
+        projects_with_creation_time: list[tuple[str, datetime]],
+        name: typing.Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        entity: typing.Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
-        # TODO: add filters
         query = self._query(session, AlertActivation)
 
-        if project and project != "*":
-            query = query.filter(AlertActivation.project == project)
+        # Filter alert activations for the project created after the project creation date,
+        # excluding activations linked to any previous instances of the project.
+        # TODO: reconsider this approach when we move alerts out of main MLRun db
+        project_filter_conditions = [
+            and_(
+                AlertActivation.project == project,
+                AlertActivation.activation_time > created,
+            )
+            for project, created in projects_with_creation_time
+        ]
 
+        query = query.filter(or_(*project_filter_conditions))
+
+        if name:
+            query = query.filter(
+                generate_query_predicate_for_name(AlertActivation.name, name)
+            )
+
+        if since or until:
+            query = generate_time_range_query(
+                query=query,
+                field=AlertActivation.activation_time,
+                since=since,
+                until=until,
+            )
+        if entity:
+            query = query.filter(
+                generate_query_for_name_with_wildcard(AlertActivation.entity_id, entity)
+            )
+        if severity:
+            query = query.filter(AlertActivation.severity.in_(severity))
+
+        if event_kind:
+            query = query.filter(AlertActivation.event_kind == event_kind)
+
+        if entity_kind:
+            query = query.filter(AlertActivation.entity_kind == entity_kind)
+
+        query = query.order_by(AlertActivation.activation_time.desc())
+        query = self._paginate_query(query, page, page_size)
         return [
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()

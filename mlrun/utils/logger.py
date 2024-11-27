@@ -24,7 +24,7 @@ from traceback import format_exception
 from typing import IO, Optional, Union
 
 import orjson
-import pydantic
+import pydantic.v1
 
 from mlrun import errors
 from mlrun.config import config
@@ -33,7 +33,7 @@ from mlrun.config import config
 class _BaseFormatter(logging.Formatter):
     def _json_dump(self, json_object):
         def default(obj):
-            if isinstance(obj, pydantic.BaseModel):
+            if isinstance(obj, pydantic.v1.BaseModel):
                 return obj.dict()
 
             # EAFP all the way.

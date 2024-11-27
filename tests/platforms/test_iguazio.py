@@ -15,13 +15,11 @@
 import os
 from unittest.mock import Mock
 
-import deepdiff
 import pytest
 import requests
 
 import mlrun
 import mlrun.errors
-import mlrun_pipelines.common.mounts
 from mlrun import mlconf
 from mlrun.platforms import add_or_refresh_credentials
 from mlrun.platforms.iguazio import min_iguazio_versions
@@ -89,148 +87,6 @@ def test_mount_v3io_multiple_user():
     assert (
         function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key_2
     )
-
-
-def test_mount_v3io():
-    username = "username"
-    access_key = "access-key"
-    cases = [
-        {
-            "set_user": True,
-            "expected_volume": {
-                "flexVolume": {
-                    "driver": "v3io/fuse",
-                    "options": {
-                        "accessKey": access_key,
-                        "dirsToCreate": f'[{{"name": "users//{username}", "permissions": 488}}]',
-                    },
-                },
-                "name": "v3io",
-            },
-            "expected_volume_mounts": [
-                {"mountPath": "/User", "name": "v3io", "subPath": f"users/{username}"},
-                {"mountPath": "/v3io", "name": "v3io", "subPath": ""},
-            ],
-        },
-        {"remote": "~/custom-remote", "expect_failure": True},
-        {
-            "volume_mounts": [
-                mlrun_pipelines.common.mounts.VolumeMount(
-                    "/volume-mount-path", "volume-sub-path"
-                )
-            ],
-            "remote": "~/custom-remote",
-            "expect_failure": True,
-        },
-        {
-            "volume_mounts": [
-                mlrun_pipelines.common.mounts.VolumeMount(
-                    "/volume-mount-path", "volume-sub-path"
-                ),
-                mlrun_pipelines.common.mounts.VolumeMount(
-                    "/volume-mount-path-2", "volume-sub-path-2"
-                ),
-            ],
-            "remote": "~/custom-remote",
-            "set_user": True,
-            "expected_volume": {
-                "flexVolume": {
-                    "driver": "v3io/fuse",
-                    "options": {
-                        "accessKey": access_key,
-                        "container": "users",
-                        "subPath": f"/{username}/custom-remote",
-                        "dirsToCreate": f'[{{"name": "users//{username}", "permissions": 488}}]',
-                    },
-                },
-                "name": "v3io",
-            },
-            "expected_volume_mounts": [
-                {
-                    "mountPath": "/volume-mount-path",
-                    "name": "v3io",
-                    "subPath": "volume-sub-path",
-                },
-                {
-                    "mountPath": "/volume-mount-path-2",
-                    "name": "v3io",
-                    "subPath": "volume-sub-path-2",
-                },
-            ],
-        },
-        {
-            "volume_mounts": [
-                mlrun_pipelines.common.mounts.VolumeMount(
-                    "/volume-mount-path", "volume-sub-path"
-                ),
-                mlrun_pipelines.common.mounts.VolumeMount(
-                    "/volume-mount-path-2", "volume-sub-path-2"
-                ),
-            ],
-            "set_user": True,
-            "expected_volume": {
-                "flexVolume": {
-                    "driver": "v3io/fuse",
-                    "options": {
-                        "accessKey": access_key,
-                        "dirsToCreate": f'[{{"name": "users//{username}", "permissions": 488}}]',
-                    },
-                },
-                "name": "v3io",
-            },
-            "expected_volume_mounts": [
-                {
-                    "mountPath": "/volume-mount-path",
-                    "name": "v3io",
-                    "subPath": "volume-sub-path",
-                },
-                {
-                    "mountPath": "/volume-mount-path-2",
-                    "name": "v3io",
-                    "subPath": "volume-sub-path-2",
-                },
-            ],
-        },
-    ]
-    for case in cases:
-        if case.get("set_user"):
-            os.environ["V3IO_USERNAME"] = username
-            os.environ["V3IO_ACCESS_KEY"] = access_key
-        else:
-            os.environ.pop("V3IO_USERNAME", None)
-            os.environ.pop("V3IO_ACCESS_KEY", None)
-
-        function = mlrun.new_function(
-            "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
-        )
-        mount_v3io_kwargs = {
-            "remote": case.get("remote"),
-            "volume_mounts": case.get("volume_mounts"),
-        }
-        mount_v3io_kwargs = {k: v for k, v in mount_v3io_kwargs.items() if v}
-
-        if case.get("expect_failure"):
-            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                function.apply(mlrun.mount_v3io(**mount_v3io_kwargs))
-        else:
-            function.apply(mlrun.mount_v3io(**mount_v3io_kwargs))
-
-            assert (
-                deepdiff.DeepDiff(
-                    [case.get("expected_volume")],
-                    function.spec.volumes,
-                    ignore_order=True,
-                )
-                == {}
-            )
-            assert (
-                deepdiff.DeepDiff(
-                    case.get("expected_volume_mounts"),
-                    function.spec.volume_mounts,
-                    ignore_order=True,
-                )
-                == {}
-            )
 
 
 def test_is_iguazio_session_cookie():

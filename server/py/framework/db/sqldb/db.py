@@ -5947,7 +5947,7 @@ class SQLDB(DBInterface):
             )
         else:
             # for auto reset policy reset_time is the same as the activation time
-            # for manual reset policy, we keep it empty until policy reset
+            # for manual reset policy, we keep it empty until the alert is reset
             alert_activation_record.reset_time = alert_activation_record.activation_time
             self._upsert(session, [alert_activation_record])
 

@@ -146,7 +146,7 @@ async def retry_pipeline(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
             project,
             run_id,
-            mlrun.common.schemas.AuthorizationAction.read,
+            mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
     )

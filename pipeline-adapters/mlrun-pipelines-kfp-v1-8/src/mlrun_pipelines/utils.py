@@ -30,14 +30,14 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
         Retries a given run by its run ID. If the run is not in a valid state for retry,
         it creates a new run with the same pipeline and parameters.
 
-        Args:
-            run_id (str): The ID of the run to retry.
-
-        Returns:
-            str: The ID of the new or retried run.
-
-        Raises:
-            ApiException: If the API request fails.
+        :param run_id: The ID of the run to retry.
+        :type run_id: str
+        :raises ApiException: If the API request fails during the retry or new run creation process.
+        :raises ValueError: If the experiment ID cannot be found for the given run ID, or if
+                            the original run does not contain a valid pipeline specification.
+        :raises FileNotFoundError: If a temporary file for the workflow manifest cannot be created or accessed.
+        :return: The ID of the new or retried run.
+        :rtype: str
         """
         # Fetch run details
         run_details = self.get_run(run_id).run

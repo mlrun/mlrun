@@ -218,7 +218,28 @@ class Pipelines(
         run_id: str,
         project: typing.Optional[str] = None,
         namespace: typing.Optional[str] = None,
-    ):
+    ) -> str:
+        """
+        Retry a Kubeflow Pipeline (KFP) run.
+
+        :param db_session: The SQLAlchemy session used for retrieving and storing pipeline information.
+        :type db_session: sqlalchemy.orm.Session
+        :param run_id: The unique identifier of the pipeline run to retry.
+        :type run_id: str
+        :param project: (Optional) The name of the MLRun project associated with the pipeline run.
+                        If provided, the pipeline run's project will be validated against this.
+        :type project: Optional[str]
+        :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
+                          Defaults to the configured namespace if not specified.
+        :type namespace: Optional[str]
+        :raises MLRunBadRequestError: If the pipeline run is not in a retryable state.
+        :raises MLRunNotFoundError: If the pipeline run does not belong to the specified project
+                                    or if the run ID is not found.
+        :raises MLRunRuntimeError: If there is an error retrieving the pipeline run details.
+        :raises MLRunHTTPStatusError: If there is an HTTP error interacting with KFP.
+        :return: The unique identifier of the retried pipeline run.
+        :rtype: str
+        """
         kfp_client = self.initialize_kfp_client(namespace)
         try:
             api_run_detail = kfp_client.get_run(run_id)
@@ -260,7 +281,7 @@ class Pipelines(
             run_id=run_id,
         )
 
-        return run
+        return run_id
 
     def create_pipeline(
         self,

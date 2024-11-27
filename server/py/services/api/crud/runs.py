@@ -559,7 +559,7 @@ class Runs(
         key_tag_iteration_pairs = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
-            project, key, iteration, tag, artifact_producer_id = (
+            project, key, iteration, tag, artifact_producer_id, uid = (
                 mlrun.utils.parse_artifact_uri(uri, project)
             )
             if artifact_producer_id != producer_id:

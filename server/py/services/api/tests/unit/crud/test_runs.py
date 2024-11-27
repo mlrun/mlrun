@@ -331,9 +331,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         run = runs[0]
         assert "artifacts" not in run["status"]
         assert run["status"]["artifact_uris"] == {
-            "key1": "store://artifacts/project-name/db_key1@tree1",
+            "key1": "store://artifacts/project-name/db_key1@tree1^uid1",
             "key2": "store://artifacts/project-name/db_key2@tree2",
-            "key3": "store://artifacts/project-name/db_key3@tree3",
+            "key3": "store://artifacts/project-name/db_key3@tree3^uid3",
         }
 
     def test_update_run_strip_artifacts_metadata(self, db: sqlalchemy.orm.Session):
@@ -401,9 +401,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         run = runs[0]
         assert "artifacts" not in run["status"]
         assert run["status"]["artifact_uris"] == {
-            "key1": "store://artifacts/project-name/db_key1@tree1",
+            "key1": "store://artifacts/project-name/db_key1@tree1^uid1",
             "key2": "store://artifacts/project-name/db_key2@tree2",
-            "key3": "store://artifacts/project-name/db_key3@tree3",
+            "key3": "store://artifacts/project-name/db_key3@tree3^uid3",
         }
 
     def test_get_run_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session):

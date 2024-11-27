@@ -22,7 +22,9 @@ from pathlib import Path
 
 TARGET_MODULES = {"mlrun", "mlrun_pipelines"}
 # Match any "from mlrun[.something] import x" or "from mlrun_pipelines[.something] import x"
-NONCONFORMING_PATTERN = re.compile(r"^\s*from\s+({})\b".format("|".join(TARGET_MODULES)))
+NONCONFORMING_PATTERN = re.compile(
+    r"^\s*from\s+({})\b".format("|".join(TARGET_MODULES))
+)
 
 
 def check_nonconforming_imports(file_path: Path) -> list[str]:

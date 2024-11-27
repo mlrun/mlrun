@@ -84,7 +84,7 @@ class MonitoringApplicationContext:
         artifacts_logger: Optional[_ArtifactsLogger] = None,
     ) -> None:
         """
-        Initialize a `MonitoringApplicationContext` object.
+        Initialize a :code:`MonitoringApplicationContext` object.
         Note: this object should not be instantiated manually.
 
         :param application_name:    The application name.
@@ -92,7 +92,9 @@ class MonitoringApplicationContext:
         :param model_endpoint_dict: Optional - dictionary of model endpoints.
         :param logger:              Optional - MLRun logger instance.
         :param nuclio_logger:       Optional - Nuclio logger instance.
-        :param artifacts_logger:    Optional - an object that can log artifacts, typically MlrunProject or MLClientCtx.
+        :param artifacts_logger:    Optional - an object that can log artifacts,
+                                    typically :py:class:`~mlrun.projects.MlrunProject` or
+                                    :py:class:`~mlrun.execution.MLClientCtx`.
         """
         self.application_name = application_name
 

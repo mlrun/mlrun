@@ -113,7 +113,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
 
         project.enable_model_monitoring()
 
-    To avoid it, pass `deploy_histogram_data_drift_app=False`.
+    To avoid it, pass :code:`deploy_histogram_data_drift_app=False`.
     """
 
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
@@ -331,8 +331,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         )
 
     def do_tracking(
-        self,
-        monitoring_context: mm_context.MonitoringApplicationContext,
+        self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> list[
         Union[
             mm_results.ModelMonitoringApplicationResult,
@@ -342,9 +341,6 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     ]:
         """
         Calculate and return the data drift metrics, averaged over the features.
-
-        Refer to `ModelMonitoringApplicationBaseV2` for the meaning of the
-        function arguments.
         """
         monitoring_context.logger.debug("Starting to run the application")
         if not monitoring_context.feature_stats:

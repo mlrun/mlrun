@@ -19,7 +19,9 @@ import pytest
 
 from mlrun import mlconf
 
+import framework.service
 import services.alerts.daemon
+from framework.tests.unit.common_fixtures import TestServiceBase
 from services.alerts.daemon import daemon
 
 tests_root_directory = pathlib.Path(__file__).absolute().parent
@@ -34,16 +36,22 @@ if str(tests_root_directory) in os.getcwd():
     ]
 
 
-@pytest.fixture()
-def app() -> fastapi.FastAPI:
-    old_service_name = mlconf.services.service_name
-    try:
+class TestAlertsBase(TestServiceBase):
+    @pytest.fixture(scope="module")
+    def app(self) -> fastapi.FastAPI:
         mlconf.services.service_name = "alert"
+        mlconf.services.hydra.services = ""
         yield services.alerts.daemon.app()
-    finally:
-        mlconf.services.service_name = old_service_name
 
+    @pytest.fixture(scope="module")
+    def prefix(self):
+        yield daemon.service.base_versioned_service_prefix
 
-@pytest.fixture()
-def prefix():
-    yield daemon.service.base_versioned_service_prefix
+    @pytest.fixture(autouse=True)
+    def alert_config_test(self, service_config_test):
+        # we need to override the container manually because we run all unit tests in
+        # the same process in CI so services are imported even when they are not needed
+        service_container = framework.service.ServiceContainer()
+        service_container.override(services.alerts.daemon.AlertsServiceContainer)
+        yield
+        service_container.reset_override()

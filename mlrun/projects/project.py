@@ -41,6 +41,7 @@ import mlrun.artifacts.model
 import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.runtimes.constants
+import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -58,12 +59,24 @@ import mlrun.utils
 import mlrun.utils.regex
 import mlrun_pipelines.common.models
 from mlrun.alerts.alert import AlertConfig
-from mlrun.common.schemas.alert import AlertTemplate
-from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfile,
+    DatastoreProfile2Json,
+    VectorStoreProfile,
+    datastore_profile_read,
+)
+from mlrun.datastore.vectorstore import VectorStoreCollection
 from mlrun.runtimes.nuclio.function import RemoteRuntime
 from mlrun_pipelines.models import PipelineNodeWrapper
 
-from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
+from ..artifacts import (
+    Artifact,
+    ArtifactProducer,
+    DatasetArtifact,
+    DocumentArtifact,
+    DocumentLoaderSpec,
+    ModelArtifact,
+)
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
@@ -1520,6 +1533,10 @@ class MlrunProject(ModelObj):
                     is_retained_producer=is_retained_producer,
                 )
 
+    def update_artifact(self, artifact_object: Artifact):
+        artifacts_manager = self._get_artifact_manager()
+        artifacts_manager.update_artifact(artifact_object, artifact_object)
+
     def _get_artifact_manager(self):
         if self._artifact_manager:
             return self._artifact_manager
@@ -1838,6 +1855,72 @@ class MlrunProject(ModelObj):
             labels=labels,
         )
         return item
+
+    def get_or_create_vector_store_collection(
+        self,
+        collection_name: str,
+        profile: Union[str, VectorStoreProfile],
+        **kwargs,
+    ) -> VectorStoreCollection:
+        """
+        Create or retrieve a VectorStoreCollection.
+
+        :param collection_name: Name of the collection
+        :param profile: Name of the VectorStoreProfile or a VectorStoreProfile object
+        :param kwargs: Additional arguments for the VectorStoreCollection
+        :return: VectorStoreCollection object
+        """
+        if isinstance(profile, str):
+            profile = datastore_profile_read(f"ds://{profile}")
+
+        if not isinstance(profile, VectorStoreProfile):
+            raise ValueError(
+                "Profile must be a VectorStoreProfile object or a profile name"
+            )
+        return VectorStoreCollection(
+            profile.vector_store_class,
+            self,
+            profile.name,
+            collection_name,
+            **profile.attributes(kwargs),
+        )
+
+    def log_document(
+        self,
+        key: str,
+        artifact_path: Optional[str] = None,
+        document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
+        tag: str = "",
+        upload: Optional[bool] = False,
+        labels: Optional[dict[str, str]] = None,
+        **kwargs,
+    ) -> DocumentArtifact:
+        """
+        Log a document as an artifact.
+
+        :param key: Artifact key
+        :param target_path: Path to the local file
+        :param artifact_path: Target path for artifact storage
+        :param document_loader: Spec to use to load the artifact as langchain document
+        :param tag: Version tag
+        :param upload: Whether to upload the artifact
+        :param labels: Key-value labels
+        :param kwargs: Additional keyword arguments
+        :return: DocumentArtifact object
+        """
+        doc_artifact = DocumentArtifact(
+            key=key,
+            document_loader=document_loader,
+            **kwargs,
+        )
+
+        return self.log_artifact(
+            doc_artifact,
+            artifact_path=artifact_path,
+            tag=tag,
+            upload=upload,
+            labels=labels,
+        )
 
     def import_artifact(
         self, item_path: str, new_key=None, artifact_path=None, tag=None
@@ -3858,6 +3941,16 @@ class MlrunProject(ModelObj):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3894,6 +3987,13 @@ class MlrunProject(ModelObj):
         :param tree: Return artifacts of the requested tree.
         :param limit: Maximum number of artifacts to return.
         :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3910,6 +4010,10 @@ class MlrunProject(ModelObj):
             tree=tree,
             format_=format_,
             limit=limit,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
         )
 
     def paginated_list_artifacts(
@@ -4616,7 +4720,9 @@ class MlrunProject(ModelObj):
             alert_name = alert_data.name
         db.reset_alert_config(alert_name, self.metadata.name)
 
-    def get_alert_template(self, template_name: str) -> AlertTemplate:
+    def get_alert_template(
+        self, template_name: str
+    ) -> mlrun.common.schemas.alert.AlertTemplate:
         """
         Retrieve a specific alert template.
 
@@ -4626,7 +4732,7 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_alert_template(template_name)
 
-    def list_alert_templates(self) -> list[AlertTemplate]:
+    def list_alert_templates(self) -> list[mlrun.common.schemas.alert.AlertTemplate]:
         """
         Retrieve list of all alert templates.
 
@@ -4634,6 +4740,109 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_alert_templates()
+
+    def list_alert_activations(
+        self,
+        name: Optional[str] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        entity: Optional[str] = None,
+        severity: Optional[
+            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        ] = None,
+        entity_kind: Optional[
+            Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        ] = None,
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+    ) -> list[mlrun.common.schemas.alert.AlertActivation]:
+        """
+        Retrieve a list of alert activations for a project.
+
+        :param name: The alert name to filter by. Supports exact matching or partial matching if prefixed with `~`.
+        :param since: Filters for alert activations occurring after this timestamp.
+        :param until: Filters for alert activations occurring before this timestamp.
+        :param entity: The entity ID to filter by. Supports wildcard matching if prefixed with `~`.
+        :param severity: A list of severity levels to filter by (e.g., ["high", "low"]).
+        :param entity_kind: The kind of entity (e.g., "job", "endpoint") to filter by.
+        :param event_kind: The kind of event (e.g., ""data-drift-detected"", "failed") to filter by.
+
+        :returns: A list of alert activations matching the provided filters.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_alert_activations(
+            project=self.metadata.name,
+            name=name,
+            since=since,
+            until=until,
+            entity=entity,
+            severity=severity,
+            entity_kind=entity_kind,
+            event_kind=event_kind,
+        )
+
+    def paginated_list_alert_activations(
+        self,
+        *args,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+        **kwargs,
+    ) -> tuple[mlrun.common.schemas.alert.AlertActivation, Optional[str]]:
+        """
+        List alerts activations with support for pagination and various filtering options.
+
+        This method retrieves a paginated list of alert activations based on the specified filter parameters.
+        Pagination is controlled using the `page`, `page_size`, and `page_token` parameters. The method
+        will return a list of alert activations that match the filtering criteria provided.
+
+        For detailed information about the parameters, refer to the list_alert_activations method:
+            See :py:func:`~list_alert_activations` for more details.
+
+        Examples::
+
+            # Fetch first page of alert activations with page size of 5
+            alert_activations, token = project.paginated_list_alert_activations(page_size=5)
+            # Fetch next page using the pagination token from the previous response
+            alert_activations, token = project.paginated_list_alert_activations(
+                page_token=token
+            )
+            # Fetch alert activations for a specific page (e.g., page 3)
+            alert_activations, token = project.paginated_list_alert_activations(
+                page=3, page_size=5
+            )
+
+            # Automatically iterate over all pages without explicitly specifying the page number
+            alert_activations = []
+            token = None
+            while True:
+                page_alert_activations, token = project.paginated_list_alert_activations(
+                    page_token=token, page_size=5
+                )
+                alert_activations.extend(page_alert_activations)
+
+                # If token is None and page_alert_activations is empty, we've reached the end (no more activations).
+                # If token is None and page_alert_activations is not empty, we've fetched the last page of activations.
+                if not token:
+                    break
+            print(f"Total alert activations retrieved: {len(alert_activations)}")
+
+        :param page: The page number to retrieve. If not provided, the next page will be retrieved.
+        :param page_size: The number of items per page to retrieve. Up to `page_size` responses are expected.
+        :param page_token: A pagination token used to retrieve the next page of results. Should not be provided
+            for the first request.
+
+        :returns: A tuple containing the list of alert activations and an optional `page_token` for pagination.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.paginated_list_alert_activations(
+            *args,
+            project=self.metadata.name,
+            page=page,
+            page_size=page_size,
+            page_token=page_token,
+            return_all=False,
+            **kwargs,
+        )
 
     def _run_authenticated_git_action(
         self,

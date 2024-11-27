@@ -36,8 +36,6 @@ jobs:
         BASE_BRANCH=${{ github.event.pull_request.base.ref }}
         git diff --name-only $(git merge-base HEAD $BASE_BRANCH) > modified_files.txt
 
-
-
     - name: Run Import Check
       run: |
         python /home/runner/work/mlrun/mlrun/automation/scripts/check_fully_qualified_imports.py $(cat modified_files.txt)

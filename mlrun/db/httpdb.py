@@ -2301,7 +2301,7 @@ class HTTPRunDB(RunDBInterface):
             ) from exc
 
         logger.info(
-            "Successfully retried pipeline run.",
+            "Successfully retried pipeline run",
             run_id=run_id,
             project=project_path,
             namespace=namespace,

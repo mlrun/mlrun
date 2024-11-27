@@ -5951,7 +5951,7 @@ class SQLDB(DBInterface):
             alert_activation_record.reset_time = alert_activation_record.activation_time
             self._upsert(session, [alert_activation_record])
 
-    def update_alert_activation_on_reset(
+    def update_alert_activation(
         self,
         session,
         activation_id: int,

@@ -416,7 +416,7 @@ class Alerts(
             activation_time = alert_state.get("last_updated")
             activation_id = alert_state.get("full_object", {}).get("last_activation_id")
             if activation_time and activation_id:
-                framework.utils.singletons.db.get_db().update_alert_activation_on_reset(
+                framework.utils.singletons.db.get_db().update_alert_activation(
                     session,
                     activation_id=activation_id,
                     activation_time=activation_time,
@@ -426,6 +426,13 @@ class Alerts(
                     number_of_events=number_of_events
                     if number_of_events > alert.criteria.count
                     else None,
+                )
+            else:
+                logger.warning(
+                    "No activation id or last activation time found for alert",
+                    alert_name=name,
+                    activation_id=activation_id,
+                    activation_time=activation_time,
                 )
 
         framework.utils.singletons.db.get_db().store_alert_state(

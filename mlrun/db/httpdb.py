@@ -858,8 +858,8 @@ class HTTPRunDB(RunDBInterface):
         :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
-        :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
-            the `partition_sort_by` parameter must be provided as well.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
             to return per group. Default value is 1.
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
@@ -1138,6 +1138,16 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1179,6 +1189,13 @@ class HTTPRunDB(RunDBInterface):
             is a workflow id (artifact was created as part of a workflow).
         :param format_:         The format in which to return the artifacts. Default is 'full'.
         :param limit:           Maximum number of artifacts to return.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
 
         artifacts, _ = self._list_artifacts(
@@ -1196,6 +1213,10 @@ class HTTPRunDB(RunDBInterface):
             producer_uri=producer_uri,
             format_=format_,
             limit=limit,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
             return_all=True,
         )
         return artifacts
@@ -2472,7 +2493,6 @@ class HTTPRunDB(RunDBInterface):
 
     @staticmethod
     def _generate_partition_by_params(
-        partition_by_cls,
         partition_by,
         rows_per_partition,
         sort_by,
@@ -2552,7 +2572,6 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    mlrun.common.schemas.FeatureStorePartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,
@@ -2777,7 +2796,6 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    mlrun.common.schemas.FeatureStorePartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,
@@ -4822,6 +4840,16 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
@@ -4851,6 +4879,15 @@ class HTTPRunDB(RunDBInterface):
             "page-token": page_token,
         }
 
+        if partition_by:
+            params.update(
+                self._generate_partition_by_params(
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
+                )
+            )
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
 
@@ -5013,7 +5050,6 @@ class HTTPRunDB(RunDBInterface):
         if partition_by:
             params.update(
                 self._generate_partition_by_params(
-                    mlrun.common.schemas.RunPartitionByField,
                     partition_by,
                     rows_per_partition,
                     partition_sort_by,

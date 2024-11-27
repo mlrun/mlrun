@@ -59,11 +59,24 @@ import mlrun.utils
 import mlrun.utils.regex
 import mlrun_pipelines.common.models
 from mlrun.alerts.alert import AlertConfig
-from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfile,
+    DatastoreProfile2Json,
+    VectorStoreProfile,
+    datastore_profile_read,
+)
+from mlrun.datastore.vectorstore import VectorStoreCollection
 from mlrun.runtimes.nuclio.function import RemoteRuntime
 from mlrun_pipelines.models import PipelineNodeWrapper
 
-from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
+from ..artifacts import (
+    Artifact,
+    ArtifactProducer,
+    DatasetArtifact,
+    DocumentArtifact,
+    DocumentLoaderSpec,
+    ModelArtifact,
+)
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
@@ -1520,6 +1533,10 @@ class MlrunProject(ModelObj):
                     is_retained_producer=is_retained_producer,
                 )
 
+    def update_artifact(self, artifact_object: Artifact):
+        artifacts_manager = self._get_artifact_manager()
+        artifacts_manager.update_artifact(artifact_object, artifact_object)
+
     def _get_artifact_manager(self):
         if self._artifact_manager:
             return self._artifact_manager
@@ -1838,6 +1855,72 @@ class MlrunProject(ModelObj):
             labels=labels,
         )
         return item
+
+    def get_or_create_vector_store_collection(
+        self,
+        collection_name: str,
+        profile: Union[str, VectorStoreProfile],
+        **kwargs,
+    ) -> VectorStoreCollection:
+        """
+        Create or retrieve a VectorStoreCollection.
+
+        :param collection_name: Name of the collection
+        :param profile: Name of the VectorStoreProfile or a VectorStoreProfile object
+        :param kwargs: Additional arguments for the VectorStoreCollection
+        :return: VectorStoreCollection object
+        """
+        if isinstance(profile, str):
+            profile = datastore_profile_read(f"ds://{profile}")
+
+        if not isinstance(profile, VectorStoreProfile):
+            raise ValueError(
+                "Profile must be a VectorStoreProfile object or a profile name"
+            )
+        return VectorStoreCollection(
+            profile.vector_store_class,
+            self,
+            profile.name,
+            collection_name,
+            **profile.attributes(kwargs),
+        )
+
+    def log_document(
+        self,
+        key: str,
+        artifact_path: Optional[str] = None,
+        document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
+        tag: str = "",
+        upload: Optional[bool] = False,
+        labels: Optional[dict[str, str]] = None,
+        **kwargs,
+    ) -> DocumentArtifact:
+        """
+        Log a document as an artifact.
+
+        :param key: Artifact key
+        :param target_path: Path to the local file
+        :param artifact_path: Target path for artifact storage
+        :param document_loader: Spec to use to load the artifact as langchain document
+        :param tag: Version tag
+        :param upload: Whether to upload the artifact
+        :param labels: Key-value labels
+        :param kwargs: Additional keyword arguments
+        :return: DocumentArtifact object
+        """
+        doc_artifact = DocumentArtifact(
+            key=key,
+            document_loader=document_loader,
+            **kwargs,
+        )
+
+        return self.log_artifact(
+            doc_artifact,
+            artifact_path=artifact_path,
+            tag=tag,
+            upload=upload,
+            labels=labels,
+        )
 
     def import_artifact(
         self, item_path: str, new_key=None, artifact_path=None, tag=None
@@ -3859,6 +3942,16 @@ class MlrunProject(ModelObj):
         format_: Optional[
             mlrun.common.formatters.ArtifactFormat
         ] = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3895,6 +3988,13 @@ class MlrunProject(ModelObj):
         :param tree: Return artifacts of the requested tree.
         :param limit: Maximum number of artifacts to return.
         :param format_: The format in which to return the artifacts. Default is 'full'.
+        :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
+            parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3911,6 +4011,10 @@ class MlrunProject(ModelObj):
             tree=tree,
             format_=format_,
             limit=limit,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
         )
 
     def paginated_list_artifacts(

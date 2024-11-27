@@ -165,6 +165,16 @@ async def list_artifacts(
     limit: int = Query(None),
     since: Optional[str] = None,
     until: Optional[str] = None,
+    partition_by: Optional[mlrun.common.schemas.ArtifactPartitionByField] = Query(
+        None, alias="partition-by"
+    ),
+    rows_per_partition: Optional[int] = Query(1, alias="rows-per-partition", gt=0),
+    partition_sort_by: Optional[mlrun.common.schemas.SortField] = Query(
+        mlrun.common.schemas.SortField.updated, alias="partition-sort-by"
+    ),
+    partition_order: Optional[mlrun.common.schemas.OrderType] = Query(
+        mlrun.common.schemas.OrderType.desc, alias="partition-order"
+    ),
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -209,6 +219,10 @@ async def list_artifacts(
         producer_id=tree,
         producer_uri=producer_uri,
         limit=limit,
+        partition_by=partition_by,
+        rows_per_partition=rows_per_partition,
+        partition_sort_by=partition_sort_by,
+        partition_order=partition_order,
     )
     return {
         "artifacts": artifacts,

@@ -412,24 +412,30 @@ class Alerts(
         if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
             # before resetting an alert, update number_of_events if required
             number_of_events = self._get_number_of_events(alert.id)
-            # if they are equal, the number_of_events is already set to the correct value
-            if number_of_events > alert.criteria.count:
-                alert_state = (
-                    framework.utils.singletons.db.get_db().get_alert_state_dict(
-                        session, alert.id
-                    )
+            alert_state = framework.utils.singletons.db.get_db().get_alert_state_dict(
+                session, alert.id
+            )
+            activation_time = alert_state.get("last_updated")
+            activation_id = alert_state.get("full_object", {}).get("last_activation_id")
+            if activation_time and activation_id:
+                framework.utils.singletons.db.get_db().update_alert_activation(
+                    session,
+                    activation_id=activation_id,
+                    activation_time=activation_time,
+                    # If they are equal, the number_of_events is already set to the correct value.
+                    # Additionally, this ensures safety by avoiding potential cache issues.
+                    # For example, if the service restarts, we might lose all information about the number of events.
+                    number_of_events=number_of_events
+                    if number_of_events > alert.criteria.count
+                    else None,
                 )
-                activation_time = alert_state.get("last_updated")
-                activation_id = alert_state.get("full_object", {}).get(
-                    "last_activation_id"
+            else:
+                logger.warning(
+                    "No activation id or last activation time found for alert, skipping activation update on reset",
+                    alert_name=name,
+                    activation_id=activation_id,
+                    activation_time=activation_time,
                 )
-                if activation_time and activation_id:
-                    framework.utils.singletons.db.get_db().update_alert_activation_number_of_events(
-                        session,
-                        activation_id=activation_id,
-                        activation_time=activation_time,
-                        number_of_events=number_of_events,
-                    )
 
         framework.utils.singletons.db.get_db().store_alert_state(
             session, project, name, last_updated=None

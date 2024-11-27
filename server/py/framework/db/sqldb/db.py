@@ -6000,14 +6000,17 @@ class SQLDB(DBInterface):
                 session, alert_activation_record, "id"
             )
         else:
+            # for auto reset policy reset_time is the same as the activation time
+            # for manual reset policy, we keep it empty until the alert is reset
+            alert_activation_record.reset_time = alert_activation_record.activation_time
             self._upsert(session, [alert_activation_record])
 
-    def update_alert_activation_number_of_events(
+    def update_alert_activation(
         self,
         session,
         activation_id: int,
         activation_time: datetime,
-        number_of_events: int,
+        number_of_events: Optional[int] = None,
     ):
         query = self._query(
             session, AlertActivation, id=activation_id, activation_time=activation_time
@@ -6017,7 +6020,9 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunNotFoundError(
                 f"Alert activation not found for id: {activation_id}"
             )
-        activation.number_of_events = number_of_events
+        if number_of_events:
+            activation.number_of_events = number_of_events
+        activation.reset_time = mlrun.utils.now_date()
         self._upsert(session, [activation])
 
     def list_alert_activations(
@@ -6107,6 +6112,11 @@ class SQLDB(DBInterface):
             number_of_events=alert_activation_record.number_of_events,
             notifications=alert_activation_record.data.get("notifications", []),
             criteria=alert_activation_record.data.get("criteria"),
+            # the reset_time is already stored in UTC (if not None) in the database as a naive datetime.
+            # we explicitly set the timezone to UTC here to make it timezone-aware, avoiding any ambiguity.
+            reset_time=alert_activation_record.reset_time.replace(tzinfo=timezone.utc)
+            if alert_activation_record.reset_time
+            else None,
         )
 
     # ---- Background Tasks ----

@@ -186,7 +186,9 @@ def kfp_client_mock(monkeypatch) -> mlrun_pipelines.utils.ExtendedKfpClient:
     kfp_client.get_run = mock.Mock()
 
     monkeypatch.setattr(
-        mlrun_pipelines.utils.ExtendedKfpClient, "__new__", lambda cls, *args, **kwargs: kfp_client
+        mlrun_pipelines.utils.ExtendedKfpClient,
+        "__new__",
+        lambda cls, *args, **kwargs: kfp_client,
     )
 
     return kfp_client

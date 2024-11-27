@@ -576,6 +576,7 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         # accuracy = max(p1) * 2
         assert run_result.output("accuracy") == 22, "unexpected results"
 
+        # Cover listing artifacts with partitioning when logging an artifact inside a run with hyperparameters
         artifacts = mlrun.get_run_db().list_artifacts(
             partition_by=mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
             tag="latest",

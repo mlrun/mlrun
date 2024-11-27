@@ -16,7 +16,7 @@ MLRun supports configuring notifications on jobs and scheduled jobs. This sectio
 
 
 ## The notification object
-See {py:class}`~module-mlrun.common.schemas.notification`.
+See {py:class}`~mlrun.common.schemas.notification.Notification`.
 
 
 ## Local vs. remote
@@ -31,12 +31,12 @@ These cases are:
 > **Disclaimer:** Notifications of local runs aren't persisted.
 
 ## Notification parameters and secrets
-The notification parameters often contain sensitive information, such as Slack webhooks Git tokens, etc.
-To ensure the safety of this sensitive data, the parameters are split into 2 objects - `params` and `secret_params`.
-Either can be used to store any notification parameter. However the `secret_params` will be protected by project secrets.
-When a notification is created, its `secret_params` are automatically masked and stored in a mlrun project secret.
-The name of the secret is built from the hash of the params themselves (So if multiple notifications use the same secret, it won't waste space in the project secret).
-Inside the notification's `secret_params`, you'll find a reference to the secret under the `secret` key once it's been masked.
+The notification parameters often contain sensitive information, such as Slack webhooks, Git tokens, etc.
+To ensure the safety of this sensitive data, the parameters are split into two objects - `params` and `secret_params`.
+Either can be used to store any notification parameter. However the `secret_params` is protected by project secrets.
+When a notification is created, its `secret_params` are automatically masked and stored in an mlrun project secret.
+The name of the secret is built from the hash of the parameters themselves (so if multiple notifications use the same secret, it doesn't waste space in the project secret).
+Inside the notification's `secret_params`, you'll find a reference to the secret under the `secret` key after it's masked.
 For non-sensitive notification parameters, you can simply use the `params` parameter, which doesn't go through this masking process.
 It's essential to utilize `secret_params` exclusively for handling sensitive information, ensuring secure data management.
 

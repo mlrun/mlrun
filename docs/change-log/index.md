@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.7.1](#v171-26-november-2024) | [v1.7.0](#v170-1-november-2024)
+- [v1.7.1](#v171-27-november-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-30-june-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
 - [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
 - [v1.4.1](#v141-8-august-2023) | [v1.4.0](#v140-23-july-2023)
@@ -12,7 +12,7 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.1 (26 November 2024)
+## v1.7.1 (27 November 2024)
 
 ### Model monitoring
 | ID    |Description                                                                 |
@@ -27,7 +27,7 @@
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-7285|Improved the loading response time for the **Feature sets** page.|
+|ML-7285|Improved the response time when loading the **Feature sets** page.|
 |ML-7967|Fixed the `_ApplicationErrorHandler` message.|
 |ML-8001|Job failures are now described in the job details and when hovering over the status (in the Projects > Jobs monitoring > **Jobs** page).|
 |ML-8006|Fixed the pipelines error message for a failed step (previously included messages from other (skipped) steps of the workflow).|

@@ -976,12 +976,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def update_alert_activation_number_of_events(
+    def update_alert_activation(
         self,
         session,
         activation_id: int,
         activation_time: datetime.datetime,
-        number_of_events: int,
+        number_of_events: Optional[int],
     ):
         pass
 

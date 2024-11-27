@@ -282,6 +282,10 @@ class Service(ABC):
         # sanity
         # if we are still in the periodic function and the worker has reached the terminal state, then cancel it
         if mlconf.httpdb.state in mlrun.common.schemas.APIStates.terminal_states():
+            self._logger.debug(
+                "Worker reached terminal state, canceling periodic function",
+                state=mlconf.httpdb.state,
+            )
             framework.utils.periodic.cancel_periodic_function(
                 self._synchronize_with_chief_clusterization_spec.__name__
             )

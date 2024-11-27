@@ -84,15 +84,12 @@ def plot_produce(context: mlrun.MLClientCtx):
         )
     )
     with patch(
-        "mlrun.load_project",
+        "mlrun.get_current_project",
         Mock(return_value=Mock(spec=mlrun.projects.project.MlrunProject)),
     ):
         with mocked_graph_context_project():
             monitoring_context = mm_context.MonitoringApplicationContext(
-                graph_context=mlrun.serving.GraphContext(),
-                application_name="histogram-data-drift",
-                event={},
-                model_endpoint_dict={},
+                application_name="histogram-data-drift", event={}
             )
             monitoring_context._feature_stats = inputs_statistics
             monitoring_context._sample_df_stats = sample_data_statistics

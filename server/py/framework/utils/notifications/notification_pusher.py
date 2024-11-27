@@ -78,9 +78,9 @@ class RunNotificationPusher(NotificationPusher):
             try:
                 mail_notification_default_params = (
                     framework.utils.singletons.k8s.get_k8s_helper().read_secret_data(
-                        smtp_config_secret_name, load_as_json=True
+                        smtp_config_secret_name, load_as_json=True, silent=True
                     )
-                )
+                ) or {}
             except ApiException as exc:
                 logger.warning(
                     "Failed to read SMTP configuration secret",

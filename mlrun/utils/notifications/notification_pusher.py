@@ -214,7 +214,7 @@ class NotificationPusher(_NotificationPusherBase):
                     and evaluate_condition_in_separate_process(
                         notification.condition,
                         context={
-                            "run": run.to_dict(strip=True),
+                            "run": run.to_dict(),
                             "notification": notification.to_dict(),
                         },
                     )
@@ -254,7 +254,7 @@ class NotificationPusher(_NotificationPusherBase):
             f": {notification_object.message}" if notification_object.message else ""
         )
         resource = "Run"
-        runs = [run.to_dict(strip=True)]
+        runs = [run.to_dict()]
 
         if mlrun_constants.MLRunInternalLabels.workflow in run.metadata.labels:
             resource = mlrun_constants.MLRunInternalLabels.workflow

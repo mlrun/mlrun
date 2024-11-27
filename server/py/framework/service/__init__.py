@@ -133,6 +133,10 @@ class Service(ABC):
         )
 
     async def _setup_service(self, mounted: bool = False):
+        """
+        This method is called when the service is starting up.
+        :param mounted: True if the service is mounted as a sub-service of another service, False otherwise
+        """
         if not mounted:
             self._logger.info(
                 "On startup event handler called",
@@ -156,6 +160,7 @@ class Service(ABC):
             == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
             and mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.worker
+            and not mounted
         ):
             # in the background, wait for chief to reach online state
             self._start_chief_clusterization_spec_sync_loop()
@@ -277,6 +282,10 @@ class Service(ABC):
         # sanity
         # if we are still in the periodic function and the worker has reached the terminal state, then cancel it
         if mlconf.httpdb.state in mlrun.common.schemas.APIStates.terminal_states():
+            self._logger.debug(
+                "Worker reached terminal state, canceling periodic function",
+                state=mlconf.httpdb.state,
+            )
             framework.utils.periodic.cancel_periodic_function(
                 self._synchronize_with_chief_clusterization_spec.__name__
             )
@@ -316,7 +325,7 @@ class Service(ABC):
 
         if chief_state == mlrun.common.schemas.APIStates.online:
             self._logger.info(
-                "Chief reached online state! Switching service state to online",
+                "Chief reached online state",
                 service_name=self.service_name,
             )
             await self.move_service_to_online()
@@ -332,6 +341,7 @@ class Service(ABC):
             )
 
         mlconf.httpdb.state = chief_state
+        self._logger.info("Worker state aligned with chief state", state=chief_state)
         # if reached terminal state we cancel the periodic function
         # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
         framework.utils.periodic.cancel_periodic_function(

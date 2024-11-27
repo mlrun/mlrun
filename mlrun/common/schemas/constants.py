@@ -133,6 +133,21 @@ class RunPartitionByField(mlrun.common.types.StrEnum):
             )
 
 
+class ArtifactPartitionByField(mlrun.common.types.StrEnum):
+    name = "name"  # Supported for artifacts objects
+    project_and_name = "project_and_name"  # Supported for artifacts objects
+
+    def to_partition_by_db_field(self, db_cls):
+        if self.value == ArtifactPartitionByField.name:
+            return db_cls.key
+        elif self.value == ArtifactPartitionByField.project_and_name:
+            return db_cls.project, db_cls.key
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown group by field: {self.value}"
+            )
+
+
 class SortField(mlrun.common.types.StrEnum):
     created = "created"
     updated = "updated"

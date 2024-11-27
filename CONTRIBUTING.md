@@ -400,14 +400,5 @@ This is essential because otherwise, auto-increment functionality will not work.
 
 3. Influence on MLRun unit tests
 In MLRun, unit tests are run on an SQLite database, not MySQL. SQLite does not support auto-increment on composite primary keys. 
-To support both MySQL deployments and unit tests, avoid setting `autoincrementable=True` in the column’s model in `models.py` for partitioned tables with auto-increment columns.
-Instead, enable auto-increment in MySQL by adding the following to the migration file:
-```python
-op.execute(
-    """
-            ALTER TABLE <table_name>
-            MODIFY COLUMN <column> INT NOT NULL AUTO_INCREMENT
-            """
-)
-```
+To support both MySQL deployments and unit tests, make sure that this table isn't created for SQLite tests by adding it to the `get_partitioned_table_names()`.
 

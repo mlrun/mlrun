@@ -91,6 +91,7 @@ ENTRYPOINT ["tini", "--"]
 # run the mlrun api and the notebook in parallel
 CMD cd $HOME/mlrun && \
     PYTHONPATH=$HOME/mlrun/server/py MLRUN_ARTIFACT_PATH=$HOME/data uvicorn services.api.main:app \
+    --factory \
     --proxy-headers \
     --host="0.0.0.0" \
     --log-config=server/py/services/uvicorn_log_config.yaml & \

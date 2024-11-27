@@ -109,9 +109,6 @@ def client(
     app.add_exception_handler(Handled1Error, handler_returning_response)
     app.add_exception_handler(Handled2Error, handler_returning_http_exception)
 
-    # TODO: This is a hack to remove the alerts app mount because it blocks the test router. Remove this when alerts is
-    #  properly mounted with "alerts" prefix
-    app.routes.pop()
     # save a copy of the middlewares. we would want to restore them once we're done with the test
     user_middleware = app.user_middleware.copy()
     try:

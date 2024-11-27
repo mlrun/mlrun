@@ -36,13 +36,13 @@
 |ML-8080|Projects with many artifact tags can now be deleted without complications.|
 |ML-8082 / 8246|You can now delete projects with large number of resources in TDEngine.|
 |ML-8097|UI: Now displays the pod status in **Monitor Jobs** when you hover over the status symbol.|
-|ML-8110|The cross-project summary is now aligned with the per-project summary.|
+|ML-8110|Fixed the scheduled jobs counters in the project summary.|
 |ML-8112|Logging a model with a training set that has large number of columns now displays the model feature statistics.|
 |ML-8150|Fixed the 03-model-serving tutorial so that all tutorials can be run sequentially.|
 |ML-8151|Fixed the error message that displays when deploying monitoring without setting the required credentials.|
 |ML-8171|The **Projects** page does not refresh every time you click in the Search box (the previous behavior).|
 |ML-8195|You can now use `format_` and `limit` flags to all project `list_artifacts` methods, improving queries of large numbers of artifacts.| 
-|ML-8215|You can now use an asterisk ( "\*") in the project name parameter of `run_db.list_functions()` to retrieve all projects.|
+|ML-8215|You can now use an asterisk ( "\*") in the project name parameter of `run_db.list_functions()` to retrieve functions for all projects.|
 |ML-8217|The counters in the **Projects** page now have tooltips.|
 |ML-8224|Kafka topics are now deleted together with the project during project deletion.|
 |ML-8286|The tooltip for failed jobs now differentiates between Error and Reason.|

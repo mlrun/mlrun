@@ -325,7 +325,7 @@ class Service(ABC):
 
         if chief_state == mlrun.common.schemas.APIStates.online:
             self._logger.info(
-                "Chief reached online state! Switching service state to online",
+                "Chief reached online state",
                 service_name=self.service_name,
             )
             await self.move_service_to_online()
@@ -341,6 +341,7 @@ class Service(ABC):
             )
 
         mlconf.httpdb.state = chief_state
+        self._logger.info("Worker state aligned with chief state", state=chief_state)
         # if reached terminal state we cancel the periodic function
         # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
         framework.utils.periodic.cancel_periodic_function(

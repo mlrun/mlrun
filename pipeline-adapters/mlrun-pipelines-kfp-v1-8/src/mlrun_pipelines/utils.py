@@ -55,13 +55,11 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
         if not experiment_id:
             raise ValueError(f"Experiment ID not found for run ID: {run_id}")
 
-        # Define valid states for retry
         valid_states_for_retry = {
             mlrun_pipelines.common.models.RunStatuses.failed,
             mlrun_pipelines.common.models.RunStatuses.error,
         }
         if run_status in valid_states_for_retry:
-            # Retry the run via the retry endpoint
             self._experiment_api.api_client.call_api(
                 f"/apis/v1beta1/runs/{run_id}/retry",
                 "POST",
@@ -73,14 +71,12 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
             # If not retryable, create a new run
             pipeline_spec = run_details.pipeline_spec
 
-            # Validate pipeline information
             if not pipeline_spec.pipeline_id and not pipeline_spec.workflow_manifest:
                 raise ValueError(
                     "The original run does not contain a valid pipeline specification. "
                     "Please ensure the pipeline has either a pipeline ID or workflow manifest."
                 )
 
-            # Save workflow manifest as a temporary file if needed
             workflow_manifest_path = None
             if not pipeline_spec.pipeline_id:
                 with tempfile.NamedTemporaryFile(
@@ -90,7 +86,6 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
                     workflow_manifest_path = temp_file.name
 
             try:
-                # Create a new run with the saved pipeline file or pipeline_id
                 new_run = self.run_pipeline(
                     experiment_id=experiment_id,
                     job_name=f"Retry of {run_details.name}",
@@ -100,7 +95,6 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
                 )
                 return new_run.id
             finally:
-                # Clean up temporary file
                 if workflow_manifest_path and os.path.exists(workflow_manifest_path):
                     os.remove(workflow_manifest_path)
 

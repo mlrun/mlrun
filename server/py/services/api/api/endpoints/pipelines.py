@@ -150,7 +150,7 @@ async def retry_pipeline(
             auth_info,
         )
     )
-    await fastapi.concurrency.run_in_threadpool(
+    run_id = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().retry_pipeline,
         db_session,
         run_id,

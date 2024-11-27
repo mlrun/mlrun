@@ -277,11 +277,9 @@ class Pipelines(
             run_name=run.get("name"),
             project=project,
         )
-        kfp_client.retry_run(
+        return kfp_client.retry_run(
             run_id=run_id,
         )
-
-        return run_id
 
     def create_pipeline(
         self,

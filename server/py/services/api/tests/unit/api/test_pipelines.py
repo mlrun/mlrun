@@ -25,12 +25,12 @@ import pytest
 import sqlalchemy.orm
 from httpx import BasicAuth
 
+import mlrun.api.schemas
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun_pipelines.imports
+import mlrun_pipelines.models
 import mlrun_pipelines.utils
-from mlrun.api.schemas import AuthInfo
-from mlrun_pipelines.models import PipelineRun
 
 import framework.utils.auth.verifier
 import services.api.crud
@@ -78,7 +78,9 @@ def test_list_pipelines_formats(
         mlrun.common.formatters.PipelineFormat.name_only,
     ]:
         runs = _generate_list_runs_mocks()
-        expected_runs = [PipelineRun(run.to_dict()) for run in runs]
+        expected_runs = [
+            mlrun_pipelines.models.PipelineRun(run.to_dict()) for run in runs
+        ]
         expected_runs = services.api.crud.Pipelines()._format_runs(
             expected_runs, format_
         )
@@ -111,7 +113,7 @@ def test_get_pipeline_formats(
             params={"format": format_},
         )
         expected_run = services.api.crud.Pipelines()._format_run(
-            PipelineRun(api_run_detail),
+            mlrun_pipelines.models.PipelineRun(api_run_detail),
             format_,
         )
         _assert_get_pipeline_response(expected_run, response)
@@ -167,7 +169,7 @@ def test_get_pipeline_specific_project(
             params={"format": format_},
         )
         expected_run = services.api.crud.Pipelines()._format_run(
-            PipelineRun(api_run_detail), format_
+            mlrun_pipelines.models.PipelineRun(api_run_detail), format_
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -263,7 +265,11 @@ def test_list_pipelines_name_contains(
     )
 
     expected_runs = services.api.crud.Pipelines()._format_runs(
-        [PipelineRun(run.to_dict()) for run in runs if run.id in expected_runs_ids]
+        [
+            mlrun_pipelines.models.PipelineRun(run.to_dict())
+            for run in runs
+            if run.id in expected_runs_ids
+        ]
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None
@@ -274,7 +280,7 @@ def test_list_pipelines_name_contains(
 def test_list_pipelines_specific_project(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.imports.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.imports.Client,
 ) -> None:
     project = "project-name"
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
@@ -300,13 +306,13 @@ def test_list_pipelines_specific_project(
 
 
 def mock_authenticate_request():
-    return AuthInfo(username="test_user", token="mock_token")
+    return mlrun.api.schemas.AuthInfo(username="test_user", token="mock_token")
 
 
 def test_create_pipeline(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.imports.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.imports.Client,
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ) -> None:
     project = "getting-started-tutorial-iguazio"
@@ -359,7 +365,7 @@ def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetai
 def test_get_pipeline_nonexistent_project(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.imports.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.imports.Client,
 ) -> None:
     format_ = (mlrun.common.formatters.PipelineFormat.summary,)
     project = "n0_pr0ject"
@@ -585,7 +591,7 @@ def _generate_workflow_manifest(with_status=False):
     return json.dumps(workflow_manifest)
 
 
-def _mock_pipelines_creation(kfp_client_mock: mlrun_pipelines.imports.kfp.Client):
+def _mock_pipelines_creation(kfp_client_mock: mlrun_pipelines.imports.Client):
     def _mock_create_experiment(name, description=None, namespace=None):
         return kfp_server_api.models.ApiExperiment(
             id="some-exp-id",
@@ -608,7 +614,7 @@ def _mock_pipelines_creation(kfp_client_mock: mlrun_pipelines.imports.kfp.Client
 
 
 def _mock_list_runs_with_one_run_per_page(
-    kfp_client_mock: mlrun_pipelines.imports.kfp.Client, runs
+    kfp_client_mock: mlrun_pipelines.imports.Client, runs
 ):
     expected_page_tokens = [""]
     for i in range(2, len(runs) + 1):
@@ -626,7 +632,7 @@ def _mock_list_runs_with_one_run_per_page(
 
 
 def _mock_list_runs(
-    kfp_client_mock: mlrun_pipelines.imports.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.imports.Client,
     runs,
     expected_page_token="",
     expected_page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
@@ -648,7 +654,7 @@ def _mock_list_runs(
 
 
 def _mock_get_run(
-    kfp_client_mock: mlrun_pipelines.imports.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.imports.Client,
     api_run_detail: kfp_server_api.models.api_run_detail.ApiRunDetail,
 ):
     def get_run_mock(*args, **kwargs):

@@ -429,7 +429,7 @@ class Alerts(
                 )
             else:
                 logger.warning(
-                    "No activation id or last activation time found for alert",
+                    "No activation id or last activation time found for alert, skipping activation update on reset",
                     alert_name=name,
                     activation_id=activation_id,
                     activation_time=activation_time,

@@ -12,33 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-#!/usr/bin/env python3
-# Copyright 2023 Iguazio
-# Licensed under the Apache License, Version 2.0
+# This script checks for nonconforming imports of target modules (mlrun, mlrun_pipelines).
+# It can be used standalone or as part of a pre-commit hook. When used as a pre-commit hook,
+# it processes file paths passed as arguments (e.g., staged files during a commit).
 
 import re
 import sys
 from pathlib import Path
 
 TARGET_MODULES = {"mlrun", "mlrun_pipelines"}
-DISALLOWED_PATTERN = re.compile(r"^\s*from\s+({})\b".format("|".join(TARGET_MODULES)))
+# Match any "from mlrun[.something] import x" or "from mlrun_pipelines[.something] import x"
+NONCONFORMING_PATTERN = re.compile(r"^\s*from\s+({})\b".format("|".join(TARGET_MODULES)))
 
 
-def check_disallowed_imports(file_path: Path) -> list[str]:
+def check_nonconforming_imports(file_path: Path) -> list[str]:
     """
-    Check for disallowed imports in a file.
+    Check for nonconforming imports in a file.
 
     :param file_path: Path to the file to check.
-    :return: A list of violation messages for disallowed imports.
+    :return: A list of violation messages for nonconforming imports.
     """
     violations = []
     try:
         with file_path.open("r", encoding="utf-8") as file:
             for line_num, line in enumerate(file, start=1):
-                if DISALLOWED_PATTERN.match(line.strip()):
+                if NONCONFORMING_PATTERN.match(line.strip()):
                     base_module = line.split()[1].split(".")[0]
                     violations.append(
-                        f"{file_path}:{line_num}: Disallowed import '{line.strip()}'. "
+                        f"{file_path}:{line_num}: Nonconforming import '{line.strip()}'. "
                         f"Use 'import {base_module}' instead."
                     )
     except Exception as e:
@@ -48,7 +49,7 @@ def check_disallowed_imports(file_path: Path) -> list[str]:
 
 def main(files: list[str]) -> None:
     """
-    Scan all provided files (staged files) and report disallowed imports.
+    Scan all provided files (staged files) and report nonconforming imports.
 
     :param files: A list of staged file paths as strings.
     :raises SystemExit: Exits with code 1 if violations are found, or 0 if none are found.
@@ -57,10 +58,10 @@ def main(files: list[str]) -> None:
     for file_path_str in files:
         file_path = Path(file_path_str)
         if file_path.suffix == ".py":
-            all_violations.extend(check_disallowed_imports(file_path))
+            all_violations.extend(check_nonconforming_imports(file_path))
 
     if all_violations:
-        print("The following disallowed imports were found:")
+        print("The following nonconforming imports were found:")
         for violation in all_violations:
             print(f"❌ {violation}")
         sys.exit(1)

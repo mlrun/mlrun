@@ -176,6 +176,11 @@ class NotificationPusher(_NotificationPusherBase):
                     logger.warning(
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
+                        traceback=traceback.format_exception(
+                            etype=type(result),
+                            value=result,
+                            tb=result.__traceback__,
+                        ),
                     )
 
         logger.debug(
@@ -209,7 +214,7 @@ class NotificationPusher(_NotificationPusherBase):
                     and evaluate_condition_in_separate_process(
                         notification.condition,
                         context={
-                            "run": run.to_dict(),
+                            "run": run.to_dict(strip=True),
                             "notification": notification.to_dict(),
                         },
                     )
@@ -249,7 +254,7 @@ class NotificationPusher(_NotificationPusherBase):
             f": {notification_object.message}" if notification_object.message else ""
         )
         resource = "Run"
-        runs = [run.to_dict()]
+        runs = [run.to_dict(strip=True)]
 
         if mlrun_constants.MLRunInternalLabels.workflow in run.metadata.labels:
             resource = mlrun_constants.MLRunInternalLabels.workflow

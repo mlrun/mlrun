@@ -183,7 +183,7 @@ def get_sample_path(subpath=""):
     return samples_path
 
 
-def set_env_from_file(env_file: str, return_dict: bool = False):
+def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict]:
     """Read and set and/or return environment variables from a file
     the env file should have lines in the form KEY=VALUE, comment line start with "#"
 

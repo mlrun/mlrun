@@ -203,6 +203,7 @@ class AlertTemplate(
 
 
 class AlertActivation(pydantic.v1.BaseModel):
+    id: int
     name: str
     project: str
     severity: AlertSeverity

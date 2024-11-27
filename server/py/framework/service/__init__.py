@@ -133,6 +133,10 @@ class Service(ABC):
         )
 
     async def _setup_service(self, mounted: bool = False):
+        """
+        This method is called when the service is starting up.
+        :param mounted: True if the service is mounted as a sub-service of another service, False otherwise
+        """
         if not mounted:
             self._logger.info(
                 "On startup event handler called",
@@ -156,6 +160,7 @@ class Service(ABC):
             == mlrun.common.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
             and mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.worker
+            and not mounted
         ):
             # in the background, wait for chief to reach online state
             self._start_chief_clusterization_spec_sync_loop()

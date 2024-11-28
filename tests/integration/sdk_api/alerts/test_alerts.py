@@ -228,6 +228,155 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alerts_activations = self._get_alert_activations(project_name)
             assert len(alerts_activations) == 0
 
+    def test_alert_activations_sdk(self):
+        project_name = "my-new-project"
+        project = mlrun.new_project(project_name)
+
+        activations = project.list_alert_activations()
+        assert len(activations) == 0
+
+        activations, token = project.paginated_list_alert_activations()
+        assert len(activations) == 0
+        assert token is None
+
+        event_and_entity_list = [
+            (event_name_1, alert_entity_kind_1),
+            (event_name_2, alert_entity_kind_2),
+        ]
+        alert_entity_kind_1 = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+        alert_entity_kind_2 = alert_objects.EventEntityKind.JOB
+
+        event_name_1 = alert_objects.EventKind.DATA_DRIFT_DETECTED
+        event_name_2 = alert_objects.EventKind.FAILED
+
+        alert_summary = "Alert summary"
+
+        self._create_alert(
+            project_name,
+            "alert1",
+            alert_entity_kind_1,
+            project_name,
+            alert_summary,
+            event_name_1,
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+        )
+
+        self._create_alert(
+            project_name,
+            "alert2",
+            alert_entity_kind_2,
+            project_name,
+            alert_summary,
+            event_name_2,
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+        )
+
+        iterations = 5
+        for i in range(iterations):
+            self._post_event(project_name, event_name_1, alert_entity_kind_1)
+            self._post_event(project_name, event_name_2, alert_entity_kind_2)
+
+        # check regular SDK without filters
+        activations = project.list_alert_activations()
+        assert len(activations) == 2 * iterations
+
+        activations, token = project.paginated_list_alert_activations(
+            page_size=iterations
+        )
+        assert len(activations) == iterations
+
+        activations, token = project.paginated_list_alert_activations(page_token=token)
+        assert len(activations) == iterations
+
+        activations, token = project.paginated_list_alert_activations(page_token=token)
+        assert len(activations) == 0
+        # TODO: uncomment when pagination is fixed
+        # assert token is None
+
+        # check SDK with filter by event_name and entity_kind
+        for event_name, alert_entity in [
+            (event_name_1, alert_entity_kind_1),
+            (event_name_2, alert_entity_kind_2),
+        ]:
+            activations = project.list_alert_activations(
+                event_kind=event_name, entity_kind=alert_entity
+            )
+            assert len(activations) == iterations
+
+            activations, token = project.paginated_list_alert_activations(
+                event_kind=event_name, entity_kind=alert_entity, page_size=1
+            )
+            assert len(activations) == 1
+            assert token is not None
+
+            for i in range(iterations - 2):
+                activations, token = project.paginated_list_alert_activations(
+                    page_token=token
+                )
+                assert len(activations) == 1
+                assert token is not None
+
+            activations, token = project.paginated_list_alert_activations(
+                page_token=token
+            )
+            assert len(activations) == 1
+            # TODO: uncomment when pagination is fixed
+            # assert token is None
+
+    def test_list_alert_activations_by_severity(self):
+        project_name = "my-new-project"
+        event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
+        alert_name = "drift"
+        alert_summary = "Model {{project}}/{{entity}} is drifting."
+        alert_entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+        alert_entity_project = project_name
+
+        project = mlrun.new_project(alert_entity_project)
+        alert = self._create_alert(
+            alert_entity_project,
+            alert_name,
+            alert_entity_kind,
+            alert_entity_project,
+            alert_summary,
+            event_name,
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+        )
+        self._post_event(alert_entity_project, event_name, alert_entity_kind)
+        self._modify_alert(
+            project_name=project_name,
+            alert=alert,
+            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+            event_name=event_name,
+        )
+        self._post_event(alert_entity_project, event_name, alert_entity_kind)
+
+        activations = project.list_alert_activations(name=alert_name)
+        assert len(activations) == 2
+
+        severity_list = [
+            mlrun.common.schemas.alert.AlertSeverity.LOW,
+            mlrun.common.schemas.alert.AlertSeverity.HIGH,
+        ]
+
+        activations = project.list_alert_activations(
+            name=alert_name, severity=severity_list
+        )
+        assert len(activations) == 2
+
+        for severity in severity_list:
+            activations = project.list_alert_activations(
+                name=alert_name,
+                severity=severity,
+            )
+            assert len(activations) == 1
+            self._validate_alert_activation(
+                activations[0],
+                project_name,
+                alert_name,
+                alert_severity=severity,
+            )
+        mlrun.get_run_db().delete_project(project_name, "cascade")
+
     def test_alert_after_project_deletion(self):
         # this test checks create alert and post event operations after deleting a project and creating it again
         # with the same alert and event names

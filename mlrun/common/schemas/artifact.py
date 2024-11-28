@@ -25,6 +25,7 @@ from .object import ObjectStatus
 class ArtifactCategories(mlrun.common.types.StrEnum):
     model = "model"
     dataset = "dataset"
+    document = "document"
     other = "other"
 
     # we define the link as a category to prevent import cycles, but it's not a real category
@@ -38,11 +39,14 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
             return [ArtifactCategories.model.value, link_kind], False
         if self.value == ArtifactCategories.dataset.value:
             return [ArtifactCategories.dataset.value, link_kind], False
+        if self.value == ArtifactCategories.document.value:
+            return [ArtifactCategories.document.value, link_kind], False
         if self.value == ArtifactCategories.other.value:
             return (
                 [
                     ArtifactCategories.model.value,
                     ArtifactCategories.dataset.value,
+                    ArtifactCategories.document.value,
                 ],
                 True,
             )

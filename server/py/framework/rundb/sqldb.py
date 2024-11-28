@@ -48,15 +48,20 @@ class SQLRunDB(RunDBInterface):
         dsn,
         session=None,
     ):
-        self.session = session
+        self._session = session
         self.dsn = dsn
         self.db = None
 
     def connect(self, secrets=None):
-        if not self.session:
-            self.session = create_session()
         self.db = SQLDB(self.dsn)
         return self
+
+    @property
+    def session(self):
+        # If we were given a session - use it, otherwise we create a new one to keep a fresh snapshot of the db
+        if self._session:
+            return self._session
+        return create_session()
 
     def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(

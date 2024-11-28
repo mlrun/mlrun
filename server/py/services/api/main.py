@@ -706,6 +706,7 @@ class Service(framework.service.Service):
             self._logger.warning(
                 "Failed pushing terminal run notifications. Ignoring",
                 exc=err_to_str(exc),
+                traceback=traceback.format_exc(),
             )
 
         return stale_runs

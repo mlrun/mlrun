@@ -31,6 +31,7 @@ def test_list_alert_activations(patched_list_alert_activations, client: TestClie
     services.api.tests.unit.api.utils.create_project(client, project_name)
     patched_list_alert_activations.return_value = [
         mlrun.common.schemas.AlertActivation(
+            id=1,
             name=alert_name,
             project=project_name,
             severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,

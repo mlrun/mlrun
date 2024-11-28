@@ -153,7 +153,6 @@
 |ML-5079|You can now update git remote with `project.create_remote()`.| 
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
 |ML-5627|Documentation: Added details about {py:class}`labels <mlrun.feature_store.Feature>`.|
-|ML-5627|Documentation: Added details about [labels](../api/mlrun.feature_store/index.html#mlrun.feature_store.Feature).|
 |ML-5774|UI: Improved speed of querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
 |ML-6065|Fixed serving graphs when working with Kafka.|

@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import kfp
-
 import mlrun
+import mlrun_pipelines.imports
 
 
-@kfp.dsl.pipeline(
+@mlrun_pipelines.imports.kfp.dsl.pipeline(
     name="Demo passing param to function spec", description="Shows how to use mlrun."
 )
 def kfpipeline(memory: str = "10Mi"):

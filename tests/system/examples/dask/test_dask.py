@@ -15,12 +15,11 @@
 import datetime
 import os
 
-import kfp
-import kfp.compiler
 import pytest
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.utils
+import mlrun_pipelines.imports
 from mlrun import (
     _run_pipeline,
     code_to_function,
@@ -83,7 +82,7 @@ class TestDask(TestMLRunSystem):
         assert run_object.state() == "completed"
 
     def test_run_pipeline(self):
-        @kfp.dsl.pipeline(name="dask_pipeline")
+        @mlrun_pipelines.imports.kfp.dsl.pipeline(name="dask_pipeline")
         def dask_pipe(x=1, y=10):
             # use_db option will use a function (DB) pointer instead of adding the function spec to the YAML
             self.dask_function.as_step(
@@ -91,7 +90,7 @@ class TestDask(TestMLRunSystem):
                 use_db=True,
             )
 
-        kfp.compiler.Compiler().compile(dask_pipe, "daskpipe.yaml", type_check=False)
+        mlrun_pipelines.imports.kfp.compiler.Compiler().compile(dask_pipe, "daskpipe.yaml", type_check=False)
         arguments = {"x": 4, "y": -5}
         artifact_path = "/User/test"
         workflow_run_id = _run_pipeline(

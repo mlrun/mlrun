@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import kfp.dsl
 import kubernetes.client
 
 import mlrun
+import mlrun_pipelines.imports
 
 overridden_affinity = kubernetes.client.V1Affinity(
     node_affinity=kubernetes.client.V1NodeAffinity(
@@ -36,7 +36,7 @@ def func1(context, p1=1):
     context.log_result("accuracy", p1 * 2)
 
 
-@kfp.dsl.pipeline(name="remote_pipeline", description="tests remote pipeline")
+@mlrun_pipelines.imports.kfp.dsl.pipeline(name="remote_pipeline", description="tests remote pipeline")
 def pipeline():
     run1 = mlrun.run_function("func1", handler="func1", params={"p1": 9})
     run1.container.resources.limits = {"cpu": "2000m", "memory": "4G"}

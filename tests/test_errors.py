@@ -89,7 +89,7 @@ def test_raise_for_aiohttp_client_response_status():
 
     response = ClientResponse(
         method="GET",
-        url=mock.MagicMock(spec=URL),
+        url=URL(),
         writer=mock.MagicMock(),
         continue100=None,
         timer=mock.MagicMock(),

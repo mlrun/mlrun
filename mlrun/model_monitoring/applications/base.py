@@ -103,7 +103,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         func_name: Optional[str] = None,
         tag: Optional[str] = None,
         run_local: bool = True,
-    ) -> mlrun.RunObject:
+    ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
         :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -121,7 +121,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         if not run_local:
             raise NotImplementedError  # ML-8360
 
-        project = cast(mlrun.MlrunProject, mlrun.get_current_project())
+        project = cast("mlrun.MlrunProject", mlrun.get_current_project())
         class_name = cls.__name__
         name = func_name if func_name is not None else class_name
         handler = f"{class_name}::{cls._handler.__name__}"

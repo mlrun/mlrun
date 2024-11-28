@@ -756,12 +756,20 @@ class Service(framework.service.Service):
 
         # Unmasking the run parameters from secrets before handing them over to the notification handler
         # as importing the `Secrets` crud in the notification handler will cause a circular import
-        unmasked_runs = [
-            framework.utils.notifications.unmask_notification_params_secret_on_task(
-                db, db_session, run
-            )
-            for run in runs
-        ]
+        unmasked_runs = []
+        for run in runs:
+            try:
+                framework.utils.notifications.unmask_notification_params_secret_on_task(
+                    db, db_session, run
+                )
+                unmasked_runs.append(run)
+            except Exception as exc:
+                self._logger.warning(
+                    "Failed unmasking notification params secret. Ignoring",
+                    project=run.metadata.project,
+                    run_uid=run.metadata.uid,
+                    exc=err_to_str(exc),
+                )
 
         self._logger.debug(
             "Got terminal runs with configured notifications", runs_amount=len(runs)

@@ -602,8 +602,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def read_secret_data(
         self, secret_name: str, namespace: str = "", load_as_json=False, silent=False
-    ) -> dict[str, str]:
+    ) -> typing.Optional[dict[str, str]]:
         k8s_secret = self.read_secret(secret_name, namespace, silent)
+        if not k8s_secret:
+            return
         return self._decode_secret_data(k8s_secret.data, load_as_json=load_as_json)
 
     def _create_secret(

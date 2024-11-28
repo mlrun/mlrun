@@ -136,16 +136,12 @@ class NotificationPusher(_NotificationPusherBase):
 
     def _process_notification(self, notification, run):
         try:
-            try:
-                notification.status = run.status.notifications.get(
-                    notification.name
-                ).get(
-                    "status",
-                    mlrun.common.schemas.NotificationStatus.PENDING,
-                )
-            except (AttributeError, KeyError):
-                notification.status = mlrun.common.schemas.NotificationStatus.PENDING
-
+            notification.status = run.status.notifications.get(
+                notification.name, {}
+            ).get(
+                "status",
+                mlrun.common.schemas.NotificationStatus.PENDING,
+            )
             if self._should_notify(run, notification):
                 self._load_notification(run, notification)
         except Exception as exc:

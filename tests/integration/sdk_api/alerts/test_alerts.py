@@ -239,42 +239,36 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(activations) == 0
         assert token is None
 
-        event_and_entity_list = [
-            (event_name_1, alert_entity_kind_1),
-            (event_name_2, alert_entity_kind_2),
+        event_name_entity_list = [
+            (
+                "alert1",
+                alert_objects.EventKind.DATA_DRIFT_DETECTED,
+                alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            ),
+            (
+                "alert2",
+                alert_objects.EventKind.FAILED,
+                alert_objects.EventEntityKind.JOB,
+            ),
         ]
-        alert_entity_kind_1 = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
-        alert_entity_kind_2 = alert_objects.EventEntityKind.JOB
-
-        event_name_1 = alert_objects.EventKind.DATA_DRIFT_DETECTED
-        event_name_2 = alert_objects.EventKind.FAILED
 
         alert_summary = "Alert summary"
 
-        self._create_alert(
-            project_name,
-            "alert1",
-            alert_entity_kind_1,
-            project_name,
-            alert_summary,
-            event_name_1,
-            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
-        )
-
-        self._create_alert(
-            project_name,
-            "alert2",
-            alert_entity_kind_2,
-            project_name,
-            alert_summary,
-            event_name_2,
-            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
-        )
+        for alert_name, event_name, alert_entity in event_name_entity_list:
+            self._create_alert(
+                project_name,
+                alert_name,
+                alert_entity,
+                project_name,
+                alert_summary,
+                event_name,
+                reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+            )
 
         iterations = 5
         for i in range(iterations):
-            self._post_event(project_name, event_name_1, alert_entity_kind_1)
-            self._post_event(project_name, event_name_2, alert_entity_kind_2)
+            for alert_name, event_name, alert_entity in event_name_entity_list:
+                self._post_event(project_name, event_name, alert_entity)
 
         # check regular SDK without filters
         activations = project.list_alert_activations()
@@ -294,10 +288,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # assert token is None
 
         # check SDK with filter by event_name and entity_kind
-        for event_name, alert_entity in [
-            (event_name_1, alert_entity_kind_1),
-            (event_name_2, alert_entity_kind_2),
-        ]:
+        for _, event_name, alert_entity in event_name_entity_list:
             activations = project.list_alert_activations(
                 event_kind=event_name, entity_kind=alert_entity
             )

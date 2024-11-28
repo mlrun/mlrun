@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 - [v1.7.1](#v171-27-november-2024) | [v1.7.0](#v170-1-november-2024)
-- [v1.6.4](#v164-30-june-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
+- [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
 - [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
 - [v1.4.1](#v141-8-august-2023) | [v1.4.0](#v140-23-july-2023)
 - [v1.3.4](#v134-23-august-2023) | [v1.3.3](#v133-7-jun-2023) | [v1.3.2](#v132-4-jun-2023) | [v1.3.1](#v131-18-may-2023) | [v1.3.0](#v130-22-march-2023) 
@@ -191,19 +191,6 @@
 |ML-8029|Notifications with secret params now send notifications. See [Notification parameters and secrets](../concepts/notifications.md#notification-parameters-and-secrets).|
 
 ## v1.6.4 (2 July 2024)
-
-### UI
-| ID       |Description                                                               |
-|----------|---------------------------------------------------------------------------|
-|ML-6867|Scalability improvement. The artifacts page (artifacts/datasets/models) now displays a maximum of 1000 items. (Use filters to focus the results.) |
-
-###  Closed issues
-| ID       |Description                                                               |
-|----------|---------------------------------------------------------------------------|
-|ML-6770 |Resolved MLRun workers restart when running many workflows that produce artifacts.|
-|ML-6795 |Can now upgrade to v1.6.4 when cluster has artifacts that do not have a `key`.|
- 
-## v1.6.4 (30 June 2024)
 
 ### UI
 | ID       |Description                                                               |

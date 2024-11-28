@@ -6098,6 +6098,7 @@ class SQLDB(DBInterface):
             return None
 
         return mlrun.common.schemas.AlertActivation(
+            id=alert_activation_record.id,
             name=alert_activation_record.name,
             project=alert_activation_record.project,
             severity=alert_activation_record.severity,

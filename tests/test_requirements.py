@@ -133,7 +133,8 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
-        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "protobuf": {'~=3.20.3; python_version < "3.11"', ">=3.20.3,<4"},
+        "v3io-frames": {'>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"'},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # due to a bug in 3.11
         "aiohttp": {"~=3.10.0"},
@@ -181,8 +182,12 @@ def test_requirement_specifiers_inconsistencies():
         "python-dotenv": {"", "~=0.17.0"},
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
-        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "protobuf": {'~=3.20.3; python_version < "3.11"', ">=3.20.3,<4"},
         "pyyaml": {">=5.4.1, <7"},
+        "v3io-frames": {
+            '>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"',
+            '~=0.10.14; python_version < "3.11"',
+        },
     }
 
     for (

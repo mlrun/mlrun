@@ -74,7 +74,15 @@ RUN python -m pip install \
 COPY . .
 
 RUN python -m pip install -e .[complete] && \
-    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common
+
+RUN if [ "${MLRUN_PYTHON_VERSION}" = "3.9" ]; then \
+        python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v1-8; \
+    elif [ "${MLRUN_PYTHON_VERSION}" = "3.11" ]; then \
+        python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v2; \
+    else \
+        echo "Unsupported MLRUN_PYTHON_VERSION: ${MLRUN_PYTHON_VERSION}"; \
+        exit 1; \
+    fi
 
 ENV NO_COLOR=1

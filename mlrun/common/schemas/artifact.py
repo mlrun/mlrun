@@ -46,6 +46,7 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
                 [
                     ArtifactCategories.model.value,
                     ArtifactCategories.dataset.value,
+                    ArtifactCategories.document.value,
                 ],
                 True,
             )

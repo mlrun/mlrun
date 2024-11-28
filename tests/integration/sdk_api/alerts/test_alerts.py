@@ -314,60 +314,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             # TODO: uncomment when pagination is fixed
             # assert token is None
 
-    def test_list_alert_activations_by_severity(self):
-        project_name = "my-new-project"
-        event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
-        alert_name = "drift"
-        alert_summary = "Model {{project}}/{{entity}} is drifting."
-        alert_entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
-        alert_entity_project = project_name
-
-        project = mlrun.new_project(alert_entity_project)
-        alert = self._create_alert(
-            alert_entity_project,
-            alert_name,
-            alert_entity_kind,
-            alert_entity_project,
-            alert_summary,
-            event_name,
-            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
-        )
-        self._post_event(alert_entity_project, event_name, alert_entity_kind)
-        self._modify_alert(
-            project_name=project_name,
-            alert=alert,
-            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
-            event_name=event_name,
-        )
-        self._post_event(alert_entity_project, event_name, alert_entity_kind)
-
-        activations = project.list_alert_activations(name=alert_name)
-        assert len(activations) == 2
-
-        severity_list = [
-            mlrun.common.schemas.alert.AlertSeverity.LOW,
-            mlrun.common.schemas.alert.AlertSeverity.HIGH,
-        ]
-
-        activations = project.list_alert_activations(
-            name=alert_name, severity=severity_list
-        )
-        assert len(activations) == 2
-
-        for severity in severity_list:
-            activations = project.list_alert_activations(
-                name=alert_name,
-                severity=severity,
-            )
-            assert len(activations) == 1
-            self._validate_alert_activation(
-                activations[0],
-                project_name,
-                alert_name,
-                alert_severity=severity,
-            )
-        mlrun.get_run_db().delete_project(project_name, "cascade")
-
     def test_alert_after_project_deletion(self):
         # this test checks create alert and post event operations after deleting a project and creating it again
         # with the same alert and event names

@@ -580,10 +580,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return mlrun.common.schemas.SecretEventActions.updated
 
     def read_secret(
-        self,
-        secret_name: str,
-        namespace: str = "",
-    ) -> client.V1Secret:
+        self, secret_name: str, namespace: str = "", silent=False
+    ) -> typing.Optional[client.V1Secret]:
         namespace = self.resolve_namespace(namespace)
         logger.debug("Reading secret", secret_name=secret_name, namespace=namespace)
         try:
@@ -592,6 +590,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 namespace=namespace,
             )
         except k8s_client_rest.ApiException as exc:
+            if silent:
+                return
             logger.error(
                 "Failed to retrieve k8s secret",
                 secret_name=secret_name,
@@ -601,9 +601,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return k8s_secret
 
     def read_secret_data(
-        self, secret_name: str, namespace: str = "", load_as_json=False
+        self, secret_name: str, namespace: str = "", load_as_json=False, silent=False
     ) -> dict[str, str]:
-        k8s_secret = self.read_secret(secret_name, namespace)
+        k8s_secret = self.read_secret(secret_name, namespace, silent)
         return self._decode_secret_data(k8s_secret.data, load_as_json=load_as_json)
 
     def _create_secret(

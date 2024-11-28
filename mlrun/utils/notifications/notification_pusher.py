@@ -118,39 +118,43 @@ class NotificationPusher(_NotificationPusherBase):
         ] = []
 
         for run in self._runs:
+            self._process_run(run)
+
+    def _process_run(self, run):
+        try:
+            if isinstance(run, dict):
+                run = mlrun.model.RunObject.from_dict(run)
+
+            for notification in run.spec.notifications:
+                self._process_notification(notification, run)
+        except Exception as exc:
+            logger.warning(
+                "Failed to load notification from run",
+                run_uid=run.metadata.uid,
+                error=mlrun.errors.err_to_str(exc),
+            )
+
+    def _process_notification(self, notification, run):
+        try:
             try:
-                if isinstance(run, dict):
-                    run = mlrun.model.RunObject.from_dict(run)
-
-                for notification in run.spec.notifications:
-                    try:
-                        try:
-                            notification.status = run.status.notifications.get(
-                                notification.name
-                            ).get(
-                                "status",
-                                mlrun.common.schemas.NotificationStatus.PENDING,
-                            )
-                        except (AttributeError, KeyError):
-                            notification.status = (
-                                mlrun.common.schemas.NotificationStatus.PENDING
-                            )
-
-                        if self._should_notify(run, notification):
-                            self._load_notification(run, notification)
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to load notification",
-                            run_uid=run.metadata.uid,
-                            notification=notification,
-                            error=mlrun.errors.err_to_str(exc),
-                        )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to load notification from run",
-                    run_uid=run.metadata.uid,
-                    error=mlrun.errors.err_to_str(exc),
+                notification.status = run.status.notifications.get(
+                    notification.name
+                ).get(
+                    "status",
+                    mlrun.common.schemas.NotificationStatus.PENDING,
                 )
+            except (AttributeError, KeyError):
+                notification.status = mlrun.common.schemas.NotificationStatus.PENDING
+
+            if self._should_notify(run, notification):
+                self._load_notification(run, notification)
+        except Exception as exc:
+            logger.warning(
+                "Failed to load notification",
+                run_uid=run.metadata.uid,
+                notification=notification,
+                error=mlrun.errors.err_to_str(exc),
+            )
 
     def push(self):
         """

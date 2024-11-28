@@ -118,21 +118,37 @@ class NotificationPusher(_NotificationPusherBase):
         ] = []
 
         for run in self._runs:
-            if isinstance(run, dict):
-                run = mlrun.model.RunObject.from_dict(run)
+            try:
+                self._process_run(run)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to process run",
+                    run_uid=run.metadata.uid,
+                    error=mlrun.errors.err_to_str(exc),
+                )
 
-            for notification in run.spec.notifications:
-                try:
-                    notification.status = run.status.notifications.get(
-                        notification.name
-                    ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
-                except (AttributeError, KeyError):
-                    notification.status = (
-                        mlrun.common.schemas.NotificationStatus.PENDING
-                    )
+    def _process_run(self, run):
+        if isinstance(run, dict):
+            run = mlrun.model.RunObject.from_dict(run)
 
-                if self._should_notify(run, notification):
-                    self._load_notification(run, notification)
+        for notification in run.spec.notifications:
+            try:
+                self._process_notification(notification, run)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to process notification",
+                    run_uid=run.metadata.uid,
+                    notification=notification,
+                    error=mlrun.errors.err_to_str(exc),
+                )
+
+    def _process_notification(self, notification, run):
+        notification.status = run.status.notifications.get(notification.name, {}).get(
+            "status",
+            mlrun.common.schemas.NotificationStatus.PENDING,
+        )
+        if self._should_notify(run, notification):
+            self._load_notification(run, notification)
 
     def push(self):
         """

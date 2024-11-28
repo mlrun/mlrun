@@ -65,6 +65,9 @@ MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 MLRUN_ANACONDA_PYTHON_DISTRIBUTION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1$$2}')
 MLRUN_PYTHON_VERSION_SUFFIX := $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION),)
 
+# expected to be in the form of 'py<major><minor>' e.g. 'py39'
+MLRUN_LINT_PYTHON_VERSION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "py"$$1$$2}')
+
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
@@ -633,12 +636,12 @@ fmt: ## Format the code using Ruff and blacken-docs
 	python -m ruff check --fix-only
 	python -m ruff format
 	@echo "Formatting the code blocks with blacken-docs..."
-	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)"
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
 	@echo "Checking the code blocks with blacken-docs"
-	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39 --check
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)" --check
 	@if [ "$(SKIP_VALE_CHECK)" != "true" ]; then \
 	    make vale-docs; \
 	fi

@@ -183,7 +183,7 @@ def test_requirement_specifiers_inconsistencies():
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
         "protobuf": {'~=3.20.3; python_version < "3.11"', ">=3.20.3,<4"},
-        "pyyaml": {">=5.4.1, <7"},
+        "pyyaml": {">=6.0.2, <7"},
         "v3io-frames": {
             '>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"',
             '~=0.10.14; python_version < "3.11"',

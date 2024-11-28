@@ -202,19 +202,6 @@
 |ML-6770 |Resolved MLRun workers restart when running many workflows that produce artifacts.|
 |ML-6795 |Can now upgrade to v1.6.4 when cluster has artifacts that do not have a `key`.|
  
-## v1.6.4 (30 June 2024)
-
-### UI
-| ID       |Description                                                               |
-|----------|---------------------------------------------------------------------------|
-|ML-6867|Scalability improvement. The artifacts page (artifacts/datasets/models) now displays a maximum of 1000 items. (Use filters to focus the results.) |
-
-###  Closed issues
-| ID       |Description                                                               |
-|----------|---------------------------------------------------------------------------|
-|ML-6770 |Resolved MLRun workers restart when running many workflows that produce artifacts.|
-|ML-6795 |Can now upgrade to v1.6.4 when cluster has artifacts that do not have a `key`.|
- 
 ## v1.6.3 (4 June 2024)
 
 ### Workflows

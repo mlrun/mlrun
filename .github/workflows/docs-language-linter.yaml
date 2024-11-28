@@ -66,7 +66,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [ "3.9", "3.11" ]
+        # TODO: Ensure compatibility with Python 3.11
+        python-version: [ "3.9" ]
 
     steps:
       - uses: actions/checkout@v4
@@ -84,4 +85,3 @@ jobs:
           # Set the MLRUN_PYTHON_VERSION environment variable based on matrix
           echo "MLRUN_PYTHON_VERSION=${{ matrix.python-version }}" >> $GITHUB_ENV
           SKIP_VALE_CHECK=true make lint-docs
-

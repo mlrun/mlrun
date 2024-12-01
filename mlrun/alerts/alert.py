@@ -279,8 +279,8 @@ class AlertConfig(ModelObj):
         :param since: Filters for alert activations occurring after this timestamp.
         :param until: Filters for alert activations occurring before this timestamp.
         :param from_last_update: If set to True, retrieves alert activations since the alert's last update time.
-        if both since and from_last_update=True are provided, from_last_update takes precedence, and the since value
-        will be overridden by the alert's last update timestamp.
+                                 if both since and from_last_update=True are provided, from_last_update takes precedence
+                                 and the since value will be overridden by the alert's last update timestamp.
 
         :returns: A list of alert activations matching the provided filters.
         """

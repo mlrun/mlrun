@@ -80,6 +80,9 @@ def extra_requirements() -> dict[str, list[str]]:
         "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.2.0"],
         "snowflake": ["snowflake-connector-python~=3.7"],
     }
+    kfp_requires = {
+        "kfp": ["mlrun-pipelines-kfp-v1-8~=0.2.2"],
+    }
 
     exclude_from_complete = ["bokeh"]
     api_deps = list(
@@ -87,6 +90,7 @@ def extra_requirements() -> dict[str, list[str]]:
     )
     extras_require.update(
         {
+            "kfp": kfp_requires,
             "api": api_deps,
             "all": _get_extra_dependencies(extras_require=extras_require),
             "complete": _get_extra_dependencies(
@@ -97,6 +101,10 @@ def extra_requirements() -> dict[str, list[str]]:
                 exclude=exclude_from_complete,
                 base_deps=api_deps,
                 extras_require=extras_require,
+            ),
+            "complete-kfp": _get_extra_dependencies(
+                exclude=exclude_from_complete,
+                extras_require=extras_require.copy().update(kfp_requires),
             ),
         }
     )

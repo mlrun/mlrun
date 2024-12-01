@@ -173,8 +173,8 @@ async def submit_workflow(
         db_session=db_session,
         auth_info=auth_info,
         image=workflow_spec.image
-        or project.spec.default_image
-        or mlrun.mlconf.default_base_image,
+        or mlrun.mlconf.kfp_image
+        or project.spec.default_image,
     )
 
     logger.debug(

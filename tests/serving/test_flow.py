@@ -447,6 +447,7 @@ def test_model_runner():
     server = function.to_mock_server()
 
     resp = server.test(body={"n": 1})
+    server.wait_for_completion()
     assert resp.keys() == {"input", "results"}
     assert resp["input"] == {"n": 1}
     results = resp["results"]

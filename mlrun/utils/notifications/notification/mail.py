@@ -95,7 +95,7 @@ class MailNotification(base.NotificationBase):
         cls,
         default_mail_address: typing.Union[str, list],
         email_addresses: typing.Union[str, list],
-    ):
+    ) -> str:
         if isinstance(default_mail_address, str):
             default_mail_address = (
                 default_mail_address.split(",") if default_mail_address else []

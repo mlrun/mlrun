@@ -828,7 +828,7 @@ class ModelRunnerStep(TaskStep):
         self._models = []
         super().__init__(
             *args,
-            class_name="ModelRunner",
+            class_name="mlrun.serving.ModelRunner",
             class_args={"runnables": self._models},
             **kwargs,
         )

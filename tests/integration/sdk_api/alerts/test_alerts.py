@@ -99,7 +99,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alerts_activations[0], project_name, alert1["name"], number_of_events=1
         )
         # validate through the alert config
-        alerts_activations = self._get_alert_config_activations(alert)
+        alerts_activations = alert.list_activations()
         self._validate_alert_activation(
             alerts_activations[0], project_name, alert1["name"], number_of_events=1
         )
@@ -124,7 +124,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             number_of_events=alert2["criteria"].count,
         )
         # validate through the alert config
-        alerts_activations = self._get_alert_config_activations(alert)
+        alerts_activations = alert.list_activations()
         self._validate_alert_activation(
             alerts_activations[0],
             project_name,
@@ -189,20 +189,16 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alerts_activations = self._get_alert_activations(project_name, alert2["name"])
         assert len(alerts_activations) == 2
 
-        alert_config_activations = self._get_alert_config_activations(alert)
+        alert_config_activations = alert.list_activations()
         assert len(alert_config_activations) == 2
 
         # get alert config paginated activations
-        activations, token = self._get_alert_config_activations(
-            alert=alert, paginated=True
-        )
+        activations, token = alert.paginated_list_activations()
         assert len(activations) == 2
         assert token is None
 
         # get the activations of alert2 after the last update was made to the alert
-        alert_config_activations = self._get_alert_config_activations(
-            alert=alert, from_last_update=True
-        )
+        alert_config_activations = alert.list_activations(from_last_update=True)
         assert len(alert_config_activations) == 1
         self._validate_alert_activation(
             alert_config_activations[0],
@@ -211,9 +207,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         # get alert2 config paginated activations from the last update
-        activations, token = self._get_alert_config_activations(
-            alert=alert, from_last_update=True, paginated=True
-        )
+        activations, token = alert.paginated_list_activations(from_last_update=True)
         assert len(activations) == 1
         assert token is None
 
@@ -856,12 +850,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         return mlrun.get_run_db().list_alert_activations(
             project=project_name, name=alert_name
         )
-
-    @staticmethod
-    def _get_alert_config_activations(alert, from_last_update=False, paginated=False):
-        if paginated:
-            return alert.paginated_list_activations(from_last_update=from_last_update)
-        return alert.list_activations(from_last_update=from_last_update)
 
     @staticmethod
     def _reset_alert(project_name, name):

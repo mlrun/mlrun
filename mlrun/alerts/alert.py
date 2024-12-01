@@ -141,6 +141,15 @@ class AlertConfig(ModelObj):
         if template:
             self._apply_template(template)
 
+    @property
+    def updated_datetime(self) -> datetime:
+        """
+        Get the `updated` field as a datetime object.
+        """
+        if isinstance(self.updated, str):
+            return datetime.fromisoformat(self.updated)
+        return self.updated
+
     def validate_required_fields(self):
         if not self.name:
             raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
@@ -270,15 +279,14 @@ class AlertConfig(ModelObj):
         :param since: Filters for alert activations occurring after this timestamp.
         :param until: Filters for alert activations occurring before this timestamp.
         :param from_last_update: If set to True, retrieves alert activations since the alert's last update time.
+        if both since and from_last_update=True are provided, from_last_update takes precedence, and the since value
+        will be overridden by the alert's last update timestamp.
 
         :returns: A list of alert activations matching the provided filters.
         """
         db = mlrun.get_run_db()
         if from_last_update and self.updated is not None:
-            # convert `self.updated` to a datetime if it is a string
-            if isinstance(self.updated, str):
-                self.updated = datetime.fromisoformat(self.updated)
-            since = self.updated
+            since = self.updated_datetime
 
         return db.list_alert_activations(
             project=self.project,
@@ -343,9 +351,7 @@ class AlertConfig(ModelObj):
         :returns: A tuple containing the list of alert activations and an optional `page_token` for pagination.
         """
         if from_last_update and self.updated is not None:
-            if isinstance(self.updated, str):
-                self.updated = datetime.fromisoformat(self.updated)
-            kwargs["since"] = self.updated
+            kwargs["since"] = self.updated_datetime
 
         db = mlrun.get_run_db()
         return db.paginated_list_alert_activations(

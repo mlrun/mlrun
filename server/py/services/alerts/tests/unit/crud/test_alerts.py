@@ -15,7 +15,7 @@
 import unittest
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
-from datetime import datetime, timezone
+from datetime import timezone
 
 import fastapi.concurrency
 import pytest
@@ -398,7 +398,8 @@ class TestAlerts(TestAlertsBase):
             project=project,
             name=alert_name,
         )
-        assert alert.updated is None
+        assert alert.updated is not None
+        assert alert.updated == alert.created
 
         # modify the alert and store again and validate that the updated field is modified
         alert_data.summary = "new summary"
@@ -415,4 +416,4 @@ class TestAlerts(TestAlertsBase):
             name=alert_name,
         )
         assert alert.updated is not None
-        assert alert.updated < datetime.now(tz=timezone.utc)
+        assert alert.updated > alert.created.replace(tzinfo=timezone.utc)

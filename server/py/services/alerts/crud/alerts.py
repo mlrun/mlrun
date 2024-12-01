@@ -71,7 +71,7 @@ class Alerts(
             alert_data.id = existing_alert.id
 
             # set the updated field to reflect the latest modification time of the alert
-            alert_data.updated = datetime.datetime.now(tz=datetime.timezone.utc)
+            alert_data.updated = mlrun.utils.now_date()
 
             old_state = framework.utils.singletons.db.get_db().get_alert_state_dict(
                 session, existing_alert.id

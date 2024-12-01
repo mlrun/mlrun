@@ -70,7 +70,7 @@ class MailNotification(base.NotificationBase):
         event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
         self.params.setdefault("subject", f"[{severity}] {message}")
-        self.params.setdefault("body", message)
+        self.params.setdefault("body", self.params.get("message", message))
         await self._send_email(**self.params)
 
     @classmethod

@@ -14,15 +14,56 @@
 
 import pytest
 
+import mlrun
+from mlrun.common.schemas.model_monitoring import ResultKindApp, ResultStatusApp
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
+    ModelMonitoringApplicationResult,
+    MonitoringApplicationContext,
 )
+
+
+class NoOpApp(ModelMonitoringApplicationBase):
+    def do_tracking(self, monitoring_context: MonitoringApplicationContext):
+        pass
+
+
+class InProgressApp0(ModelMonitoringApplicationBase):
+    def do_tracking(
+        self, monitoring_context: MonitoringApplicationContext
+    ) -> ModelMonitoringApplicationResult:
+        monitoring_context.logger.info("Ok let's try")
+        raise ValueError
+
+
+class InProgressApp1(ModelMonitoringApplicationBase):
+    def do_tracking(
+        self, monitoring_context: MonitoringApplicationContext
+    ) -> ModelMonitoringApplicationResult:
+        monitoring_context.logger.info("It should work now")
+        return ModelMonitoringApplicationResult(
+            name="res0",
+            value=0,
+            status=ResultStatusApp.irrelevant,
+            kind=ResultKindApp.mm_app_anomaly,
+        )
 
 
 @pytest.mark.filterwarnings("error")
 def test_no_deprecation_instantiation() -> None:
-    class App(ModelMonitoringApplicationBase):
-        def do_tracking(self, **kwargs):
-            pass
+    NoOpApp()
 
-    App()
+
+class TestEvaluate:
+    @classmethod
+    @pytest.fixture(autouse=True)
+    def _set_project(cls) -> None:
+        mlrun.get_or_create_project("test")
+
+    @staticmethod
+    def test_local_no_params() -> None:
+        func_name = "test-app"
+        run = InProgressApp0.evaluate(func_path=__file__, func_name=func_name)
+        assert run.state() == "created"  # Should be "error"
+        run = InProgressApp1.evaluate(func_path=__file__, func_name=func_name)
+        assert run.state() == "completed"

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 name: CI
 
 on:
@@ -20,6 +20,7 @@ on:
     - development
     - '[0-9]+.[0-9]+.x'
     - 'feature/**'
+  workflow_dispatch:
 
   # Run CI also on push to backport release branches - we sometimes push code there by cherry-picking, meaning it
   # doesn't go through CI (no PR)

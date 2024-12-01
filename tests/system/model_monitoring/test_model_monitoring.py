@@ -353,7 +353,10 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             self.project_name, endpoint.metadata.uid
         )
         assert len(metrics) == 1
-        assert metrics[0] == f"{self.project_name}.mlrun-infra.metric.invocations"
+        assert (
+            metrics[0].full_name
+            == f"{self.project_name}.mlrun-infra.metric.invocations"
+        )
 
     def _assert_model_uri(
         self,

@@ -803,6 +803,47 @@ class RouterStep(TaskStep):
         )
 
 
+class Model(storey.ParallelExecutionRunnable):
+    def load(self):
+        pass
+
+    def init(self):
+        self.load()
+
+    def predict(self, data):
+        return data
+
+    def run(self, event, path):
+        return self.predict(event)
+
+
+class ModelRunner(storey.ParallelExecution):
+    pass
+
+
+class ModelRunnerStep(TaskStep):
+    kind = "model_runner"
+
+    def __init__(self, *args, **kwargs):
+        self._models = []
+        super().__init__(
+            *args,
+            class_name="ModelRunner",
+            class_args={"runnables": self._models},
+            **kwargs,
+        )
+
+    def add_model(self, model: Model) -> None:
+        self._models.append(model)
+
+    @property
+    def async_object(self) -> ModelRunner:
+        if not self._async_object:
+            self._async_object = ModelRunner(self.class_args.get("runnables"))
+
+        return self._async_object
+
+
 class QueueStep(BaseStep):
     """queue step, implement an async queue or represent a stream"""
 
@@ -1423,6 +1464,7 @@ classes_map = {
     "queue": QueueStep,
     "error_step": ErrorStep,
     "monitoring_application": MonitoringApplicationStep,
+    "model_runner": ModelRunnerStep,
 }
 
 

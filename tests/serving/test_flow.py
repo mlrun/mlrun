@@ -18,7 +18,7 @@ import pytest
 
 import mlrun
 from mlrun.serving import GraphContext, V2ModelServer
-from mlrun.serving.states import TaskStep
+from mlrun.serving.states import Model, ModelRunnerStep, TaskStep
 
 from .demo_states import *  # noqa
 
@@ -429,3 +429,23 @@ def test_set_flow():
     server = fn.to_mock_server()
     resp = server.test(body=5)
     assert resp == "15"
+
+
+def test_model_runner():
+    class MyModel(Model):
+        execution_mechanism = "naive"
+
+        def predict(self, data):
+            data["n"] += 1
+            return data
+
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(MyModel("my_model"))
+    graph.to(model_runner_step).respond()
+    server = function.to_mock_server()
+
+    resp = server.test(body={"n": 1})
+    server.wait_for_completion()
+    print(resp)

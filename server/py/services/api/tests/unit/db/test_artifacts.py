@@ -1975,7 +1975,7 @@ class TestArtifacts(TestDatabaseBase):
         self._db.store_artifact(
             self._db_session,
             "k2",
-            {"kind": "model"},
+            {"kind": ModelArtifact.kind},
             producer_id="3",
             tag="t3",
             project="p1",
@@ -1983,7 +1983,7 @@ class TestArtifacts(TestDatabaseBase):
         self._db.store_artifact(
             self._db_session,
             "k3",
-            {"kind": "dataset"},
+            {"kind": DatasetArtifact.kind},
             producer_id="4",
             tag="t4",
             project="p2",
@@ -1992,7 +1992,7 @@ class TestArtifacts(TestDatabaseBase):
         self._db.store_artifact(
             self._db_session,
             "k4",
-            {"kind": "document"},
+            {"kind": DocumentArtifact.kind},
             producer_id="5",
             tag="t5",
             project="p2",

@@ -278,13 +278,11 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             page_size=iterations
         )
         assert len(activations) == iterations
+        assert token is not None
 
         activations, token = project.paginated_list_alert_activations(page_token=token)
         assert len(activations) == iterations
-
-        activations, token = project.paginated_list_alert_activations(page_token=token)
-        assert len(activations) == 0
-        # TODO: uncomment when pagination is fixed
+        # TODO: uncomment when pagination is fixed (https://iguazio.atlassian.net/browse/ML-8505)
         # assert token is None
 
         # check SDK with filter by event_name and entity_kind

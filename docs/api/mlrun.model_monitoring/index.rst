@@ -22,7 +22,6 @@ mlrun.model_monitoring
 
 .. autoclass:: mlrun.model_monitoring.applications.EvidentlyModelMonitoringApplicationBase
    :members:
-   :exclude-members: do
 
 .. automodule:: mlrun.model_monitoring.applications.histogram_data_drift
    :members:

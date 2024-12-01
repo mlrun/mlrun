@@ -28,7 +28,7 @@ import warnings
 import zipfile
 from copy import deepcopy
 from os import environ, makedirs, path
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, cast
 
 import dotenv
 import git
@@ -1732,7 +1732,7 @@ class MlrunProject(ModelObj):
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
 
-        :returns: artifact object
+        :returns: dataset artifact object
         """
         ds = DatasetArtifact(
             key,
@@ -1745,14 +1745,17 @@ class MlrunProject(ModelObj):
             **kwargs,
         )
 
-        item = self.log_artifact(
-            ds,
-            local_path=local_path,
-            artifact_path=artifact_path,
-            target_path=target_path,
-            tag=tag,
-            upload=upload,
-            labels=labels,
+        item = cast(
+            DatasetArtifact,
+            self.log_artifact(
+                ds,
+                local_path=local_path,
+                artifact_path=artifact_path,
+                target_path=target_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+            ),
         )
         return item
 
@@ -1820,7 +1823,7 @@ class MlrunProject(ModelObj):
         :param extra_data:      key/value list of extra files/charts to link with this dataset
                                 value can be absolute path | relative path (to model dir) | bytes | artifact object
 
-        :returns: artifact object
+        :returns: model artifact object
         """
 
         if training_set is not None and inputs:
@@ -1847,12 +1850,15 @@ class MlrunProject(ModelObj):
         if training_set is not None:
             model.infer_from_df(training_set, label_column)
 
-        item = self.log_artifact(
-            model,
-            artifact_path=artifact_path,
-            tag=tag,
-            upload=upload,
-            labels=labels,
+        item = cast(
+            ModelArtifact,
+            self.log_artifact(
+                model,
+                artifact_path=artifact_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+            ),
         )
         return item
 
@@ -2408,7 +2414,7 @@ class MlrunProject(ModelObj):
 
     def set_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         name: str = "",
         kind: str = "job",
         image: Optional[str] = None,

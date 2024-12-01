@@ -60,6 +60,8 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # validate get alerts on empty system
         alerts = self._get_alerts(project_name)
         assert len(alerts) == 0
+        alerts_activations = self._get_alert_activations(project_name)
+        assert len(alerts_activations) == 0
 
         # validate create alert operation
         created_alert, created_alert2 = self._create_alerts_test(
@@ -91,6 +93,12 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # post event for alert 1
         self._post_event(project_name, alert1["event_name"], alert1["entity"]["kind"])
 
+        # validate alert activation for alert 1
+        alerts_activations = self._get_alert_activations(project_name, alert1["name"])
+        self._validate_alert_activation(
+            alerts_activations[0], project_name, alert1["name"], number_of_events=1
+        )
+
         # post event for alert 2
         for _ in range(alert2["criteria"].count):
             self._post_event(
@@ -101,6 +109,14 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert = self._get_alerts(project_name, created_alert2.name)
         self._validate_alert(
             alert, alert_state=alert_objects.AlertActiveState.ACTIVE, alert_count=1
+        )
+
+        alerts_activations = self._get_alert_activations(project_name, alert2["name"])
+        self._validate_alert_activation(
+            alerts_activations[0],
+            project_name,
+            alert2["name"],
+            number_of_events=alert2["criteria"].count,
         )
 
         # send events again to make sure alert does not trigger, since it is active already
@@ -115,6 +131,15 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # reset the alert and trigger the event again and validate that the state is inactive
         self._reset_alert(project_name, created_alert2.name)
+
+        alerts_activations = self._get_alert_activations(project_name, alert2["name"])
+        self._validate_alert_activation(
+            alerts_activations[0],
+            project_name,
+            alert2["name"],
+            number_of_events=alert2["criteria"].count * 2,
+        )
+
         self._post_event(project_name, alert2["event_name"], alert2["entity"]["kind"])
         alert = self._get_alerts(project_name, created_alert2.name)
         self._validate_alert(
@@ -140,9 +165,13 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # since the reset_policy of the alert now is "auto", after sending 3 events the state should be inactive
         alert = self._get_alerts(project_name, created_alert2.name)
+
         self._validate_alert(
             alert, alert_state=alert_objects.AlertActiveState.INACTIVE, alert_count=2
         )
+
+        alerts_activations = self._get_alert_activations(project_name, alert2["name"])
+        assert len(alerts_activations) == 2
 
         new_event_name = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
         modified_alert = self._modify_alert_test(
@@ -154,6 +183,16 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         alert = self._get_alerts(project_name, modified_alert.name)
         self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.ACTIVE)
+
+        alerts_activations = self._get_alert_activations(
+            project_name, modified_alert.name
+        )
+        self._validate_alert_activation(
+            alerts_activations[0],
+            project_name,
+            modified_alert.name,
+            number_of_events=modified_alert.criteria.count,
+        )
 
         # reset alert
         self._reset_alert(project_name, created_alert.name)
@@ -183,6 +222,11 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(alerts) == 0
 
         mlrun.get_run_db().delete_project(project_name)
+
+        # make sure we can't get alert activations for deleted project
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            alerts_activations = self._get_alert_activations(project_name)
+            assert len(alerts_activations) == 0
 
     def test_alert_after_project_deletion(self):
         # this test checks create alert and post event operations after deleting a project and creating it again
@@ -216,6 +260,14 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             event_name,
         )
         self._post_event(alert_entity_project, event_name, alert_entity_kind)
+
+        alerts_activations = self._get_alert_activations(project_name, alert_name)
+        self._validate_alert_activation(
+            alerts_activations[0],
+            project_name,
+            alert_name,
+            number_of_events=1,
+        )
 
     def test_alert_templates(self):
         project_name = "my-project"
@@ -613,6 +665,54 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         mlrun.get_run_db().generate_event(event_name, event_data)
 
+    def _validate_alert_activation(
+        self,
+        alert_activation: mlrun.common.schemas.alert.AlertActivation,
+        project_name=None,
+        alert_name=None,
+        alert_event_name=None,
+        alert_severity=None,
+        alert_criteria=None,
+        alert_entity_id=None,
+        alert_entity_kind=None,
+        alert_event_kind=None,
+        number_of_events=None,
+        alert_notifications=None,
+    ):
+        assert alert_activation.id is not None
+        if project_name:
+            assert alert_activation.project == project_name
+        if alert_name:
+            assert alert_activation.name == alert_name
+        if alert_event_name:
+            assert alert_event_name in [
+                notification.event_name
+                for notification in alert_activation.notifications
+            ]
+        if alert_severity:
+            assert alert_activation.severity == alert_severity
+        if alert_criteria:
+            assert alert_activation.criteria.period == alert_criteria.period
+            assert alert_activation.criteria.count == alert_criteria.count
+        if alert_entity_id:
+            assert alert_activation.entity_id == alert_entity_id
+        if alert_entity_kind:
+            assert alert_activation.entity_kind == alert_entity_kind
+        if alert_event_kind:
+            assert alert_activation.event_kind == alert_event_kind
+        if number_of_events:
+            assert alert_activation.number_of_events == number_of_events
+        if alert_notifications:
+            assert alert_activation.notifications == alert_notifications
+
+        alert = self._get_alerts(project_name, alert_name)
+        if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO:
+            assert alert_activation.activation_time == alert_activation.reset_time
+        elif alert.state == "active":
+            assert alert_activation.reset_time is None
+        else:
+            assert alert_activation.reset_time > alert_activation.activation_time
+
     @staticmethod
     def _get_alerts(project_name, name=None):
         if name:
@@ -620,6 +720,12 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         else:
             response = mlrun.get_run_db().list_alerts_configs(project_name)
         return response
+
+    @staticmethod
+    def _get_alert_activations(project_name, alert_name=None):
+        return mlrun.get_run_db().list_alert_activations(
+            project=project_name, name=alert_name
+        )
 
     @staticmethod
     def _reset_alert(project_name, name):

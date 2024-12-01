@@ -160,12 +160,13 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
     ]:
         if not PaginatedMethods.method_is_supported(method):
             raise NotImplementedError(
-                f"Pagination is not supported for method {method}"
+                f"Pagination is not supported for method {method.__name__}"
             )
 
         if page_size is None and token is None:
             self._logger.debug(
-                "No token or page size provided, returning all records", method=method
+                "No token or page size provided, returning all records",
+                method=method.__name__,
             )
             return await framework.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs

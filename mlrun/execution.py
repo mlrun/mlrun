@@ -26,7 +26,13 @@ from dateutil import parser
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
-from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact
+from mlrun.artifacts import (
+    Artifact,
+    DatasetArtifact,
+    DocumentArtifact,
+    DocumentLoaderSpec,
+    ModelArtifact,
+)
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
 
@@ -856,6 +862,46 @@ class MLClientCtx:
             tag=tag,
             upload=upload,
             db_key=db_key,
+            labels=labels,
+        )
+        self._update_run()
+        return item
+
+    def log_document(
+        self,
+        key: str,
+        artifact_path: Optional[str] = None,
+        document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
+        tag: str = "",
+        upload: Optional[bool] = False,
+        labels: Optional[dict[str, str]] = None,
+        **kwargs,
+    ) -> DocumentArtifact:
+        """
+        Log a document as an artifact.
+
+        :param key: Artifact key
+        :param target_path: Path to the local file
+        :param artifact_path: Target path for artifact storage
+        :param document_loader: Spec to use to load the artifact as langchain document
+        :param tag: Version tag
+        :param upload: Whether to upload the artifact
+        :param labels: Key-value labels
+        :param kwargs: Additional keyword arguments
+        :return: DocumentArtifact object
+        """
+        doc_artifact = DocumentArtifact(
+            key=key,
+            document_loader=document_loader,
+            **kwargs,
+        )
+
+        item = self._artifacts_manager.log_artifact(
+            self,
+            doc_artifact,
+            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
+            tag=tag,
+            upload=upload,
             labels=labels,
         )
         self._update_run()

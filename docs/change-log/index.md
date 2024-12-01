@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
-- [v1.7.0](#v170-1-november-2024)
-- [v1.6.4](#v164-30-june-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
+- [v1.7.1](#v171-27-november-2024) | [v1.7.0](#v170-1-november-2024)
+- [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
 - [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
 - [v1.4.1](#v141-8-august-2023) | [v1.4.0](#v140-23-july-2023)
 - [v1.3.4](#v134-23-august-2023) | [v1.3.3](#v133-7-jun-2023) | [v1.3.2](#v132-4-jun-2023) | [v1.3.1](#v131-18-may-2023) | [v1.3.0](#v130-22-march-2023) 
@@ -12,12 +12,47 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
+## v1.7.1 (27 November 2024)
+
+### Model monitoring
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.7.1, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
+
+### Breaking changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7801|When running a remote/scheduled workflow, the remote workflow pulls/extracts the remote source content to the running pod but loads the project configuration from the MLRun DB and not from the `project.yaml` file in the remote source. See more details in [Scheduling a workflow](../concepts/scheduled-jobs.md#scheduling-a-workflow).|
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7285|Improved the response time when loading the **Feature sets** page.|
+|ML-7967|Fixed the `_ApplicationErrorHandler` message.|
+|ML-8001|Job failures are now described in the job details and when hovering over the status (in the Projects > Jobs monitoring > **Jobs** page).|
+|ML-8006|Fixed the pipelines error message for a failed step (previously included messages from other (skipped) steps of the workflow).|
+|ML-8012|You can now use the same tag on more than one model.|
+|ML-8046|The number of TSDB records is now correct when running model monitoring with a user app.|
+|ML-8080|Projects with many artifact tags can now be deleted without complications.|
+|ML-8082 / 8246|You can now delete projects with large number of resources in TDEngine.|
+|ML-8097|UI: Now displays the pod status in **Monitor Jobs** when you hover over the status symbol.|
+|ML-8110|Fixed the scheduled jobs counters in the project summary.|
+|ML-8112|Logging a model with a training set that has large number of columns now displays the model feature statistics.|
+|ML-8150|Fixed the 03-model-serving tutorial so that all tutorials can be run sequentially.|
+|ML-8151|Fixed the error message that displays when deploying monitoring without setting the required credentials.|
+|ML-8171|The **Projects** page does not refresh every time you click in the Search box (the previous behavior).|
+|ML-8195|You can now use `format_` and `limit` flags to all project `list_artifacts` methods, improving queries of large numbers of artifacts.| 
+|ML-8215|You can now use an asterisk ( "\*") in the project name parameter of `run_db.list_functions()` to retrieve functions for all projects.|
+|ML-8217|The counters in the **Projects** page now have tooltips.|
+|ML-8224|Kafka topics are now deleted together with the project during project deletion.|
+|ML-8286|The tooltip for failed jobs now differentiates between Error and Reason.|
+
 ## v1.7.0 (1 November 2024)
 
 ### Model monitoring
 
 ```{admonition} Note
-{ref}`model-monitoring-overview` is in TechPreview status in v1.7.0.
+{ref}`model-monitoring-overview` is in TechPreview.
 ```
 
 | ID    | Description                                                                                                                                                                                                                        |
@@ -26,18 +61,15 @@
 |ML-5460| The model monitoring now has a [per-endpoint view](../model-monitoring/index.md#model-and-model-monitoring-endpoints) that presents information data on the monitoring metrics.                                                    |
 |ML-5851| Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO as TSDB platforms. See [Selecting the streaming and TSDB platforms](../model-monitoring/index.md#selecting-the-streaming-and-tsdb-platforms). |
 
-
 ### Alerts
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-5287|You can now configure {ref}`alerts <alerts>` for model monitoring and other possible problem situations. TechPreview. |
 
-
 ### Projects
 | ID    | Description                                                                                                      |
 |-------|------------------------------------------------------------------------------------------------------------------|
 |ML-3874| Node selector can now be [defined in the project spec](../runtimes/configuring-job-resources.md#node-selection). |
-
 
 ### Artifacts
 | ID    | Description                                                                                                              |
@@ -49,7 +81,6 @@
 |-------|--------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-2652| Supports [creating an API gateway using the MLRun SDK](../concepts/nuclio-real-time-functions.ipynb#api-gateway).                          |
 |ML-4601| New {ref}`application runtime <application>` where you can provide an image (for example, a web-app) that runs as a Kubernetes deployment. |
-
 
 ### Workflows
 | ID    | Description                                                                                                                                                                                                                                                                                            |
@@ -94,7 +125,6 @@
 |ML-5140|Improved responsiveness for runs and functions.|
 |ML-5846|The Filter in the **Projects>ML Functions** table is now a popup menu.|
 |ML-6275|The **Projects** dashboard now notifies when MLRun isn't reachable.|
-
 
 ### Documentation
 | ID      | Description                                                                                                 |
@@ -172,19 +202,6 @@
 |ML-6770 |Resolved MLRun workers restart when running many workflows that produce artifacts.|
 |ML-6795 |Can now upgrade to v1.6.4 when cluster has artifacts that do not have a `key`.|
  
-## v1.6.4 (30 June 2024)
-
-### UI
-| ID       |Description                                                               |
-|----------|---------------------------------------------------------------------------|
-|ML-6867|Scalability improvement. The artifacts page (artifacts/datasets/models) now displays a maximum of 1000 items. (Use filters to focus the results.) |
-
-###  Closed issues
-| ID       |Description                                                               |
-|----------|---------------------------------------------------------------------------|
-|ML-6770 |Resolved MLRun workers restart when running many workflows that produce artifacts.|
-|ML-6795 |Can now upgrade to v1.6.4 when cluster has artifacts that do not have a `key`.|
- 
 ## v1.6.3 (4 June 2024)
 
 ### Workflows
@@ -193,7 +210,6 @@
 | ML-3521,5482 | Remote/scheduled workflows can now be performed by a project with a source that is contained on the image. See [Scheduling a workflow](../concepts/scheduled-jobs.md#scheduling-a-workflow). Tech Preview. |
 
 ### Infrastructure
-
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-5739|MLRun now supports email-like username.|
@@ -352,17 +368,12 @@
 | ML-5576 | FeatureSet can now ingest data that contains single quotes.                                                                                                                                       |
 | ML-5746 | Labels no longer create partial projects that cannot be deleted.                                                                                                                                  |
 
-
-
-
-
 ## v1.5.2 (30 November 2023)
 
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
 |ML-4960|Fixed browser caching so the **Members** tab is always presented for projects.|
-
 
 ## v1.5.1 (2 November 2023)
 
@@ -395,14 +406,12 @@
 | ML-4132 | The `invoke` function can now receive any parameter supported in the `requests.request` method. See {py:meth}`~mlrun.runtimes.RemoteRuntime.invoke` and [view in Git](https://github.com/mlrun/mlrun/pull/3872).                                           |
 | NA      | From v1.5, clients must be running Python 3.9.                                                                                                                                                                                                             |
 
-
 ### Runtimes
 | ID     | Description                                                                                                                                                                                                                                                      |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3501| Support for running Spark jobs on Databricks cluster. See [Databricks](../runtimes/databricks.ipynb). [View in Git](https://github.com/mlrun/mlrun/pull/3996).                                                                                                   |
 |ML-3854| Support for webhook notification. See webhook in [Notification Kinds](../concepts/notifications.md#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946).                                                                              |
 |ML-4059| Support for adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.md#extra-arguments),  {py:meth}`~mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
-
 
 ### UI
 | ID     |Description                                                                                         |
@@ -430,8 +439,6 @@
 |ML-4171| The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).                                                                                                              |
 |ML-4366| The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated and removed. The new image mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.md#building-mlrun-images).                |
 
-
-
 ### Deprecations
 
 See [Deprecations and removed code](#deprecations-and-removed-code).
@@ -452,7 +459,6 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |ML-4501| Fixed: UI  shows error after deleting a function, then viewing a related job. |
 |ML-4533| UI: ML functions can now be created with upper-case letters.                  |
 
-
 ## v1.4.1 (8 August 2023)
 
 ### Closed issues
@@ -470,21 +476,16 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3474|New sub-package in MLRun for packing returning outputs, logging them to MLRun and unpacking inputs, parsing data items to their required type. [View in Git](https://github.com/mlrun/mlrun/pull/3333). |
 
-
 #### Notifications
 | ID   |Description                                                                                                                        |
 |-------|------------------------------------------------------------------------------------------------------------------------------------|
 |ML-21|Supports job notifications. See full details in {ref}`notifications`, and [View in Git](https://github.com/mlrun/mlrun/pull/2414). |
-
 
 #### Projects
 | ID     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-3375| Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.md#image-build-configuration), [build_image](../projects/run-build-deploy.md#build_image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
 |ML-4084| New API to run a setup script to enrich a project, when loading the project. [View in Git](https://github.com/mlrun/mlrun/pull/3809)                                                                                                                                                                                                                                                                                                                                                                                                               |
-
-
-
 
 #### Serving
 | ID     |Description                                                                                                                                                                                                                                                                                                      |
@@ -502,18 +503,15 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 | ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI.                                                                                                                                                                            |
 | ML-2922 | The **Artifacts**, **Datasets** and **Models** pages have an improved filter. Enhanced look and feel in tables.                                                                                                                      |
 
-
 #### Documentation
 | ID      | Description                                                                                                                                                                                                                                                             |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-3548 | Passing parameters between steps using the `outputs` parameter is now described in [Write a pipeline](../projects/build-run-workflows-pipelines.md#write-a-pipeline).                                                                                                   |
 | ML-3763 | The relationship between GPUs and remote functions is now explained in [Number of GPUs](../runtimes/configuring-job-resources.md#number-of-workers-and-gpus) and [Example of Nuclio function](../concepts/nuclio-real-time-functions.ipynb#nuclio-real-time-functions). |
 
-
 #### New documentation pages
 - {ref}`git-repo-as-hub`
 - {ref}`ci-cd-automate`
-
 
 ### Breaking changes
 | ID     |Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -571,7 +569,6 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 ## v1.3.4 (23 August 2023)
 
 ### Closed issues
-
 | ID     |Description                                                                    |
 |---------|--------------------------------------------------------------------------------|
 |ML-4409|Importing a project.yaml now does not overwrite the artifacts with older tags. |
@@ -579,7 +576,6 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 ## v1.3.3 (7 Jun 2023)
 
 ### Closed issues
-
 | ID     |Description                                                                                                                |
 |---------|----------------------------------------------------------------------------------------------------------------------------|
 |ML-3940 |MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
@@ -653,8 +649,6 @@ conda activate python39
 ### New and updated features
 
 #### Feature store
-
-
 | ID      | Description                                                                                                                                                                                                                                                                                                                                     |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-2592 | Offline data can be registered as feature sets (Tech Preview). See [Create a feature set without ingesting its data](../feature-store/feature-sets.md#create-a-feature-set-without-ingesting-its-data).                                                                                                                                         |
@@ -671,7 +665,6 @@ conda activate python39
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-2845 | Logging data using `hints`. You can now pass data into MLRun and log it using log hints, instead of the decorator. This is the initial change in MLRun to simplify wrapping usable code into MLRun without having to modify it. Future releases will continue this paradigm shift. See [more details](../cheat-sheet.md#track-returning-values-using-hints-and-returns). |
 
-
 #### Projects
 
 | ID      | Description                                                                                                                                                                        |
@@ -685,21 +678,18 @@ conda activate python39
 | ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Graph that splits and rejoins](../serving/model-serving-get-started.ipynb#graph-that-splits-and-rejoins). |
 | ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See [Queue (streaming)](../serving/model-serving-get-started.ipynb#queue-streaming).                                                                                 |
 
-
 #### Storey 
 
 | ID      | Description                                                                                                                                                                                                                                                                                                   |
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-2502 | The event time in storey events is now taken from the `timestamp_key`. If the `timestamp_key` is not defined for the event, then the time is taken from the processing-time metadata. [View in Git](https://github.com/mlrun/mlrun/pull/2660), and in [Storey git](https://github.com/mlrun/storey/pull/394). |
  
-
 #### UI 
 
 | ID     |Description                                                                                                                                                                                                                                                                                                                                                                                     |
 |---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |ML-1186|The new **Projects** home page provides easy and intuitive access to the full project lifecycle in three phases, with links to the relevant wizards under each phase heading: ingesting and processing data, developing and training a model, deploying and monitoring the project. <p align="center"><img src="../_static/images/project-homepage.png" alt="mlrun-project-homepage" /></p><br> |
 | NA     |[UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.3.0)                                                                                                                                                                                                                                                                                                                      |
-
 
 #### APIs 
 
@@ -726,8 +716,6 @@ Improvements to [Set up your environment](../install/remote.md).
 - The behavior of ingest with aggregation changed in v1.3.0 (storey, spark, pandas engines). Now, when you ingest a "timestamp" column, it returns <br>
 `<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. <br>Previously, it returned `<class 'str'>`
 - Any target data that was saved using Redis as an online target with storey engine (RedisNoSql target, introduced in 1.2.1) is not accessible after upgrading to v1.3. (Data ingested subsequent to the upgrade is unaffected.)
-
-
 
 <a id="api-130"></a>
 ### Deprecated and removed APIs
@@ -802,7 +790,6 @@ DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.1)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2.1)
 
-
 ## v1.2.0 (1 December 2022)
 
 ### New and updated features
@@ -845,8 +832,6 @@ with GCP clients, only compatible packages are installed.
 #### Models
 - The Labels in the **Models > Overview** tab can be edited.
 
-
-
 #### Internal
 - Refactor artifacts endpoints to follow the MLRun convention of `/projects/<project>/artifacts/...`. (The previous API will be deprecated in a future release.)
 - Add `/api/_internal/memory-reports/` endpoints for memory related metrics to better understand the memory consumption of the API.
@@ -879,12 +864,9 @@ was closed before the task was done. [View in Git](https://github.com/mlrun/mlru
 - Fix scheduled jobs failed on GKE with resource quota error. [View in Git](https://github.com/mlrun/mlrun/pull/2520).
 - Can now delete a model via tag. [View in Git](https://github.com/mlrun/mlrun/pull/2433).
 
-
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2.0)
-
-
 
 ## v1.1.3 (28 December 2022)
 
@@ -925,7 +907,6 @@ API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.1)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.1)
-
 
 ## v1.1.0 (6 September 2022)
 
@@ -1072,9 +1053,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.0)
 
-
 ## Open issues
-
 
 | ID| Description| Workaround                                                                                                                                                                                                                                                                                                                                                               |Opened in |
 |--------|----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
@@ -1087,21 +1066,23 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3081|The Monitor Workflows page does not present logs from the correct (Nuclio) deployment.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.2.1    |
 |ML-3294|Dask coredump during project deletion.| Before deleting a Dask project, verify that Dask was fully terminated.                                                                                                                                                                                                                                                                                                   |v1.3.0 |
 |ML-3315|Spark ingestion does not support nested aggregations.                 | NA                                                                                                                                                                                                                                                                                                                                                                       |v1.2.1    |
+|ML-3341 / 2573|The mlrun cross-runtimes build logs should use log collector.|NA|v1.2.1|
 |ML-3386|Documentation is missing full details on the feature store sources and targets.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])` |v1.3.0    |
 |NA|The feature store does not support schema evolution and does not have schema enforcement.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.2.1    |
-|ML-3526|Aggregation column order is not always respected (storey engine).| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.3.0|
-|ML-3626|The "Save and ingest" option is disabled for a scheduled feature set. | NA                                                                                                                                                                                                                                                                                                                                                                       | v1.3.0|
-|ML-3627|The feature store allows ingestion of string type for the timestamp key resulting in errors when trying to query the offline store with time filtration.| Use only timestamp type.                                                                                                                                                                                                                                                                                                                                                 | v1.2.1    |
-|ML-3636|`get_online_feature_service` from Redis target returns truncated values. | NA                                                                                                                                                                                                                                                                                                                                                                       | v1.3.0|
-|ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.2.1|
-|ML-3867|Cannot search for project owners by first name. | NA                                                                                                                                                                                                                                                                                                                                                                       | v1.4.0|
+|ML-3526|Aggregation column order is not always respected (storey engine).| NA  | v1.3.0|
+|ML-3626|The "Save and ingest" option is disabled for a scheduled feature set. | NA | v1.3.0|
+|ML-3627|The feature store should not allows ingestion of `string` type for the timestamp key.|NA| v1.2.1|
+|ML-3636|`get_online_feature_service` from Redis target returns truncated values. | NA                                                                                                                                                                                                                                                                                          | v1.3.0|
+|ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA | v1.2.1|
+|ML-3744|`get_offline_features` adds "Z" to the values of time_stamp column when using Spark engines. |NA|v1.3.1|
+|ML-3867|Cannot search for project owners by first name. | NA | v1.4.0  |                                                                                                                                                                                                                                                                                                                                                              | v1.4.0|
 |ML-6839|Schedules have a minimum interval between two scheduled jobs. By default, a job cannot be scheduled to run more than 2 times in 10 minutes. See {ref}`scheduled-jobs`.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.6.3 |
 |ML-4107| On scheduled ingestion (storey and pandas engines) from CSV source, ingests all of the source on each schedule iteration. | Use a different engine and/or source.                                                                                                                                                                                                                                                                                                                                    | v1.4.0 |	
 |ML-4153|When creating a passthrough feature-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.4.0  |
 |ML-4166|Project yaml file that is very large cannot be stored.    | Do not embed the artifact object in the project yaml.                                                                                                                                                                                                                                                                                                                    | v1.4.0 |
 |ML-4186|on `get_offline_features` ('local'/pandas engine) with passthrough, a source parquet column of type BOOL has dtype "object" or "bool" in the response |                                                                                                                                                                                                                                                                                                                                                                          | v1.4.0|
-|ML-4582|Custom packagers cannot be added to projects created previous to v1.4.0 | NA                                                                                                                                                                                                                                                                                                                                                                       | v1.6.0|
+|ML-4582|Custom packagers cannot be added to projects created in MLRun previous to v1.4.0.|NA |v1.5.0 |                                                                                                                                                                                                                                                                                                                                                                | v1.6.0|
 |ML-4655|Timestamp entities are allowed for feature store, but format is inconsistent. | NA                                                                                                                                                                                                                                                                                                                                                                       |v1.5.0|
 |NL-4685|When using columns with type "float" as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities.                                                                                                                                                                                                                                                                                                              |v1.5.0 |
 |ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.<!-- also mentioned in /concepts/submitting-tasks-jobs-to-functions.html -->| NA, external Kubeflow limitation.                                                                                                                                                                                                                                                                                                                                        | v1.5.0 |
@@ -1112,15 +1093,17 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. | Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster.                                                                                                                                                        | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy**                                                                                                                                                                                                                                                                                                                                            | v1.5.1 |
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.6.0|
-|ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.| Abort the job from the SDK instead of from the UI, or upgrade the client.                                                                                                                                                                                                                                                                                                |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. | Keep the name combination at a maximum of 63 chars.                                                                                                                                                                                                                                                                                                                      |v1.6.0|
+|ML-7159/7704|The evidently app pod memory consumption grows continuously due to use of the evidently workspace and project.|External dependency. Do not use (or only rarely use) these evidently APIs.|v1.7.0|
 |ML-7196|The models features statistics `feature_stats` is limited to 16MB. Further limitation to 1MB when using model-monitoring over V3IO-KV will be removed in 1.8.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.7.0|
-|ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. | See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.md#preventing-and-resolving-conflicts). v1.7.0                                                                                                                                                                                                                                            |
-|ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. | NA                                                                                                                                                                                                                                                                                                                                                                       | v1.7.0|  
-|ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.7.0|              
-|ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.7.0|
-|ML-8110|The cross-project summary is not aligned with per project summary: In the Projects page, **Monitoring > Scheduled**, the Jobs and Total counters are incorrect.      | NA                                                                                                                                                                                                                                                                                                                                                                       | v1.7.0|
-
+|ML-7347|MM-app: Logging artifacts leaks memory due to artifact manager saving each logged artifact.|Use the same artifact key to prevent accumulation.|v1.7.0|
+|ML-7568/7915| The SDK does not inform of invalid node selector combinations when running a function, but the pod remains stuck in the Pending state. | See [Preventing and resolving conflicts](../runtimes/configuring-job-resources.md#preventing-and-resolving-conflicts).| v1.7.0    |                                                                                                                                                                                                                                        |
+|ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. | NA   | v1.7.0|                                                                                                                                                                                                                                                                                                                                                                    | v1.7.0|  
+|ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA | v1.7.0|      
+|ML-7820|`sync_functions` should only sync the functions in the workflow, and not all of the functions within the `project.yaml`.| NA | v1.7.0|                                                                                                                                                                                                                                                                                                                                                        | v1.7.0|              
+|ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA| v1.7.0|                                                                                                                                                                                                                                                                                                                                               | v1.7.0|
+|ML-8064|When using notifications with `when=running` the user always gets a default notification.|NA| v1.7.0|
+|ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 
 ## Limitations
 
@@ -1129,21 +1112,20 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-1278|Users do not automatically have access rights to the project data of the projects they are members of.    | Assign the user access permission for the project folder.             | v0.8.0   |
 |ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)                                                                                    |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).                                                                                                                        |v1.0.0    |
 |ML-3520|MLRun does not decompress large Kubeflow pipelines.                                                                                                                                 |NA                                                                                                                                                                                                                                                                                                                              |v1.3.0    |
-|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.                                          |To see the error, use `mlrun.db.get_pipelines()` instead.                                                                                                                                                                                                                                                                        |
-|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|
+|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.                                          |To see the error, use `mlrun.db.get_pipelines()` instead.                                                                                                                                                                                                 |v1.3.0|
+|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|v1.3.0 |
 |ML-4386|Notifications of local runs aren't persisted. | NA | v1.5.0|
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | You can build your own images with newer CUDA for a later release of PyTorch. |                 v1.5.0|   
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
-|ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
-|ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Upgrade the client to v1.6.0 or higher. | v1.6.0 |
+|ML-5669|When using `mlrun.mlrun` image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
+|ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
 |ML-8115|Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
-|ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|
+|ML-8174| A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
 
 
 ## Deprecations and removed code
 
-    
 | In    |ID     |Description                                                                                                                                                                                                                         |
 |--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | v1.6.0 |ML-5137|The Create/edit function pane is removed from the UI.| 
@@ -1152,7 +1134,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`                                                                                                                                                                            |
 | v1.5.0 |ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards are not supported. |
 | v1.0.0 |NA      |MLRun / Nuclio does not support python 3.6.                                                                                                                                                                                         |
-
 
 ### Deprecated APIs  
 

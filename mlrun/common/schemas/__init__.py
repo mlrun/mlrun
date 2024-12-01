@@ -62,6 +62,7 @@ from .clusterization_spec import (
 from .common import ImageBuilder
 from .constants import (
     APIStates,
+    ArtifactPartitionByField,
     ClusterizationRole,
     DeletionStrategy,
     FeatureStorePartitionByField,

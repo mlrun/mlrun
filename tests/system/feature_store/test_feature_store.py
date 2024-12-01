@@ -39,7 +39,7 @@ from storey.dtypes import V3ioError
 import mlrun
 import mlrun.datastore.utils
 import mlrun.feature_store as fstore
-import mlrun_pipelines.mounts
+import mlrun.runtimes.mounts
 import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
@@ -1748,7 +1748,7 @@ class TestFeatureStore(TestMLRunSystem):
             source,
             overwrite=True,
             run_config=fstore.RunConfig(local=False).apply(
-                mlrun_pipelines.mounts.mount_v3io()
+                mlrun.runtimes.mounts.mount_v3io()
             ),
             targets=targets,
         )
@@ -2619,7 +2619,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         function.spec.default_content_type = "application/json"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun_pipelines.mounts.mount_v3io()
+            mlrun.runtimes.mounts.mount_v3io()
         )
         myset.deploy_ingestion_service(source=source, run_config=run_config)
         # push records to stream
@@ -2936,7 +2936,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         function.spec.default_content_type = "application/json"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun_pipelines.mounts.mount_v3io()
+            mlrun.runtimes.mounts.mount_v3io()
         )
         fset.deploy_ingestion_service(
             source=v3io_source,
@@ -3155,7 +3155,7 @@ class TestFeatureStore(TestMLRunSystem):
         function.spec.default_content_type = "application/json"
         function.spec.image_pull_policy = "Always"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun_pipelines.mounts.mount_v3io()
+            mlrun.runtimes.mounts.mount_v3io()
         )
         fset.deploy_ingestion_service(
             source=source, run_config=run_config, targets=targets
@@ -3215,7 +3215,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
+            dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -3788,7 +3788,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
+            dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4145,7 +4145,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
+            dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4267,7 +4267,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
+            dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4565,7 +4565,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
+            dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -4631,7 +4631,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
+            dask_cluster.apply(mlrun.runtimes.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()

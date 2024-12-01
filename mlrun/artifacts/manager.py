@@ -41,6 +41,7 @@ from .dataset import (
     DatasetArtifact,
     TableArtifact,
 )
+from .document import DocumentArtifact
 from .model import ModelArtifact
 from .plots import (
     PlotArtifact,
@@ -57,6 +58,7 @@ artifact_types = {
     "model": ModelArtifact,
     "dataset": DatasetArtifact,
     "plotly": PlotlyArtifact,
+    "document": DocumentArtifact,
 }
 
 

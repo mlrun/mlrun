@@ -17,21 +17,22 @@ import os
 import re
 import time
 import typing
+from collections.abc import Iterable
 from enum import Enum
 
 import dotenv
 import kubernetes.client as k8s_client
+from kubernetes.client import V1Volume, V1VolumeMount
 
 import mlrun.common.constants
 import mlrun.errors
+import mlrun.runtimes.mounts
 import mlrun.utils.regex
-import mlrun_pipelines.mounts
 from mlrun.common.schemas import (
     NodeSelectorOperator,
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
-from mlrun_pipelines.mixins import KfpAdapterMixin
 
 from ..config import config as mlconf
 from ..k8s_utils import (
@@ -366,6 +367,35 @@ class KubeResourceSpec(FunctionSpec):
                 f"Function service account {self.service_account} is not in allowed "
                 + f"service accounts {allowed_service_accounts}"
             )
+
+    def with_volumes(
+        self,
+        volumes: typing.Union[list[dict], dict, V1Volume],
+    ) -> "KubeResourceSpec":
+        """Add volumes to the volumes dictionary, only used as part of the mlrun_pipelines mount functions."""
+        if isinstance(volumes, dict):
+            set_named_item(self._volumes, volumes)
+        elif isinstance(volumes, Iterable):
+            for volume in volumes:
+                set_named_item(self._volumes, volume)
+        else:
+            set_named_item(self._volumes, volumes)
+        return self
+
+    def with_volume_mounts(
+        self,
+        volume_mounts: typing.Union[list[dict], dict, V1VolumeMount],
+    ) -> "KubeResourceSpec":
+        """Add volume mounts to the volume mounts dictionary,
+        only used as part of the mlrun_pipelines mount functions."""
+        if isinstance(volume_mounts, dict):
+            self._set_volume_mount(volume_mounts)
+        elif isinstance(volume_mounts, Iterable):
+            for volume_mount in volume_mounts:
+                self._set_volume_mount(volume_mount)
+        else:
+            self._set_volume_mount(volume_mounts)
+        return self
 
     def _set_volume_mount(
         self, volume_mount, volume_mounts_field_name="_volume_mounts"
@@ -942,12 +972,12 @@ class AutoMountType(str, Enum):
     @classmethod
     def all_mount_modifiers(cls):
         return [
-            mlrun_pipelines.mounts.v3io_cred.__name__,
-            mlrun_pipelines.mounts.mount_v3io.__name__,
-            mlrun_pipelines.mounts.mount_pvc.__name__,
-            mlrun_pipelines.mounts.auto_mount.__name__,
-            mlrun_pipelines.mounts.mount_s3.__name__,
-            mlrun_pipelines.mounts.set_env_variables.__name__,
+            mlrun.runtimes.mounts.v3io_cred.__name__,
+            mlrun.runtimes.mounts.mount_v3io.__name__,
+            mlrun.runtimes.mounts.mount_pvc.__name__,
+            mlrun.runtimes.mounts.auto_mount.__name__,
+            mlrun.runtimes.mounts.mount_s3.__name__,
+            mlrun.runtimes.mounts.set_env_variables.__name__,
         ]
 
     @classmethod
@@ -964,27 +994,27 @@ class AutoMountType(str, Enum):
     def _get_auto_modifier():
         # If we're running on Iguazio - use v3io_cred
         if mlconf.igz_version != "":
-            return mlrun_pipelines.mounts.v3io_cred
+            return mlrun.runtimes.mounts.v3io_cred
         # Else, either pvc mount if it's configured or do nothing otherwise
         pvc_configured = (
             "MLRUN_PVC_MOUNT" in os.environ
             or "pvc_name" in mlconf.get_storage_auto_mount_params()
         )
-        return mlrun_pipelines.mounts.mount_pvc if pvc_configured else None
+        return mlrun.runtimes.mounts.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
         return {
             AutoMountType.none: None,
-            AutoMountType.v3io_credentials: mlrun_pipelines.mounts.v3io_cred,
-            AutoMountType.v3io_fuse: mlrun_pipelines.mounts.mount_v3io,
-            AutoMountType.pvc: mlrun_pipelines.mounts.mount_pvc,
+            AutoMountType.v3io_credentials: mlrun.runtimes.mounts.v3io_cred,
+            AutoMountType.v3io_fuse: mlrun.runtimes.mounts.mount_v3io,
+            AutoMountType.pvc: mlrun.runtimes.mounts.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
-            AutoMountType.s3: mlrun_pipelines.mounts.mount_s3,
-            AutoMountType.env: mlrun_pipelines.mounts.set_env_variables,
+            AutoMountType.s3: mlrun.runtimes.mounts.mount_s3,
+            AutoMountType.env: mlrun.runtimes.mounts.set_env_variables,
         }[self]
 
 
-class KubeResource(BaseRuntime, KfpAdapterMixin):
+class KubeResource(BaseRuntime):
     """
     A parent class for runtimes that generate k8s resources when executing.
     """
@@ -1026,7 +1056,8 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
     def get_env(self, name, default=None):
         """Get the pod environment variable for the given name, if not found return the default
-        If it's a scalar value, will return it, if the value is from source, return the k8s struct (V1EnvVarSource)"""
+        If it's a scalar value, will return it, if the value is from source, return the k8s struct (V1EnvVarSource)
+        """
         for env_var in self.spec.env:
             if get_item_name(env_var) == name:
                 # valueFrom is a workaround for now, for some reason the envs aren't getting sanitized
@@ -1080,7 +1111,10 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
             else:
                 raise mlrun.errors.MLRunNotFoundError(f"{file_path} does not exist")
         for name, value in env_vars.items():
-            self.set_env(name, value)
+            if isinstance(value, dict) and "valueFrom" in value:
+                self.set_env(name, value_from=value["valueFrom"])
+            else:
+                self.set_env(name, value)
         return self
 
     def set_image_pull_configuration(
@@ -1269,6 +1303,36 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 "Security context is handled internally when enrichment mode is not disabled"
             )
         self.spec.security_context = security_context
+
+    def apply(
+        self,
+        modifier: typing.Callable[["KubeResource"], "KubeResource"],
+    ) -> "KubeResource":
+        """
+        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
+        All modifiers accept Kube, apply some changes on its spec and return it so modifiers can be chained
+        one after the other.
+
+        :param modifier: a modifier callable object
+        :return: the runtime (self) after the modifications
+        """
+        modifier(self)
+        if AutoMountType.is_auto_modifier(modifier):
+            self.spec.disable_auto_mount = True
+
+        api_client = k8s_client.ApiClient()
+        if self.spec.env:
+            for index, env in enumerate(
+                api_client.sanitize_for_serialization(self.spec.env)
+            ):
+                self.spec.env[index] = env
+
+        if self.spec.volumes and self.spec.volume_mounts:
+            vols = api_client.sanitize_for_serialization(self.spec.volumes)
+            mounts = api_client.sanitize_for_serialization(self.spec.volume_mounts)
+            self.spec.update_vols_and_mounts(vols, mounts)
+
+        return self
 
     def list_valid_priority_class_names(self):
         return mlconf.get_valid_function_priority_class_names()

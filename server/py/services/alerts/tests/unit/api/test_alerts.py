@@ -19,13 +19,13 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 
 import framework.utils.singletons.db
-from framework.tests.unit.common_fixtures import TestServiceBase
+from services.alerts.tests.unit.conftest import TestAlertsBase
 
 ALERTS_PATH = "projects/{project}/alerts"
 STORE_ALERTS_PATH = "projects/{project}/alerts/{name}"
 
 
-class TestAlerts(TestServiceBase):
+class TestAlerts(TestAlertsBase):
     def test_store_alerts(self, db: Session, client: TestClient):
         project = "test-alerts"
         alert_name = "alert-name"

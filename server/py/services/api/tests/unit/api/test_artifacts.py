@@ -1101,6 +1101,72 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
     assert response.json()["pagination"]["page-token"] is None
 
 
+def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient):
+    projects = ["project-1", "project-2"]
+    artifact_keys = ["artifact-1", "artifact-2"]
+    artifact_tags = ["first", "second"]
+    iterations = 3
+
+    for project in projects:
+        _create_project(unversioned_client, project_name=project)
+        for artifact_key in artifact_keys:
+            for iteration in range(iterations):
+                for tag in artifact_tags:
+                    json = _generate_artifact_body(
+                        key=artifact_key, project=project, iteration=iteration, tag=tag
+                    )
+                    resp = unversioned_client.post(
+                        STORE_API_ARTIFACTS_V2_PATH.format(project=project),
+                        json=json,
+                    )
+                    assert resp.status_code == HTTPStatus.CREATED.value
+
+    # partioned list, specific project, 1 row per partition by default, so 2 names * 1 row = 2
+    artifacts = _list_and_assert_objects(
+        unversioned_client,
+        params={
+            "partition-by": mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+            "partition-sort-by": mlrun.common.schemas.SortField.created,
+            "partition-order": mlrun.common.schemas.OrderType.asc,
+        },
+        expected_number_of_artifacts=2,
+        project=projects[0],
+    )
+    # sorted by ascending created so only the first ones created
+    for artifact in artifacts:
+        assert artifact["metadata"]["iter"] == 0
+
+    # partioned list, specific project, 1 row per partition by default, so 2 names * 1 row = 2
+    artifacts = _list_and_assert_objects(
+        unversioned_client,
+        params={
+            "tag": "latest",
+            "partition-by": mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
+        },
+        expected_number_of_artifacts=2,
+        project=projects[0],
+    )
+    # sorted by descending updated so only the second ones created
+    for artifact in artifacts:
+        assert artifact["metadata"]["iter"] == 2
+        assert artifact["metadata"]["tag"] == "latest"
+
+    # partioned list, specific project, 5 row per partition, so 2 names * 5 row = 10
+    _list_and_assert_objects(
+        unversioned_client,
+        params={
+            "partition-by": mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
+            "rows-per-partition": 5,
+        },
+        expected_number_of_artifacts=10,
+        project=projects[0],
+    )
+
+
 def _create_project(
     client: TestClient, project_name: str = PROJECT, prefix: Optional[str] = None
 ):
@@ -1163,3 +1229,19 @@ def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> s
         params.append(f"tag={tag}")
 
     return f"{url}?{'&'.join(params)}" if params else url
+
+
+def _list_and_assert_objects(
+    unversioned_client: TestClient,
+    params,
+    expected_number_of_artifacts: int,
+    project: str,
+):
+    response = unversioned_client.get(
+        LIST_API_ARTIFACTS_V2_PATH.format(project=project), params=params
+    )
+    assert response.status_code == HTTPStatus.OK.value, response.text
+
+    artifacts = response.json()["artifacts"]
+    assert len(artifacts) == expected_number_of_artifacts
+    return artifacts

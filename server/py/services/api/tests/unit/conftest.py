@@ -20,9 +20,7 @@ from datetime import datetime
 from tempfile import TemporaryDirectory
 
 import fastapi
-import httpx
 import pytest
-import pytest_asyncio
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -53,8 +51,6 @@ from framework.tests.unit.common_fixtures import (
 )
 from services.api.daemon import daemon
 
-# Importing here since mlrun_pipelines imports mlconf and it causes circular import
-
 tests_root_directory = pathlib.Path(__file__).absolute().parent
 assets_path = tests_root_directory.joinpath("assets")
 
@@ -67,30 +63,52 @@ if str(tests_root_directory) in os.getcwd():
     ]
 
 
-@pytest.fixture()
-def app() -> fastapi.FastAPI:
-    # TODO: This is a hack to remove the alerts app mount because it blocks the test router.
-    #  Remove this when alerts is properly mounted with "alerts" prefix
-    _app = services.api.daemon.app()
-    _app.routes.pop()
-    yield _app
+class TestAPIBase(TestServiceBase):
+    @pytest.fixture(scope="module")
+    def app(self) -> fastapi.FastAPI:
+        mlconf.services.service_name = "api"
+        mlconf.services.hydra.services = ""
+        yield services.api.daemon.app()
 
+    @pytest.fixture(scope="module")
+    def prefix(self):
+        yield daemon.service.base_versioned_service_prefix
 
-@pytest.fixture()
-def prefix() -> str:
-    yield daemon.service.base_versioned_service_prefix
+    # TODO: Move this to common fixtures similar to framework.tests.unit.common_fixtures.client
+    @pytest.fixture
+    def unversioned_client(self, db, app) -> Generator:
+        """
+        unversioned_client is a test client that doesn't have the version prefix in the url.
+        When using this client, the version prefix must be added to the url manually.
+        This is useful when tests use several endpoints that are not under the same version prefix.
+        """
+        with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+            mlconf.httpdb.logs_path = log_dir
+            mlconf.monitoring.runs.interval = 0
+            mlconf.runtimes_cleanup_interval = 0
+            mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+
+            with TestClient(app) as unversioned_test_client:
+                self.set_base_url_for_test_client(
+                    unversioned_test_client, daemon.service.service_prefix
+                )
+                yield unversioned_test_client
 
 
 # TODO: This is a hack to allow sharing fixtures between services in non-root directives because pytest behavior
 #  changes with respect to the directive in which the test is running from. To use the common fixtures we need to use
 #  pytest plugins but it is not allowed in non-root directive which means the fixture must apply on all tests
-#  including client side. The correct way to solve this is using classes like in alerts service unit tests but it is a
-#  big refactor for this PR
-test_service_base = TestServiceBase()
-service_config_test = test_service_base.service_config_test
-db = test_service_base.db
-set_base_url_for_test_client = test_service_base.set_base_url_for_test_client
-client = test_service_base.client
+#  including client side. The correct way to solve this is using TestAPIBase class like in alerts service unit tests
+#  but it is a big refactor for this PR
+test_api_base = TestAPIBase()
+service_config_test = test_api_base.service_config_test
+app = test_api_base.app
+prefix = test_api_base.prefix
+db = test_api_base.db
+set_base_url_for_test_client = test_api_base.set_base_url_for_test_client
+client = test_api_base.client
+unversioned_client = test_api_base.unversioned_client
+async_client = test_api_base.async_client
 
 
 @pytest.fixture(autouse=True)
@@ -101,49 +119,18 @@ def api_config_test(service_config_test):
 
     services.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
-    # we need to override the launcher container manually because we run all unit tests in the same process in CI
-    # so API is imported even when it's not needed
+    # we need to override the containers manually because we run all unit tests in
+    # the same process in CI so services are imported even when they are not needed
     launcher_factory = mlrun.launcher.factory.LauncherFactory()
     launcher_factory._launcher_container.override(
         services.api.launcher.ServerSideLauncherContainer
     )
+    service_container = framework.service.ServiceContainer()
+    service_container.override(services.api.daemon.APIServiceContainer)
 
     yield
     launcher_factory._launcher_container.reset_override()
-
-
-# TODO: Move this to common fixtures similar to framework.tests.unit.common_fixtures.client
-@pytest.fixture
-def unversioned_client(db, app) -> Generator:
-    """
-    unversioned_client is a test client that doesn't have the version prefix in the url.
-    When using this client, the version prefix must be added to the url manually.
-    This is useful when tests use several endpoints that are not under the same version prefix.
-    """
-    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
-        mlconf.httpdb.logs_path = log_dir
-        mlconf.monitoring.runs.interval = 0
-        mlconf.runtimes_cleanup_interval = 0
-        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-
-        with TestClient(app) as unversioned_test_client:
-            set_base_url_for_test_client(
-                unversioned_test_client, daemon.service.service_prefix
-            )
-            yield unversioned_test_client
-
-
-@pytest_asyncio.fixture()
-async def async_client(db, app, prefix) -> typing.AsyncIterator[httpx.AsyncClient]:
-    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
-        mlconf.httpdb.logs_path = log_dir
-        mlconf.monitoring.runs.interval = 0
-        mlconf.runtimes_cleanup_interval = 0
-        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-
-        async with httpx.AsyncClient(app=app, base_url="http://test") as async_client:
-            set_base_url_for_test_client(async_client, prefix)
-            yield async_client
+    service_container.reset_override()
 
 
 @pytest.fixture

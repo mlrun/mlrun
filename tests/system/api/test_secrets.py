@@ -106,7 +106,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             filter_by={
                 "source": "mlrun-api",
                 "kind": PROJECT_SECRET_DELETED,
-                "timestamp_iso8601": f"[$ge]{start.isoformat()}Z",
+                "timestamp_iso8601": f"[$ge]{start.isoformat()}",
             },
         )
         assert len(audit_events) == 0
@@ -157,7 +157,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             filter_by={
                 "source": "mlrun-api",
                 "kind": PROJECT_SECRET_DELETED,
-                "timestamp_iso8601": f"[$ge]{now.isoformat()}Z",
+                "timestamp_iso8601": f"[$ge]{now.isoformat()}",
             },
         )
         assert len(audit_events) == 0
@@ -168,7 +168,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             filter_by={
                 "source": "mlrun-api",
                 "kind": PROJECT_SECRET_DELETED,
-                "timestamp_iso8601": f"[$ge]{start.isoformat()}Z",
+                "timestamp_iso8601": f"[$ge]{start.isoformat()}",
             },
         )
         assert len(audit_events) == 1
@@ -443,7 +443,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
                 filter_by={
                     "source": "mlrun-api",
                     "kind": event_kind,
-                    "timestamp_iso8601": f"[$ge]{since_time.isoformat()}Z",
+                    "timestamp_iso8601": f"[$ge]{since_time.isoformat()}",
                 },
             )
             assert len(audit_events) > 0

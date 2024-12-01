@@ -33,7 +33,7 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun.common.helpers import parse_versioned_object_uri
-from mlrun_pipelines.mounts import auto_mount as auto_mount_modifier
+from mlrun.runtimes.mounts import auto_mount as auto_mount_modifier
 
 from .config import config as mlconf
 from .db import get_run_db

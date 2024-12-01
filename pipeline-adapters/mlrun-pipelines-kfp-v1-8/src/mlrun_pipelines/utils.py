@@ -15,54 +15,8 @@
 import tempfile
 import typing
 
-from kubernetes import client
-
 from mlrun_pipelines.helpers import new_pipe_metadata
 from mlrun_pipelines.imports import compiler, kfp  # noqa: F401
-
-if typing.TYPE_CHECKING:
-    from mlrun.runtimes import BaseRuntime
-
-
-def apply_kfp(
-    modify: typing.Callable,
-    cop: kfp.dsl.ContainerOp,
-    runtime: "BaseRuntime",
-) -> kfp.dsl.ContainerOp:
-    modify(cop)
-
-    # Have to do it here to avoid circular dependencies
-    from mlrun.runtimes.pod import AutoMountType
-
-    if AutoMountType.is_auto_modifier(modify):
-        runtime.spec.disable_auto_mount = True
-
-    api = client.ApiClient()
-    for k, v in cop.pod_labels.items():
-        runtime.metadata.labels[k] = v
-    for k, v in cop.pod_annotations.items():
-        runtime.metadata.annotations[k] = v
-    if cop.container.env:
-        env_names = [
-            e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
-        ]
-        for e in api.sanitize_for_serialization(cop.container.env):
-            name = e["name"]
-            if name in env_names:
-                runtime.spec.env[env_names.index(name)] = e
-            else:
-                runtime.spec.env.append(e)
-                env_names.append(name)
-        cop.container.env.clear()
-
-    if cop.volumes and cop.container.volume_mounts:
-        vols = api.sanitize_for_serialization(cop.volumes)
-        mounts = api.sanitize_for_serialization(cop.container.volume_mounts)
-        runtime.spec.update_vols_and_mounts(vols, mounts)
-        cop.volumes.clear()
-        cop.container.volume_mounts.clear()
-
-    return runtime
 
 
 def compile_pipeline(

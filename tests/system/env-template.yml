@@ -87,3 +87,6 @@ MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION:
 # Set to `True` to enable TLS verification.
 # set to `False` when running in a lab environment where TLS verification may be disabled.
 MLRUN_HTTPDB__HTTP__VERIFY:
+
+MILVUS_HOST: 
+MILVUS_PORT: 

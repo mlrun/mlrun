@@ -73,6 +73,9 @@ from .utils import (
     update_in,
 )
 
+if typing.TYPE_CHECKING:
+    from mlrun.datastore import DataItem
+
 
 def function_to_module(code="", workdir=None, secrets=None, silent=False):
     """Load code, notebook or mlrun function as .py module
@@ -1089,7 +1092,7 @@ def get_object(url, secrets=None, size=None, offset=0, db=None):
     return stores.object(url=url).get(size, offset)
 
 
-def get_dataitem(url, secrets=None, db=None) -> mlrun.datastore.DataItem:
+def get_dataitem(url, secrets=None, db=None) -> "DataItem":
     """get mlrun dataitem object (from path/url)"""
     stores = store_manager.set(secrets, db=db)
     return stores.object(url=url)

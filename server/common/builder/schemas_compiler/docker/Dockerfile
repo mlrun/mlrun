@@ -35,5 +35,5 @@ ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}
 
-RUN pip install --upgrade setuptools
-RUN pip install grpcio-tools${GRPCIO_TOOLS_VERSION}
+RUN python -m pip install --upgrade setuptools
+RUN python -m pip install grpcio-tools${GRPCIO_TOOLS_VERSION}

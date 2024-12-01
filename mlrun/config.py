@@ -533,7 +533,7 @@ default_config = {
             "verbose": True,
         },
         "pagination": {
-            "default_page_size": 20,
+            "default_page_size": 200,
             "pagination_cache": {
                 "interval": 60,
                 "ttl": 3600,

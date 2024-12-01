@@ -28,8 +28,8 @@ import mlrun.errors
 import mlrun.k8s_utils
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
+from mlrun.runtimes.mounts import auto_mount
 from mlrun.runtimes.utils import generate_resources
-from mlrun_pipelines.mounts import auto_mount
 
 import services.api.utils.builder
 from framework.utils.singletons.db import get_db

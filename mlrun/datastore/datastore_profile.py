@@ -81,6 +81,24 @@ class DatastoreProfileBasic(DatastoreProfile):
     private: typing.Optional[str] = None
 
 
+class VectorStoreProfile(DatastoreProfile):
+    type: str = pydantic.Field("vector")
+    _private_attributes = ("kwargs_private",)
+    vector_store_class: str
+    kwargs_public: typing.Optional[dict] = None
+    kwargs_private: typing.Optional[dict] = None
+
+    def attributes(self, kwargs=None):
+        attributes = {}
+        if self.kwargs_public:
+            attributes = merge(attributes, self.kwargs_public)
+        if self.kwargs_private:
+            attributes = merge(attributes, self.kwargs_private)
+        if kwargs:
+            attributes = merge(attributes, kwargs)
+        return attributes
+
+
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.v1.Field("kafka_target")
     _private_attributes = "kwargs_private"
@@ -476,6 +494,7 @@ class DatastoreProfile2Json(pydantic.v1.BaseModel):
             "gcs": DatastoreProfileGCS,
             "az": DatastoreProfileAzureBlob,
             "hdfs": DatastoreProfileHdfs,
+            "vector": VectorStoreProfile,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

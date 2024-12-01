@@ -49,14 +49,14 @@ class Member(
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def initialize(self):
-        logger.info("Initializing projects follower")
+        self._leader_name = mlrun.mlconf.httpdb.projects.leader
+        logger.info("Initializing projects follower", leader=self._leader_name)
         self._should_sync = (
             mlrun.mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
             and mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync
             == "enabled"
         )
-        self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
         self._leader_client: framework.utils.projects.remotes.leader.Member
         if self._leader_name == "iguazio":

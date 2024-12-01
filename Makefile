@@ -66,6 +66,9 @@ MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 MLRUN_ANACONDA_PYTHON_DISTRIBUTION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1$$2}')
 MLRUN_PYTHON_VERSION_SUFFIX := $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION),)
 
+# expected to be in the form of 'py<major><minor>' e.g. 'py39'
+MLRUN_LINT_PYTHON_VERSION := $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "py"$$1$$2}')
+
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
@@ -637,12 +640,12 @@ fmt: ## Format the code using Ruff and blacken-docs
 	python -m ruff check --fix-only
 	python -m ruff format
 	@echo "Formatting the code blocks with blacken-docs..."
-	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)"
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
 	@echo "Checking the code blocks with blacken-docs"
-	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39 --check
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)" --check
 	@if [ "$(SKIP_VALE_CHECK)" != "true" ]; then \
 	    make vale-docs; \
 	fi
@@ -734,11 +737,15 @@ endif
 	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
 	cd $(MLRUN_BC_TESTS_BASE_CODE_PATH) && \
+	pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+	pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json && \
 	cd ..
 
 	# Run tests for the head code (feature branch)
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
+	pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+	pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json
 
 	# Run OpenAPI diff to check compatibility

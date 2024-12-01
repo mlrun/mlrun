@@ -35,10 +35,10 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
 import mlrun.model_monitoring.api
+import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
-import mlrun_pipelines.mounts
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime
@@ -285,7 +285,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
-        ).apply(mlrun_pipelines.mounts.auto_mount())
+        ).apply(mlrun.runtimes.mounts.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
         project.enable_model_monitoring(
@@ -353,7 +353,10 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             self.project_name, endpoint.metadata.uid
         )
         assert len(metrics) == 1
-        assert metrics[0] == f"{self.project_name}.mlrun-infra.metric.invocations"
+        assert (
+            metrics[0].full_name
+            == f"{self.project_name}.mlrun-infra.metric.invocations"
+        )
 
     def _assert_model_uri(
         self,
@@ -592,7 +595,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
-        ).apply(mlrun_pipelines.mounts.auto_mount())
+        ).apply(mlrun.runtimes.mounts.auto_mount())
 
         serving_fn.set_topology(
             "router", "mlrun.serving.VotingEnsemble", name="VotingEnsemble"
@@ -992,7 +995,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=self.project_name
-        ).apply(mlrun_pipelines.mounts.auto_mount())
+        ).apply(mlrun.runtimes.mounts.auto_mount())
 
         model_name = "sklearn_RandomForestClassifier"
 

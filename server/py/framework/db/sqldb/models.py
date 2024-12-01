@@ -861,7 +861,7 @@ with warnings.catch_warnings():
             ),
         )
 
-        id = Column(Integer)
+        id = Column(Integer, autoincrement=True)
         activation_time = Column(SQLTypesUtil.datetime(), nullable=False)
         name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         project = Column(
@@ -881,6 +881,7 @@ with warnings.catch_warnings():
             String(255, collation=SQLTypesUtil.collation()), nullable=False
         )
         number_of_events = Column(Integer, nullable=False)
+        reset_time = Column(SQLTypesUtil.datetime(), nullable=True)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.id}"
@@ -965,6 +966,12 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}_{self.name}_{self.created}"
+
+
+def get_partitioned_table_names():
+    return [
+        AlertActivation.__tablename__,
+    ]
 
 
 # Must be after all table definitions

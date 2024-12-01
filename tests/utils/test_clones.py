@@ -42,3 +42,24 @@ def test_clone_git_refs(ref, ref_type):
         )
         if tag:
             repo_obj.git.checkout.assert_called_once_with(tag)
+
+
+@pytest.mark.parametrize(
+    "url,secrets,enriched",
+    [
+        ("https://github.com/some-git-project", {"GIT_TOKEN": "123"}, True),
+        ("https://github.com:8080/some-git-project", {"GIT_TOKEN": "123"}, True),
+        ("https://github.com:8080/some-git-project", {}, False),
+        ("git://somewhere:8080/else", {}, False),
+    ],
+)
+def test_add_credentials_git_remote_url(url, secrets, enriched):
+    resolved_url, url_enriched = mlrun.utils.clones.add_credentials_git_remote_url(
+        url, secrets=secrets
+    )
+    if enriched:
+        assert resolved_url.startswith("https://")
+    else:
+        assert url == resolved_url
+    assert secrets.get("GIT_TOKEN", "") in resolved_url
+    assert enriched is url_enriched

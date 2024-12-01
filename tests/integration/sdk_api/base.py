@@ -30,7 +30,7 @@ logger = create_test_logger(name="test-integration")
 
 
 class TestMLRunIntegration:
-    project_name = "system-test-project"
+    project_name = "integration-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
     extra_env = None

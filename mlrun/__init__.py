@@ -31,8 +31,6 @@ from typing import Optional
 
 import dotenv
 
-import mlrun_pipelines
-
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
@@ -63,16 +61,16 @@ from .run import (
     new_function,
     wait_for_pipeline_completion,
 )
-from .runtimes import new_model_server
+from .runtimes import mounts, new_model_server
 from .secrets import get_secret_or_env
 from .utils.version import Version
 
 __version__ = Version().get()["version"]
 
-VolumeMount = mlrun_pipelines.common.mounts.VolumeMount
-mount_v3io = mlrun_pipelines.mounts.mount_v3io
-v3io_cred = mlrun_pipelines.mounts.v3io_cred
-auto_mount = mlrun_pipelines.mounts.auto_mount
+VolumeMount = mounts.VolumeMount
+mount_v3io = mounts.mount_v3io
+v3io_cred = mounts.v3io_cred
+auto_mount = mounts.auto_mount
 
 
 def get_version():

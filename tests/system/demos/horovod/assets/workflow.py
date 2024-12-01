@@ -14,7 +14,7 @@
 #
 from kfp import dsl
 
-from mlrun_pipelines.mounts import mount_v3io
+from mlrun.runtimes.mounts import mount_v3io
 
 funcs = {}
 

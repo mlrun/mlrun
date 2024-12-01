@@ -1,11 +1,6 @@
 (canary)=
 # Canary functions and rolling upgrades
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/) (**"the platform"**).
-```
-
-
 Canary rollout is a known practice to first test a software update on a small number of users before rolling it 
 out to all users. In machine learning, the main usage is to test a new model on a small subset of users before 
 rolling it out to all users. 

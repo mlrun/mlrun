@@ -143,9 +143,6 @@ async def long_function(sleep_time):
 # must add it here since we're adding routes
 @pytest.fixture()
 def client(app) -> typing.Generator:
-    # TODO: This is a hack to remove the alerts app mount because it blocks the test router.
-    #  Remove this when alerts is properly mounted with "alerts" prefix
-    app.routes.pop()
     app.include_router(test_router, prefix="/test")
     with fastapi.testclient.TestClient(app) as client:
         yield client

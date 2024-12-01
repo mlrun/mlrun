@@ -122,7 +122,7 @@ def add_credentials_git_remote_url(url: str, secrets=None) -> tuple[str, bool]:
         username, password = get_git_username_password_from_token(token)
 
     if username:
-        return f"https://{username}:{password}@{url_obj.hostname}{url_obj.path}", True
+        return f"https://{username}:{password}@{url_obj.netloc}{url_obj.path}", True
     return url, False
 
 

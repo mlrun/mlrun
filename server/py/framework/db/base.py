@@ -237,6 +237,14 @@ class DBInterface(ABC):
         producer_uri: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
+        partition_by: Optional[mlrun.common.schemas.ArtifactPartitionByField] = None,
+        rows_per_partition: Optional[int] = 1,
+        partition_sort_by: Optional[
+            mlrun.common.schemas.SortField
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Optional[
+            mlrun.common.schemas.OrderType
+        ] = mlrun.common.schemas.OrderType.desc,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
     ) -> typing.Union[list, mlrun.lists.ArtifactList]:
@@ -964,6 +972,16 @@ class DBInterface(ABC):
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
         notifications_states: list[mlrun.common.schemas.NotificationState],
+    ):
+        pass
+
+    @abstractmethod
+    def update_alert_activation(
+        self,
+        session,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        number_of_events: Optional[int],
     ):
         pass
 

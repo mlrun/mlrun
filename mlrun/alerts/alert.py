@@ -56,7 +56,7 @@ class AlertConfig(ModelObj):
         state: alert_objects.AlertActiveState = None,
         created: Optional[str] = None,
         count: Optional[int] = None,
-        updated: Optional[datetime] = None,
+        updated: Optional[str] = None,
     ):
         """Alert config object
 
@@ -134,21 +134,38 @@ class AlertConfig(ModelObj):
         self.entities = entities
         self.id = id
         self.state = state
-        self.created = created
+        self._created = created
         self.count = count
-        self.updated = updated
+        self._updated = updated
 
         if template:
             self._apply_template(template)
 
     @property
-    def updated_datetime(self) -> datetime:
+    def created(self) -> datetime:
+        """
+        Get the `created` field as a datetime object.
+        """
+        if isinstance(self._created, str):
+            return datetime.fromisoformat(self._created)
+        return self._created
+
+    @created.setter
+    def created(self, created):
+        self._created = created
+
+    @property
+    def updated(self) -> datetime:
         """
         Get the `updated` field as a datetime object.
         """
-        if isinstance(self.updated, str):
-            return datetime.fromisoformat(self.updated)
-        return self.updated
+        if isinstance(self._updated, str):
+            return datetime.fromisoformat(self._updated)
+        return self._updated
+
+    @updated.setter
+    def updated(self, updated):
+        self._updated = updated
 
     def validate_required_fields(self):
         if not self.name:
@@ -285,8 +302,8 @@ class AlertConfig(ModelObj):
         :returns: A list of alert activations matching the provided filters.
         """
         db = mlrun.get_run_db()
-        if from_last_update and self.updated is not None:
-            since = self.updated_datetime
+        if from_last_update and self._updated is not None:
+            since = self.updated
 
         return db.list_alert_activations(
             project=self.project,
@@ -350,8 +367,8 @@ class AlertConfig(ModelObj):
 
         :returns: A tuple containing the list of alert activations and an optional `page_token` for pagination.
         """
-        if from_last_update and self.updated is not None:
-            kwargs["since"] = self.updated_datetime
+        if from_last_update and self._updated is not None:
+            kwargs["since"] = self.updated
 
         db = mlrun.get_run_db()
         return db.paginated_list_alert_activations(

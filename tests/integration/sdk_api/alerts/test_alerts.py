@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from datetime import timezone
 
 import pytest
 
@@ -905,7 +906,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if alert_count:
             assert alert.count == alert_count
         if alert_updated:
-            assert alert.updated > alert.created
+            assert alert.updated > alert.created.replace(tzinfo=timezone.utc)
 
     @staticmethod
     def _generate_event_request(project, event_kind, entity_kind):

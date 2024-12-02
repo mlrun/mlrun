@@ -89,12 +89,12 @@ def plot_produce(context: mlrun.MLClientCtx):
     ):
         with mocked_graph_context_project():
             monitoring_context = mm_context.MonitoringApplicationContext(
-                application_name="histogram-data-drift", event={}
+                application_name="histogram-data-drift",
+                event={},
+                artifacts_logger=context,
             )
             monitoring_context._feature_stats = inputs_statistics
             monitoring_context._sample_df_stats = sample_data_statistics
-    # Patching `log_artifact` only for this test
-    monitoring_context.log_artifact = context.log_artifact
     # Initialize the app
     application = histogram_data_drift.HistogramDataDriftApplication()
     # Calculate drift

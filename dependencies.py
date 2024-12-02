@@ -122,7 +122,7 @@ def _extract_package_from_egg(line: str) -> str:
 
 
 def _load_dependencies_from_file(
-        path: str, parent_dir: Optional[str] = None
+    path: str, parent_dir: Optional[str] = None
 ) -> list[str]:
     """Load dependencies from requirements file"""
     parent_dir = parent_dir or os.path.dirname(__file__)
@@ -135,10 +135,10 @@ def _load_dependencies_from_file(
 
 
 def _get_extra_dependencies(
-        include: Optional[list[str]] = None,
-        exclude: Optional[list[str]] = None,
-        base_deps: Optional[list[str]] = None,
-        extras_require: Optional[dict[str, list[str]]] = None,
+    include: Optional[list[str]] = None,
+    exclude: Optional[list[str]] = None,
+    base_deps: Optional[list[str]] = None,
+    extras_require: Optional[dict[str, list[str]]] = None,
 ) -> list[str]:
     """Get list of dependencies for given extras categories
 

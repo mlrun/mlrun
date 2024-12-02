@@ -32,7 +32,9 @@ class InProgressApp0(ModelMonitoringApplicationBase):
     def do_tracking(
         self, monitoring_context: MonitoringApplicationContext
     ) -> ModelMonitoringApplicationResult:
-        monitoring_context.logger.info("Ok let's try")
+        monitoring_context.logger.info(
+            "This test app is failing on purpose - ignore the failure!"
+        )
         raise ValueError
 
 
@@ -64,6 +66,6 @@ class TestEvaluate:
     def test_local_no_params() -> None:
         func_name = "test-app"
         run = InProgressApp0.evaluate(func_path=__file__, func_name=func_name)
-        assert run.state() == "created"  # Should be "error"
+        assert run.state() == "created"  # Should be "error", see ML-8507
         run = InProgressApp1.evaluate(func_path=__file__, func_name=func_name)
         assert run.state() == "completed"

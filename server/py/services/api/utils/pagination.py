@@ -199,7 +199,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page=page, page_size=page_size, page_token=token
             )
             if len(items) < page_size + 1:
-                # If we got fewer items than the limit + 1, we know that there are no more items
+                # If we got fewer items than the page_size + 1, we know that there are no more items
                 # and this is the last page.
                 # On the last page, we don't return the token, but we keep it live in the cache
                 # so the client can access previous pages.

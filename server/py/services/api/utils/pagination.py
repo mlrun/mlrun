@@ -195,7 +195,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
             # specifically for list artifacts that receives limit as an api parameter
             # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
-            if kwargs_limit := method_kwargs.get("limit"):
+            if kwargs_limit := method_kwargs.pop("limit", None):
                 limit = kwargs_limit
 
             items = await framework.utils.asyncio.await_or_call_in_threadpool(

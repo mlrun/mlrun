@@ -197,8 +197,9 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 page_size=page_size,
                 method=method.__name__,
             )
+            offset, limit = self._calculate_offset_and_limit(page, page_size)
             return await framework.utils.asyncio.await_or_call_in_threadpool(
-                method, session, **method_kwargs, page=page, page_size=page_size
+                method, session, **method_kwargs, offset=offset, limit=limit
             ), mlrun.common.schemas.pagination.PaginationInfo(
                 page=page, page_size=page_size, page_token=token
             )
@@ -244,8 +245,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         # upsert pagination cache record to update last_accessed time or create a new record
         method_schema = PaginatedMethods.get_method_schema(method.__name__)
         kwargs_schema = method_schema(**method_kwargs)
-        kwargs_schema.page = None
-        kwargs_schema.page_size = None
+        kwargs_schema.offset = None
+        kwargs_schema.limit = None
         self._logger.debug(
             "Storing pagination cache record",
             method=method.__name__,
@@ -261,3 +262,13 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             kwargs=kwargs_schema.json(exclude_none=True),
         )
         return token, page, page_size, method, kwargs_schema.dict(exclude_none=True)
+
+    @staticmethod
+    def _calculate_offset_and_limit(
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> tuple[typing.Optional[int], typing.Optional[int]]:
+        if page is not None:
+            page_size = page_size or mlconf.httpdb.pagination.default_page_size
+            return (page - 1) * page_size, page_size
+        return None, None

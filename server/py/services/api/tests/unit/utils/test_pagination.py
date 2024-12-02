@@ -30,18 +30,15 @@ def paginated_method(
     session: sqlalchemy.orm.Session,
     total_amount: int,
     since: typing.Optional[datetime.datetime] = None,
-    page: typing.Optional[int] = None,
-    page_size: typing.Optional[int] = None,
+    offset: typing.Optional[int] = None,
+    limit: typing.Optional[int] = None,
 ):
     items = [{"name": f"item{i}", "since": since} for i in range(total_amount)]
-    if not page_size:
-        return items
-
-    page = page or 1
-    if page < 1 or (page - 1) * page_size >= total_amount:
+    offset = offset or 0
+    limit = limit or total_amount
+    if offset >= total_amount:
         raise StopIteration
-
-    return items[(page - 1) * page_size : page * page_size]
+    return items[offset : offset + limit]
 
 
 @pytest.fixture()
@@ -82,35 +79,41 @@ def test_paginated_method():
     total_amount = 10
     page_size = 3
     since = datetime.datetime.now()
+    paginator = services.api.utils.pagination.Paginator()
 
-    items = paginated_method(None, total_amount, since, 1, page_size)
+    offset, limit = paginator._calculate_offset_and_limit(1, page_size)
+    items = paginated_method(None, total_amount, since, offset, limit)
     assert len(items) == page_size
     assert items[0]["name"] == "item0"
     assert items[1]["name"] == "item1"
     assert items[2]["name"] == "item2"
     assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
-    items = paginated_method(None, total_amount, since, 2, page_size)
+    offset, limit = paginator._calculate_offset_and_limit(2, page_size)
+    items = paginated_method(None, total_amount, since, offset, limit)
     assert len(items) == page_size
     assert items[0]["name"] == "item3"
     assert items[1]["name"] == "item4"
     assert items[2]["name"] == "item5"
     assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
-    items = paginated_method(None, total_amount, since, 3, page_size)
+    offset, limit = paginator._calculate_offset_and_limit(3, page_size)
+    items = paginated_method(None, total_amount, since, offset, limit)
     assert len(items) == page_size
     assert items[0]["name"] == "item6"
     assert items[1]["name"] == "item7"
     assert items[2]["name"] == "item8"
     assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
-    items = paginated_method(None, total_amount, since, 4, page_size)
+    offset, limit = paginator._calculate_offset_and_limit(4, page_size)
+    items = paginated_method(None, total_amount, since, offset, limit)
     assert len(items) == 1
     assert items[0]["name"] == "item9"
     assert items[0]["since"] == since
 
+    offset, limit = paginator._calculate_offset_and_limit(5, page_size)
     with pytest.raises(StopIteration):
-        paginated_method(None, total_amount, since, 5, page_size)
+        paginated_method(None, total_amount, since, offset, limit)
 
 
 @pytest.mark.asyncio

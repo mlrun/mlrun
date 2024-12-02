@@ -798,8 +798,8 @@ verify-uv-version:
 	fi; \
 	}
 
-.PHONY: update-mlrun-api-deps
-update-api-deps: verify-uv-version ## Update mlrun-api locked requirements file
+.PHONY: upgrade-mlrun-api-deps-lock
+upgrade-mlrun-api-deps-lock: verify-uv-version ## Upgrade mlrun-api locked requirements file
 	uv pip compile \
 	requirements.txt \
 	extras-requirements.txt \

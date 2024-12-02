@@ -138,12 +138,6 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             current_page = last_pagination_info.page + 1
             page_size = last_pagination_info.page_size
 
-        if page_size and len(result) < page_size:
-            # on the last page, we don't return the token, but we keep it live in the cache
-            # so the client can access previous pages.
-            # the token will be revoked after some time of none-usage.
-            last_pagination_info.page_token = None
-
         return result, last_pagination_info.dict(by_alias=True)
 
     async def paginate_request(
@@ -198,11 +192,24 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 method=method.__name__,
             )
             offset, limit = self._calculate_offset_and_limit(page, page_size)
-            return await framework.utils.asyncio.await_or_call_in_threadpool(
+            items = await framework.utils.asyncio.await_or_call_in_threadpool(
                 method, session, **method_kwargs, offset=offset, limit=limit
-            ), mlrun.common.schemas.pagination.PaginationInfo(
+            )
+            pagination_info = mlrun.common.schemas.pagination.PaginationInfo(
                 page=page, page_size=page_size, page_token=token
             )
+            if len(items) < page_size + 1:
+                # If we got fewer items than the limit + 1, we know that there are no more items
+                # and this is the last page.
+                # On the last page, we don't return the token, but we keep it live in the cache
+                # so the client can access previous pages.
+                # the token will be revoked after some time of none-usage.
+                pagination_info.page_token = None
+
+            # truncate the items to the page size
+            items = items[:page_size]
+            return items, pagination_info
+
         except (RuntimeError, StopIteration) as exc:
             if isinstance(exc, StopIteration) or "StopIteration" in str(exc):
                 # don't revoke the token here as we might still want to go to previous pages.
@@ -270,5 +277,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
     ) -> tuple[typing.Optional[int], typing.Optional[int]]:
         if page is not None:
             page_size = page_size or mlconf.httpdb.pagination.default_page_size
-            return (page - 1) * page_size, page_size
+
+            # returning the limit with 1 extra record to check if there are more records
+            # and to know if we should return the token or not
+            return (page - 1) * page_size, page_size + 1
         return None, None

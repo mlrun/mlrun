@@ -82,7 +82,7 @@ def test_paginated_method():
     paginator = services.api.utils.pagination.Paginator()
 
     offset, limit = paginator._calculate_offset_and_limit(1, page_size)
-    items = paginated_method(None, total_amount, since, offset, limit)
+    items = paginated_method(None, total_amount, since, offset, limit - 1)
     assert len(items) == page_size
     assert items[0]["name"] == "item0"
     assert items[1]["name"] == "item1"
@@ -90,7 +90,7 @@ def test_paginated_method():
     assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
     offset, limit = paginator._calculate_offset_and_limit(2, page_size)
-    items = paginated_method(None, total_amount, since, offset, limit)
+    items = paginated_method(None, total_amount, since, offset, limit - 1)
     assert len(items) == page_size
     assert items[0]["name"] == "item3"
     assert items[1]["name"] == "item4"
@@ -98,7 +98,7 @@ def test_paginated_method():
     assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
     offset, limit = paginator._calculate_offset_and_limit(3, page_size)
-    items = paginated_method(None, total_amount, since, offset, limit)
+    items = paginated_method(None, total_amount, since, offset, limit - 1)
     assert len(items) == page_size
     assert items[0]["name"] == "item6"
     assert items[1]["name"] == "item7"
@@ -106,14 +106,14 @@ def test_paginated_method():
     assert items[0]["since"] == items[1]["since"] == items[2]["since"] == since
 
     offset, limit = paginator._calculate_offset_and_limit(4, page_size)
-    items = paginated_method(None, total_amount, since, offset, limit)
+    items = paginated_method(None, total_amount, since, offset, limit - 1)
     assert len(items) == 1
     assert items[0]["name"] == "item9"
     assert items[0]["since"] == since
 
     offset, limit = paginator._calculate_offset_and_limit(5, page_size)
     with pytest.raises(StopIteration):
-        paginated_method(None, total_amount, since, offset, limit)
+        paginated_method(None, total_amount, since, offset, limit - 1)
 
 
 @pytest.mark.asyncio
@@ -168,6 +168,7 @@ async def test_paginate_request(
         page_size,
         ["item3", "item4"],
         method_kwargs["since"],
+        last_page=True,
     )
 
     logger.info("Checking db cache record")
@@ -177,15 +178,6 @@ async def test_paginate_request(
     _assert_cache_record(
         cache_record, auth_info.user_id, paginated_method, 2, page_size
     )
-
-    logger.info(
-        "Requesting third page, which is the end of the items and should return empty response"
-    )
-    response, pagination_info = await paginator.paginate_request(
-        db, paginated_method, auth_info, pagination_info.page_token
-    )
-    assert len(response) == 0
-    assert not pagination_info
 
 
 @pytest.mark.asyncio
@@ -281,6 +273,8 @@ async def test_paginate_no_auth(
 
     logger.info("Requesting second page with auth info of some user")
     auth_info = mlrun.common.schemas.AuthInfo(user_id="any-user")
+    # save token as it will be overridden with None on the last page
+    old_token = pagination_info.page_token
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info, pagination_info.page_token
     )
@@ -291,15 +285,38 @@ async def test_paginate_no_auth(
         page_size,
         ["item3", "item4"],
         method_kwargs["since"],
+        last_page=True,
     )
 
-    logger.info("Checking db cache record")
+    logger.info("Checking old db cache record")
     cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+        db, old_token
     )
-    _assert_cache_record(
-        cache_record, auth_info.user_id, paginated_method, 2, page_size
+    # The request with AuthInfo creates a new cache record, therefore the old one
+    # should still be on page 1 and without a user.
+    # The new one should be on page 2 and with the user, however, since it's on the last page,
+    # we don't get a token back to check.
+    _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
+
+    logger.info("Requesting second page without auth info")
+    response, pagination_info = await paginator.paginate_request(
+        db, paginated_method, None, old_token
     )
+    _assert_paginated_response(
+        response,
+        pagination_info,
+        2,
+        page_size,
+        ["item3", "item4"],
+        method_kwargs["since"],
+        last_page=True,
+    )
+
+    logger.info("Checking old db cache record again")
+    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
+        db, old_token
+    )
+    _assert_cache_record(cache_record, None, paginated_method, 2, page_size)
 
 
 @pytest.mark.asyncio
@@ -392,7 +409,9 @@ async def test_pagination_cache_cleanup(
             page_size + i,
             **method_kwargs,
         )
-        token = pagination_info.page_token
+        # get the token only once, so we don't override it with none on the last page
+        if not token:
+            token = pagination_info.page_token
 
     assert (
         len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3

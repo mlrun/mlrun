@@ -165,6 +165,22 @@ async def test_perform_refresh_smtp(
     }
 
 
+@pytest.mark.asyncio
+async def test_failed_perform_refresh_smtp(
+    monkeypatch, k8s_secrets_mock: tests_unit_conftest.APIK8sSecretsMock
+):
+    def raise_exception(*args, **kwargs):
+        raise mlrun.errors.MLRunInternalServerError("Forbidden")
+
+    monkeypatch.setattr(
+        iguazio_client.Client,
+        "get_smtp_configuration",
+        raise_exception,
+    )
+    with pytest.raises(mlrun.errors.MLRunInternalServerError):
+        await services.api.api.endpoints.operations._perform_refresh_smtp("")
+
+
 def _generate_background_task_schema(
     background_task_name,
 ) -> mlrun.common.schemas.BackgroundTask:

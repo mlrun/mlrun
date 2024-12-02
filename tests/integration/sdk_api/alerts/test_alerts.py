@@ -228,6 +228,90 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alerts_activations = self._get_alert_activations(project_name)
             assert len(alerts_activations) == 0
 
+    def test_alert_activations_sdk(self):
+        project_name = "my-new-project"
+        project = mlrun.new_project(project_name)
+
+        activations = project.list_alert_activations()
+        assert len(activations) == 0
+
+        activations, token = project.paginated_list_alert_activations()
+        assert len(activations) == 0
+        assert token is None
+
+        event_name_entity_list = [
+            (
+                "alert1",
+                alert_objects.EventKind.DATA_DRIFT_DETECTED,
+                alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            ),
+            (
+                "alert2",
+                alert_objects.EventKind.FAILED,
+                alert_objects.EventEntityKind.JOB,
+            ),
+        ]
+
+        alert_summary = "Alert summary"
+
+        for alert_name, event_name, alert_entity in event_name_entity_list:
+            self._create_alert(
+                project_name,
+                alert_name,
+                alert_entity,
+                project_name,
+                alert_summary,
+                event_name,
+                reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+            )
+
+        iterations = 5
+        for i in range(iterations):
+            for alert_name, event_name, alert_entity in event_name_entity_list:
+                self._post_event(project_name, event_name, alert_entity)
+
+        # check regular SDK without filters
+        activations = project.list_alert_activations()
+        assert len(activations) == 2 * iterations
+
+        activations, token = project.paginated_list_alert_activations(
+            page_size=iterations
+        )
+        assert len(activations) == iterations
+        assert token is not None
+
+        activations, token = project.paginated_list_alert_activations(page_token=token)
+        assert len(activations) == iterations
+        # TODO: uncomment when pagination is fixed (https://iguazio.atlassian.net/browse/ML-8505)
+        # assert token is None
+
+        # check SDK with filter by event_name and entity_kind
+        for _, event_name, alert_entity in event_name_entity_list:
+            activations = project.list_alert_activations(
+                event_kind=event_name, entity_kind=alert_entity
+            )
+            assert len(activations) == iterations
+
+            activations, token = project.paginated_list_alert_activations(
+                event_kind=event_name, entity_kind=alert_entity, page_size=1
+            )
+            assert len(activations) == 1
+            assert token is not None
+
+            for i in range(iterations - 2):
+                activations, token = project.paginated_list_alert_activations(
+                    page_token=token
+                )
+                assert len(activations) == 1
+                assert token is not None
+
+            activations, token = project.paginated_list_alert_activations(
+                page_token=token
+            )
+            assert len(activations) == 1
+            # TODO: uncomment when pagination is fixed
+            # assert token is None
+
     def test_alert_after_project_deletion(self):
         # this test checks create alert and post event operations after deleting a project and creating it again
         # with the same alert and event names

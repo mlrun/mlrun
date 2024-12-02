@@ -1182,3 +1182,36 @@ class TestMailNotification:
         )
         default_params_copy.update(expected_params)
         assert enriched_params == default_params_copy
+
+    @pytest.mark.parametrize(
+        ["name", "params", "message", "severity", "expected"],
+        [
+            (
+                "empty_params",
+                {},
+                "test-message",
+                "info",
+                {
+                    "body": "test-message",
+                    "subject": "[info] test-message",
+                },
+            ),
+            (
+                "with_params_message",
+                {"message": "params_message"},
+                "test-message",
+                "warning",
+                {
+                    "body": "params_message",
+                    "subject": "[warning] params_message",
+                },
+            ),
+        ],
+    )
+    async def test_push(self, name, params, message, severity, expected):
+        logger.debug(f"Testing {name}")
+        notification = mail.MailNotification(params=params)
+        notification._send_email = unittest.mock.AsyncMock()
+        await notification.push(message, severity, [])
+        assert notification.params["subject"] == expected["subject"]
+        assert notification.params["body"] == expected["body"]

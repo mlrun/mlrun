@@ -157,3 +157,4 @@ vgo
 volumize
 westeurope
 yaml
+uv

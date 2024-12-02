@@ -259,10 +259,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         method_schema = PaginatedMethods.get_method_schema(method.__name__)
         kwargs_schema = method_schema(**method_kwargs)
         kwargs_schema.offset = None
-
-        # specifically for list artifacts that receives limit as an api parameter
-        # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
-        kwargs_schema.limit = method_kwargs.get("limit") or None
+        kwargs_schema.limit = None
         self._logger.debug(
             "Storing pagination cache record",
             method=method.__name__,

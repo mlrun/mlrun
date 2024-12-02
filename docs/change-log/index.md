@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.7.1](#v171-27-november-2024) | [v1.7.0](#v170-1-november-2024)
+- [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
 - [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
 - [v1.4.1](#v141-8-august-2023) | [v1.4.0](#v140-23-july-2023)
@@ -12,7 +12,7 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.1 (27 November 2024)
+## v1.7.1 (2 December 2024)
 
 ### Model monitoring
 | ID    |Description                                                                 |
@@ -153,7 +153,6 @@
 |ML-5079|You can now update git remote with `project.create_remote()`.| 
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
 |ML-5627|Documentation: Added details about {py:class}`labels <mlrun.feature_store.Feature>`.|
-|ML-5627|Documentation: Added details about [labels](../api/mlrun.feature_store/index.html#mlrun.feature_store.Feature).|
 |ML-5774|UI: Improved speed of querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
 |ML-6065|Fixed serving graphs when working with Kafka.|

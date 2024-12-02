@@ -14,7 +14,12 @@
 #
 import pytest
 
-from mlrun.common.schemas import AlertNotification, Notification, NotificationState
+from mlrun.common.schemas import (
+    AlertNotification,
+    Notification,
+    NotificationState,
+    NotificationSummary,
+)
 
 import services.api.crud
 
@@ -40,6 +45,7 @@ import services.api.crud
                 NotificationState(
                     kind="slack",
                     err="All slack notifications failed. Errors: Error 1, Error 2",
+                    summary=NotificationSummary(failed=2, succeeded=0),
                 )
             ],
         ),
@@ -57,7 +63,9 @@ import services.api.crud
             ],
             [
                 NotificationState(
-                    kind="slack", err="Some slack notifications failed. Errors: Error 1"
+                    kind="slack",
+                    err="Some slack notifications failed. Errors: Error 1",
+                    summary=NotificationSummary(failed=1, succeeded=1),
                 )
             ],
         ),
@@ -65,13 +73,19 @@ import services.api.crud
         (
             [
                 AlertNotification(
-                    notification=Notification(name="test", kind="slack", reason=None)
+                    notification=Notification(name="test", kind="slack", reason=None),
                 ),
                 AlertNotification(
                     notification=Notification(name="test2", kind="slack", reason=None)
                 ),
             ],
-            [NotificationState(kind="slack", err="")],
+            [
+                NotificationState(
+                    kind="slack",
+                    err="",
+                    summary=NotificationSummary(failed=0, succeeded=2),
+                )
+            ],
         ),
         # Case 4: Mixed kinds, with some failures and successes
         (
@@ -97,18 +111,21 @@ import services.api.crud
             ],
             [
                 NotificationState(
-                    kind="slack", err="Some slack notifications failed. Errors: Error 1"
+                    kind="slack",
+                    err="Some slack notifications failed. Errors: Error 1",
+                    summary=NotificationSummary(failed=1, succeeded=1),
                 ),
                 NotificationState(
                     kind="git",
                     err="All git notifications failed. Errors: Error 2, Error 3",
+                    summary=NotificationSummary(failed=2, succeeded=0),
                 ),
             ],
         ),
     ],
 )
 def test_prepare_notifications_states(notifications, expected_states):
-    result = services.api.crud.AlertActivation._prepare_notifications_states(
+    result = services.api.crud.AlertActivation._prepare_notification_states(
         notifications
     )
 

@@ -5,6 +5,7 @@
 .import_linter_cache
 .run
 venv
+.venv
 __pycache__
 .idea
 **/.DS_Store

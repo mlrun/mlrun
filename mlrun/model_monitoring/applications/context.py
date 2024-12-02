@@ -14,8 +14,9 @@
 
 import json
 import socket
-from typing import Any, Optional, cast
+from typing import Any, Optional, Protocol, cast
 
+import nuclio.request
 import numpy as np
 import pandas as pd
 
@@ -32,6 +33,16 @@ from mlrun.model_monitoring.helpers import (
     get_endpoint_record,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
+
+
+class _ArtifactsLogger(Protocol):
+    """
+    Classes that implement this protocol are :code:`MlrunProject` and :code:`MLClientCtx`.
+    """
+
+    def log_artifact(self, *args, **kwargs) -> Artifact: ...
+    def log_dataset(self, *args, **kwargs) -> DatasetArtifact: ...
+    def log_model(self, *args, **kwargs) -> ModelArtifact: ...
 
 
 class MonitoringApplicationContext:
@@ -60,36 +71,49 @@ class MonitoringApplicationContext:
                                     and a list of extra data items.
     """
 
+    _logger_name = "monitoring-application"
+
     def __init__(
         self,
         *,
-        graph_context: mlrun.serving.GraphContext,
         application_name: str,
         event: dict[str, Any],
-        model_endpoint_dict: dict[str, ModelEndpoint],
+        model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
+        logger: Optional[mlrun.utils.Logger] = None,
+        nuclio_logger: Optional[nuclio.request.Logger] = None,
+        artifacts_logger: Optional[_ArtifactsLogger] = None,
     ) -> None:
         """
-        Initialize a `MonitoringApplicationContext` object.
+        Initialize a :code:`MonitoringApplicationContext` object.
         Note: this object should not be instantiated manually.
 
         :param application_name:    The application name.
         :param event:               The instance data dictionary.
-        :param model_endpoint_dict: Dictionary of model endpoints.
+        :param model_endpoint_dict: Optional - dictionary of model endpoints.
+        :param logger:              Optional - MLRun logger instance.
+        :param nuclio_logger:       Optional - Nuclio logger instance.
+        :param artifacts_logger:    Optional - an object that can log artifacts,
+                                    typically :py:class:`~mlrun.projects.MlrunProject` or
+                                    :py:class:`~mlrun.execution.MLClientCtx`.
         """
         self.application_name = application_name
 
-        self.project_name = graph_context.project
-        self.project = mlrun.load_project(url=self.project_name)
+        self.project = cast("mlrun.MlrunProject", mlrun.get_current_project())
+        self.project_name = self.project.name
+
+        self._artifacts_logger: _ArtifactsLogger = artifacts_logger or self.project
 
         # MLRun Logger
-        self.logger = mlrun.utils.create_logger(
+        self.logger = logger or mlrun.utils.create_logger(
             level=mlrun.mlconf.log_level,
             formatter_kind=mlrun.mlconf.log_formatter,
-            name="monitoring-application",
+            name=self._logger_name,
         )
         # Nuclio logger - `nuclio.request.Logger`.
-        # Note: this logger does not accept keyword arguments.
-        self.nuclio_logger = graph_context.logger
+        # Note: this logger accepts keyword arguments only in its `_with` methods, e.g. `info_with`.
+        self.nuclio_logger = nuclio_logger or nuclio.request.Logger(
+            level=mlrun.mlconf.log_level, name=self._logger_name
+        )
 
         # event data
         self.start_infer_time = pd.Timestamp(
@@ -113,8 +137,8 @@ class MonitoringApplicationContext:
 
         # Persistent data - fetched when needed
         self._sample_df: Optional[pd.DataFrame] = None
-        self._model_endpoint: Optional[ModelEndpoint] = model_endpoint_dict.get(
-            self.endpoint_id
+        self._model_endpoint: Optional[ModelEndpoint] = (
+            model_endpoint_dict.get(self.endpoint_id) if model_endpoint_dict else None
         )
 
     def _get_default_labels(self) -> dict[str, str]:
@@ -237,7 +261,7 @@ class MonitoringApplicationContext:
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
         """
         labels = self._add_default_labels(labels)
-        return self.project.log_artifact(
+        return self._artifacts_logger.log_artifact(
             item,
             body=body,
             tag=tag,
@@ -272,7 +296,7 @@ class MonitoringApplicationContext:
         See :func:`~mlrun.projects.MlrunProject.log_dataset` for the documentation.
         """
         labels = self._add_default_labels(labels)
-        return self.project.log_dataset(
+        return self._artifacts_logger.log_dataset(
             key,
             df,
             tag=tag,
@@ -317,7 +341,7 @@ class MonitoringApplicationContext:
         See :func:`~mlrun.projects.MlrunProject.log_model` for the documentation.
         """
         labels = self._add_default_labels(labels)
-        return self.project.log_model(
+        return self._artifacts_logger.log_model(
             key,
             body=body,
             framework=framework,

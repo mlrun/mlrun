@@ -234,9 +234,11 @@ def _generate_all_requirement_specifiers_map() -> dict[str, set]:
         pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
     )
     venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
-    requirements_file_paths = list(
-        filter(lambda path: str(venv_path) not in str(path), requirements_file_paths)
-    )
+    requirements_file_paths = [
+        path
+        for path in requirements_file_paths
+        if str(venv_path) not in str(path) and path.name != "locked-requirements.txt"
+    ]
 
     requirement_specifiers = []
     for requirements_file_path in requirements_file_paths:
@@ -361,6 +363,7 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "tests/test_requirements.py",  # this test file
         "docs/change-log/index.md",  # a historic document
         "docs/genai/development/working-with-rag.ipynb",  # includes a generated requirement
+        "dockerfiles/mlrun-api/locked-requirements.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 

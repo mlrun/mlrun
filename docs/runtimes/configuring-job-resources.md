@@ -40,7 +40,7 @@ fn.set_envs(file_path="env.txt")
 
 Some runtimes can scale horizontally, configured either as a number of replicas:
 ```python
-training_function = mlrun.code_to_function(
+training_function = mlrun.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -69,7 +69,7 @@ See more details in [Dask](../runtimes/dask-overview.ipynb), [MPIJob and Horovod
 
 ## CPU, GPU, and memory &mdash; requests and limits for user jobs
 
-Requests and limits define how much the memory, CPU, and GPU, the pod must have to be able to start to work, and its maximum allowed consumption.
+Requests and limits define how much the memory, CPU, and GPU, the pod must have to be able to start to work, and its maximum allowed consumption. 
 MLRun and Nuclio functions run in their own pods. The default CPU and memory limits for these pods are defined by their respective services. 
 You can change the limits when creating a job, or a function. It is best practice to define this for each MLRun function. 
 
@@ -80,7 +80,7 @@ See more details in the [Kubernetes documentation: Resource Management for Pods 
 Examples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
 ```python
-training_function = mlrun.code_to_function(
+training_function = mlrun.set_function(
     "training.py",
     name="training",
     handler="train",
@@ -97,9 +97,6 @@ When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a 
 
 ### UI configuration
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
 Configure requests and limits in the service's **Common Parameters** tab and in the **Configuration** tab of the function.
 
 ## Number of workers and GPUs
@@ -163,10 +160,7 @@ mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data")
 See full details in {py:meth}`~mlrun.platforms.mount_pvc`.
 ### UI configuration
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
-You can configure Volumes when creating a job, rerunning an existing job, and creating an ML function.
+You can configure Volumes when creating a job, rerunning an existing job, and creating an ML function. 
 Modify the Volumes for an ML function by pressing **ML functions**, then **<img src="../_static/images/kebab-menu.png" width="25"/>** 
 of the function, **Edit** | **Resources** | **Volumes** drop-down list. 
 
@@ -175,56 +169,62 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 
 ## Preemption mode: Spot vs. On-demand nodes
-When running ML functions you might want to control whether to run on spot nodes or on-demand nodes. Preemption mode controls 
-whether pods can be scheduled on preemptible (spot) nodes. Preemption mode is supported for all functions. 
 
-Preemption mode uses [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration) to enforce the mode selected.  
+Spot (preemptible) nodes give you access to spare computing capacity from your cloud environment. 
+With Spot instances, you request capacity from specific availability zones, though it is 
+dependent on spare computing capacity. This is a good choice if you can be flexible about when your applications runs 
+and if your applications can be interrupted. Since spot instances run when there is available capacity, the cost is significantly lower. 
 
-### Why preemption mode?
+On-demand instances give you full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
+reboot or terminate it. On-demand instances have a fixed (higher) price and are always available. 
 
-On-demand instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
-reboot, or terminate it. With Spot instances, you request capacity from specific availability zones, though it is
-susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
-and if your applications can be interrupted. 
-
-Here are some questions to consider when choosing the type of node:
-
-- Is the function mission critical and must be operational at all times?
-- Is the function a stateful function or stateless function?
-- Can the function recover from unexpected failure?
-- Is this a job that should run only when there are available inexpensive resources?
-
-```{admonition} Important
-When an MLRun job is running on a spot node and it fails, it won't get back up again. However, if Nuclio goes down due to a spot issue, it 
-is brought up by Kubernetes.
-```
+You can control whether to run your MLRun functions on spot nodes or on-demand nodes. 
+MLRun supports spot nodes for all functions.
 
 Kubernetes has a few methods for configuring which nodes to run on. To get a deeper understanding, see 
 [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
 Also, you must understand the configuration of the spot nodes as specified by the cloud provider.
 
-### Stateless and Stateful Applications 
+Preemption mode uses [Kubernetes Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration) to enforce the selected mode. 
+The specific taints and tolerations in use differ between the different cloud providers (and in an on-prem deployment may be non-standard). 
+MLRun aims to hide this complexity from the user by creating a standard interface that lets users specify the preemption mode type, and translates 
+it to the underlying Kubernetes constructs per the deployment type.<br>
+You still have the option of manually setting these low-level configurations, given that you know the specific configurations that are needed.
+
+
+
+### Choosing the node type
+
 When deploying your MLRun jobs to specific nodes, take into consideration that on-demand 
 nodes are designed to run stateful applications while spot nodes are designed for stateless applications. 
-MLRun jobs are more stateful by nature. An MLRun job that is assigned to run on a spot node might be subject to interruption; 
-it would have to be designed so that the job/function state will be saved when scaling to zero.
+MLRun jobs are more stateful by nature. An MLRun job that is assigned to run on a spot node might be subject to interruption. 
+The job must be designed so that the job/function state will be saved when scaling to zero.
 
+Here are some questions to consider when choosing the type of node:
+- Is the function mission critical and must be operational at all times?
+- Is the function a stateful function or stateless function?
+- Can the function recover from unexpected failure?
+- Is this a job that should run only when there are available, inexpensive, resources?
+
+```{admonition} Important
+- When an MLRun job is running on a spot node and it fails, it won't get back up again. However, if Nuclio goes down due to a spot issue, Kubernetes will bring it up.
+- Cloud providers use interruption handlers to warn before terminating a spot instance. MLRun does not currently support interruption handlers. 
+```
 ### Supported preemption modes
 
-Preemption mode has these values:
+The MLRun parameter {py:meth}`mlrun.runtimes.KubeResource.with_preemption_mode` controls the node type, and has these values:
 - allow: The function pod can run on a spot node if one is available.
-- constrain: The function pod only runs on spot nodes, and does not run if none is available. 
+- constrain: The function pod only runs on spot nodes and does not run if none is available. 
 - prevent: Default. The function pod cannot run on a spot node. 
-- none: No preemptible configuration is applied to the function
+- none: The function has no preemptible configuration applied to it.
 
-To change the default function preemption mode, it is required to override the api configuration 
-(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environment variable to either one of the above modes).
+To change the default function preemption mode, you need to override the API configuration 
+(and specifically, "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environment variable to either one of the above modes).
 
 ### SDK configuration
 
-Configure preemption mode by adding the {py:meth}`~mlrun.runtimes.KubeResource.with_preemption_mode` parameter in your Jupyter notebook,  specifying a mode from the list of values above. <br>
-This example illustrates a function that cannot be scheduled on preemptible nodes:
-
+Configure preemption mode by adding the {py:meth}`~mlrun.runtimes.KubeResource.with_preemption_mode` parameter, specifying a mode from the list of values above. <br>
+This example illustrates a function that can be scheduled on preemptible nodes:
 
 ```
 # Can be scheduled on a preemptible (spot) node
@@ -237,41 +237,29 @@ And another function that can only be scheduled on preemptible nodes:
 import mlrun
 import os
 
-train_fn = mlrun.code_to_function('training', 
+train_fn = mlrun.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
-train_fn.with_preemption_mode(mode="prevent") 
+train_fn.with_preemption_mode(mode="constrain") 
 train_fn.run(inputs={"dataset": my_data})
 ```
 
-See {py:meth}`~KubeResource.with_preemption_mode.
-
-Alternatively, you can specify the preemption using `with_priority_class` and `with_node_selection` parameters. This example specifies that 
+Alternatively, you can specify the preemption using {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class` and 
+{py:meth}`~mlrun.runtimes.KubeResource.with_node_selection` parameters. This example specifies that 
 the pod/function runs only on non-preemptible nodes:
 
 ```
 import mlrun
 import os
-train_fn = mlrun.code_to_function('training', 
+train_fn = mlrun.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
-train_fn.with_preemption_mode(mode="prevent") 
+train_fn.with_priority_class(name="default-priority")
+train_fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
 train_fn.run(inputs={"dataset" :my_data})
-
-fn.with_priority_class(name="default-priority")
-fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle":"non-preemptible"})
-
 ```
-
-See:
-- {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class`
-- {py:meth}`~mlrun.runtimes.KubeResource.with_node_selection`
 
 ### UI configuration
-
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
 
 You can configure Spot node support when creating a job, rerunning an existing job, and creating an ML function. 
 The **Run on Spot nodes** drop-down list is in the **Resources** section of jobs. 
@@ -291,13 +279,13 @@ Pod priority is specified through Priority classes, which map to a priority valu
 
 ### SDK configuration
 
-Configure pod priority by adding the priority class parameter in your Jupyter notebook. <br>
+Configure pod priority by adding the priority class parameter. <br>
 For example:
 
 ```
 import mlrun
 import os
-train_fn = mlrun.code_to_function('training', 
+train_fn = mlrun.set_function('training', 
                             kind='job', 
                             handler='my_training_function') 
 train_fn.with_priority_class(name={value})
@@ -309,9 +297,6 @@ See {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class`.
 
 ### UI configuration
 
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
 Configure the default priority for a service, which is applied to the service itself or to all subsequently created user-jobs in the 
 service's **Common Parameters** tab, **User jobs defaults** section, **Priority class** drop-down list.
 
@@ -427,7 +412,7 @@ which does not run in the MLRun cluster: node selectors have no significance in 
 
 ### SDK configuration
 
-Configure node selection by adding the key:value pairs in your Jupyter notebook formatted as a Python dictionary. <br>
+Configure node selection by adding the key:value pairs, formatted as a Python dictionary. <br>
 For example:
 
 ```        
@@ -447,9 +432,7 @@ fn.with_node_selection(node_selector={"zone": })
 See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_node_selection`.
 
 ### UI configuration
-```{admonition} Note
-Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
-```
+
 - Configure node selection for individual MLRun jobs when creating a Batch run by going to **Platform dashboard | Projects | New Job | Resources | Node selector**, 
 and adding or removing Key:Value pairs. 
 - Configure the node selection for individual Nuclio functions when creating a 

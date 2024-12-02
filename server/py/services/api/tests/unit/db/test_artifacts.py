@@ -28,6 +28,7 @@ import mlrun.lists
 import mlrun.utils
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
+from mlrun.artifacts.document import DocumentArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import PlotArtifact, PlotlyArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
@@ -158,25 +159,21 @@ class TestArtifacts(TestDatabaseBase):
         artifact_kind_3 = ModelArtifact.kind
         artifact_name_4 = "artifact_name_4"
         artifact_kind_4 = DatasetArtifact.kind
-        tree = "artifact_tree"
-        artifact_1 = self._generate_artifact(
-            artifact_name_1, kind=artifact_kind_1, tree=tree
-        )
-        artifact_2 = self._generate_artifact(
-            artifact_name_2, kind=artifact_kind_2, tree=tree
-        )
-        artifact_3 = self._generate_artifact(
-            artifact_name_3, kind=artifact_kind_3, tree=tree
-        )
-        artifact_4 = self._generate_artifact(
-            artifact_name_4, kind=artifact_kind_4, tree=tree
-        )
+        artifact_name_5 = "artifact_name_5"
+        artifact_kind_5 = DocumentArtifact.kind
+
+        artifact_1 = self._generate_artifact(artifact_name_1, kind=artifact_kind_1)
+        artifact_2 = self._generate_artifact(artifact_name_2, kind=artifact_kind_2)
+        artifact_3 = self._generate_artifact(artifact_name_3, kind=artifact_kind_3)
+        artifact_4 = self._generate_artifact(artifact_name_4, kind=artifact_kind_4)
+        artifact_5 = self._generate_artifact(artifact_name_5, kind=artifact_kind_5)
 
         for artifact_name, artifact_object in [
             (artifact_name_1, artifact_1),
             (artifact_name_2, artifact_2),
             (artifact_name_3, artifact_3),
             (artifact_name_4, artifact_4),
+            (artifact_name_5, artifact_5),
         ]:
             self._db.store_artifact(
                 self._db_session,
@@ -185,7 +182,7 @@ class TestArtifacts(TestDatabaseBase):
             )
 
         artifacts = self._db.list_artifacts(self._db_session)
-        assert len(artifacts) == 4
+        assert len(artifacts) == 5
 
         artifacts = self._db.list_artifacts(
             self._db_session, category=mlrun.common.schemas.ArtifactCategories.model
@@ -198,6 +195,12 @@ class TestArtifacts(TestDatabaseBase):
         )
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["key"] == artifact_name_4
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, category=mlrun.common.schemas.ArtifactCategories.document
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_name_5
 
         artifacts = self._db.list_artifacts(
             self._db_session, category=mlrun.common.schemas.ArtifactCategories.other
@@ -1972,7 +1975,7 @@ class TestArtifacts(TestDatabaseBase):
         self._db.store_artifact(
             self._db_session,
             "k2",
-            {"kind": "model"},
+            {"kind": ModelArtifact.kind},
             producer_id="3",
             tag="t3",
             project="p1",
@@ -1980,9 +1983,18 @@ class TestArtifacts(TestDatabaseBase):
         self._db.store_artifact(
             self._db_session,
             "k3",
-            {"kind": "dataset"},
+            {"kind": DatasetArtifact.kind},
             producer_id="4",
             tag="t4",
+            project="p2",
+        )
+
+        self._db.store_artifact(
+            self._db_session,
+            "k4",
+            {"kind": DocumentArtifact.kind},
+            producer_id="5",
+            tag="t5",
             project="p2",
         )
 
@@ -1995,6 +2007,15 @@ class TestArtifacts(TestDatabaseBase):
         ]
         assert deepdiff.DeepDiff(tags, expected_tags, ignore_order=True) == {}
 
+        tags = self._db.list_artifact_tags(self._db_session, "p2")
+        expected_tags = [
+            "t2",
+            "t4",
+            "latest",
+            "t5",
+        ]
+        assert deepdiff.DeepDiff(tags, expected_tags, ignore_order=True) == {}
+
         # filter by category
         model_tags = self._db.list_artifact_tags(
             self._db_session, "p1", mlrun.common.schemas.ArtifactCategories.model
@@ -2002,11 +2023,17 @@ class TestArtifacts(TestDatabaseBase):
         expected_tags = ["t3", "latest"]
         assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
-        model_tags = self._db.list_artifact_tags(
+        dataset_tags = self._db.list_artifact_tags(
             self._db_session, "p2", mlrun.common.schemas.ArtifactCategories.dataset
         )
         expected_tags = ["t4", "latest"]
-        assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
+        assert deepdiff.DeepDiff(expected_tags, dataset_tags, ignore_order=True) == {}
+
+        document_tags = self._db.list_artifact_tags(
+            self._db_session, "p2", mlrun.common.schemas.ArtifactCategories.document
+        )
+        expected_tags = ["t5", "latest"]
+        assert deepdiff.DeepDiff(expected_tags, document_tags, ignore_order=True) == {}
 
     def test_list_artifact_date(self):
         t1 = datetime.datetime(2020, 2, 16)

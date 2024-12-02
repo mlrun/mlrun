@@ -335,6 +335,11 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         self._post_event(alert_entity_project, event_name, alert_entity_kind)
         mlrun.get_run_db().delete_project(alert_entity_project, "cascade")
         mlrun.new_project(alert_entity_project)
+
+        alerts_activations = self._get_alert_activations(project_name, alert_name)
+        # ensure that we can't get activations from previous project entity with the same project name
+        assert len(alerts_activations) == 0
+
         self._create_alert(
             alert_entity_project,
             alert_name,
@@ -346,6 +351,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         self._post_event(alert_entity_project, event_name, alert_entity_kind)
 
         alerts_activations = self._get_alert_activations(project_name, alert_name)
+        assert len(alerts_activations) == 1
         self._validate_alert_activation(
             alerts_activations[0],
             project_name,

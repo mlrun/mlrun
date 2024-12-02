@@ -37,7 +37,7 @@ def paginated_method(
     offset = offset or 0
     limit = limit or total_amount
     if offset >= total_amount:
-        raise StopIteration
+        return []
     return items[offset : offset + limit]
 
 
@@ -112,8 +112,8 @@ def test_paginated_method():
     assert items[0]["since"] == since
 
     offset, limit = paginator._calculate_offset_and_limit(5, page_size)
-    with pytest.raises(StopIteration):
-        paginated_method(None, total_amount, since, offset, limit - 1)
+    items = paginated_method(None, total_amount, since, offset, limit - 1)
+    assert len(items) == 0
 
 
 @pytest.mark.asyncio

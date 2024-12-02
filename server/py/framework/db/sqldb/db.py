@@ -6940,11 +6940,7 @@ class SQLDB(DBInterface):
         query, offset: typing.Optional[int] = None, limit: typing.Optional[int] = None
     ):
         if offset:
-            if query.count() < offset:
-                raise StopIteration
             query = query.offset(offset)
-
         if limit:
             query = query.limit(limit)
-
         return query

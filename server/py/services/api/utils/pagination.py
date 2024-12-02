@@ -184,44 +184,41 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             **method_kwargs,
         )
 
-        try:
-            self._logger.debug(
-                "Retrieving page",
-                page=page,
-                page_size=page_size,
-                method=method.__name__,
-            )
-            offset, limit = self._calculate_offset_and_limit(page, page_size)
+        self._logger.debug(
+            "Retrieving page",
+            page=page,
+            page_size=page_size,
+            method=method.__name__,
+        )
+        offset, limit = self._calculate_offset_and_limit(page, page_size)
 
-            # specifically for list artifacts that receives limit as an api parameter
-            # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
-            if kwargs_limit := method_kwargs.pop("limit", None):
-                limit = kwargs_limit
+        # specifically for list artifacts that receives limit as an api parameter
+        # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
+        if kwargs_limit := method_kwargs.pop("limit", None):
+            limit = kwargs_limit
 
-            items = await framework.utils.asyncio.await_or_call_in_threadpool(
-                method, session, **method_kwargs, offset=offset, limit=limit
-            )
-            pagination_info = mlrun.common.schemas.pagination.PaginationInfo(
-                page=page, page_size=page_size, page_token=token
-            )
-            if len(items) < page_size + 1:
-                # If we got fewer items than the page_size + 1, we know that there are no more items
-                # and this is the last page.
-                # On the last page, we don't return the token, but we keep it live in the cache
-                # so the client can access previous pages.
-                # the token will be revoked after some time of none-usage.
-                pagination_info.page_token = None
+        items = await framework.utils.asyncio.await_or_call_in_threadpool(
+            method, session, **method_kwargs, offset=offset, limit=limit
+        )
+        pagination_info = mlrun.common.schemas.pagination.PaginationInfo(
+            page=page, page_size=page_size, page_token=token
+        )
+        if len(items) < page_size + 1:
+            # If we got fewer items than the page_size + 1, we know that there are no more items
+            # and this is the last page.
+            # On the last page, we don't return the token, but we keep it live in the cache
+            # so the client can access previous pages.
+            # the token will be revoked after some time of none-usage.
+            pagination_info.page_token = None
 
-            # truncate the items to the page size
-            items = items[:page_size]
-            return items, pagination_info
+        if len(items) == 0:
+            # don't revoke the token here as we might still want to go to previous pages.
+            # the token will be revoked after some time of none-usage.
+            return [], None
 
-        except (RuntimeError, StopIteration) as exc:
-            if isinstance(exc, StopIteration) or "StopIteration" in str(exc):
-                # don't revoke the token here as we might still want to go to previous pages.
-                # the token will be revoked after some time of none-usage.
-                return [], None
-            raise
+        # truncate the items to the page size
+        items = items[:page_size]
+        return items, pagination_info
 
     def _create_or_update_pagination_cache_record(
         self,

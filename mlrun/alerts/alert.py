@@ -302,7 +302,7 @@ class AlertConfig(ModelObj):
         :returns: A list of alert activations matching the provided filters.
         """
         db = mlrun.get_run_db()
-        if from_last_update and self._updated is not None:
+        if from_last_update and self._updated:
             since = self.updated
 
         return db.list_alert_activations(
@@ -367,7 +367,7 @@ class AlertConfig(ModelObj):
 
         :returns: A tuple containing the list of alert activations and an optional `page_token` for pagination.
         """
-        if from_last_update and self._updated is not None:
+        if from_last_update and self._updated:
             kwargs["since"] = self.updated
 
         db = mlrun.get_run_db()

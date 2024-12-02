@@ -353,6 +353,60 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             number_of_events=1,
         )
 
+    def test_list_alert_activations_by_severity(self):
+        project_name = "my-new-project"
+        event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
+        alert_name = "drift"
+        alert_summary = "Model {{project}}/{{entity}} is drifting."
+        alert_entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+        alert_entity_project = project_name
+
+        project = mlrun.new_project(alert_entity_project)
+        alert = self._create_alert(
+            alert_entity_project,
+            alert_name,
+            alert_entity_kind,
+            alert_entity_project,
+            alert_summary,
+            event_name,
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+        )
+        self._post_event(alert_entity_project, event_name, alert_entity_kind)
+        self._modify_alert(
+            project_name=project_name,
+            alert=alert,
+            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+            event_name=event_name,
+        )
+        self._post_event(alert_entity_project, event_name, alert_entity_kind)
+
+        activations = project.list_alert_activations(name=alert_name)
+        assert len(activations) == 2
+
+        severity_list = [
+            mlrun.common.schemas.alert.AlertSeverity.LOW,
+            mlrun.common.schemas.alert.AlertSeverity.HIGH,
+        ]
+
+        activations = project.list_alert_activations(
+            name=alert_name, severity=severity_list
+        )
+        assert len(activations) == 2
+
+        for severity in severity_list:
+            activations = project.list_alert_activations(
+                name=alert_name,
+                severity=severity,
+            )
+            assert len(activations) == 1
+            self._validate_alert_activation(
+                activations[0],
+                project_name,
+                alert_name,
+                alert_severity=severity,
+            )
+        mlrun.get_run_db().delete_project(project_name, "cascade")
+
     def test_alert_templates(self):
         project_name = "my-project"
         project = mlrun.new_project(project_name)
@@ -652,7 +706,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # modify alert with invalid data
         invalid_event_name = "not_permitted_event"
         with pytest.raises(mlrun.errors.MLRunHTTPError):
-            self._modify_alert(
+            self._create_alert(
                 project_name,
                 alert_name,
                 alert1["entity"]["kind"],
@@ -663,7 +717,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # modify alert with no errors
         new_summary = "Aye ya yay {{project}}"
-        modified_alert = self._modify_alert(
+        modified_alert = self._create_alert(
             project_name,
             alert_name,
             alert1["entity"]["kind"],
@@ -717,30 +771,32 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def _modify_alert(
         self,
         project_name,
-        alert_name,
-        alert_entity_kind,
-        alert_entity_project,
-        alert_summary,
-        event_name,
-        severity=alert_objects.AlertSeverity.LOW,
+        alert: mlrun.common.schemas.alert.AlertConfig,
+        alert_entity_kind=None,
+        alert_entity_project=None,
+        alert_summary=None,
+        event_name=None,
+        severity=None,
         criteria=None,
         notifications=None,
-        reset_policy=alert_objects.ResetPolicy.MANUAL,
+        reset_policy=None,
     ):
+        # Use provided values or fallback to the current alert's attributes
         alert_data = self._generate_alert_create_request(
-            project_name,
-            alert_name,
-            alert_entity_kind,
-            alert_entity_project,
-            alert_summary,
-            event_name,
-            severity,
-            criteria,
-            notifications,
-            reset_policy,
+            project=project_name,
+            name=alert.name,
+            entity_kind=alert_entity_kind or alert.entities.kind,
+            entity_project=alert_entity_project or alert.project,
+            summary=alert_summary or alert.summary,
+            event_name=event_name or alert.trigger.events[0].name,
+            severity=severity or alert.severity,
+            criteria=criteria or alert.criteria,
+            # notification needs to be sent every time due to not having secret params in the client side
+            notifications=notifications,
+            reset_policy=reset_policy or alert.reset_policy,
         )
         return mlrun.get_run_db().store_alert_config(
-            alert_name, alert_data, project_name
+            alert.name, alert_data, project_name
         )
 
     def _post_event(self, project_name, event_name, alert_entity_kind):

@@ -813,23 +813,39 @@ class Model(storey.ParallelExecutionRunnable):
     def predict(self, data):
         return data
 
+    async def predict_async(self, data):
+        return data
+
     def run(self, event, path):
         return self.predict(event)
 
+    async def run_async(self, event, path):
+        return self.predict(event)
+
+
+class ModelSelector:
+    def select(self, event) -> list[str]:
+        pass
+
 
 class ModelRunner(storey.ParallelExecution):
-    pass
+    def __init__(self, *args, model_selector=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.model_selector = model_selector or ModelSelector()
+
+    def select_runnables(self, event):
+        return self.model_selector.select(event)
 
 
 class ModelRunnerStep(TaskStep):
     kind = "model_runner"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, model_selector=None, **kwargs):
         self._models = []
         super().__init__(
             *args,
             class_name="mlrun.serving.ModelRunner",
-            class_args={"runnables": self._models},
+            class_args=dict(runnables=self._models, model_selector=model_selector),
             **kwargs,
         )
 
@@ -839,7 +855,10 @@ class ModelRunnerStep(TaskStep):
     @property
     def async_object(self) -> ModelRunner:
         if not self._async_object:
-            self._async_object = ModelRunner(self.class_args.get("runnables"))
+            self._async_object = ModelRunner(
+                self.class_args.get("runnables"),
+                model_selector=self.class_args.get("model_selector"),
+            )
 
         return self._async_object
 

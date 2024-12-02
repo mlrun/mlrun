@@ -26,6 +26,7 @@ __all__ = [
     "ModelRunnerStep",
     "ModelRunner",
     "Model",
+    "ModelSelector",
 ]
 
 from .routers import ModelRouter, VotingEnsemble  # noqa
@@ -39,6 +40,7 @@ from .states import (
     ModelRunnerStep,
     ModelRunner,
     Model,
+    ModelSelector,
 )  # noqa
 from .v1_serving import MLModelServer, new_v1_model_server  # noqa
 from .v2_serving import V2ModelServer  # noqa

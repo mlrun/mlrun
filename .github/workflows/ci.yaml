@@ -189,7 +189,7 @@ jobs:
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
 
   package-tests:
-    name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})
+    name: Run package tests (Python ${{ matrix.python-version }}; Pipeline kfp-v1-8 )
     runs-on: ubuntu-latest
     strategy:
       matrix:

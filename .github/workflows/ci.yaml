@@ -189,14 +189,14 @@ jobs:
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
 
   package-tests:
-    name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})
+    name: Run package tests (Python ${{ matrix.python-version }}, Pipelines ${{ matrix.pipeline-adapter }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # 3.9 is the current >= 1.3.0 python version
-        python-version: [3.9]
-        default-pipeline-adapter: ["kfp-v1-8"]
-        pipeline-adapter: ["kfp-v1-8", "kfp-v2"]
+        # Explicitly define combinations: KFP v1.8 with Python 3.9
+        include:
+          - python-version: "3.9"
+            pipeline-adapter: "kfp-v1-8"
     steps:
     - uses: actions/checkout@v4
     - name: Set up python ${{ matrix.python-version }}
@@ -204,11 +204,14 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
-    - name: Change default pipeline adapter for MLRun
-      if: matrix.default-pipeline-adapter != matrix.pipeline-adapter
-      run: sed -i -e 's/${{ matrix.default-pipeline-adapter }}/${{ matrix.pipeline-adapter }}/g' requirements.txt
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && pip install -e .
+      # Install KFP v2 only when the adapter is kfp-v2
+    - name: Install KFP Adapter if required
+      run: |
+        if [[ "${{ matrix.pipeline-adapter }}" == "kfp-v2" ]]; then
+          pip install mlrun-pipelines-kfp-v2
+        fi
 
     - name: Test package
       run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package

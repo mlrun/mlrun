@@ -4846,7 +4846,6 @@ class MlrunProject(ModelObj):
             page=page,
             page_size=page_size,
             page_token=page_token,
-            return_all=False,
             **kwargs,
         )
 

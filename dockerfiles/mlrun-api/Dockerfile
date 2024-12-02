@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 ARG MLRUN_PYTHON_VERSION=3.9
 
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
@@ -25,14 +26,6 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
-# Update base pip packages (usually pip, setuptools, wheel):
-RUN python -m pip  list --disable-pip-version-check --format freeze \
-    | grep -v '^\-e' \
-    | cut -d'=' -f1 \
-    | xargs python -m pip install --upgrade
-
-ENV PIP_NO_CACHE_DIR=1
-
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
@@ -44,21 +37,24 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   sqlite3 \
   vim \
   mariadb-client \
+  curl \
+  ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-ARG MLRUN_PIP_VERSION=24.2
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+# Install uv
+ARG MLRUN_UV_VERSION=0.5.5
+ADD https://astral.sh/uv/${MLRUN_UV_VERSION}/install.sh /uv-installer.sh
+
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+
+ENV PATH="/root/.local/bin/:$PATH"
+ENV UV_SYSTEM_PYTHON=true
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
-COPY ./extras-requirements.txt ./extras-requirements.txt
-COPY ./requirements.txt ./
+COPY ./dockerfiles/mlrun-api/locked-requirements.txt ./locked-requirements.txt
 
-RUN python -m pip install \
-    -r requirements.txt \
-    -r extras-requirements.txt \
-    -r mlrun-api-requirements.txt
+RUN uv pip sync --require-hashes locked-requirements.txt
 
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
@@ -74,12 +70,13 @@ ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIV
 
 COPY ./pipeline-adapters ./pipeline-adapters
 
-RUN pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+RUN uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 
 COPY . .
 ENV PYTHONPATH=/mlrun/server/py
 
-RUN pip install .[complete-api]
+RUN uv pip install .[complete-api]
 
 VOLUME /mlrun/db
 

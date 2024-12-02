@@ -22,6 +22,7 @@ import pandas as pd
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.errors
 import mlrun.feature_store as fstore
 import mlrun.features
 import mlrun.serving
@@ -80,7 +81,7 @@ class MonitoringApplicationContext:
         event: dict[str, Any],
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         logger: Optional[mlrun.utils.Logger] = None,
-        nuclio_logger: Optional[nuclio.request.Logger] = None,
+        graph_context: Optional[mlrun.serving.GraphContext] = None,
         artifacts_logger: Optional[_ArtifactsLogger] = None,
     ) -> None:
         """
@@ -91,15 +92,19 @@ class MonitoringApplicationContext:
         :param event:               The instance data dictionary.
         :param model_endpoint_dict: Optional - dictionary of model endpoints.
         :param logger:              Optional - MLRun logger instance.
-        :param nuclio_logger:       Optional - Nuclio logger instance.
+        :param graph_context:       Optional - GraphContext instance.
         :param artifacts_logger:    Optional - an object that can log artifacts,
                                     typically :py:class:`~mlrun.projects.MlrunProject` or
                                     :py:class:`~mlrun.execution.MLClientCtx`.
         """
         self.application_name = application_name
 
-        self.project = cast("mlrun.MlrunProject", mlrun.get_current_project())
-        self.project_name = self.project.name
+        if graph_context:
+            self.project_name = graph_context.project
+            self.project = mlrun.load_project(url=self.project_name)
+        else:
+            self.project = cast("mlrun.MlrunProject", mlrun.get_current_project())
+            self.project_name = self.project.name
 
         self._artifacts_logger: _ArtifactsLogger = artifacts_logger or self.project
 
@@ -111,8 +116,12 @@ class MonitoringApplicationContext:
         )
         # Nuclio logger - `nuclio.request.Logger`.
         # Note: this logger accepts keyword arguments only in its `_with` methods, e.g. `info_with`.
-        self.nuclio_logger = nuclio_logger or nuclio.request.Logger(
-            level=mlrun.mlconf.log_level, name=self._logger_name
+        self.nuclio_logger = (
+            graph_context.logger
+            if graph_context
+            else nuclio.request.Logger(
+                level=mlrun.mlconf.log_level, name=self._logger_name
+            )
         )
 
         # event data

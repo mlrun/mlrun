@@ -13,11 +13,15 @@
 # limitations under the License.
 
 import inspect
+import logging
+from unittest.mock import Mock, patch
 
 import pytest
+from nuclio.request import Logger as NuclioLogger
 
 from mlrun.model_monitoring.applications.context import MonitoringApplicationContext
 from mlrun.projects import MlrunProject
+from mlrun.serving import GraphContext, GraphServer
 
 
 @pytest.mark.parametrize("method", ["log_artifact", "log_dataset", "log_model"])
@@ -26,3 +30,17 @@ def test_log_object_signature(method: str) -> None:
     assert inspect.signature(
         getattr(MonitoringApplicationContext, method)
     ) == inspect.signature(getattr(MlrunProject, method))
+
+
+@patch("mlrun.load_project")
+def test_from_graph_context(mock: Mock) -> None:
+    app_ctx = MonitoringApplicationContext(
+        application_name="app-context-from-graph",
+        event={},
+        graph_context=GraphContext(
+            server=GraphServer(function_uri="project-name/function-name"),
+            logger=NuclioLogger(level=logging.DEBUG),
+        ),
+    )
+    app_ctx.logger.info("Test from graph_context logger")
+    mock.assert_called_once()

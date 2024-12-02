@@ -25,6 +25,7 @@ from storey import MapClass
 from v3io.dataplane import RaiseForStatus
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.runtimes.mounts
 import tests.system.base
 from mlrun import feature_store as fstore
@@ -574,6 +575,16 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         assert run_result.state() == "completed", "wrong state"
         # accuracy = max(p1) * 2
         assert run_result.output("accuracy") == 22, "unexpected results"
+
+        # Cover listing artifacts with partitioning when logging an artifact inside a run with hyperparameters
+        artifacts = mlrun.get_run_db().list_artifacts(
+            partition_by=mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+            tag="latest",
+        )
+        assert len(artifacts) == 3  # iteration_results + parallel_coordinates + test
+        for artifact in artifacts:
+            # We are not checking the best iteration here because it is not guaranteed
+            assert artifact["metadate"]["tag"] == "latest"
 
         # test early stop
         hyper_param_options = mlrun.model.HyperParamOptions(

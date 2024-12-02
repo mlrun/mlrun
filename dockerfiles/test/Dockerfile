@@ -56,7 +56,7 @@ COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
 COPY ./dev-requirements.txt ./
 COPY ./docs/requirements.txt ./docs-requirements.txt
 
-RUN pip install \
+RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
     -r mlrun-api-requirements.txt
@@ -73,8 +73,8 @@ RUN python -m pip install \
 
 COPY . .
 
-RUN pip install -e .[complete] &&\
-    pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common &&\
-    pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+RUN python -m pip install -e .[complete] && \
+    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 
 ENV NO_COLOR=1

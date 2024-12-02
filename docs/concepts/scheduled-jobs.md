@@ -68,7 +68,16 @@ You can also use a context path to load the project from a local directory conta
 * Run the workflow with the context path e.g. `project.run("my-workflow", source="./", engine="remote")`. The `source` can be absolute or relative path with `"."` or `"./"`.
 
 Example for a remote GitHub project - https://github.com/mlrun/project-demo
+```{admonition} Note
+From MLRun v1.7.1: when running a remote/scheduled workflow, the remote workflow pulls/extracts the remote source content to the running pod but loads the project configuration from the MLRun DB and not from the project.yaml file in the remote source.
 
+The remote files are primarily retrieved for:
+- The [project_setup](../projects/project-setup.md) that may affect the project configuration (if it exists).
+- Syncing function files.
+This behavior may be unexpected for users who rely on project.yaml in the remote source (for the project configuration).
+Be sure to update MLRun DB with the latest project configuration to ensure consistent configuration management (use `project.save()`).<br>
+Project configuration in this context could be, for example, `project.node_selector` or `project.artifact_path`, and not function configurations like: function resources or function node selector.
+```
 ```
 import mlrun
 project_name = "remote-workflow-example"

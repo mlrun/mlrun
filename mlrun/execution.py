@@ -17,7 +17,7 @@ import os
 import uuid
 import warnings
 from copy import deepcopy
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 import numpy as np
 import yaml
@@ -42,6 +42,7 @@ from .features import Feature
 from .model import HyperParamOptions
 from .secrets import SecretsStore
 from .utils import (
+    Logger,
     RunKeys,
     dict_to_json,
     dict_to_yaml,
@@ -158,7 +159,7 @@ class MLClientCtx:
         return self._project
 
     @property
-    def logger(self):
+    def logger(self) -> Logger:
         """Built-in logger interface
 
         Example::
@@ -628,7 +629,7 @@ class MLClientCtx:
         format=None,
         db_key=None,
         **kwargs,
-    ):
+    ) -> Artifact:
         """Log an output artifact and optionally upload it to datastore
 
         Example::
@@ -698,7 +699,7 @@ class MLClientCtx:
         extra_data=None,
         label_column: Optional[str] = None,
         **kwargs,
-    ):
+    ) -> DatasetArtifact:
         """Log a dataset artifact and optionally upload it to datastore
 
         If the dataset exists with the same key and tag, it will be overwritten.
@@ -736,7 +737,7 @@ class MLClientCtx:
         :param db_key:        The key to use in the artifact DB table, by default its run name + '_' + key
                               db_key=False will not register it in the artifacts table
 
-        :returns: Artifact object
+        :returns: Dataset artifact object
         """
         ds = DatasetArtifact(
             key,
@@ -749,16 +750,19 @@ class MLClientCtx:
             **kwargs,
         )
 
-        item = self._artifacts_manager.log_artifact(
-            self,
-            ds,
-            local_path=local_path,
-            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
-            target_path=target_path,
-            tag=tag,
-            upload=upload,
-            db_key=db_key,
-            labels=labels,
+        item = cast(
+            DatasetArtifact,
+            self._artifacts_manager.log_artifact(
+                self,
+                ds,
+                local_path=local_path,
+                artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
+                target_path=target_path,
+                tag=tag,
+                upload=upload,
+                db_key=db_key,
+                labels=labels,
+            ),
         )
         self._update_run()
         return item
@@ -786,7 +790,7 @@ class MLClientCtx:
         extra_data=None,
         db_key=None,
         **kwargs,
-    ):
+    ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
 
         Example::
@@ -828,7 +832,7 @@ class MLClientCtx:
         :param db_key:          The key to use in the artifact DB table, by default its run name + '_' + key
                                 db_key=False will not register it in the artifacts table
 
-        :returns: Artifact object
+        :returns: Model artifact object
         """
 
         if training_set is not None and inputs:
@@ -855,14 +859,17 @@ class MLClientCtx:
         if training_set is not None:
             model.infer_from_df(training_set, label_column)
 
-        item = self._artifacts_manager.log_artifact(
-            self,
-            model,
-            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
-            tag=tag,
-            upload=upload,
-            db_key=db_key,
-            labels=labels,
+        item = cast(
+            ModelArtifact,
+            self._artifacts_manager.log_artifact(
+                self,
+                model,
+                artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
+                tag=tag,
+                upload=upload,
+                db_key=db_key,
+                labels=labels,
+            ),
         )
         self._update_run()
         return item

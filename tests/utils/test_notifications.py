@@ -1022,7 +1022,7 @@ class TestMailNotification:
         "sender_address": "sender@example.com",
         "username": "user",
         "password": "pass",
-        "email_addresses": "a@example.com",
+        "default_email_addresses": "a@example.com",
         "use_tls": True,
         "validate_certs": True,
         "start_tls": False,
@@ -1149,7 +1149,7 @@ class TestMailNotification:
             (
                 "missing_all_params",
                 {},
-                DEFAULT_PARAMS,
+                {},
             ),
             (
                 "overriding_some_params",
@@ -1167,7 +1167,7 @@ class TestMailNotification:
                 {
                     "email_addresses": ["a@b.com", "b@b.com", "c@c.com"],
                 },
-                {"email_addresses": "a@b.com,b@b.com,c@c.com"},
+                {"email_addresses": "a@b.com,b@b.com,c@c.com,a@example.com"},
             ),
         ],
     )
@@ -1177,5 +1177,8 @@ class TestMailNotification:
             params, TestMailNotification.DEFAULT_PARAMS
         )
         default_params_copy = TestMailNotification.DEFAULT_PARAMS.copy()
+        default_params_copy["email_addresses"] = default_params_copy.pop(
+            "default_email_addresses"
+        )
         default_params_copy.update(expected_params)
         assert enriched_params == default_params_copy

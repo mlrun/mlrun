@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any, Optional, Union, cast
 
+import mlrun
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 from mlrun.serving.utils import MonitoringApplicationToDict
@@ -22,12 +23,12 @@ from mlrun.serving.utils import MonitoringApplicationToDict
 
 class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     """
-    A base class for a model monitoring application.
+    The base class for a model monitoring application.
     Inherit from this class to create a custom model monitoring application.
 
-    example for very simple custom application::
+    For example, :code:`MyApp` below is a simplistic custom application::
 
-        class MyApp(ApplicationBase):
+        class MyApp(ModelMonitoringApplicationBase):
             def do_tracking(
                 self,
                 monitoring_context: mm_context.MonitoringApplicationContext,
@@ -43,8 +44,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     kind=mm_constant.ResultKindApp.data_drift,
                     status=mm_constant.ResultStatusApp.detected,
                 )
-
-
     """
 
     kind = "monitoring_application"
@@ -62,6 +61,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     ]:
         """
         Process the monitoring event and return application results & metrics.
+        Note: this method is internal and should not be called directly or overridden.
 
         :param monitoring_context:   (MonitoringApplicationContext) The monitoring application context.
         :returns:                    A tuple of:
@@ -79,6 +79,65 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             ]
         results = results if isinstance(results, list) else [results]
         return results, monitoring_context
+
+    def _handler(self, context: "mlrun.MLClientCtx"):
+        """
+        A custom handler that wraps the application's logic implemented in
+        :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
+        for an MLRun job.
+        This method should not be called directly.
+        """
+        monitoring_context = mm_context.MonitoringApplicationContext(
+            event={},
+            application_name=self.__class__.__name__,
+            logger=context.logger,
+            artifacts_logger=context,
+        )
+        result = self.do_tracking(monitoring_context)
+        return result
+
+    @classmethod
+    def evaluate(
+        cls,
+        func_path: Optional[str] = None,
+        func_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        run_local: bool = True,
+    ) -> "mlrun.RunObject":
+        """
+        Call this function to run the application's
+        :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
+        model monitoring logic as a :py:class:`~mlrun.runtimes.KubejobRuntime`, which is an MLRun function.
+
+        :param func_path: The path to the function. If not passed, the current notebook is used.
+        :param func_name: The name of the function. If not passed, the class name is used.
+        :param tag:       An optional tag for the function.
+        :param run_local: Whether to run the function locally or remotely.
+
+        :returns: The output of the
+                  :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
+                  method wrapped in a :py:class:`~mlrun.model.RunObject`.
+        """
+        if not run_local:
+            raise NotImplementedError  # ML-8360
+
+        project = cast("mlrun.MlrunProject", mlrun.get_current_project())
+        class_name = cls.__name__
+        name = func_name if func_name is not None else class_name
+        handler = f"{class_name}::{cls._handler.__name__}"
+
+        job = cast(
+            mlrun.runtimes.KubejobRuntime,
+            project.set_function(
+                func=func_path,
+                name=name,
+                kind=mlrun.runtimes.KubejobRuntime.kind,
+                handler=handler,
+                tag=tag,
+            ),
+        )
+        run_result = job.run(local=run_local)
+        return run_result
 
     @abstractmethod
     def do_tracking(

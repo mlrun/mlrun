@@ -79,18 +79,15 @@ def extra_requirements() -> dict[str, list[str]]:
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
         "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.2.0"],
         "snowflake": ["snowflake-connector-python~=3.7"],
-    }
-    kfp_requires = {
-        "kfp": ["mlrun-pipelines-kfp-v1-8~=0.2.2"],
+        "kfp": ["kfp~=1.8"],
     }
 
-    exclude_from_complete = ["bokeh"]
+    exclude_from_complete = ["bokeh", "kfp"]
     api_deps = list(
         _load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt")
     )
     extras_require.update(
         {
-            "kfp": kfp_requires,
             "api": api_deps,
             "all": _get_extra_dependencies(extras_require=extras_require),
             "complete": _get_extra_dependencies(
@@ -103,8 +100,8 @@ def extra_requirements() -> dict[str, list[str]]:
                 extras_require=extras_require,
             ),
             "complete-kfp": _get_extra_dependencies(
-                exclude=exclude_from_complete,
-                extras_require=extras_require.copy().update(kfp_requires),
+                exclude=["bokeh"],
+                extras_require=extras_require,
             ),
         }
     )
@@ -125,7 +122,7 @@ def _extract_package_from_egg(line: str) -> str:
 
 
 def _load_dependencies_from_file(
-    path: str, parent_dir: Optional[str] = None
+        path: str, parent_dir: Optional[str] = None
 ) -> list[str]:
     """Load dependencies from requirements file"""
     parent_dir = parent_dir or os.path.dirname(__file__)
@@ -138,10 +135,10 @@ def _load_dependencies_from_file(
 
 
 def _get_extra_dependencies(
-    include: Optional[list[str]] = None,
-    exclude: Optional[list[str]] = None,
-    base_deps: Optional[list[str]] = None,
-    extras_require: Optional[dict[str, list[str]]] = None,
+        include: Optional[list[str]] = None,
+        exclude: Optional[list[str]] = None,
+        base_deps: Optional[list[str]] = None,
+        extras_require: Optional[dict[str, list[str]]] = None,
 ) -> list[str]:
     """Get list of dependencies for given extras categories
 

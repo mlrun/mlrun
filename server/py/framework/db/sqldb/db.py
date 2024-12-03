@@ -5700,6 +5700,10 @@ class SQLDB(DBInterface):
         alert.count = state.count
         alert.created = state.created
 
+        # if this is a new alert, initialize the updated field with the created time
+        if alert.updated is None:
+            alert.updated = state.created
+
         def _enrich_notification(_notification):
             _notification = _notification.to_dict()
             # we don't want to return the secret

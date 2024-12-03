@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from datetime import timezone
 
 import pytest
 
@@ -98,6 +99,11 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         self._validate_alert_activation(
             alerts_activations[0], project_name, alert1["name"], number_of_events=1
         )
+        # validate through the alert config
+        alerts_activations = alert.list_activations()
+        self._validate_alert_activation(
+            alerts_activations[0], project_name, alert1["name"], number_of_events=1
+        )
 
         # post event for alert 2
         for _ in range(alert2["criteria"].count):
@@ -112,6 +118,14 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         alerts_activations = self._get_alert_activations(project_name, alert2["name"])
+        self._validate_alert_activation(
+            alerts_activations[0],
+            project_name,
+            alert2["name"],
+            number_of_events=alert2["criteria"].count,
+        )
+        # validate through the alert config
+        alerts_activations = alert.list_activations()
         self._validate_alert_activation(
             alerts_activations[0],
             project_name,
@@ -167,11 +181,36 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert = self._get_alerts(project_name, created_alert2.name)
 
         self._validate_alert(
-            alert, alert_state=alert_objects.AlertActiveState.INACTIVE, alert_count=2
+            alert,
+            alert_state=alert_objects.AlertActiveState.INACTIVE,
+            alert_count=2,
+            alert_updated=True,
         )
 
         alerts_activations = self._get_alert_activations(project_name, alert2["name"])
         assert len(alerts_activations) == 2
+
+        alert_config_activations = alert.list_activations()
+        assert len(alert_config_activations) == 2
+
+        # get alert config paginated activations
+        activations, token = alert.paginated_list_activations()
+        assert len(activations) == 2
+        assert token is None
+
+        # get the activations of alert2 after the last update was made to the alert
+        alert_config_activations = alert.list_activations(from_last_update=True)
+        assert len(alert_config_activations) == 1
+        self._validate_alert_activation(
+            alert_config_activations[0],
+            project_name,
+            alert2["name"],
+        )
+
+        # get alert2 config paginated activations from the last update
+        activations, token = alert.paginated_list_activations(from_last_update=True)
+        assert len(activations) == 1
+        assert token is None
 
         new_event_name = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
         modified_alert = self._modify_alert_test(
@@ -182,7 +221,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         self._post_event(project_name, new_event_name, alert1["entity"]["kind"])
 
         alert = self._get_alerts(project_name, modified_alert.name)
-        self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.ACTIVE)
+        self._validate_alert(
+            alert, alert_state=alert_objects.AlertActiveState.ACTIVE, alert_updated=True
+        )
 
         alerts_activations = self._get_alert_activations(
             project_name, modified_alert.name
@@ -335,6 +376,11 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         self._post_event(alert_entity_project, event_name, alert_entity_kind)
         mlrun.get_run_db().delete_project(alert_entity_project, "cascade")
         mlrun.new_project(alert_entity_project)
+
+        alerts_activations = self._get_alert_activations(project_name, alert_name)
+        # ensure that we can't get activations from previous project entity with the same project name
+        assert len(alerts_activations) == 0
+
         self._create_alert(
             alert_entity_project,
             alert_name,
@@ -346,6 +392,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         self._post_event(alert_entity_project, event_name, alert_entity_kind)
 
         alerts_activations = self._get_alert_activations(project_name, alert_name)
+        assert len(alerts_activations) == 1
         self._validate_alert_activation(
             alerts_activations[0],
             project_name,
@@ -891,6 +938,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert_entity=None,
         alert_notifications=None,
         alert_count=None,
+        alert_updated=False,
     ):
         if project_name:
             assert alert.project == project_name
@@ -919,6 +967,8 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             assert alert.notifications == alert_notifications
         if alert_count:
             assert alert.count == alert_count
+        if alert_updated:
+            assert alert.updated > alert.created.replace(tzinfo=timezone.utc)
 
     @staticmethod
     def _generate_event_request(project, event_kind, entity_kind):

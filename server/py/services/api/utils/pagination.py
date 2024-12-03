@@ -274,6 +274,11 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         if page is not None:
             page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
+            if page < 1 or page_size < 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Page and page size must be greater than 0"
+                )
+
             # returning the limit with 1 extra record to check if there are more records
             # and to know if we should return the token or not
             return (page - 1) * page_size, page_size + 1

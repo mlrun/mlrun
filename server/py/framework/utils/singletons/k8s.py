@@ -604,7 +604,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self, secret_name: str, namespace: str = "", load_as_json=False, silent=False
     ) -> typing.Optional[dict[str, str]]:
         k8s_secret = self.read_secret(secret_name, namespace, silent)
-        if not k8s_secret:
+        if k8s_secret is None:
             return
         return self._decode_secret_data(k8s_secret.data, load_as_json=load_as_json)
 

@@ -415,11 +415,11 @@ Make sure you have the proper version installed locally if you need to update th
 The `mlrun-api` lock file is refreshed by:
 
 ```sh
-make update-api-deps
+make upgrade-mlrun-api-deps-lock
 ```
 
 To update only a specific package, use the `MLRUN_UV_UPGRADE_FLAG` environment variable:
 
 ```sh
-MLRUN_UV_UPGRADE_FLAG="--upgrade-package <package-name>" make update-api-deps
+MLRUN_UV_UPGRADE_FLAG="--upgrade-package <package-name>" make upgrade-mlrun-api-deps-lock
 ```

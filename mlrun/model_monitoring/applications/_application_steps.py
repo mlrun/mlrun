@@ -138,7 +138,7 @@ class _PrepareMonitoringEvent(StepToDict):
             application_name=self.application_name,
             event=event,
             model_endpoint_dict=self.model_endpoints,
-            nuclio_logger=self.graph_context,
+            graph_context=self.graph_context,
         )
 
         self.model_endpoints.setdefault(

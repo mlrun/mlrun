@@ -1575,8 +1575,8 @@ class SQLDB(DBInterface):
             limit,
         )
 
-        # by default return a list of tuples of (ArtifactV2, tag_name) unless with_entities is given
-        # not using `with_entities` here as it cancels the partitioning of the query
+        # by default return a list of tuples of (ArtifactV2, tag_name) unless with_entities is given.
+        # not using `with_entities()` here as it cancels the partitioning of the query
         subquery = query.subquery()
         query = session.query(*(with_entities or [ArtifactV2]), subquery.c.name).join(
             subquery, and_(ArtifactV2.id == subquery.c.id)
@@ -4910,7 +4910,7 @@ class SQLDB(DBInterface):
         query = self._add_labels_filter(session, query, Function, labels)
         query = self._paginate_query(session, query, Function, offset, limit)
 
-        # not using `with_entities` here as it cancels the partitioning of the query
+        # not using `with_entities()` here as it cancels the partitioning of the query
         subquery = query.subquery()
         query = session.query(Function, subquery.c.name).join(
             subquery, and_(Function.id == subquery.c.id)

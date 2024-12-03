@@ -165,6 +165,7 @@ from .notification import (
     NotificationSeverity,
     NotificationState,
     NotificationStatus,
+    NotificationSummary,
     SetNotificationRequest,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus

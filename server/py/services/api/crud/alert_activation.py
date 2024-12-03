@@ -68,7 +68,7 @@ class AlertActivation(
             kind = alert_notification.notification.kind
             reason = alert_notification.notification.reason
 
-            # count successes and collect unique errors for failures
+            # count successes, failures and collect unique errors for failures
             if reason:
                 notification_errors[kind]["errors"].add(reason)
                 notification_errors[kind]["failed_count"] += 1

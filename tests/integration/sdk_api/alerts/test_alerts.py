@@ -312,6 +312,45 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             # TODO: uncomment when pagination is fixed
             # assert token is None
 
+    def test_alert_activations_cross_project(self):
+        project_names = []
+        for i in range(3):
+            project_name = f"my-new-project{i}"
+            mlrun.new_project(f"my-new-project{i}")
+            project_names.append(project_name)
+
+        activations = self._get_alert_activations()
+        assert len(activations) == 0
+
+        alert_name = "alert1"
+        alert_entity = alert_objects.EventEntityKind.JOB
+        event_name = alert_objects.EventKind.FAILED
+        for project_name in project_names:
+            self._create_alert(
+                project_name,
+                alert_name,
+                alert_entity,
+                project_name,
+                "Alert summary",
+                event_name,
+                reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+            )
+            self._post_event(project_name, event_name, alert_entity)
+
+        activations = self._get_alert_activations()
+        assert len(activations) == 3
+        for activation in activations:
+            self._validate_alert_activation(
+                activation,
+                alert_event_kind=event_name,
+                alert_entity_kind=alert_entity,
+                number_of_events=1,
+                alert_name=alert_name,
+            )
+            # verify that each alert activation is on different project
+            project_names.remove(activation.project)
+        assert len(project_names) == 0
+
     def test_alert_after_project_deletion(self):
         # this test checks create alert and post event operations after deleting a project and creating it again
         # with the same alert and event names
@@ -803,7 +842,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         event_data = self._generate_event_request(
             project_name, event_name, alert_entity_kind
         )
-        mlrun.get_run_db().generate_event(event_name, event_data)
+        mlrun.get_run_db().generate_event(event_name, event_data, project=project_name)
 
     def _validate_alert_activation(
         self,
@@ -862,7 +901,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         return response
 
     @staticmethod
-    def _get_alert_activations(project_name, alert_name=None):
+    def _get_alert_activations(project_name="*", alert_name=None):
         return mlrun.get_run_db().list_alert_activations(
             project=project_name, name=alert_name
         )

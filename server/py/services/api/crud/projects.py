@@ -347,11 +347,16 @@ class Projects(
             format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
             **project_filters,
         )
-        return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+        allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             [project[0] for project in projects_output.projects],
             auth_info,
             action=action,
         )
+        return [
+            project
+            for project in projects_output.projects
+            if project[0] in allowed_project_names
+        ]
 
     async def list_project_summaries(
         self,

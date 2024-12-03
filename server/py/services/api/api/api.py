@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends
 
 from framework.api import deps
 from framework.routers import (
+    alert_activations,
     alert_template,
     alerts,
     auth,
@@ -193,6 +194,11 @@ api_router.include_router(
 api_router.include_router(
     nuclio.router,
     tags=["nuclio"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    alert_activations.router,
+    tags=["alert-activations"],
     dependencies=[Depends(deps.authenticate_request)],
 )
 

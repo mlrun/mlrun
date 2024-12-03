@@ -1888,7 +1888,7 @@ def run_with_retry(
     raise last_exception
 
 
-def join_urls(base_url: str, path: str) -> str:
+def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
     """
     Joins a base URL with a path, ensuring proper handling of slashes.
 
@@ -1897,4 +1897,6 @@ def join_urls(base_url: str, path: str) -> str:
 
     :return: A unified URL with exactly one slash between base_url and path.
     """
+    if base_url is None:
+        base_url = ""
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url

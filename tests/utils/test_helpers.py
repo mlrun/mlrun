@@ -1199,6 +1199,17 @@ def test_validate_single_def_handler_valid_handler(code):
             "/subpath/resource",
             "http://example.com/base/subpath/resource",
         ),
+        # Empty base_url
+        (
+            "",
+            "/path",
+            "/path",
+        ),
+        (
+            None,
+            "/path",
+            "/path",
+        ),
     ],
 )
 def test_join_urls(base_url, path, expected_result):

@@ -814,7 +814,8 @@ class VotingEnsemble(ParallelRun):
         return self.logic(flattened_predictions, np.array(weights))
 
     def do_event(self, event, *args, **kwargs):
-        """Handles incoming requests.
+        """
+        Handles incoming requests.
 
         Parameters
         ----------
@@ -1125,7 +1126,9 @@ def _init_endpoint_record(
 
 
 class EnrichmentModelRouter(ModelRouter):
-    """model router with feature enrichment and imputing"""
+    """
+    Model router with feature enrichment and imputing
+    """
 
     def __init__(
         self,
@@ -1139,7 +1142,8 @@ class EnrichmentModelRouter(ModelRouter):
         impute_policy: typing.Optional[dict] = None,
         **kwargs,
     ):
-        """Model router with feature enrichment (from the feature store)
+        """
+        Model router with feature enrichment (from the feature store)
 
         The `EnrichmentModelRouter` class enrich the incoming event with real-time features
         read from a feature vector (in MLRun feature store) and forwards the enriched event to the child models
@@ -1147,27 +1151,24 @@ class EnrichmentModelRouter(ModelRouter):
         The feature vector is specified using the `feature_vector_uri`, in addition an imputing policy
         can be specified to substitute None/NaN values with pre defines constant or stats.
 
-        :param feature_vector_uri :  feature vector uri in the form: [project/]name[:tag]
-        :param impute_policy : value imputing (substitute NaN/Inf values with statistical or constant value),
-                              you can set the `impute_policy` parameter with the imputing policy, and specify which
-                              constant or statistical value will be used instead of NaN/Inf value, this can be defined
-                              per column or for all the columns ("*"). the replaced value can be fixed number for
-                              constants or $mean, $max, $min, $std, $count for statistical values.
-                              “*” is used to specify the default for all features, example:
-                              impute_policy={"*": "$mean", "age": 33}
+        :param feature_vector_uri:  feature vector uri in the form: [project/]name[:tag]
+        :param impute_policy: value imputing (substitute NaN/Inf values with statistical or constant value),
+            you can set the `impute_policy` parameter with the imputing policy, and specify which constant or statistical
+            value will be used instead of NaN/Inf value, this can be defined per column or for all the columns ("*").
+            The replaced value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical values.
+            “*” is used to specify the default for all features, example: impute_policy={"*": "$mean", "age": 33}
         :param context:       for internal use (passed in init)
         :param name:          step name
         :param routes:        for internal use (routes passed in init)
         :param protocol:      serving API protocol (default "v2")
         :param url_prefix:    url prefix for the router (default /v2/models)
         :param health_prefix: health api url prefix (default /v2/health)
-        :param input_path:    when specified selects the key/path in the event to use as body
-                              this require that the event body will behave like a dict, example:
-                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
-        :param result_path:   selects the key/path in the event to write the results to
-                              this require that the event body will behave like a dict, example:
-                              event: {"x": 5} , result_path="resp" means the returned response will be written
-                              to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param input_path:    when specified selects the key/path in the event to use as body this require that the event
+            body will behave like a dict, example: event: {"data": {"a": 5, "b": 7}}, input_path="data.b"
+            means request body will be 7.
+        :param result_path:   selects the key/path in the event to write the results to this require that the event body
+            will behave like a dict, example: event: {"x": 5} , result_path="resp" means the returned response will be
+            written to event["y"] resulting in {"x": 5, "resp": <result>}
         :param kwargs:        extra arguments
         """
         super().__init__(
@@ -1206,7 +1207,9 @@ class EnrichmentModelRouter(ModelRouter):
 
 
 class EnrichmentVotingEnsemble(VotingEnsemble):
-    """Voting Ensemble with feature enrichment (from the feature store)"""
+    """
+    Voting Ensemble with feature enrichment (from the feature store)
+    """
 
     def __init__(
         self,
@@ -1223,17 +1226,16 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         impute_policy: typing.Optional[dict] = None,
         **kwargs,
     ):
-        """Voting Ensemble with feature enrichment (from the feature store)
+        """
+        Voting Ensemble with feature enrichment (from the feature store)
 
         The `EnrichmentVotingEnsemble` class enables to enrich the incoming event with real-time features
         read from a feature vector (in MLRun feature store) and apply prediction logic on top of
         the different added models.
 
         You can use it by calling:
-        - <prefix>/<model>[/versions/<ver>]/operation
-            Sends the event to the specific <model>[/versions/<ver>]
-        - <prefix>/operation
-            Sends the event to all models and applies `vote(self, event)`
+        * `<prefix>/<model>[/versions/<ver>]/operation` Sends the event to the specific `<model>[/versions/<ver>]`
+        * `<prefix>/operation` Sends the event to all models and applies `vote(self, event)`
 
         The `VotingEnsemble` applies the following logic:
         Incoming Event -> Feature enrichment -> Send to model/s ->
@@ -1243,29 +1245,30 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         The feature vector is specified using the `feature_vector_uri`, in addition an imputing policy
         can be specified to substitute None/NaN values with pre defines constant or stats.
 
-        * When enabling model tracking via `set_tracking()` the ensemble logic
+        When enabling model tracking via `set_tracking()` the ensemble logic
         predictions will appear with model name as the given VotingEnsemble name
         or "VotingEnsemble" by default.
 
-        Example::
+        Example:
 
-            # Define a serving function
-            # Note: You can point the function to a file containing you own Router or Classifier Model class
-            #       this basic class supports sklearn based models (with `<model>.predict()` api)
-            fn = mlrun.code_to_function(name='ensemble',
-                                        kind='serving',
-                                        filename='model-server.py'
-                                        image='mlrun/mlrun')
+        ```python
+        # Define a serving function
+        # Note: You can point the function to a file containing you own Router or Classifier Model class
+        # this basic class supports sklearn based models (with `<model>.predict()` api)
+        fn = mlrun.code_to_function(name='ensemble', kind='serving', filename='model-server.py', image='mlrun/mlrun')
+        ```
 
-            # Set the router class
-            # You can set your own classes by simply changing the `class_name`
-            fn.set_topology(class_name='mlrun.serving.routers.EnrichmentVotingEnsemble',
-                            feature_vector_uri="transactions-fraud",
-                            impute_policy={"*": "$mean"})
+        # Set the router class
+        # You can set your own classes by simply changing the `class_name`
+        ```
+        fn.set_topology(class_name='mlrun.serving.routers.EnrichmentVotingEnsemble',feature_vector_uri="transactions-fraud", impute_policy={"*": "$mean"})
+        ```
 
-            # Add models
-            fn.add_model(<model_name>, <model_path>, <model_class_name>)
-            fn.add_model(<model_name>, <model_path>, <model_class_name>)
+        # Add models
+        ```
+        fn.add_model(<model_name>, <model_path>, <model_class_name>)
+        fn.add_model(<model_name>, <model_path>, <model_class_name>)
+        ```
 
         How to extend the VotingEnsemble
         --------------------------------
@@ -1283,35 +1286,30 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         :param context:       for internal use (passed in init)
         :param name:          step name
         :param routes:        for internal use (routes passed in init)
-        :param protocol:      serving API protocol (default "v2")
-        :param url_prefix:    url prefix for the router (default /v2/models)
-        :param health_prefix: health api url prefix (default /v2/health)
-        :param feature_vector_uri :  feature vector uri in the form: [project/]name[:tag]
-        :param impute_policy : value imputing (substitute NaN/Inf values with statistical or constant value),
-                              you can set the `impute_policy` parameter with the imputing policy, and specify which
-                              constant or statistical value will be used instead of NaN/Inf value, this can be defined
-                              per column or for all the columns ("*").
-                              the replaced value can be fixed number for constants or $mean, $max, $min, $std, $count
-                              for statistical values. “*” is used to specify the default for all features, example:
-                              impute_policy={"*": "$mean", "age": 33}
-        :param input_path:    when specified selects the key/path in the event to use as body
-                              this require that the event body will behave like a dict, example:
-                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
-        :param result_path:   selects the key/path in the event to write the results to
-                              this require that the event body will behave like a dict, example:
-                              event: {"x": 5} , result_path="resp" means the returned response will be written
-                              to event["y"] resulting in {"x": 5, "resp": <result>}
-        :param vote_type:     Voting type to be used (from `VotingTypes`).
-                              by default will try to self-deduct upon the first event:
-                                - float prediction type: regression
-                                - int prediction type: classification
+        :param protocol:      serving API protocol (default `v2`)
+        :param url_prefix:    url prefix for the router (default `/v2/models`)
+        :param health_prefix: health api url prefix (default `/v2/health`)
+        :param feature_vector_uri:  feature vector uri in the form `[project/]name[:tag]`
+        :param impute_policy: value imputing (substitute NaN/Inf values with statistical or constant value),
+            you can set the `impute_policy` parameter with the imputing policy, and specify which constant or
+            statistical value will be used instead of NaN/Inf value, this can be defined per column or for all
+            the columns ("*"). The replaced value can be fixed number for constants or $mean, $max, $min, $std, $count
+            for statistical values. “*” is used to specify the default for all features,
+            example: impute_policy={"*": "$mean", "age": 33}
+        :param input_path:    when specified selects the key/path in the event to use as body this require that
+            the event body will behave like a dict, example: event: {"data": {"a": 5, "b": 7}}, input_path="data.b"
+            means request body will be 7.
+        :param result_path:   selects the key/path in the event to write the results to this require that the event body
+            will behave like a dict, example: event: {"x": 5} , result_path="resp" means the returned response will be
+            written to event["y"] resulting in {"x": 5, "resp": <result>}.
+        :param vote_type:     Voting type to be used (from `VotingTypes`). by default will try to self-deduct upon the
+            first event: - float prediction type: regression - int prediction type: classification
         :param executor_type: Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
         :param prediction_col_name: The dict key for the predictions column in the model's responses output.
-                              Example: If the model returns
-                                       {id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}
-                                       the prediction_col_name should be `prediction`.
-                              by default, `prediction`
-        :param kwargs:        extra arguments
+            Example:
+            If the model returns `{id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}`,
+            the prediction_col_name should be `prediction`. By default, `prediction`.
+        :param kwargs:  extra arguments
         """
         super().__init__(
             context=context,
@@ -1342,7 +1340,9 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         )
 
     def preprocess(self, event):
-        """Turn an entity identifier (source) to a Feature Vector"""
+        """
+        Turn an entity identifier (source) to a Feature Vector
+        """
         if isinstance(event.body, (str, bytes)):
             event.body = json.loads(event.body)
         event.body["inputs"] = self._feature_service.get(

@@ -53,6 +53,7 @@ class RemoteStep(storey.SendToHttp):
         retries=None,
         backoff_factor=None,
         timeout=None,
+        headers_expression: Optional[str] = None,
         **kwargs,
     ):
         """class for calling remote endpoints
@@ -102,6 +103,7 @@ class RemoteStep(storey.SendToHttp):
         self.url = url
         self.url_expression = url_expression
         self.body_expression = body_expression
+        self.headers_expression = headers_expression
         self.headers = headers
         self.method = method
         self.return_json = return_json
@@ -114,6 +116,7 @@ class RemoteStep(storey.SendToHttp):
         self._session = None
         self._url_function_handler = None
         self._body_function_handler = None
+        self._headers_function_handler = None
 
     def post_init(self, mode="sync"):
         self._endpoint = self.url
@@ -130,6 +133,10 @@ class RemoteStep(storey.SendToHttp):
                 "lambda event: " + self.url_expression,
                 {"endpoint": self._endpoint, "context": self.context},
                 {},
+            )
+        if self.headers_expression:
+            self._headers_function_handler = eval(
+                "lambda event: " + self.headers_expression, {"context": self.context}, {}
             )
         elif self.subpath:
             self._append_event_path = self.subpath == "$path"
@@ -205,7 +212,7 @@ class RemoteStep(storey.SendToHttp):
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
-        headers = self.headers or {}
+        headers = self._headers_function_handler or self.headers or {}
 
         if self._url_function_handler:
             url = self._url_function_handler(body)

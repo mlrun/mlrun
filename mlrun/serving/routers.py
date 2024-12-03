@@ -1153,9 +1153,10 @@ class EnrichmentModelRouter(ModelRouter):
 
         :param feature_vector_uri:  feature vector uri in the form: [project/]name[:tag]
         :param impute_policy: value imputing (substitute NaN/Inf values with statistical or constant value),
-            you can set the `impute_policy` parameter with the imputing policy, and specify which constant or statistical
-            value will be used instead of NaN/Inf value, this can be defined per column or for all the columns ("*").
-            The replaced value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical values.
+            you can set the `impute_policy` parameter with the imputing policy, and specify which constant or
+            statistical value will be used instead of NaN/Inf value, this can be defined per column or
+            for all the columns ("*"). The replaced value can be fixed number for constants or $mean, $max, $min, $std,
+            $count for statistical values.
             “*” is used to specify the default for all features, example: impute_policy={"*": "$mean", "age": 33}
         :param context:       for internal use (passed in init)
         :param name:          step name
@@ -1163,8 +1164,8 @@ class EnrichmentModelRouter(ModelRouter):
         :param protocol:      serving API protocol (default "v2")
         :param url_prefix:    url prefix for the router (default /v2/models)
         :param health_prefix: health api url prefix (default /v2/health)
-        :param input_path:    when specified selects the key/path in the event to use as body this require that the event
-            body will behave like a dict, example: event: {"data": {"a": 5, "b": 7}}, input_path="data.b"
+        :param input_path:    when specified selects the key/path in the event to use as body this require that the
+            event body will behave like a dict, example: event: {"data": {"a": 5, "b": 7}}, input_path="data.b"
             means request body will be 7.
         :param result_path:   selects the key/path in the event to write the results to this require that the event body
             will behave like a dict, example: event: {"x": 5} , result_path="resp" means the returned response will be
@@ -1234,8 +1235,11 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         the different added models.
 
         You can use it by calling:
-        * `<prefix>/<model>[/versions/<ver>]/operation` Sends the event to the specific `<model>[/versions/<ver>]`
-        * `<prefix>/operation` Sends the event to all models and applies `vote(self, event)`
+
+        - `<prefix>/<model>[/versions/<ver>]/operation`
+            Sends the event to the specific <model>[/versions/<ver>]
+        - `<prefix>/operation`
+            Sends the event to all models and applies `vote(self, event)`
 
         The `VotingEnsemble` applies the following logic:
         Incoming Event -> Feature enrichment -> Send to model/s ->
@@ -1249,26 +1253,28 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         predictions will appear with model name as the given VotingEnsemble name
         or "VotingEnsemble" by default.
 
-        Example:
+        Example::
 
-        ```python
-        # Define a serving function
-        # Note: You can point the function to a file containing you own Router or Classifier Model class
-        # this basic class supports sklearn based models (with `<model>.predict()` api)
-        fn = mlrun.code_to_function(name='ensemble', kind='serving', filename='model-server.py', image='mlrun/mlrun')
-        ```
+            # Define a serving function
+            # Note: You can point the function to a file containing you own Router or Classifier Model class
+            # this basic class supports sklearn based models (with `<model>.predict()` api)
+            fn = mlrun.code_to_function(
+                name='ensemble',
+                kind='serving',
+                filename='model-server.py',
+                image='mlrun/mlrun')
 
-        # Set the router class
-        # You can set your own classes by simply changing the `class_name`
-        ```
-        fn.set_topology(class_name='mlrun.serving.routers.EnrichmentVotingEnsemble',feature_vector_uri="transactions-fraud", impute_policy={"*": "$mean"})
-        ```
 
-        # Add models
-        ```
-        fn.add_model(<model_name>, <model_path>, <model_class_name>)
-        fn.add_model(<model_name>, <model_path>, <model_class_name>)
-        ```
+            # Set the router class
+            # You can set your own classes by simply changing the `class_name`
+            fn.set_topology(
+                class_name='mlrun.serving.routers.EnrichmentVotingEnsemble',
+                feature_vector_uri="transactions-fraud",
+                impute_policy={"*": "$mean"})
+
+            # Add models
+            fn.add_model(<model_name>, <model_path>, <model_class_name>)
+            fn.add_model(<model_name>, <model_path>, <model_class_name>)
 
         How to extend the VotingEnsemble
         --------------------------------

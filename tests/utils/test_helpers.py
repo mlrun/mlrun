@@ -1155,30 +1155,50 @@ def test_validate_single_def_handler_valid_handler(code):
         )
 
 
-
 @pytest.mark.parametrize(
     "base_url, path, expected_result",
     [
         # Base URL without trailing slash
-        ("http://example.com", "path/to/resource", "http://example.com/path/to/resource"),
-        ("http://example.com", "/path/to/resource", "http://example.com/path/to/resource"),
+        (
+            "http://example.com",
+            "path/to/resource",
+            "http://example.com/path/to/resource",
+        ),
+        (
+            "http://example.com",
+            "/path/to/resource",
+            "http://example.com/path/to/resource",
+        ),
         ("http://example.com", "", "http://example.com"),
         ("http://example.com", None, "http://example.com"),
-
         # Base URL with trailing slash
-        ("http://example.com/", "path/to/resource", "http://example.com/path/to/resource"),
-        ("http://example.com/", "/path/to/resource", "http://example.com/path/to/resource"),
+        (
+            "http://example.com/",
+            "path/to/resource",
+            "http://example.com/path/to/resource",
+        ),
+        (
+            "http://example.com/",
+            "/path/to/resource",
+            "http://example.com/path/to/resource",
+        ),
         ("http://example.com/", "", "http://example.com/"),
         ("http://example.com/", None, "http://example.com/"),
-
         # Path with or without leading slash
         ("http://example.com", "path", "http://example.com/path"),
         ("http://example.com/", "/path", "http://example.com/path"),
         ("http://example.com", "/path", "http://example.com/path"),
-
         # Complex cases
-        ("http://example.com/base", "subpath/resource", "http://example.com/base/subpath/resource"),
-        ("http://example.com/base/", "/subpath/resource", "http://example.com/base/subpath/resource"),
+        (
+            "http://example.com/base",
+            "subpath/resource",
+            "http://example.com/base/subpath/resource",
+        ),
+        (
+            "http://example.com/base/",
+            "/subpath/resource",
+            "http://example.com/base/subpath/resource",
+        ),
     ],
 )
 def test_join_urls(base_url, path, expected_result):

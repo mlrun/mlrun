@@ -46,9 +46,9 @@ class TestEventPreparation:
 
     @staticmethod
     @pytest.fixture
-    def mock_get_current_project(tmp_path: Path) -> typing.Iterator[None]:
+    def mock_load_project(tmp_path: Path) -> typing.Iterator[None]:
         with patch(
-            "mlrun.get_current_project",
+            "mlrun.load_project",
             Mock(
                 return_value=mlrun.projects.MlrunProject(
                     spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path))
@@ -66,7 +66,7 @@ class TestEventPreparation:
         }
 
     @classmethod
-    @pytest.mark.usefixtures("mock_get_current_project")
+    @pytest.mark.usefixtures("mock_load_project")
     @patch("mlrun.model_monitoring.applications.context.get_endpoint_record")
     def test_prepare_monitoring_event(
         cls, mock_get_endpoint_record: Mock, controller_event: dict[str, typing.Any]

@@ -357,7 +357,7 @@ class TestAlerts(TestAlertsBase):
         framework.utils.singletons.db.SQLDB, "update_alert_activation"
     )
     @unittest.mock.patch.object(
-        services.api.crud.AlertActivation, "store_alert_activation"
+        services.alerts.crud.AlertActivation, "store_alert_activation"
     )
     async def test_store_alert_update_time(
         self,

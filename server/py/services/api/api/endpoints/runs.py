@@ -518,3 +518,17 @@ async def abort_run(
     )
 
     return background_task
+
+@router.post(
+    "/projects/{project}/runs/{uid}/push_notifications",
+    response_model=mlrun.common.schemas.BackgroundTask,
+    status_code=HTTPStatus.ACCEPTED.value,
+)
+async def push_notifications(
+    request: Request,
+    project: str,
+    uid: str,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    pass

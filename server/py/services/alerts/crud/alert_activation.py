@@ -33,7 +33,7 @@ class AlertActivation(
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
     ) -> Optional[str]:
-        notifications_states = self._prepare_notifications_states(
+        notifications_states = self._prepare_notification_states(
             alert_data.notifications
         )
         return framework.utils.singletons.db.get_db().store_alert_activation(
@@ -41,7 +41,7 @@ class AlertActivation(
         )
 
     @staticmethod
-    def _prepare_notifications_states(
+    def _prepare_notification_states(
         notifications: list[mlrun.common.schemas.AlertNotification],
     ) -> list[mlrun.common.schemas.NotificationState]:
         """
@@ -59,16 +59,19 @@ class AlertActivation(
             lambda: {
                 "errors": set(),
                 "success_count": 0,
+                "failed_count": 0,
             },
         )
+
         # process each notification and gather errors by type
         for alert_notification in notifications:
             kind = alert_notification.notification.kind
             reason = alert_notification.notification.reason
 
-            # count successes and collect unique errors for failures
+            # count successes, failures and collect unique errors for failures
             if reason:
                 notification_errors[kind]["errors"].add(reason)
+                notification_errors[kind]["failed_count"] += 1
             else:
                 notification_errors[kind]["success_count"] += 1
 
@@ -76,7 +79,8 @@ class AlertActivation(
         notification_states = []
         for kind, status_info in notification_errors.items():
             errors = list(status_info["errors"])
-            success_count = status_info["success_count"]
+            success_count = status_info.get("success_count", 0)
+            failed_count = status_info.get("failed_count", 0)
 
             if errors:
                 if success_count == 0:
@@ -92,7 +96,14 @@ class AlertActivation(
                 error_message = ""
 
             notification_states.append(
-                mlrun.common.schemas.NotificationState(kind=kind, err=error_message)
+                mlrun.common.schemas.NotificationState(
+                    kind=kind,
+                    err=error_message,
+                    summary=mlrun.common.schemas.NotificationSummary(
+                        failed=failed_count,
+                        succeeded=success_count,
+                    ),
+                )
             )
 
         return notification_states

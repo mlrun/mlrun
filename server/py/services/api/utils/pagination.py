@@ -197,18 +197,17 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         pagination_info = mlrun.common.schemas.pagination.PaginationInfo(
             page=page, page_size=page_size, page_token=token
         )
+
+        # The following 2 conditions indicate the end of the pagination.
+        # On the last page, we don't return the token, but we keep it live in the cache
+        # so the client can access previous pages.
+        # the token will be revoked after some time of none-usage.
+        if len(items) == 0:
+            return [], None
         if len(items) < page_size + 1:
             # If we got fewer items than the page_size + 1, we know that there are no more items
             # and this is the last page.
-            # On the last page, we don't return the token, but we keep it live in the cache
-            # so the client can access previous pages.
-            # the token will be revoked after some time of none-usage.
             pagination_info.page_token = None
-
-        if len(items) == 0:
-            # don't revoke the token here as we might still want to go to previous pages.
-            # the token will be revoked after some time of none-usage.
-            return [], None
 
         # truncate the items to the page size
         items = items[:page_size]

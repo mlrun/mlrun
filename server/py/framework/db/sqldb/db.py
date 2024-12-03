@@ -6941,6 +6941,10 @@ class SQLDB(DBInterface):
     ):
         if offset:
             query = query.offset(offset)
-        if limit:
+
+        if limit == 0:
+            raise mlrun.errors.MLRunInvalidArgumentError("Limit cannot be 0")
+        elif limit:
             query = query.limit(limit)
+
         return query

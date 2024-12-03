@@ -79,8 +79,8 @@ class AlertActivation(
         notification_states = []
         for kind, status_info in notification_errors.items():
             errors = list(status_info["errors"])
-            success_count = status_info["success_count"]
-            failed_count = status_info["failed_count"]
+            success_count = status_info.get("success_count", 0)
+            failed_count = status_info.get("failed_count", 0)
 
             if errors:
                 if success_count == 0:

@@ -108,7 +108,7 @@ import services.api.crud
     ],
 )
 def test_prepare_notifications_states(notifications, expected_states):
-    result = services.api.crud.AlertActivation._prepare_notifications_states(
+    result = services.alerts.crud.AlertActivation._prepare_notifications_states(
         notifications
     )
 

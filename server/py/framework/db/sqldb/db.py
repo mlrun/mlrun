@@ -1576,8 +1576,10 @@ class SQLDB(DBInterface):
         )
 
         # by default return a list of tuples of (ArtifactV2, tag_name) unless with_entities is given
-        query = query.with_entities(
-            *(with_entities or [ArtifactV2]), ArtifactV2.Tag.name
+        # not using `with_entities` here as it cancels the partitioning of the query
+        subquery = query.subquery()
+        query = session.query(*(with_entities or [ArtifactV2]), subquery.c.name).join(
+            subquery, and_(ArtifactV2.id == subquery.c.id)
         )
 
         results = query.all()
@@ -4907,7 +4909,14 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
         query = self._paginate_query(session, query, Function, offset, limit)
-        return query.with_entities(Function, Function.Tag.name)
+
+        # not using `with_entities` here as it cancels the partitioning of the query
+        subquery = query.subquery()
+        query = session.query(Function, subquery.c.name).join(
+            subquery, and_(Function.id == subquery.c.id)
+        )
+
+        return query
 
     def _find_model_endpoints(
         self,

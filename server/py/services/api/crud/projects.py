@@ -353,7 +353,7 @@ class Projects(
             action=action,
         )
         # Filter the original list based on allowed names
-        # we need to return full project object (not only project names)
+        # we need to return list of project objects (not project names)
         return [
             project
             for project in projects_output.projects

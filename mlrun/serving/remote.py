@@ -212,11 +212,11 @@ class RemoteStep(storey.SendToHttp):
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
-        print("BODY_TEST",body)
         if self._headers_function_handler(body):
             self.headers = self._headers_function_handler(body)
+            print("1", self.headers)
         headers = self.headers or {}
-
+        print("2",headers)
         if self._url_function_handler:
             url = self._url_function_handler(body)
         else:
@@ -237,7 +237,7 @@ class RemoteStep(storey.SendToHttp):
                 body = self._body_function_handler(body)
             body = json.dumps(body)
             headers["Content-Type"] = "application/json"
-
+        print(3,headers)
         return method, url, headers, body
 
     def _get_data(self, data, headers):

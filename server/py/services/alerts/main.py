@@ -504,3 +504,9 @@ class Service(framework.service.Service):
             == mlrun.common.schemas.ClusterizationRole.chief
             or mlconf.services.service_name == "alerts"
         )
+
+
+if __name__ == "__main__":
+    import framework.utils.mlrunuvicorn as uvicorn
+
+    uvicorn.run(httpdb_config=mlconf.httpdb, service_name="alerts")

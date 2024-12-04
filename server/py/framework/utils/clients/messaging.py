@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import contextlib
-import copy
 import http
 import http.cookies
 import re
@@ -72,7 +71,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(
+        request_kwargs = await self._resolve_request_kwargs_from_request(
             request, json, **kwargs
         )
 
@@ -101,12 +100,14 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
             )
+
+        kwargs_to_log = self._resolve_kwargs_to_log(kwargs)
         logger.debug(
             "Sending request to service",
             service_name=service_name,
             method=method,
             url=url,
-            **kwargs,
+            **kwargs_to_log,
         )
         response = None
         try:
@@ -128,7 +129,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
                     service_name=service_name,
                     method=method,
                     url=url,
-                    **kwargs,
+                    **kwargs_to_log,
                 )
             yield response
         finally:
@@ -179,7 +180,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         raise_on_failure: bool,
         **kwargs,
     ):
-        log_kwargs = copy.deepcopy(kwargs)
+        log_kwargs = Client._resolve_kwargs_to_log(kwargs)
         log_kwargs.update({"method": method, "path": path})
         log_kwargs.update(
             {
@@ -205,19 +206,51 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             mlrun.errors.raise_for_status(response)
 
     @staticmethod
-    def _resolve_request_kwargs_from_request(
+    def _resolve_kwargs_to_log(kwargs: dict) -> dict:
+        kwargs_to_log = {}
+        for key in ["headers", "params", "timeout"]:
+            kwargs_to_log[key] = kwargs.get(key)
+
+        # omit sensitive data from logs
+        if headers := kwargs_to_log.get("headers", {}):
+            for header in ["cookie", "authorization"]:
+                if header in headers:
+                    headers[header] = "****"
+            kwargs_to_log["headers"] = headers
+        return kwargs_to_log
+
+    @staticmethod
+    async def _resolve_request_kwargs_from_request(
         request: fastapi.Request = None, json: typing.Optional[dict] = None, **kwargs
     ) -> dict:
         request_kwargs = {}
         if request:
-            json = json if json else {}
-            request_kwargs.update({"json": json})
+            # either explicitly passed json or read from request body
+            content_length = request.headers.get("content-length", "0")
+            if json is not None:
+                request_kwargs.update({"json": json})
+            elif content_length and content_length != "0":
+                try:
+                    request_kwargs.update({"json": await request.json()})
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to read request body",
+                        error=mlrun.errors.err_to_str(exc),
+                        request_id=request.state.request_id,
+                    )
+                    raise mlrun.errors.MLRunBadRequestError(
+                        "Failed to read request body, expected json body"
+                    ) from exc
             request_kwargs.update({"headers": dict(request.headers)})
             request_kwargs.update({"params": dict(request.query_params)})
             request_kwargs.update({"cookies": request.cookies})
             request_kwargs["headers"].setdefault(
                 "x-request-id", request.state.request_id
             )
+            if service_name := request.app.extra.get("mlrun_service_name"):
+                request_kwargs["headers"].setdefault(
+                    "x-mlrun-origin-service-name", service_name
+                )
 
         # mask clients host with worker's host
         origin_host = request_kwargs.get("headers", {}).pop("host", None)

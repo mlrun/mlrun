@@ -583,7 +583,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self, secret_name: str, namespace: str = "", silent=False
     ) -> typing.Optional[client.V1Secret]:
         namespace = self.resolve_namespace(namespace)
-        logger.debug("Reading secret", secret_name=secret_name, namespace=namespace)
+        if not silent:
+            logger.debug("Reading secret", secret_name=secret_name, namespace=namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(
                 name=secret_name,
@@ -604,7 +605,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self, secret_name: str, namespace: str = "", load_as_json=False, silent=False
     ) -> typing.Optional[dict[str, str]]:
         k8s_secret = self.read_secret(secret_name, namespace, silent)
-        if not k8s_secret:
+        if k8s_secret is None:
             return
         return self._decode_secret_data(k8s_secret.data, load_as_json=load_as_json)
 

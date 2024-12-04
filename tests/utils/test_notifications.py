@@ -1022,7 +1022,7 @@ class TestMailNotification:
         "sender_address": "sender@example.com",
         "username": "user",
         "password": "pass",
-        "email_addresses": "a@example.com",
+        "default_email_addresses": "a@example.com",
         "use_tls": True,
         "validate_certs": True,
         "start_tls": False,
@@ -1149,7 +1149,7 @@ class TestMailNotification:
             (
                 "missing_all_params",
                 {},
-                DEFAULT_PARAMS,
+                {},
             ),
             (
                 "overriding_some_params",
@@ -1167,7 +1167,7 @@ class TestMailNotification:
                 {
                     "email_addresses": ["a@b.com", "b@b.com", "c@c.com"],
                 },
-                {"email_addresses": "a@b.com,b@b.com,c@c.com"},
+                {"email_addresses": "a@b.com,b@b.com,c@c.com,a@example.com"},
             ),
         ],
     )
@@ -1177,5 +1177,41 @@ class TestMailNotification:
             params, TestMailNotification.DEFAULT_PARAMS
         )
         default_params_copy = TestMailNotification.DEFAULT_PARAMS.copy()
+        default_params_copy["email_addresses"] = default_params_copy.pop(
+            "default_email_addresses"
+        )
         default_params_copy.update(expected_params)
         assert enriched_params == default_params_copy
+
+    @pytest.mark.parametrize(
+        ["name", "params", "message", "severity", "expected"],
+        [
+            (
+                "empty_params",
+                {},
+                "test-message",
+                "info",
+                {
+                    "body": "test-message",
+                    "subject": "[info] test-message",
+                },
+            ),
+            (
+                "with_params_message",
+                {"message": "params_message"},
+                "test-message",
+                "warning",
+                {
+                    "body": "params_message",
+                    "subject": "[warning] params_message",
+                },
+            ),
+        ],
+    )
+    async def test_push(self, name, params, message, severity, expected):
+        logger.debug(f"Testing {name}")
+        notification = mail.MailNotification(params=params)
+        notification._send_email = unittest.mock.AsyncMock()
+        await notification.push(message, severity, [])
+        assert notification.params["subject"] == expected["subject"]
+        assert notification.params["body"] == expected["body"]

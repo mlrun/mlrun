@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import unittest
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
+from datetime import timezone
 
 import fastapi.concurrency
 import pytest
@@ -351,3 +351,69 @@ class TestAlerts(TestAlertsBase):
             else alert_objects.AlertActiveState.ACTIVE
         )
         assert alert.state == expected_state
+
+    @pytest.mark.asyncio
+    @unittest.mock.patch.object(
+        framework.utils.singletons.db.SQLDB, "update_alert_activation"
+    )
+    @unittest.mock.patch.object(
+        services.api.crud.AlertActivation, "store_alert_activation"
+    )
+    async def test_store_alert_update_time(
+        self,
+        mocked_update_alert_activation,
+        mocked_store_alert_activation,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock: K8sSecretsMock,
+    ):
+        mocked_update_alert_activation.return_value = None
+        mocked_store_alert_activation.return_value = None
+        project = "project-name"
+        alert_name = "my-alert"
+        alert_summary = "testing 1 2 3"
+        alert_entity = alert_objects.EventEntities(
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            project=project,
+            ids=[123],
+        )
+        event_kind = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
+
+        alert_data = services.alerts.tests.unit.crud.utils.generate_alert_data(
+            project=project,
+            name=alert_name,
+            entity=alert_entity,
+            summary=alert_summary,
+            event_kind=event_kind,
+        )
+
+        services.alerts.crud.Alerts().store_alert(
+            session=db,
+            project=project,
+            name=alert_name,
+            alert_data=alert_data,
+        )
+
+        alert = services.alerts.crud.Alerts().get_enriched_alert(
+            session=db,
+            project=project,
+            name=alert_name,
+        )
+        assert alert.updated is not None
+        assert alert.updated == alert.created
+
+        # modify the alert and store again and validate that the updated field is modified
+        alert_data.summary = "new summary"
+        services.alerts.crud.Alerts().store_alert(
+            session=db,
+            project=project,
+            name=alert_name,
+            alert_data=alert_data,
+        )
+
+        alert = services.alerts.crud.Alerts().get_enriched_alert(
+            session=db,
+            project=project,
+            name=alert_name,
+        )
+        assert alert.updated is not None
+        assert alert.updated > alert.created.replace(tzinfo=timezone.utc)

@@ -69,6 +69,7 @@ class MailNotification(base.NotificationBase):
         alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
         event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
+        message = self.params.get("message", message)
         self.params.setdefault("subject", f"[{severity}] {message}")
         self.params.setdefault("body", message)
         await self._send_email(**self.params)
@@ -84,12 +85,27 @@ class MailNotification(base.NotificationBase):
         params.setdefault("server_port", DEFAULT_SMTP_PORT)
 
         default_mail_address = params.pop("default_email_addresses", "")
-        email_addresses = params.get("email_addresses", default_mail_address)
-        if isinstance(email_addresses, list):
-            email_addresses = ",".join(email_addresses)
-        params["email_addresses"] = email_addresses
+        params["email_addresses"] = cls._merge_mail_addresses(
+            default_mail_address, params.get("email_addresses", "")
+        )
 
         return params
+
+    @classmethod
+    def _merge_mail_addresses(
+        cls,
+        default_mail_address: typing.Union[str, list],
+        email_addresses: typing.Union[str, list],
+    ) -> str:
+        if isinstance(default_mail_address, str):
+            default_mail_address = (
+                default_mail_address.split(",") if default_mail_address else []
+            )
+        if isinstance(email_addresses, str):
+            email_addresses = email_addresses.split(",") if email_addresses else []
+        email_addresses.extend(default_mail_address)
+        email_addresses_str = ",".join(email_addresses)
+        return email_addresses_str
 
     @classmethod
     def _validate_emails(cls, params):

@@ -87,6 +87,7 @@ class RemoteStep(storey.SendToHttp):
         :param retries:     number of retries (in exponential backoff)
         :param backoff_factor: A backoff factor in seconds to apply between attempts after the second try
         :param timeout:     How long to wait for the server to send data before giving up, float in seconds
+        :param headers_expression: an expression for getting the request headers from the event,e.g. "event['headers']"
         """
         # init retry args for storey
         retries = default_retries if retries is None else retries
@@ -136,7 +137,9 @@ class RemoteStep(storey.SendToHttp):
             )
         if self.headers_expression:
             self._headers_function_handler = eval(
-                "lambda event: " + self.headers_expression, {"context": self.context}, {}
+                "lambda event: " + self.headers_expression,
+                {"context": self.context},
+                {},
             )
         elif self.subpath:
             self._append_event_path = self.subpath == "$path"
@@ -214,9 +217,7 @@ class RemoteStep(storey.SendToHttp):
         method = self.method or event.method or "POST"
         if self._headers_function_handler(body):
             self.headers = self._headers_function_handler(body)
-            print("1", self.headers)
         headers = self.headers or {}
-        print("2",headers)
         if self._url_function_handler:
             url = self._url_function_handler(body)
         else:
@@ -237,7 +238,6 @@ class RemoteStep(storey.SendToHttp):
                 body = self._body_function_handler(body)
             body = json.dumps(body)
             headers["Content-Type"] = "application/json"
-        print(3,headers)
         return method, url, headers, body
 
     def _get_data(self, data, headers):

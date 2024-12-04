@@ -486,7 +486,7 @@ class SQLDB(DBInterface):
                 max_partitions,
             )
 
-        query = self._paginate_query(session, query, Run, offset, limit)
+        query = self._paginate_query(query, offset, limit)
 
         if not return_as_run_structs:
             return query.all()
@@ -1565,22 +1565,31 @@ class SQLDB(DBInterface):
                 with_tagged=True,
             )
 
-        # Order the results before applying the limit to ensure that the offset and limit is applied to the correctly
-        # ordered results.
-        query = self._paginate_query(
-            session,
-            query.order_by(ArtifactV2.updated.desc()),
-            ArtifactV2,
-            offset,
-            limit,
-        )
+        if limit:
+            # Order the results before applying the limit to ensure that the limit is applied to the correctly
+            # ordered results.
+            query = self._paginate_query(
+                query.order_by(ArtifactV2.updated.desc()), offset, limit
+            )
 
-        # by default return a list of tuples of (ArtifactV2, tag_name) unless with_entities is given
-        query = query.with_entities(
-            *(with_entities or [ArtifactV2]), ArtifactV2.Tag.name
-        )
+        # limit operation loads all the results before performing the actual limiting,
+        # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
+        # then join the outer query on the subquery to select the correct columns of the table.
+        subquery = query.subquery()
+        outer_query = session.query(ArtifactV2, subquery.c.name)
+        if with_entities:
+            outer_query = outer_query.with_entities(*with_entities, subquery.c.name)
 
-        results = query.all()
+        outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
+
+        if not limit:
+            # When a limit is applied, the results are ordered before limiting, so no additional ordering is needed.
+            # If no limit is specified, ensure the results are ordered after all filtering and joins have been applied.
+            outer_query = self._paginate_query(
+                outer_query.order_by(ArtifactV2.updated.desc()), offset, limit=None
+            )
+
+        results = outer_query.all()
         if not attach_tags:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
             artifacts = set()
@@ -4906,8 +4915,8 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
-        query = self._paginate_query(session, query, Function, offset, limit)
-        return query.with_entities(Function, Function.Tag.name)
+        query = self._paginate_query(query, offset, limit)
+        return query
 
     def _find_model_endpoints(
         self,
@@ -5008,7 +5017,7 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, ModelEndpoint, labels)
-        query = self._paginate_query(session, query, ModelEndpoint, offset, limit)
+        query = self._paginate_query(query, offset, limit)
         return query
 
     @staticmethod
@@ -6073,7 +6082,7 @@ class SQLDB(DBInterface):
             query = query.filter(AlertActivation.entity_kind == entity_kind)
 
         query = query.order_by(AlertActivation.activation_time.desc())
-        query = self._paginate_query(session, query, AlertActivation, offset, limit)
+        query = self._paginate_query(query, offset, limit)
         return [
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()
@@ -6932,11 +6941,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _paginate_query(
-        session: Session,
-        query: sqlalchemy.orm.query.Query,
-        model: type[mlrun.utils.db.BaseModel],
-        offset: typing.Optional[int] = None,
-        limit: typing.Optional[int] = None,
+        query, offset: typing.Optional[int] = None, limit: typing.Optional[int] = None
     ):
         if offset:
             query = query.offset(offset)
@@ -6944,14 +6949,6 @@ class SQLDB(DBInterface):
         if limit == 0:
             raise mlrun.errors.MLRunInvalidArgumentError("Limit cannot be 0")
         elif limit:
-            # Limit operation loads all the results to the DB's memory before performing the actual limiting.
-            # To optimize this, we compile the query as a sub query only for filtering out the relevant ids,
-            # then join the outer query on the subquery to select the correct columns of the table.
-            # This still performs a full table scan on non-indexed filters and even might introduce CPU overhead
-            # for the join. However, for large tables (artifacts / runs) this will greatly improve the DB's memory
-            # consumption and the query's performance.
-            subquery = query.limit(limit).subquery()
-            outer_query = session.query(model)
-            return outer_query.join(subquery, model.id == subquery.c.id)
+            query = query.limit(limit)
 
         return query

@@ -212,6 +212,7 @@ class RemoteStep(storey.SendToHttp):
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
+        print("BODY_TEST",body)
         if self._headers_function_handler(body):
             self.headers = self._headers_function_handler(body)
         headers = self.headers or {}

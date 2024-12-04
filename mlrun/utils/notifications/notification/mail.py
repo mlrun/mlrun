@@ -71,15 +71,17 @@ class MailNotification(base.NotificationBase):
         event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
         self.params["subject"] = f"[{severity}] {message}"
-        override_body = self.params.get("override_body", None)
+        message_body_override = self.params.get("message_body_override", None)
 
-        self.params["body"] = self._get_html(
+        runs_html = self._get_html(
             message, severity, runs, custom_html, alert, event_data
         )
-        if override_body:
-            self.params["body"] = self._serialize_runs_in_request_body(
-                override_body, runs
-            )
+        self.params["body"] = runs_html
+
+        if message_body_override:
+            self.params["body"] = message_body_override.replace(
+                "{{ runs }}", runs_html
+            ).replace("{{runs}}", runs_html)
 
         await self._send_email(**self.params)
 

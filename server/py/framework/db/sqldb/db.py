@@ -2459,12 +2459,20 @@ class SQLDB(DBInterface):
         name: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
+        next_run_time_since: Optional[datetime] = None,
+        next_run_time_until: Optional[datetime] = None,
         as_records: bool = False,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
         query = self._filter_query_by_resource_project(query, Schedule, project)
-
+        if next_run_time_since or next_run_time_until:
+            query = generate_time_range_query(
+                query=query,
+                field=Schedule.next_run_time,
+                since=next_run_time_since,
+                until=next_run_time_until,
+            )
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)

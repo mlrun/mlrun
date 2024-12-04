@@ -649,7 +649,6 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
 
 @pytest.mark.asyncio
 async def test_get_schedule_next_run_time_from_db(db: Session, scheduler: Scheduler):
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(minute="*/10")
     schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(
@@ -659,7 +658,7 @@ async def test_get_schedule_next_run_time_from_db(db: Session, scheduler: Schedu
         schedule_name,
         mlrun.common.schemas.ScheduleKinds.local_function,
         do_nothing,
-        cron_trigger,
+        mlrun.common.schemas.ScheduleCronTrigger(minute="*/10"),
     )
     chief_schedule = scheduler.get_schedule(db, project, schedule_name)
     assert chief_schedule.next_run_time is not None
@@ -671,6 +670,53 @@ async def test_get_schedule_next_run_time_from_db(db: Session, scheduler: Schedu
     worker_schedule = scheduler.get_schedule(db, project, schedule_name)
     assert worker_schedule.next_run_time is not None
     assert chief_schedule.next_run_time == worker_schedule.next_run_time
+
+
+@pytest.mark.asyncio
+async def test_get_schedule_next_run_time_since_until(
+    db: Session, scheduler: Scheduler
+):
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        mlrun.common.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        mlrun.common.schemas.ScheduleKinds.local_function,
+        do_nothing,
+        mlrun.common.schemas.ScheduleCronTrigger(minute="*/10"),
+    )
+    future = datetime.now() + timedelta(days=1)
+    past = datetime.now() - timedelta(days=1)
+    all_schedules = get_db().list_schedules(
+        db, name=schedule_name, project=project, next_run_time_since=future
+    )
+    assert len(all_schedules) == 0
+
+    all_schedules = get_db().list_schedules(
+        db, name=schedule_name, project=project, next_run_time_until=future
+    )
+    assert len(all_schedules) == 1
+
+    all_schedules = get_db().list_schedules(
+        db, name=schedule_name, project=project, next_run_time_since=past
+    )
+    assert len(all_schedules) == 1
+
+    all_schedules = get_db().list_schedules(
+        db, name=schedule_name, project=project, next_run_time_until=past
+    )
+    assert len(all_schedules) == 0
+
+    all_schedules = get_db().list_schedules(
+        db,
+        name=schedule_name,
+        project=project,
+        next_run_time_since=past,
+        next_run_time_until=future,
+    )
+    assert len(all_schedules) == 1
 
 
 @pytest.mark.asyncio

@@ -53,6 +53,7 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
         return _AppResultEvent(
             {
                 WriterEvent.ENDPOINT_ID: "some-ep-id",
+                WriterEvent.ENDPOINT_NAME: "some-ep-name",
                 WriterEvent.START_INFER_TIME: start_infer_time.strftime(
                     "%Y-%m-%d %H:%M:%S"
                 ),
@@ -69,6 +70,7 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
         return _AppResultEvent(
             {
                 WriterEvent.ENDPOINT_ID: "some-ep-id",
+                WriterEvent.ENDPOINT_NAME: "some-ep-name",
                 WriterEvent.START_INFER_TIME: start_infer_time.strftime(
                     "%Y-%m-%d %H:%M:%S"
                 ),
@@ -159,22 +161,13 @@ class TestHistogramGeneralDriftResultEvent:
             Mock(return_value=mock_v3io_client),
         ):
             with patch(
-                "mlrun.model_monitoring.get_store_object",
-                return_value=mlrun.model_monitoring.get_store_object(
-                    store_connection_string="v3io", project=TEST_PROJECT
+                "mlrun.model_monitoring.get_tsdb_connector",
+                return_value=Mock(
+                    spec=mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector
                 ),
             ):
-                with patch(
-                    "mlrun.model_monitoring.get_tsdb_connector",
-                    return_value=Mock(
-                        spec=mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector
-                    ),
-                ):
-                    writer = ModelMonitoringWriter(project=TEST_PROJECT)
-                    writer._app_result_store = mlrun.model_monitoring.get_store_object(
-                        store_connection_string="v3io", project=TEST_PROJECT
-                    )
-                    yield writer
+                writer = ModelMonitoringWriter(project=TEST_PROJECT)
+                yield writer
 
 
 class TestTSDB:

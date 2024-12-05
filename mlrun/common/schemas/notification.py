@@ -132,8 +132,14 @@ class SetNotificationRequest(pydantic.v1.BaseModel):
     notifications: list[Notification] = None
 
 
+class NotificationSummary(pydantic.v1.BaseModel):
+    failed: int = 0
+    succeeded: int = 0
+
+
 class NotificationState(pydantic.v1.BaseModel):
     kind: str
     err: Optional[
         str
     ]  # empty error means that the notifications were sent successfully
+    summary: NotificationSummary

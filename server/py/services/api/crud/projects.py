@@ -202,7 +202,14 @@ class Projects(
             "Deleting project alert events",
             project_name=name,
         )
+
         # TODO: Forward to alerts service
+        # The messaging client is async, and project deletion is sync.
+        # When deleting a project, we need to use a sync client to send the delete event request to the alerts service,
+        # or to Chief if in Hydra mode. (ML-8390)
+        # Until we implement the sync client, we can allow Chief to delete the project alerts itself, instead of
+        # actually forwarding the request and waiting for a response, since the project deletion flow is handled
+        # by Chief only.
         services.alerts.crud.Events().delete_project_alert_events(name)
 
         # get model monitoring application names, important for deleting model monitoring resources
@@ -347,11 +354,23 @@ class Projects(
             format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
             **project_filters,
         )
-        return await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            [project[0] for project in projects_output.projects],
-            auth_info,
-            action=action,
+
+        # Use a set to improve performance during filtering below
+        allowed_project_names = set(
+            await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+                [project[0] for project in projects_output.projects],
+                auth_info,
+                action=action,
+            )
         )
+
+        # Filter the original list based on allowed names
+        # we need to return list of project objects (not project names)
+        return [
+            project
+            for project in projects_output.projects
+            if project[0] in allowed_project_names
+        ]
 
     async def list_project_summaries(
         self,
@@ -391,12 +410,6 @@ class Projects(
         project: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
-        # secrets and model endpoints.
-        services.api.crud.ModelEndpoints().verify_project_has_no_model_endpoints(
-            project
-        )
-
         # Note: this check lists also internal secrets. The assumption is that any internal secret that relate to
         # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.

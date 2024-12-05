@@ -1460,7 +1460,7 @@ def _create_resources_of_all_kinds(
     # create a datasource profile
     db.store_datastore_profile(db_session, ds_profile)
 
-    model_endpoint = mlrun.common.schemas.ModelEndpointV2(
+    model_endpoint = mlrun.common.schemas.ModelEndpoint(
         metadata={
             "name": "model-endpoint-1",
             "project": project,
@@ -1480,6 +1480,7 @@ def _create_resources_of_all_kinds(
         model_endpoint,
         name=model_endpoint.metadata.name,
         project=model_endpoint.metadata.project,
+        function_name=function_names[0],
     )
 
 

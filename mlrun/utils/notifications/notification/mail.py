@@ -13,7 +13,8 @@
 # limitations under the License.
 import re
 import typing
-from email.message import EmailMessage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import aiosmtplib
 
@@ -69,9 +70,19 @@ class MailNotification(base.NotificationBase):
         alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
         event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
-        message = self.params.get("message", message)
-        self.params.setdefault("subject", f"[{severity}] {message}")
-        self.params.setdefault("body", message)
+        self.params["subject"] = f"[{severity}] {message}"
+        message_body_override = self.params.get("message_body_override", None)
+
+        runs_html = self._get_html(
+            message, severity, runs, custom_html, alert, event_data
+        )
+        self.params["body"] = runs_html
+
+        if message_body_override:
+            self.params["body"] = message_body_override.replace(
+                "{{ runs }}", runs_html
+            ).replace("{{runs}}", runs_html)
+
         await self._send_email(**self.params)
 
     @classmethod
@@ -146,11 +157,11 @@ class MailNotification(base.NotificationBase):
         **kwargs,
     ):
         # Create the email message
-        message = EmailMessage()
+        message = MIMEMultipart("alternative")
         message["From"] = sender_address
         message["To"] = email_addresses
         message["Subject"] = subject
-        message.set_content(body)
+        message.attach(MIMEText(body, "html"))
 
         # Send the email
         await aiosmtplib.send(

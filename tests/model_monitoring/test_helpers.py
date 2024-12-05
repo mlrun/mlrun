@@ -30,6 +30,7 @@ from mlrun.common.model_monitoring.helpers import (
     pad_features_hist,
     pad_hist,
 )
+from mlrun.common.schemas import EndpointType, ModelEndpoint
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
 from mlrun.model_monitoring.controller import (
@@ -45,7 +46,6 @@ from mlrun.model_monitoring.helpers import (
     get_invocations_fqn,
     update_model_endpoint_last_request,
 )
-from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import datetime_now
 
 
@@ -366,18 +366,10 @@ class TestBatchInterval:
 
 class TestBatchWindowGenerator:
     @staticmethod
-    @pytest.mark.parametrize(
-        ("first_request", "expected"),
-        [("2023-11-09 09:25:59.554971+00:00", 1699521959)],
-    )
-    def test_normalize_first_request(first_request: str, expected: int) -> None:
-        assert _BatchWindowGenerator._date_string2timestamp(first_request) == expected
-
-    @staticmethod
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request.isoformat(), has_stream=True
+            last_request=last_request, not_batch_endpoint=True
         )
         assert last_updated
         assert (
@@ -399,7 +391,13 @@ class TestBumpModelEndpointLastRequest:
     @staticmethod
     @pytest.fixture
     def empty_model_endpoint() -> ModelEndpoint:
-        return ModelEndpoint()
+        return ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                name="test", project="test-project"
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(),
+            status=mlrun.common.schemas.ModelEndpointStatus(),
+        )
 
     @staticmethod
     @pytest.fixture
@@ -427,7 +425,6 @@ class TestBumpModelEndpointLastRequest:
         last_request: str,
         function: mlrun.runtimes.ServingRuntime,
     ) -> None:
-        model_endpoint.spec.stream_path = "stream"
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
             with patch.object(db, "get_function", return_value=function):
                 update_model_endpoint_last_request(
@@ -437,12 +434,10 @@ class TestBumpModelEndpointLastRequest:
                     db=db,
                 )
         patch_patch_model_endpoint.assert_called_once()
-        assert datetime.datetime.fromisoformat(
-            patch_patch_model_endpoint.call_args.kwargs["attributes"][
-                EventFieldType.LAST_REQUEST
-            ]
-        ) == datetime.datetime.fromisoformat(last_request)
-        model_endpoint.spec.stream_path = ""
+        assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
+            EventFieldType.LAST_REQUEST
+        ] == datetime.datetime.fromisoformat(last_request)
+        model_endpoint.metadata.endpoint_type = EndpointType.BATCH_EP
 
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
             with patch.object(db, "get_function", return_value=function):
@@ -453,11 +448,9 @@ class TestBumpModelEndpointLastRequest:
                     db=db,
                 )
         patch_patch_model_endpoint.assert_called_once()
-        assert datetime.datetime.fromisoformat(
-            patch_patch_model_endpoint.call_args.kwargs["attributes"][
-                EventFieldType.LAST_REQUEST
-            ]
-        ) == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
+        assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
+            EventFieldType.LAST_REQUEST
+        ] == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
             minutes=1
         ) + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
@@ -473,6 +466,7 @@ class TestBumpModelEndpointLastRequest:
             with patch.object(
                 db, "get_function", side_effect=mlrun.errors.MLRunNotFoundError
             ):
+                model_endpoint.metadata.endpoint_type = EndpointType.BATCH_EP
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,

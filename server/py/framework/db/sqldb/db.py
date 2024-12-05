@@ -16,7 +16,6 @@ import asyncio
 import collections
 import functools
 import hashlib
-import json
 import pathlib
 import re
 import typing
@@ -48,6 +47,7 @@ from sqlalchemy.orm import Session, aliased
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
+import mlrun.common.model_monitoring
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
@@ -67,7 +67,6 @@ from mlrun.lists import ArtifactList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
     fill_function_hash,
-    fill_model_endpoint_hash,
     fill_object_hash,
     generate_artifact_uri,
     generate_object_uri,
@@ -437,8 +436,8 @@ class SQLDB(DBInterface):
         requested_logs: typing.Optional[bool] = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -486,7 +485,7 @@ class SQLDB(DBInterface):
                 max_partitions,
             )
 
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
 
         if not return_as_run_structs:
             return query.all()
@@ -773,6 +772,7 @@ class SQLDB(DBInterface):
         producer_uri: typing.Optional[str] = None,
         most_recent: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         partition_by: typing.Optional[
             mlrun.common.schemas.ArtifactPartitionByField
@@ -784,8 +784,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
     ) -> typing.Union[list, ArtifactList]:
         project = project or config.default_project
 
@@ -811,13 +809,12 @@ class SQLDB(DBInterface):
             best_iteration=best_iteration,
             most_recent=most_recent,
             attach_tags=not as_records,
+            offset=offset,
             limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            page=page,
-            page_size=page_size,
         )
         if as_records:
             return artifact_records
@@ -1440,6 +1437,7 @@ class SQLDB(DBInterface):
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
+        offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         with_entities: typing.Optional[list[Any]] = None,
         partition_by: typing.Optional[
@@ -1452,8 +1450,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
     ) -> typing.Union[list[Any],]:
         """
         Find artifacts by the given filters.
@@ -1485,8 +1481,8 @@ class SQLDB(DBInterface):
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
             Currently the only allowed values are `created` and `updated`. Default is `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
 
         :return: May return:
             1. a list of tuples of (ArtifactV2, tag_name)
@@ -1497,11 +1493,6 @@ class SQLDB(DBInterface):
             message = "Category and Kind filters can't be given together"
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
-
-        if limit and page_size:
-            raise mlrun.errors.MLRunConflictError(
-                "'page_size' and 'limit' are conflicting, only one can be specified."
-            )
 
         # create a sub query that gets only the artifact IDs
         # apply all filters and limits
@@ -1576,7 +1567,9 @@ class SQLDB(DBInterface):
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
-            query = query.order_by(ArtifactV2.updated.desc()).limit(limit)
+            query = self._paginate_query(
+                query.order_by(ArtifactV2.updated.desc()), offset, limit
+            )
 
         # limit operation loads all the results before performing the actual limiting,
         # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
@@ -1591,9 +1584,9 @@ class SQLDB(DBInterface):
         if not limit:
             # When a limit is applied, the results are ordered before limiting, so no additional ordering is needed.
             # If no limit is specified, ensure the results are ordered after all filtering and joins have been applied.
-            outer_query = outer_query.order_by(ArtifactV2.updated.desc())
-
-        outer_query = self._paginate_query(outer_query, page, page_size)
+            outer_query = self._paginate_query(
+                outer_query.order_by(ArtifactV2.updated.desc()), offset, limit=None
+            )
 
         results = outer_query.all()
         if not attach_tags:
@@ -1962,8 +1955,8 @@ class SQLDB(DBInterface):
         labels: typing.Optional[list[str]] = None,
         hash_key: typing.Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
     ) -> list[dict]:
@@ -1979,8 +1972,8 @@ class SQLDB(DBInterface):
             since=since,
             until=until,
             kind=kind,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         ):
             function_dict = function.struct
             function_dict["kind"] = function.kind
@@ -2172,6 +2165,7 @@ class SQLDB(DBInterface):
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
+                function["metadata"]["uid"] = tag_function_uid
             function["kind"] = obj.kind
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
@@ -2459,12 +2453,20 @@ class SQLDB(DBInterface):
         name: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
+        next_run_time_since: Optional[datetime] = None,
+        next_run_time_until: Optional[datetime] = None,
         as_records: bool = False,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
         query = self._filter_query_by_resource_project(query, Schedule, project)
-
+        if next_run_time_since or next_run_time_until:
+            query = generate_time_range_query(
+                query=query,
+                field=Schedule.next_run_time,
+                since=next_run_time_since,
+                until=next_run_time_until,
+            )
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
@@ -2663,16 +2665,26 @@ class SQLDB(DBInterface):
         objs,
         project: str,
         name: str,
-        obj_name_attribute: str = "name",
+        obj_name_attribute: Union[str, list[str]] = "name",
     ):
         tags = []
+        obj_name_attribute = (
+            [obj_name_attribute]
+            if isinstance(obj_name_attribute, str)
+            else obj_name_attribute
+        )
         for obj in objs:
             query = self._query(
                 session,
                 obj.Tag,
                 name=name,
                 project=project,
-                obj_name=getattr(obj, obj_name_attribute),
+                obj_name="-".join(
+                    [
+                        getattr(obj, attr) if getattr(obj, attr) else ""
+                        for attr in obj_name_attribute
+                    ]
+                ),
             )
 
             tag = query.one_or_none()
@@ -2680,7 +2692,12 @@ class SQLDB(DBInterface):
                 tag = obj.Tag(
                     project=project,
                     name=name,
-                    obj_name=getattr(obj, obj_name_attribute),
+                    obj_name="-".join(
+                        [
+                            getattr(obj, attr) if getattr(obj, attr) else ""
+                            for attr in obj_name_attribute
+                        ]
+                    ),
                 )
             tag.obj_id = obj.id
             tags.append(tag)
@@ -3453,6 +3470,7 @@ class SQLDB(DBInterface):
         session,
         project: str,
         name: str,
+        function_name: str,
         uid: typing.Optional[str] = None,
     ) -> typing.Union[ModelEndpoint, None]:
         if uid:
@@ -3460,8 +3478,8 @@ class SQLDB(DBInterface):
                 session, ModelEndpoint, name, project, uid
             )
         else:
-            mep_record = self._get_class_latest_instance(
-                session, ModelEndpoint, name, project
+            mep_record = self._get_mep_latest_instance(
+                session, ModelEndpoint, name, function_name, project
             )
         if mep_record:
             return mep_record
@@ -4702,14 +4720,23 @@ class SQLDB(DBInterface):
         return users
 
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
-        query = self._query(session, cls, name=name, project=project, uid=uid)
+        query = (
+            self._query(session, cls, name=name, project=project, uid=uid)
+            if name
+            else self._query(session, cls, project=project, uid=uid)
+        )
         return query.one_or_none()
 
-    def _get_class_latest_instance(self, session, cls, name, project):
+    def _get_mep_latest_instance(self, session, cls, name, function_name, project):
         query = (
             session.query(cls)
             .join(cls.Tag)
-            .filter(cls.project == project, cls.name == name, cls.Tag.name == "latest")
+            .filter(
+                cls.project == project,
+                cls.name == name,
+                cls.function_name == function_name,
+                cls.Tag.name == "latest",
+            )
         )
 
         return query.one_or_none()
@@ -4865,8 +4892,8 @@ class SQLDB(DBInterface):
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
         kind: typing.Optional[str] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
         """
         Query functions from the DB by the given filters.
@@ -4880,8 +4907,8 @@ class SQLDB(DBInterface):
         :param since: Filter functions that were updated after this time
         :param until: Filter functions that were updated before this time
         :param kind: The kind of the function to query.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
         """
         query = session.query(Function, Function.Tag.name)
         query = self._filter_query_by_resource_project(query, Function, project)
@@ -4921,7 +4948,7 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
         return query
 
     def _find_model_endpoints(
@@ -4937,8 +4964,8 @@ class SQLDB(DBInterface):
         end: datetime,
         uids: list[str],
         latest_only: bool,
-        page: int,
-        page_size: int,
+        offset: int,
+        limit: int,
     ) -> sqlalchemy.orm.query.Query:
         """
         Query model_endpoints from the DB by the given filters.
@@ -4953,8 +4980,8 @@ class SQLDB(DBInterface):
         :param end: Filter model endpoints that were crated before this time
         :param uids : The uids of the model endpoint to query.
         :param latest_only: If true, then return only the latest model endpoint.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
         """
         query = session.query(ModelEndpoint)
         query = query.filter(ModelEndpoint.project == project)
@@ -5006,10 +5033,8 @@ class SQLDB(DBInterface):
             )
 
         if start or end:
-            start = start or datetime.min
-            end = end or datetime.max
-            query = query.filter(
-                and_(ModelEndpoint.created >= start, ModelEndpoint.created <= end)
+            query = generate_time_range_query(
+                query=query, field=ModelEndpoint.created, since=start, until=end
             )
 
         if latest_only:
@@ -5023,7 +5048,7 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, ModelEndpoint, labels)
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
         return query
 
     @staticmethod
@@ -5194,7 +5219,7 @@ class SQLDB(DBInterface):
         self,
         model_endpoint_record: ModelEndpoint,
         format_: mlrun.common.formatters.ModelEndpointFormat = mlrun.common.formatters.ModelEndpointFormat.full,
-    ) -> mlrun.common.schemas.ModelEndpointV2:
+    ) -> mlrun.common.schemas.ModelEndpoint:
         model_endpoint_full_dict = model_endpoint_record.struct
         model_endpoint_full_dict[ModelEndpointSchema.UPDATED] = (
             model_endpoint_record.updated
@@ -5202,7 +5227,7 @@ class SQLDB(DBInterface):
         model_endpoint_full_dict[ModelEndpointSchema.CREATED] = (
             model_endpoint_record.created
         )
-
+        model_endpoint_full_dict[ModelEndpointSchema.UID] = model_endpoint_record.uid
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
             model_endpoint_record, model_endpoint_full_dict
         )
@@ -5215,14 +5240,9 @@ class SQLDB(DBInterface):
                 model_endpoint_full_dict, format_
             )
         )
-        model_endpoint_resp = mlrun.common.schemas.ModelEndpointV2.from_flat_dict(
+        model_endpoint_resp = mlrun.common.schemas.ModelEndpoint.from_flat_dict(
             model_endpoint_full_dict
         )
-
-        # TODO : add the following data
-        # next step in status : operative data
-        # from tsdb - latency, drift_status, error_count, last_request
-        # from json - current_stats, drift_measures
 
         return model_endpoint_resp
 
@@ -5236,7 +5256,17 @@ class SQLDB(DBInterface):
                 function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
             )
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = (
-                f"{model_endpoint_record.project}/{function_full_dict.get('metadata', {}).get('hash')}"
+                generate_object_uri(
+                    project=model_endpoint_record.project,
+                    name=model_endpoint_record.function_name,
+                    hash_key=function_full_dict.get("metadata", {}).get("hash"),
+                )
+            )
+            curr_tag = model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG]
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
+                curr_tag
+                if curr_tag in [tag.name for tag in model_endpoint_record.function.tags]
+                else None
             )
         return model_endpoint_full_dict
 
@@ -5248,41 +5278,27 @@ class SQLDB(DBInterface):
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = (
                 model_endpoint_record.model.key
             )
-            try:
-                model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = (
-                    model_endpoint_record.model.tags[0].name
-                )
-            except IndexError:
-                model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = ""
-            model_artifact_uri = generate_artifact_uri(
-                project=model_endpoint_record.project,
-                key=model_endpoint_record.model.key,
-                iter=model_endpoint_record.model.full_object.get("metadata", {}).get(
-                    "iter"
+            curr_tag = model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG]
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = (
+                curr_tag
+                if curr_tag in [tag.name for tag in model_endpoint_record.model.tags]
+                else None
+            )
+            model_artifact_uri = mlrun.datastore.get_store_uri(
+                kind=mlrun.utils.helpers.StorePrefix.Model,
+                uri=generate_artifact_uri(
+                    project=model_endpoint_record.project,
+                    key=model_endpoint_record.model.key,
+                    iter=model_endpoint_record.model.full_object.get(
+                        "metadata", {}
+                    ).get("iter"),
+                    tree=model_endpoint_record.model.full_object.get(
+                        "metadata", {}
+                    ).get("tree"),
                 ),
-                tree=model_endpoint_record.model.full_object.get("metadata", {}).get(
-                    "tree"
-                ),
             )
 
-            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = (
-                mlrun.datastore.get_store_uri(
-                    kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
-                )
-            )
-
-            model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS] = (
-                model_endpoint_record.model.full_object.get(
-                    "spec", {}
-                ).get(ModelEndpointSchema.FEATURE_STATS, {})
-            )
-            if not isinstance(
-                model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS], dict
-            ):
-                model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS] = (
-                    json.loads(model_endpoint_full_dict["feature_stats"])
-                )
-
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = model_artifact_uri
         return model_endpoint_full_dict
 
     def _transform_project_record_to_schema(
@@ -6044,8 +6060,8 @@ class SQLDB(DBInterface):
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         query = self._query(session, AlertActivation)
 
@@ -6088,7 +6104,7 @@ class SQLDB(DBInterface):
             query = query.filter(AlertActivation.entity_kind == entity_kind)
 
         query = query.order_by(AlertActivation.activation_time.desc())
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
         return [
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()
@@ -6730,10 +6746,11 @@ class SQLDB(DBInterface):
     def store_model_endpoint(
         self,
         session,
-        model_endpoint: mlrun.common.schemas.ModelEndpointV2,
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
         name: str,
+        function_name: str,
         project: str,
-    ) -> str:
+    ) -> mlrun.common.schemas.ModelEndpoint:
         logger.debug(
             "Storing Model Endpoint to DB",
             name=name,
@@ -6741,53 +6758,63 @@ class SQLDB(DBInterface):
             metadata=model_endpoint.metadata,
         )
         body_name = model_endpoint.metadata.name
-        if body_name and body_name != name:
+        if body_name != name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Conflict between requested name and name in MEP body, MEP name is {name} while body_name is"
                 f" {body_name}"
             )
         body_project = model_endpoint.metadata.project
-        if body_project and body_project != project:
+        if body_project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Conflict between requested project and project in MEP body, MEP project is {project} "
                 f"while body_project is {body_project}"
             )
-
-        created_time = datetime.now(timezone.utc)
-        uid = fill_model_endpoint_hash(
-            model_endpoint, created_time.isoformat(sep=" ", timespec="microseconds")
-        )
-
+        body_function = model_endpoint.spec.function_name
+        if body_function != function_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Conflict between requested function and function in MEP body, MEP function is {function_name} "
+                f"while body_function is {body_function}"
+            )
+        current_time = datetime.now(timezone.utc)
         mep = ModelEndpoint(
             name=name,
             project=project,
-            uid=uid,
-            created=created_time,
             function_name=model_endpoint.spec.function_name,
             function_uid=model_endpoint.spec.function_uid,
             model_uid=model_endpoint.spec.model_uid,
             model_name=model_endpoint.spec.model_name,
-            updated=created_time,
-            endpoint_type=model_endpoint.metadata.endpoint_type,
+            endpoint_type=model_endpoint.metadata.endpoint_type.value,
+            created=current_time,
+            updated=current_time,
         )
 
         update_labels(mep, model_endpoint.metadata.labels)
-        mep.struct = model_endpoint.flat_dict(exclude=model_endpoint._operative_data())
+        mep.struct = model_endpoint.flat_dict()
         self._upsert(session, [mep])
-        self.tag_objects_v2(session, [mep], project, "latest")
-        return uid
+        self.tag_objects_v2(
+            session,
+            [mep],
+            project,
+            "latest",
+            obj_name_attribute=["name", "function_name"],
+        )
+        mep_record = self._get_model_endpoint(session, project, name, function_name)
+        return self._transform_model_endpoint_model_to_schema(mep_record)
 
     def get_model_endpoint(
         self,
         session,
         project: str,
         name: str,
+        function_name: str,
         uid: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointV2:
-        mep_record = self._get_model_endpoint(session, project, name, uid)
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        mep_record = self._get_model_endpoint(
+            session, project, name, function_name, uid
+        )
         if not mep_record:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Model Endpoint not found in project {project} with name {name}"
+                f"Model Endpoint not found in project {project} with name {name} under function {function_name}"
             )
         return self._transform_model_endpoint_model_to_schema(mep_record)
 
@@ -6796,23 +6823,42 @@ class SQLDB(DBInterface):
         session,
         project: str,
         name: str,
+        function_name: str,
         attributes: dict,
         uid: typing.Optional[str] = None,
-    ) -> str:
-        mep_record = self._get_model_endpoint(session, project, name, uid)
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        mep_record = self._get_model_endpoint(
+            session, project, name, function_name, uid
+        )
         updated = datetime.now(timezone.utc)
+        attributes, schema_attr, labels = self._split_mep_update_attr(attributes)
         if mep_record:
             struct = mep_record.struct
             for key, val in attributes.items():
                 update_in(struct, key, val)
+            for key, val in schema_attr.items():
+                setattr(mep_record, key, val)
+                update_in(struct, key, val)
+            if labels and isinstance(labels, dict):
+                update_labels(mep_record, labels)
+            update_in(struct, "labels", labels)
             mep_record.struct = struct
             mep_record.updated = updated
             self._upsert(session, [mep_record])
-            return mep_record.uid
+            return self._transform_model_endpoint_model_to_schema(mep_record)
         else:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Model Endpoint not found in project {project} with name {name}"
+                f"Model Endpoint not found in project {project} with name {name} under function {function_name}"
             )
+
+    def _split_mep_update_attr(self, attributes: dict):
+        labels = attributes.pop("labels", {})
+        schema_attr = {}
+        for key in list(attributes.keys()):
+            if hasattr(ModelEndpoint, key):
+                schema_attr[key] = attributes.pop(key)
+
+        return attributes, schema_attr, labels
 
     def list_model_endpoints(
         self,
@@ -6827,10 +6873,10 @@ class SQLDB(DBInterface):
         end: typing.Optional[datetime] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: bool = False,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
-    ) -> list[mlrun.common.schemas.ModelEndpointV2]:
-        model_endpoints: list[mlrun.common.schemas.ModelEndpointV2] = []
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
+    ) -> list[mlrun.common.schemas.ModelEndpoint]:
+        model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
         for mep_record in self._find_model_endpoints(
             session=session,
             name=name,
@@ -6843,28 +6889,42 @@ class SQLDB(DBInterface):
             end=end,
             uids=uids,
             latest_only=latest_only,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         ):
             model_endpoints.append(
                 self._transform_model_endpoint_model_to_schema(mep_record)
             )
-        return model_endpoints
+        return mlrun.common.schemas.ModelEndpointList(endpoints=model_endpoints)
 
     def delete_model_endpoint(
         self,
         session,
         project: str,
         name: str,
+        function_name: str,
         uid: str,
     ) -> None:
         logger.debug(
             "Removing model endpoint from db", project=project, name=name, uid=uid
         )
         if uid != "*":
-            self._delete(session, ModelEndpoint, project=project, name=name, uid=uid)
+            self._delete(
+                session,
+                ModelEndpoint,
+                project=project,
+                name=name,
+                function_name=function_name,
+                uid=uid,
+            )
         else:
-            self._delete(session, ModelEndpoint, project=project, name=name)
+            self._delete(
+                session,
+                ModelEndpoint,
+                project=project,
+                name=name,
+                function_name=function_name,
+            )
 
     def delete_model_endpoints(
         self,
@@ -6947,12 +7007,14 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _paginate_query(
-        query, page: typing.Optional[int] = None, page_size: typing.Optional[int] = None
+        query, offset: typing.Optional[int] = None, limit: typing.Optional[int] = None
     ):
-        if page is not None:
-            page_size = page_size or config.httpdb.pagination.default_page_size
-            if query.count() < page_size * (page - 1):
-                raise StopIteration
-            query = query.limit(page_size).offset((page - 1) * page_size)
+        if offset:
+            query = query.offset(offset)
+
+        if limit == 0:
+            raise mlrun.errors.MLRunInvalidArgumentError("Limit cannot be 0")
+        elif limit:
+            query = query.limit(limit)
 
         return query

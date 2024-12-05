@@ -15,15 +15,11 @@
 from collections import Counter
 from collections.abc import Iterator
 from datetime import datetime, timezone
-from http import HTTPStatus
 from typing import Any, Optional
 from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
-import v3io.dataplane.kv
-import v3io.dataplane.output
-import v3io.dataplane.response
 import v3io_frames
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -34,7 +30,6 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringResultValues,
     _MetricPoint,
 )
-from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
     _normalize_dict_for_v3io_frames,
 )
@@ -42,15 +37,6 @@ from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (
     V3IOTSDBConnector,
     _is_no_schema_error,
 )
-
-
-@pytest.fixture(params=["default-project"])
-def store(
-    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
-) -> KVStoreBase:
-    monkeypatch.setenv("V3IO_ACCESS_KEY", "secret-value")
-    store = KVStoreBase(project=request.param)
-    return store
 
 
 @pytest.mark.parametrize(
@@ -70,23 +56,6 @@ def test_is_no_schema_error(
     exc: v3io_frames.ReadError, expected_is_no_schema: bool
 ) -> None:
     assert _is_no_schema_error(exc) == expected_is_no_schema
-
-
-@pytest.fixture
-def kv_client_mock() -> v3io.dataplane.kv.Model:
-    kv_mock = Mock(spec=v3io.dataplane.kv.Model)
-    schema_file = Mock(all=Mock(return_value=False))
-    kv_mock.new_cursor = Mock(return_value=schema_file)
-    kv_mock.create_schema = Mock(return_value=Mock(status_code=HTTPStatus.OK))
-    return kv_mock
-
-
-@pytest.fixture
-def mocked_client_store(
-    store: KVStoreBase, kv_client_mock: v3io.dataplane.kv.Model
-) -> KVStoreBase:
-    store.client.kv = kv_client_mock
-    return store
 
 
 @pytest.fixture

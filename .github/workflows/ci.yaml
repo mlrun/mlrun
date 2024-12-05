@@ -88,7 +88,7 @@ jobs:
       matrix:
         # TODO: Ensure compatibility with Python 3.11 as well
         # Currently, MLRun requires KFP with protobuf, which fails to install on Python 3.11.
-        python-version: [ "3.9"]
+        python-version: ["3.9"]
     steps:
     - uses: actions/checkout@v4
 
@@ -129,7 +129,7 @@ jobs:
       matrix:
         # TODO: Ensure compatibility with Python 3.11 as well
         # Currently, MLRun requires KFP with protobuf, which fails to install on Python 3.11.
-        python-version: [ "3.9" ]
+        python-version: ["3.9"]
 
     steps:
     - uses: actions/checkout@v4
@@ -194,9 +194,12 @@ jobs:
     strategy:
       matrix:
         # Explicitly define combinations: KFP v1.8 with Python 3.9
+        # TODO: Enable KFP v2 with Python 3.11 when it's supported (in 1.9.0)
         include:
           - python-version: "3.9"
             pipeline-adapter: "kfp-v1-8"
+#          - python-version: "3.11"
+#            pipeline-adapter: "kfp-v2"
     steps:
     - uses: actions/checkout@v4
     - name: Set up python ${{ matrix.python-version }}
@@ -279,7 +282,7 @@ jobs:
     strategy:
       matrix:
         # 3.9 is the current >= 1.3.0 python version
-        python-version: [3.9]
+        python-version: ["3.9", "3.11"]
     steps:
     - uses: actions/checkout@v4
     - name: Set up python ${{ matrix.python-version }}

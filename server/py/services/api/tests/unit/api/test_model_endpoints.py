@@ -14,18 +14,14 @@
 
 import os
 import string
-import typing
 from random import choice, randint
 from typing import Optional
 
-import deepdiff
 import pytest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
-from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
-from mlrun.model_monitoring.db.stores import StoreBase
+from mlrun.errors import MLRunBadRequestError
 
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.model_monitoring.helpers
@@ -34,39 +30,6 @@ TEST_PROJECT = "test-model-endpoints"
 # Set a default v3io access key env variable
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
-
-# Bound a typing variable for StoreBase
-KVmodelType = typing.TypeVar("KVmodelType", bound="StoreBase")
-
-
-def test_build_kv_cursor_filter_expression():
-    """Validate that the filter expression format converter for the KV cursor works as expected."""
-
-    # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
-
-    endpoint_store: KVmodelType = store_type_object.to_object_store(
-        project=TEST_PROJECT,
-    )
-
-    with pytest.raises(MLRunInvalidArgumentError):
-        endpoint_store._build_kv_cursor_filter_expression("")
-
-    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
-        project=TEST_PROJECT
-    )
-    assert filter_expression == f"project=='{TEST_PROJECT}'"
-
-    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
-        project=TEST_PROJECT,
-        function="test_function",
-        model="test_model",
-    )
-    expected = (
-        f"project=='{TEST_PROJECT}' "
-        f"AND function_uri=='{TEST_PROJECT}/test_function' AND model=='test_model:latest'"
-    )
-    assert filter_expression == expected
 
 
 def test_get_access_key():
@@ -261,33 +224,6 @@ def test_get_endpoint_features_function():
     assert len(features) == 3
 
 
-def test_generating_tsdb_paths():
-    """Validate that the TSDB paths for the KVStoreBase object are created as expected. These paths are
-    usually important when the user call the delete project API and as a result the TSDB resources should be deleted
-    """
-
-    # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
-    endpoint_store: KVmodelType = store_type_object.to_object_store(
-        project=TEST_PROJECT,
-    )
-
-    # Generating the required tsdb paths
-    tsdb_path, filtered_path = endpoint_store._generate_tsdb_paths()
-
-    # Validate the expected results based on the full path to the TSDB events directory
-    full_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT,
-        kind=ModelMonitoringStoreKinds.EVENTS,
-    )
-
-    # TSDB short path that should point to the main directory
-    assert tsdb_path == full_path[: len(tsdb_path)]
-
-    # Filtered path that should point to the events directory without container and schema
-    assert filtered_path == full_path[-len(filtered_path) + 1 :] + "/"
-
-
 def _get_auth_info() -> mlrun.common.schemas.AuthInfo:
     return mlrun.common.schemas.AuthInfo(data_session=os.environ.get("V3IO_ACCESS_KEY"))
 
@@ -309,35 +245,3 @@ def _mock_random_endpoint(
         ),
         status=mlrun.common.schemas.ModelEndpointStatus(state=state),
     )
-
-
-def test_validate_model_endpoints_schema():
-    # Validate that both model endpoint basemodel schema and model endpoint ModelObj schema have similar keys
-    model_endpoint_basemodel = mlrun.common.schemas.ModelEndpoint(
-        metadata=mlrun.common.schemas.ModelEndpointMetadata(
-            project=TEST_PROJECT, uid="a-12_"
-        )
-    )
-    model_endpoint_modelobj = mlrun.model_monitoring.ModelEndpoint()
-
-    # Compare status
-    base_model_status = model_endpoint_basemodel.status.__dict__
-    model_object_status = model_endpoint_modelobj.status.__dict__
-    assert (
-        deepdiff.DeepDiff(
-            base_model_status,
-            model_object_status,
-            ignore_order=True,
-        )
-    ) == {}
-
-    # Compare spec
-    base_model_status = model_endpoint_basemodel.status.__dict__
-    model_object_status = model_endpoint_modelobj.status.__dict__
-    assert (
-        deepdiff.DeepDiff(
-            base_model_status,
-            model_object_status,
-            ignore_order=True,
-        )
-    ) == {}

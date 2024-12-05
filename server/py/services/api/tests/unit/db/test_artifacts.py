@@ -1270,13 +1270,6 @@ class TestArtifacts(TestDatabaseBase):
                 artifact_name == expected_name
             ), f"Expected {expected_name}, got {artifact_name}"
 
-    def test_list_artifacts_with_limit_and_page_size(self):
-        project = "artifact_project"
-        with pytest.raises(mlrun.errors.MLRunConflictError):
-            self._db.list_artifacts(
-                self._db_session, project=project, limit=10, page_size=5
-            )
-
     def test_list_artifacts_producer_uri(self):
         project = "artifact_project"
         artifact_key = "dummy-artifact"

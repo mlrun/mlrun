@@ -123,8 +123,8 @@ class AlertActivation(
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         return framework.utils.singletons.db.get_db().list_alert_activations(
             session=session,
@@ -136,6 +136,6 @@ class AlertActivation(
             severity=severity,
             entity_kind=entity_kind,
             event_kind=event_kind,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         )

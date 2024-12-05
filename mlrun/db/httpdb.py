@@ -1701,6 +1701,8 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
         include_last_run: bool = False,
+        next_run_time_since: Optional[datetime] = None,
+        next_run_time_until: Optional[datetime] = None,
     ) -> mlrun.common.schemas.SchedulesOutput:
         """Retrieve list of schedules of specific name or kind.
 
@@ -1709,10 +1711,18 @@ class HTTPRunDB(RunDBInterface):
         :param kind: Kind of schedule objects to retrieve, can be either ``job`` or ``pipeline``.
         :param include_last_run: Whether to return for each schedule returned also the results of the last run of
             that schedule.
+        :param next_run_time_since: Return only schedules with next run time after this date.
+        :param next_run_time_until: Return only schedules with next run time before this date.
         """
 
         project = project or config.default_project
-        params = {"kind": kind, "name": name, "include_last_run": include_last_run}
+        params = {
+            "kind": kind,
+            "name": name,
+            "include_last_run": include_last_run,
+            "next_run_time_since": datetime_to_iso(next_run_time_since),
+            "next_run_time_until": datetime_to_iso(next_run_time_until),
+        }
         path = f"projects/{project}/schedules"
         error_message = f"Failed listing schedules for {project} ? {kind} {name}"
         resp = self.api_call("GET", path, error_message, params=params)

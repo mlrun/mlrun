@@ -171,8 +171,8 @@ class Runs(
         requested_logs: typing.Optional[bool] = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> mlrun.lists.RunList:
         project = project or mlrun.mlconf.default_project
         if (
@@ -234,8 +234,8 @@ class Runs(
             requested_logs=requested_logs,
             return_as_run_structs=return_as_run_structs,
             with_notifications=with_notifications,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         )
 
     async def delete_run(

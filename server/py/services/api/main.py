@@ -878,8 +878,6 @@ if __name__ == "__main__":
     # __main__.py on mlrun client and mlrun integration tests.
     # mlrun container image will run the server using uvicorn directly.
     # see /dockerfiles/mlrun-api/Dockerfile for more details.
-    from mlrun.utils import logger
+    import framework.utils.mlrunuvicorn as uvicorn
 
-    import services.api.apiuvicorn as uvicorn
-
-    uvicorn.run(logger, httpdb_config=mlconf.httpdb)
+    uvicorn.run(httpdb_config=mlconf.httpdb, service_name="api")

@@ -516,3 +516,22 @@ def test_model_runner_with_selector(execution_mechanism: str):
         assert results["m2"]["output"] == {"n": 3}
     finally:
         server.wait_for_completion()
+
+
+def test_model_as_step():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.to("MyModel", name="my_model", inc=1).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"n": 1})
+        assert resp.keys() == {"input", "results"}
+        assert resp["input"] == {"n": 1}
+        results = resp["results"]
+        assert results.keys() == {"my_model"}
+        result = results["my_model"]
+        assert result.keys() == {"runtime", "output"}
+        assert result["output"] == {"n": 2}
+    finally:
+        server.wait_for_completion()

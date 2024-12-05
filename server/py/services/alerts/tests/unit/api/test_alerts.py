@@ -23,10 +23,9 @@ import mlrun.common.schemas
 
 import framework.utils.singletons.db
 import services.alerts.crud
-import services.api.tests.unit.api.utils
-from services.alerts.tests.unit.conftest import TestAlertsBase
 import services.alerts.tests.unit.conftest
 import services.alerts.tests.unit.crud.utils
+import services.api.tests.unit.api.utils
 
 ALERTS_PATH = "projects/{project}/alerts"
 STORE_ALERTS_PATH = "projects/{project}/alerts/{name}"

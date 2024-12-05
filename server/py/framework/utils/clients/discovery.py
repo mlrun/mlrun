@@ -95,6 +95,7 @@ class Client(
             "post": [],
             "put": [],
             "delete": [],
+            "patch": [],
         }
         routes = self._service_routes(service_name)
         for methods, path in routes:

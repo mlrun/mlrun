@@ -117,7 +117,6 @@ from framework.db.sqldb.models import (
     Run,
     Schedule,
     TimeWindowTracker,
-    User,
     _labeled,
     _tagged,
     _with_notifications,
@@ -3248,38 +3247,29 @@ class SQLDB(DBInterface):
         return project_record
 
     def verify_project_has_no_related_resources(self, session: Session, name: str):
+        # it is enough to sample few resources, we do not need to retrieve all resources really.
         resource_limit = 5
-        # it is enough to have one artifact to ensure it is not empty
-        artifacts = self._find_artifacts(
-            session, project=name, ids="*", limit=resource_limit
-        )
-        self._verify_empty_list_of_project_related_resources(
-            name, artifacts, "artifacts"
-        )
-        runs = self._find_runs(session, None, name, []).limit(resource_limit).all()
-        self._verify_empty_list_of_project_related_resources(name, runs, "runs")
-        notifications = []
-        for cls in _with_notifications:
-            notifications.extend(
-                self._get_db_notifications(
-                    session, cls, project=name, limit=resource_limit
-                )
-            )
-            self._verify_empty_list_of_project_related_resources(
-                name, notifications, "notifications"
-            )
-
-        for resource_name, resource_list_function in [
-            ("schedules", self.list_schedules),
-            ("functions", self._list_project_function_names),
-            ("feature_sets", self._list_project_feature_set_names),
-            ("feature_vectors", self._list_project_feature_vector_names),
+        for resource_name, resource_list_function, kwargs in [
+            ("runs", self.list_runs, dict(sort=False, return_as_run_structs=False)),
+            ("artifacts", self._find_artifacts, dict(ids="*")),
+            ("schedules", self.list_schedules, dict()),
+            ("functions", self._list_project_function_names, dict()),
+            ("feature_sets", self._list_project_feature_set_names, dict()),
+            ("feature_vectors", self._list_project_feature_vector_names, dict()),
         ]:
             resources = resource_list_function(
-                session, project=name, limit=resource_limit
+                session, project=name, limit=resource_limit, **kwargs
             )
             self._verify_empty_list_of_project_related_resources(
                 name, resources, resource_name
+            )
+
+        for cls in _with_notifications:
+            notifications = self._get_db_notifications(
+                session, cls, project=name, limit=resource_limit
+            )
+            self._verify_empty_list_of_project_related_resources(
+                name, notifications, "notifications"
             )
 
     def delete_project_related_resources(self, session: Session, name: str):
@@ -4672,23 +4662,6 @@ class SQLDB(DBInterface):
     def _get_count(self, session, cls):
         return session.query(func.count(inspect(cls).primary_key[0])).scalar()
 
-    def _find_or_create_users(self, session, user_names):
-        users = list(self._query(session, User).filter(User.name.in_(user_names)))
-        new = set(user_names) - {user.name for user in users}
-        if new:
-            for name in new:
-                user = User(name=name)
-                session.add(user)
-                users.append(user)
-            try:
-                session.commit()
-            except SQLAlchemyError as err:
-                session.rollback()
-                raise mlrun.errors.MLRunConflictError(
-                    f"Failed to add user: {err_to_str(err)}"
-                ) from err
-        return users
-
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
         query = self._query(session, cls, name=name, project=project, uid=uid)
         return query.one_or_none()
@@ -4812,9 +4785,8 @@ class SQLDB(DBInterface):
                 _try_commit_obj,
             )
 
-    def _find_runs(self, session, uid, project, labels):
+    def _find_runs(self, session, uid, project, labels=None):
         labels = label_set(labels)
-
         query = self._query(session, Run)
         query = self._filter_query_by_resource_project(query, Run, project)
 

@@ -877,28 +877,35 @@ class MLClientCtx:
     def log_document(
         self,
         key: str,
+        tag: str = "",
+        local_path: str = "",
         artifact_path: Optional[str] = None,
         document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
-        tag: str = "",
         upload: Optional[bool] = False,
         labels: Optional[dict[str, str]] = None,
+        target_path: Optional[str] = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
         Log a document as an artifact.
 
         :param key: Artifact key
-        :param target_path: Path to the local file
-        :param artifact_path: Target path for artifact storage
-        :param document_loader: Spec to use to load the artifact as langchain document
         :param tag: Version tag
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path:   Target artifact path (when not using the default)
+                                to define a subpath under the default location use:
+                                `artifact_path=context.artifact_subpath('data')`
+        :param document_loader: Spec to use to load the artifact as langchain document
         :param upload: Whether to upload the artifact
         :param labels: Key-value labels
+        :param target_path: Path to the local file
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
         """
         doc_artifact = DocumentArtifact(
             key=key,
+            original_source=local_path or target_path,
             document_loader=document_loader,
             **kwargs,
         )

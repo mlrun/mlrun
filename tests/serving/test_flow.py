@@ -18,8 +18,14 @@ import pytest
 from storey import ParallelExecutionRunnable
 
 import mlrun
-from mlrun.serving import GraphContext, V2ModelServer
-from mlrun.serving.states import Model, ModelRunnerStep, ModelSelector, TaskStep
+from mlrun.serving import (
+    GraphContext,
+    Model,
+    ModelRunnerStep,
+    ModelSelector,
+    TaskStep,
+    V2ModelServer,
+)
 
 from .demo_states import *  # noqa
 

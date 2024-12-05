@@ -21,7 +21,7 @@ import typing
 from concurrent.futures import ThreadPoolExecutor
 
 import mlrun.common.constants as mlrun_constants
-import mlrun.common.runtimes.constants
+import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
@@ -34,7 +34,6 @@ import mlrun.utils.notifications.notification.base as base
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
-from mlrun.common.runtimes.constants import RunStates
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
@@ -227,7 +226,7 @@ class NotificationPusher(_NotificationPusherBase):
         for when_state in when_states:
             if when_state == run_state:
                 if (
-                    run_state == RunStates.completed
+                    run_state == runtimes_constants.RunStates.completed
                     and evaluate_condition_in_separate_process(
                         notification.condition,
                         context={
@@ -236,9 +235,9 @@ class NotificationPusher(_NotificationPusherBase):
                         },
                     )
                 ) or run_state in [
-                    RunStates.error,
-                    RunStates.aborted,
-                    RunStates.running,
+                    runtimes_constants.RunStates.error,
+                    runtimes_constants.RunStates.aborted,
+                    runtimes_constants.RunStates.running,
                 ]:
                     return True
 
@@ -446,7 +445,7 @@ class NotificationPusher(_NotificationPusherBase):
             _run["step_kind"] = _step.step_type
             if _step.skipped:
                 _run.setdefault("status", {})["state"] = (
-                    mlrun.common.runtimes.constants.RunStates.skipped
+                    runtimes_constants.RunStates.skipped
                 )
             steps.append(_run)
 
@@ -473,7 +472,7 @@ class NotificationPusher(_NotificationPusherBase):
                 if _step.skipped:
                     state = mlrun.common.schemas.FunctionState.skipped
                 else:
-                    state = mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                    state = runtimes_constants.PodPhases.pod_phase_to_run_state(
                         pod_phase
                     )
                 function["status"] = {"state": state}

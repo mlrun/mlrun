@@ -42,6 +42,7 @@ import mlrun.errors
 import mlrun_pipelines.common.models
 
 import framework.api.utils
+import framework.db.sqldb.db
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.log_collector
@@ -413,6 +414,13 @@ async def test_list_and_get_project_summaries(
         project_name,
     )
 
+    # create alerts activations for the project
+    (
+        endpoint_alerts_count,
+        job_alerts_count,
+        other_alerts_count,
+    ) = _create_alerts_activations(project_name)
+
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
 
     # list project summaries
@@ -422,7 +430,9 @@ async def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(
+                project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            )
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
@@ -436,6 +446,9 @@ async def test_list_and_get_project_summaries(
                 distinct_scheduled_jobs_pending_count,
                 distinct_scheduled_pipelines_pending_count,
                 running_pipelines_count,
+                endpoint_alerts_count,
+                job_alerts_count,
+                other_alerts_count,
             )
         else:
             pytest.fail(f"Unexpected project summary returned: {project_summary}")
@@ -455,6 +468,9 @@ async def test_list_and_get_project_summaries(
         distinct_scheduled_jobs_pending_count,
         distinct_scheduled_pipelines_pending_count,
         running_pipelines_count,
+        endpoint_alerts_count,
+        job_alerts_count,
+        other_alerts_count,
     )
 
 
@@ -472,6 +488,11 @@ async def test_list_project_summaries_different_installation_modes(
     services.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         return_value=(0, None, [])
     )
+
+    framework.utils.singletons.db.SQLDB.list_alert_activations = unittest.mock.Mock(
+        return_value=[]
+    )
+
     # Enterprise installation configuration post 3.4.0
     mlrun.mlconf.igz_version = "3.6.0-b26.20210904121245"
     mlrun.mlconf.kfp_url = "https://somekfp-url.com"
@@ -487,6 +508,9 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -522,6 +546,9 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
+        0,
     )
 
     # Kubernetes installation configuration (mlrun-kit)
@@ -547,6 +574,9 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
+        0,
     )
 
     # Docker installation configuration
@@ -562,6 +592,9 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -1747,6 +1780,9 @@ def _assert_project_summary(
     distinct_scheduled_jobs_pending_count: int,
     distinct_scheduled_pipelines_pending_count: int,
     pipelines_running_count: int,
+    endpoint_alerts_count: int,
+    job_alerts_count: int,
+    other_alerts_count: int,
 ):
     assert project_summary.files_count == files_count
     assert project_summary.feature_sets_count == feature_sets_count
@@ -1764,6 +1800,9 @@ def _assert_project_summary(
         == distinct_scheduled_pipelines_pending_count
     )
     assert project_summary.pipelines_running_count == pipelines_running_count
+    assert project_summary.endpoint_alerts_count == endpoint_alerts_count
+    assert project_summary.job_alerts_count == job_alerts_count
+    assert project_summary.other_alerts_count == other_alerts_count
 
 
 def _assert_project(
@@ -1953,3 +1992,73 @@ def _create_project(client: TestClient, name: str):
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
     return project
+
+
+def _create_alerts_activations(project_name):
+    endpoint_alerts_count = 1
+    job_alerts_count = 2
+    other_alerts_count = 1
+
+    activations = [
+        mlrun.common.schemas.AlertActivation(
+            id=1,
+            name="alert1",
+            project=project_name,
+            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+            activation_time=datetime.datetime.utcnow(),
+            entity_id="1111",
+            entity_kind=mlrun.common.schemas.alert.EventEntityKind.JOB,
+            event_kind=mlrun.common.schemas.alert.EventKind.FAILED,
+            number_of_events=1,
+            notifications=[],
+            criteria=mlrun.common.schemas.alert.AlertCriteria(count=3),
+        ),
+        mlrun.common.schemas.AlertActivation(
+            id=2,
+            name="alert2",
+            project=project_name,
+            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+            activation_time=datetime.datetime.utcnow(),
+            entity_id="2222",
+            entity_kind=mlrun.common.schemas.alert.EventEntityKind.JOB,
+            event_kind=mlrun.common.schemas.alert.EventKind.FAILED,
+            number_of_events=1,
+            notifications=[],
+            criteria=mlrun.common.schemas.alert.AlertCriteria(count=1),
+        ),
+        mlrun.common.schemas.AlertActivation(
+            id=3,
+            name="alert3",
+            project=project_name,
+            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+            activation_time=datetime.datetime.utcnow(),
+            entity_id="3333",
+            entity_kind=mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            event_kind=mlrun.common.schemas.alert.EventKind.DATA_DRIFT_SUSPECTED,
+            number_of_events=1,
+            notifications=[],
+            criteria=mlrun.common.schemas.alert.AlertCriteria(count=1),
+        ),
+        mlrun.common.schemas.AlertActivation(
+            id=3,
+            name="alert4",
+            project=project_name,
+            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+            activation_time=datetime.datetime.utcnow(),
+            entity_id="4444",
+            entity_kind=mlrun.common.schemas.alert.EventEntityKind.MODEL_MONITORING_APPLICATION,
+            event_kind=mlrun.common.schemas.alert.EventKind.MM_APP_FAILED,
+            number_of_events=1,
+            notifications=[],
+            criteria=mlrun.common.schemas.alert.AlertCriteria(count=1),
+        ),
+    ]
+
+    # mock the `list_alert_activations` method
+    # Note: This is necessary because the unit tests use SQLite, and `alert_activations` logic relies on MySQL-specific
+    # functionality that is not supported by SQLite.
+    framework.utils.singletons.db.SQLDB.list_alert_activations = unittest.mock.Mock(
+        return_value=activations
+    )
+
+    return endpoint_alerts_count, job_alerts_count, other_alerts_count

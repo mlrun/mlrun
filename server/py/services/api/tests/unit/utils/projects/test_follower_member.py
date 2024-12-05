@@ -415,6 +415,9 @@ async def test_list_project_summaries(
         pipelines_running_count=2,
         distinct_scheduled_jobs_pending_count=3,
         distinct_scheduled_pipelines_pending_count=4,
+        endpoint_alerts_count=5,
+        job_alerts_count=6,
+        other_alerts_count=7,
     )
     created_project, _ = projects_follower.store_project(
         db,
@@ -466,7 +469,9 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
         project,
     )
     framework.utils.singletons.db.get_db().get_project_resources_counters = (
-        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(9)))
+        unittest.mock.AsyncMock(
+            return_value=tuple({project_name: i} for i in range(12))
+        )
     )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
     project_summaries = await projects_follower.list_project_summaries(db)

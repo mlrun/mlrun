@@ -2952,6 +2952,9 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -2974,6 +2977,10 @@ class SQLDB(DBInterface):
                 framework.db.session.run_function_with_new_db_session,
                 self._calculate_runs_counters,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_alerts_activations_counters,
+            ),
         )
         (
             project_to_files_count,
@@ -2989,6 +2996,11 @@ class SQLDB(DBInterface):
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ),
+            (
+                project_to_endpoint_alerts_count,
+                project_to_job_alerts_count,
+                project_to_other_alerts_count,
+            ),
         ) = results
         return (
             project_to_files_count,
@@ -3000,6 +3012,9 @@ class SQLDB(DBInterface):
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_other_alerts_count,
         )
 
     @staticmethod
@@ -3183,6 +3198,45 @@ class SQLDB(DBInterface):
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
+        )
+
+    def _calculate_alerts_activations_counters(
+        self,
+        session,
+    ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+    ]:
+        projects_with_creation_time = self.list_projects(
+            session,
+            format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
+        ).projects
+
+        project_to_endpoint_alerts_count = collections.defaultdict(int)
+        project_to_job_alerts_count = collections.defaultdict(int)
+        project_to_other_alerts_count = collections.defaultdict(int)
+
+        alert_activations = self.list_alert_activations(
+            session=session, projects_with_creation_time=projects_with_creation_time
+        )
+
+        for alert in alert_activations:
+            project = alert.project
+            if (
+                alert.entity_kind
+                == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT
+            ):
+                project_to_endpoint_alerts_count[project] += 1
+            elif alert.entity_kind == mlrun.common.schemas.alert.EventEntityKind.JOB:
+                project_to_job_alerts_count[project] += 1
+            else:
+                project_to_other_alerts_count[project] += 1
+
+        return (
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_other_alerts_count,
         )
 
     def _update_project_record_from_project(

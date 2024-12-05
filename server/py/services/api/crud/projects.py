@@ -463,6 +463,9 @@ class Projects(
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_other_alerts_count,
         ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
@@ -509,6 +512,13 @@ class Projects(
                     distinct_scheduled_pipelines_pending_count=project_to_schedule_pending_workflows_count[
                         project_name
                     ],
+                    endpoint_alerts_count=project_to_endpoint_alerts_count.get(
+                        project_name, 0
+                    ),
+                    job_alerts_count=project_to_job_alerts_count.get(project_name, 0),
+                    other_alerts_count=project_to_other_alerts_count.get(
+                        project_name, 0
+                    ),
                 )
             )
         await fastapi.concurrency.run_in_threadpool(

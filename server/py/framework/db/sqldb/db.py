@@ -3217,8 +3217,11 @@ class SQLDB(DBInterface):
         project_to_job_alerts_count = collections.defaultdict(int)
         project_to_other_alerts_count = collections.defaultdict(int)
 
+        last_day = datetime.now() - timedelta(hours=24)
         alert_activations = self.list_alert_activations(
-            session=session, projects_with_creation_time=projects_with_creation_time
+            session=session,
+            projects_with_creation_time=projects_with_creation_time,
+            since=last_day,
         )
 
         for alert in alert_activations:

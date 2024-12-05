@@ -156,6 +156,7 @@ class AlertConfig(pydantic.v1.BaseModel):
     notifications: pydantic.v1.conlist(AlertNotification, min_items=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
+    updated: datetime = None
 
     def get_raw_notifications(self) -> list[notification_objects.Notification]:
         return [

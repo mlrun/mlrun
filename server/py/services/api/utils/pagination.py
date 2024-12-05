@@ -138,12 +138,6 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             current_page = last_pagination_info.page + 1
             page_size = last_pagination_info.page_size
 
-        if page_size and len(result) < page_size:
-            # on the last page, we don't return the token, but we keep it live in the cache
-            # so the client can access previous pages.
-            # the token will be revoked after some time of none-usage.
-            last_pagination_info.page_token = None
-
         return result, last_pagination_info.dict(by_alias=True)
 
     async def paginate_request(
@@ -190,24 +184,34 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             **method_kwargs,
         )
 
-        try:
-            self._logger.debug(
-                "Retrieving page",
-                page=page,
-                page_size=page_size,
-                method=method.__name__,
-            )
-            return await framework.utils.asyncio.await_or_call_in_threadpool(
-                method, session, **method_kwargs, page=page, page_size=page_size
-            ), mlrun.common.schemas.pagination.PaginationInfo(
-                page=page, page_size=page_size, page_token=token
-            )
-        except (RuntimeError, StopIteration) as exc:
-            if isinstance(exc, StopIteration) or "StopIteration" in str(exc):
-                # don't revoke the token here as we might still want to go to previous pages.
-                # the token will be revoked after some time of none-usage.
-                return [], None
-            raise
+        self._logger.debug(
+            "Retrieving page",
+            page=page,
+            page_size=page_size,
+            method=method.__name__,
+        )
+        offset, limit = self._calculate_offset_and_limit(page, page_size)
+        items = await framework.utils.asyncio.await_or_call_in_threadpool(
+            method, session, **method_kwargs, offset=offset, limit=limit
+        )
+        pagination_info = mlrun.common.schemas.pagination.PaginationInfo(
+            page=page, page_size=page_size, page_token=token
+        )
+
+        # The following 2 conditions indicate the end of the pagination.
+        # On the last page, we don't return the token, but we keep it live in the cache
+        # so the client can access previous pages.
+        # the token will be revoked after some time of none-usage.
+        if len(items) == 0:
+            return [], None
+        if len(items) < page_size + 1:
+            # If we got fewer items than the page_size + 1, we know that there are no more items
+            # and this is the last page.
+            pagination_info.page_token = None
+
+        # truncate the items to the page size
+        items = items[:page_size]
+        return items, pagination_info
 
     def _create_or_update_pagination_cache_record(
         self,
@@ -244,8 +248,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         # upsert pagination cache record to update last_accessed time or create a new record
         method_schema = PaginatedMethods.get_method_schema(method.__name__)
         kwargs_schema = method_schema(**method_kwargs)
-        kwargs_schema.page = None
-        kwargs_schema.page_size = None
+        kwargs_schema.offset = None
+        kwargs_schema.limit = None
         self._logger.debug(
             "Storing pagination cache record",
             method=method.__name__,
@@ -261,3 +265,21 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             kwargs=kwargs_schema.json(exclude_none=True),
         )
         return token, page, page_size, method, kwargs_schema.dict(exclude_none=True)
+
+    @staticmethod
+    def _calculate_offset_and_limit(
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> tuple[typing.Optional[int], typing.Optional[int]]:
+        if page is not None:
+            page_size = page_size or mlconf.httpdb.pagination.default_page_size
+
+            if page < 1 or page_size < 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Page and page size must be greater than 0"
+                )
+
+            # returning the limit with 1 extra record to check if there are more records
+            # and to know if we should return the token or not
+            return (page - 1) * page_size, page_size + 1
+        return None, None

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import typing
 from typing import Optional
 
 import mlrun.common.schemas.alert as alert_objects
@@ -23,8 +23,8 @@ def generate_alert_data(
     project: str,
     name: str,
     entity: alert_objects.EventEntities,
-    summary: str,
-    event_kind: alert_objects.EventKind,
+    summary: str = "Job failed",
+    event_kind: alert_objects.EventKind = alert_objects.EventKind.FAILED,
     description: Optional[str] = None,
     severity: alert_objects.AlertSeverity = alert_objects.AlertSeverity.LOW,
     notifications: Optional[list[notification_objects.Notification]] = None,
@@ -53,4 +53,17 @@ def generate_alert_data(
         criteria=criteria,
         notifications=notifications,
         reset_policy=reset_policy,
+    )
+
+
+def generate_alert_entity(
+    project: str,
+    kind: alert_objects.EventEntityKind = alert_objects.EventEntityKind.JOB,
+    ids: typing.Optional[list[str]] = None,
+):
+    ids = ids or ["123"]
+    return alert_objects.EventEntities(
+        kind=kind,
+        project=project,
+        ids=ids,
     )

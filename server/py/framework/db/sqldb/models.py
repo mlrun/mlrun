@@ -14,6 +14,7 @@
 
 import json
 import pickle
+import uuid
 import warnings
 from datetime import datetime, timezone
 
@@ -23,7 +24,6 @@ from sqlalchemy import (
     JSON,
     Column,
     ForeignKey,
-    ForeignKeyConstraint,
     Index,
     Integer,
     PrimaryKeyConstraint,
@@ -32,7 +32,8 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import foreign, relationship
+from sqlalchemy.sql import and_
 
 import mlrun.common.schemas
 import mlrun.utils.db
@@ -915,21 +916,13 @@ with warnings.catch_warnings():
     class ModelEndpoint(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "model_endpoints"
         __table_args__ = (
-            UniqueConstraint("project", "name", "uid", name="_mep_uc_2"),
-            ForeignKeyConstraint(
-                ("function_name", "function_uid", "project"),
-                ["functions.name", "functions.uid", "functions.project"],
-                name="_mep_function_constraint",
-            ),
-            ForeignKeyConstraint(
-                ("model_uid", "project", "model_name"),
-                ["artifacts_v2.uid", "artifacts_v2.project", "artifacts_v2.key"],
-                name="_mep_model_constraint",
+            UniqueConstraint(
+                "project", "name", "uid", "function_name", name="_mep_uc_2"
             ),
         )
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        uid = Column(String(32), default=lambda: uuid.uuid4().hex, unique=True)
         endpoint_type = Column(Integer, nullable=False)
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         function_name = Column(String(255, collation=SQLTypesUtil.collation()))
@@ -951,11 +944,21 @@ with warnings.catch_warnings():
             "Function",
             cascade="save-update",
             single_parent=True,
+            primaryjoin=and_(
+                foreign(function_name) == Function.name,
+                foreign(function_uid) == Function.uid,
+                foreign(project) == Function.project,
+            ),
         )
         model = relationship(
             "ArtifactV2",
             cascade="save-update",
             single_parent=True,
+            primaryjoin=and_(
+                foreign(model_uid) == ArtifactV2.uid,
+                foreign(project) == ArtifactV2.project,
+                foreign(model_name) == ArtifactV2.key,
+            ),
         )
 
         Label = make_label(__tablename__)

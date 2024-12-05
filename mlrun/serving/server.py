@@ -101,6 +101,9 @@ class GraphServer(ModelObj):
         tracking_policy=None,
         secret_sources=None,
         default_content_type=None,
+        function_name=None,
+        function_tag=None,
+        project=None,
     ):
         self._graph = None
         self.graph: Union[RouterStep, RootFlowStep] = graph
@@ -123,6 +126,9 @@ class GraphServer(ModelObj):
         self.resource_cache = None
         self.default_content_type = default_content_type
         self.http_trigger = True
+        self.function_name = function_name
+        self.function_tag = function_tag
+        self.project = project
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""

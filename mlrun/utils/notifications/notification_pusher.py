@@ -34,6 +34,7 @@ import mlrun.utils.notifications.notification.base as base
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
+from mlrun.common.runtimes.constants import RunStates
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
@@ -226,7 +227,7 @@ class NotificationPusher(_NotificationPusherBase):
         for when_state in when_states:
             if when_state == run_state:
                 if (
-                    run_state == "completed"
+                    run_state == RunStates.completed
                     and evaluate_condition_in_separate_process(
                         notification.condition,
                         context={
@@ -234,7 +235,11 @@ class NotificationPusher(_NotificationPusherBase):
                             "notification": notification.to_dict(),
                         },
                     )
-                ) or run_state in ["error", "aborted"]:
+                ) or run_state in [
+                    RunStates.error,
+                    RunStates.aborted,
+                    RunStates.running,
+                ]:
                     return True
 
         return False

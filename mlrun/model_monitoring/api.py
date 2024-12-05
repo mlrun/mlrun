@@ -556,9 +556,7 @@ def _create_model_monitoring_function_base(
     project: str,
     func: typing.Union[str, None] = None,
     application_class: typing.Union[
-        str,
-        mm_app.ModelMonitoringApplicationBase,
-        None,
+        str, "mm_app.ModelMonitoringApplicationBase", None
     ] = None,
     name: typing.Optional[str] = None,
     image: typing.Optional[str] = None,

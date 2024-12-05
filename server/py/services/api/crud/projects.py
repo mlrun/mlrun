@@ -354,11 +354,16 @@ class Projects(
             format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
             **project_filters,
         )
-        allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            [project[0] for project in projects_output.projects],
-            auth_info,
-            action=action,
+
+        # Use a set to improve performance during filtering below
+        allowed_project_names = set(
+            await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+                [project[0] for project in projects_output.projects],
+                auth_info,
+                action=action,
+            )
         )
+
         # Filter the original list based on allowed names
         # we need to return list of project objects (not project names)
         return [

@@ -146,6 +146,13 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         )
 
     def should_forward_request(self, request: fastapi.Request) -> bool:
+        """
+        Checks whether the request should be forwarded to another service based on
+        the service and path being resolved.
+
+        :param request: The incoming FastAPI request.
+        :return: True if the request should be forwarded, False otherwise.
+        """
         method = request.method
         path = str(request.url.path)
         path, version, service_instance = self._prepare_request_data(method, path)

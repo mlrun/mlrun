@@ -33,9 +33,9 @@ from mlrun import mlconf
 import framework.api.utils
 import framework.middlewares
 import framework.utils.clients.chief
+import framework.utils.clients.messaging
 import framework.utils.periodic
 from framework.utils.singletons.db import initialize_db
-import framework.utils.clients.messaging
 
 
 class Service(ABC):
@@ -352,6 +352,12 @@ class Service(ABC):
         )
 
     def should_forward_request(self, request: fastapi.Request) -> bool:
+        """
+        Determines whether the incoming request should be forwarded to another service.
+
+        :param request: The incoming FastAPI request.
+        :return: `True` if the request should be forwarded to another service, otherwise `False`.
+        """
         return self._messaging_client.should_forward_request(request)
 
 

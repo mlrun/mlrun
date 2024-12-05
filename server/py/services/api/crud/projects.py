@@ -202,7 +202,14 @@ class Projects(
             "Deleting project alert events",
             project_name=name,
         )
+
         # TODO: Forward to alerts service
+        # The messaging client is async, and project deletion is sync.
+        # When deleting a project, we need to use a sync client to send the delete event request to the alerts service,
+        # or to Chief if in Hydra mode. (ML-8390)
+        # Until we implement the sync client, we can allow Chief to delete the project alerts itself, instead of
+        # actually forwarding the request and waiting for a response, since the project deletion flow is handled
+        # by Chief only.
         services.alerts.crud.Events().delete_project_alert_events(name)
 
         # get model monitoring application names, important for deleting model monitoring resources

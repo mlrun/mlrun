@@ -323,8 +323,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         activations, token = project.paginated_list_alert_activations(page_token=token)
         assert len(activations) == iterations
-        # TODO: uncomment when pagination is fixed (https://iguazio.atlassian.net/browse/ML-8505)
-        # assert token is None
+        assert token is None
 
         # check SDK with filter by event_name and entity_kind
         for _, event_name, alert_entity in event_name_entity_list:
@@ -350,8 +349,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 page_token=token
             )
             assert len(activations) == 1
-            # TODO: uncomment when pagination is fixed
-            # assert token is None
+            assert token is None
 
     def test_alert_activations_cross_project(self):
         project_names = []

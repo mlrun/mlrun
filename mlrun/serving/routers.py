@@ -1308,8 +1308,10 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         :param result_path:   selects the key/path in the event to write the results to this require that the event body
             will behave like a dict, example: event: {"x": 5} , result_path="resp" means the returned response will be
             written to event["y"] resulting in {"x": 5, "resp": <result>}.
-        :param vote_type:     Voting type to be used (from `VotingTypes`). by default will try to self-deduct upon the
-            first event: - float prediction type: regression - int prediction type: classification
+        :param vote_type: Voting type to be used (from `VotingTypes`). by default will try to self-deduct upon the
+                    first event:
+                    * float prediction type: regression
+                    * int prediction type: classification
         :param executor_type: Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
         :param prediction_col_name: The dict key for the predictions column in the model's responses output.
             Example:

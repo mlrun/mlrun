@@ -25,14 +25,19 @@ import framework.db.session
 import framework.utils.auth.verifier
 
 
-def get_db_session() -> typing.Generator[Session, None, None]:
-    db_session = None
-    try:
-        db_session = framework.db.session.create_session()
-        yield db_session
-    finally:
-        if db_session:
-            framework.db.session.close_session(db_session)
+def get_db_session(
+    request: Request,
+) -> typing.Generator[typing.Optional[Session], None, None]:
+    if not request.app.extra.get("mlrun_service").should_forward_request(request):
+        db_session = None
+        try:
+            db_session = framework.db.session.create_session()
+            yield db_session
+        finally:
+            if db_session:
+                framework.db.session.close_session(db_session)
+    else:
+        yield None
 
 
 async def authenticate_request(request: Request) -> mlrun.common.schemas.AuthInfo:

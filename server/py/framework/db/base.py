@@ -131,8 +131,8 @@ class DBInterface(ABC):
         requested_logs: Optional[bool] = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
     ) -> mlrun.lists.RunList:
         pass
 
@@ -236,6 +236,7 @@ class DBInterface(ABC):
         producer_id: Optional[str] = None,
         producer_uri: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        offset: Optional[int] = None,
         limit: Optional[int] = None,
         partition_by: Optional[mlrun.common.schemas.ArtifactPartitionByField] = None,
         rows_per_partition: Optional[int] = 1,
@@ -245,8 +246,6 @@ class DBInterface(ABC):
         partition_order: Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
     ) -> typing.Union[list, mlrun.lists.ArtifactList]:
         pass
 
@@ -367,8 +366,8 @@ class DBInterface(ABC):
         labels: Optional[list[str]] = None,
         hash_key: Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
     ):
@@ -1003,8 +1002,8 @@ class DBInterface(ABC):
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         pass
 
@@ -1230,8 +1229,8 @@ class DBInterface(ABC):
         end: typing.Optional[datetime.datetime] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: bool = False,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.ModelEndpointV2]:
         """
         List model endpoints by project and optional filters.
@@ -1247,8 +1246,8 @@ class DBInterface(ABC):
         :param end:         The end time to filter by.
         :param uids:        The model endpoint uids to filter by.
         :param latest_only: Whether to return only the latest model endpoint for each name.
-        :param page:        The page number.
-        :param page_size:   The page size.
+        :param offset:      SQL query offset.
+        :param limit:       SQL query limit.
         :return:            A list of model endpoints.
         """
         pass

@@ -437,8 +437,8 @@ class SQLDB(DBInterface):
         requested_logs: typing.Optional[bool] = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -486,7 +486,7 @@ class SQLDB(DBInterface):
                 max_partitions,
             )
 
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
 
         if not return_as_run_structs:
             return query.all()
@@ -773,6 +773,7 @@ class SQLDB(DBInterface):
         producer_uri: typing.Optional[str] = None,
         most_recent: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         partition_by: typing.Optional[
             mlrun.common.schemas.ArtifactPartitionByField
@@ -784,8 +785,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
     ) -> typing.Union[list, ArtifactList]:
         project = project or config.default_project
 
@@ -811,13 +810,12 @@ class SQLDB(DBInterface):
             best_iteration=best_iteration,
             most_recent=most_recent,
             attach_tags=not as_records,
+            offset=offset,
             limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            page=page,
-            page_size=page_size,
         )
         if as_records:
             return artifact_records
@@ -1440,6 +1438,7 @@ class SQLDB(DBInterface):
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
+        offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         with_entities: typing.Optional[list[Any]] = None,
         partition_by: typing.Optional[
@@ -1452,8 +1451,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
     ) -> typing.Union[list[Any],]:
         """
         Find artifacts by the given filters.
@@ -1485,8 +1482,8 @@ class SQLDB(DBInterface):
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
             Currently the only allowed values are `created` and `updated`. Default is `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
 
         :return: May return:
             1. a list of tuples of (ArtifactV2, tag_name)
@@ -1497,11 +1494,6 @@ class SQLDB(DBInterface):
             message = "Category and Kind filters can't be given together"
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
-
-        if limit and page_size:
-            raise mlrun.errors.MLRunConflictError(
-                "'page_size' and 'limit' are conflicting, only one can be specified."
-            )
 
         # create a sub query that gets only the artifact IDs
         # apply all filters and limits
@@ -1576,7 +1568,9 @@ class SQLDB(DBInterface):
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
-            query = query.order_by(ArtifactV2.updated.desc()).limit(limit)
+            query = self._paginate_query(
+                query.order_by(ArtifactV2.updated.desc()), offset, limit
+            )
 
         # limit operation loads all the results before performing the actual limiting,
         # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
@@ -1591,9 +1585,9 @@ class SQLDB(DBInterface):
         if not limit:
             # When a limit is applied, the results are ordered before limiting, so no additional ordering is needed.
             # If no limit is specified, ensure the results are ordered after all filtering and joins have been applied.
-            outer_query = outer_query.order_by(ArtifactV2.updated.desc())
-
-        outer_query = self._paginate_query(outer_query, page, page_size)
+            outer_query = self._paginate_query(
+                outer_query.order_by(ArtifactV2.updated.desc()), offset, limit=None
+            )
 
         results = outer_query.all()
         if not attach_tags:
@@ -1962,8 +1956,8 @@ class SQLDB(DBInterface):
         labels: typing.Optional[list[str]] = None,
         hash_key: typing.Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
     ) -> list[dict]:
@@ -1979,8 +1973,8 @@ class SQLDB(DBInterface):
             since=since,
             until=until,
             kind=kind,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         ):
             function_dict = function.struct
             function_dict["kind"] = function.kind
@@ -4873,8 +4867,8 @@ class SQLDB(DBInterface):
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
         kind: typing.Optional[str] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
         """
         Query functions from the DB by the given filters.
@@ -4888,8 +4882,8 @@ class SQLDB(DBInterface):
         :param since: Filter functions that were updated after this time
         :param until: Filter functions that were updated before this time
         :param kind: The kind of the function to query.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
         """
         query = session.query(Function, Function.Tag.name)
         query = self._filter_query_by_resource_project(query, Function, project)
@@ -4929,7 +4923,7 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
         return query
 
     def _find_model_endpoints(
@@ -4945,8 +4939,8 @@ class SQLDB(DBInterface):
         end: datetime,
         uids: list[str],
         latest_only: bool,
-        page: int,
-        page_size: int,
+        offset: int,
+        limit: int,
     ) -> sqlalchemy.orm.query.Query:
         """
         Query model_endpoints from the DB by the given filters.
@@ -4961,8 +4955,8 @@ class SQLDB(DBInterface):
         :param end: Filter model endpoints that were crated before this time
         :param uids : The uids of the model endpoint to query.
         :param latest_only: If true, then return only the latest model endpoint.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
         """
         query = session.query(ModelEndpoint)
         query = query.filter(ModelEndpoint.project == project)
@@ -5031,7 +5025,7 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, ModelEndpoint, labels)
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
         return query
 
     @staticmethod
@@ -6052,8 +6046,8 @@ class SQLDB(DBInterface):
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         query = self._query(session, AlertActivation)
 
@@ -6096,7 +6090,7 @@ class SQLDB(DBInterface):
             query = query.filter(AlertActivation.entity_kind == entity_kind)
 
         query = query.order_by(AlertActivation.activation_time.desc())
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
         return [
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()
@@ -6835,8 +6829,8 @@ class SQLDB(DBInterface):
         end: typing.Optional[datetime] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: bool = False,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.ModelEndpointV2]:
         model_endpoints: list[mlrun.common.schemas.ModelEndpointV2] = []
         for mep_record in self._find_model_endpoints(
@@ -6851,8 +6845,8 @@ class SQLDB(DBInterface):
             end=end,
             uids=uids,
             latest_only=latest_only,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         ):
             model_endpoints.append(
                 self._transform_model_endpoint_model_to_schema(mep_record)
@@ -6955,12 +6949,14 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _paginate_query(
-        query, page: typing.Optional[int] = None, page_size: typing.Optional[int] = None
+        query, offset: typing.Optional[int] = None, limit: typing.Optional[int] = None
     ):
-        if page is not None:
-            page_size = page_size or config.httpdb.pagination.default_page_size
-            if query.count() < page_size * (page - 1):
-                raise StopIteration
-            query = query.limit(page_size).offset((page - 1) * page_size)
+        if offset:
+            query = query.offset(offset)
+
+        if limit == 0:
+            raise mlrun.errors.MLRunInvalidArgumentError("Limit cannot be 0")
+        elif limit:
+            query = query.limit(limit)
 
         return query

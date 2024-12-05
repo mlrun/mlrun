@@ -822,6 +822,10 @@ class Model(storey.ParallelExecutionRunnable):
     async def run_async(self, event, path):
         return self.predict(event)
 
+    def do_event(self, event):
+        event.body = self.run(event.body, event.path)
+        return event
+
 
 class ModelSelector:
     def select(self, event) -> list[str]:

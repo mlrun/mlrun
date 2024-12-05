@@ -59,6 +59,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo = None,
         db_session: sqlalchemy.orm.Session = None,
     ) -> mlrun.common.schemas.AlertConfig:
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -98,6 +100,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> mlrun.common.schemas.AlertConfig:
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -125,6 +129,8 @@ class Service(framework.service.Service):
         db_session: sqlalchemy.orm.Session = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         if project != "*":
+            # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+            #  not access it directly (ML-8565)
             await run_in_threadpool(
                 framework.utils.singletons.project_member.get_project_member().ensure_project,
                 db_session,
@@ -163,6 +169,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ):
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -198,6 +206,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ):
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -233,6 +243,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ):
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,

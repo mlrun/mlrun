@@ -23,7 +23,7 @@ from .base import (
     get_artifact_meta,
 )
 from .dataset import DatasetArtifact, TableArtifact, update_dataset_meta
-from .document import DocumentArtifact, DocumentLoader, DocumentLoaderSpec
+from .document import DocumentArtifact, DocumentLoaderSpec, MLRunLoader
 from .manager import (
     ArtifactManager,
     ArtifactProducer,

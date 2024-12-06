@@ -1161,10 +1161,11 @@ class DBInterface(ABC):
     def store_model_endpoint(
         self,
         session,
-        model_endpoint: mlrun.common.schemas.ModelEndpointV2,
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
         name: str,
         project: str,
-    ) -> str:
+        function_name: str,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Store a model endpoint in the DB.
 
@@ -1172,6 +1173,7 @@ class DBInterface(ABC):
         :param model_endpoint:  The model endpoint object.
         :param name:            The model endpoint name.
         :param project:         The project name.
+        :param function_name:   The function name.
         :return:                The model endpoint uid.
         """
         pass
@@ -1181,17 +1183,19 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
+        function_name: str,
         uid: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointV2:
+    ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Get a model endpoint by project, name and uid.
         If uid is not provided, the latest model endpoint with the provided name and project will be returned.
 
-        :param session: The database session.
-        :param project: The project name.
-        :param name:    The model endpoint name.
-        :param uid:     The model endpoint uid.
-        :return:        The model endpoint object.
+        :param session:       The database session.
+        :param project:       The project name.
+        :param name:          The model endpoint name.
+        :param function_name: The function name.
+        :param uid:           The model endpoint uid.
+        :return:              The model endpoint object.
         """
         pass
 
@@ -1200,20 +1204,22 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
+        function_name: str,
         attributes: dict,
         uid: typing.Optional[str] = None,
-    ) -> str:
+    ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Update a model endpoint by project, name and uid.
         If uid is not provided, the latest model endpoint with the provided name and project will be updated.
         The attributes parameter is a flatten dictionary which should contain the fields that need to be update.
 
-        :param session:     The database session.
-        :param project:     The project name.
-        :param name:        The model endpoint name.
-        :param attributes:  The attributes to update.
-        :param uid:         The model endpoint uid.
-        :return:            The updated model endpoint uid.
+        :param session:         The database session.
+        :param project:         The project name.
+        :param name:            The model endpoint name.
+        :param function_name:   The function name.
+        :param attributes:      The attributes to update.
+        :param uid:             The model endpoint uid.
+        :return:                The updated model endpoint uid.
         """
         pass
 
@@ -1232,7 +1238,7 @@ class DBInterface(ABC):
         latest_only: bool = False,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
-    ) -> list[mlrun.common.schemas.ModelEndpointV2]:
+    ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         List model endpoints by project and optional filters.
 
@@ -1258,16 +1264,18 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
+        function_name: str,
         uid: str,
     ) -> None:
         """
         Delete a model endpoint by project, name and uid.
         In order to delete all the model endpoints with the same name and project pass uid=*.
 
-        :param session: The database session.
-        :param project: The project name.
-        :param name:    The model endpoint name.
-        :param uid:     The model endpoint uid.
+        :param session:         The database session.
+        :param project:         The project name.
+        :param name:            The model endpoint name.
+        :param function_name:   The function name.
+        :param uid:             The model endpoint uid.
         """
         pass
 

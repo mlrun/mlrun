@@ -16,7 +16,6 @@ import asyncio
 import collections
 import functools
 import hashlib
-import json
 import pathlib
 import re
 import typing
@@ -48,6 +47,7 @@ from sqlalchemy.orm import Session, aliased
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
+import mlrun.common.model_monitoring
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
@@ -67,7 +67,6 @@ from mlrun.lists import ArtifactList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
     fill_function_hash,
-    fill_model_endpoint_hash,
     fill_object_hash,
     generate_artifact_uri,
     generate_object_uri,
@@ -2149,6 +2148,7 @@ class SQLDB(DBInterface):
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
+                function["metadata"]["uid"] = tag_function_uid
             function["kind"] = obj.kind
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
@@ -2650,16 +2650,26 @@ class SQLDB(DBInterface):
         objs,
         project: str,
         name: str,
-        obj_name_attribute: str = "name",
+        obj_name_attribute: Union[str, list[str]] = "name",
     ):
         tags = []
+        obj_name_attribute = (
+            [obj_name_attribute]
+            if isinstance(obj_name_attribute, str)
+            else obj_name_attribute
+        )
         for obj in objs:
             query = self._query(
                 session,
                 obj.Tag,
                 name=name,
                 project=project,
-                obj_name=getattr(obj, obj_name_attribute),
+                obj_name="-".join(
+                    [
+                        getattr(obj, attr) if getattr(obj, attr) else ""
+                        for attr in obj_name_attribute
+                    ]
+                ),
             )
 
             tag = query.one_or_none()
@@ -2667,7 +2677,12 @@ class SQLDB(DBInterface):
                 tag = obj.Tag(
                     project=project,
                     name=name,
-                    obj_name=getattr(obj, obj_name_attribute),
+                    obj_name="-".join(
+                        [
+                            getattr(obj, attr) if getattr(obj, attr) else ""
+                            for attr in obj_name_attribute
+                        ]
+                    ),
                 )
             tag.obj_id = obj.id
             tags.append(tag)
@@ -3433,6 +3448,7 @@ class SQLDB(DBInterface):
         session,
         project: str,
         name: str,
+        function_name: str,
         uid: typing.Optional[str] = None,
     ) -> typing.Union[ModelEndpoint, None]:
         if uid:
@@ -3440,8 +3456,8 @@ class SQLDB(DBInterface):
                 session, ModelEndpoint, name, project, uid
             )
         else:
-            mep_record = self._get_class_latest_instance(
-                session, ModelEndpoint, name, project
+            mep_record = self._get_mep_latest_instance(
+                session, ModelEndpoint, name, function_name, project
             )
         if mep_record:
             return mep_record
@@ -4663,14 +4679,23 @@ class SQLDB(DBInterface):
         return session.query(func.count(inspect(cls).primary_key[0])).scalar()
 
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
-        query = self._query(session, cls, name=name, project=project, uid=uid)
+        query = (
+            self._query(session, cls, name=name, project=project, uid=uid)
+            if name
+            else self._query(session, cls, project=project, uid=uid)
+        )
         return query.one_or_none()
 
-    def _get_class_latest_instance(self, session, cls, name, project):
+    def _get_mep_latest_instance(self, session, cls, name, function_name, project):
         query = (
             session.query(cls)
             .join(cls.Tag)
-            .filter(cls.project == project, cls.name == name, cls.Tag.name == "latest")
+            .filter(
+                cls.project == project,
+                cls.name == name,
+                cls.function_name == function_name,
+                cls.Tag.name == "latest",
+            )
         )
 
         return query.one_or_none()
@@ -4970,10 +4995,8 @@ class SQLDB(DBInterface):
             )
 
         if start or end:
-            start = start or datetime.min
-            end = end or datetime.max
-            query = query.filter(
-                and_(ModelEndpoint.created >= start, ModelEndpoint.created <= end)
+            query = generate_time_range_query(
+                query=query, field=ModelEndpoint.created, since=start, until=end
             )
 
         if latest_only:
@@ -5158,7 +5181,7 @@ class SQLDB(DBInterface):
         self,
         model_endpoint_record: ModelEndpoint,
         format_: mlrun.common.formatters.ModelEndpointFormat = mlrun.common.formatters.ModelEndpointFormat.full,
-    ) -> mlrun.common.schemas.ModelEndpointV2:
+    ) -> mlrun.common.schemas.ModelEndpoint:
         model_endpoint_full_dict = model_endpoint_record.struct
         model_endpoint_full_dict[ModelEndpointSchema.UPDATED] = (
             model_endpoint_record.updated
@@ -5166,7 +5189,7 @@ class SQLDB(DBInterface):
         model_endpoint_full_dict[ModelEndpointSchema.CREATED] = (
             model_endpoint_record.created
         )
-
+        model_endpoint_full_dict[ModelEndpointSchema.UID] = model_endpoint_record.uid
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
             model_endpoint_record, model_endpoint_full_dict
         )
@@ -5179,14 +5202,9 @@ class SQLDB(DBInterface):
                 model_endpoint_full_dict, format_
             )
         )
-        model_endpoint_resp = mlrun.common.schemas.ModelEndpointV2.from_flat_dict(
+        model_endpoint_resp = mlrun.common.schemas.ModelEndpoint.from_flat_dict(
             model_endpoint_full_dict
         )
-
-        # TODO : add the following data
-        # next step in status : operative data
-        # from tsdb - latency, drift_status, error_count, last_request
-        # from json - current_stats, drift_measures
 
         return model_endpoint_resp
 
@@ -5200,7 +5218,17 @@ class SQLDB(DBInterface):
                 function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
             )
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = (
-                f"{model_endpoint_record.project}/{function_full_dict.get('metadata', {}).get('hash')}"
+                generate_object_uri(
+                    project=model_endpoint_record.project,
+                    name=model_endpoint_record.function_name,
+                    hash_key=function_full_dict.get("metadata", {}).get("hash"),
+                )
+            )
+            curr_tag = model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG]
+            model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
+                curr_tag
+                if curr_tag in [tag.name for tag in model_endpoint_record.function.tags]
+                else None
             )
         return model_endpoint_full_dict
 
@@ -5212,41 +5240,27 @@ class SQLDB(DBInterface):
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = (
                 model_endpoint_record.model.key
             )
-            try:
-                model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = (
-                    model_endpoint_record.model.tags[0].name
-                )
-            except IndexError:
-                model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = ""
-            model_artifact_uri = generate_artifact_uri(
-                project=model_endpoint_record.project,
-                key=model_endpoint_record.model.key,
-                iter=model_endpoint_record.model.full_object.get("metadata", {}).get(
-                    "iter"
+            curr_tag = model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG]
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = (
+                curr_tag
+                if curr_tag in [tag.name for tag in model_endpoint_record.model.tags]
+                else None
+            )
+            model_artifact_uri = mlrun.datastore.get_store_uri(
+                kind=mlrun.utils.helpers.StorePrefix.Model,
+                uri=generate_artifact_uri(
+                    project=model_endpoint_record.project,
+                    key=model_endpoint_record.model.key,
+                    iter=model_endpoint_record.model.full_object.get(
+                        "metadata", {}
+                    ).get("iter"),
+                    tree=model_endpoint_record.model.full_object.get(
+                        "metadata", {}
+                    ).get("tree"),
                 ),
-                tree=model_endpoint_record.model.full_object.get("metadata", {}).get(
-                    "tree"
-                ),
             )
 
-            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = (
-                mlrun.datastore.get_store_uri(
-                    kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
-                )
-            )
-
-            model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS] = (
-                model_endpoint_record.model.full_object.get(
-                    "spec", {}
-                ).get(ModelEndpointSchema.FEATURE_STATS, {})
-            )
-            if not isinstance(
-                model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS], dict
-            ):
-                model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS] = (
-                    json.loads(model_endpoint_full_dict["feature_stats"])
-                )
-
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = model_artifact_uri
         return model_endpoint_full_dict
 
     def _transform_project_record_to_schema(
@@ -6694,10 +6708,11 @@ class SQLDB(DBInterface):
     def store_model_endpoint(
         self,
         session,
-        model_endpoint: mlrun.common.schemas.ModelEndpointV2,
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
         name: str,
+        function_name: str,
         project: str,
-    ) -> str:
+    ) -> mlrun.common.schemas.ModelEndpoint:
         logger.debug(
             "Storing Model Endpoint to DB",
             name=name,
@@ -6705,53 +6720,63 @@ class SQLDB(DBInterface):
             metadata=model_endpoint.metadata,
         )
         body_name = model_endpoint.metadata.name
-        if body_name and body_name != name:
+        if body_name != name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Conflict between requested name and name in MEP body, MEP name is {name} while body_name is"
                 f" {body_name}"
             )
         body_project = model_endpoint.metadata.project
-        if body_project and body_project != project:
+        if body_project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Conflict between requested project and project in MEP body, MEP project is {project} "
                 f"while body_project is {body_project}"
             )
-
-        created_time = datetime.now(timezone.utc)
-        uid = fill_model_endpoint_hash(
-            model_endpoint, created_time.isoformat(sep=" ", timespec="microseconds")
-        )
-
+        body_function = model_endpoint.spec.function_name
+        if body_function != function_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Conflict between requested function and function in MEP body, MEP function is {function_name} "
+                f"while body_function is {body_function}"
+            )
+        current_time = datetime.now(timezone.utc)
         mep = ModelEndpoint(
             name=name,
             project=project,
-            uid=uid,
-            created=created_time,
             function_name=model_endpoint.spec.function_name,
             function_uid=model_endpoint.spec.function_uid,
             model_uid=model_endpoint.spec.model_uid,
             model_name=model_endpoint.spec.model_name,
-            updated=created_time,
-            endpoint_type=model_endpoint.metadata.endpoint_type,
+            endpoint_type=model_endpoint.metadata.endpoint_type.value,
+            created=current_time,
+            updated=current_time,
         )
 
         update_labels(mep, model_endpoint.metadata.labels)
-        mep.struct = model_endpoint.flat_dict(exclude=model_endpoint._operative_data())
+        mep.struct = model_endpoint.flat_dict()
         self._upsert(session, [mep])
-        self.tag_objects_v2(session, [mep], project, "latest")
-        return uid
+        self.tag_objects_v2(
+            session,
+            [mep],
+            project,
+            "latest",
+            obj_name_attribute=["name", "function_name"],
+        )
+        mep_record = self._get_model_endpoint(session, project, name, function_name)
+        return self._transform_model_endpoint_model_to_schema(mep_record)
 
     def get_model_endpoint(
         self,
         session,
         project: str,
         name: str,
+        function_name: str,
         uid: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointV2:
-        mep_record = self._get_model_endpoint(session, project, name, uid)
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        mep_record = self._get_model_endpoint(
+            session, project, name, function_name, uid
+        )
         if not mep_record:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Model Endpoint not found in project {project} with name {name}"
+                f"Model Endpoint not found in project {project} with name {name} under function {function_name}"
             )
         return self._transform_model_endpoint_model_to_schema(mep_record)
 
@@ -6760,23 +6785,42 @@ class SQLDB(DBInterface):
         session,
         project: str,
         name: str,
+        function_name: str,
         attributes: dict,
         uid: typing.Optional[str] = None,
-    ) -> str:
-        mep_record = self._get_model_endpoint(session, project, name, uid)
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        mep_record = self._get_model_endpoint(
+            session, project, name, function_name, uid
+        )
         updated = datetime.now(timezone.utc)
+        attributes, schema_attr, labels = self._split_mep_update_attr(attributes)
         if mep_record:
             struct = mep_record.struct
             for key, val in attributes.items():
                 update_in(struct, key, val)
+            for key, val in schema_attr.items():
+                setattr(mep_record, key, val)
+                update_in(struct, key, val)
+            if labels and isinstance(labels, dict):
+                update_labels(mep_record, labels)
+            update_in(struct, "labels", labels)
             mep_record.struct = struct
             mep_record.updated = updated
             self._upsert(session, [mep_record])
-            return mep_record.uid
+            return self._transform_model_endpoint_model_to_schema(mep_record)
         else:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Model Endpoint not found in project {project} with name {name}"
+                f"Model Endpoint not found in project {project} with name {name} under function {function_name}"
             )
+
+    def _split_mep_update_attr(self, attributes: dict):
+        labels = attributes.pop("labels", {})
+        schema_attr = {}
+        for key in list(attributes.keys()):
+            if hasattr(ModelEndpoint, key):
+                schema_attr[key] = attributes.pop(key)
+
+        return attributes, schema_attr, labels
 
     def list_model_endpoints(
         self,
@@ -6793,8 +6837,8 @@ class SQLDB(DBInterface):
         latest_only: bool = False,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
-    ) -> list[mlrun.common.schemas.ModelEndpointV2]:
-        model_endpoints: list[mlrun.common.schemas.ModelEndpointV2] = []
+    ) -> list[mlrun.common.schemas.ModelEndpoint]:
+        model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
         for mep_record in self._find_model_endpoints(
             session=session,
             name=name,
@@ -6813,22 +6857,36 @@ class SQLDB(DBInterface):
             model_endpoints.append(
                 self._transform_model_endpoint_model_to_schema(mep_record)
             )
-        return model_endpoints
+        return mlrun.common.schemas.ModelEndpointList(endpoints=model_endpoints)
 
     def delete_model_endpoint(
         self,
         session,
         project: str,
         name: str,
+        function_name: str,
         uid: str,
     ) -> None:
         logger.debug(
             "Removing model endpoint from db", project=project, name=name, uid=uid
         )
         if uid != "*":
-            self._delete(session, ModelEndpoint, project=project, name=name, uid=uid)
+            self._delete(
+                session,
+                ModelEndpoint,
+                project=project,
+                name=name,
+                function_name=function_name,
+                uid=uid,
+            )
         else:
-            self._delete(session, ModelEndpoint, project=project, name=name)
+            self._delete(
+                session,
+                ModelEndpoint,
+                project=project,
+                name=name,
+                function_name=function_name,
+            )
 
     def delete_model_endpoints(
         self,

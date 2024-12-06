@@ -315,7 +315,6 @@ async def delete_model_monitoring_function(
 def set_model_monitoring_credentials(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     access_key: Optional[str] = None,
-    endpoint_store_connection: Optional[str] = None,
     stream_path: Optional[str] = None,
     tsdb_connection: Optional[str] = None,
     replace_creds: bool = False,
@@ -326,14 +325,6 @@ def set_model_monitoring_credentials(
     model monitoring or serving function.
     :param commons:                   The common parameters of the request.
     :param access_key:                Model Monitoring access key for managing user permissions.
-    :param endpoint_store_connection: Endpoint store connection string. By default, None.
-                                      Options:
-                                      1. None, will be set from the system configuration.
-                                      2. v3io - for v3io endpoint store,
-                                         pass `v3io` and the system will generate the exact path.
-                                      3. MySQL/SQLite - for SQL endpoint store, please provide full
-                                         connection string, for example
-                                         mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
     :param stream_path:               Path to the model monitoring stream. By default, None.
                                       Options:
                                       1. None, will be set from the system configuration.
@@ -357,7 +348,6 @@ def set_model_monitoring_credentials(
         model_monitoring_access_key=commons.model_monitoring_access_key,
     ).set_credentials(
         access_key=access_key,
-        endpoint_store_connection=endpoint_store_connection,
         stream_path=stream_path,
         tsdb_connection=tsdb_connection,
         replace_creds=replace_creds,

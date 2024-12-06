@@ -100,16 +100,16 @@ class TestAlerts(TestMLRunSystem):
         assert len(activations) == 2
         entities = []
         for activation in activations:
-            assert activation["name"] == alert_name
-            assert activation["severity"] == alert_objects.AlertSeverity.LOW
-            assert run_id in activation["entity_id"]
-            assert activation["event_kind"] == alert_objects.EventKind.FAILED
-            assert activation["number_of_events"] == 1
+            assert activation.name == alert_name
+            assert activation.severity == alert_objects.AlertSeverity.LOW
+            assert run_id in activation.entity_id
+            assert activation.event_kind == alert_objects.EventKind.FAILED
+            assert activation.number_of_events == 1
 
             # save entity_ids to check pagination below
-            entities.append(activation["entity_id"])
+            entities.append(activation.entity_id)
 
-        assert activations[0]["activation_time"] >= activations[1]["activation_time"]
+        assert activations[0].activation_time >= activations[1].activation_time
 
         # get paginated activations
         activations, token = self._run_db.paginated_list_alert_activations(
@@ -125,14 +125,14 @@ class TestAlerts(TestMLRunSystem):
             event_kind=alert_objects.EventKind.FAILED,
         )
         assert len(activations) == 1
-        entities.remove(activations[0]["entity_id"])
+        entities.remove(activations[0].entity_id)
 
         activations, token = self._run_db.paginated_list_alert_activations(
             project=self.project_name,
             page_token=token,
         )
         assert len(activations) == 1
-        entities.remove(activations[0]["entity_id"])
+        entities.remove(activations[0].entity_id)
 
         # ensure that paginated requests returned different values
         assert len(entities) == 0

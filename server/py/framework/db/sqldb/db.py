@@ -3249,16 +3249,16 @@ class SQLDB(DBInterface):
     def verify_project_has_no_related_resources(self, session: Session, name: str):
         # it is enough to sample few resources, we do not need to retrieve all resources really.
         resource_limit = 5
-        for resource_name, resource_list_function, kwargs in [
-            ("runs", self.list_runs, dict(sort=False, return_as_run_structs=False)),
-            ("artifacts", self._find_artifacts, dict(ids="*")),
-            ("schedules", self.list_schedules, dict()),
-            ("functions", self._list_project_function_names, dict()),
-            ("feature_sets", self._list_project_feature_set_names, dict()),
-            ("feature_vectors", self._list_project_feature_vector_names, dict()),
+        for resource_name, resource_list_function in [
+            ("runs", self.list_runs),
+            ("artifacts", self._find_artifacts),
+            ("schedules", self.list_schedules),
+            ("functions", self._list_project_function_names),
+            ("feature_sets", self._list_project_feature_set_names),
+            ("feature_vectors", self._list_project_feature_vector_names),
         ]:
             resources = resource_list_function(
-                session, project=name, limit=resource_limit, **kwargs
+                session, project=name, limit=resource_limit
             )
             self._verify_empty_list_of_project_related_resources(
                 name, resources, resource_name

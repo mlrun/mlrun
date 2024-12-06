@@ -3217,24 +3217,55 @@ class SQLDB(DBInterface):
         project_to_job_alerts_count = collections.defaultdict(int)
         project_to_other_alerts_count = collections.defaultdict(int)
 
-        last_day = datetime.now() - timedelta(hours=24)
-        alert_activations = self.list_alert_activations(
-            session=session,
-            projects_with_creation_time=projects_with_creation_time,
-            since=last_day,
-        )
+        project_filter_conditions = [
+            and_(
+                AlertActivation.project == project,
+                AlertActivation.activation_time > created,
+            )
+            for project, created in projects_with_creation_time
+        ]
 
-        for alert in alert_activations:
-            project = alert.project
-            if (
-                alert.entity_kind
-                == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT
-            ):
-                project_to_endpoint_alerts_count[project] += 1
-            elif alert.entity_kind == mlrun.common.schemas.alert.EventEntityKind.JOB:
-                project_to_job_alerts_count[project] += 1
-            else:
-                project_to_other_alerts_count[project] += 1
+        last_day = datetime.now() - timedelta(hours=24)
+
+        (
+            session.query(
+                AlertActivation.project,
+                func.count(
+                    case(
+                        (
+                            AlertActivation.entity_kind
+                            == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                            1,
+                        )
+                    )
+                ).label("model_endpoint_alerts_count"),
+                func.count(
+                    case(
+                        (
+                            AlertActivation.entity_kind
+                            == mlrun.common.schemas.alert.EventEntityKind.JOB,
+                            1,
+                        )
+                    )
+                ).label("job_alerts_count"),
+                func.count(
+                    case(
+                        (
+                            ~AlertActivation.entity_kind.in_(
+                                [
+                                    mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                                    mlrun.common.schemas.alert.EventEntityKind.JOB,
+                                ]
+                            ),
+                            1,
+                        )
+                    )
+                ).label("other_alerts_count"),
+            )
+            .filter(or_(*project_filter_conditions))
+            .filter(AlertActivation.activation_time > last_day)
+            .group_by(AlertActivation.project)
+        )
 
         return (
             project_to_endpoint_alerts_count,

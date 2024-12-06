@@ -415,9 +415,6 @@ async def test_list_project_summaries(
         pipelines_running_count=2,
         distinct_scheduled_jobs_pending_count=3,
         distinct_scheduled_pipelines_pending_count=4,
-        endpoint_alerts_count=5,
-        job_alerts_count=6,
-        other_alerts_count=7,
     )
     created_project, _ = projects_follower.store_project(
         db,

@@ -4836,6 +4836,20 @@ class HTTPRunDB(RunDBInterface):
             **kwargs,
         )
 
+    def get_project_summary(self, project="") -> mlrun.common.schemas.ProjectSummary:
+        """
+        Retrieve the summary of a project.
+
+        :param project: Project name for which the summary belongs.
+        :returns: A summary of the project.
+        """
+        project = project or config.default_project
+
+        endpoint_path = f"project-summaries/{project}"
+        error_message = f"Failed retrieving project summary for {project}"
+        response = self.api_call("GET", endpoint_path, error_message)
+        return mlrun.common.schemas.ProjectSummary(**response.json())
+
     @staticmethod
     def _parse_labels(
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],

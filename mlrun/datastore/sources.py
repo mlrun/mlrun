@@ -951,8 +951,7 @@ class OnlineSource(BaseSourceDriver):
             is_explicit_ack_supported(context)
             and mlrun.mlconf.is_explicit_ack_enabled()
         )
-        # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
-        src_class = storey.SyncEmitSource(
+        src_class = storey.AsyncEmitSource(
             context=context,
             key_field=self.key_field or key_field,
             full_event=True,

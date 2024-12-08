@@ -909,6 +909,46 @@ def _run_pipeline(
     return pipeline_run_id
 
 
+def retry_pipeline(
+    run_id: str,
+    project: Optional[str] = None,
+    namespace: Optional[str] = None,
+) -> str:
+    """Retry a pipeline run.
+
+    This function retries a previously executed pipeline run using the specified run ID. If the run is not in a
+    retryable state, a new run is created as a clone of the original run.
+
+    :param run_id: ID of the pipeline run to retry.
+    :param project: Optional; name of the project associated with the pipeline run.
+    :param namespace: Optional; Kubernetes namespace to use if not the default.
+
+    :returns: ID of the retried pipeline run or the ID of a cloned run if the original run is not retryable.
+    :raises ValueError: If access to the remote API service is not available.
+    """
+    mldb = mlrun.db.get_run_db()
+    if mldb.kind != "http":
+        raise ValueError(
+            "Retrying a pipeline requires access to remote API service. "
+            "Please set the dbpath URL."
+        )
+
+    pipeline_run_id = mldb.retry_pipeline(
+        run_id=run_id,
+        project=project,
+        namespace=namespace,
+    )
+    if pipeline_run_id == run_id:
+        logger.info(
+            f"Retried pipeline run ID={pipeline_run_id}, check UI for progress."
+        )
+    else:
+        logger.info(
+            f"Copy of pipeline {run_id} was retried as run ID={pipeline_run_id}, check UI for progress."
+        )
+    return pipeline_run_id
+
+
 def wait_for_pipeline_completion(
     run_id,
     timeout=60 * 60,

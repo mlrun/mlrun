@@ -116,6 +116,32 @@ class TestKFP(tests.system.base.TestMLRunSystem):
 
         mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
 
+    def test_kfp_retry(self):
+        code_path = str(self.assets_path / "my_func.py")
+        my_func = mlrun.code_to_function(
+            name="my-kfp-without-image",
+            kind="job",
+            filename=code_path,
+            project=self.project_name,
+        )
+
+        @dsl.pipeline(name="job no image test", description="kfp without image test")
+        def job_pipeline():
+            my_func.as_step(handler="handler", auto_build=True)
+
+        run_id = mlrun._run_pipeline(
+            job_pipeline,
+            experiment="my-job",
+            project=self.project_name,
+        )
+
+        mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
+        new_run_id = mlrun.retry_pipeline(run_id, project=self.project_name)
+        mlrun.wait_for_pipeline_completion(new_run_id, project=self.project_name)
+        assert (
+            new_run_id != run_id
+        )  # On successful runs, a new ID is generated because the pipeline is cloned
+
     @pytest.mark.enterprise
     def test_kfp_with_failed_pipeline(self):
         code_path = str(self.assets_path / "raise_func.py")

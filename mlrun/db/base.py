@@ -663,16 +663,16 @@ class RunDBInterface(ABC):
     @abstractmethod
     def create_model_endpoint(
         self,
-        project: str,
-        endpoint_id: str,
-        model_endpoint: Union[mlrun.model_monitoring.ModelEndpoint, dict],
-    ):
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
     @abstractmethod
     def delete_model_endpoint(
         self,
+        name: str,
         project: str,
+        function_name: str,
         endpoint_id: str,
     ):
         pass
@@ -681,36 +681,40 @@ class RunDBInterface(ABC):
     def list_model_endpoints(
         self,
         project: str,
-        model: Optional[str] = None,
-        function: Optional[str] = None,
+        name: Optional[str] = None,
+        function_name: Optional[str] = None,
+        model_name: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        start: str = "now-1h",
-        end: str = "now",
-        metrics: Optional[list[str]] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        tsdb_metrics: bool = True,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
-    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
+        latest_only: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpointList:
         pass
 
     @abstractmethod
     def get_model_endpoint(
         self,
+        name: str,
         project: str,
-        endpoint_id: str,
-        start: Optional[str] = None,
-        end: Optional[str] = None,
-        metrics: Optional[list[str]] = None,
-        features: bool = False,
-    ) -> mlrun.model_monitoring.ModelEndpoint:
+        function_name: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+        tsdb_metrics: bool = True,
+        feature_analysis: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
     @abstractmethod
     def patch_model_endpoint(
         self,
+        name: str,
         project: str,
-        endpoint_id: str,
         attributes: dict,
-    ):
+        function_name: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
     @abstractmethod

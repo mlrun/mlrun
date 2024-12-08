@@ -40,7 +40,7 @@ setup(
     ],
     python_requires=">=3.9, <3.12",
     install_requires=[
-        "mlrun_pipelines_kfp_common~=0.2.3",
+        "mlrun_pipelines_kfp_common~=0.2.4",
         "kfp_server_api~=1.8.5",
     ],
     extras_require={

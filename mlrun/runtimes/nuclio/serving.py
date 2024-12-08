@@ -39,7 +39,7 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
-from .function import NuclioSpec, RemoteRuntime
+from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
 
@@ -577,6 +577,7 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
+    @min_nuclio_versions("1.12.10")
     def deploy(
         self,
         project="",
@@ -644,9 +645,12 @@ class ServingRuntime(RemoteRuntime):
 
     def _get_serving_spec(self):
         function_name_uri_map = {f.name: f.uri(self) for f in self.spec.function_refs}
-
         serving_spec = {
+            "function_name": self.metadata.name,
+            "function_tag": self.metadata.tag,
             "function_uri": self._function_uri(),
+            "function_hash": self.metadata.hash,
+            "project": self.metadata.project,
             "version": "v2",
             "parameters": self.spec.parameters,
             "graph": self.spec.graph.to_dict() if self.spec.graph else {},
@@ -707,6 +711,9 @@ class ServingRuntime(RemoteRuntime):
             function_uri=self._function_uri(),
             secret_sources=self.spec.secret_sources,
             default_content_type=self.spec.default_content_type,
+            function_name=self.metadata.name,
+            function_tag=self.metadata.tag,
+            project=self.metadata.project,
             **kwargs,
         )
         server.init_states(

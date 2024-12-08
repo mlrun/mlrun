@@ -130,6 +130,7 @@ class Service(ABC):
             redoc_url=f"{self.service_prefix}/redoc",
             default_response_class=fastapi.responses.ORJSONResponse,
             lifespan=self.lifespan,
+            mlrun_service_name=self.service_name,
         )
 
     async def _setup_service(self, mounted: bool = False):

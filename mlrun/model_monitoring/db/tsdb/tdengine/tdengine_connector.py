@@ -164,7 +164,7 @@ class TDEngineConnector(TSDBConnector):
     def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
         return datetime.fromisoformat(val) if isinstance(val, str) else val
 
-    def apply_monitoring_stream_steps(self, graph):
+    def apply_monitoring_stream_steps(self, graph, **kwarg):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
         different key metric dictionaries. This data is being used by the monitoring dashboards in
@@ -701,6 +701,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
+        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,

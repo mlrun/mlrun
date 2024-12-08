@@ -410,12 +410,6 @@ class Projects(
         project: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
-        # secrets and model endpoints.
-        services.api.crud.ModelEndpoints().verify_project_has_no_model_endpoints(
-            project
-        )
-
         # Note: this check lists also internal secrets. The assumption is that any internal secret that relate to
         # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.

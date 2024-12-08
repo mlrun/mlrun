@@ -28,7 +28,7 @@ from urllib.parse import urlparse
 import pydantic.v1
 import requests
 import semver
-from pydantic import parse_obj_as
+from pydantic.v1 import parse_obj_as
 
 import mlrun
 import mlrun.common.constants
@@ -37,7 +37,6 @@ import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
-import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
@@ -557,10 +556,6 @@ class HTTPRunDB(RunDBInterface):
             config.external_platform_tracking = (
                 server_cfg.get("external_platform_tracking")
                 or config.external_platform_tracking
-            )
-            config.model_endpoint_monitoring.endpoint_store_connection = (
-                server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
-                or config.model_endpoint_monitoring.endpoint_store_connection
             )
             config.model_endpoint_monitoring.tsdb_connection = (
                 server_cfg.get("model_monitoring_tsdb_connection")
@@ -3514,216 +3509,179 @@ class HTTPRunDB(RunDBInterface):
 
     def create_model_endpoint(
         self,
-        project: str,
-        endpoint_id: str,
-        model_endpoint: Union[
-            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
-        ],
-    ):
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Creates a DB record with the given model_endpoint record.
 
-        :param project: The name of the project.
-        :param endpoint_id: The id of the endpoint.
         :param model_endpoint: An object representing the model endpoint.
+
+        :return: The created model endpoint object.
         """
 
-        if isinstance(
-            model_endpoint, mlrun.model_monitoring.model_endpoint.ModelEndpoint
-        ):
-            model_endpoint = model_endpoint.to_dict()
-
-        path = f"projects/{project}/model-endpoints/{endpoint_id}"
-        self.api_call(
-            method="POST",
+        path = f"projects/{model_endpoint.metadata.project}/model-endpoints"
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
             path=path,
-            body=dict_to_json(model_endpoint),
+            body=model_endpoint.json(),
         )
+        return mlrun.common.schemas.ModelEndpoint(**response.json())
 
     def delete_model_endpoint(
         self,
+        name: str,
         project: str,
+        function_name: str,
         endpoint_id: str,
     ):
         """
         Deletes the DB record of a given model endpoint, project and endpoint_id are used for lookup
 
+        :param name: The name of the model endpoint
         :param project: The name of the project
+        :param function_name: The name of the function
         :param endpoint_id: The id of the endpoint
         """
 
-        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        path = f"projects/{project}/model-endpoints/{name}"
         self.api_call(
-            method="DELETE",
+            method=mlrun.common.types.HTTPMethod.DELETE,
             path=path,
+            params={
+                "function_name": function_name,
+                "endpoint_id": endpoint_id,
+            },
         )
 
     def list_model_endpoints(
         self,
         project: str,
-        model: Optional[str] = None,
-        function: Optional[str] = None,
+        name: Optional[str] = None,
+        function_name: Optional[str] = None,
+        model_name: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        start: str = "now-1h",
-        end: str = "now",
-        metrics: Optional[list[str]] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        tsdb_metrics: bool = True,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
-    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
+        latest_only: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpointList:
         """
-        Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
-        model endpoint. This functions supports filtering by the following parameters:
-        1) model
-        2) function
-        3) labels
-        4) top level
-        5) uids
-        By default, when no filters are applied, all available endpoints for the given project will be listed.
+        List model endpoints with optional filtering by name, function name, model name, labels, and time range.
 
-        In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
-        and depends on the 'start' and 'end' parameters. By default, when the metrics parameter is None, no metrics are
-        added to the output of this function.
-
-        :param project: The name of the project
-        :param model: The name of the model to filter by
-        :param function: The name of the function to filter by
-        :param labels: Filter model endpoints by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
-        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339 time, a
-                      Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
-                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
-        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339 time, a
-                      Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
-                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
-        :param top_level: if true will return only routers and endpoint that are NOT children of any router
-        :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
-
-        :returns: Returns a list of `ModelEndpoint` objects.
+        :param project:         The name of the project
+        :param name:            The name of the model endpoint
+        :param function_name:   The name of the function
+        :param model_name:      The name of the model
+        :param labels:          A list of labels to filter by. (see mlrun.common.schemas.LabelsModel)
+        :param start:           The start time to filter by.Corresponding to the `created` field.
+        :param end:             The end time to filter by. Corresponding to the `created` field.
+        :param tsdb_metrics:    Whether to include metrics from the time series DB.
+        :param top_level:       Whether to return only top level model endpoints.
+        :param uids:            A list of unique ids to filter by.
+        :param latest_only:     Whether to return only the latest model endpoint version.
+        :return:                A list of model endpoints.
         """
-
         path = f"projects/{project}/model-endpoints"
         labels = self._parse_labels(labels)
 
         response = self.api_call(
-            method="GET",
+            method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "model": model,
-                "function": function,
+                "name": name,
+                "model_name": model_name,
+                "function_name": function_name,
                 "label": labels,
-                "start": start,
-                "end": end,
-                "metric": metrics or [],
+                "start": datetime_to_iso(start),
+                "end": datetime_to_iso(end),
+                "tsdb_metrics": tsdb_metrics,
                 "top-level": top_level,
                 "uid": uids,
+                "latest_only": latest_only,
             },
         )
 
-        # Generate a list of a model endpoint dictionaries
-        model_endpoints = response.json()["endpoints"]
-        if model_endpoints:
-            return [
-                mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(obj)
-                for obj in model_endpoints
-            ]
-        return []
+        return mlrun.common.schemas.ModelEndpointList(**response.json())
 
     def get_model_endpoint(
         self,
+        name: str,
         project: str,
-        endpoint_id: str,
-        start: Optional[str] = None,
-        end: Optional[str] = None,
-        metrics: Optional[list[str]] = None,
+        function_name: Optional[str] = None,
+        # TODO: function_tag
+        endpoint_id: Optional[str] = None,
+        tsdb_metrics: bool = True,
         feature_analysis: bool = False,
-    ) -> mlrun.model_monitoring.model_endpoint.ModelEndpoint:
+    ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Returns a single `ModelEndpoint` object with additional metrics and feature related data.
 
+        :param name:                       The name of the model endpoint
         :param project:                    The name of the project
-        :param endpoint_id:                The unique id of the model endpoint.
-        :param start:                      The start time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a  Unix timestamp in milliseconds, a relative time
-                                           (`'now'` or `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours,
-                                           `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
-        :param end:                        The end time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a  Unix timestamp in milliseconds, a relative time
-                                           (`'now'` or `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours,
-                                           `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
-        :param metrics:                    A list of metrics to return for the model endpoint. There are pre-defined
-                                           metrics for model endpoints such as predictions_per_second and
-                                           latency_avg_5m but also custom metrics defined by the user. Please note that
-                                           these metrics are stored in the time series DB and the results will be
-                                           appeared under model_endpoint.spec.metrics.
-        :param feature_analysis:           When True, the base feature statistics and current feature statistics will
-                                           be added to the output of the resulting object.
+        :param function_name:              The name of the function
+        :param endpoint_id:                The id of the endpoint
+        :param tsdb_metrics:               Whether to include metrics from the time series DB.
+        :param feature_analysis:           Whether to include feature analysis data (feature_stats,
+                                            current_stats & drift_measures).
 
-        :returns: A `ModelEndpoint` object.
+        :return:                          A `ModelEndpoint` object.
         """
 
-        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        path = f"projects/{project}/model-endpoints/{name}"
         response = self.api_call(
-            method="GET",
+            method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "start": start,
-                "end": end,
-                "metric": metrics or [],
+                "function_name": function_name,
+                "endpoint_id": endpoint_id,
+                "tsdb_metrics": tsdb_metrics,
                 "feature_analysis": feature_analysis,
             },
         )
 
-        return mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(
-            response.json()
-        )
+        return mlrun.common.schemas.ModelEndpoint(**response.json())
 
     def patch_model_endpoint(
         self,
+        name: str,
         project: str,
-        endpoint_id: str,
         attributes: dict,
-    ):
+        function_name: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         """
-        Updates model endpoint with provided attributes.
+        Updates a model endpoint with the given attributes.
 
-        :param project: The name of the project.
-        :param endpoint_id: The id of the endpoint.
-        :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-            of this dictionary should exist in the target table. Note that the values should be from type string or from
-            a valid numerical type such as int or float. More details about the model endpoint available attributes can
-            be found under :py:class:`~mlrun.common.schemas.ModelEndpoint`.
-
-        Example::
-
-            # Generate current stats for two features
-            current_stats = {'tvd_sum': 2.2,
-                             'tvd_mean': 0.5,
-                             'hellinger_sum': 3.6,
-                             'hellinger_mean': 0.9,
-                             'kld_sum': 24.2,
-                             'kld_mean': 6.0,
-                             'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
-                             'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
-
-            # Create attributes dictionary according to the required format
-            attributes = {`current_stats`: json.dumps(current_stats),
-                          `drift_status`: "DRIFT_DETECTED"}
-
+        :param name:                       The name of the model endpoint
+        :param project:                    The name of the project
+        :param attributes:                 The attributes to update
+        :param function_name:              The name of the function
+        :param endpoint_id:                The id of the endpoint
+        :return:                          The updated `ModelEndpoint` object.
         """
-
-        attributes = {"attributes": _as_json(attributes)}
-        path = f"projects/{project}/model-endpoints/{endpoint_id}"
-        self.api_call(
-            method="PATCH",
-            path=path,
-            params=attributes,
+        attributes_keys = list(attributes.keys())
+        attributes["name"] = name
+        attributes["project"] = project
+        attributes["uid"] = endpoint_id or ""
+        model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
+        path = f"projects/{project}/model-endpoints"
+        logger.info(
+            "Patching model endpoint",
+            attributes_keys=attributes_keys,
+            model_endpoint=model_endpoint,
         )
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.PATCH,
+            path=path,
+            params={
+                "attribute-key": attributes_keys,
+            },
+            body=model_endpoint.json(),
+        )
+
+        return mlrun.common.schemas.ModelEndpoint(**response.json())
 
     def update_model_monitoring_controller(
         self,

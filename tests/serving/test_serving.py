@@ -609,11 +609,14 @@ def test_v2_health():
 
 
 def test_v2_mock():
-    host = create_graph_server(graph=RouterStep(), function_uri="proj/abc")
+    host = create_graph_server(
+        graph=RouterStep(),
+        function_uri="proj/abc",
+    )
     host.graph.add_route(
         "my", class_name=ModelTestingClass, model_path="", multiplier=100
     )
-    host.init_states(None, namespace=globals())
+    host.init_states(None, namespace=globals(), is_mock=True)
     host.init_object(globals())
     logger.info(host.to_yaml())
     resp = host.test("/v2/models/my/infer", testdata)

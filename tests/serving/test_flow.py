@@ -445,13 +445,13 @@ class MyModel(Model):
         super().__init__(*args, **kwargs)
         self.inc = inc
 
-    def predict(self, data):
-        data["n"] += self.inc
-        data.pop("models", None)
-        return data
+    def predict(self, body):
+        body["n"] += self.inc
+        body.pop("models", None)
+        return body
 
-    async def predict_async(self, data):
-        return self.predict(data)
+    async def predict_async(self, body):
+        return self.predict(body)
 
 
 def test_model_runner():
@@ -476,7 +476,7 @@ def test_model_runner():
 
 
 class MyModelSelector(ModelSelector):
-    def select(self, event) -> list[str]:
+    def select(self, event, available_models: list[Model]) -> list[str]:
         return event.body.get("models")
 
 

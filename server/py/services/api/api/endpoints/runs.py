@@ -524,11 +524,12 @@ async def abort_run(
 
 @router.post(
     "/projects/{project}/runs/{uid}/push_notifications",
-    status_code=HTTPStatus.OK.value,
+    response_model=mlrun.common.schemas.BackgroundTask,
 )
 async def push_notifications(
     project: str,
     uid: str,
+    background_tasks: BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     iter: int = 0,
@@ -550,6 +551,22 @@ async def push_notifications(
         project,
         mlrun.common.formatters.RunFormat.notifications,
     )
+
+    return framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+        db_session,
+        project,
+        background_tasks,
+        _push_notification,
+        mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
+        framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
+            project, uid
+        ),
+        db_session,
+        run,
+    )
+
+
+async def _push_notification(db_session, run):
     db = db_singleton.get_db()
     framework.utils.notifications.unmask_notification_params_secret_on_task(
         db, db_session, run
@@ -557,8 +574,8 @@ async def push_notifications(
     run_notification_pusher_class = (
         framework.utils.notifications.notification_pusher.RunNotificationPusher
     )
-    run_notification_pusher_class(
+    run_notification_pusher_object = run_notification_pusher_class(
         [run],
         run_notification_pusher_class.resolve_notifications_default_params(),
-    ).push()
-    return Response(status_code=HTTPStatus.OK.value)
+    )
+    await run_in_threadpool(run_notification_pusher_object.push)

@@ -566,7 +566,7 @@ async def push_notifications(
     )
 
 
-async def _push_notification(db_session, run):
+def _push_notification(db_session, run):
     db = db_singleton.get_db()
     framework.utils.notifications.unmask_notification_params_secret_on_task(
         db, db_session, run
@@ -574,8 +574,8 @@ async def _push_notification(db_session, run):
     run_notification_pusher_class = (
         framework.utils.notifications.notification_pusher.RunNotificationPusher
     )
-    run_notification_pusher_object = run_notification_pusher_class(
+    run_notification_pusher_class(
         [run],
         run_notification_pusher_class.resolve_notifications_default_params(),
-    )
-    await run_in_threadpool(run_notification_pusher_object.push)
+    ).push()
+

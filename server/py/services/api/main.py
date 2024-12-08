@@ -771,16 +771,16 @@ class Service(framework.service.Service):
                     exc=err_to_str(exc),
                 )
 
-        # self._logger.debug(
-        #     "Got terminal runs with configured notifications", runs_amount=len(runs)
-        # )
-        # run_notification_pusher_class = (
-        #     framework.utils.notifications.notification_pusher.RunNotificationPusher
-        # )
-        # run_notification_pusher_class(
-        #     unmasked_runs,
-        #     run_notification_pusher_class.resolve_notifications_default_params(),
-        # ).push()
+        self._logger.debug(
+            "Got terminal runs with configured notifications", runs_amount=len(runs)
+        )
+        run_notification_pusher_class = (
+            framework.utils.notifications.notification_pusher.RunNotificationPusher
+        )
+        run_notification_pusher_class(
+            unmasked_runs,
+            run_notification_pusher_class.resolve_notifications_default_params(),
+        ).push()
 
     async def _abort_stale_runs(self, stale_runs: list[dict]):
         semaphore = asyncio.Semaphore(

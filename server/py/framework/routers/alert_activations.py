@@ -16,7 +16,8 @@
 
 from typing import Optional, Union
 
-from fastapi import APIRouter, Depends, Query
+from dependency_injector.wiring import Provide, inject
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -24,7 +25,6 @@ import mlrun.common.schemas
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
-import services.api.crud
 from framework.api import deps
 
 router = APIRouter()
@@ -32,7 +32,9 @@ router = APIRouter()
 
 @router.get("/projects/{project}/alerts/{name}/activations")
 @router.get("/projects/{project}/alert-activations")
+@inject
 async def list_alert_activations(
+    request: Request,
     project: str,
     name: Optional[str] = None,
     since: Optional[str] = None,
@@ -52,46 +54,24 @@ async def list_alert_activations(
     page_token: str = Query(None, alias="page-token"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    service: framework.service.Service = Depends(
+        Provide[framework.service.ServiceContainer.service]
+    ),
 ):
-    allowed_projects_with_creation_time = await (
-        services.api.crud.Projects().list_allowed_project_names_with_creation_time(
-            db_session,
-            auth_info,
-            project=project,
-        )
-    )
-    paginator = services.api.utils.pagination.Paginator()
-
-    async def _filter_alert_activations_by_permissions(_alert_activations):
-        return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
-            _alert_activations,
-            lambda alert_activation: (
-                alert_activation.project,
-                alert_activation.name,
-            ),
-            auth_info,
-        )
-
-    activations, page_info = await paginator.paginate_permission_filtered_request(
-        db_session,
-        services.api.crud.AlertActivation().list_alert_activations,
-        _filter_alert_activations_by_permissions,
-        auth_info,
-        token=page_token,
-        page=page,
-        page_size=page_size,
-        projects_with_creation_time=allowed_projects_with_creation_time,
+    return await service.handle_request(
+        "list_alert_activations",
+        request=request,
+        project=project,
         name=name,
-        since=mlrun.utils.datetime_from_iso(since),
-        until=mlrun.utils.datetime_from_iso(until),
+        since=since,
+        until=until,
         entity=entity,
         severity=severity,
         entity_kind=entity_kind,
         event_kind=event_kind,
+        page=page,
+        page_size=page_size,
+        page_token=page_token,
+        auth_info=auth_info,
+        db_session=db_session,
     )
-
-    return {
-        "activations": activations,
-        "pagination": page_info,
-    }

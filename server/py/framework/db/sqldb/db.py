@@ -109,7 +109,6 @@ from framework.db.sqldb.models import (
     FeatureVector,
     Function,
     HubSource,
-    Log,
     ModelEndpoint,
     PaginationCache,
     Project,
@@ -117,7 +116,6 @@ from framework.db.sqldb.models import (
     Run,
     Schedule,
     TimeWindowTracker,
-    User,
     _labeled,
     _tagged,
     _with_notifications,
@@ -203,21 +201,6 @@ class SQLDB(DBInterface):
 
     def get_log(self, session, uid, project="", offset=0, size=0):
         raise NotImplementedError("DB should not be used for logs storage")
-
-    def delete_log(self, session: Session, project: str, uid: str):
-        project = project or config.default_project
-        self._delete(session, Log, project=project, uid=uid)
-
-    def _delete_project_logs(self, session: Session, project: str):
-        logger.debug("Removing project logs from db", project=project)
-        self._delete_multi_objects(
-            session=session,
-            main_table=Log,
-            project=project,
-        )
-
-    def _list_logs(self, session: Session, project: str):
-        return self._query(session, Log, project=project).all()
 
     # ---- Runs ----
     @retry_on_conflict
@@ -2217,13 +2200,13 @@ class SQLDB(DBInterface):
             project=project,
         )
 
-    def _list_project_function_names(self, session: Session, project: str) -> list[str]:
-        return [
-            name
-            for (name,) in self._query(
-                session, distinct(Function.name), project=project
-            ).all()
-        ]
+    def _list_project_function_names(
+        self, session: Session, project: str, limit: Optional[int] = None
+    ) -> list[str]:
+        q = self._query(session, distinct(Function.name), project=project)
+        if limit:
+            q = q.limit(limit)
+        return [name for (name,) in q.all()]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -2456,6 +2439,7 @@ class SQLDB(DBInterface):
         next_run_time_since: Optional[datetime] = None,
         next_run_time_until: Optional[datetime] = None,
         as_records: bool = False,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
@@ -2467,6 +2451,9 @@ class SQLDB(DBInterface):
                 since=next_run_time_since,
                 until=next_run_time_until,
             )
+        if limit:
+            query = query.limit(limit)
+
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
@@ -2650,14 +2637,12 @@ class SQLDB(DBInterface):
         )
 
     def _list_project_feature_vector_names(
-        self, session: Session, project: str
+        self, session: Session, project: str, limit: Optional[int] = None
     ) -> list[str]:
-        return [
-            name
-            for (name,) in self._query(
-                session, distinct(FeatureVector.name), project=project
-            ).all()
-        ]
+        q = self._query(session, distinct(FeatureVector.name), project=project)
+        if limit:
+            q = q.limit(limit)
+        return [name for (name,) in q.all()]
 
     def tag_objects_v2(
         self,
@@ -3277,41 +3262,34 @@ class SQLDB(DBInterface):
         return project_record
 
     def verify_project_has_no_related_resources(self, session: Session, name: str):
-        artifacts = self._find_artifacts(session, project=name, ids="*")
-        self._verify_empty_list_of_project_related_resources(
-            name, artifacts, "artifacts"
-        )
-        logs = self._list_logs(session, name)
-        self._verify_empty_list_of_project_related_resources(name, logs, "logs")
-        runs = self._find_runs(session, None, name, []).all()
-        self._verify_empty_list_of_project_related_resources(name, runs, "runs")
-        notifications = []
+        # it is enough to sample few resources, we do not need to retrieve all resources really.
+        resource_limit = 5
+        for resource_name, resource_list_function in [
+            ("runs", self.list_runs),
+            ("artifacts", self._find_artifacts),
+            ("schedules", self.list_schedules),
+            ("functions", self._list_project_function_names),
+            ("feature_sets", self._list_project_feature_set_names),
+            ("feature_vectors", self._list_project_feature_vector_names),
+        ]:
+            resources = resource_list_function(
+                session, project=name, limit=resource_limit
+            )
+            self._verify_empty_list_of_project_related_resources(
+                name, resources, resource_name
+            )
+
         for cls in _with_notifications:
-            notifications.extend(self._get_db_notifications(session, cls, project=name))
-        self._verify_empty_list_of_project_related_resources(
-            name, notifications, "notifications"
-        )
-        schedules = self.list_schedules(session, project=name)
-        self._verify_empty_list_of_project_related_resources(
-            name, schedules, "schedules"
-        )
-        functions = self._list_project_function_names(session, name)
-        self._verify_empty_list_of_project_related_resources(
-            name, functions, "functions"
-        )
-        feature_sets = self._list_project_feature_set_names(session, name)
-        self._verify_empty_list_of_project_related_resources(
-            name, feature_sets, "feature_sets"
-        )
-        feature_vectors = self._list_project_feature_vector_names(session, name)
-        self._verify_empty_list_of_project_related_resources(
-            name, feature_vectors, "feature_vectors"
-        )
+            notifications = self._get_db_notifications(
+                session, cls, project=name, limit=resource_limit
+            )
+            self._verify_empty_list_of_project_related_resources(
+                name, notifications, "notifications"
+            )
 
     def delete_project_related_resources(self, session: Session, name: str):
         self.delete_model_endpoints(session, project=name)
         self._delete_project_artifacts(session, project=name)
-        self._delete_project_logs(session, name)
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
         self._delete_project_runs(session, project=name)
@@ -4336,14 +4314,12 @@ class SQLDB(DBInterface):
         )
 
     def _list_project_feature_set_names(
-        self, session: Session, project: str
+        self, session: Session, project: str, limit: Optional[int] = None
     ) -> list[str]:
-        return [
-            name
-            for (name,) in self._query(
-                session, distinct(FeatureSet.name), project=project
-            ).all()
-        ]
+        q = self._query(session, distinct(FeatureSet.name), project=project)
+        if limit:
+            q = q.limit(limit)
+        return [name for (name,) in q.all()]
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
         self._delete_tagged_object(
@@ -4702,23 +4678,6 @@ class SQLDB(DBInterface):
     def _get_count(self, session, cls):
         return session.query(func.count(inspect(cls).primary_key[0])).scalar()
 
-    def _find_or_create_users(self, session, user_names):
-        users = list(self._query(session, User).filter(User.name.in_(user_names)))
-        new = set(user_names) - {user.name for user in users}
-        if new:
-            for name in new:
-                user = User(name=name)
-                session.add(user)
-                users.append(user)
-            try:
-                session.commit()
-            except SQLAlchemyError as err:
-                session.rollback()
-                raise mlrun.errors.MLRunConflictError(
-                    f"Failed to add user: {err_to_str(err)}"
-                ) from err
-        return users
-
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
         query = (
             self._query(session, cls, name=name, project=project, uid=uid)
@@ -4851,9 +4810,8 @@ class SQLDB(DBInterface):
                 _try_commit_obj,
             )
 
-    def _find_runs(self, session, uid, project, labels):
+    def _find_runs(self, session, uid, project, labels=None):
         labels = label_set(labels)
-
         query = self._query(session, Run)
         query = self._filter_query_by_resource_project(query, Run, project)
 
@@ -4870,10 +4828,14 @@ class SQLDB(DBInterface):
         name: typing.Optional[str] = None,
         parent_id: typing.Optional[str] = None,
         project: typing.Optional[str] = None,
+        limit: typing.Optional[int] = None,
     ):
-        return self._query(
+        q = self._query(
             session, cls.Notification, name=name, parent_id=parent_id, project=project
-        ).all()
+        )
+        if limit:
+            q = q.limit(limit)
+        return q.all()
 
     @staticmethod
     def _escape_characters_for_like_query(value: str) -> str:

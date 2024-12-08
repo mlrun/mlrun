@@ -187,7 +187,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
                 "service_name": service_name,
                 "status_code": response.status,
                 "reason": response.reason,
-                "real_url": response.real_url,
+                "real_url": str(response.real_url),
             }
         )
         if response.content:

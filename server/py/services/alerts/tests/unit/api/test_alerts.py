@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+import datetime
+import unittest
 from http import HTTPStatus
 
 from fastapi.testclient import TestClient
@@ -19,8 +22,10 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 
 import framework.utils.singletons.db
+import services.alerts.crud
 import services.alerts.tests.unit.conftest
 import services.alerts.tests.unit.crud.utils
+import services.api.tests.unit.api.utils
 
 ALERTS_PATH = "projects/{project}/alerts"
 STORE_ALERTS_PATH = "projects/{project}/alerts/{name}"
@@ -94,6 +99,48 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
         )
         assert resp.status_code == HTTPStatus.NOT_FOUND.value
         assert "does not exist" in resp.text
+
+    @unittest.mock.patch.object(
+        services.alerts.crud.AlertActivation, "list_alert_activations"
+    )
+    def test_list_alert_activations(
+        self, patched_list_alert_activations, db: Session, client: TestClient
+    ):
+        alert_name = "alert-name"
+        project_name = "project-name"
+
+        self._create_project(db, project_name)
+        patched_list_alert_activations.return_value = [
+            mlrun.common.schemas.AlertActivation(
+                id=1,
+                name=alert_name,
+                project=project_name,
+                severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+                activation_time=datetime.datetime.utcnow(),
+                entity_id="1234",
+                entity_kind=mlrun.common.schemas.alert.EventEntityKind.JOB,
+                event_kind=mlrun.common.schemas.alert.EventKind.DATA_DRIFT_SUSPECTED,
+                number_of_events=1,
+                notifications=[],
+                criteria=mlrun.common.schemas.alert.AlertCriteria(count=1),
+            )
+        ]
+        # to appear in the methods which allow pagination
+        patched_list_alert_activations.__name__ = "list_alert_activations"
+
+        result_from_global_endpoint = client.get(
+            f"projects/{project_name}/alert-activations"
+        )
+        assert result_from_global_endpoint.status_code == 200
+
+        result_from_alert_name_endpoint = client.get(
+            f"projects/{project_name}/alerts/{alert_name}/activations"
+        )
+        assert result_from_alert_name_endpoint.status_code == 200
+
+        assert (
+            result_from_global_endpoint.json() == result_from_alert_name_endpoint.json()
+        )
 
     # TODO: Move to test utils framework
     @staticmethod

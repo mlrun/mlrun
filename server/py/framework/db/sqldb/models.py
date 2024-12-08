@@ -326,18 +326,6 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
 
-    class Log(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "logs"
-
-        id = Column(Integer, primary_key=True)
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(SQLTypesUtil.blob())
-
-        def get_identifier_string(self) -> str:
-            return f"{self.project}/{self.uid}"
-
     class Run(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "runs"
         __table_args__ = (

@@ -43,6 +43,7 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, aliased
+from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -2942,6 +2943,7 @@ class SQLDB(DBInterface):
 
     async def get_project_resources_counters(
         self,
+        projects_with_creation_time: list[tuple[str, datetime]],
     ) -> tuple[
         dict[str, int],
         dict[str, int],
@@ -2979,7 +2981,8 @@ class SQLDB(DBInterface):
             ),
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
-                self._calculate_alerts_activations_counters,
+                self._calculate_alert_activations_counters,
+                projects_with_creation_time,
             ),
         )
         (
@@ -3200,34 +3203,26 @@ class SQLDB(DBInterface):
             project_to_running_runs_count,
         )
 
-    def _calculate_alerts_activations_counters(
+    def _calculate_alert_activations_counters(
         self,
         session,
+        projects_with_creation_time: list[tuple[str, datetime]],
     ) -> tuple[
         dict[str, int],
         dict[str, int],
         dict[str, int],
     ]:
-        projects_with_creation_time = self.list_projects(
-            session,
-            format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
-        ).projects
-
         project_to_endpoint_alerts_count = collections.defaultdict(int)
         project_to_job_alerts_count = collections.defaultdict(int)
         project_to_other_alerts_count = collections.defaultdict(int)
 
-        project_filter_conditions = [
-            and_(
-                AlertActivation.project == project,
-                AlertActivation.activation_time > created,
-            )
-            for project, created in projects_with_creation_time
-        ]
+        project_filter_conditions = self._generate_project_filter_conditions(
+            projects_with_creation_time
+        )
 
-        last_day = datetime.now() - timedelta(hours=24)
+        last_day = mlrun.utils.datetime_now() - timedelta(hours=24)
 
-        (
+        query_results = (
             session.query(
                 AlertActivation.project,
                 func.count(
@@ -3265,13 +3260,30 @@ class SQLDB(DBInterface):
             .filter(or_(*project_filter_conditions))
             .filter(AlertActivation.activation_time > last_day)
             .group_by(AlertActivation.project)
+            .all()
         )
+        for project, endpoint_counter, job_counter, other_counter in query_results:
+            project_to_endpoint_alerts_count[project] = endpoint_counter
+            project_to_job_alerts_count[project] = job_counter
+            project_to_other_alerts_count[project] = other_counter
 
         return (
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
             project_to_other_alerts_count,
         )
+
+    @staticmethod
+    def _generate_project_filter_conditions(
+        projects_with_creation_time: list[tuple[str, datetime]],
+    ) -> list[BinaryExpression]:
+        return [
+            and_(
+                AlertActivation.project == project,
+                AlertActivation.activation_time > created,
+            )
+            for project, created in projects_with_creation_time
+        ]
 
     def _update_project_record_from_project(
         self,
@@ -6119,13 +6131,9 @@ class SQLDB(DBInterface):
         # Filter alert activations for the project created after the project creation date,
         # excluding activations linked to any previous instances of the project.
         # TODO: reconsider this approach when we move alerts out of main MLRun db
-        project_filter_conditions = [
-            and_(
-                AlertActivation.project == project,
-                AlertActivation.activation_time > created,
-            )
-            for project, created in projects_with_creation_time
-        ]
+        project_filter_conditions = self._generate_project_filter_conditions(
+            projects_with_creation_time
+        )
 
         query = query.filter(or_(*project_filter_conditions))
 

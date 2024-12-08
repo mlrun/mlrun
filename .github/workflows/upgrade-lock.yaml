@@ -19,12 +19,6 @@ on:
   schedule:
   - cron: "0 4 * * 0"  # At 4 AM UTC on every Sunday
 
-# See:
-# https://github.com/peter-evans/create-pull-request?tab=readme-ov-file#token
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   upgrade:
     name: Upgrade uv lock files
@@ -51,3 +45,7 @@ jobs:
         commit-message: Upgrade uv lock files
         branch: automated/uv-lock-upgrade
         delete-branch: true
+        # See:
+        # https://github.com/peter-evans/create-pull-request?tab=readme-ov-file#token
+        # Fine-grained Personal Access Token (PAT) with contents: write and pull-requests: write scopes.
+        token: ${{ secrets.MLRUN_PR_PAT }}

@@ -4910,6 +4910,7 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
+        query = query.order_by(Function.updated.desc())
         query = self._paginate_query(query, offset, limit)
         return query
 

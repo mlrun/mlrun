@@ -223,15 +223,11 @@ class Pipelines(
         Retry a Kubeflow Pipeline (KFP) run.
 
         :param db_session: The SQLAlchemy session used for retrieving and storing pipeline information.
-        :type db_session: sqlalchemy.orm.Session
         :param run_id: The unique identifier of the pipeline run to retry.
-        :type run_id: str
         :param project: (Optional) The name of the MLRun project associated with the pipeline run.
                         If provided, the pipeline run's project will be validated against this.
-        :type project: Optional[str]
         :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
                           Defaults to the configured namespace if not specified.
-        :type namespace: Optional[str]
         :raises MLRunBadRequestError: If the pipeline run is not in a retryable state.
         :raises MLRunNotFoundError: If the pipeline run does not belong to the specified project
                                     or if the run ID is not found.
@@ -270,7 +266,6 @@ class Pipelines(
             raise mlrun.errors.MLRunBadRequestError(
                 f"Pipeline run {run_id} is not in a completed state. Current status: {run.status}"
             )
-
 
         mlrun.utils.logger.debug(
             "Retrying KFP run",

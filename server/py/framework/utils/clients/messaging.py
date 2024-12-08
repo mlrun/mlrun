@@ -301,7 +301,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             raise ValueError(f"Invalid path format: {path}")
 
         prefix = match.group(1)
-        version = match.group(3) or "v1"  # default to v1 if not present
+        version = match.group(2) or "v1"  # default to v1 if not present
         return prefix, version
 
     def _prepare_request_data(self, method: str, path: str):

@@ -26,7 +26,7 @@ import time
 import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import storey.utils
 
@@ -869,7 +869,8 @@ class ModelRunner(storey.ParallelExecution):
         self.model_selector = model_selector or ModelSelector()
 
     def select_runnables(self, event):
-        return self.model_selector.select(event, self.runnables)
+        models = cast(list[Model], self.runnables)
+        return self.model_selector.select(event, models)
 
 
 class ModelRunnerStep(TaskStep):

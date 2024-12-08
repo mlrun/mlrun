@@ -68,7 +68,7 @@ def test_record_result_updates_last_request() -> None:
     db_mock.patch_model_endpoint.assert_called_once()
     assert (
         db_mock.patch_model_endpoint.call_args.kwargs["attributes"]["last_request"]
-        == datetime_mock.isoformat()
+        == datetime_mock
     ), "last_request attribute of the model endpoint was not updated as expected"
 
 

@@ -15,42 +15,32 @@
 
 from datetime import datetime, timezone
 
-import mlrun.common.schemas
-import mlrun.model
+import mlrun.common.schemas.alert as alert_objects
 
+import services.alerts.tests.unit.crud.utils
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
 
 class TestAlerts(TestDatabaseBase):
     def test_store_alert_created_time(self):
         project = "project"
-
-        notification = mlrun.model.Notification(
-            kind="slack",
-            when=["error"],
-            name="slack-notification",
-            message="test-message",
-            condition="",
-            severity="info",
-            params={"some-param": "some-value"},
-        ).to_dict()
-
-        new_alert = mlrun.common.schemas.AlertConfig(
+        alert_name = "test_alert"
+        alert_entity = alert_objects.EventEntities(
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project,
-            name="test_alert",
-            summary="drift detected on the model",
-            severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
-            entities={
-                "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
-                "project": project,
-                "ids": [1234],
-            },
-            trigger={
-                "events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED]
-            },
-            notifications=[{"notification": notification}],
-            reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+            ids=[1234],
         )
+        alert_summary = "testing 1 2 3"
+        event_kind = alert_objects.EventKind.DATA_DRIFT_DETECTED
+
+        new_alert = services.alerts.tests.unit.crud.utils.generate_alert_data(
+            project=project,
+            name=alert_name,
+            entity=alert_entity,
+            summary=alert_summary,
+            event_kind=event_kind,
+        )
+
         self._db.store_alert(self._db_session, new_alert)
         alerts = self._db.list_alerts(self._db_session, project)
         assert len(alerts) == 1

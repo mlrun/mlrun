@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
+import typing
 from http import HTTPStatus
 from typing import Optional
 
@@ -157,6 +159,12 @@ async def list_schedules(
     kind: mlrun.common.schemas.ScheduleKinds = None,
     include_last_run: bool = False,
     include_credentials: bool = fastapi.Query(False, alias="include-credentials"),
+    next_run_time_since: typing.Annotated[
+        typing.Optional[datetime.datetime], "Schedules to run from specific datetime"
+    ] = None,
+    next_run_time_until: typing.Annotated[
+        typing.Optional[datetime.datetime], "Schedules to run until specific datetime"
+    ] = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -175,6 +183,8 @@ async def list_schedules(
         labels=labels or _labels,
         include_last_run=include_last_run,
         include_credentials=include_credentials,
+        next_run_time_since=next_run_time_since,
+        next_run_time_until=next_run_time_until,
     )
     filtered_schedules = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.schedule,

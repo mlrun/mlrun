@@ -547,7 +547,6 @@ class RemoteRuntime(KubeResource):
             self.spec.min_replicas = shards
             self.spec.max_replicas = shards
 
-    @min_nuclio_versions("1.12.10")
     def deploy(
         self,
         project="",

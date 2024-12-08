@@ -320,6 +320,8 @@ class ArtifactManager:
                 artifact_uid = artifact_item.get("metadata", {}).get("uid")
                 if artifact_uid is not None:
                     item.uid = artifact_uid
+                    self.artifact_uris[key] = item.uri
+
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(

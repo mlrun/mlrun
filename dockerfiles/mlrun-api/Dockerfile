@@ -71,7 +71,7 @@ ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIV
 COPY ./pipeline-adapters ./pipeline-adapters
 
 RUN uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp]
 
 COPY . .
 ENV PYTHONPATH=/mlrun/server/py

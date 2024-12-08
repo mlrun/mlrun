@@ -79,15 +79,15 @@ def extra_requirements() -> dict[str, list[str]]:
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
         "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.2.0"],
         "snowflake": ["snowflake-connector-python~=3.7"],
-        "kfp": ["kfp~=1.8"],
     }
 
-    exclude_from_complete = ["bokeh", "kfp"]
+    exclude_from_complete = ["bokeh"]
     api_deps = list(
         _load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt")
     )
     extras_require.update(
         {
+            "kfp": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.2.2"],
             "api": api_deps,
             "all": _get_extra_dependencies(extras_require=extras_require),
             "complete": _get_extra_dependencies(
@@ -97,10 +97,6 @@ def extra_requirements() -> dict[str, list[str]]:
             "complete-api": _get_extra_dependencies(
                 exclude=exclude_from_complete,
                 base_deps=api_deps,
-                extras_require=extras_require,
-            ),
-            "complete-kfp": _get_extra_dependencies(
-                exclude=["bokeh"],
                 extras_require=extras_require,
             ),
         }

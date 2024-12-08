@@ -29,7 +29,6 @@ from v3io_frames import frames_pb2 as fpb2
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants
-import mlrun.model_monitoring.db.stores
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError

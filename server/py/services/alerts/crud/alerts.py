@@ -70,6 +70,9 @@ class Alerts(
             alert_data.created = existing_alert.created
             alert_data.id = existing_alert.id
 
+            # set the updated field to reflect the latest modification time of the alert
+            alert_data.updated = mlrun.utils.now_date()
+
             old_state = framework.utils.singletons.db.get_db().get_alert_state_dict(
                 session, existing_alert.id
             )
@@ -255,15 +258,17 @@ class Alerts(
 
         if alert.reset_policy == "auto":
             self.reset_alert(session, alert.project, alert.name)
-            services.api.crud.AlertActivation().store_alert_activation(
+            services.alerts.crud.AlertActivation().store_alert_activation(
                 session, alert, event_data
             )
             keep_cache = False
         else:
             active = True
             state["active"] = True
-            activation_id = services.api.crud.AlertActivation().store_alert_activation(
-                session, alert, event_data
+            activation_id = (
+                services.alerts.crud.AlertActivation().store_alert_activation(
+                    session, alert, event_data
+                )
             )
             state_obj["last_activation_id"] = activation_id
 

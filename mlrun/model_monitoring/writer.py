@@ -21,7 +21,6 @@ import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.constants import (
-    EventFieldType,
     HistogramDataDriftApplicationConstants,
     MetricData,
     ResultData,
@@ -121,9 +120,6 @@ class ModelMonitoringWriter(StepToDict):
             notification_types=[NotificationKind.slack]
         )
 
-        self._app_result_store = mlrun.model_monitoring.get_store_object(
-            project=self.project, secret_provider=secret_provider
-        )
         self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project, secret_provider=secret_provider
         )
@@ -266,14 +262,9 @@ class ModelMonitoringWriter(StepToDict):
                 == ResultStatusApp.potential_detection.value
             )
         ):
-            endpoint_id = event[WriterEvent.ENDPOINT_ID]
-            endpoint_record = self._endpoints_records.setdefault(
-                endpoint_id,
-                self._app_result_store.get_model_endpoint(endpoint_id=endpoint_id),
-            )
             event_value = {
                 "app_name": event[WriterEvent.APPLICATION_NAME],
-                "model": endpoint_record.get(EventFieldType.MODEL),
+                "model": event[WriterEvent.ENDPOINT_NAME],
                 "model_endpoint_id": event[WriterEvent.ENDPOINT_ID],
                 "result_name": event[ResultData.RESULT_NAME],
                 "result_value": event[ResultData.RESULT_VALUE],

@@ -16,6 +16,7 @@ import json
 import traceback
 from typing import Any, Optional, Union
 
+import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.datastore
@@ -81,6 +82,7 @@ class _PushToMonitoringWriter(StepToDict):
         self._lazy_init()
         application_results, application_context = event
         writer_event = {
+            mm_constant.WriterEvent.ENDPOINT_NAME: application_context.endpoint_name,
             mm_constant.WriterEvent.APPLICATION_NAME: application_context.application_name,
             mm_constant.WriterEvent.ENDPOINT_ID: application_context.endpoint_id,
             mm_constant.WriterEvent.START_INFER_TIME: application_context.start_infer_time.isoformat(
@@ -125,7 +127,7 @@ class _PrepareMonitoringEvent(StepToDict):
         """
         self.graph_context = context
         self.application_name = application_name
-        self.model_endpoints: dict[str, mlrun.model_monitoring.ModelEndpoint] = {}
+        self.model_endpoints: dict[str, mlrun.common.schemas.ModelEndpoint] = {}
 
     def do(self, event: dict[str, Any]) -> MonitoringApplicationContext:
         """
@@ -138,7 +140,7 @@ class _PrepareMonitoringEvent(StepToDict):
             application_name=self.application_name,
             event=event,
             model_endpoint_dict=self.model_endpoints,
-            nuclio_logger=self.graph_context,
+            graph_context=self.graph_context,
         )
 
         self.model_endpoints.setdefault(

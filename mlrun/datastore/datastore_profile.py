@@ -81,22 +81,62 @@ class DatastoreProfileBasic(DatastoreProfile):
     private: typing.Optional[str] = None
 
 
-class VectorStoreProfile(DatastoreProfile):
-    type: str = pydantic.Field("vector")
-    _private_attributes = ("kwargs_private",)
-    vector_store_class: str
-    kwargs_public: typing.Optional[dict] = None
-    kwargs_private: typing.Optional[dict] = None
+class ConfigProfile(DatastoreProfile):
+    """
+    A profile class for managing configuration data with nested public and private attributes.
+    This class extends DatastoreProfile to handle configuration settings, separating them into
+    public and private dictionaries. Both dictionaries support nested structures, and the class
+    provides functionality to merge these attributes when needed.
 
-    def attributes(self, kwargs=None):
-        attributes = {}
-        if self.kwargs_public:
-            attributes = merge(attributes, self.kwargs_public)
-        if self.kwargs_private:
-            attributes = merge(attributes, self.kwargs_private)
-        if kwargs:
-            attributes = merge(attributes, kwargs)
-        return attributes
+    Args:
+        public (Optional[dict]): Dictionary containing public configuration settings,
+            supporting nested structures
+        private (Optional[dict]): Dictionary containing private/sensitive configuration settings,
+            supporting nested structures
+
+    Example:
+        >>> public = {
+            "database": {
+                "host": "localhost",
+                "port": 5432
+            },
+            "api_version": "v1"
+        }
+        >>> private = {
+            "database": {
+                "password": "secret123",
+                "username": "admin"
+            },
+            "api_key": "xyz789"
+        }
+        >>> config = ConfigProfile("myconfig", public=public, private=private)
+
+        # When attributes() is called, it merges public and private:
+        # {
+        #     "database": {
+        #         "host": "localhost",
+        #         "port": 5432,
+        #         "password": "secret123",
+        #         "username": "admin"
+        #     },
+        #     "api_version": "v1",
+        #     "api_key": "xyz789"
+        # }
+
+    """
+
+    type = "config"
+    _private_attributes = "private"
+    public: typing.Optional[dict] = None
+    private: typing.Optional[dict] = None
+
+    def attributes(self):
+        res = {}
+        if self.public:
+            res = merge(res, self.public)
+        if self.private:
+            res = merge(res, self.private)
+        return res
 
 
 class DatastoreProfileKafkaTarget(DatastoreProfile):
@@ -494,7 +534,7 @@ class DatastoreProfile2Json(pydantic.v1.BaseModel):
             "gcs": DatastoreProfileGCS,
             "az": DatastoreProfileAzureBlob,
             "hdfs": DatastoreProfileHdfs,
-            "vector": VectorStoreProfile,
+            "config": ConfigProfile,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

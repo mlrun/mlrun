@@ -393,15 +393,11 @@ class MonitoringDeployment:
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project, secret_provider=secret_provider
         )
-        store_object = mlrun.model_monitoring.get_store_object(
-            project=self.project, secret_provider=secret_provider
-        )
 
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
             function,
             tsdb_connector,
-            store_object,
         )
 
         # Set the project to the serving function
@@ -639,18 +635,6 @@ class MonitoringDeployment:
         )
 
         tsdb_connector.create_tables()
-
-    def _create_sql_tables(self, connection_string: str):
-        """Create the SQL tables using the SQL connector"""
-
-        store_connector: mlrun.model_monitoring.db.StoreBase = (
-            mlrun.model_monitoring.get_store_object(
-                project=self.project,
-                store_connection_string=connection_string,
-            )
-        )
-
-        store_connector.create_tables()
 
     def list_model_monitoring_functions(self) -> list:
         """Retrieve a list of all the model monitoring functions."""
@@ -1020,7 +1004,6 @@ class MonitoringDeployment:
     def set_credentials(
         self,
         access_key: typing.Optional[str] = None,
-        endpoint_store_connection: typing.Optional[str] = None,
         stream_path: typing.Optional[str] = None,
         tsdb_connection: typing.Optional[str] = None,
         replace_creds: bool = False,
@@ -1030,14 +1013,6 @@ class MonitoringDeployment:
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
         :param access_key:                Model Monitoring access key for managing user permissions.
-        :param endpoint_store_connection: Endpoint store connection string. By default, None.
-                                          Options:
-                                          1. None, will be set from the system configuration.
-                                          2. v3io - for v3io endpoint store,
-                                             pass `v3io` and the system will generate the exact path.
-                                          3. MySQL/SQLite - for SQL endpoint store, please provide full
-                                             connection string, for example
-                                             mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
         :param stream_path:               Path to the model monitoring stream. By default, None.
                                           Options:
                                           1. None, will be set from the system configuration.
@@ -1062,9 +1037,7 @@ class MonitoringDeployment:
         if not replace_creds:
             try:
                 self.check_if_credentials_are_set()
-                if self._is_the_same_cred(
-                    endpoint_store_connection, stream_path, tsdb_connection
-                ):
+                if self._is_the_same_cred(stream_path, tsdb_connection):
                     logger.debug(
                         "The same credentials are already set for the project - aborting with no error",
                         project=self.project,
@@ -1085,40 +1058,6 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
             ] = access_key or old_secrets_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            )
-
-        # endpoint_store_connection
-        if not endpoint_store_connection:
-            endpoint_store_connection = (
-                old_secrets_dict.get(
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-                )
-                or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                or _default_secrets_v3io
-            )
-        if endpoint_store_connection:
-            if not endpoint_store_connection.startswith(
-                tuple(
-                    mlrun.common.schemas.model_monitoring.ModelEndpointTargetSchemas.list()
-                )
-            ):
-                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
-                    "please provide a full URL (e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>)"
-                )
-            if mlrun.mlconf.is_ce_mode() and endpoint_store_connection.startswith(
-                "v3io"
-            ):
-                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "In CE mode, only MySQL/SQLite connections are supported for endpoint store"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            ] = endpoint_store_connection
-        else:
-            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                "You must provide a valid endpoint store connection while using set_model_monitoring_credentials "
-                "API/SDK or in the system config"
             )
 
         # stream_path
@@ -1208,11 +1147,6 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
             )
         )
-        self._create_sql_tables(
-            connection_string=secrets_dict.get(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            )
-        )
 
         if not mlrun.mlconf.is_ce_mode():
             stream_path = secrets_dict.get(
@@ -1244,9 +1178,7 @@ class MonitoringDeployment:
             raise_for_status=[200, 404],
         )
 
-    def _is_the_same_cred(
-        self, endpoint_store_connection: str, stream_path: str, tsdb_connection: str
-    ) -> bool:
+    def _is_the_same_cred(self, stream_path: str, tsdb_connection: str) -> bool:
         credentials_dict = {
             key: services.api.crud.Secrets().get_project_secret(
                 project=self.project,
@@ -1257,14 +1189,6 @@ class MonitoringDeployment:
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
 
-        old_store = credentials_dict[
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-        ]
-        if endpoint_store_connection and old_store != endpoint_store_connection:
-            logger.debug(
-                "User provided different endpoint store connection",
-            )
-            return False
         old_stream = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ]

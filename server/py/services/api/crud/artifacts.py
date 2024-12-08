@@ -159,6 +159,7 @@ class Artifacts(
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: typing.Optional[str] = None,
         producer_uri: typing.Optional[str] = None,
+        offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         partition_by: typing.Optional[
             mlrun.common.schemas.ArtifactPartitionByField
@@ -170,8 +171,6 @@ class Artifacts(
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -191,13 +190,12 @@ class Artifacts(
             producer_id=producer_id,
             producer_uri=producer_uri,
             format_=format_,
+            offset=offset,
             limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            page=page,
-            page_size=page_size,
         )
         return artifacts
 

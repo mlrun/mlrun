@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ast
 import re
 import tempfile
 from collections.abc import Iterator
@@ -74,14 +73,14 @@ class DocumentLoaderSpec(ModelObj):
         return loader
 
 
-class DocumentLoader:
+class MLRunLoader:
     """
     A factory class for creating instances of a dynamically defined document loader.
 
     Args:
         artifact_key (str): The key for the artifact to be logged.It can include '%%' which will be replaced
         by a hex-encoded version of the source path.
-        source_path (str): The source path of the document to be loaded.
+        local_path (str): The source path of the document to be loaded.
         loader_spec (DocumentLoaderSpec): Specification for the document loader.
         producer (Optional[Union[MlrunProject, str, MLClientCtx]], optional): The producer of the document
         upload (bool, optional): Flag indicating whether to upload the document.
@@ -104,7 +103,7 @@ class DocumentLoader:
         class DynamicDocumentLoader(BaseLoader):
             def __init__(
                 self,
-                source_path,
+                local_path,
                 loader_spec,
                 artifact_key,
                 producer,
@@ -112,12 +111,12 @@ class DocumentLoader:
             ):
                 self.producer = producer
                 self.artifact_key = (
-                    DocumentLoader.artifact_key_instance(artifact_key, source_path)
+                    MLRunLoader.artifact_key_instance(artifact_key, local_path)
                     if "%%" in artifact_key
                     else artifact_key
                 )
                 self.loader_spec = loader_spec
-                self.source_path = source_path
+                self.local_path = local_path
                 self.upload = upload
 
                 # Resolve the producer
@@ -129,16 +128,17 @@ class DocumentLoader:
             def lazy_load(self) -> Iterator["Document"]:  # noqa: F821
                 artifact = self.producer.log_document(
                     key=self.artifact_key,
-                    document_loader=self.loader_spec,
-                    src_path=self.source_path,
+                    document_loader_spec=self.loader_spec,
+                    local_path=self.local_path,
                     upload=self.upload,
                 )
-                yield artifact.to_langchain_documents()
+                res = artifact.to_langchain_documents()
+                yield res[0]
 
         # Return an instance of the dynamically defined subclass
         instance = DynamicDocumentLoader(
             artifact_key=artifact_key,
-            source_path=source_path,
+            local_path=source_path,
             loader_spec=loader_spec,
             producer=producer,
             upload=upload,
@@ -195,12 +195,15 @@ class DocumentArtifact(Artifact):
         def __init__(
             self,
             *args,
+            document_loader: Optional[DocumentLoaderSpec] = None,
+            collections: Optional[dict] = None,
+            original_source: Optional[str] = None,
             **kwargs,
         ):
             super().__init__(*args, **kwargs)
-            self.document_loader = None
-            self.collections = set()
-            self.original_source = None
+            self.document_loader = document_loader
+            self.collections = collections if collections is not None else {}
+            self.original_source = original_source
 
     """
     A specific artifact class inheriting from generic artifact, used to maintain Document meta-data.
@@ -216,14 +219,17 @@ class DocumentArtifact(Artifact):
 
     def __init__(
         self,
-        key=None,
-        document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
+        original_source: Optional[str] = None,
+        document_loader_spec: Optional[DocumentLoaderSpec] = None,
         **kwargs,
     ):
-        super().__init__(key, **kwargs)
-        self.spec.document_loader = document_loader.to_str()
-        if "src_path" in kwargs:
-            self.spec.original_source = kwargs["src_path"]
+        super().__init__(**kwargs)
+        self.spec.document_loader = (
+            document_loader_spec.to_dict()
+            if document_loader_spec
+            else self.spec.document_loader
+        )
+        self.spec.original_source = original_source or self.spec.original_source
 
     @property
     def spec(self) -> DocumentArtifactSpec:
@@ -234,17 +240,8 @@ class DocumentArtifact(Artifact):
         self._spec = self._verify_dict(
             spec, "spec", DocumentArtifact.DocumentArtifactSpec
         )
-        # _verify_dict doesn't handle set, so we need to convert it back
-        if isinstance(self._spec.collections, str):
-            self._spec.collections = ast.literal_eval(self._spec.collections)
 
-    @property
-    def inputs(self):
-        # To keep the interface consistent with the project.update_artifact() when we update the artifact
-        return None
-
-    @property
-    def source(self):
+    def get_source(self):
         return generate_artifact_uri(self.metadata.project, self.spec.db_key)
 
     def to_langchain_documents(
@@ -262,9 +259,8 @@ class DocumentArtifact(Artifact):
         Returns:
             list[Document]: A list of LangChain Document objects.
         """
-        dictionary = ast.literal_eval(self.spec.document_loader)
-        loader_spec = DocumentLoaderSpec.from_dict(dictionary)
 
+        loader_spec = DocumentLoaderSpec.from_dict(self.spec.document_loader)
         if self.get_target_path():
             with tempfile.NamedTemporaryFile() as tmp_file:
                 mlrun.datastore.store_manager.object(
@@ -272,8 +268,8 @@ class DocumentArtifact(Artifact):
                 ).download(tmp_file.name)
                 loader = loader_spec.make_loader(tmp_file.name)
                 documents = loader.load()
-        elif self.src_path:
-            loader = loader_spec.make_loader(self.src_path)
+        elif self.spec.original_source:
+            loader = loader_spec.make_loader(self.spec.original_source)
             documents = loader.load()
         else:
             raise ValueError(
@@ -289,8 +285,8 @@ class DocumentArtifact(Artifact):
 
             metadata = document.metadata
 
-            metadata[self.METADATA_ORIGINAL_SOURCE_KEY] = self.src_path
-            metadata[self.METADATA_SOURCE_KEY] = self.source
+            metadata[self.METADATA_ORIGINAL_SOURCE_KEY] = self.spec.original_source
+            metadata[self.METADATA_SOURCE_KEY] = self.get_source()
             metadata[self.METADATA_ARTIFACT_URI_KEY] = self.uri
             if self.get_target_path():
                 metadata[self.METADATA_ARTIFACT_TARGET_PATH_KEY] = (
@@ -301,13 +297,38 @@ class DocumentArtifact(Artifact):
                 metadata[self.METADATA_CHUNK_KEY] = str(idx)
                 doc = Document(
                     page_content=text,
-                    metadata=metadata,
+                    metadata=metadata.copy(),
                 )
                 results.append(doc)
         return results
 
     def collection_add(self, collection_id: str) -> None:
-        self.spec.collections.add(collection_id)
+        """
+        Add a collection ID to the artifact's collection list.
+
+        Adds the specified collection ID to the artifact's collection mapping if it
+        doesn't already exist.
+        This method only modifies the client-side artifact object and does not persist
+        the changes to the MLRun DB. To save the changes permanently, you must call
+        project.update_artifact() after this method.
+
+        Args:
+            collection_id (str): The ID of the collection to add
+        """
+        if collection_id not in self.spec.collections:
+            self.spec.collections[collection_id] = "1"
 
     def collection_remove(self, collection_id: str) -> None:
-        return self.spec.collections.discard(collection_id)
+        """
+        Remove a collection ID from the artifact's collection list.
+
+        Removes the specified collection ID from the artifact's local collection mapping.
+        This method only modifies the client-side artifact object and does not persist
+        the changes to the MLRun DB. To save the changes permanently, you must call
+        project.update_artifact() or context.update_artifact() after this method.
+
+        Args:
+            collection_id (str): The ID of the collection to remove
+        """
+        if collection_id in self.spec.collections:
+            self.spec.collections.pop(collection_id)

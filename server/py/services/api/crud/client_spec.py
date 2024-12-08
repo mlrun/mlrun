@@ -113,9 +113,6 @@ class ClientSpec(
             external_platform_tracking=self._get_config_value_if_not_default(
                 "external_platform_tracking"
             ),
-            model_endpoint_monitoring_endpoint_store_connection=self._get_config_value_if_not_default(
-                "model_endpoint_monitoring.endpoint_store_connection"
-            ),
             model_monitoring_tsdb_connection=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.tsdb_connection"
             ),

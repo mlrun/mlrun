@@ -706,6 +706,7 @@ class Service(framework.service.Service):
             self._logger.warning(
                 "Failed pushing terminal run notifications. Ignoring",
                 exc=err_to_str(exc),
+                traceback=traceback.format_exc(),
             )
 
         return stale_runs
@@ -755,12 +756,20 @@ class Service(framework.service.Service):
 
         # Unmasking the run parameters from secrets before handing them over to the notification handler
         # as importing the `Secrets` crud in the notification handler will cause a circular import
-        unmasked_runs = [
-            framework.utils.notifications.unmask_notification_params_secret_on_task(
-                db, db_session, run
-            )
-            for run in runs
-        ]
+        unmasked_runs = []
+        for run in runs:
+            try:
+                framework.utils.notifications.unmask_notification_params_secret_on_task(
+                    db, db_session, run
+                )
+                unmasked_runs.append(run)
+            except Exception as exc:
+                self._logger.warning(
+                    "Failed unmasking notification params secret. Ignoring",
+                    project=run.metadata.project,
+                    run_uid=run.metadata.uid,
+                    exc=err_to_str(exc),
+                )
 
         self._logger.debug(
             "Got terminal runs with configured notifications", runs_amount=len(runs)
@@ -869,8 +878,6 @@ if __name__ == "__main__":
     # __main__.py on mlrun client and mlrun integration tests.
     # mlrun container image will run the server using uvicorn directly.
     # see /dockerfiles/mlrun-api/Dockerfile for more details.
-    from mlrun.utils import logger
+    import framework.utils.mlrunuvicorn as uvicorn
 
-    import services.api.apiuvicorn as uvicorn
-
-    uvicorn.run(logger, httpdb_config=mlconf.httpdb)
+    uvicorn.run(httpdb_config=mlconf.httpdb, service_name="api")

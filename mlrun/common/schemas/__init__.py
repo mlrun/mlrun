@@ -149,10 +149,6 @@ from .model_monitoring import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelEndpointV2,
-    ModelEndpointV2Metadata,
-    ModelEndpointV2Spec,
-    ModelEndpointV2Status,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
@@ -165,6 +161,7 @@ from .notification import (
     NotificationSeverity,
     NotificationState,
     NotificationStatus,
+    NotificationSummary,
     SetNotificationRequest,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus

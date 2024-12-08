@@ -306,11 +306,14 @@ async def test_do_not_escape_cookie(
         assert request.headers["x-request-id"] == "test-request-id"
         return aiohttp.web.Response(status=200)
 
+    fastapi_app = unittest.mock.Mock()
+    fastapi_app.extra = {"mlrun_service_name": "test"}
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers()
     mock_request._cookies = {"session": session_cookie}
     mock_request._query_params = starlette.datastructures.QueryParams()
     mock_request.state.request_id = "test-request-id"
+    mock_request.scope["app"] = fastapi_app
 
     app = aiohttp.web.Application()
     app.router.add_post("/api/v1/operations/migrations", handler)

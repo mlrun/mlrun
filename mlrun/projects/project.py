@@ -28,7 +28,7 @@ import warnings
 import zipfile
 from copy import deepcopy
 from os import environ, makedirs, path
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, cast
 
 import dotenv
 import git
@@ -62,7 +62,6 @@ from mlrun.alerts.alert import AlertConfig
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfile2Json,
-    VectorStoreProfile,
     datastore_profile_read,
 )
 from mlrun.datastore.vectorstore import VectorStoreCollection
@@ -1535,7 +1534,9 @@ class MlrunProject(ModelObj):
 
     def update_artifact(self, artifact_object: Artifact):
         artifacts_manager = self._get_artifact_manager()
-        artifacts_manager.update_artifact(artifact_object, artifact_object)
+        project_tag = self._get_project_tag()
+        producer, _ = self._resolve_artifact_producer(artifact_object, project_tag)
+        artifacts_manager.update_artifact(producer, artifact_object)
 
     def _get_artifact_manager(self):
         if self._artifact_manager:
@@ -1732,7 +1733,7 @@ class MlrunProject(ModelObj):
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
 
-        :returns: artifact object
+        :returns: dataset artifact object
         """
         ds = DatasetArtifact(
             key,
@@ -1745,14 +1746,17 @@ class MlrunProject(ModelObj):
             **kwargs,
         )
 
-        item = self.log_artifact(
-            ds,
-            local_path=local_path,
-            artifact_path=artifact_path,
-            target_path=target_path,
-            tag=tag,
-            upload=upload,
-            labels=labels,
+        item = cast(
+            DatasetArtifact,
+            self.log_artifact(
+                ds,
+                local_path=local_path,
+                artifact_path=artifact_path,
+                target_path=target_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+            ),
         )
         return item
 
@@ -1820,7 +1824,7 @@ class MlrunProject(ModelObj):
         :param extra_data:      key/value list of extra files/charts to link with this dataset
                                 value can be absolute path | relative path (to model dir) | bytes | artifact object
 
-        :returns: artifact object
+        :returns: model artifact object
         """
 
         if training_set is not None and inputs:
@@ -1847,79 +1851,72 @@ class MlrunProject(ModelObj):
         if training_set is not None:
             model.infer_from_df(training_set, label_column)
 
-        item = self.log_artifact(
-            model,
-            artifact_path=artifact_path,
-            tag=tag,
-            upload=upload,
-            labels=labels,
+        item = cast(
+            ModelArtifact,
+            self.log_artifact(
+                model,
+                artifact_path=artifact_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+            ),
         )
         return item
 
-    def get_or_create_vector_store_collection(
+    def get_vector_store_collection(
         self,
         collection_name: str,
-        profile: Union[str, VectorStoreProfile],
-        **kwargs,
+        vector_store: "VectorStore",  # noqa: F821
     ) -> VectorStoreCollection:
-        """
-        Create or retrieve a VectorStoreCollection.
-
-        :param collection_name: Name of the collection
-        :param profile: Name of the VectorStoreProfile or a VectorStoreProfile object
-        :param kwargs: Additional arguments for the VectorStoreCollection
-        :return: VectorStoreCollection object
-        """
-        if isinstance(profile, str):
-            profile = datastore_profile_read(f"ds://{profile}")
-
-        if not isinstance(profile, VectorStoreProfile):
-            raise ValueError(
-                "Profile must be a VectorStoreProfile object or a profile name"
-            )
         return VectorStoreCollection(
-            profile.vector_store_class,
             self,
-            profile.name,
             collection_name,
-            **profile.attributes(kwargs),
+            vector_store,
         )
 
     def log_document(
         self,
         key: str,
-        artifact_path: Optional[str] = None,
-        document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
         tag: str = "",
+        local_path: str = "",
+        artifact_path: Optional[str] = None,
+        document_loader_spec: Optional[DocumentLoaderSpec] = None,
         upload: Optional[bool] = False,
         labels: Optional[dict[str, str]] = None,
+        target_path: Optional[str] = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
         Log a document as an artifact.
 
         :param key: Artifact key
-        :param target_path: Path to the local file
-        :param artifact_path: Target path for artifact storage
-        :param document_loader: Spec to use to load the artifact as langchain document
         :param tag: Version tag
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path: Target path for artifact storage
+        :param document_loader_spec: Spec to use to load the artifact as langchain document
         :param upload: Whether to upload the artifact
         :param labels: Key-value labels
+        :param target_path: Target file path
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
         """
         doc_artifact = DocumentArtifact(
             key=key,
-            document_loader=document_loader,
+            original_source=local_path or target_path,
+            document_loader_spec=document_loader_spec
+            if document_loader_spec
+            else DocumentLoaderSpec(),
             **kwargs,
         )
-
         return self.log_artifact(
-            doc_artifact,
-            artifact_path=artifact_path,
+            item=doc_artifact,
             tag=tag,
+            local_path=local_path,
+            artifact_path=artifact_path,
             upload=upload,
             labels=labels,
+            target_path=target_path,
         )
 
     def import_artifact(
@@ -2408,7 +2405,7 @@ class MlrunProject(ModelObj):
 
     def set_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         name: str = "",
         kind: str = "job",
         image: Optional[str] = None,
@@ -3407,7 +3404,6 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_credentials(
         self,
         access_key: Optional[str] = None,
-        endpoint_store_connection: Optional[str] = None,
         stream_path: Optional[str] = None,
         tsdb_connection: Optional[str] = None,
         replace_creds: bool = False,
@@ -3418,7 +3414,6 @@ class MlrunProject(ModelObj):
         model monitoring or serving function.
 
         :param access_key:                Model monitoring access key for managing user permissions.
-        :param endpoint_store_connection: Endpoint store connection string. By default, None. Options:
 
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
@@ -3451,7 +3446,6 @@ class MlrunProject(ModelObj):
             project=self.name,
             credentials={
                 "access_key": access_key,
-                "endpoint_store_connection": endpoint_store_connection,
                 "stream_path": stream_path,
                 "tsdb_connection": tsdb_connection,
             },
@@ -3469,29 +3463,33 @@ class MlrunProject(ModelObj):
 
     def list_model_endpoints(
         self,
-        model: Optional[str] = None,
-        function: Optional[str] = None,
+        name: Optional[str] = None,
+        model_name: Optional[str] = None,
+        function_name: Optional[str] = None,
         labels: Optional[list[str]] = None,
-        start: str = "now-1h",
-        end: str = "now",
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
-    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
+    ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
         model endpoint. This functions supports filtering by the following parameters:
-        1) model
-        2) function
-        3) labels
-        4) top level
-        5) uids
+        1) name
+        2) model_name
+        3) function_name
+        4) labels
+        5) top level
+        6) uids
+        7) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
         and depends on the 'start' and 'end' parameters.
 
-        :param model: The name of the model to filter by
-        :param function: The name of the function to filter by
+        :param name: The name of the model to filter by
+        :param model_name: The name of the model to filter by
+        :param function_name: The name of the function to filter by
         :param labels: Filter model endpoints by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -3499,12 +3497,8 @@ class MlrunProject(ModelObj):
             or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
-        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339 time, a
-                      Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
-                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
-        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339 time, a
-                      Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
-                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest time.
+        :param start:                     The start time to filter by.Corresponding to the `created` field.
+        :param end:                       The end time to filter by. Corresponding to the `created` field.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return a list `ModelEndpoint` object with uid in uids
 
@@ -3513,8 +3507,9 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_model_endpoints(
             project=self.name,
-            model=model,
-            function=function,
+            name=name,
+            model_name=model_name,
+            function_name=function_name,
             labels=labels,
             start=start,
             end=end,
@@ -4497,6 +4492,25 @@ class MlrunProject(ModelObj):
             profile, self.name
         )
 
+    def get_config_profile_attributes(self, name: str) -> dict:
+        """
+        Get the merged attributes from a named configuration profile.
+
+        Retrieves a profile from the datastore using the provided name and returns its
+        merged public and private attributes as a dictionary.
+
+        Args:
+            name (str): Name of the configuration profile to retrieve. Will be prefixed
+                with "ds://" to form the full profile path.
+
+        Returns:
+            dict: The merged attributes dictionary containing both public and private
+                configuration settings from the profile. Returns nested dictionaries if
+                the profile contains nested configurations.
+        """
+        profile = datastore_profile_read(f"ds://{name}", self.name)
+        return profile.attributes()
+
     def delete_datastore_profile(self, profile: str):
         mlrun.db.get_run_db(secrets=self._secrets).delete_datastore_profile(
             profile, self.name
@@ -4841,7 +4855,6 @@ class MlrunProject(ModelObj):
             page=page,
             page_size=page_size,
             page_token=page_token,
-            return_all=False,
             **kwargs,
         )
 

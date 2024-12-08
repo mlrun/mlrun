@@ -18,22 +18,24 @@ import unittest.mock
 from collections.abc import Generator
 from datetime import datetime
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 import fastapi
+import kfp_server_api
 import pytest
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 
+import mlrun
 import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.db.factory
 import mlrun.launcher.factory
 import mlrun.runtimes.utils
+import mlrun.utils
 import mlrun.utils.singleton
-from mlrun import mlconf
-from mlrun.utils import logger
-from mlrun_pipelines.imports import kfp
+import mlrun_pipelines.utils
 
 import framework.utils.clients.iguazio
 import framework.utils.projects.remotes.leader
@@ -66,8 +68,8 @@ if str(tests_root_directory) in os.getcwd():
 class TestAPIBase(TestServiceBase):
     @pytest.fixture(scope="module")
     def app(self) -> fastapi.FastAPI:
-        mlconf.services.service_name = "api"
-        mlconf.services.hydra.services = ""
+        mlrun.mlconf.services.service_name = "api"
+        mlrun.mlconf.services.hydra.services = ""
         yield services.api.daemon.app()
 
     @pytest.fixture(scope="module")
@@ -83,10 +85,10 @@ class TestAPIBase(TestServiceBase):
         This is useful when tests use several endpoints that are not under the same version prefix.
         """
         with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
-            mlconf.httpdb.logs_path = log_dir
-            mlconf.monitoring.runs.interval = 0
-            mlconf.runtimes_cleanup_interval = 0
-            mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+            mlrun.mlconf.httpdb.logs_path = log_dir
+            mlrun.mlconf.monitoring.runs.interval = 0
+            mlrun.mlconf.runtimes_cleanup_interval = 0
+            mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
             with TestClient(app) as unversioned_test_client:
                 self.set_base_url_for_test_client(
@@ -134,14 +136,62 @@ def api_config_test(service_config_test):
 
 
 @pytest.fixture
-def kfp_client_mock(monkeypatch) -> kfp.Client:
-    framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+def kfp_client_mock(monkeypatch) -> mlrun_pipelines.utils.ExtendedKfpClient:
+    framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = mock.Mock(
         return_value=True
     )
-    kfp_client_mock = unittest.mock.Mock()
-    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
+
+    def mock_get_healthz(*args, **kwargs):
+        mock_healthz = mock.Mock()
+        mock_healthz.multi_user = True  # Adjust based on your test scenario
+        return mock_healthz
+
+    monkeypatch.setattr(
+        kfp_server_api.api.healthz_service_api.HealthzServiceApi,
+        "get_healthz",
+        mock_get_healthz,
+    )
+
+    mock_experiment_api = mock.Mock()
+    mock_experiment_api.api_client.call_api = mock.Mock()
+    monkeypatch.setattr(
+        kfp_server_api.api.experiment_service_api,
+        "ExperimentServiceApi",
+        mock.Mock(return_value=mock_experiment_api),
+    )
+
+    mock_run_api = mock.Mock()
+    mock_run_api.create_run = mock.Mock()
+    monkeypatch.setattr(
+        kfp_server_api.api.run_service_api,
+        "RunServiceApi",
+        mock.Mock(return_value=mock_run_api),
+    )
+
+    mock_healthz_api = mock.Mock()
+    mock_healthz_api.create_run = mock.Mock()
+    monkeypatch.setattr(
+        kfp_server_api.api.healthz_service_api,
+        "HealthzServiceApi",
+        mock.Mock(return_value=mock_healthz_api),
+    )
+
+    monkeypatch.setattr(kfp_server_api.api_client.ApiClient, "call_api", mock.Mock())
+
+    kfp_client = mlrun_pipelines.utils.ExtendedKfpClient()
+
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
-    return kfp_client_mock
+
+    kfp_client.run_pipeline = mock.Mock()
+    kfp_client.get_run = mock.Mock()
+
+    monkeypatch.setattr(
+        mlrun_pipelines.utils.ExtendedKfpClient,
+        "__new__",
+        lambda cls, *args, **kwargs: kfp_client,
+    )
+
+    return kfp_client
 
 
 @pytest.fixture()
@@ -251,7 +301,7 @@ class APIK8sSecretsMock(K8sSecretsMock):
 
 @pytest.fixture()
 def k8s_secrets_mock(monkeypatch) -> APIK8sSecretsMock:
-    logger.info("Creating k8s secrets mock")
+    mlrun.utils.logger.info("Creating k8s secrets mock")
     k8s_secrets_mock = APIK8sSecretsMock()
     k8s_secrets_mock.mock_functions(
         framework.utils.singletons.k8s.get_k8s_helper(), monkeypatch

@@ -47,7 +47,7 @@ class TSDBConnector(ABC):
         self.project = project
 
     @abstractmethod
-    def apply_monitoring_stream_steps(self, graph) -> None:
+    def apply_monitoring_stream_steps(self, graph, **kwargs) -> None:
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
         different key metric dictionaries. This data is being used by the monitoring dashboards in
@@ -294,6 +294,7 @@ class TSDBConnector(ABC):
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
+        in the provided time range, which by default is the last 24 hours.
 
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.

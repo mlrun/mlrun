@@ -14,7 +14,8 @@
 
 # for backwards compatibility
 
-from .db import get_store_object, get_tsdb_connector
+from mlrun.common.schemas import ModelEndpoint, ModelEndpointList
+
+from .db import get_tsdb_connector
 from .helpers import get_stream_path
-from .model_endpoint import ModelEndpoint
 from .tracking_policy import TrackingPolicy

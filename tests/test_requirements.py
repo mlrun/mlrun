@@ -133,7 +133,8 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
-        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "protobuf": {'~=3.20.3; python_version < "3.11"', ">=3.20.3,<4"},
+        "v3io-frames": {'>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"'},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # due to a bug in 3.11
         "aiohttp": {"~=3.10.0"},
@@ -181,8 +182,12 @@ def test_requirement_specifiers_inconsistencies():
         "python-dotenv": {"", "~=0.17.0"},
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
-        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
-        "pyyaml": {">=5.4.1, <7"},
+        "protobuf": {'~=3.20.3; python_version < "3.11"', ">=3.20.3,<4"},
+        "pyyaml": {">=6.0.2, <7"},
+        "v3io-frames": {
+            '>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"',
+            '~=0.10.14; python_version < "3.11"',
+        },
     }
 
     for (
@@ -229,9 +234,11 @@ def _generate_all_requirement_specifiers_map() -> dict[str, set]:
         pathlib.Path(tests.conftest.root_path).rglob("**/*requirements.txt")
     )
     venv_path = pathlib.Path(tests.conftest.root_path) / "venv"
-    requirements_file_paths = list(
-        filter(lambda path: str(venv_path) not in str(path), requirements_file_paths)
-    )
+    requirements_file_paths = [
+        path
+        for path in requirements_file_paths
+        if str(venv_path) not in str(path) and path.name != "locked-requirements.txt"
+    ]
 
     requirement_specifiers = []
     for requirements_file_path in requirements_file_paths:
@@ -356,6 +363,7 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "tests/test_requirements.py",  # this test file
         "docs/change-log/index.md",  # a historic document
         "docs/genai/development/working-with-rag.ipynb",  # includes a generated requirement
+        "dockerfiles/mlrun-api/locked-requirements.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 

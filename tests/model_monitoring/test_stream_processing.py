@@ -19,8 +19,7 @@ from mlrun.model_monitoring.stream_processing import EventStreamProcessor
 
 
 @pytest.mark.parametrize("tsdb_connector", ["v3io", "taosws"])
-@pytest.mark.parametrize("endpoint_store", ["v3io", "mysql"])
-def test_plot_monitoring_serving_graph(tsdb_connector, endpoint_store):
+def test_plot_monitoring_serving_graph(tsdb_connector):
     project_name = "test-stream-processing"
     project = mlrun.get_or_create_project(project_name)
 
@@ -40,18 +39,12 @@ def test_plot_monitoring_serving_graph(tsdb_connector, endpoint_store):
         project=project_name,
         tsdb_connection_string=tsdb_connector,
     )
-    store_object = mlrun.model_monitoring.get_store_object(
-        project=project_name,
-        store_connection_string=endpoint_store,
-    )
 
-    processor.apply_monitoring_serving_graph(fn, tsdb_connector, store_object)
+    processor.apply_monitoring_serving_graph(fn, tsdb_connector)
 
     graph = fn.spec.graph.plot(rankdir="TB")
     print()
-    print(
-        f"Graphviz graph definition with tsdb_connector={tsdb_connector}, endpoint_store={endpoint_store}"
-    )
+    print(f"Graphviz graph definition with tsdb_connector={tsdb_connector}")
     print("Feed this to graphviz, or to https://dreampuf.github.io/GraphvizOnline")
     print()
     print(graph)

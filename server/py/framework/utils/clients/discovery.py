@@ -139,5 +139,6 @@ class Client(
                 (["put", "get", "delete"], "alert-templates.*"),
                 (["*"], "projects/.+/alerts.*"),
                 (["post"], "projects/.+/events.*"),
+                (["get"], "projects/.+/alert-activations"),
             ],
         }[service_name]

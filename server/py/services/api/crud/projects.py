@@ -354,11 +354,16 @@ class Projects(
             format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
             **project_filters,
         )
-        allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-            [project[0] for project in projects_output.projects],
-            auth_info,
-            action=action,
+
+        # Use a set to improve performance during filtering below
+        allowed_project_names = set(
+            await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+                [project[0] for project in projects_output.projects],
+                auth_info,
+                action=action,
+            )
         )
+
         # Filter the original list based on allowed names
         # we need to return list of project objects (not project names)
         return [
@@ -405,12 +410,6 @@ class Projects(
         project: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
-        # secrets and model endpoints.
-        services.api.crud.ModelEndpoints().verify_project_has_no_model_endpoints(
-            project
-        )
-
         # Note: this check lists also internal secrets. The assumption is that any internal secret that relate to
         # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.

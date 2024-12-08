@@ -207,7 +207,7 @@ class Pipelines(
             raise
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting kfp run: {mlrun.errors.err_to_str(exc)}"
+                f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
 
         return run
@@ -251,7 +251,7 @@ class Pipelines(
             raise
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting kfp run: {mlrun.errors.err_to_str(exc)}"
+                f"Failed getting KFP run: {mlrun.errors.err_to_str(exc)}"
             ) from exc
         run = mlrun_pipelines.models.PipelineRun(api_run_detail)
 
@@ -264,13 +264,12 @@ class Pipelines(
                 f"Pipeline run {run_id} is not in a completed state. Current status: {run.status}"
             )
 
-        if run:
-            if project and project != "*":
-                run_project = self.resolve_project_from_pipeline(run)
-                if run_project != project:
-                    raise mlrun.errors.MLRunNotFoundError(
-                        f"Pipeline run with id {run_id} is not of project {project}"
-                    )
+        if project and project != "*":
+            run_project = self.resolve_project_from_pipeline(run)
+            if run_project != project:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Pipeline run with id {run_id} is not of project {project}"
+                )
         mlrun.utils.logger.debug(
             "Retrying KFP run",
             run_id=run_id,

@@ -13,12 +13,23 @@
 # limitations under the License.
 #
 import os
+import sys
 import tempfile
 import typing
 
+from kfp_server_api import OpenApiException
+
+import mlrun.utils
 import mlrun_pipelines.common.models
 import mlrun_pipelines.helpers
 import mlrun_pipelines.imports
+
+logger = mlrun.utils.create_logger(
+    level=mlrun.config.config.log_level,
+    formatter_kind=mlrun.config.config.log_formatter,
+    name="mlrun",
+    stream=sys.stdout,
+)
 
 
 class ExtendedKfpClient(mlrun_pipelines.imports.Client):
@@ -60,12 +71,18 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
             mlrun_pipelines.common.models.RunStatuses.error,
         }
         if run_status in valid_states_for_retry:
-            self._experiment_api.api_client.call_api(
-                f"/apis/v1beta1/runs/{run_id}/retry",
-                "POST",
-                response_type="ApiRun",
-                auth_settings=["BearerToken"],
-            )
+            try:
+                self._experiment_api.api_client.call_api(
+                    f"/apis/v1beta1/runs/{run_id}/retry",
+                    "POST",
+                    response_type="ApiRun",
+                    auth_settings=["BearerToken"],
+                )
+            except OpenApiException as error:
+                logger.error(
+                    "Could not trigger retry for run.", run_id=run_id, error=error
+                )
+                raise error
             return run_id
         else:
             # If not retryable, create a new run
@@ -94,6 +111,11 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
                     pipeline_package_path=workflow_manifest_path,
                 )
                 return new_run.id
+            except OpenApiException as error:
+                logger.error(
+                    "Could not trigger new run for run.", run_id=run_id, error=error
+                )
+                raise error
             finally:
                 if workflow_manifest_path and os.path.exists(workflow_manifest_path):
                     os.remove(workflow_manifest_path)

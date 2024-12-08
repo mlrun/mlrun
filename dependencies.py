@@ -87,7 +87,8 @@ def extra_requirements() -> dict[str, list[str]]:
     )
     extras_require.update(
         {
-            "kfp": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.2.2"],
+            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.2.3"],
+            "kfp2": ["mlrun_pipelines_kfp_v2[kfp]~=0.2.3"],
             "api": api_deps,
             "all": _get_extra_dependencies(extras_require=extras_require),
             "complete": _get_extra_dependencies(

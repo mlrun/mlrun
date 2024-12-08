@@ -75,6 +75,6 @@ COPY . .
 
 RUN python -m pip install -e .[complete] && \
     python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v1-8[kfp]
 
 ENV NO_COLOR=1

@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import os
-import sys
 import tempfile
 import typing
 
@@ -23,13 +22,6 @@ import mlrun.utils
 import mlrun_pipelines.common.models
 import mlrun_pipelines.helpers
 import mlrun_pipelines.imports
-
-logger = mlrun.utils.create_logger(
-    level=mlrun.config.config.log_level,
-    formatter_kind=mlrun.config.config.log_formatter,
-    name="mlrun",
-    stream=sys.stdout,
-)
 
 
 class ExtendedKfpClient(mlrun_pipelines.imports.Client):
@@ -79,7 +71,7 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
                     auth_settings=["BearerToken"],
                 )
             except OpenApiException as error:
-                logger.error(
+                mlrun.utils.logger.error(
                     "Could not trigger retry for run.", run_id=run_id, error=error
                 )
                 raise error
@@ -112,7 +104,7 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
                 )
                 return new_run.id
             except OpenApiException as error:
-                logger.error(
+                mlrun.utils.logger.error(
                     "Could not trigger new run for run.", run_id=run_id, error=error
                 )
                 raise error

@@ -255,6 +255,13 @@ class Pipelines(
             ) from exc
         run = mlrun_pipelines.models.PipelineRun(api_run_detail)
 
+        if project and project != "*":
+            run_project = self.resolve_project_from_pipeline(run)
+            if run_project != project:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Pipeline run with id {run_id} is not of project {project}"
+                )
+
         # Check if the pipeline is in a completed state
         if (
             run.status
@@ -264,12 +271,7 @@ class Pipelines(
                 f"Pipeline run {run_id} is not in a completed state. Current status: {run.status}"
             )
 
-        if project and project != "*":
-            run_project = self.resolve_project_from_pipeline(run)
-            if run_project != project:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Pipeline run with id {run_id} is not of project {project}"
-                )
+
         mlrun.utils.logger.debug(
             "Retrying KFP run",
             run_id=run_id,

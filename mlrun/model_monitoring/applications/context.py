@@ -84,7 +84,8 @@ class MonitoringApplicationContext:
         artifacts_logger: Optional[_ArtifactsLogger] = None,
     ) -> None:
         """
-        Initialize a :code:`MonitoringApplicationContext` object.
+        The :code:`_init_` function initializes a :code:`MonitoringApplicationContext` object
+        and has the following attributes.
         Note: this object should not be instantiated manually.
 
         :param application_name:    The application name.

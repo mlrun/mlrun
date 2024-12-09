@@ -552,18 +552,20 @@ async def push_notifications(
         mlrun.common.formatters.RunFormat.notifications,
     )
 
-    return framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
-        db_session,
-        project,
-        background_tasks,
-        _push_notification,
-        mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
-        framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
-            project, uid
-        ),
-        db_session,
-        run,
+    background_task = await run_in_threadpool(
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+            db_session,
+            project,
+            background_tasks,
+            _push_notification,
+            mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
+            framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
+                project, uid
+            ),
+            db_session,
+            run,
     )
+    return background_task
 
 
 def _push_notification(db_session, run):
@@ -578,4 +580,3 @@ def _push_notification(db_session, run):
         [run],
         run_notification_pusher_class.resolve_notifications_default_params(),
     ).push()
-

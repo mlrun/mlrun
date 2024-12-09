@@ -185,13 +185,13 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         artifacts = project.list_artifacts().to_objects()
         assert len(artifacts) == 2, f"Expected 2 artifacts, found {len(artifacts)}"
 
-        assert artifacts[0].tag == "latest"
-        assert artifacts[1].tag is None
+        assert artifacts[1].tag == "latest"
+        assert artifacts[0].tag is None
 
         # Assert attempting to retrieve an artifact with a URI missing the UID raises the expected error
-        uri_without_uid = artifacts[1].uri.split("^")[0]
+        uri_without_uid = artifacts[0].uri.split("^")[0]
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             project.get_store_resource(uri_without_uid)
 
         # Ensure we can retrieve the untagged artifact by its URI
-        assert project.get_store_resource(artifacts[1].uri)
+        assert project.get_store_resource(artifacts[0].uri)

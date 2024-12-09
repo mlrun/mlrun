@@ -82,6 +82,8 @@ class MonitoringApplicationContext:
         logger: Optional[mlrun.utils.Logger] = None,
         graph_context: Optional[mlrun.serving.GraphContext] = None,
         artifacts_logger: Optional[_ArtifactsLogger] = None,
+        sample_df: Optional[pd.DataFrame] = None,
+        feature_stats: Optional[FeatureStats] = None,
     ) -> None:
         """
         Initialize a :code:`MonitoringApplicationContext` object.
@@ -95,6 +97,10 @@ class MonitoringApplicationContext:
         :param artifacts_logger:    Optional - an object that can log artifacts,
                                     typically :py:class:`~mlrun.projects.MlrunProject` or
                                     :py:class:`~mlrun.execution.MLClientCtx`.
+        :param sample_df:           Optional - pandas data-frame as the current dataset.
+                                    When set, it replaces the data read from the offline source.
+        :param feature_stats:       Optional - statistics dictionary of the reference data.
+                                    When set, it overrides the model endpoint's feature stats.
         """
         self.application_name = application_name
 
@@ -140,14 +146,14 @@ class MonitoringApplicationContext:
             str, event.get(mm_constants.ApplicationEvent.OUTPUT_STREAM_URI)
         )
 
-        self._feature_stats: Optional[FeatureStats] = None
+        self._feature_stats: Optional[FeatureStats] = feature_stats
         self._sample_df_stats: Optional[FeatureStats] = None
 
         # Default labels for the artifacts
         self._default_labels = self._get_default_labels()
 
         # Persistent data - fetched when needed
-        self._sample_df: Optional[pd.DataFrame] = None
+        self._sample_df: Optional[pd.DataFrame] = sample_df
         self._model_endpoint: Optional[ModelEndpoint] = (
             model_endpoint_dict.get(self.endpoint_id) if model_endpoint_dict else None
         )

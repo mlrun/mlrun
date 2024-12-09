@@ -115,7 +115,7 @@ async def test_messaging_client_forward_request_with_body(
     _receive.assert_called_once()
 
 
-def test_messaging_client_should_forward_request(
+def test_messaging_client_is_forwarded_request(
     aioresponses_mock: aioresponses_mock, fastapi_request
 ):
     base_url = "http://test"
@@ -125,7 +125,7 @@ def test_messaging_client_should_forward_request(
             name="success-service", url=base_url
         )
     )
-    assert messaging_client.should_forward_request(fastapi_request) is True
+    assert messaging_client.is_forwarded_request(fastapi_request) is True
 
 
 def test_messaging_client_should_not_forward_request(
@@ -135,4 +135,4 @@ def test_messaging_client_should_not_forward_request(
     messaging_client._discovery.resolve_service_by_request = unittest.mock.Mock(
         return_value=None
     )
-    assert messaging_client.should_forward_request(fastapi_request) is False
+    assert messaging_client.is_forwarded_request(fastapi_request) is False

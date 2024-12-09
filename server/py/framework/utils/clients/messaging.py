@@ -150,7 +150,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             media_type="application/json",
         )
 
-    def should_forward_request(self, request: fastapi.Request) -> bool:
+    def is_forwarded_request(self, request: fastapi.Request) -> bool:
         """
         Checks whether the request should be forwarded to another service based on
         the service and path being resolved.

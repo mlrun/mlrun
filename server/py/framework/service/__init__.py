@@ -351,14 +351,14 @@ class Service(ABC):
             self._synchronize_with_chief_clusterization_spec.__name__
         )
 
-    def should_forward_request(self, request: fastapi.Request) -> bool:
+    def is_forwarded_request(self, request: fastapi.Request) -> bool:
         """
         Determines whether the incoming request should be forwarded to another service.
 
         :param request: The incoming FastAPI request.
         :return: `True` if the request should be forwarded to another service, otherwise `False`.
         """
-        return self._messaging_client.should_forward_request(request)
+        return self._messaging_client.is_forwarded_request(request)
 
 
 class Daemon(ABC):

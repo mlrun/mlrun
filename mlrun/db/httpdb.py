@@ -821,7 +821,8 @@ class HTTPRunDB(RunDBInterface):
     ) -> RunList:
         """
         Retrieve a list of runs, filtered by various options.
-        If no filter is provided, will return runs from the last week.
+        If no filter is provided, it return runs from the last week, partitioned by project/name.
+        To get all runs (without the defaults), specify an explicit time using ``start_time_from``.
 
         Example::
 

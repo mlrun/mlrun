@@ -86,7 +86,8 @@ class MonitoringApplicationContext:
         feature_stats: Optional[FeatureStats] = None,
     ) -> None:
         """
-        Initialize a :code:`MonitoringApplicationContext` object.
+        The :code:`__init__` method initializes a :code:`MonitoringApplicationContext` object
+        and has the following attributes.
         Note: this object should not be instantiated manually.
 
         :param application_name:    The application name.

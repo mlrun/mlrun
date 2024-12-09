@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import contextlib
+import copy
 import http
 import http.cookies
 import re
@@ -209,7 +210,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
     def _resolve_kwargs_to_log(kwargs: dict) -> dict:
         kwargs_to_log = {}
         for key in ["headers", "params", "timeout"]:
-            kwargs_to_log[key] = kwargs.get(key)
+            kwargs_to_log[key] = copy.deepcopy(kwargs.get(key))
 
         # omit sensitive data from logs
         if headers := kwargs_to_log.get("headers", {}):

@@ -453,6 +453,7 @@ class DBInterface(ABC):
         kind: mlrun.common.schemas.ScheduleKinds = None,
         next_run_time_since: Optional[datetime.datetime] = None,
         next_run_time_until: Optional[datetime.datetime] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         pass
 

@@ -509,7 +509,7 @@ class ModelEndpoints:
             latest_only=latest_only,
         )
 
-        if tsdb_metrics and endpoint_list:
+        if tsdb_metrics and endpoint_list.endpoints:
             endpoint_list.endpoints = self._add_basic_metrics(
                 model_endpoint_objects=endpoint_list.endpoints,
                 project=project,
@@ -829,13 +829,22 @@ class ModelEndpoints:
 
             return mep
 
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=project
+                ),
+            )
+        except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+            logger.debug(
+                "Failed to add basic metrics because tsdb connection is not defined."
+                " Returning without adding basic metrics.",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return model_endpoint_objects
+
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=project,
-            secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                project=project
-            ),
-        )
         error_count_df = tsdb_connector.get_error_count(endpoint_ids=uids)
         last_request_df = tsdb_connector.get_last_request(endpoint_ids=uids)
         avg_latency_df = tsdb_connector.get_avg_latency(endpoint_ids=uids)

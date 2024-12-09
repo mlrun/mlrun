@@ -62,7 +62,6 @@ from mlrun.alerts.alert import AlertConfig
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfile2Json,
-    VectorStoreProfile,
     datastore_profile_read,
 )
 from mlrun.datastore.vectorstore import VectorStoreCollection
@@ -1535,7 +1534,9 @@ class MlrunProject(ModelObj):
 
     def update_artifact(self, artifact_object: Artifact):
         artifacts_manager = self._get_artifact_manager()
-        artifacts_manager.update_artifact(artifact_object, artifact_object)
+        project_tag = self._get_project_tag()
+        producer, _ = self._resolve_artifact_producer(artifact_object, project_tag)
+        artifacts_manager.update_artifact(producer, artifact_object)
 
     def _get_artifact_manager(self):
         if self._artifact_manager:
@@ -1862,70 +1863,60 @@ class MlrunProject(ModelObj):
         )
         return item
 
-    def get_or_create_vector_store_collection(
+    def get_vector_store_collection(
         self,
         collection_name: str,
-        profile: Union[str, VectorStoreProfile],
-        **kwargs,
+        vector_store: "VectorStore",  # noqa: F821
     ) -> VectorStoreCollection:
-        """
-        Create or retrieve a VectorStoreCollection.
-
-        :param collection_name: Name of the collection
-        :param profile: Name of the VectorStoreProfile or a VectorStoreProfile object
-        :param kwargs: Additional arguments for the VectorStoreCollection
-        :return: VectorStoreCollection object
-        """
-        if isinstance(profile, str):
-            profile = datastore_profile_read(f"ds://{profile}")
-
-        if not isinstance(profile, VectorStoreProfile):
-            raise ValueError(
-                "Profile must be a VectorStoreProfile object or a profile name"
-            )
         return VectorStoreCollection(
-            profile.vector_store_class,
             self,
-            profile.name,
             collection_name,
-            **profile.attributes(kwargs),
+            vector_store,
         )
 
     def log_document(
         self,
         key: str,
-        artifact_path: Optional[str] = None,
-        document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
         tag: str = "",
+        local_path: str = "",
+        artifact_path: Optional[str] = None,
+        document_loader_spec: Optional[DocumentLoaderSpec] = None,
         upload: Optional[bool] = False,
         labels: Optional[dict[str, str]] = None,
+        target_path: Optional[str] = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
         Log a document as an artifact.
 
         :param key: Artifact key
-        :param target_path: Path to the local file
-        :param artifact_path: Target path for artifact storage
-        :param document_loader: Spec to use to load the artifact as langchain document
         :param tag: Version tag
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
+        :param artifact_path: Target path for artifact storage
+        :param document_loader_spec: Spec to use to load the artifact as langchain document
         :param upload: Whether to upload the artifact
         :param labels: Key-value labels
+        :param target_path: Target file path
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
         """
         doc_artifact = DocumentArtifact(
             key=key,
-            document_loader=document_loader,
+            original_source=local_path or target_path,
+            document_loader_spec=document_loader_spec
+            if document_loader_spec
+            else DocumentLoaderSpec(),
             **kwargs,
         )
-
         return self.log_artifact(
-            doc_artifact,
-            artifact_path=artifact_path,
+            item=doc_artifact,
             tag=tag,
+            local_path=local_path,
+            artifact_path=artifact_path,
             upload=upload,
             labels=labels,
+            target_path=target_path,
         )
 
     def import_artifact(
@@ -4499,6 +4490,25 @@ class MlrunProject(ModelObj):
         mlrun.db.get_run_db(secrets=self._secrets).store_datastore_profile(
             profile, self.name
         )
+
+    def get_config_profile_attributes(self, name: str) -> dict:
+        """
+        Get the merged attributes from a named configuration profile.
+
+        Retrieves a profile from the datastore using the provided name and returns its
+        merged public and private attributes as a dictionary.
+
+        Args:
+            name (str): Name of the configuration profile to retrieve. Will be prefixed
+                with "ds://" to form the full profile path.
+
+        Returns:
+            dict: The merged attributes dictionary containing both public and private
+                configuration settings from the profile. Returns nested dictionaries if
+                the profile contains nested configurations.
+        """
+        profile = datastore_profile_read(f"ds://{name}", self.name)
+        return profile.attributes()
 
     def delete_datastore_profile(self, profile: str):
         mlrun.db.get_run_db(secrets=self._secrets).delete_datastore_profile(

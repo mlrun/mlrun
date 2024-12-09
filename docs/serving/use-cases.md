@@ -79,6 +79,11 @@ For an example of writing the minimal serving functions, see [Minimal sklearn se
 See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb) that 
 tests one or more classifier models against a held-out dataset.
 
+## Example of a conditional step
+
+
+
+
 ## Example of advanced data processing and serving ensemble
 
 MLRun serving graphs can host advanced pipelines that handle event/data processing, ML functionality, 

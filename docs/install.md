@@ -87,4 +87,5 @@ Some services do not support security context yet:
 
 install/kubernetes
 install/remote
+install/external-mysql
 ```

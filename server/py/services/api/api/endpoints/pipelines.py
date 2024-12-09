@@ -13,29 +13,30 @@
 # limitations under the License.
 #
 import ast
+import datetime
+import http
 import typing
-from datetime import datetime
-from http import HTTPStatus
 
+import fastapi
+import fastapi.concurrency
+import sqlalchemy.orm
 import yaml
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.config
 import mlrun.errors
-from mlrun.config import config
-from mlrun.utils import logger
-from mlrun_pipelines.models import PipelineManifest
+import mlrun.utils
+import mlrun_pipelines.models
 
+import framework.api
+import framework.api.deps
+import framework.api.utils
 import framework.utils.auth.verifier
 import framework.utils.singletons.k8s
 import services.api.crud
-from framework.api import deps
-from framework.api.utils import log_and_raise
 
-router = APIRouter(prefix="/projects/{project}/pipelines")
+router = fastapi.APIRouter(prefix="/projects/{project}/pipelines")
 
 
 @router.get("", response_model=mlrun.common.schemas.PipelinesOutput)
@@ -44,17 +45,21 @@ async def list_pipelines(
     namespace: typing.Optional[str] = None,
     sort_by: str = "",
     page_token: str = "",
-    filter_: str = Query("", alias="filter"),
-    name_contains: str = Query("", alias="name-contains"),
-    format_: mlrun.common.formatters.PipelineFormat = Query(
+    filter_: str = fastapi.Query("", alias="filter"),
+    name_contains: str = fastapi.Query("", alias="name-contains"),
+    format_: mlrun.common.formatters.PipelineFormat = fastapi.Query(
         mlrun.common.formatters.PipelineFormat.metadata_only, alias="format"
     ),
-    page_size: int = Query(None, gt=0, le=200),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
+    page_size: int = fastapi.Query(None, gt=0, le=200),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
 ):
     if namespace is None:
-        namespace = config.namespace
+        namespace = mlrun.config.config.namespace
     allowed_project_names = (
         await services.api.crud.Projects().list_allowed_project_names(
             db_session, auth_info, project=project
@@ -71,7 +76,7 @@ async def list_pipelines(
             if format_ == mlrun.common.formatters.PipelineFormat.name_only
             else format_
         )
-        total_size, next_page_token, runs = await run_in_threadpool(
+        total_size, next_page_token, runs = await fastapi.concurrency.run_in_threadpool(
             services.api.crud.Pipelines().list_pipelines,
             db_session,
             allowed_project_names,
@@ -107,10 +112,12 @@ async def list_pipelines(
 @router.post("")
 async def create_pipeline(
     project: str,
-    request: Request,
-    experiment_name: str = Query("Default", alias="experiment"),
-    run_name: str = Query("", alias="run"),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    request: fastapi.Request,
+    experiment_name: str = fastapi.Query("Default", alias="experiment"),
+    run_name: str = fastapi.Query("", alias="run"),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
 ):
     response = await _create_pipeline(
         auth_info=auth_info,
@@ -122,18 +129,53 @@ async def create_pipeline(
     return response
 
 
+@router.post("/{run_id}/retry")
+async def retry_pipeline(
+    run_id: str,
+    project: str,
+    namespace: str = fastapi.Query(mlrun.config.config.namespace),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
+):
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            run_id,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+    )
+    run_id = await fastapi.concurrency.run_in_threadpool(
+        services.api.crud.Pipelines().retry_pipeline,
+        db_session,
+        run_id,
+        project,
+        namespace,
+    )
+    return run_id
+
+
 @router.get("/{run_id}")
 async def get_pipeline(
     run_id: str,
     project: str,
-    namespace: str = Query(config.namespace),
-    format_: mlrun.common.formatters.PipelineFormat = Query(
+    namespace: str = fastapi.Query(mlrun.config.config.namespace),
+    format_: mlrun.common.formatters.PipelineFormat = fastapi.Query(
         mlrun.common.formatters.PipelineFormat.summary, alias="format"
     ),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        framework.api.deps.get_db_session
+    ),
 ):
-    pipeline = await run_in_threadpool(
+    pipeline = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().get_pipeline,
         db_session,
         run_id,
@@ -160,7 +202,7 @@ async def get_pipeline(
 
 
 async def _get_pipeline_without_project(
-    db_session: Session,
+    db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.common.schemas.AuthInfo,
     run_id: str,
     namespace: str,
@@ -170,7 +212,7 @@ async def _get_pipeline_without_project(
     So we first get the pipeline, resolve the project out of it, and now that we know the project, we can verify
     permissions
     """
-    run = await run_in_threadpool(
+    run = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().get_pipeline,
         db_session,
         run_id,
@@ -192,24 +234,26 @@ async def _get_pipeline_without_project(
 
 async def _create_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo,
-    request: Request,
+    request: fastapi.Request,
     experiment_name: str,
     run_name: str,
     project: typing.Optional[str] = None,
 ):
-    run_name = run_name or experiment_name + " " + datetime.now().strftime(
+    run_name = run_name or experiment_name + " " + datetime.datetime.now().strftime(
         "%Y-%m-%d %H-%M-%S"
     )
 
     data = await request.body()
     if not data:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="Request body is empty")
+        framework.api.utils.log_and_raise(
+            http.HTTPStatus.BAD_REQUEST.value, reason="Request body is empty"
+        )
     content_type = request.headers.get("content-type", "")
 
     workflow_project = _try_resolve_project_from_body(content_type, data)
     if project and workflow_project and project != workflow_project:
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
+        framework.api.utils.log_and_raise(
+            http.HTTPStatus.BAD_REQUEST.value,
             reason=f"Pipeline contains resources from project {workflow_project} but was requested to be created in "
             f"project {project}",
         )
@@ -236,7 +280,7 @@ async def _create_pipeline(
     if arguments_data:
         arguments = ast.literal_eval(arguments_data)
 
-    run = await run_in_threadpool(
+    run = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().create_pipeline,
         experiment_name,
         run_name,
@@ -255,12 +299,12 @@ def _try_resolve_project_from_body(
     content_type: str, data: bytes
 ) -> typing.Optional[str]:
     if "/yaml" not in content_type:
-        logger.warning(
+        mlrun.utils.logger.warning(
             "Could not resolve project from body, unsupported content type",
             content_type=content_type,
         )
         return None
     workflow_manifest = yaml.load(data, Loader=yaml.FullLoader)
     return services.api.crud.Pipelines().resolve_project_from_workflow_manifest(
-        PipelineManifest(workflow_manifest)
+        mlrun_pipelines.models.PipelineManifest(workflow_manifest)
     )

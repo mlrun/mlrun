@@ -145,6 +145,8 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # reset the alert and trigger the event again and validate that the state is inactive
         self._reset_alert(project_name, created_alert2.name)
+        # reset again to ensure that it's possible
+        self._reset_alert(project_name, created_alert2.name)
 
         alerts_activations = self._get_alert_activations(project_name, alert2["name"])
         self._validate_alert_activation(

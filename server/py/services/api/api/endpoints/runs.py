@@ -557,7 +557,7 @@ async def push_notifications(
         db_session,
         project,
         background_tasks,
-        _push_notification,
+        _push_notifications,
         mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
         framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
             project, uid
@@ -568,7 +568,7 @@ async def push_notifications(
     return background_task
 
 
-def _push_notification(db_session, run):
+def _push_notifications(db_session, run):
     db = db_singleton.get_db()
     framework.utils.notifications.unmask_notification_params_secret_on_task(
         db, db_session, run

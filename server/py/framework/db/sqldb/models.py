@@ -932,6 +932,7 @@ with warnings.catch_warnings():
             "Function",
             cascade="save-update",
             single_parent=True,
+            overlaps="model",
             primaryjoin=and_(
                 foreign(function_name) == Function.name,
                 foreign(function_uid) == Function.uid,
@@ -942,6 +943,7 @@ with warnings.catch_warnings():
             "ArtifactV2",
             cascade="save-update",
             single_parent=True,
+            overlaps="function",
             primaryjoin=and_(
                 foreign(model_uid) == ArtifactV2.uid,
                 foreign(project) == ArtifactV2.project,

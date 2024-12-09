@@ -579,6 +579,36 @@ class TestFunctions(TestDatabaseBase):
         assert len(tagged_function) == 1
         assert tagged_function[0]["metadata"]["hash"] == tagged_function_hash
 
+    def test_list_functions_returns_elements_by_order_updated_field(self):
+        number_of_functions = 5
+        for counter in range(number_of_functions):
+            function_name = f"function-{counter}"
+            function = self._generate_function(function_name)
+            tag = "some_tag"
+            self._db.store_function(
+                self._db_session,
+                function.to_dict(),
+                function.metadata.name,
+                versioned=False,
+                tag=tag,
+            )
+
+        functions = self._db.list_functions(self._db_session)
+
+        assert (
+            len(functions) == number_of_functions
+        ), f"Expected {number_of_functions} results, got {len(functions)}"
+
+        expected_names = [
+            f"function-{i}" for i in range(number_of_functions - 1, -1, -1)
+        ]
+
+        for function, expected_name in zip(functions, expected_names):
+            function_name = function["metadata"]["name"]
+            assert (
+                function_name == expected_name
+            ), f"Expected {expected_name}, got {function_name}"
+
     def test_delete_functions(self):
         names = ["some_name", "some_name2", "some_name3"]
         labels = {

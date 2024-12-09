@@ -2265,6 +2265,75 @@ class HTTPRunDB(RunDBInterface):
 
         return resp.json()
 
+    def retry_pipeline(
+        self,
+        run_id: str,
+        namespace: Optional[str] = None,
+        timeout: int = 30,
+        project: Optional[str] = None,
+    ):
+        """
+        Retry a specific pipeline run using its run ID. This function sends an API request
+        to retry a pipeline run. If a project is specified, the run must belong to that
+        project; otherwise, all projects are queried.
+
+        :param run_id: The unique ID of the pipeline run to retry.
+        :param namespace: Kubernetes namespace where the pipeline is running. Optional.
+        :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
+        :param project: Name of the MLRun project associated with the pipeline. Can be
+            ``*`` to query across all projects. Optional.
+
+        :raises ValueError: Raised if the API response is not successful or contains an
+            error.
+
+        :return: JSON response containing details of the retried pipeline run.
+        """
+
+        params = {}
+        if namespace:
+            params["namespace"] = namespace
+        project_path = project if project else "*"
+
+        resp_text = ""
+        resp_code = None
+        try:
+            resp = self.api_call(
+                "POST",
+                f"projects/{project_path}/pipelines/{run_id}/retry",
+                params=params,
+                timeout=timeout,
+            )
+            resp_code = resp.status_code
+            resp_text = resp.text
+            if not resp.ok:
+                raise mlrun.errors.MLRunHTTPError(
+                    f"Failed to retry pipeline run '{run_id}'. "
+                    f"HTTP {resp_code}: {resp_text}"
+                )
+        except Exception as exc:
+            logger.error(
+                "Retry pipeline API call encountered an error.",
+                run_id=run_id,
+                project=project_path,
+                namespace=namespace,
+                response_code=resp_code,
+                response_text=resp_text,
+                error=str(exc),
+            )
+            if isinstance(exc, mlrun.errors.MLRunHTTPError):
+                raise exc  # Re-raise known HTTP errors
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Unexpected error while retrying pipeline run '{run_id}'."
+            ) from exc
+
+        logger.info(
+            "Successfully retried pipeline run",
+            run_id=run_id,
+            project=project_path,
+            namespace=namespace,
+        )
+        return resp.json()
+
     @staticmethod
     def _resolve_reference(tag, uid):
         if uid and tag:
@@ -4999,9 +5068,11 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "uid": uid,
             "label": labels,
-            "state": mlrun.utils.helpers.as_list(state)
-            if state is not None
-            else states or None,
+            "state": (
+                mlrun.utils.helpers.as_list(state)
+                if state is not None
+                else states or None
+            ),
             "sort": bool2str(sort),
             "iter": bool2str(iter),
             "start_time_from": datetime_to_iso(start_time_from),

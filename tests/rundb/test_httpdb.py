@@ -933,7 +933,7 @@ def test_paginated_list_functions(create_server):
         functions,
         expected_results_count=page_size,
         identifier_name="name",
-        expected_first_result_name="function-0",
+        expected_first_result_name="function-9",
     )
     assert token is not None
 
@@ -945,7 +945,7 @@ def test_paginated_list_functions(create_server):
         functions,
         expected_results_count=page_size,
         identifier_name="name",
-        expected_first_result_name="function-4",
+        expected_first_result_name="function-5",
     )
     assert token is not None
 
@@ -957,7 +957,7 @@ def test_paginated_list_functions(create_server):
         functions,
         expected_results_count=2,
         identifier_name="name",
-        expected_first_result_name="function-8",
+        expected_first_result_name="function-1",
     )
     assert token is None
 
@@ -969,7 +969,7 @@ def test_paginated_list_functions(create_server):
         functions,
         expected_results_count=2,
         identifier_name="name",
-        expected_first_result_name="function-8",
+        expected_first_result_name="function-1",
     )
     assert token is None
 

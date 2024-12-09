@@ -24,12 +24,22 @@ import kfp_server_api.models
 import pytest
 import sqlalchemy.orm
 from httpx import BasicAuth
+from kfp_server_api import (
+    ApiPipelineRuntime,
+    ApiPipelineSpec,
+    ApiResourceKey,
+    ApiResourceReference,
+    ApiRun,
+    ApiRunDetail,
+)
 
+import mlrun.api.schemas
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun_pipelines.common.models
+import mlrun_pipelines.imports
+import mlrun_pipelines.models
 import mlrun_pipelines.utils
-from mlrun.api.schemas import AuthInfo
-from mlrun_pipelines.models import PipelineRun
 
 import framework.utils.auth.verifier
 import services.api.crud
@@ -49,7 +59,7 @@ def test_list_pipelines_not_exploding_on_no_k8s(
 def test_list_pipelines_empty_list(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
@@ -66,7 +76,7 @@ def test_list_pipelines_empty_list(
 def test_list_pipelines_formats(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
@@ -77,7 +87,9 @@ def test_list_pipelines_formats(
         mlrun.common.formatters.PipelineFormat.name_only,
     ]:
         runs = _generate_list_runs_mocks()
-        expected_runs = [PipelineRun(run.to_dict()) for run in runs]
+        expected_runs = [
+            mlrun_pipelines.models.PipelineRun(run.to_dict()) for run in runs
+        ]
         expected_runs = services.api.crud.Pipelines()._format_runs(
             expected_runs, format_
         )
@@ -95,7 +107,7 @@ def test_list_pipelines_formats(
 def test_get_pipeline_formats(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
 ) -> None:
     for format_ in [
         mlrun.common.formatters.PipelineFormat.full,
@@ -110,7 +122,7 @@ def test_get_pipeline_formats(
             params={"format": format_},
         )
         expected_run = services.api.crud.Pipelines()._format_run(
-            PipelineRun(api_run_detail),
+            mlrun_pipelines.models.PipelineRun(api_run_detail),
             format_,
         )
         _assert_get_pipeline_response(expected_run, response)
@@ -119,7 +131,7 @@ def test_get_pipeline_formats(
 def test_get_pipeline_no_project_opa_validation(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
 ) -> None:
     format_ = (mlrun.common.formatters.PipelineFormat.summary,)
     project = "project-name"
@@ -147,7 +159,7 @@ def test_get_pipeline_no_project_opa_validation(
 def test_get_pipeline_specific_project(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
 ) -> None:
     for format_ in [
         mlrun.common.formatters.PipelineFormat.full,
@@ -166,7 +178,7 @@ def test_get_pipeline_specific_project(
             params={"format": format_},
         )
         expected_run = services.api.crud.Pipelines()._format_run(
-            PipelineRun(api_run_detail), format_
+            mlrun_pipelines.models.PipelineRun(api_run_detail), format_
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -177,7 +189,7 @@ def test_get_pipeline_specific_project(
 def test_list_pipelines_time_fields_default(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
 ) -> None:
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
         unittest.mock.AsyncMock(return_value=[mlrun.mlconf.default_project, "another"])
@@ -232,7 +244,7 @@ def test_list_pipelines_time_fields_default(
 def test_list_pipelines_name_contains(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
     project_name: str,
     run_name_filter: str,
     expected_runs_ids: list,
@@ -262,7 +274,11 @@ def test_list_pipelines_name_contains(
     )
 
     expected_runs = services.api.crud.Pipelines()._format_runs(
-        [PipelineRun(run.to_dict()) for run in runs if run.id in expected_runs_ids]
+        [
+            mlrun_pipelines.models.PipelineRun(run.to_dict())
+            for run in runs
+            if run.id in expected_runs_ids
+        ]
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None
@@ -273,7 +289,7 @@ def test_list_pipelines_name_contains(
 def test_list_pipelines_specific_project(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
 ) -> None:
     project = "project-name"
     framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
@@ -299,13 +315,13 @@ def test_list_pipelines_specific_project(
 
 
 def mock_authenticate_request():
-    return AuthInfo(username="test_user", token="mock_token")
+    return mlrun.api.schemas.AuthInfo(username="test_user", token="mock_token")
 
 
 def test_create_pipeline(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
     k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ) -> None:
     project = "getting-started-tutorial-iguazio"
@@ -358,7 +374,7 @@ def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetai
 def test_get_pipeline_nonexistent_project(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
 ) -> None:
     format_ = (mlrun.common.formatters.PipelineFormat.summary,)
     project = "n0_pr0ject"
@@ -369,6 +385,109 @@ def test_get_pipeline_nonexistent_project(
         params={"format": format_},
     )
     assert response.status_code == http.HTTPStatus.NOT_FOUND.value
+
+
+def mock_pipeline_run(api_run_status: str) -> ApiRunDetail:
+    """
+    Creates an ApiRunDetail object compatible with the PipelineRun class.
+
+    :param api_run_status: The status of the run.
+    :return: An ApiRunDetail object.
+    """
+    # Create an instance of ApiPipelineSpec
+    pipeline_spec = ApiPipelineSpec(
+        pipeline_id=None,
+        workflow_manifest='{"mock_workflow_key": "mock_workflow_value"}',
+        parameters=None,
+    )
+
+    # Create an instance of ApiPipelineRuntime
+    pipeline_runtime = ApiPipelineRuntime(
+        workflow_manifest='{"status": {"phase": "Succeeded"}}',
+    )
+
+    # Create resource references
+    resource_references = [
+        ApiResourceReference(
+            key=ApiResourceKey(
+                type="EXPERIMENT",
+                id="mock-experiment-id",
+            ),
+            relationship="OWNER",
+        )
+    ]
+
+    # Create an instance of ApiRun
+    run = ApiRun(
+        id="test-run-id",
+        name="test-run-name",
+        status=api_run_status,
+        description="Mock description",
+        created_at="2024-01-01T00:00:00Z",
+        finished_at="2024-01-01T01:00:00Z",
+        scheduled_at="2024-01-01T00:30:00Z",
+        pipeline_spec=pipeline_spec,
+        resource_references=resource_references,
+    )
+
+    # Create an instance of ApiRunDetail
+    api_run_detail = ApiRunDetail(
+        run=run,
+        pipeline_runtime=pipeline_runtime,
+    )
+
+    return api_run_detail
+
+
+def test_retry_run_retryable_state(
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
+) -> None:
+    run_id = "test-run-id"
+    mock_api_run_detail = mock_pipeline_run(
+        api_run_status=mlrun_pipelines.common.models.RunStatuses.failed
+    )
+    kfp_client_mock.get_run = unittest.mock.MagicMock(return_value=mock_api_run_detail)
+
+    response = client.post(f"/projects/*/pipelines/{run_id}/retry")
+
+    assert response.status_code == http.HTTPStatus.OK.value
+    assert response.json() == run_id
+    kfp_client_mock.get_run.assert_called_with(run_id)
+
+
+@unittest.mock.patch("tempfile.NamedTemporaryFile")
+def test_retry_run_non_retryable_state(
+    mock_tempfile: unittest.mock.MagicMock,
+    client: fastapi.testclient.TestClient,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
+) -> None:
+    run_id = "test-run-id"
+    mock_api_run_detail = mock_pipeline_run(
+        api_run_status=mlrun_pipelines.common.models.RunStatuses.succeeded
+    )
+    kfp_client_mock.get_run.return_value = mock_api_run_detail
+
+    temp_file_mock = unittest.mock.Mock()
+    temp_file_mock.name = "/tmp/example.yaml"
+    mock_tempfile.return_value.__enter__.return_value = temp_file_mock
+
+    new_run_mock = unittest.mock.Mock(id="new-run-id")
+    kfp_client_mock.run_pipeline.return_value = new_run_mock
+
+    response = client.post(f"/projects/*/pipelines/{run_id}/retry")
+
+    assert response.status_code == http.HTTPStatus.OK.value
+
+    kfp_client_mock.run_pipeline.assert_called_once_with(
+        experiment_id="mock-experiment-id",
+        job_name="Retry of test-run-name",
+        pipeline_id=None,
+        params=None,
+        pipeline_package_path="/tmp/example.yaml",
+    )
+
+    assert response.json() == "new-run-id"
 
 
 def _generate_list_runs_mocks():
@@ -584,7 +703,7 @@ def _generate_workflow_manifest(with_status=False):
     return json.dumps(workflow_manifest)
 
 
-def _mock_pipelines_creation(kfp_client_mock: mlrun_pipelines.utils.kfp.Client):
+def _mock_pipelines_creation(kfp_client_mock: mlrun_pipelines.imports.Client):
     def _mock_create_experiment(name, description=None, namespace=None):
         return kfp_server_api.models.ApiExperiment(
             id="some-exp-id",
@@ -607,7 +726,8 @@ def _mock_pipelines_creation(kfp_client_mock: mlrun_pipelines.utils.kfp.Client):
 
 
 def _mock_list_runs_with_one_run_per_page(
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client, runs
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
+    runs,
 ):
     expected_page_tokens = [""]
     for i in range(2, len(runs) + 1):
@@ -625,7 +745,7 @@ def _mock_list_runs_with_one_run_per_page(
 
 
 def _mock_list_runs(
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.imports.Client,
     runs,
     expected_page_token="",
     expected_page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
@@ -647,7 +767,7 @@ def _mock_list_runs(
 
 
 def _mock_get_run(
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
     api_run_detail: kfp_server_api.models.api_run_detail.ApiRunDetail,
 ):
     def get_run_mock(*args, **kwargs):

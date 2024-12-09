@@ -39,7 +39,7 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
-from .function import NuclioSpec, RemoteRuntime
+from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
 
@@ -577,6 +577,7 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
+    @min_nuclio_versions("1.12.10")
     def deploy(
         self,
         project="",

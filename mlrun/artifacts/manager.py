@@ -353,7 +353,8 @@ class ArtifactManager:
                 project=project,
                 tree=item.tree,
             )
-            return artifact_item.get("metadata", {}).get("uid")
+            if artifact_item:
+                return artifact_item.get("metadata", {}).get("uid")
 
     def link_artifact(
         self,

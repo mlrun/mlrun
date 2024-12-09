@@ -156,7 +156,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
         image: Optional[str] = None,
-        with_repo: Optional[bool] = None,
+        with_repo: Optional[bool] = False,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
         endpoint_names: Optional[list[str]] = None,

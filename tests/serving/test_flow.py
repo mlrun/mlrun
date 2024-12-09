@@ -15,7 +15,6 @@
 import pathlib
 
 import pytest
-from storey import ParallelExecutionRunnable
 
 import mlrun
 from mlrun.serving import (
@@ -482,7 +481,7 @@ class MyModelSelector(ModelSelector):
 
 @pytest.mark.parametrize(
     "execution_mechanism",
-    ParallelExecutionRunnable.supported_mechanisms,
+    ("multiprocessing", "threading", "asyncio", "naive"),
 )
 def test_model_runner_with_selector(execution_mechanism: str):
     m1 = MyModel(name="m1", inc=1)

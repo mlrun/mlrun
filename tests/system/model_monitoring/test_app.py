@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import concurrent.futures
 import json
 import pickle
@@ -38,6 +39,7 @@ import mlrun.feature_store
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
+import mlrun.model_monitoring.applications.histogram_data_drift
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
     SUPPORTED_EVIDENTLY_VERSION,
@@ -1403,3 +1405,59 @@ class TestMonitoredServings(TestMLRunSystem):
             )
             func._get_db().get_nuclio_deploy_status(func, verbose=False)
             assert func.status.state == "ready"
+
+
+@pytest.mark.model_monitoring
+class TestAppLocalJob(TestMLRunSystem):
+    """
+    Test the histogram data drift application as a local job.
+    This is performed via the `evaluate` method of the application.
+    Note: this test can probably be moved to the integration tests.
+    """
+
+    project_name = "mm-app-as-local-job"
+
+    def test_histogram_app(self) -> None:
+        # Prepare the data
+        sample_data = pd.DataFrame({"a": [9, 10, -2, 1], "b": [0.11, 2.03, 0.55, 0]})
+        reference_data = pd.DataFrame({"a": [12, 13], "b": [3.12, 4.12]})
+
+        # Call `.evaluate(...)`
+        run_result = HistogramDataDriftApplication.evaluate(
+            func_path=mlrun.model_monitoring.applications.histogram_data_drift.__file__,
+            sample_data=sample_data,
+            reference_data=reference_data,
+        )
+
+        # Test the state
+        assert (
+            run_result.state() == "completed"
+        ), "The job did not complete successfully"
+        # Test the inputs
+        assert run_result.spec.inputs.keys() == {
+            "sample_data",
+            "reference_data",
+        }, "The run inputs are different than the passed ones"
+        # Test the results
+        returned_results = run_result.output("return")
+        assert returned_results, "No returned results"
+        assert {
+            "ModelMonitoringApplicationMetric(name='hellinger_mean', value=1.0)",
+            "ModelMonitoringApplicationMetric(name='kld_mean', value=8.517193191416238)",
+            "ModelMonitoringApplicationMetric(name='tvd_mean', value=0.5)",
+            (
+                "ModelMonitoringApplicationResult(name='general_drift', value=0.75, "
+                "kind=<ResultKindApp.data_drift: 0>, status=<ResultStatusApp.detected: 2>, extra_data={})"
+            ),
+        } <= set(
+            returned_results
+        ), "The returned metrics do not include the expected ones"
+        # Test the artifacts
+        for artifact_name in _DefaultDataDriftAppData.artifacts:
+            assert run_result.output(
+                artifact_name
+            ), f"The artifact '{artifact_name}' is not listed in the run's output"
+            # The artifact is logged with the run's name
+            artifact_key = f"{run_result.metadata.name}_{artifact_name}"
+            artifact = self.project.get_artifact(artifact_key)
+            artifact.to_dataitem().get()

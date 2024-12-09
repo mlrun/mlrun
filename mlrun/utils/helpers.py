@@ -670,7 +670,7 @@ def dict_to_json(struct):
 
 def parse_artifact_uri(uri, default_project=""):
     """
-    Parse artifact URI into project, key, tag, iter, tree
+    Parse artifact URI into project, key, tag, iter, tree, uid
     URI format: [<project>/]<key>[#<iter>][:<tag>][@<tree>][^<uid>]
 
     :param uri:            uri to parse
@@ -721,7 +721,9 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None, tree=None, uid=None):
+def generate_artifact_uri(
+    project, key, tag=None, iter=None, tree=None, uid=None
+) -> str:
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"

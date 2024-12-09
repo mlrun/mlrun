@@ -306,7 +306,6 @@ class ArtifactManager:
         item.target_path = target_path
 
         item.before_log()
-        self.artifact_uris[key] = item.uri
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
             # before uploading the item, we want to ensure that its tags are valid,
@@ -318,7 +317,8 @@ class ArtifactManager:
             artifact_uid = self._log_to_db(db_key, project, producer.inputs, item)
             if artifact_uid is not None:
                 item.uid = artifact_uid
-                self.artifact_uris[key] = item.uri
+        # Generate the artifact URI after logging to the database and retrieving the artifact UID, if available.
+        self.artifact_uris[key] = item.uri
 
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"

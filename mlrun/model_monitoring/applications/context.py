@@ -81,6 +81,7 @@ class MonitoringApplicationContext:
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         logger: Optional[mlrun.utils.Logger] = None,
         graph_context: Optional[mlrun.serving.GraphContext] = None,
+        context: Optional["mlrun.MLClientCtx"] = None,
         artifacts_logger: Optional[_ArtifactsLogger] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
@@ -95,6 +96,7 @@ class MonitoringApplicationContext:
         :param model_endpoint_dict: Optional - dictionary of model endpoints.
         :param logger:              Optional - MLRun logger instance.
         :param graph_context:       Optional - GraphContext instance.
+        :param context:             Optional - MLClientCtx instance.
         :param artifacts_logger:    Optional - an object that can log artifacts,
                                     typically :py:class:`~mlrun.projects.MlrunProject` or
                                     :py:class:`~mlrun.execution.MLClientCtx`.
@@ -108,8 +110,13 @@ class MonitoringApplicationContext:
         if graph_context:
             self.project_name = graph_context.project
             self.project = mlrun.load_project(url=self.project_name)
-        else:
-            self.project = cast("mlrun.MlrunProject", mlrun.get_current_project())
+        elif context:
+            potential_project = context.get_project_object()
+            if not potential_project:
+                raise mlrun.errors.MLRunValueError(
+                    "Could not load project from context"
+                )
+            self.project = potential_project
             self.project_name = self.project.name
 
         self._artifacts_logger: _ArtifactsLogger = artifacts_logger or self.project

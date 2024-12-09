@@ -15,17 +15,18 @@
 
 """alert_activation_plural_name
 
-Revision ID: 66035f0f3b18
-Revises: c53a7f5bcd3a
-Create Date: 2024-12-09 13:16:49.687238
+Revision ID: d259d95707b3
+Revises: aaa213106ec5
+Create Date: 2024-12-09 13:47:42.398038
 
 """
-
 from alembic import op
+import sqlalchemy as sa
+
 
 # revision identifiers, used by Alembic.
-revision = "66035f0f3b18"
-down_revision = "c53a7f5bcd3a"
+revision = 'd259d95707b3'
+down_revision = 'aaa213106ec5'
 branch_labels = None
 depends_on = None
 

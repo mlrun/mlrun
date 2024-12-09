@@ -60,6 +60,7 @@ from .run import (
     get_pipeline,
     import_function,
     new_function,
+    retry_pipeline,
     wait_for_pipeline_completion,
 )
 from .runtimes import mounts, new_model_server

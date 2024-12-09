@@ -39,7 +39,7 @@ from mlrun.utils import (
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
-from ..run import _run_pipeline, wait_for_pipeline_completion
+from ..run import _run_pipeline, retry_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 
 
@@ -421,6 +421,13 @@ class _PipelineRunStatus:
             self._state = returned_state
         return self._state
 
+    def retry(self) -> str:
+        run_id = self._engine.retry(
+            self,
+            project=self.project,
+        )
+        return run_id
+
     def __str__(self):
         return str(self.run_id)
 
@@ -438,6 +445,17 @@ class _PipelineRunner(abc.ABC):
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         raise NotImplementedError(
             f"Save operation not supported in {cls.engine} pipeline engine"
+        )
+
+    @classmethod
+    @abc.abstractmethod
+    def retry(
+        cls,
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+    ) -> str:
+        raise NotImplementedError(
+            f"Retry operation not supported in {cls.engine} pipeline engine"
         )
 
     @classmethod
@@ -634,6 +652,24 @@ class _KFPRunner(_PipelineRunner):
         )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
+
+    @classmethod
+    def retry(
+        cls,
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+    ) -> str:
+        project_name = project.metadata.name if project else ""
+        logger.info(
+            "Retrying pipeline",
+            run_id=run.run_id,
+            project=project_name,
+        )
+        run_id = retry_pipeline(
+            run.run_id,
+            project=project_name,
+        )
+        return run_id
 
     @staticmethod
     def wait_for_completion(

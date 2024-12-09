@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import socket
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union, cast
 
+import pandas as pd
+
 import mlrun
+import mlrun.common.constants as mlrun_constants
+import mlrun.model_monitoring.api as mm_api
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
 from mlrun.serving.utils import MonitoringApplicationToDict
@@ -80,18 +85,30 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         results = results if isinstance(results, list) else [results]
         return results, monitoring_context
 
-    def _handler(self, context: "mlrun.MLClientCtx"):
+    def _handler(
+        self,
+        context: "mlrun.MLClientCtx",
+        sample_data: Optional[pd.DataFrame] = None,
+        reference_data: Optional[pd.DataFrame] = None,
+    ):
         """
         A custom handler that wraps the application's logic implemented in
         :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
         for an MLRun job.
         This method should not be called directly.
         """
+        feature_stats = (
+            mm_api.get_sample_set_statistics(reference_data)
+            if reference_data is not None
+            else None
+        )
         monitoring_context = mm_context.MonitoringApplicationContext(
             event={},
             application_name=self.__class__.__name__,
             logger=context.logger,
             artifacts_logger=context,
+            sample_df=sample_data,
+            feature_stats=feature_stats,
         )
         result = self.do_tracking(monitoring_context)
         return result
@@ -101,8 +118,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         cls,
         func_path: Optional[str] = None,
         func_name: Optional[str] = None,
+        *,
         tag: Optional[str] = None,
         run_local: bool = True,
+        sample_data: Optional[pd.DataFrame] = None,
+        reference_data: Optional[pd.DataFrame] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -113,6 +133,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param func_name: The name of the function. If not passed, the class name is used.
         :param tag:       An optional tag for the function.
         :param run_local: Whether to run the function locally or remotely.
+        :param sample_df: Optional - pandas data-frame as the current dataset.
+                          When set, it replaces the data read from the model endpoint's offline source.
+        :param feature_stats: Optional - statistics dictionary of the reference data.
+                              When set, it overrides the model endpoint's feature stats.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -123,20 +147,36 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         project = cast("mlrun.MlrunProject", mlrun.get_current_project())
         class_name = cls.__name__
-        name = func_name if func_name is not None else class_name
+        job_name = func_name if func_name is not None else class_name
         handler = f"{class_name}::{cls._handler.__name__}"
 
         job = cast(
             mlrun.runtimes.KubejobRuntime,
             project.set_function(
                 func=func_path,
-                name=name,
+                name=job_name,
                 kind=mlrun.runtimes.KubejobRuntime.kind,
                 handler=handler,
                 tag=tag,
             ),
         )
-        run_result = job.run(local=run_local)
+        inputs: dict[str, str] = {}
+        for data, identifier in [
+            (sample_data, "sample_data"),
+            (reference_data, "reference_data"),
+        ]:
+            if data is not None:
+                key = f"{job_name}_{identifier}"
+                inputs[identifier] = project.log_dataset(
+                    key,
+                    data,
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
+                        mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-job",
+                        mlrun_constants.MLRunInternalLabels.app_name: class_name,
+                    },
+                ).uri
+        run_result = job.run(local=run_local, inputs=inputs)
         return run_result
 
     @abstractmethod

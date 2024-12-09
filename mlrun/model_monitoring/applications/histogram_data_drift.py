@@ -227,7 +227,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         :param metrics: the calculated metrics
         :param metrics_per_feature: metric calculated per feature
         :param monitoring_context:  context object for current monitoring application
-        :return: list of mm_results._ModelMonitoringApplicationStats for histogram data drift application
+        :returns: list of mm_results._ModelMonitoringApplicationStats for histogram data drift application
         """
         stats = []
         for stats_type in HistogramDataDriftApplication._STATS_TYPES:

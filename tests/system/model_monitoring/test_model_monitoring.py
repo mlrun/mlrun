@@ -59,6 +59,8 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
     def setup_method(self, method):
         super().setup_method(method)
+        if method.__name__ == "test_list_endpoints_without_creds":
+            return
         self.project.set_model_monitoring_credentials(
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
@@ -134,6 +136,20 @@ class TestModelEndpointsOperations(TestMLRunSystem):
     def test_list_endpoints_on_empty_project(self):
         endpoints_out = self.project.list_model_endpoints()
         assert len(endpoints_out.endpoints) == 0
+
+    def test_list_endpoints_without_creds(self):
+        # empty project
+        endpoints_out = self.project.list_model_endpoints()
+        assert len(endpoints_out.endpoints) == 0
+
+        # add endpoint
+        db = mlrun.get_run_db()
+        model_endpoint = self._mock_random_endpoint("testing")
+        db.create_model_endpoint(model_endpoint)
+
+        # list endpoints without credentials
+        endpoints_out = self.project.list_model_endpoints()
+        assert len(endpoints_out.endpoints) == 1
 
     def test_list_endpoints(self):
         db = mlrun.get_run_db()

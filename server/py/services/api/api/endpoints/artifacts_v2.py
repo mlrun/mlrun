@@ -271,7 +271,7 @@ async def get_artifact(
 
     # Older clients (pre-1.8.0) do not support parsing "uid" and treat "tree^uid" as a single "tree" value.
     # To ensure compatibility, we split "tree" here to extract "uid" if it exists.
-    if "^" in tree:
+    if tree and "^" in tree:
         tree, uid = tree.split("^", 1)
 
     artifact = await run_in_threadpool(

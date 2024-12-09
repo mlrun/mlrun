@@ -20,6 +20,7 @@ from typing import Any, Optional, Union, cast
 import pandas as pd
 
 import mlrun
+import mlrun.errors
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api as mm_api
@@ -142,7 +143,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         start: Optional[datetime], end: Optional[datetime]
     ) -> tuple[datetime, datetime]:
         if (start is None) or (end is None):
-            raise ValueError
+            raise mlrun.errors.MLRunValueError(
+                "When `endpoint_names` is provided, you must also pass the start and end times"
+            )
         return start, end
 
     @classmethod
@@ -187,7 +190,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
-                  method wrapped in a :py:class:`~mlrun.model.RunObject`.
+                  method with the given parameters and inputs, wrapped in a :py:class:`~mlrun.model.RunObject`.
         """
         project = cast("mlrun.MlrunProject", mlrun.get_current_project())
         class_name = cls.__name__

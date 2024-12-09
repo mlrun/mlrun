@@ -15,6 +15,7 @@ import asyncio
 import http
 import unittest.mock
 
+import aioresponses
 import fastapi
 import pytest
 
@@ -69,10 +70,17 @@ async def test_messaging_client_forward_request_with_body(
             name="success-service", url=base_url
         )
     )
+
+    def _f(*args, **kwargs):
+        assert kwargs["headers"].get("authorization") == "Bearer test"
+        return aioresponses.CallbackResult(
+            status=http.HTTPStatus.CREATED.value,
+            payload={"body": "success"},
+        )
+
     aioresponses_mock.post(
         "http://test/success-service/v1/success",
-        body="success",
-        status=http.HTTPStatus.CREATED,
+        callback=_f,
     )
     fastapi_app = unittest.mock.Mock()
     future = asyncio.Future()
@@ -92,6 +100,7 @@ async def test_messaging_client_forward_request_with_body(
             "headers": [
                 (b"host", b"http://some-other-svc/proxy-service/success"),
                 (b"content-length", b"1"),
+                (b"authorization", b"Bearer test"),
             ],
             # Below are mandatory fields, although they are irrelevant for the test
             "query_string": "",
@@ -101,7 +110,7 @@ async def test_messaging_client_forward_request_with_body(
     )
     response = await messaging_client.proxy_request(request)
     decoded_body = str(response.body.decode("utf-8"))
-    assert decoded_body == "success"
+    assert decoded_body == '{"body": "success"}'
     assert response.status_code == http.HTTPStatus.CREATED
     _receive.assert_called_once()
 

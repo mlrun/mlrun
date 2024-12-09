@@ -50,4 +50,3 @@ distributed~=2023.12.1
 taos-ws-py==0.3.2
 taoswswrap~=0.2.0
 snowflake-connector-python~=3.7
-kfp~=1.8

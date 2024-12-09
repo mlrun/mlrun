@@ -37,7 +37,7 @@ from .helpers import update_model_endpoint_last_request
 
 # A union of all supported dataset types:
 DatasetType = typing.Union[
-    mlrun.DataItem, list, dict, pd.DataFrame, pd.Series, np.ndarray, typing.Any
+    "mlrun.DataItem", list, dict, pd.DataFrame, pd.Series, np.ndarray, typing.Any
 ]
 
 
@@ -47,7 +47,7 @@ def get_or_create_model_endpoint(
     model_endpoint_name: str = "",
     endpoint_id: str = "",
     function_name: str = "",
-    context: mlrun.MLClientCtx = None,
+    context: typing.Optional["mlrun.MLClientCtx"] = None,
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.disabled,
     db_session=None,
@@ -114,7 +114,7 @@ def record_results(
     model_endpoint_name: str,
     endpoint_id: str = "",
     function_name: str = "",
-    context: typing.Optional[mlrun.MLClientCtx] = None,
+    context: typing.Optional["mlrun.MLClientCtx"] = None,
     infer_results_df: typing.Optional[pd.DataFrame] = None,
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
@@ -283,7 +283,7 @@ def write_monitoring_df(
     endpoint_id: str,
     infer_results_df: pd.DataFrame,
     infer_datetime: datetime,
-    monitoring_feature_set: typing.Optional[mlrun.feature_store.FeatureSet] = None,
+    monitoring_feature_set: typing.Optional["mlrun.feature_store.FeatureSet"] = None,
     feature_set_uri: str = "",
 ) -> None:
     """Write infer results dataframe to the monitoring parquet target of the current model endpoint. The dataframe will
@@ -326,7 +326,7 @@ def _generate_model_endpoint(
     model_path: str,
     model_endpoint_name: str,
     function_name: str,
-    context: mlrun.MLClientCtx,
+    context: "mlrun.MLClientCtx",
     sample_set_statistics: dict[str, typing.Any],
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.disabled,
 ) -> ModelEndpoint:
@@ -528,7 +528,7 @@ def read_dataset_as_dataframe(
 
 
 def log_result(
-    context: mlrun.MLClientCtx,
+    context: "mlrun.MLClientCtx",
     result_set_name: str,
     result_set: pd.DataFrame,
     artifacts_tag: str,
@@ -556,9 +556,7 @@ def _create_model_monitoring_function_base(
     project: str,
     func: typing.Union[str, None] = None,
     application_class: typing.Union[
-        str,
-        mm_app.ModelMonitoringApplicationBase,
-        None,
+        str, "mm_app.ModelMonitoringApplicationBase", None
     ] = None,
     name: typing.Optional[str] = None,
     image: typing.Optional[str] = None,

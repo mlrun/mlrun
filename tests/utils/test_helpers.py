@@ -486,7 +486,7 @@ def test_parse_artifact_uri(
         expected_tag,
         expected_tree,
         expected_uid,
-    ), f"Failed for URI: {uri}"
+    ), f"Failed to parse artifact URI: {uri}"
 
 
 @pytest.mark.parametrize(

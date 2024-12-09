@@ -379,7 +379,7 @@ class Artifact(ModelObj):
             iter=self.metadata.iter,
             tree=tree,
             tag=tag,
-            uid=self.metadata.uid,
+            uid=self.uid,
         )
         return mlrun.datastore.get_store_uri(self._store_prefix, uri)
 

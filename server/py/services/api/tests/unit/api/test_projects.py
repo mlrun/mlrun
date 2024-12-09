@@ -1578,7 +1578,7 @@ def _assert_db_resources_in_project(
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
             or cls.__tablename__ == "alert_states"
             or cls.__tablename__ == "alert_templates"
-            or cls.__tablename__ == "alert_activation"
+            or cls.__tablename__ == "alert_activations"
         ):
             continue
         number_of_cls_records = 0

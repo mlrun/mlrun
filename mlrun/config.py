@@ -136,7 +136,7 @@ default_config = {
         },
     },
     "object_retentions": {
-        "alert_activation": 14 * 7,  # days
+        "alert_activations": 14 * 7,  # days
     },
     # A safety margin to account for delays
     # This ensures that extra partitions are available beyond the specified retention period

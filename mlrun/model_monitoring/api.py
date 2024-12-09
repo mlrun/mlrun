@@ -353,7 +353,7 @@ def _generate_model_endpoint(
                                      the current model endpoint. Will be stored under
                                      `model_endpoint.status.feature_stats`.
 
-    :return `mlrun.model_monitoring.model_endpoint.ModelEndpoint` object.
+    :return `mlrun.common.schemas.ModelEndpoint` object.
     """
     if not function_name and context:
         function_name = FunctionURI.from_string(

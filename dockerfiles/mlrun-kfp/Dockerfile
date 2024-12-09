@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_VERSION
-FROM gcr.io/iguazio/mlrun:${MLRUN_VERSION}
+ARG MLRUN_VERSION=kfp
+FROM mlrun/mlrun:${MLRUN_VERSION}
 RUN python -m pip install .[kfp]
 

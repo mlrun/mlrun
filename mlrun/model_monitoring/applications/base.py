@@ -14,12 +14,14 @@
 
 import socket
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Optional, Union, cast
 
 import pandas as pd
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api as mm_api
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
@@ -90,6 +92,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         context: "mlrun.MLClientCtx",
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
+        endpoint_names: Optional[list[str]] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -102,16 +107,43 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             if reference_data is not None
             else None
         )
-        monitoring_context = mm_context.MonitoringApplicationContext(
-            event={},
-            application_name=self.__class__.__name__,
-            logger=context.logger,
-            artifacts_logger=context,
-            sample_df=sample_data,
-            feature_stats=feature_stats,
-        )
-        result = self.do_tracking(monitoring_context)
-        return result
+
+        def call_do_tracking(event: Optional[dict] = None):
+            if event is None:
+                event = {}
+            monitoring_context = mm_context.MonitoringApplicationContext(
+                event=event,
+                application_name=self.__class__.__name__,
+                logger=context.logger,
+                artifacts_logger=context,
+                sample_df=sample_data,
+                feature_stats=feature_stats,
+            )
+            return self.do_tracking(monitoring_context)
+
+        if endpoint_names is not None:
+            start, end = self._validate_times(start, end)
+            for endpoint_name in endpoint_names:
+                result = call_do_tracking(
+                    event={
+                        mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+                        mm_constants.ApplicationEvent.START_INFER_TIME: start,
+                        mm_constants.ApplicationEvent.END_INFER_TIME: end,
+                    }
+                )
+                context.log_result(
+                    f"{endpoint_name}_{start.isoformat()}_{end.isoformat()}", result
+                )
+        else:
+            return call_do_tracking()
+
+    @staticmethod
+    def _validate_times(
+        start: Optional[datetime], end: Optional[datetime]
+    ) -> tuple[datetime, datetime]:
+        if (start is None) or (end is None):
+            raise ValueError
+        return start, end
 
     @classmethod
     def evaluate(
@@ -127,6 +159,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         with_repo: Optional[bool] = None,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
+        endpoint_names: Optional[list[str]] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -145,6 +180,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param with_repo:         Whether to clone the current repo to the build source.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
+        :param endpoint_names:    The model endpoint names to get the data from. When the names are passed,
+                                  you have to provide also the start and end times of the data to analyze.
+        :param start:             The start time of the sample data.
+        :param end:               The end time of the sample data.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -169,6 +208,14 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 requirements_file=requirements_file,
             ),
         )
+
+        params: dict[str, Union[list[str], datetime]] = {}
+        if endpoint_names:
+            start, end = cls._validate_times(start, end)
+            params["endpoint_names"] = endpoint_names
+            params["start"] = start
+            params["end"] = end
+
         inputs: dict[str, str] = {}
         for data, identifier in [
             (sample_data, "sample_data"),
@@ -185,7 +232,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         mlrun_constants.MLRunInternalLabels.app_name: class_name,
                     },
                 ).uri
-        run_result = job.run(local=run_local, inputs=inputs)
+
+        run_result = job.run(local=run_local, params=params, inputs=inputs)
         return run_result
 
     @abstractmethod

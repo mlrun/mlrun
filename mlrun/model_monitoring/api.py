@@ -23,6 +23,7 @@ import pandas as pd
 import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.base
 import mlrun.feature_store
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.serving
@@ -37,7 +38,13 @@ from .helpers import update_model_endpoint_last_request
 
 # A union of all supported dataset types:
 DatasetType = typing.Union[
-    "mlrun.DataItem", list, dict, pd.DataFrame, pd.Series, np.ndarray, typing.Any
+    mlrun.datastore.base.DataItem,
+    list,
+    dict,
+    pd.DataFrame,
+    pd.Series,
+    np.ndarray,
+    typing.Any,
 ]
 
 

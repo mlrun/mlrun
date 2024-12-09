@@ -315,12 +315,10 @@ class ArtifactManager:
             item.upload(artifact_path=artifact_path)
 
         if db_key:
-            artifact_item = self._log_to_db(db_key, project, producer.inputs, item)
-            if artifact_item:
-                artifact_uid = artifact_item.get("metadata", {}).get("uid")
-                if artifact_uid is not None:
-                    item.uid = artifact_uid
-                    self.artifact_uris[key] = item.uri
+            artifact_uid = self._log_to_db(db_key, project, producer.inputs, item)
+            if artifact_uid is not None:
+                item.uid = artifact_uid
+                self.artifact_uris[key] = item.uri
 
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
@@ -333,9 +331,7 @@ class ArtifactManager:
         self.artifact_uris[item.key] = item.uri
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
-    def _log_to_db(
-        self, key, project, sources, item, tag=None
-    ) -> typing.Optional[dict[str, str]]:
+    def _log_to_db(self, key, project, sources, item, tag=None) -> typing.Optional[str]:
         """
         log artifact to db
         :param key: Identifying key of the artifact.
@@ -343,12 +339,13 @@ class ArtifactManager:
         :param sources: List of artifact sources ( Mainly passed from the `producer.items` ).
         :param item: The actual artifact to store.
         :param tag: The name of the Tag of the artifact.
+        :return: The logged artifact uid.
         """
         if self.artifact_db:
             item.updated = None
             if sources:
                 item.sources = [{"name": k, "path": str(v)} for k, v in sources.items()]
-            return self.artifact_db.store_artifact(
+            artifact_item = self.artifact_db.store_artifact(
                 key,
                 item.to_dict(),
                 iter=item.iter,
@@ -356,6 +353,7 @@ class ArtifactManager:
                 project=project,
                 tree=item.tree,
             )
+            return artifact_item.get("metadata", {}).get("uid")
 
     def link_artifact(
         self,

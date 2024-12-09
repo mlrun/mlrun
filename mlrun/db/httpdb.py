@@ -48,6 +48,7 @@ from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun_pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
+from ..common.schemas import AlertActivations
 from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
@@ -4744,7 +4745,7 @@ class HTTPRunDB(RunDBInterface):
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-    ) -> list[mlrun.common.schemas.AlertActivation]:
+    ) -> mlrun.common.schemas.AlertActivations:
         """
         Retrieve a list of all alert activations.
 
@@ -4780,7 +4781,7 @@ class HTTPRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         **kwargs,
-    ) -> tuple[list, Optional[str]]:
+    ) -> tuple[AlertActivations, Optional[str]]:
         """List alerts activations with support for pagination and various filtering options.
 
         This method retrieves a paginated list of alert activations based on the specified filter parameters.
@@ -5127,7 +5128,7 @@ class HTTPRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         return_all: bool = False,
-    ) -> tuple[list[mlrun.common.schemas.AlertActivation], Optional[str]]:
+    ) -> tuple[mlrun.common.schemas.AlertActivations, Optional[str]]:
         project = project or config.default_project
         params = {
             "name": name,
@@ -5151,9 +5152,12 @@ class HTTPRunDB(RunDBInterface):
         paginated_responses, token = self.process_paginated_responses(
             responses, "activations"
         )
-        paginated_results = [
-            mlrun.common.schemas.AlertActivation(**item) for item in paginated_responses
-        ]
+        paginated_results = mlrun.common.schemas.AlertActivations(
+            activations=[
+                mlrun.common.schemas.AlertActivation(**item)
+                for item in paginated_responses
+            ]
+        )
 
         return paginated_results, token
 

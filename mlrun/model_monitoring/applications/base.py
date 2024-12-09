@@ -123,6 +123,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         run_local: bool = True,
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
+        image: Optional[str] = None,
+        with_repo: Optional[bool] = None,
+        requirements: Optional[Union[str, list[str]]] = None,
+        requirements_file: str = "",
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -137,14 +141,15 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                           When set, it replaces the data read from the model endpoint's offline source.
         :param feature_stats: Optional - statistics dictionary of the reference data.
                               When set, it overrides the model endpoint's feature stats.
+        :param image:             Docker image to run the job on.
+        :param with_repo:         Whether to clone the current repo to the build source.
+        :param requirements:      List of Python requirements to be installed in the image.
+        :param requirements_file: Path to a Python requirements file to be installed in the image.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
                   method wrapped in a :py:class:`~mlrun.model.RunObject`.
         """
-        if not run_local:
-            raise NotImplementedError  # ML-8360
-
         project = cast("mlrun.MlrunProject", mlrun.get_current_project())
         class_name = cls.__name__
         job_name = func_name if func_name is not None else class_name
@@ -158,6 +163,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 kind=mlrun.runtimes.KubejobRuntime.kind,
                 handler=handler,
                 tag=tag,
+                image=image,
+                with_repo=with_repo,
+                requirements=requirements,
+                requirements_file=requirements_file,
             ),
         )
         inputs: dict[str, str] = {}

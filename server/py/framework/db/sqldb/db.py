@@ -819,14 +819,14 @@ class SQLDB(DBInterface):
         session,
         producer_id: str,
         project: typing.Optional[str] = None,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ) -> ArtifactList:
         project = project or mlrun.mlconf.default_project
         artifact_records = self._find_artifacts_for_producer_id(
             session,
             producer_id=producer_id,
             project=project,
-            key_tag_iteration_pairs=key_tag_iteration_pairs,
+            artifact_identifiers=artifact_identifiers,
         )
 
         artifacts = ArtifactList()
@@ -1587,14 +1587,14 @@ class SQLDB(DBInterface):
         session: Session,
         producer_id: str,
         project: str,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ) -> list[tuple[ArtifactV2, str]]:
         """
         Find a producer's artifacts matching the given (key, tag, iteration, uid) tuples.
         :param session:                 DB session
         :param producer_id:             The artifact producer ID to filter by
         :param project:                 Project name to filter by
-        :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
+        :param artifact_identifiers: List of tuples of (key, tag, iteration)
         :return: A list of tuples of (ArtifactV2, tag_name)
         """
         query = session.query(ArtifactV2, ArtifactV2.Tag.name)
@@ -1606,7 +1606,7 @@ class SQLDB(DBInterface):
         query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
 
         tuples_filter = []
-        for key, tag, iteration, uid in key_tag_iteration_pairs:
+        for key, tag, iteration, uid in artifact_identifiers:
             iteration = iteration or 0
             tag = tag or "latest"
             base_filter = (

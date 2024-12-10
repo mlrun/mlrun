@@ -1590,7 +1590,7 @@ class SQLDB(DBInterface):
         key_tag_iteration_pairs: list[tuple] = "",
     ) -> list[tuple[ArtifactV2, str]]:
         """
-        Find a producer's artifacts matching the given (key, tag, iteration) tuples.
+        Find a producer's artifacts matching the given (key, tag, iteration, uid) tuples.
         :param session:                 DB session
         :param producer_id:             The artifact producer ID to filter by
         :param project:                 Project name to filter by
@@ -1606,14 +1606,18 @@ class SQLDB(DBInterface):
         query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
 
         tuples_filter = []
-        for key, tag, iteration in key_tag_iteration_pairs:
+        for key, tag, iteration, uid in key_tag_iteration_pairs:
             iteration = iteration or 0
             tag = tag or "latest"
-            tuples_filter.append(
+            base_filter = (
                 (ArtifactV2.key == key)
                 & (ArtifactV2.Tag.name == tag)
                 & (ArtifactV2.iteration == iteration)
             )
+            # Add UID filter only if UID is not None
+            if uid is not None:
+                base_filter = base_filter & (ArtifactV2.uid == uid)
+            tuples_filter.append(base_filter)
 
         query = query.filter(or_(*tuples_filter))
         return query.all()

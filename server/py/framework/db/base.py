@@ -255,7 +255,7 @@ class DBInterface(ABC):
         session,
         producer_id: str,
         project: str,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ):
         pass
 

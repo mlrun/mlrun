@@ -570,10 +570,11 @@ class Runs(
                     tag=tag,
                     iteration=iteration,
                     artifact_producer_id=artifact_producer_id,
+                    uid=uid,
                 )
                 continue
 
-            key_tag_iteration_pairs.append((key, tag, iteration))
+            key_tag_iteration_pairs.append((key, tag, iteration, uid))
 
         if not key_tag_iteration_pairs:
             return []

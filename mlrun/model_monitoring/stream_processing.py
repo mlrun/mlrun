@@ -14,12 +14,10 @@
 
 import collections
 import datetime
-import json
 import os
 import typing
 
 import storey
-
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
@@ -31,12 +29,13 @@ import mlrun.model_monitoring.db
 import mlrun.serving.states
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
+    ControllerEvent,
     EndpointType,
     EventFieldType,
     FileTargetKind,
-    ProjectSecretKeys, MonitoringFunctionNames, ControllerEvent,
+    MonitoringFunctionNames,
+    ProjectSecretKeys,
 )
-from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model_monitoring import get_stream_path
 from mlrun.model_monitoring.db import TSDBConnector
@@ -94,7 +93,10 @@ class EventStreamProcessor:
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
-        self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
+        self.v3io_access_key = v3io_access_key or mlrun.get_secret_or_env(
+            "V3IO_ACCESS_KEY"
+        )
+        logger.info(f"access key = {self.v3io_access_key}")
         self.model_monitoring_access_key = (
             model_monitoring_access_key
             or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
@@ -252,10 +254,13 @@ class EventStreamProcessor:
                 function_name=MonitoringFunctionNames.APPLICATION_CONTROLLER,
             )
             if stream_uri.startswith("v3io://"):
-                graph.add_step(">>",
-                               "controller_stream_v3io",
-                               path=stream_uri,
-                               sharding_func=ControllerEvent.ENDPOINT_ID)
+                graph.add_step(
+                    ">>",
+                    "controller_stream_v3io",
+                    path=stream_uri,
+                    sharding_func=ControllerEvent.ENDPOINT_ID,
+                    access_key=self.v3io_access_key,
+                )
                 # endpoint, path = parse_path(stream_uri)
                 #
                 # access_key = self.storage_options.get("v3io_access_key")
@@ -269,13 +274,17 @@ class EventStreamProcessor:
                 #     # sharding_func=ControllerEvent.ENDPOINT_ID,
                 # )
             elif stream_uri.startswith("kafka://"):
-                _kafka_brokers = get_kafka_brokers_from_dict(options=self.storage_options)
+                _kafka_brokers = get_kafka_brokers_from_dict(
+                    options=self.storage_options
+                )
                 topic, brokers = parse_kafka_url(stream_uri, _kafka_brokers)
-                graph.add_step(">>",
-                               "controller_stream_kafka",
-                               path=stream_uri,
-                               kafka_brokers=brokers,
-                               sharding_func=ControllerEvent.ENDPOINT_ID)
+                graph.add_step(
+                    ">>",
+                    "controller_stream_kafka",
+                    path=stream_uri,
+                    kafka_brokers=brokers,
+                    sharding_func=ControllerEvent.ENDPOINT_ID,
+                )
                 # graph.add_step(
                 #     class_name="storey.KafkaTarget",
                 #     brokers=brokers,

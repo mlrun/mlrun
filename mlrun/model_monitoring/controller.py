@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import concurrent.futures
 import datetime
 import json
 import os
@@ -27,8 +26,8 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
-from mlrun.common.schemas.model_monitoring.constants import ControllerEvent
 from mlrun.common.schemas import EndpointType
+from mlrun.common.schemas.model_monitoring.constants import ControllerEvent
 from mlrun.datastore import get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
@@ -276,21 +275,10 @@ class MonitoringApplicationController:
         """
         logger.info("Start running monitoring controller")
         try:
-            applications_names = []
-            endpoints_list = mlrun.db.get_run_db().list_model_endpoints(
-                project=self.project, tsdb_metrics=True
-            )
-            endpoints = endpoints_list.endpoints
-            if not endpoints:
-                logger.info("No model endpoints found", project=self.project)
-                return
-            monitoring_functions = self.project_obj.list_model_monitoring_functions()
-            if monitoring_functions:
-                applications_names = list(
-                    {app.metadata.name for app in monitoring_functions}
-                )
             body = event.body
-            applications_names = body[ControllerEvent.ENDPOINT_POLICY]["monitoring_applications"]
+            applications_names = body[ControllerEvent.ENDPOINT_POLICY][
+                "monitoring_applications"
+            ]
             # if monitoring_functions: - TODO : ML-7700
             #   Gets only application in ready state
             #   applications_names = list(
@@ -333,7 +321,6 @@ class MonitoringApplicationController:
     def model_endpoint_process(
         cls,
         project: str,
-        endpoint: mlrun.common.schemas.ModelEndpoint,
         applications_names: list[str],
         window_length: int,
         model_monitoring_access_key: str,
@@ -352,9 +339,11 @@ class MonitoringApplicationController:
         :param storage_options:             (dict) Storage options for reading the infer parquet files.
         :param event:                       (dict) Event that triggered the monitoring process.
         """
-        endpoint_id = endpoint.metadata.uid
-        not_batch_endpoint = not (endpoint.metadata.endpoint_type == EndpointType.BATCH_EP)
-        m_fs = fstore.get_feature_set(endpoint.spec.monitoring_feature_set_uri)
+        endpoint_id = event[ControllerEvent.ENDPOINT_ID]
+        not_batch_endpoint = (
+            event[ControllerEvent.ENDPOINT_POLICY] != EndpointType.BATCH_EP
+        )
+        m_fs = fstore.get_feature_set(event[ControllerEvent.FEATURE_SET_URI])
         last_stream_timestamp = event[ControllerEvent.TIMESTAMP]
         try:
             with _BatchWindowGenerator(
@@ -400,6 +389,28 @@ class MonitoringApplicationController:
                                 applications_names=[application],
                                 model_monitoring_access_key=model_monitoring_access_key,
                             )
+                if (
+                        mlrun.utils.datetime_now().timestamp()
+                        - batch_window_generator.batch_window._get_last_analyzed()
+                        >= datetime.timedelta(minutes=1).total_seconds()
+                ):
+                    event = {
+                        ControllerEvent.KIND: mm_constants.ControllerEventKind.NOP_EVENT,
+                        ControllerEvent.PROJECT: project,
+                        ControllerEvent.ENDPOINT_ID: endpoint_id,
+                        ControllerEvent.TIMESTAMP: mlrun.utils.datetime_now().isoformat(
+                            timespec="microseconds"
+                        ),
+                        ControllerEvent.ENDPOINT_POLICY: {},
+                        ControllerEvent.ENDPOINT_TYPE: event[ControllerEvent.ENDPOINT_POLICY],
+                        ControllerEvent.FEATURE_SET_URI: event[ControllerEvent.FEATURE_SET_URI],
+                        ControllerEvent.FIRST_REQUEST: event[ControllerEvent.FIRST_REQUEST],
+                    }
+                    MonitoringApplicationController._push_to_main_stream(
+                        event=event,
+                        endpoint_id=endpoint_id,
+                        model_monitoring_access_key=model_monitoring_access_key,
+                    )
 
         except Exception:
             logger.exception(
@@ -463,7 +474,8 @@ class MonitoringApplicationController:
         """
         logger.info("Pushing regular event to controller stream", event=event)
         applications_names = []
-        endpoints = self.db.list_model_endpoints(include_stats=True)
+        db = mlrun.get_run_db()
+        endpoints = db.list_model_endpoints(project=self.project).endpoints
         if not endpoints:
             logger.info("No model endpoints found", project=self.project)
             return
@@ -499,12 +511,12 @@ class MonitoringApplicationController:
             self.push_to_controller_stream(
                 kind=mm_constants.ControllerEventKind.REGULAR_EVENT,
                 project=self.project,
-                endpoint_id=endpoint[mm_constants.EventFieldType.UID],
+                endpoint_id=endpoint.metadata.uid,
                 model_monitoring_access_key=self.model_monitoring_access_key,
-                timestamp=endpoint[mm_constants.EventFieldType.LAST_REQUEST],
-                first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
-                stream_path=endpoint[mm_constants.EventFieldType.STREAM_PATH],
-                feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+                timestamp=endpoint.status.last_request.isoformat(sep=" ", timespec="microseconds"),
+                first_request=endpoint.status.first_request.isoformat(sep=" ", timespec="microseconds"),
+                endpoint_type=endpoint.metadata.endpoint_type,
+                feature_set_uri=endpoint.metadata.feature_set_uri,
                 endpoint_policy=policy,
             )
 
@@ -516,7 +528,7 @@ class MonitoringApplicationController:
         model_monitoring_access_key: str,
         timestamp: str,
         first_request: str,
-        stream_path:str,
+        endpoint_type: str,
         feature_set_uri: str,
         endpoint_policy: dict[str, Any] = None,
     ) -> None:
@@ -528,7 +540,7 @@ class MonitoringApplicationController:
         :param kind: str event kind
         :param project: project name
         :param endpoint_id: endpoint id string
-        :param stream_path the stream processing path
+        :param endpoint_type: Enum of the endpoint type
         :param feature_set_uri: the feature set uri string
         :param model_monitoring_access_key: access key to apply the model monitoring process.
         """
@@ -548,7 +560,7 @@ class MonitoringApplicationController:
                     ControllerEvent.ENDPOINT_ID: endpoint_id,
                     ControllerEvent.TIMESTAMP: timestamp,
                     ControllerEvent.FIRST_REQUEST: first_request,
-                    ControllerEvent.STREAM_PATH: stream_path,
+                    ControllerEvent.ENDPOINT_TYPE: endpoint_type,
                     ControllerEvent.FEATURE_SET_URI: feature_set_uri,
                     ControllerEvent.ENDPOINT_POLICY: endpoint_policy or {},
                 }
@@ -591,7 +603,7 @@ def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
         trigger_kind=event.trigger.kind,
     )
 
-    if event.trigger.kind == "":
+    if event.trigger.kind == "http":
         MonitoringApplicationController().push_regular_event_to_controller_stream(event)
     else:
         MonitoringApplicationController().run(event=event)

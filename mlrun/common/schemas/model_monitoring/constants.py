@@ -177,7 +177,7 @@ class ControllerEvent(MonitoringStrEnum):
     TIMESTAMP = "timestamp"
     FIRST_REQUEST = "first_request"
     FEATURE_SET_URI = "feature_set_uri"
-    STREAM_PATH = "stream_path"
+    ENDPOINT_TYPE = "endpoint_type"
     ENDPOINT_POLICY = "endpoint_policy"
 
 

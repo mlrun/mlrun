@@ -307,7 +307,12 @@ class MonitoringDeployment:
             function.spec.min_replicas = stream_args.kafka.min_replicas
             function.spec.max_replicas = stream_args.kafka.max_replicas
         elif stream_path.startswith("v3io://"):
-            access_key = self.model_monitoring_access_key
+            access_key = (
+                self.model_monitoring_access_key
+                if function_name
+                != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+                else mlrun.mlconf.get_v3io_access_key()
+            )
             kwargs = {"access_key": self.model_monitoring_access_key}
             if mlrun.mlconf.is_explicit_ack_enabled():
                 kwargs["explicit_ack_mode"] = "explicitOnly"

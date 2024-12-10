@@ -1299,6 +1299,8 @@ class Config:
                 function_name
                 and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+                and function_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
@@ -1306,12 +1308,21 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            elif kind == "stream":
+            elif (
+                kind == "stream"
+                and function_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind,
                 )
             else:
+                if (
+                    function_name
+                    == mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+                ):
+                    kind = function_name
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                     project=project,
                     kind=kind,

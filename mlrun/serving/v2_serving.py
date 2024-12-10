@@ -601,7 +601,7 @@ def _init_endpoint_record(
             model_class=model.__class__.__name__,
             model_tag=model.model_spec.tag,
         )
-        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+        model_ep = mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
                 project=graph_server.project,
                 labels=model.model_spec.labels,
@@ -623,7 +623,7 @@ def _init_endpoint_record(
             ),
         )
         db = mlrun.get_run_db()
-        db.create_model_endpoint(model_endpoint=model_endpoint)
+        db.create_model_endpoint(model_endpoint=model_ep)
 
     elif model_ep:
         attributes = {}

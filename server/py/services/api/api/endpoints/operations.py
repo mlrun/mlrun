@@ -35,7 +35,6 @@ router = fastapi.APIRouter(prefix="/operations")
 
 
 current_migration_background_task_name = None
-current_refresh_smtp_configuration_task_name = None
 
 
 @router.post(

@@ -446,11 +446,13 @@ class Projects(
         projects_output = await fastapi.concurrency.run_in_threadpool(
             self.list_projects,
             session,
-            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            format_=mlrun.common.formatters.ProjectFormat.name_and_creation_time,
         )
 
         project_counters, pipeline_counters = await asyncio.gather(
-            framework.utils.singletons.db.get_db().get_project_resources_counters(),
+            framework.utils.singletons.db.get_db().get_project_resources_counters(
+                projects_output.projects
+            ),
             self._calculate_pipelines_counters(),
         )
         (
@@ -463,6 +465,9 @@ class Projects(
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_other_alerts_count,
         ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
@@ -471,7 +476,8 @@ class Projects(
         ) = pipeline_counters
 
         project_summaries = []
-        for project_name in projects_output.projects:
+        for project_data in projects_output.projects:
+            project_name = project_data[0]
             project_summaries.append(
                 mlrun.common.schemas.ProjectSummary(
                     name=project_name,
@@ -509,6 +515,13 @@ class Projects(
                     distinct_scheduled_pipelines_pending_count=project_to_schedule_pending_workflows_count[
                         project_name
                     ],
+                    endpoint_alerts_count=project_to_endpoint_alerts_count.get(
+                        project_name, 0
+                    ),
+                    job_alerts_count=project_to_job_alerts_count.get(project_name, 0),
+                    other_alerts_count=project_to_other_alerts_count.get(
+                        project_name, 0
+                    ),
                 )
             )
         await fastapi.concurrency.run_in_threadpool(

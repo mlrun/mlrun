@@ -1408,16 +1408,18 @@ class TestMonitoredServings(TestMLRunSystem):
 
 
 @pytest.mark.model_monitoring
-class TestAppLocalJob(TestMLRunSystem):
+class TestAppJob(TestMLRunSystem):
     """
-    Test the histogram data drift application as a local job.
+    Test the histogram data drift application as a job.
     This is performed via the `evaluate` method of the application.
-    Note: this test can probably be moved to the integration tests.
+    Note: the local test can probably be moved to the integration tests.
     """
 
-    project_name = "mm-app-as-local-job"
+    project_name = "mm-app-as-job"
+    image: typing.Optional[str] = None
 
-    def test_histogram_app(self) -> None:
+    @pytest.mark.parametrize("run_local", [False, True])
+    def test_histogram_app(self, run_local: bool) -> None:
         # Prepare the data
         sample_data = pd.DataFrame({"a": [9, 10, -2, 1], "b": [0.11, 2.03, 0.55, 0]})
         reference_data = pd.DataFrame({"a": [12, 13], "b": [3.12, 4.12]})
@@ -1427,6 +1429,8 @@ class TestAppLocalJob(TestMLRunSystem):
             func_path=mlrun.model_monitoring.applications.histogram_data_drift.__file__,
             sample_data=sample_data,
             reference_data=reference_data,
+            run_local=run_local,
+            image=self.image,  # Relevant for remote runs only
         )
 
         # Test the state

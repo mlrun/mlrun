@@ -128,13 +128,13 @@ def test_drop_old_partitions(
 
         services.api.utils.db.partitioner.MySQLPartitioner().drop_partitions(
             db,
-            "alert_activation",
+            "alert_activations",
             retention_days,
             mlrun.common.schemas.partition.PartitionInterval(partition_interval),
         )
 
         mocked_db_drop_partitions.assert_called_once_with(
-            db, "alert_activation", expected_cutoff_name
+            db, "alert_activations", expected_cutoff_name
         )
 
 
@@ -195,7 +195,7 @@ def test_create_partitions(
         mock_datetime.now.return_value = test_date
         services.api.utils.db.partitioner.MySQLPartitioner().create_partitions(
             db,
-            "alert_activation",
+            "alert_activations",
             partition_number,
             mlrun.common.schemas.partition.PartitionInterval(partition_interval),
         )
@@ -203,7 +203,7 @@ def test_create_partitions(
         # Verify that create_partitions was called with the expected partition information
         mocked_db_create_partitions.assert_called_once_with(
             session=db,
-            table_name="alert_activation",
+            table_name="alert_activations",
             partitioning_information_list=expected_partition_info,
         )
 
@@ -233,7 +233,7 @@ def test_get_interval(
         partition_interval = (
             services.api.utils.db.partitioner.MySQLPartitioner().get_partition_interval(
                 db,
-                "alert_activation",
+                "alert_activations",
             )
         )
         assert partition_interval == expected_partition_interval

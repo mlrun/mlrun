@@ -366,7 +366,9 @@ class TestAlerts(TestMLRunSystem):
             nuclio_function_url, expected_notifications
         )
 
-        # get project summary to validate the alert activations counters
+        # wait for the periodic project summaries calculation to start
+        time.sleep(20)
+        # validate the alert activations counters
         project_summary = mlrun.get_run_db().get_project_summary(
             project=self.project_name
         )

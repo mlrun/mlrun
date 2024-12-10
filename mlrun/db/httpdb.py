@@ -4836,7 +4836,9 @@ class HTTPRunDB(RunDBInterface):
             **kwargs,
         )
 
-    def get_project_summary(self, project="") -> mlrun.common.schemas.ProjectSummary:
+    def get_project_summary(
+        self, project: Optional[str] = None
+    ) -> mlrun.common.schemas.ProjectSummary:
         """
         Retrieve the summary of a project.
 

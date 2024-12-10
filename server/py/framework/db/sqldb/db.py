@@ -43,7 +43,6 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -3216,52 +3215,54 @@ class SQLDB(DBInterface):
         project_to_job_alerts_count = collections.defaultdict(int)
         project_to_other_alerts_count = collections.defaultdict(int)
 
-        project_filter_conditions = self._generate_project_filter_conditions(
-            projects_with_creation_time
-        )
-
         last_day = mlrun.utils.datetime_now() - timedelta(hours=24)
 
+        # construct a base query to count different types of alert activations
+        query = session.query(
+            AlertActivation.project,
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind
+                        == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                        1,
+                    )
+                )
+            ).label("model_endpoint_alerts_count"),
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind
+                        == mlrun.common.schemas.alert.EventEntityKind.JOB,
+                        1,
+                    )
+                )
+            ).label("job_alerts_count"),
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind.not_in(
+                            [
+                                mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                                mlrun.common.schemas.alert.EventEntityKind.JOB,
+                            ]
+                        ),
+                        1,
+                    )
+                )
+            ).label("other_alerts_count"),
+        )
+
+        # filter by project, creation time, and activations within the last 24 hours
         query_results = (
-            session.query(
-                AlertActivation.project,
-                func.count(
-                    case(
-                        (
-                            AlertActivation.entity_kind
-                            == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
-                            1,
-                        )
-                    )
-                ).label("model_endpoint_alerts_count"),
-                func.count(
-                    case(
-                        (
-                            AlertActivation.entity_kind
-                            == mlrun.common.schemas.alert.EventEntityKind.JOB,
-                            1,
-                        )
-                    )
-                ).label("job_alerts_count"),
-                func.count(
-                    case(
-                        (
-                            ~AlertActivation.entity_kind.in_(
-                                [
-                                    mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
-                                    mlrun.common.schemas.alert.EventEntityKind.JOB,
-                                ]
-                            ),
-                            1,
-                        )
-                    )
-                ).label("other_alerts_count"),
+            self._apply_alert_activation_project_filters(
+                query, projects_with_creation_time
             )
-            .filter(or_(*project_filter_conditions))
             .filter(AlertActivation.activation_time > last_day)
             .group_by(AlertActivation.project)
             .all()
         )
+
         for project, endpoint_counter, job_counter, other_counter in query_results:
             project_to_endpoint_alerts_count[project] = endpoint_counter
             project_to_job_alerts_count[project] = job_counter
@@ -3274,16 +3275,18 @@ class SQLDB(DBInterface):
         )
 
     @staticmethod
-    def _generate_project_filter_conditions(
+    def _apply_alert_activation_project_filters(
+        query: sqlalchemy.orm.query.Query,
         projects_with_creation_time: list[tuple[str, datetime]],
-    ) -> list[BinaryExpression]:
-        return [
+    ) -> sqlalchemy.orm.query.Query:
+        project_filter_conditions = [
             and_(
                 AlertActivation.project == project,
                 AlertActivation.activation_time > created,
             )
             for project, created in projects_with_creation_time
         ]
+        return query.filter(or_(*project_filter_conditions))
 
     def _update_project_record_from_project(
         self,
@@ -6131,11 +6134,9 @@ class SQLDB(DBInterface):
         # Filter alert activations for the project created after the project creation date,
         # excluding activations linked to any previous instances of the project.
         # TODO: reconsider this approach when we move alerts out of main MLRun db
-        project_filter_conditions = self._generate_project_filter_conditions(
-            projects_with_creation_time
+        query = self._apply_alert_activation_project_filters(
+            query, projects_with_creation_time
         )
-
-        query = query.filter(or_(*project_filter_conditions))
 
         if name:
             query = query.filter(

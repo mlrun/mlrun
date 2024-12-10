@@ -3217,7 +3217,7 @@ class SQLDB(DBInterface):
 
         last_day = mlrun.utils.datetime_now() - timedelta(hours=24)
 
-        # construct a base query to count different types of alert activations
+        # construct a base query to count different types of alert activations, labels are added to improve readability
         query = session.query(
             AlertActivation.project,
             func.count(

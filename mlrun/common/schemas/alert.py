@@ -219,7 +219,7 @@ class AlertActivation(pydantic.v1.BaseModel):
     notifications: list[notification_objects.NotificationState]
     reset_time: Optional[datetime] = None
 
-    def group_key(self, attributes: list[str]) -> tuple:
+    def group_key(self, attributes: list[str]) -> Union[Any, tuple]:
         """
         Dynamically create a key for grouping based on the provided attributes.
         - If there's only one attribute, return the value directly (not a single-element tuple).

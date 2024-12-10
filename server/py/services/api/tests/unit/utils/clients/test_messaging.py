@@ -17,6 +17,7 @@ import unittest.mock
 
 import aioresponses
 import fastapi
+import pytest
 
 from tests.common_fixtures import aioresponses_mock
 
@@ -24,36 +25,38 @@ import framework.utils.clients.discovery
 import framework.utils.clients.messaging
 
 
-async def test_messaging_client_forward_request(
-    aioresponses_mock: aioresponses_mock,
-):
-    base_url = "http://test"
-    messaging_client = framework.utils.clients.messaging.Client()
-    messaging_client._discovery = unittest.mock.Mock()
-    messaging_client._discovery.resolve_service_by_request = unittest.mock.Mock(
-        return_value=framework.utils.clients.discovery.ServiceInstance(
-            name="success-service", url=base_url
-        )
-    )
+@pytest.fixture
+def fastapi_request():
     fastapi_app = unittest.mock.Mock()
     fastapi_app.extra = {"mlrun_service_name": "test"}
-    aioresponses_mock.get(
-        "http://test/success-service/v1/success",
-        status=http.HTTPStatus.OK,
-    )
-    request = fastapi.Request(
+    return fastapi.Request(
         scope={
             "type": "http",
             "method": "GET",
             "path": "/proxy-service/success",
             "headers": [(b"host", b"http://some-other-svc/proxy-service/success")],
-            # Below are mandatory fields, although they are irrelevant for the test
             "query_string": "",
             "state": {"request_id": "test"},
             "app": fastapi_app,
-        },
+        }
     )
-    response = await messaging_client.proxy_request(request)
+
+
+async def test_messaging_client_forward_request(
+    aioresponses_mock: aioresponses_mock, fastapi_request
+):
+    base_url = "http://test"
+    messaging_client = framework.utils.clients.messaging.Client()
+    messaging_client._discovery.resolve_service_by_request = unittest.mock.Mock(
+        return_value=framework.utils.clients.discovery.ServiceInstance(
+            name="success-service", url=base_url
+        )
+    )
+    aioresponses_mock.get(
+        "http://test/success-service/v1/success",
+        status=http.HTTPStatus.OK,
+    )
+    response = await messaging_client.proxy_request(fastapi_request)
     assert response.status_code == http.HTTPStatus.OK
 
 
@@ -62,7 +65,6 @@ async def test_messaging_client_forward_request_with_body(
 ):
     base_url = "http://test"
     messaging_client = framework.utils.clients.messaging.Client()
-    messaging_client._discovery = unittest.mock.Mock()
     messaging_client._discovery.resolve_service_by_request = unittest.mock.Mock(
         return_value=framework.utils.clients.discovery.ServiceInstance(
             name="success-service", url=base_url
@@ -81,7 +83,6 @@ async def test_messaging_client_forward_request_with_body(
         callback=_f,
     )
     fastapi_app = unittest.mock.Mock()
-    fastapi_app.extra = {"mlrun_service_name": "test"}
     future = asyncio.Future()
     future.set_result(
         {
@@ -112,3 +113,26 @@ async def test_messaging_client_forward_request_with_body(
     assert decoded_body == '{"body": "success"}'
     assert response.status_code == http.HTTPStatus.CREATED
     _receive.assert_called_once()
+
+
+def test_messaging_client_is_forwarded_request(
+    aioresponses_mock: aioresponses_mock, fastapi_request
+):
+    base_url = "http://test"
+    messaging_client = framework.utils.clients.messaging.Client()
+    messaging_client._discovery.resolve_service_by_request = unittest.mock.Mock(
+        return_value=framework.utils.clients.discovery.ServiceInstance(
+            name="success-service", url=base_url
+        )
+    )
+    assert messaging_client.is_forwarded_request(fastapi_request) is True
+
+
+def test_messaging_client_should_not_forward_request(
+    aioresponses_mock: aioresponses_mock, fastapi_request
+):
+    messaging_client = framework.utils.clients.messaging.Client()
+    messaging_client._discovery.resolve_service_by_request = unittest.mock.Mock(
+        return_value=None
+    )
+    assert messaging_client.is_forwarded_request(fastapi_request) is False

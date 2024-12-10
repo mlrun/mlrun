@@ -370,7 +370,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_project(self, name: str) -> mlrun.common.schemas.Project:
+    def get_project(
+        self, name: str
+    ) -> Union[mlrun.common.schemas.Project, "mlrun.MlrunProject"]:
         pass
 
     @abstractmethod

@@ -44,19 +44,17 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
     async def proxy_request(self, request: fastapi.Request):
         method = request.method
-        path = str(request.url.path)
-        match = PREFIX_GROUPING.match(path)
-        prefix, version = match.group(1), match.group(2) or "v1"
+        path = request.url.path
 
-        # Remove the service and version prefix from the path
-        # The service prefix is to be replaced with the new service name
-        # The version will be re-added or default to v1 if not present
-        path = path.removeprefix(f"{prefix}/").removeprefix(f"{version}/")
-        service_instance = self._discovery.resolve_service_by_request(method, path)
+        path, version, service_instance = self._prepare_request_data(method, path)
         if not service_instance:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Failed to proxy request, service for path {path} not found"
             )
+
+        # The service and version prefixes have been removed from the path earlier in the process.
+        # The service prefix will be replaced with the new service name, and the version will be re-added
+        # (or default to v1 if not present) during the final URL construction for the request.
         url = f"{service_instance.url}/{service_instance.name}/{version}/{path}"
         return await self.proxy_request_to_service(
             service_instance.name, method, url, request
@@ -151,6 +149,19 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             ),  # service_response.headers is of type CaseInsensitiveDict
             media_type="application/json",
         )
+
+    def is_forwarded_request(self, request: fastapi.Request) -> bool:
+        """
+        Checks whether the request should be forwarded to another service based on
+        the service and path being resolved.
+
+        :param request: The incoming FastAPI request.
+        :return: True if the request should be forwarded, False otherwise.
+        """
+        method = request.method
+        path = request.url.path
+        path, version, service_instance = self._prepare_request_data(method, path)
+        return service_instance is not None
 
     async def _ensure_session(self):
         if not self._session:
@@ -283,3 +294,20 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
         request_kwargs.update(**kwargs)
         return request_kwargs
+
+    @staticmethod
+    def _get_prefix_and_version(path: str):
+        match = PREFIX_GROUPING.match(path)
+        if not match:
+            raise ValueError(f"Invalid path format: {path}")
+
+        prefix = match.group(1)
+        # default to v1 if not present
+        version = match.group(2) or "v1"
+        return prefix, version
+
+    def _prepare_request_data(self, method: str, path: str):
+        prefix, version = self._get_prefix_and_version(path)
+        path = path.removeprefix(f"{prefix}/").removeprefix(f"{version}/")
+        service_instance = self._discovery.resolve_service_by_request(method, path)
+        return path, version, service_instance

@@ -3122,7 +3122,7 @@ class HTTPRunDB(RunDBInterface):
             for project_dict in response.json()["projects"]
         ]
 
-    def get_project(self, name: str) -> mlrun.projects.MlrunProject:
+    def get_project(self, name: str) -> "mlrun.MlrunProject":
         """Get details for a specific project."""
 
         if not name:
@@ -3131,7 +3131,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{name}"
         error_message = f"Failed retrieving project {name}"
         response = self.api_call("GET", path, error_message)
-        return mlrun.projects.MlrunProject.from_dict(response.json())
+        return mlrun.MlrunProject.from_dict(response.json())
 
     def delete_project(
         self,

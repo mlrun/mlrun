@@ -90,9 +90,7 @@ class TestDask(TestMLRunSystem):
                 use_db=True,
             )
 
-        kfp.compiler.Compiler().compile(
-            dask_pipe, "daskpipe.yaml", type_check=False
-        )
+        kfp.compiler.Compiler().compile(dask_pipe, "daskpipe.yaml", type_check=False)
         arguments = {"x": 4, "y": -5}
         artifact_path = "/User/test"
         workflow_run_id = _run_pipeline(

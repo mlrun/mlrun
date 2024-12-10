@@ -413,6 +413,16 @@ async def test_list_and_get_project_summaries(
         project_name,
     )
 
+    # mock alert activations logic as it requires MySQL-specific logic not supported by SQLite.
+    framework.utils.singletons.db.SQLDB._calculate_alert_activations_counters = (
+        unittest.mock.Mock(
+            return_value=(
+                {},
+                {},
+                {},
+            )
+        )
+    )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
 
     # list project summaries
@@ -471,6 +481,17 @@ async def test_list_project_summaries_different_installation_modes(
 
     services.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         return_value=(0, None, [])
+    )
+
+    # mock alert activations logic as it requires MySQL-specific logic not supported by SQLite.
+    framework.utils.singletons.db.SQLDB._calculate_alert_activations_counters = (
+        unittest.mock.Mock(
+            return_value=(
+                {},
+                {},
+                {},
+            )
+        )
     )
     # Enterprise installation configuration post 3.4.0
     mlrun.mlconf.igz_version = "3.6.0-b26.20210904121245"

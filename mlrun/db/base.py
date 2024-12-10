@@ -1057,3 +1057,7 @@ class RunDBInterface(ABC):
         replace_creds: bool,
     ) -> None:
         pass
+
+    @abstractmethod
+    def get_project_summary(self, project: str) -> mlrun.common.schemas.ProjectSummary:
+        pass

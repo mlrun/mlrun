@@ -232,6 +232,7 @@ default_config = {
                 "delete_function": "900",
             },
             "runtimes": {"dask": "600"},
+            "push_notifications": "60",
         },
     },
     "function": {

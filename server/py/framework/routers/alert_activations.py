@@ -57,7 +57,7 @@ async def list_alert_activations(
     service: framework.service.Service = Depends(
         Provide[framework.service.ServiceContainer.service]
     ),
-):
+) -> mlrun.common.schemas.AlertActivations:
     return await service.handle_request(
         "list_alert_activations",
         request=request,

@@ -28,6 +28,8 @@ from mlrun.utils import logger
 
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
+import framework.utils.notifications
+import framework.utils.singletons.db as db_singleton
 import framework.utils.singletons.project_member
 import services.api.crud
 import services.api.utils.pagination
@@ -518,3 +520,63 @@ async def abort_run(
     )
 
     return background_task
+
+
+@router.post(
+    "/projects/{project}/runs/{uid}/push_notifications",
+    response_model=mlrun.common.schemas.BackgroundTask,
+)
+async def push_notifications(
+    project: str,
+    uid: str,
+    background_tasks: BackgroundTasks,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+    iter: int = 0,
+):
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
+            project,
+            uid,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+    )
+    run = await run_in_threadpool(
+        services.api.crud.Runs().get_run,
+        db_session,
+        uid,
+        iter,
+        project,
+        mlrun.common.formatters.RunFormat.notifications,
+    )
+
+    background_task = await run_in_threadpool(
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        db_session,
+        project,
+        background_tasks,
+        _push_notifications,
+        mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
+        framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
+            project, uid
+        ),
+        db_session,
+        run,
+    )
+    return background_task
+
+
+def _push_notifications(db_session, run):
+    db = db_singleton.get_db()
+    framework.utils.notifications.unmask_notification_params_secret_on_task(
+        db, db_session, run
+    )
+    run_notification_pusher_class = (
+        framework.utils.notifications.notification_pusher.RunNotificationPusher
+    )
+    run_notification_pusher_class(
+        [run],
+        run_notification_pusher_class.resolve_notifications_default_params(),
+    ).push()

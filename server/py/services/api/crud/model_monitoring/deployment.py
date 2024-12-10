@@ -339,7 +339,8 @@ class MonitoringDeployment:
                 function=function, function_name=function_name
             )
 
-        function.spec.disable_default_http_trigger = True
+        if function_name != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER:
+            function.spec.disable_default_http_trigger = True
 
         return function
 
@@ -439,11 +440,18 @@ class MonitoringDeployment:
         # Set the project to the job function
         function.metadata.project = self.project
 
+        # Add stream triggers
+        function = self.apply_and_create_stream_trigger(
+            function=function,
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            stream_args=config.model_endpoint_monitoring.controller_stream_args,
+        )
+
         function = self._apply_access_key_and_mount_function(
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
-        function.spec.max_replicas = 1
+        # function.spec.max_replicas = 1
         # Enrich runtime with the required configurations
         framework.api.utils.apply_enrichment_and_validation_on_function(
             function, self.auth_info

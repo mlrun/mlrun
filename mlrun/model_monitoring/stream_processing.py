@@ -14,10 +14,12 @@
 
 import collections
 import datetime
+import json
 import os
 import typing
 
 import storey
+
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
@@ -32,9 +34,13 @@ from mlrun.common.schemas.model_monitoring.constants import (
     EndpointType,
     EventFieldType,
     FileTargetKind,
-    ProjectSecretKeys,
+    ProjectSecretKeys, MonitoringFunctionNames, ControllerEvent,
 )
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
+from mlrun.model_monitoring import get_stream_path
+from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
 
@@ -96,6 +102,18 @@ class EventStreamProcessor:
         )
         self.storage_options = dict(
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
+        )
+
+        # KV path
+        kv_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project, kind=FileTargetKind.ENDPOINTS
+        )
+        (
+            _,
+            self.kv_container,
+            self.kv_path,
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            kv_path
         )
 
         # TSDB path and configurations
@@ -226,6 +244,46 @@ class EventStreamProcessor:
             )
 
         apply_process_before_parquet()
+
+        def apply_push_controller_stream():
+            # TODO: make sure nop event is stands in event condition
+            stream_uri = get_stream_path(
+                project=self.project,
+                function_name=MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            )
+            if stream_uri.startswith("v3io://"):
+                graph.add_step(">>",
+                               "controller_stream_v3io",
+                               path=stream_uri,
+                               sharding_func=ControllerEvent.ENDPOINT_ID)
+                # endpoint, path = parse_path(stream_uri)
+                #
+                # access_key = self.storage_options.get("v3io_access_key")
+                # storage = V3ioDriver(
+                #     webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
+                # )
+                # graph.add_step(
+                #     class_name="storey.StreamTarget",
+                #     # storage=storage,
+                #     stream_path=stream_uri,
+                #     # sharding_func=ControllerEvent.ENDPOINT_ID,
+                # )
+            elif stream_uri.startswith("kafka://"):
+                _kafka_brokers = get_kafka_brokers_from_dict(options=self.storage_options)
+                topic, brokers = parse_kafka_url(stream_uri, _kafka_brokers)
+                graph.add_step(">>",
+                               "controller_stream_kafka",
+                               path=stream_uri,
+                               kafka_brokers=brokers,
+                               sharding_func=ControllerEvent.ENDPOINT_ID)
+                # graph.add_step(
+                #     class_name="storey.KafkaTarget",
+                #     brokers=brokers,
+                #     topic=topic,
+                #     sharding_func=ControllerEvent.ENDPOINT_ID
+                # )
+
+        apply_push_controller_stream()
 
         # Write the Parquet target file, partitioned by key (endpoint_id) and time.
         def apply_parquet_target():
@@ -774,6 +832,28 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
             ).execute(backend="kv", table=self.table, command="infer_schema")
 
         return event
+
+
+class _PushToMonitoringController(StepToDict):
+    def __init__(
+        self, project: str, stream_uri: typing.Optional[str], name: typing.Optional[str]
+    ):
+        self.project = project
+        self.stream_uri = stream_uri or get_stream_path(
+            project=self.project,
+            function_name=MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
+        self.name = name
+        self.output_stream = None
+
+    def do(self, event: dict[str, typing.Any]):
+        self._lazy_init()
+        self.output_stream.push([event])
+        logger.info(f"Pushed data to {self.stream_uri} successfully")
+
+    def _lazy_init(self):
+        if self.output_stream is None:
+            self.output_stream = mlrun.datastore.get_stream_pusher(self.stream_uri)
 
 
 def update_endpoint_record(

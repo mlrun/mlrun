@@ -247,11 +247,16 @@ def spark_df_to_pandas(spark_df):
     import pyspark
 
     if semver.parse(pyspark.__version__) >= semver.Version(3, 5, 0):
-        return spark_df.toPandas()
+
+        def to_pandas(spark_df_inner):
+            return spark_df_inner.toPandas()
+    else:
+        to_pandas = _to_pandas
+
     # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
     # when we upgrade pyspark, we should check whether this workaround is still necessary
     # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
-    elif semver.parse(pd.__version__)["major"] >= 2:
+    if semver.parse(pd.__version__)["major"] >= 2:
         import pyspark.sql.functions as pyspark_functions
 
         type_conversion_dict = {}
@@ -266,9 +271,9 @@ def spark_df_to_pandas(spark_df):
                 )
                 type_conversion_dict[field.name] = "datetime64[ns]"
 
-        df = _to_pandas(spark_df)
+        df = to_pandas(spark_df)
         if type_conversion_dict:
             df = df.astype(type_conversion_dict)
         return df
     else:
-        return _to_pandas(spark_df)
+        return to_pandas(spark_df)

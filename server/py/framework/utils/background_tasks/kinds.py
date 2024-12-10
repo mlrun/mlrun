@@ -20,3 +20,4 @@ class BackgroundTaskKinds:
     project_deletion_wrapper = "project.deletion.wrapper.{0}"
     function_deletion = "function.deletion.{0}"
     refresh_smtp_configuration = "smtp.configuration.refresh"
+    push_notification = "notification.push.{0}.{1}"

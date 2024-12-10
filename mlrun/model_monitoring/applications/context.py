@@ -81,6 +81,7 @@ class MonitoringApplicationContext:
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         logger: Optional[mlrun.utils.Logger] = None,
         graph_context: Optional[mlrun.serving.GraphContext] = None,
+        context: Optional["mlrun.MLClientCtx"] = None,
         artifacts_logger: Optional[_ArtifactsLogger] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
@@ -95,6 +96,7 @@ class MonitoringApplicationContext:
         :param model_endpoint_dict: Optional - dictionary of model endpoints.
         :param logger:              Optional - MLRun logger instance.
         :param graph_context:       Optional - GraphContext instance.
+        :param context:             Optional - MLClientCtx instance.
         :param artifacts_logger:    Optional - an object that can log artifacts,
                                     typically :py:class:`~mlrun.projects.MlrunProject` or
                                     :py:class:`~mlrun.execution.MLClientCtx`.
@@ -108,8 +110,13 @@ class MonitoringApplicationContext:
         if graph_context:
             self.project_name = graph_context.project
             self.project = mlrun.load_project(url=self.project_name)
-        else:
-            self.project = cast("mlrun.MlrunProject", mlrun.get_current_project())
+        elif context:
+            potential_project = context.get_project_object()
+            if not potential_project:
+                raise mlrun.errors.MLRunValueError(
+                    "Could not load project from context"
+                )
+            self.project = potential_project
             self.project_name = self.project.name
 
         self._artifacts_logger: _ArtifactsLogger = artifacts_logger or self.project
@@ -160,12 +167,18 @@ class MonitoringApplicationContext:
         )
 
     def _get_default_labels(self) -> dict[str, str]:
-        return {
+        labels = {
             mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
             mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-app",
             mlrun_constants.MLRunInternalLabels.app_name: self.application_name,
-            mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
         }
+        for key, value in [
+            (mlrun_constants.MLRunInternalLabels.endpoint_id, self.endpoint_id),
+            (mlrun_constants.MLRunInternalLabels.endpoint_name, self.endpoint_name),
+        ]:
+            if value:
+                labels[key] = value
+        return labels
 
     def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""

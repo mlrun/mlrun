@@ -21,7 +21,7 @@
 	```
 2. Update the configuration: Run the following command, replacing <REPLACE-DSN-HERE> with your actual DSN:
     ```
-	MLRUN_HTTPDB__DSN="<REPLACE-DSN-HERE>" yq eval --inplace '(.api.extraEnvKeyValue.MLRUN_HTTPDB__DSN=strenv(MLRUN_HTTPDB__DSN)) | (.api.extraEnvKeyValue.MLRUN_HTTPDB__DB__BACKUP__MODE="disabled")' | (.api.extraEnvKeyValue.MLRUN_HTTPDB__DB__MYSQL__MODES="nil")' mlrun/values.yaml
+	MLRUN_HTTPDB__DSN='<REPLACE-DSN-HERE>' yq eval --inplace '(.api.extraEnvKeyValue.MLRUN_HTTPDB__DSN=strenv(MLRUN_HTTPDB__DSN)) | (.api.extraEnvKeyValue.MLRUN_HTTPDB__DB__BACKUP__MODE="disabled") | (.api.extraEnvKeyValue.MLRUN_HTTPDB__DB__MYSQL__MODES="nil")' mlrun/values.yamlMLRUN_HTTPDB__DSN='<REPLACE-DSN-HERE>' yq eval --inplace '(.api.extraEnvKeyValue.MLRUN_HTTPDB__DSN=strenv(MLRUN_HTTPDB__DSN)) | (.api.extraEnvKeyValue.MLRUN_HTTPDB__DB__BACKUP__MODE="disabled") | (.api.extraEnvKeyValue.MLRUN_HTTPDB__DB__MYSQL__MODES="nil")' mlrun/values.yamlMLRUN_HTTPDB__DSN='<REPLACE-DSN-HERE>' yq eval --inplace '(.api.extraEnvKeyValue.MLRUN_HTTPDB__DSN=strenv(MLRUN_HTTPDB__DSN)) | (.api.extraEnvKeyValue.MLRUN_HTTPDB__DB__BACKUP__MODE="disabled")' | (.api.extraEnvKeyValue.MLRUN_HTTPDB__DB__MYSQL__MODES="nil")' mlrun/values.yaml
 	```
 
 ```{admonition} Notes
@@ -96,6 +96,8 @@ AWS Multi-AZ DB Cluster is not supported for MLRun at this time. <!-- ML-8165 --
 ```
 
 ### Important parameter adjustments for AWS RDS
+
+Add these parameters to the RDS parameter group that is assigned to the instance:
 - Increase `innodb_write_io_threads`:
    By default, `innodb_write_io_threads` is set to 4 for many MySQL setups. Under heavy transactional loads, it is recommended to 
    increase this value to 8 or more. This enables MySQL to handle more I/O operations concurrently, reducing the likelihood of lock-wait timeouts.

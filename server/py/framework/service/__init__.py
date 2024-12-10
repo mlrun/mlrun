@@ -33,7 +33,7 @@ from mlrun import mlconf
 import framework.api.utils
 import framework.middlewares
 import framework.utils.clients.chief
-import framework.utils.clients.discovery
+import framework.utils.clients.messaging
 import framework.utils.periodic
 from framework.utils.singletons.db import initialize_db
 
@@ -47,6 +47,7 @@ class Service(ABC):
         self.app: fastapi.FastAPI = None
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
+        self._messaging_client = framework.utils.clients.messaging.Client()
 
     def initialize(self, mounts: typing.Optional[list] = None):
         self._logger.info("Initializing service", service_name=self.service_name)
@@ -131,6 +132,7 @@ class Service(ABC):
             default_response_class=fastapi.responses.ORJSONResponse,
             lifespan=self.lifespan,
             mlrun_service_name=self.service_name,
+            mlrun_service=self,
         )
 
     async def _setup_service(self, mounted: bool = False):
@@ -348,6 +350,15 @@ class Service(ABC):
         framework.utils.periodic.cancel_periodic_function(
             self._synchronize_with_chief_clusterization_spec.__name__
         )
+
+    def is_forwarded_request(self, request: fastapi.Request) -> bool:
+        """
+        Determines whether the incoming request should be forwarded to another service.
+
+        :param request: The incoming FastAPI request.
+        :return: `True` if the request should be forwarded to another service, otherwise `False`.
+        """
+        return self._messaging_client.is_forwarded_request(request)
 
 
 class Daemon(ABC):

@@ -11,7 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_VERSION=kfp
-FROM mlrun/mlrun:${MLRUN_VERSION}
-RUN python -m pip install .[kfp]
+ARG MLRUN_DOCKER_REGISTRY
+ARG MLRUN_VERSION=unstable
+# Compute the base image name, adding a slash only if the registry is not empty
+ARG BASE_IMAGE=${MLRUN_DOCKER_REGISTRY:+${MLRUN_DOCKER_REGISTRY}/}mlrun/mlrun
+
+FROM ${BASE_IMAGE}:${MLRUN_VERSION}
+
+RUN python -m pip install .[kfp18]
 

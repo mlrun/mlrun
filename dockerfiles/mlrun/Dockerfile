@@ -13,6 +13,9 @@
 # limitations under the License.
 
 ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
+
+FROM ${MLRUN_UV_IMAGE} AS uv-image
 
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
@@ -45,7 +48,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
-ENV PATH /opt/conda/bin:$PATH
+ENV PATH=/opt/conda/bin:$PATH
 
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5
@@ -61,17 +64,15 @@ RUN conda config --add channels conda-forge && \
     conda clean -aqy
 
 # Install uv
-ARG MLRUN_UV_VERSION=0.5.5
-ADD https://astral.sh/uv/${MLRUN_UV_VERSION}/install.sh /uv-installer.sh
-
-RUN sh /uv-installer.sh && rm /uv-installer.sh
-
-ENV PATH="/root/.local/bin/:$PATH"
-ENV UV_SYSTEM_PYTHON=true
+COPY --from=uv-image /uv /uvx /bin/
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
 # Install MLRun:
-COPY ./dockerfiles/mlrun/locked-requirements.txt ./locked-requirements.txt
-RUN uv pip sync --require-hashes locked-requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \
+    uv pip sync --require-hashes locked-requirements.txt
 
 COPY . .
-RUN uv pip install .[complete]
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install .[complete]

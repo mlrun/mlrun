@@ -34,7 +34,7 @@ jobs:
       with:
         version: ${{ steps.uv-version.outputs.version }}
     - name: Upgrade dependencies in the lock file with uv
-      run: make upgrade-mlrun-api-deps-lock
+      run: make upgrade-mlrun-deps-lock
     - uses: peter-evans/create-pull-request@v7
       with:
         title: "[Requirements-automated] Upgrade lock files"

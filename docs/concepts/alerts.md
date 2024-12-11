@@ -211,3 +211,7 @@ alert_from_template.with_notifications(notifications=notifications)
 
 project.store_alert_config(alert_from_template)
 ```
+
+## Alert activations
+
+There is a way to get all activations of alerts - see [alert activations tutorial](./alert_activations.ipynb)

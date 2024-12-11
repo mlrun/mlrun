@@ -14,7 +14,7 @@
 
 import datetime
 import pathlib
-from typing import Literal
+from typing import Any, Literal
 from unittest.mock import Mock, patch
 
 import pytest
@@ -202,7 +202,7 @@ def test_project_create_model_monitoring_alert_configs() -> None:
         },
     ],
 )
-def test_create_model_monitoring_function(function) -> None:
+def test_create_model_monitoring_function(function: dict[str, Any]) -> None:
     app = mlrun.model_monitoring.api._create_model_monitoring_function_base(
         project="", name="my-app", **function
     )
@@ -217,3 +217,6 @@ def test_create_model_monitoring_function(function) -> None:
 
     app_step = steps["DemoMonitoringApp"]
     assert app_step.class_args == {"param_1": 1, "param_2": 2}
+
+    with pytest.raises(NotImplementedError):
+        app.to_mock_server()

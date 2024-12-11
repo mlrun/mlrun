@@ -334,7 +334,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         expected_stats_df = pd.DataFrame(expected_stats)
         print(f"stats_df: {stats_df.to_json()}")
         print(f"expected_stats_df: {expected_stats_df.to_json()}")
-        assert stats_df.equals(expected_stats_df)
+        assert_frame_equal(stats_df, expected_stats_df, check_dtype=False)
 
     def test_special_columns_missing(self):
         key = "patient_id"

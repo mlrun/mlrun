@@ -18,7 +18,7 @@ from os import environ
 import numpy as np
 import pytz
 from pyspark.sql.functions import to_utc_timestamp
-from pyspark.sql.types import BooleanType, DoubleType, TimestampType
+from pyspark.sql.types import BooleanType, DoubleType
 
 from mlrun.feature_store.retrieval.spark_merger import spark_df_to_pandas
 from mlrun.utils import logger
@@ -143,7 +143,8 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     timestamp_columns = set()
     boolean_columns = set()
     for field in df_after_type_casts.schema.fields:
-        is_timestamp = isinstance(field.dataType, TimestampType)
+        # covers TimestampType and TimestampNTZType, which was added in PySpark 3.4.0
+        is_timestamp = field.dataType.typeName().startswith("timestamp")
         is_boolean = isinstance(field.dataType, BooleanType)
         if is_timestamp:
             df_after_type_casts = df_after_type_casts.withColumn(

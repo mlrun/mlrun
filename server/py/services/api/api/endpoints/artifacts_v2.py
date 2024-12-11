@@ -275,8 +275,9 @@ async def get_artifact(
         tree, uri_object_uid = tree.split("^", 1)
         if object_uid and object_uid != uri_object_uid:
             mlrun.utils.logger.warning(
-                f"Conflicting UIDs detected: Provided object_uid='{object_uid}' "
-                f"does not match the UID extracted from the URI='{uri_object_uid}'."
+                "Conflicting UIDs detected",
+                object_uid=object_uid,
+                extracted_object_uid=uri_object_uid,
             )
         # If object_uid is not set, assign it from the URI
         object_uid = object_uid or uri_object_uid

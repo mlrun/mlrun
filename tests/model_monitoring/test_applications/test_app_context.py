@@ -19,8 +19,9 @@ from unittest.mock import Mock, patch
 import pytest
 from nuclio.request import Logger as NuclioLogger
 
+from mlrun import MLClientCtx, MlrunProject
+from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.applications.context import MonitoringApplicationContext
-from mlrun.projects import MlrunProject
 from mlrun.serving import GraphContext, GraphServer
 
 
@@ -43,4 +44,31 @@ def test_from_graph_context(mock: Mock) -> None:
         ),
     )
     app_ctx.logger.info("Test from graph_context logger")
+    mock.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "ml_ctx_dict", [{"metadata": {"project": "some-local-proj"}}, {}]
+)
+def test_from_ml_context_error(ml_ctx_dict: dict[str, str]) -> None:
+    ml_ctx = MLClientCtx.from_dict(ml_ctx_dict)
+    with pytest.raises(MLRunValueError, match="Could not load project from context"):
+        MonitoringApplicationContext(
+            application_name="app-context-from-ml",
+            event={},
+            context=ml_ctx,
+        )
+
+
+@patch("mlrun.db.nopdb.NopDB.get_project")
+def test_from_ml_context(mock: Mock) -> None:
+    project_name = "my-proj"
+    ml_ctx = MLClientCtx.from_dict({"metadata": {"project": project_name}})
+    assert ml_ctx.project == project_name
+    app_ctx = MonitoringApplicationContext(
+        application_name="app-context-from-ml",
+        event={},
+        context=ml_ctx,
+    )
+    app_ctx.logger.info("MM app context from `MLClientCtx`")
     mock.assert_called_once()

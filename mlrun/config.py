@@ -136,7 +136,7 @@ default_config = {
         },
     },
     "object_retentions": {
-        "alert_activation": 14 * 7,  # days
+        "alert_activations": 14 * 7,  # days
     },
     # A safety margin to account for delays
     # This ensures that extra partitions are available beyond the specified retention period
@@ -232,6 +232,7 @@ default_config = {
                 "delete_function": "900",
             },
             "runtimes": {"dask": "600"},
+            "push_notifications": "60",
         },
     },
     "function": {

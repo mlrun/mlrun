@@ -69,6 +69,7 @@ class MLRunInternalLabels:
     producer_type = f"{MLRUN_LABEL_PREFIX}producer-type"
     app_name = f"{MLRUN_LABEL_PREFIX}app-name"
     endpoint_id = f"{MLRUN_LABEL_PREFIX}endpoint-id"
+    endpoint_name = f"{MLRUN_LABEL_PREFIX}endpoint-name"
     host = "host"
     job_type = "job-type"
     kind = "kind"

@@ -40,6 +40,7 @@ import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
 from mlrun.model import BaseMetadata
+from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils import generate_artifact_uri
 from mlrun.utils.v3io_clients import get_frames_client
@@ -333,7 +334,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(choice([0.01, 0.04]))
 
-        sleep(5)
+        sleep(15)
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
         assert len(endpoints_list.endpoints) == 1
 
@@ -353,10 +354,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             self.project_name, endpoint.metadata.uid
         )
         assert len(metrics) == 1
-        assert (
-            metrics[0].full_name
-            == f"{self.project_name}.mlrun-infra.metric.invocations"
+        expected_metric_fqn = f"{endpoint.metadata.uid}.mlrun-infra.result.invocations"
+        metric_fqn = get_result_instance_fqn(
+            model_endpoint_id=endpoint.metadata.uid,
+            app_name=metrics[0].app,
+            result_name=metrics[0].name,
         )
+        assert metric_fqn == expected_metric_fqn
 
     def _assert_model_uri(
         self,

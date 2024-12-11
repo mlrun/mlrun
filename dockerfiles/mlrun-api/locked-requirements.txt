@@ -1866,9 +1866,9 @@ mistune==3.0.2 \
     --hash=sha256:71481854c30fdbc938963d3605b72501f5c10a9320ecd412c121c163a1c7d205 \
     --hash=sha256:fc7f93ded930c92394ef2cb6f04a8aabab4117a91449e72dcc8dfa646a508be8
     # via nbconvert
-mlflow==2.14.3 \
-    --hash=sha256:292cae4b83574a0cb223117e224caa6798933078af0233719c2b612bea645617 \
-    --hash=sha256:2de915346c8e34a9d13efbd6469551980923619274db57fd2253621a2c666e18
+mlflow==2.16.0 \
+    --hash=sha256:82ea1a2e800f404f1586783b7636091c0a5754cf9ff45afeadf3a5e467f5168f \
+    --hash=sha256:9f27ef6ae7a82d7ecd67b6b4a4d50637a5e8160639115570fbc689758f9c0b54
     # via -r extras-requirements.txt
 mlrun-pipelines-kfp-common==0.2.3 \
     --hash=sha256:485c94c727b5e5a953190527e074d44ce5af1fe64c0ccc7cdd4553e0d2cd2b4f \
@@ -3394,9 +3394,9 @@ stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
     # via ipython
-starlette==0.37.2 \
-    --hash=sha256:6fe59f29268538e5d0d182f2791a479a0c64638e6935d1c6989e63fb2699c6ee \
-    --hash=sha256:9af890290133b79fc3db55474ade20f6220a364a0402e0b556e7cd5e1e093823
+starlette==0.40.0 \
+    --hash=sha256:1a3139688fb298ce5e2d661d37046a66ad996ce94be4d4983be019a23a04ea35 \
+    --hash=sha256:c494a22fae73805376ea6bf88439783ecfba9aac88a43911b48c653437e784c4
     # via fastapi
 storey==1.8.2 \
     --hash=sha256:23661f3afe085474f9e011340ad7781b3e263a25e58caef5527e5a5efe443390

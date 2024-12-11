@@ -21,14 +21,6 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
-# Update base pip packages (usually pip, setuptools, wheel):
-RUN python -m pip  list --disable-pip-version-check --format freeze \
-    | grep -v '^\-e' \
-    | cut -d'=' -f1 \
-    | xargs python -m pip install --upgrade
-
-ENV PIP_NO_CACHE_DIR=1
-
 RUN apt-get update && apt-get install --no-install-recommends -y \
   build-essential \
   cmake \
@@ -68,14 +60,18 @@ RUN conda config --add channels conda-forge && \
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy
 
+# Install uv
+ARG MLRUN_UV_VERSION=0.5.5
+ADD https://astral.sh/uv/${MLRUN_UV_VERSION}/install.sh /uv-installer.sh
+
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+
+ENV PATH="/root/.local/bin/:$PATH"
+ENV UV_SYSTEM_PYTHON=true
+
 # Install MLRun:
-COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
-COPY ./extras-requirements.txt ./extras-requirements.txt
-COPY ./requirements.txt ./
-RUN python -m pip install \
-    -r requirements.txt \
-    -r extras-requirements.txt \
-    -r mlrun-image-requirements.txt
+COPY ./dockerfiles/mlrun/locked-requirements.txt ./locked-requirements.txt
+RUN uv pip sync --require-hashes locked-requirements.txt
 
 COPY . .
-RUN python -m pip install .[complete]
+RUN uv pip install .[complete]

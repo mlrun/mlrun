@@ -63,16 +63,16 @@ RUN conda config --add channels conda-forge && \
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy
 
-# Install uv
-COPY --from=uv-image /uv /uvx /bin/
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
 # Install MLRun:
-RUN --mount=type=cache,target=/root/.cache/uv \
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync --require-hashes locked-requirements.txt
 
 COPY . .
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete]

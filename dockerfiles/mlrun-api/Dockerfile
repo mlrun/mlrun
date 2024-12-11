@@ -44,24 +44,25 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-COPY --from=uv-image /uv /uvx /bin/
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
 WORKDIR /mlrun
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun-api/locked-requirements.txt,target=locked-requirements.txt \
     uv pip sync --require-hashes locked-requirements.txt
 
 COPY ./pipeline-adapters ./pipeline-adapters
 
-RUN uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
     uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 
 COPY . .
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[complete-api]
 
 VOLUME /mlrun/db

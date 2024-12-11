@@ -1136,7 +1136,8 @@ class CSVTarget(BaseStoreTarget):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
-            if col_type == "timestamp":
+            # covers TimestampType and TimestampNTZType, which was added in PySpark 3.4.0
+            if col_type.startswith("timestamp"):
                 # df.write.csv saves timestamps with millisecond precision, but we want microsecond precision
                 # for compatibility with storey.
                 df = df.withColumn(

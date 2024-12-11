@@ -124,6 +124,7 @@ def spark_to_value_type(data_type):
         "double": ValueType.DOUBLE,
         "boolean": ValueType.BOOL,
         "timestamp": ValueType.DATETIME,
+        "timestamp_ntz": ValueType.DATETIME,
         "string": ValueType.STRING,
         "array": "list",
         "map": "dict",

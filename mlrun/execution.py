@@ -501,11 +501,11 @@ class MLClientCtx:
             return default
         return self._parameters[key]
 
-    def get_project_object(self):
+    def get_project_object(self) -> Optional["mlrun.MlrunProject"]:
         """
         Get the MLRun project object by the project name set in the context.
 
-        :return: The project object or None if it couldn't be retrieved.
+        :returns: The project object or None if it couldn't be retrieved.
         """
         return self._load_project_object()
 
@@ -1207,7 +1207,7 @@ class MLClientCtx:
         self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
         self._artifacts_manager = ArtifactManager(db=self._rundb)
 
-    def _load_project_object(self):
+    def _load_project_object(self) -> Optional["mlrun.MlrunProject"]:
         if not self._project_object:
             if not self._project:
                 self.logger.warning(

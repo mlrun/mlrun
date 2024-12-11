@@ -38,7 +38,6 @@ import framework.constants
 import framework.db.base
 import framework.service
 import framework.utils.clients.chief
-import framework.utils.clients.discovery
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
 import framework.utils.notifications.notification_pusher
@@ -107,8 +106,7 @@ class Service(framework.service.Service):
         *args,
         **kwargs,
     ):
-        messaging_client = framework.utils.clients.messaging.Client()
-        return await messaging_client.proxy_request(request=request)
+        return await self._messaging_client.proxy_request(request=request)
 
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class

@@ -453,9 +453,12 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project_name = "project-name"
+    project_creation_time = mlrun.utils.datetime_now()
     project = _generate_project(name=project_name)
     framework.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
-        return_value=mlrun.common.schemas.ProjectsOutput(projects=[project_name])
+        return_value=mlrun.common.schemas.ProjectsOutput(
+            projects=[(project_name, project_creation_time)]
+        )
     )
     services.api.crud.projects.Projects()._list_pipelines = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunNotFoundError("not found")
@@ -466,7 +469,9 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
         project,
     )
     framework.utils.singletons.db.get_db().get_project_resources_counters = (
-        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(9)))
+        unittest.mock.AsyncMock(
+            return_value=tuple({project_name: i} for i in range(12))
+        )
     )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
     project_summaries = await projects_follower.list_project_summaries(db)

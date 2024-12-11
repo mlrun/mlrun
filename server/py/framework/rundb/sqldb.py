@@ -1310,6 +1310,9 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError
 
+    def get_project_summary(self, project: str):
+        raise NotImplementedError
+
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)
 @containers.override(mlrun.db.factory.RunDBContainer)

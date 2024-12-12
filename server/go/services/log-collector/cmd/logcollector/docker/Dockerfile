@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG GO_VERSION=1.21
+ARG GO_VERSION=1.23
 
 FROM gcr.io/iguazio/golang:${GO_VERSION} AS build-binary
 
@@ -20,7 +20,7 @@ RUN mkdir /app
 WORKDIR /app
 
 # Build stages requires defining GO_VERSION again
-ARG GO_VERSION=1.21
+ARG GO_VERSION=1.23
 
 # copy `go.mod` for definitions and `go.sum` to invalidate the next layer
 # in case of a change in the dependencies
@@ -55,7 +55,7 @@ RUN wget -qO/app/grpc_health_probe \
     https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /app/grpc_health_probe
 
-FROM gcr.io/iguazio/alpine:3.20
+FROM gcr.io/iguazio/alpine:3.21
 
 # Upgrade OS packages
 RUN apk -U upgrade

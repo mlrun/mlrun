@@ -551,7 +551,7 @@ class MonitoringApplicationController:
         first_request: str,
         endpoint_type: str,
         feature_set_uri: str,
-        endpoint_policy: dict[str, Any] = None,
+        endpoint_policy: dict[str, Any]
     ) -> None:
         """
         Pushes event data to controller writer.
@@ -578,7 +578,7 @@ class MonitoringApplicationController:
             ControllerEvent.FIRST_REQUEST.value: first_request,
             ControllerEvent.ENDPOINT_TYPE.value: endpoint_type,
             ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
-            ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy or {},
+            ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy,
         }
         logger.info(
             "Pushing data to controller stream",

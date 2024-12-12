@@ -224,7 +224,7 @@ class ModelEndpoints:
                 )
         # Check if features can be found within the feature vector
         elif model.spec.feature_vector:
-            _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
+            _, name, _, tag, _, _ = mlrun.utils.helpers.parse_artifact_uri(
                 model.spec.feature_vector
             )
             fv = run_db.get_feature_vector(name=name, project=project, tag=tag)

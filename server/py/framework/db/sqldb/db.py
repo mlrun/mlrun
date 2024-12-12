@@ -819,14 +819,14 @@ class SQLDB(DBInterface):
         session,
         producer_id: str,
         project: typing.Optional[str] = None,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ) -> ArtifactList:
         project = project or mlrun.mlconf.default_project
         artifact_records = self._find_artifacts_for_producer_id(
             session,
             producer_id=producer_id,
             project=project,
-            key_tag_iteration_pairs=key_tag_iteration_pairs,
+            artifact_identifiers=artifact_identifiers,
         )
 
         artifacts = ArtifactList()
@@ -1587,14 +1587,14 @@ class SQLDB(DBInterface):
         session: Session,
         producer_id: str,
         project: str,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ) -> list[tuple[ArtifactV2, str]]:
         """
-        Find a producer's artifacts matching the given (key, tag, iteration) tuples.
+        Find a producer's artifacts matching the given (key, tag, iteration, uid) tuples.
         :param session:                 DB session
         :param producer_id:             The artifact producer ID to filter by
         :param project:                 Project name to filter by
-        :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
+        :param artifact_identifiers: List of tuples of (key, tag, iteration, uid)
         :return: A list of tuples of (ArtifactV2, tag_name)
         """
         query = session.query(ArtifactV2, ArtifactV2.Tag.name)
@@ -1606,14 +1606,18 @@ class SQLDB(DBInterface):
         query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
 
         tuples_filter = []
-        for key, tag, iteration in key_tag_iteration_pairs:
+        for key, tag, iteration, uid in artifact_identifiers:
             iteration = iteration or 0
             tag = tag or "latest"
-            tuples_filter.append(
+            base_filter = (
                 (ArtifactV2.key == key)
                 & (ArtifactV2.Tag.name == tag)
                 & (ArtifactV2.iteration == iteration)
             )
+            # Add UID filter only if UID is not None
+            if uid is not None:
+                base_filter = base_filter & (ArtifactV2.uid == uid)
+            tuples_filter.append(base_filter)
 
         query = query.filter(or_(*tuples_filter))
         return query.all()
@@ -2942,7 +2946,11 @@ class SQLDB(DBInterface):
 
     async def get_project_resources_counters(
         self,
+        projects_with_creation_time: list[tuple[str, datetime]],
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -2974,6 +2982,11 @@ class SQLDB(DBInterface):
                 framework.db.session.run_function_with_new_db_session,
                 self._calculate_runs_counters,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_alert_activations_counters,
+                projects_with_creation_time,
+            ),
         )
         (
             project_to_files_count,
@@ -2989,6 +3002,11 @@ class SQLDB(DBInterface):
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ),
+            (
+                project_to_endpoint_alerts_count,
+                project_to_job_alerts_count,
+                project_to_other_alerts_count,
+            ),
         ) = results
         return (
             project_to_files_count,
@@ -3000,6 +3018,9 @@ class SQLDB(DBInterface):
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_other_alerts_count,
         )
 
     @staticmethod
@@ -3184,6 +3205,92 @@ class SQLDB(DBInterface):
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
         )
+
+    def _calculate_alert_activations_counters(
+        self,
+        session,
+        projects_with_creation_time: list[tuple[str, datetime]],
+    ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+    ]:
+        project_to_endpoint_alerts_count = collections.defaultdict(int)
+        project_to_job_alerts_count = collections.defaultdict(int)
+        project_to_other_alerts_count = collections.defaultdict(int)
+
+        last_day = mlrun.utils.datetime_now() - timedelta(hours=24)
+
+        # construct a base query to count different types of alert activations, labels are added to improve readability
+        query = session.query(
+            AlertActivation.project,
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind
+                        == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                        1,
+                    )
+                )
+            ).label("model_endpoint_alerts_count"),
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind
+                        == mlrun.common.schemas.alert.EventEntityKind.JOB,
+                        1,
+                    )
+                )
+            ).label("job_alerts_count"),
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind.not_in(
+                            [
+                                mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                                mlrun.common.schemas.alert.EventEntityKind.JOB,
+                            ]
+                        ),
+                        1,
+                    )
+                )
+            ).label("other_alerts_count"),
+        )
+
+        # filter by project, creation time, and activations within the last 24 hours
+        query_results = (
+            self._apply_alert_activation_project_filters(
+                query, projects_with_creation_time
+            )
+            .filter(AlertActivation.activation_time > last_day)
+            .group_by(AlertActivation.project)
+            .all()
+        )
+
+        for project, endpoint_counter, job_counter, other_counter in query_results:
+            project_to_endpoint_alerts_count[project] = endpoint_counter
+            project_to_job_alerts_count[project] = job_counter
+            project_to_other_alerts_count[project] = other_counter
+
+        return (
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_other_alerts_count,
+        )
+
+    @staticmethod
+    def _apply_alert_activation_project_filters(
+        query: sqlalchemy.orm.query.Query,
+        projects_with_creation_time: list[tuple[str, datetime]],
+    ) -> sqlalchemy.orm.query.Query:
+        project_filter_conditions = [
+            and_(
+                AlertActivation.project == project,
+                AlertActivation.activation_time > created,
+            )
+            for project, created in projects_with_creation_time
+        ]
+        return query.filter(or_(*project_filter_conditions))
 
     def _update_project_record_from_project(
         self,
@@ -6031,15 +6138,9 @@ class SQLDB(DBInterface):
         # Filter alert activations for the project created after the project creation date,
         # excluding activations linked to any previous instances of the project.
         # TODO: reconsider this approach when we move alerts out of main MLRun db
-        project_filter_conditions = [
-            and_(
-                AlertActivation.project == project,
-                AlertActivation.activation_time > created,
-            )
-            for project, created in projects_with_creation_time
-        ]
-
-        query = query.filter(or_(*project_filter_conditions))
+        query = self._apply_alert_activation_project_filters(
+            query, projects_with_creation_time
+        )
 
         if name:
             query = query.filter(

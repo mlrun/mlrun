@@ -839,7 +839,7 @@ with warnings.catch_warnings():
             self._full_object = json.dumps(value, default=str)
 
     class AlertActivation(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "alert_activation"
+        __tablename__ = "alert_activations"
         __table_args__ = (
             PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
             Index("ix_alert_activation_project_name", "project", "name"),

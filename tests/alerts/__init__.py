@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
-class BackgroundTaskKinds:
-    db_migrations = "db.migrations"
-    project_deletion = "project.deletion.{0}"
-    project_deletion_wrapper = "project.deletion.wrapper.{0}"
-    function_deletion = "function.deletion.{0}"
-    refresh_smtp_configuration = "smtp.configuration.refresh"
-    push_notification = "notification.push.{0}.{1}"

@@ -918,3 +918,6 @@ class NopDB(RunDBInterface):
         **kwargs,
     ):
         pass
+
+    def get_project_summary(self, project: str):
+        pass

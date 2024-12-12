@@ -255,7 +255,7 @@ class DBInterface(ABC):
         session,
         producer_id: str,
         project: str,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ):
         pass
 
@@ -513,7 +513,11 @@ class DBInterface(ABC):
     @abstractmethod
     async def get_project_resources_counters(
         self,
+        projects_with_creation_time: list[tuple[str, datetime]],
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],

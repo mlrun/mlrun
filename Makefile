@@ -340,6 +340,7 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		$(MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED) \
@@ -822,7 +823,18 @@ upgrade-mlrun-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-mlrun locked r
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun/locked-requirements.txt
 
+.PHONY: upgrade-mlrun-jupyter-deps-lock
+upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter locked requirements file
+	uv pip compile \
+		requirements.txt \
+		extras-requirements.txt \
+		dockerfiles/jupyter/requirements.txt \
+		dockerfiles/mlrun-api/requirements.txt \
+		$(MLRUN_UV_UPGRADE_FLAG) \
+		--output-file dockerfiles/jupyter/locked-requirements.txt
+
 .PHONY: upgrade-mlrun-mlrun-deps-lock
 upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
 upgrade-mlrun-deps-lock: upgrade-mlrun-mlrun-deps-lock
 upgrade-mlrun-deps-lock: upgrade-mlrun-api-deps-lock
+upgrade-mlrun-deps-lock: upgrade-mlrun-jupyter-deps-lock

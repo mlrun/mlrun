@@ -39,6 +39,10 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 
 USER $NB_UID
 
+## Install it via mamba to overcome installing jupyterlab not being able to install the latest version
+## on the current image distribution.
+RUN mamba install --channel conda-forge --yes jupyterlab~=4.3
+
 ENV PIP_NO_CACHE_DIR=1
 
 ARG MLRUN_PIP_VERSION=24.2
@@ -51,10 +55,6 @@ COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
-
-## Install it via mamba to overcome installing jupyterlab not being able to install the latest version
-## on the current image distribution.
-RUN conda update conda && mamba install --channel conda-forge --yes jupyterlab~=4.3
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 

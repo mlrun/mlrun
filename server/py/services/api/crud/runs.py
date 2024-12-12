@@ -556,10 +556,10 @@ class Runs(
     ):
         """Fetch run artifacts by their artifact URIs in the run status"""
         artifact_uris = run.get("status", {}).get("artifact_uris", {})
-        key_tag_iteration_pairs = []
+        artifact_identifiers = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
-            project, key, iteration, tag, artifact_producer_id = (
+            project, key, iteration, tag, artifact_producer_id, uid = (
                 mlrun.utils.parse_artifact_uri(uri, project)
             )
             if artifact_producer_id != producer_id:
@@ -570,19 +570,20 @@ class Runs(
                     tag=tag,
                     iteration=iteration,
                     artifact_producer_id=artifact_producer_id,
+                    uid=uid,
                 )
                 continue
 
-            key_tag_iteration_pairs.append((key, tag, iteration))
+            artifact_identifiers.append((key, tag, iteration, uid))
 
-        if not key_tag_iteration_pairs:
+        if not artifact_identifiers:
             return []
 
         artifacts = services.api.crud.Artifacts().list_artifacts_for_producer_id(
             db_session,
             producer_id,
             project,
-            key_tag_iteration_pairs,
+            artifact_identifiers,
         )
 
         # DB artifacts result may contain more artifacts if the job is still running

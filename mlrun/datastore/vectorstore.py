@@ -14,9 +14,30 @@
 
 import inspect
 from collections.abc import Iterable
-from typing import Union
+from typing import Optional, Union
 
 from mlrun.artifacts import DocumentArtifact
+
+
+def _extract_collection_name(vectorstore: "VectorStore") -> str:  # noqa: F821
+    # List of possible attribute names for collection name
+    possible_attributes = ["collection_name", "_collection_name"]
+
+    for attr in possible_attributes:
+        if hasattr(vectorstore, attr):
+            collection_name = getattr(vectorstore, attr)
+            if collection_name:
+                return collection_name
+
+    store_class = vectorstore.__class__.__name__.lower()
+    if store_class == "mongodbatlasvectorsearch":
+        return vectorstore.collection.name
+
+    # If we get here, we couldn't find a valid collection name
+    raise ValueError(
+        "Failed to extract collection name from the vector store. "
+        "Please provide the collection name explicitly. "
+    )
 
 
 class VectorStoreCollection:
@@ -36,12 +57,17 @@ class VectorStoreCollection:
     def __init__(
         self,
         mlrun_context: Union["MlrunProject", "MLClientCtx"],  # noqa: F821
-        collection_name: str,
         vector_store: "VectorStore",  # noqa: F821
+        collection_name: Optional[str] = None,
     ):
         self._collection_impl = vector_store
         self._mlrun_context = mlrun_context
-        self.collection_name = collection_name
+        self.collection_name = collection_name or _extract_collection_name(vector_store)
+
+    @property
+    def __class__(self):
+        # Make isinstance() check the wrapped object's class
+        return self._collection_impl.__class__
 
     def __getattr__(self, name):
         # This method is called when an attribute is not found in the usual places
@@ -55,6 +81,9 @@ class VectorStoreCollection:
         else:
             # Forward the attribute setting to _collection_impl
             setattr(self._collection_impl, name, value)
+
+    def delete(self, *args, **kwargs):
+        self._collection_impl.delete(*args, **kwargs)
 
     def add_documents(
         self,
@@ -94,23 +123,29 @@ class VectorStoreCollection:
         Converts artifacts to LangChain documents, adds them to the vector store, and
         updates the MLRun context. If documents are split, the IDs are handled appropriately.
 
-        Args:
-            artifacts (list[DocumentArtifact]): List of DocumentArtifact objects to add
-            splitter (optional): Document splitter to break artifacts into smaller chunks.
-                If None, each artifact becomes a single document.
-            **kwargs: Additional arguments passed to the underlying add_documents method.
-                Special handling for 'ids' kwarg:
-                - If provided and document is split, IDs are generated as "{original_id}_{i}"
-                    where i starts from 1 (e.g., "doc1_1", "doc1_2", etc.)
-                - If provided and document isn't split, original IDs are used as-is
+        :param artifacts: List of DocumentArtifact objects to add
+        :type artifacts: list[DocumentArtifact]
+        :param splitter: Document splitter to break artifacts into smaller chunks.
+                        If None, each artifact becomes a single document.
+        :type splitter: TextSplitter, optional
+        :param kwargs: Additional arguments passed to the underlying add_documents method.
+                    Special handling for 'ids' kwarg:
 
-        Returns:
-            list: List of IDs for all added documents. When no custom IDs are provided:
-                - Without splitting: Vector store generates IDs automatically
-                - With splitting: Vector store generates separate IDs for each chunk
+                    * If provided and document is split, IDs are generated as "{original_id}_{i}"
+                        where i starts from 1 (e.g., "doc1_1", "doc1_2", etc.)
+                    * If provided and document isn't split, original IDs are used as-is
+
+        :return: List of IDs for all added documents. When no custom IDs are provided:
+
+                * Without splitting: Vector store generates IDs automatically
+                * With splitting: Vector store generates separate IDs for each chunk
+
                 When custom IDs are provided:
-                - Without splitting: Uses provided IDs directly
-                - With splitting: Generates sequential IDs as "{original_id}_{i}" for each chunk
+
+                * Without splitting: Uses provided IDs directly
+                * With splitting: Generates sequential IDs as "{original_id}_{i}" for each chunk
+        :rtype: list
+
         """
         all_ids = []
         user_ids = kwargs.pop("ids", None)

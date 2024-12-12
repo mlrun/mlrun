@@ -1870,13 +1870,13 @@ class MlrunProject(ModelObj):
 
     def get_vector_store_collection(
         self,
-        collection_name: str,
         vector_store: "VectorStore",  # noqa: F821
+        collection_name: Optional[str] = None,
     ) -> VectorStoreCollection:
         return VectorStoreCollection(
             self,
-            collection_name,
             vector_store,
+            collection_name,
         )
 
     def log_document(
@@ -2117,10 +2117,9 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
+        func: typing.Union[str, mlrun.runtimes.RemoteRuntime, None] = None,
         application_class: typing.Union[
-            str,
-            mm_app.ModelMonitoringApplicationBase,
+            str, mm_app.ModelMonitoringApplicationBase, None
         ] = None,
         name: Optional[str] = None,
         image: Optional[str] = None,
@@ -2130,7 +2129,7 @@ class MlrunProject(ModelObj):
         requirements: Optional[typing.Union[str, list[str]]] = None,
         requirements_file: str = "",
         **application_kwargs,
-    ) -> mlrun.runtimes.BaseRuntime:
+    ) -> mlrun.runtimes.RemoteRuntime:
         """
         Update or add a monitoring function to the project.
         Note: to deploy the function after linking it to the project,
@@ -2142,7 +2141,8 @@ class MlrunProject(ModelObj):
                 name="myApp", application_class="MyApp", image="mlrun/mlrun"
             )
 
-        :param func:                    Function object or spec/code url, None refers to current Notebook
+        :param func:                    Remote function object or spec/code URL. :code:`None` refers to the current
+                                        notebook.
         :param name:                    Name of the function (under the project), can be specified with a tag to support
                                         versions (e.g. myfunc:v1)
                                         Default: job
@@ -2158,6 +2158,7 @@ class MlrunProject(ModelObj):
         :param application_class:       Name or an Instance of a class that implements the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
+        :returns:                       The model monitoring remote function object.
         """
         (
             resolved_function_name,
@@ -2195,7 +2196,7 @@ class MlrunProject(ModelObj):
         requirements: Optional[typing.Union[str, list[str]]] = None,
         requirements_file: str = "",
         **application_kwargs,
-    ) -> mlrun.runtimes.BaseRuntime:
+    ) -> mlrun.runtimes.RemoteRuntime:
         """
         Create a monitoring function object without setting it to the project
 
@@ -2205,7 +2206,7 @@ class MlrunProject(ModelObj):
                 application_class_name="MyApp", image="mlrun/mlrun", name="myApp"
             )
 
-        :param func:                    Code url, None refers to current Notebook
+        :param func:                    The function's code URL. :code:`None` refers to the current notebook.
         :param name:                    Name of the function, can be specified with a tag to support
                                         versions (e.g. myfunc:v1)
                                         Default: job
@@ -2221,6 +2222,7 @@ class MlrunProject(ModelObj):
         :param application_class:       Name or an Instance of a class that implementing the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
+        :returns:                       The model monitoring remote function object.
         """
 
         _, function_object, _ = self._instantiate_model_monitoring_function(
@@ -2253,7 +2255,7 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, list[str], None] = None,
         requirements_file: str = "",
         **application_kwargs,
-    ) -> tuple[str, mlrun.runtimes.BaseRuntime, dict]:
+    ) -> tuple[str, mlrun.runtimes.RemoteRuntime, dict]:
         import mlrun.model_monitoring.api
 
         kind = None
@@ -3550,11 +3552,13 @@ class MlrunProject(ModelObj):
         name: Optional[str] = None,
         model_name: Optional[str] = None,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
+        latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
@@ -3562,10 +3566,11 @@ class MlrunProject(ModelObj):
         1) name
         2) model_name
         3) function_name
-        4) labels
-        5) top level
-        6) uids
-        7) start and end time, corresponding to the `created` field.
+        4) function_tag
+        5) labels
+        6) top level
+        7) uids
+        8) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -3574,6 +3579,7 @@ class MlrunProject(ModelObj):
         :param name: The name of the model to filter by
         :param model_name: The name of the model to filter by
         :param function_name: The name of the function to filter by
+        :param function_tag: The tag of the function to filter by
         :param labels: Filter model endpoints by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
             or `{"label": None}` to check for key existence.
@@ -3594,11 +3600,13 @@ class MlrunProject(ModelObj):
             name=name,
             model_name=model_name,
             function_name=function_name,
+            function_tag=function_tag,
             labels=labels,
             start=start,
             end=end,
             top_level=top_level,
             uids=uids,
+            latest_only=latest_only,
         )
 
     def run_function(
@@ -3984,18 +3992,21 @@ class MlrunProject(ModelObj):
             mock=mock,
         )
 
-    def get_artifact(self, key, tag=None, iter=None, tree=None):
+    def get_artifact(
+        self, key, tag=None, iter=None, tree=None, uid=None
+    ) -> typing.Optional[Artifact]:
         """Return an artifact object
 
-        :param key: artifact key
-        :param tag: version tag
-        :param iter: iteration number (for hyper-param tasks)
-        :param tree: the producer id (tree)
+        :param key: Artifact key
+        :param tag: Version tag
+        :param iter: Iteration number (for hyper-param tasks)
+        :param tree: The producer id (tree)
+        :param uid: The artifact uid
         :return: Artifact object
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         artifact = db.read_artifact(
-            key, tag, iter=iter, project=self.metadata.name, tree=tree
+            key, tag, iter=iter, project=self.metadata.name, tree=tree, uid=uid
         )
 
         # in tests, if an artifact is not found, the db returns None

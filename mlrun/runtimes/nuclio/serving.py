@@ -421,8 +421,6 @@ class ServingRuntime(RemoteRuntime):
                 class_name.model_path = model_path
             key, state = params_to_step(class_name, key)
         else:
-            if not model_path and not model_url:
-                raise ValueError("model_path or model_url must be provided")
             class_name = class_name or self.spec.default_class
             if class_name and not isinstance(class_name, str):
                 raise ValueError(

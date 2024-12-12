@@ -82,12 +82,12 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
-    MLRUN_ENV_FILE=$HOME/mlrun.env
+    MLRUN_ENV_FILE=$HOME/mlrun.env \
+    MLRUN_HTTPDB__PORT=8080
 
 # backup home since it will be deleted when using pvc
 RUN mkdir data && \
     tar -cvf /tmp/basehome.tar $HOME
-
 
 # use tini as entrypoint to allow signal handling
 # and avoid zombie processes
@@ -95,14 +95,7 @@ ENTRYPOINT ["tini", "--"]
 
 # run the mlrun api and the notebook in parallel
 CMD cd $HOME/mlrun && \
-    PYTHONPATH=$HOME/mlrun/server/py MLRUN_ARTIFACT_PATH=$HOME/data uvicorn services.api.main:app \
-    --factory \
-    --proxy-headers \
-    --host="0.0.0.0" \
-    --log-config=server/py/services/uvicorn_log_config.yaml & \
-    MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
-    --ip="0.0.0.0" \
-    --port=8888 \
-    --NotebookApp.token='' \
-    --NotebookApp.password='' \
-    --NotebookApp.default_url="/lab"
+    PYTHONPATH=$HOME/mlrun/server/py \
+    MLRUN_ARTIFACT_PATH=$HOME/data \
+    python server/py/services/api/main.py & \
+    MLRUN_DBPATH=http://localhost:8080 /usr/local/bin/mlce-start.sh

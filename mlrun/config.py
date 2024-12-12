@@ -161,6 +161,7 @@ default_config = {
         # migration progress.
         "artifact_migration_batch_size": 200,
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
+        "artifact_migration_chunk_size": 30000,
         "datasets": {
             "max_preview_columns": 100,
         },

@@ -13,6 +13,9 @@
 # limitations under the License.
 
 ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
+
+FROM ${MLRUN_UV_IMAGE} AS uv-image
 
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
@@ -41,21 +44,29 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-ARG MLRUN_UV_VERSION=0.5.5
-ADD https://astral.sh/uv/${MLRUN_UV_VERSION}/install.sh /uv-installer.sh
-
-RUN sh /uv-installer.sh && rm /uv-installer.sh
-
-ENV PATH="/root/.local/bin/:$PATH"
-ENV UV_SYSTEM_PYTHON=true
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/mlrun-api/locked-requirements.txt ./locked-requirements.txt
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/mlrun-api/locked-requirements.txt,target=locked-requirements.txt \
+    uv pip sync --require-hashes locked-requirements.txt
 
-RUN uv pip sync --require-hashes locked-requirements.txt
+COPY ./pipeline-adapters ./pipeline-adapters
 
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+
+COPY . .
+
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install .[complete-api]
+
+VOLUME /mlrun/db
+ENV PYTHONPATH=/mlrun/server/py
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
 ENV MLRUN_HTTPDB__DIRPATH=/mlrun/db
@@ -67,19 +78,6 @@ ENV MLRUN_IGNORE_ENV_FILE=true
 # env vars for uvicorn (https://www.uvicorn.org/settings)
 ENV UVICORN_PORT=${MLRUN_HTTPDB__PORT}
 ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE}
-
-COPY ./pipeline-adapters ./pipeline-adapters
-
-RUN uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
-
-COPY . .
-ENV PYTHONPATH=/mlrun/server/py
-
-RUN uv pip install .[complete-api]
-
-VOLUME /mlrun/db
-
 ENV MLRUN_SERVICES__SERVICE_NAME=api
 
 # use tini as entrypoint to allow signal handling

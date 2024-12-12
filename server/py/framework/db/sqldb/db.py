@@ -5947,6 +5947,29 @@ class SQLDB(DBInterface):
         ).scalar()
 
     @staticmethod
+    def table_exist(
+        session: Session,
+        table_name: str,
+    ) -> bool:
+        """
+        Checks if a table exists in the current database schema.
+
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table to check.
+
+        :return: True if the table exists, False otherwise.
+        """
+        result = session.execute(
+            text(
+                "SELECT COUNT(*) "
+                "FROM information_schema.tables "
+                "WHERE TABLE_NAME = :table_name "
+            ),
+            {"table_name": table_name},
+        ).scalar()
+        return result > 0
+
+    @staticmethod
     def _transform_alert_template_schema_to_record(
         alert_template: mlrun.common.schemas.AlertTemplate,
     ) -> AlertTemplate:

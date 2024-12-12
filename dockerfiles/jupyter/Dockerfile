@@ -94,7 +94,9 @@ RUN mkdir data && \
 ENTRYPOINT ["tini", "--"]
 
 # run the mlrun api and the notebook in parallel
-CMD cd $HOME/mlrun && \
+CMD echo "1" > "${HOME}/.intdata" && \
+    cd $HOME/mlrun && \
+    MLRUN_LOG_LEVEL=DEBUG \
     PYTHONPATH=$HOME/mlrun/server/py \
     MLRUN_ARTIFACT_PATH=$HOME/data \
     python server/py/services/api/main.py & \

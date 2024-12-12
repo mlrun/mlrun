@@ -889,7 +889,12 @@ class ModelRunnerStep(TaskStep):
 
     kind = "model_runner"
 
-    def __init__(self, *args, model_selector: Optional[ModelSelector] = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        model_selector: Optional[Union[str, ModelSelector]] = None,
+        **kwargs,
+    ):
         self._models = []
         super().__init__(
             *args,
@@ -902,15 +907,14 @@ class ModelRunnerStep(TaskStep):
         """Add a Model to this ModelRunner."""
         self._models.append(model)
 
-    @property
-    def async_object(self) -> ModelRunner:
-        if not self._async_object:
-            self._async_object = ModelRunner(
-                self.class_args.get("runnables"),
-                model_selector=self.class_args.get("model_selector"),
-            )
-
-        return self._async_object
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        model_selector = self.class_args.get("model_selector")
+        if isinstance(model_selector, str):
+            model_selector = get_class(model_selector, namespace)()
+        self._async_object = ModelRunner(
+            self.class_args.get("runnables"),
+            model_selector=model_selector,
+        )
 
 
 class QueueStep(BaseStep):

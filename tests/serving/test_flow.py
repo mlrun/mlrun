@@ -17,14 +17,8 @@ import pathlib
 import pytest
 
 import mlrun
-from mlrun.serving import (
-    GraphContext,
-    Model,
-    ModelRunnerStep,
-    ModelSelector,
-    TaskStep,
-    V2ModelServer,
-)
+from mlrun.serving import GraphContext
+from mlrun.serving.states import TaskStep
 
 from .demo_states import *  # noqa
 
@@ -435,108 +429,3 @@ def test_set_flow():
     server = fn.to_mock_server()
     resp = server.test(body=5)
     assert resp == "15"
-
-
-class MyModel(Model):
-    execution_mechanism = "naive"
-
-    def __init__(self, *args, inc: int, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.inc = inc
-
-    def predict(self, body):
-        body["n"] += self.inc
-        body.pop("models", None)
-        return body
-
-    async def predict_async(self, body):
-        return self.predict(body)
-
-
-def test_model_runner():
-    function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(MyModel(name="my_model", inc=1))
-    graph.to(model_runner_step).respond()
-
-    server = function.to_mock_server()
-    try:
-        resp = server.test(body={"n": 1})
-        assert resp.keys() == {"input", "results"}
-        assert resp["input"] == {"n": 1}
-        results = resp["results"]
-        assert results.keys() == {"my_model"}
-        result = results["my_model"]
-        assert result.keys() == {"runtime", "output"}
-        assert result["output"] == {"n": 2}
-    finally:
-        server.wait_for_completion()
-
-
-class MyModelSelector(ModelSelector):
-    def select(self, event, available_models: list[Model]) -> list[str]:
-        return event.body.get("models")
-
-
-@pytest.mark.parametrize(
-    "execution_mechanism",
-    ("multiprocessing", "threading", "asyncio", "naive"),
-)
-def test_model_runner_with_selector(execution_mechanism: str):
-    m1 = MyModel(name="m1", inc=1)
-    m2 = MyModel(name="m2", inc=2)
-    # Normally, this is set at the class level, but for testing purposes, we set it on the instance
-    m2.execution_mechanism = execution_mechanism
-
-    function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(
-        name="my_model_runner", model_selector=MyModelSelector()
-    )
-    model_runner_step.add_model(m1)
-    model_runner_step.add_model(m2)
-    graph.to(model_runner_step).respond()
-
-    server = function.to_mock_server()
-    try:
-        # both models
-        resp = server.test(body={"n": 1})
-        assert resp.keys() == {"input", "results"}
-        assert resp["input"] == {"n": 1}
-        results = resp["results"]
-        assert results.keys() == {"m1", "m2"}
-        assert results["m1"].keys() == {"runtime", "output"}
-        assert results["m1"]["output"] == {"n": 2}
-        assert results["m2"].keys() == {"runtime", "output"}
-        assert results["m2"]["output"] == {"n": 3}
-
-        # only m2
-        resp = server.test(body={"n": 1, "models": ["m2"]})
-        assert resp.keys() == {"input", "results"}
-        assert resp["input"] == {"n": 1, "models": ["m2"]}
-        results = resp["results"]
-        assert results.keys() == {"m2"}
-        assert results["m2"].keys() == {"runtime", "output"}
-        assert results["m2"]["output"] == {"n": 3}
-    finally:
-        server.wait_for_completion()
-
-
-def test_model_as_step():
-    function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    graph.to("MyModel", name="my_model", inc=1).respond()
-
-    server = function.to_mock_server()
-    try:
-        resp = server.test(body={"n": 1})
-        assert resp.keys() == {"input", "results"}
-        assert resp["input"] == {"n": 1}
-        results = resp["results"]
-        assert results.keys() == {"my_model"}
-        result = results["my_model"]
-        assert result.keys() == {"runtime", "output"}
-        assert result["output"] == {"n": 2}
-    finally:
-        server.wait_for_completion()

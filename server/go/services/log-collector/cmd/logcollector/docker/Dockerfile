@@ -14,6 +14,9 @@
 
 ARG GO_VERSION=1.23
 
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.35
+FROM ghcr.io/grpc-ecosystem/grpc-health-probe:${GRPC_HEALTH_PROBE_VERSION} AS install-health-probe
+
 FROM gcr.io/iguazio/golang:${GO_VERSION} AS build-binary
 
 RUN mkdir /app
@@ -44,16 +47,7 @@ RUN GOOS=linux \
     CGO_ENABLED=0 \
     go build -a -installsuffix cgo -ldflags="-s -w" -o main cmd/logcollector/main.go
 
-FROM alpine:latest AS install-health-probe
 
-ARG GRPC_HEALTH_PROBE_VERSION=v0.4.28
-
-RUN mkdir /app
-WORKDIR /app
-
-RUN wget -qO/app/grpc_health_probe \
-    https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
-    chmod +x /app/grpc_health_probe
 
 FROM gcr.io/iguazio/alpine:3.21
 
@@ -61,7 +55,7 @@ FROM gcr.io/iguazio/alpine:3.21
 RUN apk -U upgrade
 
 COPY --from=build-binary /app/services/log-collector/main /main
-COPY --from=install-health-probe /app/grpc_health_probe /grpc_health_probe
+COPY --from=install-health-probe /ko-app/grpc-health-probe /grpc_health_probe
 
 EXPOSE 8080
 

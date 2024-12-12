@@ -120,7 +120,7 @@ fmt: ensure-golangci
 .PHONY: lint
 lint: ensure-golangci compile-schemas-go ensure-test-files-annotated
 	@echo Linting...
-	$(CI_BIN_DIR)/golangci-lint run --verbose -- $(GO_WORKSPACES)
+	$(CI_BIN_DIR)/golangci-lint run --timeout=15m --verbose -- $(GO_WORKSPACES)
 	@echo Done.
 
 .PHONY: ensure-test-files-annotated

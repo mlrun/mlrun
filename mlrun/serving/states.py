@@ -22,7 +22,6 @@ __all__ = [
 
 import os
 import pathlib
-import time
 import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
@@ -827,17 +826,6 @@ class Model(storey.ParallelExecutionRunnable):
 
     async def run_async(self, body: Any, path: str) -> Any:
         return self.predict(body)
-
-    def do_event(self, event):
-        start = time.monotonic()
-        input_data = deepcopy(event.body)
-        output = self.run(event.body, event.path)
-        runtime = time.monotonic() - start
-        event.body = {
-            "input": input_data,
-            "results": {self.name: {"runtime": runtime, "output": output}},
-        }
-        return event
 
 
 class ModelSelector:

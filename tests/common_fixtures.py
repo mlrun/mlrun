@@ -660,6 +660,7 @@ class RunDBMock:
         name: str,
         project: str,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
         feature_analysis: bool = False,
@@ -674,6 +675,7 @@ class RunDBMock:
         mep.metadata.uid = endpoint_id
         mep.spec.monitoring_mode = ModelMonitoringMode.enabled
         mep.spec.function_name = function_name
+        mep.spec.function_tag = function_tag
         return mep
 
 

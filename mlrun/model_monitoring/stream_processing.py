@@ -339,8 +339,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # In case this process fails, resume state from existing record
         self.resume_state(
-            endpoint_id,
-            full_event.body.get(EventFieldType.MODEL),
+            endpoint_id=endpoint_id,
+            endpoint_name=full_event.body.get(EventFieldType.MODEL),
         )
 
         # Validate event fields

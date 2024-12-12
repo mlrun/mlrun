@@ -670,8 +670,8 @@ def dict_to_json(struct):
 
 def parse_artifact_uri(uri, default_project=""):
     """
-    Parse artifact URI into project, key, tag, iter, tree
-    URI format: [<project>/]<key>[#<iter>][:<tag>][@<tree>]
+    Parse artifact URI into project, key, tag, iter, tree, uid
+    URI format: [<project>/]<key>[#<iter>][:<tag>][@<tree>][^<uid>]
 
     :param uri:            uri to parse
     :param default_project: default project name if not in URI
@@ -681,6 +681,7 @@ def parse_artifact_uri(uri, default_project=""):
         [2] = iteration
         [3] = tag
         [4] = tree
+        [5] = uid
     """
     uri_pattern = mlrun.utils.regex.artifact_uri_pattern
     match = re.match(uri_pattern, uri)
@@ -705,6 +706,7 @@ def parse_artifact_uri(uri, default_project=""):
         iteration,
         group_dict["tag"],
         group_dict["tree"],
+        group_dict["uid"],
     )
 
 
@@ -719,7 +721,9 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
+def generate_artifact_uri(
+    project, key, tag=None, iter=None, tree=None, uid=None
+) -> str:
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"
@@ -727,6 +731,8 @@ def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
         artifact_uri = f"{artifact_uri}:{tag}"
     if tree is not None:
         artifact_uri = f"{artifact_uri}@{tree}"
+    if uid is not None:
+        artifact_uri = f"{artifact_uri}^{uid}"
     return artifact_uri
 
 

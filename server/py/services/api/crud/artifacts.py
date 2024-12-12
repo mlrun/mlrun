@@ -204,13 +204,13 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         producer_id: str,
         project: str,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ):
         return framework.utils.singletons.db.get_db().list_artifacts_for_producer_id(
             db_session,
             producer_id=producer_id,
             project=project,
-            key_tag_iteration_pairs=key_tag_iteration_pairs,
+            artifact_identifiers=artifact_identifiers,
         )
 
     def list_artifact_tags(

@@ -1015,8 +1015,9 @@ class SQLRunDB(RunDBInterface):
         self,
         name: str,
         project: str,
-        function_name: str,
-        endpoint_id: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -1025,6 +1026,7 @@ class SQLRunDB(RunDBInterface):
         project: str,
         name: Optional[str] = None,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
@@ -1041,6 +1043,7 @@ class SQLRunDB(RunDBInterface):
         name: str,
         project: str,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
         feature_analysis: bool = False,
@@ -1053,6 +1056,7 @@ class SQLRunDB(RunDBInterface):
         project: str,
         attributes: dict,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()

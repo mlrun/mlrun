@@ -686,6 +686,53 @@ def test_get_artifact_validate_tag_exists_in_the_response(
     assert artifact["metadata"].get("tag") is None
 
 
+def test_server_handles_artifact_uri_with_uid_for_older_clients(
+    db: Session,
+    unversioned_client: TestClient,
+) -> None:
+    """
+    Test that the server handles artifact URIs with the `^uid` notation correctly,
+    including scenarios with matching UIDs, mismatching UIDs, and missing explicit UIDs.
+    """
+    _create_project(unversioned_client)
+
+    # Generate and store artifact data with a tree value
+    tree = "tree"
+    artifact_data = _generate_artifact_body(tree=tree)
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact = resp.json()
+    artifact_uid = artifact["metadata"]["uid"]
+
+    # Add `^uid` to the `tree` in the artifact URI to simulate the new URI format
+    tree_with_uid = f"{artifact['metadata']['tree']}^{artifact_uid}"
+
+    # Validate server behavior when using the new `tree^uid` format
+    url = _get_artifact_url(uid=artifact_uid, tree=tree_with_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+
+    # Ensure the server correctly parses the tree and uid
+    assert artifact["metadata"]["tree"] == tree
+    assert artifact["metadata"]["uid"] == artifact_uid
+
+    # Test with mismatched UID in the `tree`
+    tree_with_mismatched_uid = f"{artifact['metadata']['tree']}^{artifact_uid}123"
+    url = _get_artifact_url(uid=artifact_uid, tree=tree_with_mismatched_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.OK.value
+    assert artifact["metadata"]["uid"] == artifact_uid
+
+    # Test without providing the explicit object UID in the request
+    url = _get_artifact_url(tree=tree_with_mismatched_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.NOT_FOUND.value
+
+
 def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
     _create_project(client)
 
@@ -1219,7 +1266,9 @@ def _generate_artifact_body(
     return data
 
 
-def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> str:
+def _get_artifact_url(
+    uid: Optional[str] = None, tag: Optional[str] = None, tree: Optional[str] = None
+) -> str:
     url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
     params = []
 
@@ -1227,6 +1276,8 @@ def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> s
         params.append(f"object-uid={uid}")
     if tag:
         params.append(f"tag={tag}")
+    if tree:
+        params.append(f"tree={tree}")
 
     return f"{url}?{'&'.join(params)}" if params else url
 

@@ -69,7 +69,7 @@ class _BatchWindow:
         self._start = self._get_last_analyzed()
 
     def _get_saved_last_analyzed(self) -> Optional[int]:
-        return self._db.get_application_time(self._application)
+        return cast(int, self._db.get_application_time(self._application))
 
     def _update_last_analyzed(self, last_analyzed: int) -> None:
         self._db.update_application_time(

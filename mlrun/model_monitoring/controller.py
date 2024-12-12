@@ -332,6 +332,9 @@ class MonitoringApplicationController:
             last_stream_timestamp = datetime.datetime.fromisoformat(
                 event[ControllerEvent.TIMESTAMP]
             )
+            first_request = datetime.datetime.fromisoformat(
+                event[ControllerEvent.FIRST_REQUEST]
+            )
             with _BatchWindowGenerator(
                 project=self.project,
                 endpoint_id=endpoint_id,
@@ -344,12 +347,8 @@ class MonitoringApplicationController:
                     ) in batch_window_generator.get_intervals(
                         application=application,
                         not_batch_endpoint=not_batch_endpoint,
-                        first_request=datetime.datetime.fromisoformat(
-                            event[ControllerEvent.FIRST_REQUEST]
-                        ),
+                        first_request=first_request,
                         last_request=last_stream_timestamp,
-                        # TODO: Roy in here we should take care this value taking the timestamp from the event of nop,
-                        #  notice this value is handled with the subtraction of the timeout
                     ):
                         df = m_fs.to_dataframe(
                             start_time=start_infer_time,
@@ -519,7 +518,7 @@ class MonitoringApplicationController:
                     project=self.project,
                     endpoint_id=endpoint.metadata.uid,
                     endpoint_name=endpoint.metadata.name,
-                    model_monitoring_access_key=self.v3io_access_key,
+                    stream_access_key=self.v3io_access_key,
                     timestamp=endpoint.status.last_request.isoformat(
                         sep=" ", timespec="microseconds"
                     )
@@ -546,7 +545,7 @@ class MonitoringApplicationController:
         project: str,
         endpoint_id: str,
         endpoint_name: str,
-        model_monitoring_access_key: str,
+        stream_access_key: str,
         timestamp: str,
         first_request: str,
         endpoint_type: str,
@@ -564,13 +563,13 @@ class MonitoringApplicationController:
         :param endpoint_name: the endpoint name string
         :param endpoint_type: Enum of the endpoint type
         :param feature_set_uri: the feature set uri string
-        :param model_monitoring_access_key: access key to apply the model monitoring process.
+        :param stream_access_key: access key to apply the model monitoring process.
         """
         stream_uri = get_stream_path(
             project=project,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
-        regular_event = {
+        event = {
             ControllerEvent.KIND.value: kind,
             ControllerEvent.ENDPOINT_ID.value: endpoint_id,
             ControllerEvent.ENDPOINT_NAME.value: endpoint_name,
@@ -582,13 +581,11 @@ class MonitoringApplicationController:
         }
         logger.info(
             "Pushing data to controller stream",
-            event=regular_event,
+            event=event,
             endpoint_id=endpoint_id,
             stream_uri=stream_uri,
         )
-        get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
-            [regular_event]
-        )
+        get_stream_pusher(stream_uri, access_key=stream_access_key).push([event])
 
     def _push_to_main_stream(self, event: dict, endpoint_id: str):
         """
@@ -623,6 +620,8 @@ def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
     )
 
     if event.trigger.kind == "http":
+        # Runs controller chief:
         MonitoringApplicationController().push_regular_event_to_controller_stream(event)
     else:
+        # Runs controller worker:
         MonitoringApplicationController().run(event=event)

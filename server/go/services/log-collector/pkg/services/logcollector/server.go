@@ -694,7 +694,7 @@ func (s *Server) ListRunsInProgress(request *protologcollector.ListRunsRequest, 
 
 	// merge the two maps
 	for _, runUID := range runsInProgressCurrentState {
-		if slices.Contains(runsInProgress, runUID) {
+		if !slices.Contains(runsInProgress, runUID) {
 			runsInProgress = append(runsInProgress, runUID)
 		}
 	}

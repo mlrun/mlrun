@@ -36,7 +36,7 @@ linters:
 run:
 
   # timeout for analysis
-  timeout: 5m
+  timeout: 15m
   build-tags:
     - test_unit
     - test_integration

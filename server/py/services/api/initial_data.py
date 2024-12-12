@@ -910,7 +910,7 @@ def _add_producer_uri_to_artifact(
     db_session: sqlalchemy.orm.Session,
     chunk_size: int = None,
 ):
-    chunk_size = chunk_size or config.artifacts.artifact_migration_chunk_size
+    chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
 
     def handle_artifact_producer_uri(record):
         record.producer_uri = (

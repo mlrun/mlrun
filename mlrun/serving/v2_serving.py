@@ -586,6 +586,7 @@ def _init_endpoint_record(
             project=graph_server.project,
             name=model.name,
             function_name=graph_server.function_name,
+            function_tag=graph_server.function_tag or "latest",
         )
     except mlrun.errors.MLRunNotFoundError:
         model_ep = None
@@ -607,6 +608,7 @@ def _init_endpoint_record(
             name=model.name,
             project=graph_server.project,
             function_name=graph_server.function_name,
+            function_tag=graph_server.function_tag or "latest",
             function_uid=function_uid,
             model_name=model_name,
             model_uid=model_uid,
@@ -672,7 +674,6 @@ def _init_endpoint_record(
             model_ep = db.patch_model_endpoint(
                 project=model_ep.metadata.project,
                 name=model_ep.metadata.name,
-                function_name=model_ep.spec.function_name,
                 endpoint_id=model_ep.metadata.uid,
                 attributes=attributes,
             )

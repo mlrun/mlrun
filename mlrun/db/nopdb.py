@@ -582,8 +582,9 @@ class NopDB(RunDBInterface):
         self,
         name: str,
         project: str,
-        function_name: str,
-        endpoint_id: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
     ):
         pass
 
@@ -592,6 +593,7 @@ class NopDB(RunDBInterface):
         project: str,
         name: Optional[str] = None,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
@@ -608,6 +610,7 @@ class NopDB(RunDBInterface):
         name: str,
         project: str,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
         feature_analysis: bool = False,
@@ -620,6 +623,7 @@ class NopDB(RunDBInterface):
         project: str,
         attributes: dict,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass

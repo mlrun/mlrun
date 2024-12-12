@@ -323,9 +323,9 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v48"
+    project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "quay.io/davesh0812/mlrun:1.8.0"
+    image: typing.Optional[str] = None
     error_count = 10
 
     @classmethod
@@ -698,6 +698,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             name=f"{self.model_name}_{with_training_set}",
             project=self.project.name,
             function_name="model-serving",
+            function_tag="latest",
             feature_analysis=True,
             tsdb_metrics=True,
         )
@@ -830,6 +831,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             name=f"{self.name_prefix}-test",
             project=self.project.name,
             function_name=self.function_name,
+            function_tag="latest",
             feature_analysis=True,
             tsdb_metrics=True,
         )

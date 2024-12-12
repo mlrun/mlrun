@@ -1499,9 +1499,6 @@ def _create_resources_of_all_kinds(
     db.store_model_endpoint(
         db_session,
         model_endpoint,
-        name=model_endpoint.metadata.name,
-        project=model_endpoint.metadata.project,
-        function_name=function_names[0],
     )
 
 

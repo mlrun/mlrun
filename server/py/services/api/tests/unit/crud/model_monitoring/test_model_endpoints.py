@@ -28,7 +28,9 @@ def model_endpoint() -> mlrun.common.schemas.ModelEndpoint:
             project="my-proj",
             name="my-endpoint",
         ),
-        spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(),
+        spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
+            function_name="my-func", function_tag="my-tag"
+        ),
         status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(),
     )
 

@@ -15,6 +15,7 @@
 import itertools
 import typing
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 import sqlalchemy.orm
@@ -45,6 +46,8 @@ import services.api.crud.model_monitoring.deployment
 import services.api.crud.model_monitoring.helpers
 import services.api.crud.secrets
 
+DEFAULT_FUNCTION_TAG = "latest"
+
 
 class ModelEndpoints:
     """Provide different methods for handling model endpoints such as listing, writing and deleting"""
@@ -64,21 +67,22 @@ class ModelEndpoints:
 
         :return: `ModelEndpoint` object.
         """
+        if model_endpoint.spec.function_name and not model_endpoint.spec.function_tag:
+            logger.info("Function tag not provided, setting to 'latest'")
+            model_endpoint.spec.function_tag = DEFAULT_FUNCTION_TAG
 
         logger.info(
             "Creating model endpoint",
             endpoint_id=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_name=model_endpoint.spec.function_name,
+            function_tag=model_endpoint.spec.function_tag,
         )
 
         # 1. store in db
         model_endpoint = framework.utils.singletons.db.get_db().store_model_endpoint(
             session=db_session,
             model_endpoint=model_endpoint,
-            project=model_endpoint.metadata.project,
-            name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
         )
 
         # 2. according to the model uri get the model object
@@ -132,7 +136,6 @@ class ModelEndpoints:
             session=db_session,
             project=model_endpoint.metadata.project,
             name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
             attributes=attributes,
             uid=model_endpoint.metadata.uid,
         )
@@ -165,33 +168,37 @@ class ModelEndpoints:
         self,
         name: str,
         project: str,
-        function_name: str,
-        endpoint_id: str,
         attributes: dict,
         db_session: sqlalchemy.orm.Session,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Update a model endpoint record with a given attributes.
 
         :param name: The name of the model endpoint.
         :param project: The name of the project.
-        :param function_name: The name of the function.
-        :param endpoint_id: The unique id of the model endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. Note that the keys
-                           of the attributes dictionary should exist in the DB table. More details about the model
-                           endpoint available attributes can be found under
-                           :py:class:`~mlrun.common.schemas.ModelEndpoint`.
+                   of the attributes dictionary should exist in the DB table. More details about the model
+                   endpoint available attributes can be found under
+                   :py:class:`~mlrun.common.schemas.ModelEndpoint`.
         :param db_session:             A session that manages the current dialog with the database.
-
+        :param function_name: The name of the function.
+        :param function_tag: The tag of the function.
+        :param endpoint_id: The unique id of the model endpoint.
 
         :return: A patched `ModelEndpoint` object without operative data.
         """
-
+        if function_name and function_tag is None:
+            logger.info("Function tag not provided, setting to 'latest'")
+            function_tag = DEFAULT_FUNCTION_TAG
         model_endpoint = framework.utils.singletons.db.get_db().update_model_endpoint(
             session=db_session,
             project=project,
             name=name,
             function_name=function_name,
+            function_tag=function_tag or "latest",  # default to latest (?)
             attributes=attributes,
             uid=endpoint_id,
         )
@@ -201,6 +208,7 @@ class ModelEndpoints:
             name=name,
             project=project,
             function_name=function_name,
+            function_tag=function_tag,
             endpoint_id=model_endpoint.metadata.uid,
         )
 
@@ -329,26 +337,32 @@ class ModelEndpoints:
     def delete_model_endpoint(
         name: str,
         project: str,
-        function_name: str,
-        endpoint_id: str,
         db_session: sqlalchemy.orm.Session,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
     ) -> None:
         """
         Delete the record of a given model endpoint based on endpoint id.
 
         :param name:          The name of the model endpoint.
         :param project:       The name of the project.
-        :param function_name: The name of the function.
-        :param endpoint_id:   The unique id of the model endpoint.
         :param db_session:    A session that manages the current dialog with the database
+        :param function_name: The name of the function.
+        :param function_tag:  The tag of the function.
+        :param endpoint_id:   The unique id of the model endpoint.
 
         """
+        if function_name and function_tag is None:
+            logger.info("Function tag not provided, setting to 'latest'")
+            function_tag = DEFAULT_FUNCTION_TAG
         if endpoint_id == "*":
             model_endpoint_list = (
                 framework.utils.singletons.db.get_db().list_model_endpoints(
                     project=project,
                     name=name,
                     function_name=function_name,
+                    function_tag=function_tag,
                     latest_only=False,
                     session=db_session,
                 )
@@ -365,6 +379,7 @@ class ModelEndpoints:
             project=project,
             name=name,
             function_name=function_name,
+            function_tag=function_tag,
             uid=endpoint_id,
         )
         # Delete the model endpoint files
@@ -378,6 +393,7 @@ class ModelEndpoints:
             project=project,
             name=name,
             function_name=function_name,
+            function_tag=function_tag,
             amount=len(uids),
         )
 
@@ -385,23 +401,25 @@ class ModelEndpoints:
         self,
         name: str,
         project: str,
-        function_name: str,
-        endpoint_id: str,
+        db_session: sqlalchemy.orm.Session,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
         feature_analysis: bool = False,
-        db_session: sqlalchemy.orm.Session = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """Get a single model endpoint object.
 
         :param name                        The name of the model endpoint
         :param project:                    The name of the project
+        :param db_session:                 A session that manages the current dialog with the database.
         :param function_name:              The name of the function
+        :param function_tag:               The tag of the function
         :param endpoint_id:                The unique id of the model endpoint.
         :param tsdb_metrics:               When True, the time series metrics will be added to the output
                                            of the resulting.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
-        :param db_session:                 A session that manages the current dialog with the database.
 
         :return: A `ModelEndpoint` object.
         :raise: `MLRunNotFoundError` if the model endpoint is not found.
@@ -412,6 +430,7 @@ class ModelEndpoints:
             name=name,
             project=project,
             function_name=function_name,
+            function_tag=function_tag,
             endpoint_id=endpoint_id,
             tsdb_metrics=tsdb_metrics,
             feature_analysis=feature_analysis,
@@ -424,6 +443,7 @@ class ModelEndpoints:
                 project=project,
                 name=name,
                 function_name=function_name,
+                function_tag=function_tag,
                 uid=endpoint_id,
             )
         )
@@ -454,6 +474,7 @@ class ModelEndpoints:
         name: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
         function_name: typing.Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
@@ -469,6 +490,7 @@ class ModelEndpoints:
         :param name:                The name of the model endpoint.
         :param model_name:          The name of the model.
         :param function_name:       The name of the function.
+        :param function_tag:        The tag of the function.
         :param labels:              A list of labels to filter the model endpoints.
         :param start:               The start time of the model endpoint creation.
         :param end:                 The end time of the model endpoint creation.
@@ -479,12 +501,17 @@ class ModelEndpoints:
         :return:                    A list of `ModelEndpoint` objects.
         """
 
+        if function_name and function_tag is None:
+            logger.info("Function tag not provided, setting to 'latest'")
+            function_tag = DEFAULT_FUNCTION_TAG
+
         logger.info(
             "Listing endpoints",
             name=name,
             project=project,
             model_name=model_name,
             function_name=function_name,
+            function_tag=function_tag,
             labels=labels,
             start=start,
             end=end,
@@ -501,6 +528,7 @@ class ModelEndpoints:
             name=name,
             model_name=model_name,
             function_name=function_name,
+            function_tag=function_tag,
             labels=labels,
             start=start,
             end=end,

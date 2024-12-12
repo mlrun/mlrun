@@ -30,16 +30,16 @@ import mlrun.serving.states
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEvent,
+    ControllerEventKind,
     EndpointType,
     EventFieldType,
     FileTargetKind,
     MonitoringFunctionNames,
-    ProjectSecretKeys, ControllerEventKind,
+    ProjectSecretKeys,
 )
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model_monitoring import get_stream_path
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
 
@@ -234,13 +234,13 @@ class EventStreamProcessor:
             "storey.Filter",
             "FilterNOP",
             after="MapFeatureNames",
-            _fn="(event.get('kind', "") != 'nop_event')",
+            _fn="(event.get('kind', " ") != 'nop_event')",
         )
         graph.add_step(
             "storey.Filter",
             "ForwardNOP",
             after="MapFeatureNames",
-            _fn="(event.get('kind', "") == 'nop_event')",
+            _fn="(event.get('kind', " ") == 'nop_event')",
         )
 
         tsdb_connector.apply_monitoring_stream_steps(

@@ -21,12 +21,16 @@ from types import TracebackType
 from typing import Any, NamedTuple, Optional, cast
 
 import nuclio_sdk
+
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 from mlrun.common.schemas import EndpointType
-from mlrun.common.schemas.model_monitoring.constants import ControllerEvent
+from mlrun.common.schemas.model_monitoring.constants import (
+    ControllerEvent,
+    ControllerEventKind,
+)
 from mlrun.datastore import get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
@@ -237,6 +241,7 @@ class MonitoringApplicationController:
         self._window_length = _get_window_length()
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
+        self.v3io_access_key = mlrun.get_secret_or_env("V3IO_ACCESS_KEY")
         self.storage_options = None
         if mlrun.mlconf.artifact_path.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
@@ -272,12 +277,12 @@ class MonitoringApplicationController:
         4. Send data to applications
         5. Delete old parquets
         """
-        logger.info("Start running monitoring controller")
+        logger.info("Start running monitoring controller worker")
         try:
             body = json.loads(event.body.decode("utf-8"))
         except Exception as e:
             logger.error(
-                "Failed to decode event", # TODO Royi make more specific handling
+                "Failed to decode event",  # TODO Royi make more specific handling
                 exc=err_to_str(e),
             )
             return
@@ -295,7 +300,7 @@ class MonitoringApplicationController:
 
         :param event:                       (dict) Event that triggered the monitoring process.
         """
-        logger.debug("Model endpoint process started", event=event)
+        logger.info("Model endpoint process started", event=event)
 
         try:
             endpoint_id = event[ControllerEvent.ENDPOINT_ID]
@@ -318,15 +323,19 @@ class MonitoringApplicationController:
             #       }
             #   )
             not_batch_endpoint = (
-                    event[ControllerEvent.ENDPOINT_POLICY] != EndpointType.BATCH_EP
+                event[ControllerEvent.ENDPOINT_POLICY] != EndpointType.BATCH_EP
             )
             m_fs = fstore.get_feature_set(event[ControllerEvent.FEATURE_SET_URI])
-            if event[ControllerEvent.TIMESTAMP]:
-                last_stream_timestamp = datetime.datetime.fromisoformat(event[ControllerEvent.TIMESTAMP])
-            else:
-                return
+            logger.info(
+                "Starting analyzing for:", timestamp=event[ControllerEvent.TIMESTAMP]
+            )
+            last_stream_timestamp = datetime.datetime.fromisoformat(
+                event[ControllerEvent.TIMESTAMP]
+            )
             with _BatchWindowGenerator(
-                project=self.project, endpoint_id=endpoint_id, window_length=self._window_length
+                project=self.project,
+                endpoint_id=endpoint_id,
+                window_length=self._window_length,
             ) as batch_window_generator:
                 for application in applications_names:
                     for (
@@ -335,7 +344,9 @@ class MonitoringApplicationController:
                     ) in batch_window_generator.get_intervals(
                         application=application,
                         not_batch_endpoint=not_batch_endpoint,
-                        first_request=datetime.datetime.fromisoformat(event[ControllerEvent.FIRST_REQUEST]),
+                        first_request=datetime.datetime.fromisoformat(
+                            event[ControllerEvent.FIRST_REQUEST]
+                        ),
                         last_request=last_stream_timestamp,
                         # TODO: Roy in here we should take care this value taking the timestamp from the event of nop,
                         #  notice this value is handled with the subtraction of the timeout
@@ -369,11 +380,12 @@ class MonitoringApplicationController:
                                 applications_names=[application],
                                 model_monitoring_access_key=self.model_monitoring_access_key,
                             )
-                # base_period = event[ControllerEvent.ENDPOINT_POLICY]["base_period"]
+                base_period = event[ControllerEvent.ENDPOINT_POLICY]["base_period"]
                 if (
-                        mlrun.utils.datetime_now().timestamp()
-                        - batch_window_generator.batch_window._get_last_analyzed()
-                        >= datetime.timedelta(minutes=1).total_seconds()
+                    mlrun.utils.datetime_now().timestamp()
+                    - batch_window_generator.batch_window._get_last_analyzed()
+                    >= datetime.timedelta(minutes=base_period).total_seconds()
+                    and event[ControllerEvent.KIND] != ControllerEventKind.NOP_EVENT
                 ):
                     event = {
                         ControllerEvent.KIND: mm_constants.ControllerEventKind.NOP_EVENT,
@@ -383,10 +395,18 @@ class MonitoringApplicationController:
                         ControllerEvent.TIMESTAMP: mlrun.utils.datetime_now().isoformat(
                             timespec="microseconds"
                         ),
-                        ControllerEvent.ENDPOINT_POLICY: {},
-                        ControllerEvent.ENDPOINT_TYPE: event[ControllerEvent.ENDPOINT_POLICY],
-                        ControllerEvent.FEATURE_SET_URI: event[ControllerEvent.FEATURE_SET_URI],
-                        ControllerEvent.FIRST_REQUEST: event[ControllerEvent.FIRST_REQUEST],
+                        ControllerEvent.ENDPOINT_POLICY: event[
+                            ControllerEvent.ENDPOINT_POLICY
+                        ],
+                        ControllerEvent.ENDPOINT_TYPE: event[
+                            ControllerEvent.ENDPOINT_TYPE
+                        ],
+                        ControllerEvent.FEATURE_SET_URI: event[
+                            ControllerEvent.FEATURE_SET_URI
+                        ],
+                        ControllerEvent.FIRST_REQUEST: event[
+                            ControllerEvent.FIRST_REQUEST
+                        ],
                     }
                     self._push_to_main_stream(
                         event=event,
@@ -453,50 +473,72 @@ class MonitoringApplicationController:
         pushes a regular event to the controller stream.
         :param event: the nuclio trigger event
         """
-        logger.info("Creating regular event for model endpoint:")
+        logger.info("Starting monitoring controller chief")
         applications_names = []
         db = mlrun.get_run_db()
-        endpoints = db.list_model_endpoints(project=self.project, tsdb_metrics=True).endpoints
+        endpoints = db.list_model_endpoints(
+            project=self.project, tsdb_metrics=True
+        ).endpoints
         if not endpoints:
             logger.info("No model endpoints found", project=self.project)
             return
         for endpoint in endpoints:
-            monitoring_functions = self.project_obj.list_model_monitoring_functions()
-            if monitoring_functions:
-                applications_names = list(
-                    {app.metadata.name for app in monitoring_functions}
+            if self._should_monitor_endpoint(endpoint):
+                monitoring_functions = (
+                    self.project_obj.list_model_monitoring_functions()
                 )
-            if not applications_names:
-                logger.info("No monitoring functions found", project=self.project)
-                return
-            policy = {
-                "monitoring_applications": applications_names,
-                "base_period": int(
-                    batch_dict2timedelta(
-                        json.loads(
-                            cast(
-                                str,
-                                os.getenv(
-                                    mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-                                ),
+                if monitoring_functions:
+                    applications_names = list(
+                        {app.metadata.name for app in monitoring_functions}
+                    )
+                if not applications_names:
+                    logger.info("No monitoring functions found", project=self.project)
+                    return
+                policy = {
+                    "monitoring_applications": applications_names,
+                    "base_period": int(
+                        batch_dict2timedelta(
+                            json.loads(
+                                cast(
+                                    str,
+                                    os.getenv(
+                                        mm_constants.EventFieldType.BATCH_INTERVALS_DICT
+                                    ),
+                                )
                             )
-                        )
-                    ).total_seconds()
-                ),
-            }
-            logger.info("Regular event is being pushed to controller stream for model endpoint", model_endpoint=endpoint)
-            self.push_to_controller_stream(
-                kind=mm_constants.ControllerEventKind.REGULAR_EVENT,
-                project=self.project,
-                endpoint_id=endpoint.metadata.uid,
-                endpoint_name=endpoint.metadata.name,
-                model_monitoring_access_key=self.model_monitoring_access_key,
-                timestamp=endpoint.status.last_request.isoformat(sep=" ", timespec="microseconds") if endpoint.status.last_request else "",
-                first_request=endpoint.status.first_request.isoformat(sep=" ", timespec="microseconds") if endpoint.status.first_request else "",
-                endpoint_type=endpoint.metadata.endpoint_type,
-                feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
-                endpoint_policy=policy,
-            )
+                        ).total_seconds()
+                        // 60
+                    ),
+                }
+                logger.info(
+                    "Regular event is being pushed to controller stream for model endpoint",
+                    model_endpoint=endpoint,
+                )
+                self.push_to_controller_stream(
+                    kind=mm_constants.ControllerEventKind.REGULAR_EVENT,
+                    project=self.project,
+                    endpoint_id=endpoint.metadata.uid,
+                    endpoint_name=endpoint.metadata.name,
+                    model_monitoring_access_key=self.v3io_access_key,
+                    timestamp=endpoint.status.last_request.isoformat(
+                        sep=" ", timespec="microseconds"
+                    )
+                    if endpoint.status.last_request
+                    else "",
+                    first_request=endpoint.status.first_request.isoformat(
+                        sep=" ", timespec="microseconds"
+                    )
+                    if endpoint.status.first_request
+                    else "",
+                    endpoint_type=endpoint.metadata.endpoint_type,
+                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
+                    endpoint_policy=policy,
+                )
+            else:
+                logger.info(
+                    "Should not monitor model endpoint, didn't push regular event",
+                    model_endpoint=endpoint,
+                )
 
     @staticmethod
     def push_to_controller_stream(
@@ -529,15 +571,15 @@ class MonitoringApplicationController:
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
         regular_event = {
-                    ControllerEvent.KIND.value: kind,
-                    ControllerEvent.ENDPOINT_ID.value: endpoint_id,
-                    ControllerEvent.ENDPOINT_NAME.value: endpoint_name,
-                    ControllerEvent.TIMESTAMP.value: timestamp,
-                    ControllerEvent.FIRST_REQUEST.value: first_request,
-                    ControllerEvent.ENDPOINT_TYPE.value: endpoint_type,
-                    ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
-                    ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy or {},
-                }
+            ControllerEvent.KIND.value: kind,
+            ControllerEvent.ENDPOINT_ID.value: endpoint_id,
+            ControllerEvent.ENDPOINT_NAME.value: endpoint_name,
+            ControllerEvent.TIMESTAMP.value: timestamp,
+            ControllerEvent.FIRST_REQUEST.value: first_request,
+            ControllerEvent.ENDPOINT_TYPE.value: endpoint_type,
+            ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
+            ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy or {},
+        }
         logger.info(
             "Pushing data to controller stream",
             event=regular_event,
@@ -545,14 +587,10 @@ class MonitoringApplicationController:
             stream_uri=stream_uri,
         )
         get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
-            [
-                regular_event
-            ]
+            [regular_event]
         )
 
-    def _push_to_main_stream(
-        self, event: dict, endpoint_id: str
-    ):
+    def _push_to_main_stream(self, event: dict, endpoint_id: str):
         """
         Pushes the given event to model monitoring stream
         :param event: event dictionary to push to stream
@@ -580,7 +618,6 @@ def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
     """
     logger.info(
         "Controller got event",
-        event=event,
         trigger=event.trigger,
         trigger_kind=event.trigger.kind,
     )

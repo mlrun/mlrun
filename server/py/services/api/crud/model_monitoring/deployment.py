@@ -313,7 +313,7 @@ class MonitoringDeployment:
                 != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
                 else mlrun.mlconf.get_v3io_access_key()
             )
-            kwargs = {"access_key": self.model_monitoring_access_key}
+            kwargs = {"access_key": access_key}
             if mlrun.mlconf.is_explicit_ack_enabled():
                 kwargs["explicit_ack_mode"] = "explicitOnly"
                 kwargs["worker_allocation_mode"] = "static"

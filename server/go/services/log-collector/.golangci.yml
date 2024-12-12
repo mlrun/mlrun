@@ -41,10 +41,6 @@ run:
     - test_unit
     - test_integration
 
-  skip-dirs:
-    - docs
-    - vendor
-
 linters-settings:
   revive:
     rules:

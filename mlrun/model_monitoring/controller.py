@@ -551,7 +551,7 @@ class MonitoringApplicationController:
         first_request: str,
         endpoint_type: str,
         feature_set_uri: str,
-        endpoint_policy: dict[str, Any]
+        endpoint_policy: dict[str, Any],
     ) -> None:
         """
         Pushes event data to controller writer.

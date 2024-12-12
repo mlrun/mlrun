@@ -162,9 +162,23 @@ async def list_artifacts(
     producer_uri: Optional[str] = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
-    limit: int = Query(None),
+    limit: int = Query(
+        None,
+        deprecated=True,
+        description="Use page and page_size, will be removed in the 1.10.0",
+    ),
     since: Optional[str] = None,
     until: Optional[str] = None,
+    partition_by: Optional[mlrun.common.schemas.ArtifactPartitionByField] = Query(
+        None, alias="partition-by"
+    ),
+    rows_per_partition: Optional[int] = Query(1, alias="rows-per-partition", gt=0),
+    partition_sort_by: Optional[mlrun.common.schemas.SortField] = Query(
+        mlrun.common.schemas.SortField.updated, alias="partition-sort-by"
+    ),
+    partition_order: Optional[mlrun.common.schemas.OrderType] = Query(
+        mlrun.common.schemas.OrderType.desc, alias="partition-order"
+    ),
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -176,6 +190,12 @@ async def list_artifacts(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
+
+    # TODO: deprecate the limit parameter in the list_artifacts method in 1.10.0
+    if limit and (page_size or page):
+        raise mlrun.errors.MLRunConflictError(
+            "'page/page_size' and 'limit' are conflicting, only one can be specified."
+        )
 
     paginator = services.api.utils.pagination.Paginator()
 
@@ -209,6 +229,10 @@ async def list_artifacts(
         producer_id=tree,
         producer_uri=producer_uri,
         limit=limit,
+        partition_by=partition_by,
+        rows_per_partition=rows_per_partition,
+        partition_sort_by=partition_sort_by,
+        partition_order=partition_order,
     )
     return {
         "artifacts": artifacts,
@@ -244,6 +268,20 @@ async def get_artifact(
             auth_info,
         )
     )
+
+    # Older clients (pre-1.8.0) do not support parsing "uid" and treat "tree^uid" as a single "tree" value.
+    # To ensure compatibility, we split "tree" here to extract "uid" if it exists.
+    if tree and "^" in tree:
+        tree, uri_object_uid = tree.split("^", 1)
+        if object_uid and object_uid != uri_object_uid:
+            mlrun.utils.logger.warning(
+                "Conflicting UIDs detected",
+                object_uid=object_uid,
+                extracted_object_uid=uri_object_uid,
+            )
+        # If object_uid is not set, assign it from the URI
+        object_uid = object_uid or uri_object_uid
+
     artifact = await run_in_threadpool(
         services.api.crud.Artifacts().get_artifact,
         db_session,

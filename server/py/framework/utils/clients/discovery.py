@@ -95,6 +95,7 @@ class Client(
             "post": [],
             "put": [],
             "delete": [],
+            "patch": [],
         }
         routes = self._service_routes(service_name)
         for methods, path in routes:
@@ -138,5 +139,6 @@ class Client(
                 (["put", "get", "delete"], "alert-templates.*"),
                 (["*"], "projects/.+/alerts.*"),
                 (["post"], "projects/.+/events.*"),
+                (["get"], "projects/.+/alert-activations"),
             ],
         }[service_name]

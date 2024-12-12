@@ -686,6 +686,53 @@ def test_get_artifact_validate_tag_exists_in_the_response(
     assert artifact["metadata"].get("tag") is None
 
 
+def test_server_handles_artifact_uri_with_uid_for_older_clients(
+    db: Session,
+    unversioned_client: TestClient,
+) -> None:
+    """
+    Test that the server handles artifact URIs with the `^uid` notation correctly,
+    including scenarios with matching UIDs, mismatching UIDs, and missing explicit UIDs.
+    """
+    _create_project(unversioned_client)
+
+    # Generate and store artifact data with a tree value
+    tree = "tree"
+    artifact_data = _generate_artifact_body(tree=tree)
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact = resp.json()
+    artifact_uid = artifact["metadata"]["uid"]
+
+    # Add `^uid` to the `tree` in the artifact URI to simulate the new URI format
+    tree_with_uid = f"{artifact['metadata']['tree']}^{artifact_uid}"
+
+    # Validate server behavior when using the new `tree^uid` format
+    url = _get_artifact_url(uid=artifact_uid, tree=tree_with_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+
+    # Ensure the server correctly parses the tree and uid
+    assert artifact["metadata"]["tree"] == tree
+    assert artifact["metadata"]["uid"] == artifact_uid
+
+    # Test with mismatched UID in the `tree`
+    tree_with_mismatched_uid = f"{artifact['metadata']['tree']}^{artifact_uid}123"
+    url = _get_artifact_url(uid=artifact_uid, tree=tree_with_mismatched_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.OK.value
+    assert artifact["metadata"]["uid"] == artifact_uid
+
+    # Test without providing the explicit object UID in the request
+    url = _get_artifact_url(tree=tree_with_mismatched_uid)
+    resp = unversioned_client.get(url)
+    assert resp.status_code == HTTPStatus.NOT_FOUND.value
+
+
 def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
     _create_project(client)
 
@@ -1101,6 +1148,72 @@ def test_list_artifacts_with_pagination(db: Session, unversioned_client: TestCli
     assert response.json()["pagination"]["page-token"] is None
 
 
+def test_list_artifacts_partition_by(db: Session, unversioned_client: TestClient):
+    projects = ["project-1", "project-2"]
+    artifact_keys = ["artifact-1", "artifact-2"]
+    artifact_tags = ["first", "second"]
+    iterations = 3
+
+    for project in projects:
+        _create_project(unversioned_client, project_name=project)
+        for artifact_key in artifact_keys:
+            for iteration in range(iterations):
+                for tag in artifact_tags:
+                    json = _generate_artifact_body(
+                        key=artifact_key, project=project, iteration=iteration, tag=tag
+                    )
+                    resp = unversioned_client.post(
+                        STORE_API_ARTIFACTS_V2_PATH.format(project=project),
+                        json=json,
+                    )
+                    assert resp.status_code == HTTPStatus.CREATED.value
+
+    # partioned list, specific project, 1 row per partition by default, so 2 names * 1 row = 2
+    artifacts = _list_and_assert_objects(
+        unversioned_client,
+        params={
+            "partition-by": mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+            "partition-sort-by": mlrun.common.schemas.SortField.created,
+            "partition-order": mlrun.common.schemas.OrderType.asc,
+        },
+        expected_number_of_artifacts=2,
+        project=projects[0],
+    )
+    # sorted by ascending created so only the first ones created
+    for artifact in artifacts:
+        assert artifact["metadata"]["iter"] == 0
+
+    # partioned list, specific project, 1 row per partition by default, so 2 names * 1 row = 2
+    artifacts = _list_and_assert_objects(
+        unversioned_client,
+        params={
+            "tag": "latest",
+            "partition-by": mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
+        },
+        expected_number_of_artifacts=2,
+        project=projects[0],
+    )
+    # sorted by descending updated so only the second ones created
+    for artifact in artifacts:
+        assert artifact["metadata"]["iter"] == 2
+        assert artifact["metadata"]["tag"] == "latest"
+
+    # partioned list, specific project, 5 row per partition, so 2 names * 5 row = 10
+    _list_and_assert_objects(
+        unversioned_client,
+        params={
+            "partition-by": mlrun.common.schemas.ArtifactPartitionByField.project_and_name,
+            "partition-sort-by": mlrun.common.schemas.SortField.updated,
+            "partition-order": mlrun.common.schemas.OrderType.desc,
+            "rows-per-partition": 5,
+        },
+        expected_number_of_artifacts=10,
+        project=projects[0],
+    )
+
+
 def _create_project(
     client: TestClient, project_name: str = PROJECT, prefix: Optional[str] = None
 ):
@@ -1153,7 +1266,9 @@ def _generate_artifact_body(
     return data
 
 
-def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> str:
+def _get_artifact_url(
+    uid: Optional[str] = None, tag: Optional[str] = None, tree: Optional[str] = None
+) -> str:
     url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
     params = []
 
@@ -1161,5 +1276,23 @@ def _get_artifact_url(uid: Optional[str] = None, tag: Optional[str] = None) -> s
         params.append(f"object-uid={uid}")
     if tag:
         params.append(f"tag={tag}")
+    if tree:
+        params.append(f"tree={tree}")
 
     return f"{url}?{'&'.join(params)}" if params else url
+
+
+def _list_and_assert_objects(
+    unversioned_client: TestClient,
+    params,
+    expected_number_of_artifacts: int,
+    project: str,
+):
+    response = unversioned_client.get(
+        LIST_API_ARTIFACTS_V2_PATH.format(project=project), params=params
+    )
+    assert response.status_code == HTTPStatus.OK.value, response.text
+
+    artifacts = response.json()["artifacts"]
+    assert len(artifacts) == expected_number_of_artifacts
+    return artifacts

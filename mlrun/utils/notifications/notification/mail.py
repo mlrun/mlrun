@@ -13,7 +13,8 @@
 # limitations under the License.
 import re
 import typing
-from email.message import EmailMessage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import aiosmtplib
 
@@ -69,8 +70,19 @@ class MailNotification(base.NotificationBase):
         alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
         event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):
-        self.params.setdefault("subject", f"[{severity}] {message}")
-        self.params.setdefault("body", message)
+        self.params["subject"] = f"[{severity}] {message}"
+        message_body_override = self.params.get("message_body_override", None)
+
+        runs_html = self._get_html(
+            message, severity, runs, custom_html, alert, event_data
+        )
+        self.params["body"] = runs_html
+
+        if message_body_override:
+            self.params["body"] = message_body_override.replace(
+                "{{ runs }}", runs_html
+            ).replace("{{runs}}", runs_html)
+
         await self._send_email(**self.params)
 
     @classmethod
@@ -84,12 +96,27 @@ class MailNotification(base.NotificationBase):
         params.setdefault("server_port", DEFAULT_SMTP_PORT)
 
         default_mail_address = params.pop("default_email_addresses", "")
-        email_addresses = params.get("email_addresses", default_mail_address)
-        if isinstance(email_addresses, list):
-            email_addresses = ",".join(email_addresses)
-        params["email_addresses"] = email_addresses
+        params["email_addresses"] = cls._merge_mail_addresses(
+            default_mail_address, params.get("email_addresses", "")
+        )
 
         return params
+
+    @classmethod
+    def _merge_mail_addresses(
+        cls,
+        default_mail_address: typing.Union[str, list],
+        email_addresses: typing.Union[str, list],
+    ) -> str:
+        if isinstance(default_mail_address, str):
+            default_mail_address = (
+                default_mail_address.split(",") if default_mail_address else []
+            )
+        if isinstance(email_addresses, str):
+            email_addresses = email_addresses.split(",") if email_addresses else []
+        email_addresses.extend(default_mail_address)
+        email_addresses_str = ",".join(email_addresses)
+        return email_addresses_str
 
     @classmethod
     def _validate_emails(cls, params):
@@ -130,11 +157,11 @@ class MailNotification(base.NotificationBase):
         **kwargs,
     ):
         # Create the email message
-        message = EmailMessage()
+        message = MIMEMultipart("alternative")
         message["From"] = sender_address
         message["To"] = email_addresses
         message["Subject"] = subject
-        message.set_content(body)
+        message.attach(MIMEText(body, "html"))
 
         # Send the email
         await aiosmtplib.send(

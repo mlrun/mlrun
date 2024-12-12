@@ -136,7 +136,7 @@ default_config = {
         },
     },
     "object_retentions": {
-        "alert_activation": 14 * 7,  # days
+        "alert_activations": 14 * 7,  # days
     },
     # A safety margin to account for delays
     # This ensures that extra partitions are available beyond the specified retention period
@@ -160,6 +160,7 @@ default_config = {
         # migration from artifacts to artifacts_v2 is done in batches, and requires a state file to keep track of the
         # migration progress.
         "artifact_migration_batch_size": 200,
+        "artifact_migration_v9_batch_size": 30000,
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
         "datasets": {
             "max_preview_columns": 100,
@@ -232,6 +233,7 @@ default_config = {
                 "delete_function": "900",
             },
             "runtimes": {"dask": "600"},
+            "push_notifications": "60",
         },
     },
     "function": {
@@ -533,7 +535,7 @@ default_config = {
             "verbose": True,
         },
         "pagination": {
-            "default_page_size": 20,
+            "default_page_size": 200,
             "pagination_cache": {
                 "interval": 60,
                 "ttl": 3600,
@@ -607,8 +609,6 @@ default_config = {
         "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
-        "endpoint_store_connection": "",
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
         "tsdb_connection": "",
         # See mlrun.common.schemas.model_monitoring.constants.StreamKind for available options

@@ -21,7 +21,7 @@ import typing
 from concurrent.futures import ThreadPoolExecutor
 
 import mlrun.common.constants as mlrun_constants
-import mlrun.common.runtimes.constants
+import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
@@ -118,21 +118,37 @@ class NotificationPusher(_NotificationPusherBase):
         ] = []
 
         for run in self._runs:
-            if isinstance(run, dict):
-                run = mlrun.model.RunObject.from_dict(run)
+            try:
+                self._process_run(run)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to process run",
+                    run_uid=run.metadata.uid,
+                    error=mlrun.errors.err_to_str(exc),
+                )
 
-            for notification in run.spec.notifications:
-                try:
-                    notification.status = run.status.notifications.get(
-                        notification.name
-                    ).get("status", mlrun.common.schemas.NotificationStatus.PENDING)
-                except (AttributeError, KeyError):
-                    notification.status = (
-                        mlrun.common.schemas.NotificationStatus.PENDING
-                    )
+    def _process_run(self, run):
+        if isinstance(run, dict):
+            run = mlrun.model.RunObject.from_dict(run)
 
-                if self._should_notify(run, notification):
-                    self._load_notification(run, notification)
+        for notification in run.spec.notifications:
+            try:
+                self._process_notification(notification, run)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to process notification",
+                    run_uid=run.metadata.uid,
+                    notification=notification,
+                    error=mlrun.errors.err_to_str(exc),
+                )
+
+    def _process_notification(self, notification, run):
+        notification.status = run.status.notifications.get(notification.name, {}).get(
+            "status",
+            mlrun.common.schemas.NotificationStatus.PENDING,
+        )
+        if self._should_notify(run, notification):
+            self._load_notification(run, notification)
 
     def push(self):
         """
@@ -176,6 +192,11 @@ class NotificationPusher(_NotificationPusherBase):
                     logger.warning(
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
+                        traceback=traceback.format_exception(
+                            etype=type(result),
+                            value=result,
+                            tb=result.__traceback__,
+                        ),
                     )
 
         logger.debug(
@@ -205,7 +226,7 @@ class NotificationPusher(_NotificationPusherBase):
         for when_state in when_states:
             if when_state == run_state:
                 if (
-                    run_state == "completed"
+                    run_state == runtimes_constants.RunStates.completed
                     and evaluate_condition_in_separate_process(
                         notification.condition,
                         context={
@@ -213,7 +234,11 @@ class NotificationPusher(_NotificationPusherBase):
                             "notification": notification.to_dict(),
                         },
                     )
-                ) or run_state in ["error", "aborted"]:
+                ) or run_state in [
+                    runtimes_constants.RunStates.error,
+                    runtimes_constants.RunStates.aborted,
+                    runtimes_constants.RunStates.running,
+                ]:
                     return True
 
         return False
@@ -420,7 +445,7 @@ class NotificationPusher(_NotificationPusherBase):
             _run["step_kind"] = _step.step_type
             if _step.skipped:
                 _run.setdefault("status", {})["state"] = (
-                    mlrun.common.runtimes.constants.RunStates.skipped
+                    runtimes_constants.RunStates.skipped
                 )
             steps.append(_run)
 
@@ -447,7 +472,7 @@ class NotificationPusher(_NotificationPusherBase):
                 if _step.skipped:
                     state = mlrun.common.schemas.FunctionState.skipped
                 else:
-                    state = mlrun.common.runtimes.constants.PodPhases.pod_phase_to_run_state(
+                    state = runtimes_constants.PodPhases.pod_phase_to_run_state(
                         pod_phase
                     )
                 function["status"] = {"state": state}

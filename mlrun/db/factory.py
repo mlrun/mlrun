@@ -54,9 +54,6 @@ class RunDBFactory(
             self._run_db = self._rundb_container.nop(url)
 
         else:
-            # TODO: this practically makes the SQLRunDB a singleton, which mean that its session is shared, needs
-            #  to be refreshed frequently and cannot be used concurrently.
-            #  The SQLRunDB should always get its session from the FastAPI dependency injection.
             self._run_db = self._rundb_container.run_db(url)
 
         self._run_db.connect(secrets=secrets)

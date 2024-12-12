@@ -117,6 +117,8 @@ class ModelObj:
                 # If one of the attributes is a third party object that has to_dict method (such as k8s objects), then
                 # add it to the object's _fields_to_serialize attribute and handle it in the _serialize_field method.
                 if hasattr(field_value, "to_dict"):
+                    # TODO: Allow passing fields to exclude from the parent object to the child object
+                    #  e.g.: run.to_dict(exclude=["status.artifacts"])
                     field_value = field_value.to_dict(strip=strip)
                     if self._is_valid_field_value_for_serialization(
                         field_name, field_value, strip
@@ -443,6 +445,7 @@ class Credentials(ModelObj):
 class BaseMetadata(ModelObj):
     _default_fields_to_strip = ModelObj._default_fields_to_strip + [
         "hash",
+        "uid",
         # Below are environment specific fields, no need to keep when stripping
         "namespace",
         "project",
@@ -465,10 +468,12 @@ class BaseMetadata(ModelObj):
         categories=None,
         updated=None,
         credentials=None,
+        uid=None,
     ):
         self.name = name
         self.tag = tag
         self.hash = hash
+        self.uid = uid
         self.namespace = namespace
         self.project = project or ""
         self.labels = labels or {}
@@ -1266,6 +1271,8 @@ class RunSpec(ModelObj):
 
 class RunStatus(ModelObj):
     """Run status"""
+
+    _default_fields_to_strip = ModelObj._default_fields_to_strip + ["artifacts"]
 
     def __init__(
         self,

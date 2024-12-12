@@ -35,7 +35,6 @@ router = fastapi.APIRouter(prefix="/operations")
 
 
 current_migration_background_task_name = None
-current_refresh_smtp_configuration_task_name = None
 
 
 @router.post(
@@ -205,7 +204,7 @@ async def _perform_refresh_smtp(session: str):
             "Failed to get SMTP configuration from Iguazio",
             exc=mlrun.errors.err_to_str(exc),
         )
-        return
+        raise
 
     updated_params = {
         "server_host": returned_smtp_configuration.host,

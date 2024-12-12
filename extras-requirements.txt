@@ -29,8 +29,8 @@ azure-keyvault-secrets~=4.2
 pyopenssl>=23
 bokeh~=2.4, >=2.4.2
 plotly~=5.23
-# To support python 11, google-cloud-bigquery requires grpcio>=1.49.1, which is incompatible with the grpcio version
-# required by frames (because it upgrades protobuf from 3.x to 4.x, breaking binary compatibility)
+# To support python 3.11, google-cloud-bigquery requires grpcio>=1.49.1 (protobuf 4), which is incompatible with the
+# grpcio and protobuf versions required by frames<0.13 and kfp<2
 google-cloud-bigquery[pandas, bqstorage]==3.14.1
 google-cloud-storage==2.14.0
 google-cloud-bigquery-storage~=2.17

@@ -172,7 +172,7 @@ async def test_list_functions_with_pagination(
         expected_page=1,
         expected_results_count=page_size,
         expected_page_size=page_size,
-        expected_first_result_name="function-name-0",
+        expected_first_result_name="function-name-24",
         entity_name="funcs",
         entity_identifier_name="name",
     )
@@ -191,7 +191,7 @@ async def test_list_functions_with_pagination(
         expected_page=2,
         expected_results_count=page_size,
         expected_page_size=page_size,
-        expected_first_result_name="function-name-10",
+        expected_first_result_name="function-name-14",
         entity_name="funcs",
         entity_identifier_name="name",
     )
@@ -208,7 +208,7 @@ async def test_list_functions_with_pagination(
         expected_page=3,
         expected_results_count=5,
         expected_page_size=page_size,
-        expected_first_result_name="function-name-20",
+        expected_first_result_name="function-name-4",
         entity_name="funcs",
         entity_identifier_name="name",
     )

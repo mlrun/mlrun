@@ -16,7 +16,7 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 
-GO_VERSION=$(shell grep -m1 'go ' ../go/go.work | cut -d' ' -f2)
+GO_VERSION=$(shell grep -m1 'go ' ../go/go.work | awk '{split($$2,a,"."); print a[1] "." a[2]}')
 
 #
 # Build

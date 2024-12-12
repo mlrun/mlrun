@@ -24,7 +24,6 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.db.factory
-import mlrun.model_monitoring.model_endpoint
 from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
 
@@ -48,15 +47,20 @@ class SQLRunDB(RunDBInterface):
         dsn,
         session=None,
     ):
-        self.session = session
+        self._session = session
         self.dsn = dsn
         self.db = None
 
     def connect(self, secrets=None):
-        if not self.session:
-            self.session = create_session()
         self.db = SQLDB(self.dsn)
         return self
+
+    @property
+    def session(self):
+        # If we were given a session - use it, otherwise we create a new one to keep a fresh snapshot of the db
+        if self._session:
+            return self._session
+        return create_session()
 
     def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(
@@ -250,6 +254,16 @@ class SQLRunDB(RunDBInterface):
         tree: Optional[str] = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: Optional[int] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[
+            Union[mlrun.common.schemas.SortField, str]
+        ] = mlrun.common.schemas.SortField.updated,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
     ):
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
@@ -993,52 +1007,58 @@ class SQLRunDB(RunDBInterface):
 
     def create_model_endpoint(
         self,
-        project: str,
-        endpoint_id: str,
-        model_endpoint: Union[
-            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
-        ],
-    ):
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()
 
     def delete_model_endpoint(
         self,
+        name: str,
         project: str,
-        endpoint_id: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
     ):
         raise NotImplementedError()
 
     def list_model_endpoints(
         self,
         project: str,
-        model: Optional[str] = None,
-        function: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-        start: str = "now-1h",
-        end: str = "now",
-        metrics: Optional[list[str]] = None,
+        name: Optional[str] = None,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        model_name: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        tsdb_metrics: bool = True,
         top_level: bool = False,
         uids: Optional[list[str]] = None,
-    ) -> list[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
+        latest_only: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpointList:
         raise NotImplementedError()
 
     def get_model_endpoint(
         self,
+        name: str,
         project: str,
-        endpoint_id: str,
-        start: Optional[str] = None,
-        end: Optional[str] = None,
-        metrics: Optional[list[str]] = None,
-        features: bool = False,
-    ):
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+        tsdb_metrics: bool = True,
+        feature_analysis: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()
 
     def patch_model_endpoint(
         self,
+        name: str,
         project: str,
-        endpoint_id: str,
         attributes: dict,
-    ):
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()
 
     def create_hub_source(
@@ -1292,6 +1312,9 @@ class SQLRunDB(RunDBInterface):
         page_token: Optional[str] = None,
         **kwargs,
     ):
+        raise NotImplementedError
+
+    def get_project_summary(self, project: str):
         raise NotImplementedError
 
 

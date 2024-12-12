@@ -173,6 +173,7 @@ class WriterEventKind(MonitoringStrEnum):
 class ControllerEvent(MonitoringStrEnum):
     KIND = "kind"
     ENDPOINT_ID = "endpoint_id"
+    ENDPOINT_NAME = "endpoint_name"
     PROJECT = "project"
     TIMESTAMP = "timestamp"
     FIRST_REQUEST = "first_request"

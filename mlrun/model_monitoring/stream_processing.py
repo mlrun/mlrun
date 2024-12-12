@@ -34,7 +34,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
     FileTargetKind,
     MonitoringFunctionNames,
-    ProjectSecretKeys,
+    ProjectSecretKeys, ControllerEventKind,
 )
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model_monitoring import get_stream_path
@@ -229,6 +229,20 @@ class EventStreamProcessor:
             )
 
         apply_map_feature_names()
+        # split the graph between event with error vs valid event
+        graph.add_step(
+            "storey.Filter",
+            "FilterNOP",
+            after="MapFeatureNames",
+            _fn="(event.get('kind', "") != 'nop_event')",
+        )
+        graph.add_step(
+            "storey.Filter",
+            "ForwardNOP",
+            after="MapFeatureNames",
+            _fn="(event.get('kind', "") == 'nop_event')",
+        )
+
         tsdb_connector.apply_monitoring_stream_steps(
             graph=graph,
             aggregate_windows=self.aggregate_windows,
@@ -241,14 +255,37 @@ class EventStreamProcessor:
             graph.add_step(
                 "ProcessBeforeParquet",
                 name="ProcessBeforeParquet",
-                after="MapFeatureNames",
+                after="FilterNOP",
                 _fn="(event)",
             )
 
         apply_process_before_parquet()
 
+        # Write the Parquet target file, partitioned by key (endpoint_id) and time.
+        def apply_parquet_target():
+            graph.add_step(
+                "storey.ParquetTarget",
+                name="ParquetTarget",
+                after="ProcessBeforeParquet",
+                graph_shape="cylinder",
+                path=self.parquet_path,
+                storage_options=self.storage_options,
+                max_events=self.parquet_batching_max_events,
+                flush_after_seconds=self.parquet_batching_timeout_secs,
+                attributes={"infer_columns_from_data": True},
+                index_cols=[EventFieldType.ENDPOINT_ID],
+                key_bucketing_number=0,
+                time_partitioning_granularity="hour",
+                time_field=EventFieldType.TIMESTAMP,
+                partition_cols=["$key", "$year", "$month", "$day", "$hour"],
+            )
+
+        apply_parquet_target()
+
+        # controller branch
         def apply_push_controller_stream():
-            # TODO: make sure nop event is stands in event condition
+            # TODO: Roy make sure nop event is stands in event condition
+
             stream_uri = get_stream_path(
                 project=self.project,
                 function_name=MonitoringFunctionNames.APPLICATION_CONTROLLER,
@@ -260,6 +297,7 @@ class EventStreamProcessor:
                     path=stream_uri,
                     sharding_func=ControllerEvent.ENDPOINT_ID,
                     access_key=self.v3io_access_key,
+                    after="ForwardNOP",
                 )
                 # endpoint, path = parse_path(stream_uri)
                 #
@@ -284,6 +322,7 @@ class EventStreamProcessor:
                     path=stream_uri,
                     kafka_brokers=brokers,
                     sharding_func=ControllerEvent.ENDPOINT_ID,
+                    after="ForwardNOP",
                 )
                 # graph.add_step(
                 #     class_name="storey.KafkaTarget",
@@ -293,27 +332,6 @@ class EventStreamProcessor:
                 # )
 
         apply_push_controller_stream()
-
-        # Write the Parquet target file, partitioned by key (endpoint_id) and time.
-        def apply_parquet_target():
-            graph.add_step(
-                "storey.ParquetTarget",
-                name="ParquetTarget",
-                after="ProcessBeforeParquet",
-                graph_shape="cylinder",
-                path=self.parquet_path,
-                storage_options=self.storage_options,
-                max_events=self.parquet_batching_max_events,
-                flush_after_seconds=self.parquet_batching_timeout_secs,
-                attributes={"infer_columns_from_data": True},
-                index_cols=[EventFieldType.ENDPOINT_ID],
-                key_bucketing_number=0,
-                time_partitioning_granularity="hour",
-                time_field=EventFieldType.TIMESTAMP,
-                partition_cols=["$key", "$year", "$month", "$day", "$hour"],
-            )
-
-        apply_parquet_target()
 
 
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
@@ -388,6 +406,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
     def do(self, full_event):
         event = full_event.body
+        if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
+            logger.info("Skipped nop event inside of ProcessEndpointEvent", event=event)
+            return storey.Event(body=[event])
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
@@ -636,6 +657,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         return None
 
     def do(self, event: dict):
+        if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
+            logger.info("Skipped nop event inside of MapFeatureNames", event=event)
+            return event
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
         feature_values = event[EventFieldType.FEATURES]
@@ -841,28 +865,6 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
             ).execute(backend="kv", table=self.table, command="infer_schema")
 
         return event
-
-
-class _PushToMonitoringController(StepToDict):
-    def __init__(
-        self, project: str, stream_uri: typing.Optional[str], name: typing.Optional[str]
-    ):
-        self.project = project
-        self.stream_uri = stream_uri or get_stream_path(
-            project=self.project,
-            function_name=MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        )
-        self.name = name
-        self.output_stream = None
-
-    def do(self, event: dict[str, typing.Any]):
-        self._lazy_init()
-        self.output_stream.push([event])
-        logger.info(f"Pushed data to {self.stream_uri} successfully")
-
-    def _lazy_init(self):
-        if self.output_stream is None:
-            self.output_stream = mlrun.datastore.get_stream_pusher(self.stream_uri)
 
 
 def update_endpoint_record(

@@ -24,14 +24,13 @@ linters:
     - misspell
     - staticcheck
     - unconvert
-    - vet
-    - vetshadow
     - errcheck
     - govet
     - typecheck
     - unused
     - gocritic
     - gci
+    - govet
 
 run:
 

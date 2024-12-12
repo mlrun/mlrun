@@ -400,7 +400,7 @@ class Service(framework.service.Service):
         page_token: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session,
-    ):
+    ) -> mlrun.common.schemas.AlertActivations:
         allowed_projects_with_creation_time = await (
             services.api.crud.Projects().list_allowed_project_names_with_creation_time(
                 db_session,
@@ -439,10 +439,10 @@ class Service(framework.service.Service):
             event_kind=event_kind,
         )
 
-        return {
-            "activations": activations,
-            "pagination": page_info,
-        }
+        return mlrun.common.schemas.AlertActivations(
+            activations=activations,
+            pagination=page_info,
+        )
 
     async def _move_service_to_online(self):
         if not get_project_member():

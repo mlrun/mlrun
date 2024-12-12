@@ -23,6 +23,7 @@ import pandas as pd
 import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.base
 import mlrun.feature_store
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.serving
@@ -37,7 +38,13 @@ from .helpers import update_model_endpoint_last_request
 
 # A union of all supported dataset types:
 DatasetType = typing.Union[
-    "mlrun.DataItem", list, dict, pd.DataFrame, pd.Series, np.ndarray, typing.Any
+    mlrun.datastore.base.DataItem,
+    list,
+    dict,
+    pd.DataFrame,
+    pd.Series,
+    np.ndarray,
+    typing.Any,
 ]
 
 
@@ -346,7 +353,7 @@ def _generate_model_endpoint(
                                      the current model endpoint. Will be stored under
                                      `model_endpoint.status.feature_stats`.
 
-    :return `mlrun.model_monitoring.model_endpoint.ModelEndpoint` object.
+    :return `mlrun.common.schemas.ModelEndpoint` object.
     """
     if not function_name and context:
         function_name = FunctionURI.from_string(
@@ -615,4 +622,13 @@ def _create_model_monitoring_function_base(
         project=project,
         writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
     )
+
+    def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:
+        raise NotImplementedError(
+            "Model monitoring serving functions do not support `.to_mock_server`. "
+            "You may call your model monitoring application object logic via the `.evaluate` method."
+        )
+
+    func_obj.to_mock_server = block_to_mock_server  # Until ML-7643 is implemented
+
     return func_obj

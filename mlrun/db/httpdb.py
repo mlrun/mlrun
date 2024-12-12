@@ -48,6 +48,7 @@ from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 from mlrun_pipelines.utils import compile_pipeline
 
 from ..artifacts import Artifact
+from ..common.schemas import AlertActivations
 from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
@@ -996,7 +997,7 @@ class HTTPRunDB(RunDBInterface):
         tag=None,
         project="",
         tree=None,
-    ):
+    ) -> dict[str, str]:
         """Store an artifact in the DB.
 
         :param key: Identifying key of the artifact.
@@ -1008,6 +1009,7 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Tag of the artifact.
         :param project: Project that the artifact belongs to.
         :param tree: The tree (producer id) which generated this artifact.
+        :returns: The stored artifact dictionary.
         """
         if uid:
             warnings.warn(
@@ -1032,9 +1034,10 @@ class HTTPRunDB(RunDBInterface):
             params["tree"] = tree
 
         body = _as_json(artifact)
-        self.api_call(
+        response = self.api_call(
             "PUT", endpoint_path, error, body=body, params=params, version="v2"
         )
+        return response.json()
 
     def read_artifact(
         self,
@@ -3123,7 +3126,7 @@ class HTTPRunDB(RunDBInterface):
             for project_dict in response.json()["projects"]
         ]
 
-    def get_project(self, name: str) -> mlrun.projects.MlrunProject:
+    def get_project(self, name: str) -> "mlrun.MlrunProject":
         """Get details for a specific project."""
 
         if not name:
@@ -3132,7 +3135,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{name}"
         error_message = f"Failed retrieving project {name}"
         response = self.api_call("GET", path, error_message)
-        return mlrun.projects.MlrunProject.from_dict(response.json())
+        return mlrun.MlrunProject.from_dict(response.json())
 
     def delete_project(
         self,
@@ -3601,8 +3604,9 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: str,
         project: str,
-        function_name: str,
-        endpoint_id: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
     ):
         """
         Deletes the DB record of a given model endpoint, project and endpoint_id are used for lookup
@@ -3610,15 +3614,19 @@ class HTTPRunDB(RunDBInterface):
         :param name: The name of the model endpoint
         :param project: The name of the project
         :param function_name: The name of the function
+        :param function_tag: The tag of the function
         :param endpoint_id: The id of the endpoint
         """
-
+        self._check_model_endpoint_representation(
+            function_name, function_tag, endpoint_id
+        )
         path = f"projects/{project}/model-endpoints/{name}"
         self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,
             path=path,
             params={
                 "function_name": function_name,
+                "function_tag": function_tag,
                 "endpoint_id": endpoint_id,
             },
         )
@@ -3628,6 +3636,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         name: Optional[str] = None,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
@@ -3643,6 +3652,7 @@ class HTTPRunDB(RunDBInterface):
         :param project:         The name of the project
         :param name:            The name of the model endpoint
         :param function_name:   The name of the function
+        :param function_tag:    The tag of the function
         :param model_name:      The name of the model
         :param labels:          A list of labels to filter by. (see mlrun.common.schemas.LabelsModel)
         :param start:           The start time to filter by.Corresponding to the `created` field.
@@ -3663,6 +3673,7 @@ class HTTPRunDB(RunDBInterface):
                 "name": name,
                 "model_name": model_name,
                 "function_name": function_name,
+                "function_tag": function_tag,
                 "label": labels,
                 "start": datetime_to_iso(start),
                 "end": datetime_to_iso(end),
@@ -3680,7 +3691,7 @@ class HTTPRunDB(RunDBInterface):
         name: str,
         project: str,
         function_name: Optional[str] = None,
-        # TODO: function_tag
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
         tsdb_metrics: bool = True,
         feature_analysis: bool = False,
@@ -3691,6 +3702,7 @@ class HTTPRunDB(RunDBInterface):
         :param name:                       The name of the model endpoint
         :param project:                    The name of the project
         :param function_name:              The name of the function
+        :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
         :param tsdb_metrics:               Whether to include metrics from the time series DB.
         :param feature_analysis:           Whether to include feature analysis data (feature_stats,
@@ -3698,13 +3710,16 @@ class HTTPRunDB(RunDBInterface):
 
         :return:                          A `ModelEndpoint` object.
         """
-
+        self._check_model_endpoint_representation(
+            function_name, function_tag, endpoint_id
+        )
         path = f"projects/{project}/model-endpoints/{name}"
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
                 "function_name": function_name,
+                "function_tag": function_tag,
                 "endpoint_id": endpoint_id,
                 "tsdb_metrics": tsdb_metrics,
                 "feature_analysis": feature_analysis,
@@ -3719,6 +3734,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         attributes: dict,
         function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
@@ -3728,13 +3744,16 @@ class HTTPRunDB(RunDBInterface):
         :param project:                    The name of the project
         :param attributes:                 The attributes to update
         :param function_name:              The name of the function
+        :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
         :return:                          The updated `ModelEndpoint` object.
         """
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
         attributes["project"] = project
-        attributes["uid"] = endpoint_id or ""
+        attributes["function_name"] = function_name or None
+        attributes["function_tag"] = function_tag or None
+        attributes["uid"] = endpoint_id or None
         model_endpoint = mlrun.common.schemas.ModelEndpoint.from_flat_dict(attributes)
         path = f"projects/{project}/model-endpoints"
         logger.info(
@@ -3752,6 +3771,15 @@ class HTTPRunDB(RunDBInterface):
         )
 
         return mlrun.common.schemas.ModelEndpoint(**response.json())
+
+    @staticmethod
+    def _check_model_endpoint_representation(
+        function_name: str, function_tag: str, uid: str
+    ):
+        if not uid and not (function_name and function_tag):
+            raise MLRunInvalidArgumentError(
+                "Either endpoint_uid or function_name and function_tag must be provided"
+            )
 
     def update_model_monitoring_controller(
         self,
@@ -4745,7 +4773,7 @@ class HTTPRunDB(RunDBInterface):
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-    ) -> list[mlrun.common.schemas.AlertActivation]:
+    ) -> mlrun.common.schemas.AlertActivations:
         """
         Retrieve a list of all alert activations.
 
@@ -4781,7 +4809,7 @@ class HTTPRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         **kwargs,
-    ) -> tuple[list, Optional[str]]:
+    ) -> tuple[AlertActivations, Optional[str]]:
         """List alerts activations with support for pagination and various filtering options.
 
         This method retrieves a paginated list of alert activations based on the specified filter parameters.
@@ -4836,6 +4864,22 @@ class HTTPRunDB(RunDBInterface):
             return_all=False,
             **kwargs,
         )
+
+    def get_project_summary(
+        self, project: Optional[str] = None
+    ) -> mlrun.common.schemas.ProjectSummary:
+        """
+        Retrieve the summary of a project.
+
+        :param project: Project name for which the summary belongs.
+        :returns: A summary of the project.
+        """
+        project = project or config.default_project
+
+        endpoint_path = f"project-summaries/{project}"
+        error_message = f"Failed retrieving project summary for {project}"
+        response = self.api_call("GET", endpoint_path, error_message)
+        return mlrun.common.schemas.ProjectSummary(**response.json())
 
     @staticmethod
     def _parse_labels(
@@ -5128,7 +5172,7 @@ class HTTPRunDB(RunDBInterface):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         return_all: bool = False,
-    ) -> tuple[list[mlrun.common.schemas.AlertActivation], Optional[str]]:
+    ) -> tuple[mlrun.common.schemas.AlertActivations, Optional[str]]:
         project = project or config.default_project
         params = {
             "name": name,
@@ -5152,9 +5196,12 @@ class HTTPRunDB(RunDBInterface):
         paginated_responses, token = self.process_paginated_responses(
             responses, "activations"
         )
-        paginated_results = [
-            mlrun.common.schemas.AlertActivation(**item) for item in paginated_responses
-        ]
+        paginated_results = mlrun.common.schemas.AlertActivations(
+            activations=[
+                mlrun.common.schemas.AlertActivation(**item)
+                for item in paginated_responses
+            ]
+        )
 
         return paginated_results, token
 

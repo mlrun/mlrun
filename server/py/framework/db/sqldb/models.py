@@ -839,7 +839,7 @@ with warnings.catch_warnings():
             self._full_object = json.dumps(value, default=str)
 
     class AlertActivation(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "alert_activation"
+        __tablename__ = "alert_activations"
         __table_args__ = (
             PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
             Index("ix_alert_activation_project_name", "project", "name"),
@@ -905,7 +905,12 @@ with warnings.catch_warnings():
         __tablename__ = "model_endpoints"
         __table_args__ = (
             UniqueConstraint(
-                "project", "name", "uid", "function_name", name="_mep_uc_2"
+                "project",
+                "name",
+                "uid",
+                "function_name",
+                "function_tag",
+                name="_mep_uc_2",
             ),
         )
 
@@ -915,6 +920,7 @@ with warnings.catch_warnings():
         project = Column(String(255, collation=SQLTypesUtil.collation()))
         function_name = Column(String(255, collation=SQLTypesUtil.collation()))
         function_uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        function_tag = Column(String(64, collation=SQLTypesUtil.collation()))
         model_uid = Column(String(255, collation=SQLTypesUtil.collation()))
         model_name = Column(String(255, collation=SQLTypesUtil.collation()))
         body = Column(SQLTypesUtil.blob())

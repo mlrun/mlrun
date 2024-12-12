@@ -197,13 +197,15 @@ class V2ModelServer(StepToDict):
             extra dataitems dictionary
 
         """
-        model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
-            self.model_path, suffix
-        )
-        if self.model_spec and self.model_spec.parameters:
-            for key, value in self.model_spec.parameters.items():
-                self._params[key] = value
-        return model_file, extra_dataitems
+        if self.model_path:
+            model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
+                self.model_path, suffix
+            )
+            if self.model_spec and self.model_spec.parameters:
+                for key, value in self.model_spec.parameters.items():
+                    self._params[key] = value
+            return model_file, extra_dataitems
+        return None, None
 
     def load(self):
         """model loading function, see also .get_model() method"""
@@ -569,11 +571,22 @@ def _init_endpoint_record(
     logger.info("Initializing endpoint records")
     if not model.model_spec:
         model.get_model()
+    if model.model_spec:
+        model_name = model.model_spec.metadata.key
+        model_uid = model.model_spec.metadata.uid
+        model_tag = model.model_spec.tag
+        model_labels = model.model_spec.labels  # todo : check if we still need this
+    else:
+        model_name = None
+        model_uid = None
+        model_tag = None
+        model_labels = {}
     try:
         model_ep = mlrun.get_run_db().get_model_endpoint(
             project=graph_server.project,
             name=model.name,
             function_name=graph_server.function_name,
+            function_tag=graph_server.function_tag or "latest",
         )
     except mlrun.errors.MLRunNotFoundError:
         model_ep = None
@@ -595,16 +608,17 @@ def _init_endpoint_record(
             name=model.name,
             project=graph_server.project,
             function_name=graph_server.function_name,
+            function_tag=graph_server.function_tag or "latest",
             function_uid=function_uid,
-            model_name=model.model_spec.metadata.key,
-            model_uid=model.model_spec.metadata.uid,
+            model_name=model_name,
+            model_uid=model_uid,
             model_class=model.__class__.__name__,
-            model_tag=model.model_spec.tag,
+            model_tag=model_tag,
         )
-        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+        model_ep = mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
                 project=graph_server.project,
-                labels=model.model_spec.labels,
+                labels=model_labels,
                 name=model.name,
                 endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP,
             ),
@@ -612,8 +626,8 @@ def _init_endpoint_record(
                 function_name=graph_server.function_name,
                 function_uid=function_uid,
                 function_tag=graph_server.function_tag or "latest",
-                model_name=model.model_spec.metadata.key,
-                model_uid=model.model_spec.metadata.uid,
+                model_name=model_name,
+                model_uid=model_uid,
                 model_class=model.__class__.__name__,
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
@@ -623,16 +637,20 @@ def _init_endpoint_record(
             ),
         )
         db = mlrun.get_run_db()
-        db.create_model_endpoint(model_endpoint=model_endpoint)
+        model_ep = db.create_model_endpoint(model_endpoint=model_ep)
 
     elif model_ep:
         attributes = {}
         if function_uid != model_ep.spec.function_uid:
             attributes[ModelEndpointSchema.FUNCTION_UID] = function_uid
-        if model.model_spec.metadata.key != model_ep.spec.model_name:
-            attributes[ModelEndpointSchema.MODEL_NAME] = model.model_spec.metadata.key
-        if model.model_spec.metadata.uid != model_ep.spec.model_uid:
-            attributes[ModelEndpointSchema.MODEL_UID] = model.model_spec.metadata.uid
+        if model_name != model_ep.spec.model_name:
+            attributes[ModelEndpointSchema.MODEL_NAME] = model_name
+        if model_uid != model_ep.spec.model_uid:
+            attributes[ModelEndpointSchema.MODEL_UID] = model_uid
+        if model_tag != model_ep.spec.model_tag:
+            attributes[ModelEndpointSchema.MODEL_TAG] = model_tag
+        if model_labels != model_ep.metadata.labels:
+            attributes[ModelEndpointSchema.LABELS] = model_labels
         if model.__class__.__name__ != model_ep.spec.model_class:
             attributes[ModelEndpointSchema.MODEL_CLASS] = model.__class__.__name__
         if (
@@ -656,7 +674,6 @@ def _init_endpoint_record(
             model_ep = db.patch_model_endpoint(
                 project=model_ep.metadata.project,
                 name=model_ep.metadata.name,
-                function_name=model_ep.spec.function_name,
                 endpoint_id=model_ep.metadata.uid,
                 attributes=attributes,
             )

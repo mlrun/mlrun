@@ -229,6 +229,56 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     assert run["status"]["error"] == "Run was aborted by user"
 
 
+def test_push_notifications(db: Session, client: TestClient) -> None:
+    project = "some-project"
+    run = {
+        "metadata": {
+            "name": "run-name",
+            "uid": "run-uid",
+            "project": project,
+        },
+        "status": {
+            "state": mlrun.common.runtimes.constants.RunStates.running,
+        },
+        "spec": {
+            "notifications": [
+                {
+                    "condition": "",
+                    "kind": "mail",
+                    "message": "message!",
+                    "name": "ENXuIbyqEx",
+                    "params": {
+                        "email_addresses": [
+                            "hegeg56369@inikale.com",
+                        ],
+                        "message_body_override": "Hello {{runs}}",
+                        "start_tls": True,
+                        "use_tls": False,
+                        "validate_certs": False,
+                    },
+                    "severity": "verbose",
+                    "when": ["completed", "error", "running"],
+                }
+            ],
+        },
+    }
+    run_uid = "run-uid-notifications"
+    services.api.crud.Runs().store_run(db, run, run_uid, project=project)
+    response = client.post(
+        f"projects/{project}/runs/{run_uid}/push_notifications",
+    )
+
+    assert response.status_code == HTTPStatus.OK.value
+    background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+    background_task = framework.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+        db, background_task.metadata.name, project
+    )
+    assert (
+        background_task.status.state
+        == mlrun.common.schemas.BackgroundTaskState.succeeded
+    )
+
+
 def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
     run_1_start_time = datetime.now(timezone.utc)
 

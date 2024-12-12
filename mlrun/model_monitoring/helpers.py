@@ -24,6 +24,9 @@ if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
 
+from fnmatch import fnmatchcase
+from typing import Optional
+
 import mlrun
 import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
@@ -43,6 +46,70 @@ class _BatchDict(typing.TypedDict):
     minutes: int
     hours: int
     days: int
+
+
+def _is_results_regex_match(
+    existing_result_name: Optional[str],
+    result_name_filters: Optional[list[str]],
+) -> bool:
+    if existing_result_name.count(".") != 3 or any(
+        part == "" for part in existing_result_name.split(".")
+    ):
+        logger.warning(
+            f"_is_results_regex_match: existing_result_name illegal, will be ignored."
+            f" existing_result_name: {existing_result_name}"
+        )
+        return False
+    existing_result_name = ".".join(existing_result_name.split(".")[i] for i in [1, 3])
+    for result_name_filter in result_name_filters:
+        if fnmatchcase(existing_result_name, result_name_filter):
+            return True
+    return False
+
+
+def filter_results_by_regex(
+    existing_result_names: Optional[list[str]] = None,
+    result_name_filters: Optional[list[str]] = None,
+) -> list[str]:
+    """
+    Filter a list of existing result names by a list of filters.
+
+    This function returns only the results that match the filters provided. If no filters are given,
+    it returns all results. Invalid inputs are ignored.
+
+    :param existing_result_names: List of existing results' fully qualified names (FQNs)
+                                  in the format: endpoint_id.app_name.type.name.
+                                  Example: mep1.app1.result.metric1
+    :param result_name_filters:   List of filters in the format: app.result_name.
+                                  Wildcards can be used, such as app.result* or *.result
+
+    :return: List of FQNs of the matching results
+    """
+
+    if not result_name_filters:
+        return existing_result_names
+
+    if not existing_result_names:
+        return []
+
+    #  filters validations
+    validated_filters = []
+    for result_name_filter in result_name_filters:
+        if result_name_filter.count(".") != 1:
+            logger.warning(
+                f"filter_results_by_regex: result_name_filter illegal, will be ignored."
+                f"Filter: {result_name_filter}"
+            )
+        else:
+            validated_filters.append(result_name_filter)
+    filtered_metrics_names = []
+    for existing_result_name in existing_result_names:
+        if _is_results_regex_match(
+            existing_result_name=existing_result_name,
+            result_name_filters=validated_filters,
+        ):
+            filtered_metrics_names.append(existing_result_name)
+    return filtered_metrics_names
 
 
 def get_stream_path(
@@ -251,7 +318,6 @@ def update_model_endpoint_last_request(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
             name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
             attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
         )
     else:  # model endpoint without any serving function - close the window "manually"

@@ -685,7 +685,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(
             self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-            + 60
+            + 30
         )
 
         mep = mlrun.db.get_run_db().get_model_endpoint(

@@ -805,9 +805,9 @@ executing==2.1.0 \
     --hash=sha256:8d63781349375b5ebccc3142f4b30350c0cd9c79f921cde38be2be4637e98eaf \
     --hash=sha256:8ea27ddd260da8150fa5a708269c4a10e76161e2496ec3e587da9e3c0fe4b9ab
     # via stack-data
-fastapi==0.110.3 \
-    --hash=sha256:555700b0159379e94fdbfc6bb66a0f1c43f4cf7060f25239af3d84b63a656626 \
-    --hash=sha256:fd7600612f755e4050beb74001310b5a7e1796d149c2ee363124abdfa0289d32
+fastapi==0.115.6 \
+    --hash=sha256:9ec46f7addc14ea472958a96aae5b5de65f39721a46aaf5705c480d9a8b76654 \
+    --hash=sha256:e9240b29e36fa8f4bb7290316988e90c381e5092e0cbe84e7818cc3713bcf305
     # via -r dockerfiles/mlrun-api/requirements.txt
 fastjsonschema==2.21.1 \
     --hash=sha256:794d4f0a58f848961ba16af7b9c85a3e88cd360df008c59aac6fc5ae9323b5d4 \
@@ -3396,9 +3396,9 @@ stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
     # via ipython
-starlette==0.37.2 \
-    --hash=sha256:6fe59f29268538e5d0d182f2791a479a0c64638e6935d1c6989e63fb2699c6ee \
-    --hash=sha256:9af890290133b79fc3db55474ade20f6220a364a0402e0b556e7cd5e1e093823
+starlette==0.41.3 \
+    --hash=sha256:0e4ab3d16522a255be6b28260b938eae2482f98ce5cc934cb08dce8dc3ba5835 \
+    --hash=sha256:44cedb2b7c77a9de33a8b74b2b90e9f50d11fcf25d8270ea525ad71a25374ff7
     # via fastapi
 storey==1.8.3 \
     --hash=sha256:02d82e26826bafcfc6c378d1d7ba429e04d94f50dea7a59a2c3c90ea2c545488
@@ -3576,9 +3576,9 @@ urllib3==1.26.20 \
     #   kubernetes-asyncio
     #   requests
     #   snowflake-connector-python
-uvicorn==0.27.1 \
-    --hash=sha256:3d9a267296243532db80c83a959a3400502165ade2c1338dea4e67915fd4745a \
-    --hash=sha256:5c89da2f3895767472a35556e539fd59f7edbe9b1e9c0e1c99eebeadc61838e4
+uvicorn==0.32.1 \
+    --hash=sha256:82ad92fd58da0d12af7482ecdb5f2470a04c9c9a53ced65b9bbb4a205377602e \
+    --hash=sha256:ee9519c246a72b1c084cea8d3b44ed6026e78a4a309cbedae9c37e4cb9fbb175
     # via -r dockerfiles/mlrun-api/requirements.txt
 v3io==0.6.10 \
     --hash=sha256:7f9117b6152154061ee46da6c48021d51281094c8f63c7199abd4e7930471c9c \

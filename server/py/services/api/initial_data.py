@@ -908,7 +908,7 @@ def _ensure_function_kind(
 def _add_producer_uri_to_artifact(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
-    chunk_size: int = None,
+    chunk_size: typing.Optional[int] = None,
 ):
     chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
 

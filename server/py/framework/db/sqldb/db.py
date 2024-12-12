@@ -6863,6 +6863,8 @@ class SQLDB(DBInterface):
             function_tag=model_endpoint.spec.function_tag or "latest",
             model_uid=model_endpoint.spec.model_uid,
             model_name=model_endpoint.spec.model_name,
+            model_tag=model_endpoint.spec.model_tag,
+            model_db_key=model_endpoint.spec.model_db_key,
             endpoint_type=model_endpoint.metadata.endpoint_type.value,
             created=current_time,
             updated=current_time,

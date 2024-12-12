@@ -676,7 +676,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._add_error_alert()
 
         time.sleep(5)
-        self._infer(
+        last_request = self._infer(
             serving_fn, num_events=self.num_events, with_training_set=with_training_set
         )
 
@@ -685,14 +685,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(
             self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-            + 2
+            + 60
         )
-        for i in range(10):
-            last_request = self._infer(
-                serving_fn, num_events=1, with_training_set=with_training_set
-            )
-        # wait for the completed window to be processed
-        time.sleep(1.2 * self.app_interval_seconds)
 
         mep = mlrun.db.get_run_db().get_model_endpoint(
             name=f"{self.model_name}_{with_training_set}",

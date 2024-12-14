@@ -523,7 +523,7 @@ class MonitoringApplicationController:
                     ),
                     endpoint_type=endpoint.metadata.endpoint_type,
                     feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
-                    endpoint_policy=json.dumps(policy)
+                    endpoint_policy=json.dumps(policy),
                 )
                 self.push_to_controller_stream(
                     kind=mm_constants.ControllerEventKind.REGULAR_EVENT,

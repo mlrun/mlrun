@@ -588,6 +588,7 @@ class MonitoringApplicationController:
         )
         event = {
             ControllerEvent.KIND.value: kind,
+            ControllerEvent.PROJECT.value: project,
             ControllerEvent.ENDPOINT_ID.value: endpoint_id,
             ControllerEvent.ENDPOINT_NAME.value: endpoint_name,
             ControllerEvent.TIMESTAMP.value: timestamp,

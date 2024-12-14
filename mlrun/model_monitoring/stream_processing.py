@@ -96,7 +96,6 @@ class EventStreamProcessor:
         self.v3io_access_key = v3io_access_key or mlrun.get_secret_or_env(
             "V3IO_ACCESS_KEY"
         )
-        logger.info(f"access key = {self.v3io_access_key}")
         self.model_monitoring_access_key = (
             model_monitoring_access_key
             or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
@@ -104,18 +103,6 @@ class EventStreamProcessor:
         )
         self.storage_options = dict(
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
-        )
-
-        # KV path
-        kv_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-            project=self.project, kind=FileTargetKind.ENDPOINTS
-        )
-        (
-            _,
-            self.kv_container,
-            self.kv_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-            kv_path
         )
 
         # TSDB path and configurations

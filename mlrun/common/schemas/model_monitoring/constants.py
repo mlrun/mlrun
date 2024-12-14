@@ -181,6 +181,8 @@ class ControllerEvent(MonitoringStrEnum):
     FEATURE_SET_URI = "feature_set_uri"
     ENDPOINT_TYPE = "endpoint_type"
     ENDPOINT_POLICY = "endpoint_policy"
+    # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
+    # and "base_period"
 
 
 class ControllerEventKind(MonitoringStrEnum):

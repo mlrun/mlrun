@@ -303,6 +303,7 @@ class MonitoringApplicationController:
         logger.info("Model endpoint process started", event=event)
 
         try:
+            project_name = event[ControllerEvent.PROJECT]
             endpoint_id = event[ControllerEvent.ENDPOINT_ID]
             endpoint_name = event[ControllerEvent.ENDPOINT_NAME]
             applications_names = event[ControllerEvent.ENDPOINT_POLICY][
@@ -336,7 +337,7 @@ class MonitoringApplicationController:
                 event[ControllerEvent.FIRST_REQUEST]
             )
             with _BatchWindowGenerator(
-                project=self.project,
+                project=project_name,
                 endpoint_id=endpoint_id,
                 window_length=self._window_length,
             ) as batch_window_generator:
@@ -375,23 +376,24 @@ class MonitoringApplicationController:
                                 end_infer_time=end_infer_time,
                                 endpoint_id=endpoint_id,
                                 endpoint_name=endpoint_name,
-                                project=self.project,
+                                project=project_name,
                                 applications_names=[application],
                                 model_monitoring_access_key=self.model_monitoring_access_key,
                             )
                 base_period = event[ControllerEvent.ENDPOINT_POLICY]["base_period"]
+                current_time = mlrun.utils.datetime_now()
                 if (
-                    mlrun.utils.datetime_now().timestamp()
+                    current_time.timestamp()
                     - batch_window_generator.batch_window._get_last_analyzed()
                     >= datetime.timedelta(minutes=base_period).total_seconds()
                     and event[ControllerEvent.KIND] != ControllerEventKind.NOP_EVENT
                 ):
                     event = {
                         ControllerEvent.KIND: mm_constants.ControllerEventKind.NOP_EVENT,
-                        ControllerEvent.PROJECT: self.project,
+                        ControllerEvent.PROJECT: project_name,
                         ControllerEvent.ENDPOINT_ID: endpoint_id,
                         ControllerEvent.ENDPOINT_NAME: endpoint_name,
-                        ControllerEvent.TIMESTAMP: mlrun.utils.datetime_now().isoformat(
+                        ControllerEvent.TIMESTAMP: current_time.isoformat(
                             timespec="microseconds"
                         ),
                         ControllerEvent.ENDPOINT_POLICY: event[
@@ -511,7 +513,17 @@ class MonitoringApplicationController:
                 }
                 logger.info(
                     "Regular event is being pushed to controller stream for model endpoint",
-                    model_endpoint=endpoint,
+                    endpoint_id=endpoint.metadata.uid,
+                    endpoint_name=endpoint.metadata.name,
+                    timestamp=endpoint.status.last_request.isoformat(
+                        sep=" ", timespec="microseconds"
+                    ),
+                    first_request=endpoint.status.first_request.isoformat(
+                        sep=" ", timespec="microseconds"
+                    ),
+                    endpoint_type=endpoint.metadata.endpoint_type,
+                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
+                    endpoint_policy=json.dumps(policy)
                 )
                 self.push_to_controller_stream(
                     kind=mm_constants.ControllerEventKind.REGULAR_EVENT,
@@ -521,14 +533,10 @@ class MonitoringApplicationController:
                     stream_access_key=self.v3io_access_key,
                     timestamp=endpoint.status.last_request.isoformat(
                         sep=" ", timespec="microseconds"
-                    )
-                    if endpoint.status.last_request
-                    else "",
+                    ),
                     first_request=endpoint.status.first_request.isoformat(
                         sep=" ", timespec="microseconds"
-                    )
-                    if endpoint.status.first_request
-                    else "",
+                    ),
                     endpoint_type=endpoint.metadata.endpoint_type,
                     feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                     endpoint_policy=policy,
@@ -536,7 +544,16 @@ class MonitoringApplicationController:
             else:
                 logger.info(
                     "Should not monitor model endpoint, didn't push regular event",
-                    model_endpoint=endpoint,
+                    endpoint_id=endpoint.metadata.uid,
+                    endpoint_name=endpoint.metadata.name,
+                    timestamp=endpoint.status.last_request.isoformat(
+                        sep=" ", timespec="microseconds"
+                    ),
+                    first_request=endpoint.status.first_request.isoformat(
+                        sep=" ", timespec="microseconds"
+                    ),
+                    endpoint_type=endpoint.metadata.endpoint_type,
+                    feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                 )
 
     @staticmethod

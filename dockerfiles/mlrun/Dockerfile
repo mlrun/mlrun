@@ -65,11 +65,16 @@ RUN conda config --add channels conda-forge && \
 
 
 # Install MLRun:
+# no-deps to ignore existing dependencies, just add the locked requirements
+# mainly because of how the image is built with conda.
+# see https://iguazio.atlassian.net/browse/ML-8712 for example
+# where 'tqdm' is given by conda env but will get remove if we omit the `--no-deps`.
+# TODO: move tqdm to image requirements
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/mlrun/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt
+    uv pip install --no-deps --require-hashes -r locked-requirements.txt
 
 COPY . .
 

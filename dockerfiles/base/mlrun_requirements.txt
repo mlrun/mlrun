@@ -1,9 +1,0 @@
-# This is a hard copy of dockerfiles/mlrun/requirements.txt file
-# minus the mpi4py dependency which is not supported on base image
-# NOTE: this entire base, common and models would be deleted soon
-# TODO: delete me once we delete models entirely
-matplotlib~=3.5
-scipy~=1.13.0
-scikit-learn~=1.5.1
-seaborn~=0.11.0
-scikit-plot~=0.3.7

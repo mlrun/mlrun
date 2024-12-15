@@ -25,6 +25,7 @@ MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
 MLRUN_LABEL_PREFIX = "mlrun/"
 DASK_LABEL_PREFIX = "dask.org/"
 NUCLIO_LABEL_PREFIX = "nuclio.io/"
+RESERVED_TAG_NAME_LATEST = "latest"
 
 
 class MLRunInternalLabels:

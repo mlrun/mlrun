@@ -1021,6 +1021,7 @@ def _init_endpoint_record(
             project=graph_server.project,
             name=voting_ensemble.name,
             function_name=graph_server.function_name,
+            function_tag=graph_server.function_tag or "latest",
         )
     except mlrun.errors.MLRunNotFoundError:
         model_endpoint = None
@@ -1049,6 +1050,7 @@ def _init_endpoint_record(
             name=voting_ensemble.name,
             project=graph_server.project,
             function_name=graph_server.function_name,
+            function_tag=graph_server.function_tag or "latest",
             function_uid=function_uid,
             model_class=voting_ensemble.__class__.__name__,
         )
@@ -1101,7 +1103,6 @@ def _init_endpoint_record(
             model_endpoint = db.patch_model_endpoint(
                 project=model_endpoint.metadata.project,
                 name=model_endpoint.metadata.name,
-                function_name=model_endpoint.spec.function_name,
                 endpoint_id=model_endpoint.metadata.uid,
                 attributes=attributes,
             )
@@ -1121,7 +1122,6 @@ def _init_endpoint_record(
         mlrun.get_run_db().patch_model_endpoint(
             name=name,
             project=graph_server.project,
-            function_name=graph_server.function_name,
             endpoint_id=uid,
             attributes={
                 ModelEndpointSchema.ENDPOINT_TYPE: mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP

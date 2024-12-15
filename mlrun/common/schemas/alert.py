@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from collections import defaultdict
+from collections.abc import Iterator
 from datetime import datetime
-from typing import Annotated, Optional, Union
+from typing import Annotated, Any, Callable, Optional, Union
 
 import pydantic.v1
 
@@ -216,3 +218,77 @@ class AlertActivation(pydantic.v1.BaseModel):
     number_of_events: int
     notifications: list[notification_objects.NotificationState]
     reset_time: Optional[datetime] = None
+
+    def group_key(self, attributes: list[str]) -> Union[Any, tuple]:
+        """
+        Dynamically create a key for grouping based on the provided attributes.
+        - If there's only one attribute, return the value directly (not a single-element tuple).
+        - If there are multiple attributes, return them as a tuple for grouping.
+
+        This ensures grouping behaves intuitively without redundant tuple representations.
+        """
+        if len(attributes) == 1:
+            # Avoid single-element tuple like (high,) when only one grouping attribute is used
+            return getattr(self, attributes[0])
+        # Otherwise, return a tuple of all specified attributes
+        return tuple(getattr(self, attr) for attr in attributes)
+
+
+class AlertActivations(pydantic.v1.BaseModel):
+    activations: list[AlertActivation]
+    pagination: Optional[dict]
+
+    def __iter__(self) -> Iterator[AlertActivation]:
+        return iter(self.activations)
+
+    def __getitem__(self, index: int) -> AlertActivation:
+        return self.activations[index]
+
+    def __len__(self) -> int:
+        return len(self.activations)
+
+    def group_by(self, *attributes: str) -> dict:
+        """
+        Group alert activations by specified attributes.
+
+        Args:
+        :param attributes: Attributes to group by.
+
+        :returns: A dictionary where keys are tuples of attribute values and values are lists of
+            AlertActivation objects.
+
+        Example:
+            # Group by project and severity
+            grouped = activations.group_by("project", "severity")
+        """
+        grouped = defaultdict(list)
+        for activation in self.activations:
+            key = activation.group_key(attributes)
+            grouped[key].append(activation)
+        return dict(grouped)
+
+    def aggregate_by(
+        self,
+        group_by_attrs: list[str],
+        aggregation_function: Callable[[list[AlertActivation]], Any],
+    ) -> dict:
+        """
+        Aggregate alert activations by specified attributes using a given aggregation function.
+
+        Args:
+        :param group_by_attrs: Attributes to group by.
+        :param aggregation_function: Function to aggregate grouped activations.
+
+        :returns: A dictionary where keys are tuples of attribute values and values are the result
+            of the aggregation function.
+
+        Example:
+            # Aggregate by name and entity_id and count number of activations in each group
+            activations.aggregate_by(["name", "entity_id"], lambda activations: len(activations))
+        """
+        grouped = self.group_by(*group_by_attrs)
+        aggregated = {
+            key: aggregation_function(activations)
+            for key, activations in grouped.items()
+        }
+        return aggregated

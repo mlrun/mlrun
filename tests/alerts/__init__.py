@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-ARG MLRUN_BASE_IMAGE=mlrun/mlrun:unstable-core
-
-FROM ${MLRUN_BASE_IMAGE}
-
-COPY . .
-RUN python -m pip install -U .[complete]

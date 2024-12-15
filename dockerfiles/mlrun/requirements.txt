@@ -5,4 +5,4 @@ seaborn~=0.11.0
 scikit-plot~=0.3.7
 mpi4py~=3.1
 # pymysql version should be aligned with mlrun-api due to common use with the model monitoring database
-pymysql~=1.0
+pymysql~=1.1

@@ -21,6 +21,7 @@ import deepdiff
 import pytest
 from sqlalchemy import distinct, select
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -717,6 +718,81 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, tag=artifact_2_tag
         )
         assert len(artifacts) == 1
+
+    def test_modify_artifact_tags(self):
+        project = "artifact_project"
+        artifact_key = "artifact-key"
+        artifact_body = self._generate_artifact(artifact_key, project=project)
+
+        # Step 1: Store artifacts with initial tags "v1" and "v2"
+        self._db.store_artifact(
+            self._db_session, artifact_key, artifact_body, project=project, tag="v1"
+        )
+        self._db.store_artifact(
+            self._db_session, artifact_key, artifact_body, project=project, tag="v2"
+        )
+
+        # Verify initial state: 3 artifacts, with the "latest", "v1", and "v2" tags
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 3
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+        assert artifacts[1]["metadata"]["tag"] == "v1"
+        assert artifacts[2]["metadata"]["tag"] == "v2"
+
+        # Step 2: Overwrite artifact with tag "v3"
+        identifier = mlrun.common.schemas.ArtifactIdentifier(key=artifact_key)
+        self._db.overwrite_artifacts_with_tag(
+            self._db_session, project, tag="v3", identifiers=[identifier]
+        )
+
+        # Verify after overwrite: "latest" remains, all other tags are deleted, and "v3" is added
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 2
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+        assert artifacts[1]["metadata"]["tag"] == "v3"
+
+        # Step 3: Append tag "v4"
+        self._db.append_tag_to_artifacts(
+            self._db_session, project, tag="v4", identifiers=[identifier]
+        )
+
+        # Verify after append: "latest" and "v3" remain, "v4" is added, so we expect 3 artifacts in total
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 3
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+        assert artifacts[1]["metadata"]["tag"] == "v3"
+        assert artifacts[2]["metadata"]["tag"] == "v4"
+
+        # Step 4: Delete tag "v3"
+        self._db.delete_tag_from_artifacts(
+            self._db_session, project, tag="v3", identifiers=[identifier]
+        )
+
+        # Verify that "latest" and "v4" tags remain, and "v3" tag is deleted
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 2
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
+        assert artifacts[1]["metadata"]["tag"] == "v4"
 
     def test_delete_artifacts_tag_filter(self):
         artifact_1_key = "artifact_key_1"

@@ -375,8 +375,10 @@ def _generate_model_endpoint(
         ),
         spec=mlrun.common.schemas.ModelEndpointSpec(
             function_name=function_name,
-            model_name=model_obj.metadata.key if model_path else None,
-            model_uid=model_obj.metadata.uid if model_path else None,
+            model_name=model_obj.metadata.key if model_obj else None,
+            model_uid=model_obj.metadata.uid if model_obj else None,
+            model_tag=model_obj.metadata.tag if model_obj else None,
+            model_db_key=model_obj.spec.db_key if model_obj else None,
             model_class="drift-analysis",
         ),
         status=mlrun.common.schemas.ModelEndpointStatus(
@@ -622,4 +624,13 @@ def _create_model_monitoring_function_base(
         project=project,
         writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
     )
+
+    def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:
+        raise NotImplementedError(
+            "Model monitoring serving functions do not support `.to_mock_server`. "
+            "You may call your model monitoring application object logic via the `.evaluate` method."
+        )
+
+    func_obj.to_mock_server = block_to_mock_server  # Until ML-7643 is implemented
+
     return func_obj

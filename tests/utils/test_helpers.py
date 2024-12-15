@@ -34,6 +34,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    parse_artifact_uri,
     resolve_image_tag_suffix,
     str_to_timestamp,
     template_artifact_path,
@@ -367,6 +368,125 @@ def test_validate_artifact_name(artifact_name, expected):
             artifact_name,
             field_name="artifact.db_key",
         )
+
+
+@pytest.mark.parametrize(
+    "uri,project,expected_project,expected_key,expected_iteration,expected_tag,expected_tree,expected_uid",
+    [
+        # Backward compatibility: URI without uid
+        ("artifact_key", "default", "default", "artifact_key", 0, None, None, None),
+        (
+            "project_name/artifact_key",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key#1",
+            "",
+            "project_name",
+            "artifact_key",
+            1,
+            None,
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key:latest",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            "latest",
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key@a1b2c3",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            "a1b2c3",
+            None,
+        ),
+        (
+            "artifact_key#2:tag@us3jfdrkj",
+            "default",
+            "default",
+            "artifact_key",
+            2,
+            "tag",
+            "us3jfdrkj",
+            None,
+        ),
+        # New functionality: URI with uid
+        (
+            "artifact_key^uid123",
+            "default",
+            "default",
+            "artifact_key",
+            0,
+            None,
+            None,
+            "uid123",
+        ),
+        (
+            "project_name/artifact_key^uid123",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            None,
+            "uid123",
+        ),
+        (
+            "project_name/artifact_key#1:latest@branch^uid123",
+            "",
+            "project_name",
+            "artifact_key",
+            1,
+            "latest",
+            "branch",
+            "uid123",
+        ),
+        (
+            "artifact_key@branch^uid123",
+            "default",
+            "default",
+            "artifact_key",
+            0,
+            None,
+            "branch",
+            "uid123",
+        ),
+    ],
+)
+def test_parse_artifact_uri(
+    uri,
+    project,
+    expected_project,
+    expected_key,
+    expected_iteration,
+    expected_tag,
+    expected_tree,
+    expected_uid,
+):
+    result = parse_artifact_uri(uri, project)
+    assert result == (
+        expected_project,
+        expected_key,
+        expected_iteration,
+        expected_tag,
+        expected_tree,
+        expected_uid,
+    ), f"Failed to parse artifact URI: {uri}"
 
 
 @pytest.mark.parametrize(

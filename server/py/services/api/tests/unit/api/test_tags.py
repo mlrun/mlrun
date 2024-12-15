@@ -22,6 +22,7 @@ import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.constants
 import mlrun.common.schemas
 
 API_PROJECTS_PATH = "projects"
@@ -619,7 +620,7 @@ class TestArtifactTags:
         artifact_func = getattr(self, artifact_tag_func)
         response = artifact_func(
             client=client,
-            tag="latest",
+            tag=mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             identifiers=[identifier],
         )
         assert response.status_code == http.HTTPStatus.BAD_REQUEST.value

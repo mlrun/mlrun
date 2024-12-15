@@ -21,6 +21,7 @@ import deepdiff
 import pytest
 from sqlalchemy import distinct, select
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -736,7 +737,10 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 3
-        assert artifacts[0]["metadata"]["tag"] == "latest"
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
         assert artifacts[1]["metadata"]["tag"] == "v1"
         assert artifacts[2]["metadata"]["tag"] == "v2"
 
@@ -751,7 +755,10 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 2
-        assert artifacts[0]["metadata"]["tag"] == "latest"
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
         assert artifacts[1]["metadata"]["tag"] == "v3"
 
         # Step 3: Append tag "v4"
@@ -764,7 +771,10 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 3
-        assert artifacts[0]["metadata"]["tag"] == "latest"
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
         assert artifacts[1]["metadata"]["tag"] == "v3"
         assert artifacts[2]["metadata"]["tag"] == "v4"
 
@@ -778,7 +788,10 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, project=project, name=artifact_key
         )
         assert len(artifacts) == 2
-        assert artifacts[0]["metadata"]["tag"] == "latest"
+        assert (
+            artifacts[0]["metadata"]["tag"]
+            == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
         assert artifacts[1]["metadata"]["tag"] == "v4"
 
     def test_delete_artifacts_tag_filter(self):

@@ -257,6 +257,7 @@ mlrun-gpu: update-version-file ## Build mlrun gpu docker image
 	docker build \
 		--file dockerfiles/gpu/Dockerfile \
 		--build-arg MLRUN_GPU_BASE_IMAGE=$(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
+		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		$(MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) \
@@ -822,7 +823,16 @@ upgrade-mlrun-base-deps-lock: verify-uv-version ## Upgrade mlrun-base locked req
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/base/locked-requirements.txt
 
+.PHONY: upgrade-mlrun-gpu-deps-lock
+upgrade-mlrun-gpu-deps-lock: verify-uv-version ## Upgrade mlrun-gpu locked requirements file
+	uv pip compile \
+		requirements.txt \
+		extras-requirements.txt \
+		dockerfiles/mlrun/requirements.txt \
 		dockerfiles/base/requirements.txt \
+		$(MLRUN_UV_UPGRADE_FLAG) \
+		--output-file dockerfiles/gpu/locked-requirements.txt
+
 .PHONY: upgrade-mlrun-jupyter-deps-lock
 upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter locked requirements file
 	uv pip compile \
@@ -839,3 +849,4 @@ upgrade-mlrun-deps-lock: upgrade-mlrun-mlrun-deps-lock
 upgrade-mlrun-deps-lock: upgrade-mlrun-api-deps-lock
 upgrade-mlrun-deps-lock: upgrade-mlrun-jupyter-deps-lock
 upgrade-mlrun-deps-lock: upgrade-mlrun-base-deps-lock
+upgrade-mlrun-deps-lock: upgrade-mlrun-gpu-deps-lock

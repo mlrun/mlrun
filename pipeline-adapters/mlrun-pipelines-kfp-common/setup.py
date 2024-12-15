@@ -21,7 +21,7 @@ logger = logging.getLogger("mlrun-kfp-setup")
 
 setup(
     name="mlrun-pipelines-kfp-common",
-    version="0.2.3",
+    version="0.2.4",
     description="MLRun Pipelines package for providing KFP common functionality",
     author="Yaron Haviv",
     author_email="yaronh@iguazio.com",
@@ -37,6 +37,11 @@ setup(
     keywords=[
         "mlrun",
         "kfp",
+    ],
+    install_requires=[
+        "graphviz~=0.20.0",
+        "kubernetes>=31.0.0",
+        "ipython>=8.10",
     ],
     python_requires=">=3.9, <3.12",
     long_description="MLRun Pipelines package for providing KFP common functionality",

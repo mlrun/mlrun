@@ -48,10 +48,6 @@ class Tags(
             raise mlrun.errors.MLRunNotFoundError(
                 f"Couldn't find overwrite function for object kind: {tag_objects.kind}"
             )
-        if tag == "latest":
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Cannot overwrite 'latest' tag on objects kind: {tag_objects.kind}"
-            )
         getattr(framework.utils.singletons.db.get_db(), overwrite_func)(
             session=db_session,
             project=project,
@@ -71,10 +67,6 @@ class Tags(
             raise mlrun.errors.MLRunNotFoundError(
                 f"Couldn't find append function for object kind: {tag_objects.kind}"
             )
-        if tag == "latest":
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Cannot append 'latest' tag to objects kind: {tag_objects.kind}"
-            )
         getattr(framework.utils.singletons.db.get_db(), append_func)(
             session=db_session,
             project=project,
@@ -93,10 +85,6 @@ class Tags(
         if not delete_func:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Couldn't find delete function for object kind: {tag_objects.kind}"
-            )
-        if tag == "latest":
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Cannot delete 'latest' tag from objects kind: {tag_objects.kind}"
             )
         getattr(framework.utils.singletons.db.get_db(), delete_func)(
             session=db_session,

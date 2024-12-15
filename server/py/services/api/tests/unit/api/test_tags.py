@@ -19,6 +19,7 @@ import unittest.mock
 import uuid
 
 import fastapi.testclient
+import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -597,6 +598,31 @@ class TestArtifactTags:
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
         self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
+
+    @pytest.mark.parametrize(
+        "artifact_tag_func",
+        [
+            "_overwrite_artifact_tags",
+            "_append_artifact_tag",
+            "_delete_artifact_tag",
+        ],
+    )
+    def test_modify_artifact_with_latest_tag(
+        self,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+        artifact_tag_func,
+    ):
+        self._create_project(client)
+        artifact_key = "artifact-key"
+        identifier = mlrun.common.schemas.ArtifactIdentifier(key=artifact_key)
+        artifact_func = getattr(self, artifact_tag_func)
+        response = artifact_func(
+            client=client,
+            tag="latest",
+            identifiers=[identifier],
+        )
+        assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
 
     def _delete_artifact_tag(
         self,

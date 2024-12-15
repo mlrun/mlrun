@@ -1390,9 +1390,11 @@ class SQLDB(DBInterface):
         commit: bool = True,
     ):
         artifacts_ids = [artifact.id for artifact in artifacts]
+        # Delete all tags except the "latest" tag, or filter by specific tags if provided
         query = session.query(ArtifactV2.Tag).filter(
             ArtifactV2.Tag.project == project,
             ArtifactV2.Tag.obj_id.in_(artifacts_ids),
+            ArtifactV2.Tag.name != "latest",
         )
         if tags:
             query = query.filter(ArtifactV2.Tag.name.in_(tags))

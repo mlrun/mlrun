@@ -269,13 +269,14 @@ class MonitoringApplicationController:
 
     def run(self, event: nuclio_sdk.Event) -> None:
         """
-        Main method for run all the relevant monitoring applications on each endpoint.
+        Main method for controller chief, runs all the relevant monitoring applications for a single endpoint.
+        Handles nop events logic.
         This method handles the following:
-        1. List model endpoints
-        2. List applications
-        3. Check model monitoring windows
-        4. Send data to applications
-        5. Delete old parquets
+        1. List applications from endpoint_policy
+        2. Check model monitoring windows
+        3. Send data to applications
+        4. Delete old parquets
+        5. Pushes nop event to main stream if needed
         """
         logger.info("Start running monitoring controller worker")
         try:
@@ -309,20 +310,7 @@ class MonitoringApplicationController:
             applications_names = event[ControllerEvent.ENDPOINT_POLICY][
                 "monitoring_applications"
             ]
-            # if monitoring_functions: - TODO : ML-7700
-            #   Gets only application in ready state
-            #   applications_names = list(
-            #       {
-            #           app.metadata.name
-            #           for app in monitoring_functions
-            #           if (
-            #               app.status.state == "ready"
-            #               # workaround for the default app, as its `status.state` is `None`
-            #               or app.metadata.name
-            #               == mm_constants.HistogramDataDriftApplicationConstants.NAME
-            #           )
-            #       }
-            #   )
+
             not_batch_endpoint = (
                 event[ControllerEvent.ENDPOINT_POLICY] != EndpointType.BATCH_EP
             )
@@ -483,34 +471,44 @@ class MonitoringApplicationController:
         if not endpoints:
             logger.info("No model endpoints found", project=self.project)
             return
+        monitoring_functions = self.project_obj.list_model_monitoring_functions()
+        if monitoring_functions:
+            # if monitoring_functions: - TODO : ML-7700
+            #   Gets only application in ready state
+            #   applications_names = list(
+            #       {
+            #           app.metadata.name
+            #           for app in monitoring_functions
+            #           if (
+            #               app.status.state == "ready"
+            #               # workaround for the default app, as its `status.state` is `None`
+            #               or app.metadata.name
+            #               == mm_constants.HistogramDataDriftApplicationConstants.NAME
+            #           )
+            #       }
+            #   )
+            applications_names = list(
+                {app.metadata.name for app in monitoring_functions}
+            )
+        if not applications_names:
+            logger.info("No monitoring functions found", project=self.project)
+            return
+        policy = {
+            "monitoring_applications": applications_names,
+            "base_period": int(
+                batch_dict2timedelta(
+                    json.loads(
+                        cast(
+                            str,
+                            os.getenv(mm_constants.EventFieldType.BATCH_INTERVALS_DICT),
+                        )
+                    )
+                ).total_seconds()
+                // 60
+            ),
+        }
         for endpoint in endpoints:
             if self._should_monitor_endpoint(endpoint):
-                monitoring_functions = (
-                    self.project_obj.list_model_monitoring_functions()
-                )
-                if monitoring_functions:
-                    applications_names = list(
-                        {app.metadata.name for app in monitoring_functions}
-                    )
-                if not applications_names:
-                    logger.info("No monitoring functions found", project=self.project)
-                    return
-                policy = {
-                    "monitoring_applications": applications_names,
-                    "base_period": int(
-                        batch_dict2timedelta(
-                            json.loads(
-                                cast(
-                                    str,
-                                    os.getenv(
-                                        mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-                                    ),
-                                )
-                            )
-                        ).total_seconds()
-                        // 60
-                    ),
-                }
                 logger.info(
                     "Regular event is being pushed to controller stream for model endpoint",
                     endpoint_id=endpoint.metadata.uid,
@@ -570,7 +568,7 @@ class MonitoringApplicationController:
         endpoint_policy: dict[str, Any],
     ) -> None:
         """
-        Pushes event data to controller writer.
+        Pushes event data to controller stream.
         :param timestamp: the event timestamp str isoformat utc timezone
         :param first_request: the first request str isoformat utc timezone
         :param endpoint_policy: dictionary hold the monitoring policy
@@ -603,9 +601,11 @@ class MonitoringApplicationController:
             endpoint_id=endpoint_id,
             stream_uri=stream_uri,
         )
-        get_stream_pusher(stream_uri, access_key=stream_access_key).push([event])
+        get_stream_pusher(stream_uri, access_key=stream_access_key).push(
+            [event], partition_key=endpoint_id
+        )
 
-    def _push_to_main_stream(self, event: dict, endpoint_id: str):
+    def _push_to_main_stream(self, event: dict, endpoint_id: str) -> None:
         """
         Pushes the given event to model monitoring stream
         :param event: event dictionary to push to stream
@@ -614,13 +614,13 @@ class MonitoringApplicationController:
         stream_uri = get_stream_path(project=event.get(ControllerEvent.PROJECT))
 
         logger.info(
-            "Pushing data to main stream",
+            "Pushing data to main stream, NOP event is been generated",
             event=json.dumps(event),
             endpoint_id=endpoint_id,
             stream_uri=stream_uri,
         )
         get_stream_pusher(stream_uri, access_key=self.model_monitoring_access_key).push(
-            [event]
+            [event], partition_key=endpoint_id
         )
 
 

@@ -271,8 +271,6 @@ class EventStreamProcessor:
 
         # controller branch
         def apply_push_controller_stream():
-            # TODO: Roy make sure nop event is stands in event condition
-
             stream_uri = get_stream_path(
                 project=self.project,
                 function_name=MonitoringFunctionNames.APPLICATION_CONTROLLER,

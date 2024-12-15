@@ -41,6 +41,7 @@ setup(
     python_requires=">=3.9, <3.12",
     install_requires=[
         "kfp_server_api>=2.3.0",
+        "kubernetes=~25.3.0",
         "mlrun_pipelines_kfp_common>=0.2.4",
     ],
     extras_require={

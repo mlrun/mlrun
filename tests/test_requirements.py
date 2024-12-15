@@ -41,6 +41,12 @@ def test_extras_requirement_file_aligned():
     extras_requirements_file_specifiers_map = _parse_requirement_specifiers_list(
         extras_requirements_file_specifiers
     )
+    # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
+    # we exclude them from the comparison
+    excluded_packages = ["mlrun_pipelines_kfp_v1_8", "mlrun_pipelines_kfp_v2"]
+    for package in excluded_packages:
+        if package in setup_py_extras_requirements_specifiers_map:
+            setup_py_extras_requirements_specifiers_map.pop(package)
     assert (
         deepdiff.DeepDiff(
             setup_py_extras_requirements_specifiers_map,

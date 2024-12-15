@@ -77,6 +77,6 @@ ARG MLRUN_PIPELINES_KFP_VERSION=1-8
 
 RUN python -m pip install -e .[complete] && \
     python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v${MLRUN_PIPELINES_KFP_VERSION}
+    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v${MLRUN_PIPELINES_KFP_VERSION}[kfp]
 
 ENV NO_COLOR=1

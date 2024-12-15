@@ -43,8 +43,6 @@ USER $NB_UID
 ## on the current image distribution.
 RUN mamba install --channel conda-forge --yes jupyterlab~=4.3
 
-ENV PIP_NO_CACHE_DIR=1
-
 ARG MLRUN_PIP_VERSION=24.2
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 

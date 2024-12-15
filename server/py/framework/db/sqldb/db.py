@@ -588,7 +588,7 @@ class SQLDB(DBInterface):
         always_overwrite=False,
     ) -> str:
         project = project or config.default_project
-        tag = tag or "latest"
+        tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
 
         # handle link artifacts separately
         if artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value:
@@ -731,8 +731,13 @@ class SQLDB(DBInterface):
             )
 
         # we want to tag the artifact also as "latest" if it's the first time we store it
-        if tag != "latest":
-            self.tag_artifacts(session, "latest", [db_artifact], project)
+        if tag != mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+            self.tag_artifacts(
+                session,
+                mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                [db_artifact],
+                project,
+            )
 
         return uid
 
@@ -857,13 +862,15 @@ class SQLDB(DBInterface):
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
 
-        if tag == "latest" and uid:
+        if tag == mlrun.common.constants.RESERVED_TAG_NAME_LATEST and uid:
             # Make a best-effort attempt to find the "latest" tag. It will be present in the response if the
             # latest tag exists, otherwise, it will not be included.
             # This is due to 'latest' being a special case and is enriched in the client side
             latest_query = query.join(
                 ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
-            ).filter(ArtifactV2.Tag.name == "latest")
+            ).filter(
+                ArtifactV2.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            )
             if latest_query.one_or_none():
                 enrich_tag = True
         elif tag:
@@ -897,7 +904,7 @@ class SQLDB(DBInterface):
 
             if fail:
                 if raise_on_not_found:
-                    artifact_uri = generate_artifact_uri(project, key, tag, iter)
+                    artifact_uri = generate_artifact_uri(project, key, tag, iter, uid)
                     raise mlrun.errors.MLRunNotFoundError(
                         f"Artifact {artifact_uri} not found"
                     )
@@ -1390,9 +1397,11 @@ class SQLDB(DBInterface):
         commit: bool = True,
     ):
         artifacts_ids = [artifact.id for artifact in artifacts]
+        # Delete all tags except the "latest" tag, or filter by specific tags if provided
         query = session.query(ArtifactV2.Tag).filter(
             ArtifactV2.Tag.project == project,
             ArtifactV2.Tag.obj_id.in_(artifacts_ids),
+            ArtifactV2.Tag.name != mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
         )
         if tags:
             query = query.filter(ArtifactV2.Tag.name.in_(tags))
@@ -1608,7 +1617,7 @@ class SQLDB(DBInterface):
         tuples_filter = []
         for key, tag, iteration, uid in artifact_identifiers:
             iteration = iteration or 0
-            tag = tag or "latest"
+            tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
             base_filter = (
                 (ArtifactV2.key == key)
                 & (ArtifactV2.Tag.name == tag)
@@ -1725,7 +1734,7 @@ class SQLDB(DBInterface):
         art.struct = artifact
         self._upsert(session, [art])
         if tag_artifact:
-            tag = tag or "latest"
+            tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
 
             # we want to ensure that the tag is valid before storing,
             # if it isn't, MLRunInvalidArgumentError will be raised
@@ -1735,8 +1744,13 @@ class SQLDB(DBInterface):
             # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
             # changes to be reflected in the "latest" tag, as this in not actual the "latest" version of the artifact
             # which was produced by the user
-            if not existed and tag != "latest":
-                self._tag_artifacts_v1(session, [art], project, "latest")
+            if not existed and tag != mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+                self._tag_artifacts_v1(
+                    session,
+                    [art],
+                    project,
+                    mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                )
 
     def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
         """
@@ -1885,7 +1899,11 @@ class SQLDB(DBInterface):
         )
         function = deepcopy(function)
         project = project or config.default_project
-        tag = tag or get_in(function, "metadata.tag") or "latest"
+        tag = (
+            tag
+            or get_in(function, "metadata.tag")
+            or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
         hash_key = fill_function_hash(function, tag)
 
         # clear tag from object in case another function will "take" that tag
@@ -2084,7 +2102,7 @@ class SQLDB(DBInterface):
             session,
             normalized_function_name,
             project,
-            tag=tag or "latest",
+            tag=tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             hash_key=hash_key,
         )
         if not function:
@@ -2143,7 +2161,7 @@ class SQLDB(DBInterface):
         format_: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
-        computed_tag = tag or "latest"
+        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
 
         obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
         tag_function_uid = None if not tag and hash_key else uid
@@ -2182,7 +2200,7 @@ class SQLDB(DBInterface):
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str
     ):
-        computed_tag = tag or "latest"
+        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         if not tag and hash_key:
             return hash_key
         else:
@@ -3433,7 +3451,7 @@ class SQLDB(DBInterface):
     ):
         kwargs = {obj_name_attribute: name, "project": project}
         query = self._query(session, cls, **kwargs)
-        computed_tag = tag or "latest"
+        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         object_tag_uid = None
         if tag or not uid:
             object_tag_uid = self._resolve_class_tag_uid(
@@ -4813,7 +4831,7 @@ class SQLDB(DBInterface):
                 cls.name == name,
                 cls.function_name == function_name,
                 cls.function_tag == function_tag,
-                cls.Tag.name == "latest",
+                cls.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             )
         )
 
@@ -6860,7 +6878,8 @@ class SQLDB(DBInterface):
             project=model_endpoint.metadata.project,
             function_name=model_endpoint.spec.function_name,
             function_uid=model_endpoint.spec.function_uid,
-            function_tag=model_endpoint.spec.function_tag or "latest",
+            function_tag=model_endpoint.spec.function_tag
+            or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             model_uid=model_endpoint.spec.model_uid,
             model_name=model_endpoint.spec.model_name,
             model_tag=model_endpoint.spec.model_tag,
@@ -6877,7 +6896,7 @@ class SQLDB(DBInterface):
             session,
             [mep],
             model_endpoint.metadata.project,
-            "latest",
+            mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             obj_name_attribute=["name", "function_name", "function_tag"],
         )
         mep_record = self._get_model_endpoint(
@@ -6885,7 +6904,8 @@ class SQLDB(DBInterface):
             model_endpoint.metadata.project,
             model_endpoint.metadata.name,
             function_name=model_endpoint.spec.function_name,
-            function_tag=model_endpoint.spec.function_tag or "latest",
+            function_tag=model_endpoint.spec.function_tag
+            or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
         )
         return self._transform_model_endpoint_model_to_schema(mep_record)
 

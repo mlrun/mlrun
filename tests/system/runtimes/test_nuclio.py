@@ -584,7 +584,7 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         assert len(artifacts) == 3  # iteration_results + parallel_coordinates + test
         for artifact in artifacts:
             # We are not checking the best iteration here because it is not guaranteed
-            assert artifact["metadate"]["tag"] == "latest"
+            assert artifact["metadata"]["tag"] == "latest"
 
         # test early stop
         hyper_param_options = mlrun.model.HyperParamOptions(

@@ -40,7 +40,7 @@ setup(
     ],
     install_requires=[
         "graphviz~=0.20.0",
-        "kubernetes=~25.3.0",
+        "kubernetes~=25.3.0",
         "ipython>=8.10",
     ],
     python_requires=">=3.9, <3.12",

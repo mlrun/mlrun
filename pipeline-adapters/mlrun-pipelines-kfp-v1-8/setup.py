@@ -42,7 +42,7 @@ setup(
     install_requires=[
         "inflection>=0.5.1",
         "kfp_server_api>=1.8.5",
-        "kubernetes=~25.3.0",
+        "kubernetes~=25.3.0",
         "mlrun_pipelines_kfp_common>=0.2.4",
     ],
     extras_require={

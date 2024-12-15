@@ -755,6 +755,28 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
+    def push_run_notifications(self, uid, project="", iter=0, timeout=45, status_text=""):
+        """
+        Push notifications for a run.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        project = project or config.default_project
+        params = {"iter": iter}
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/runs/{uid}/push_notifications",
+            error="Failed push notifications",
+            params=params,
+            timeout=timeout,
+        )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+        return None
+
     def read_run(
         self,
         uid,

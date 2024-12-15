@@ -668,26 +668,28 @@ class CustomNotificationPusher(_NotificationPusherBase):
         pipeline_id: typing.Optional[str] = None,
         has_workflow_url: bool = False,
     ):
-        message = f"Workflow started in project {project}"
-        if pipeline_id:
-            message += f" id={pipeline_id}"
-        commit_id = (
-            commit_id or os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA")
-        )
-        if commit_id:
-            message += f", commit={commit_id}"
-        if has_workflow_url:
-            url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
-        else:
-            url = mlrun.utils.helpers.get_ui_url(project)
-        html = ""
-        if url:
-            html = (
-                message
-                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
-            )
-            message = message + f", check progress in {url}"
-        self.push(message, "info", custom_html=html)
+        db = mlrun.get_run_db()
+        db.push_run_notifications(pipeline_id, project)
+        # message = f"Workflow started in project {project}"
+        # if pipeline_id:
+        #     message += f" id={pipeline_id}"
+        # commit_id = (
+        #     commit_id or os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA")
+        # )
+        # if commit_id:
+        #     message += f", commit={commit_id}"
+        # if has_workflow_url:
+        #     url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
+        # else:
+        #     url = mlrun.utils.helpers.get_ui_url(project)
+        # html = ""
+        # if url:
+        #     html = (
+        #         message
+        #         + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
+        #     )
+        #     message = message + f", check progress in {url}"
+        # self.push(message, "info", custom_html=html)
 
     def push_pipeline_run_results(
         self,

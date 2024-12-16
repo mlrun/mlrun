@@ -152,6 +152,7 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
+        "mlrun_pipelines_kfp_v2": {">=0.2.5 ; python_version >= '3.11'"},
     }
 
     for (

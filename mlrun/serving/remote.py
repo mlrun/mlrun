@@ -87,7 +87,7 @@ class RemoteStep(storey.SendToHttp):
         :param retries:     number of retries (in exponential backoff)
         :param backoff_factor: A backoff factor in seconds to apply between attempts after the second try
         :param timeout:     How long to wait for the server to send data before giving up, float in seconds
-        :param headers_expression: an expression for getting the request headers from the event,e.g. "event['headers']"
+        :param headers_expression: an expression for getting the request headers from the event, e.g. "event['headers']"
         """
         # init retry args for storey
         retries = default_retries if retries is None else retries
@@ -216,8 +216,9 @@ class RemoteStep(storey.SendToHttp):
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
         if self._headers_function_handler(body):
-            self.headers = self._headers_function_handler(body)
-        headers = self.headers or {}
+            headers = self._headers_function_handler(body)
+        else:
+            headers = self.headers or {}
         if self._url_function_handler:
             url = self._url_function_handler(body)
         else:

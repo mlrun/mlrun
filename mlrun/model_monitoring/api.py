@@ -375,8 +375,10 @@ def _generate_model_endpoint(
         ),
         spec=mlrun.common.schemas.ModelEndpointSpec(
             function_name=function_name,
-            model_name=model_obj.metadata.key if model_path else None,
-            model_uid=model_obj.metadata.uid if model_path else None,
+            model_name=model_obj.metadata.key if model_obj else None,
+            model_uid=model_obj.metadata.uid if model_obj else None,
+            model_tag=model_obj.metadata.tag if model_obj else None,
+            model_db_key=model_obj.spec.db_key if model_obj else None,
             model_class="drift-analysis",
         ),
         status=mlrun.common.schemas.ModelEndpointStatus(

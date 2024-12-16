@@ -521,12 +521,15 @@ class TestProject(TestMLRunSystem):
         fn = project.get_function("gen-iris", ignore_cache=True)
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
-        for secret_name, env_var_name in project._secrets.get_k8s_secrets().items():
-            k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
-                name=secret_name,
-                namespace="default-tenant",
-            )
-            assert k8s_secret.data.get("accessKey") == os.environ.get(env_var_name)
+        for env in fn.spec.env:
+            if env["name"] in ["V3IO_ACCESS_KEY", "MLRUN_ATH_SESSION"]:
+                assert "valueFrom" in env, "content must be taken from secret"
+                secret_name = env["valueFrom"]["secretKeyRef"]["name"]
+                k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
+                    name=secret_name,
+                    namespace="default-tenant",
+                )
+                assert k8s_secret.data.get("accessKey") is not None
 
     def test_local_pipeline(self):
         self._test_new_pipeline("lclpipe", engine="local")

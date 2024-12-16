@@ -757,7 +757,7 @@ class Service(framework.service.Service):
         unmasked_runs = []
         for run in runs:
             try:
-                framework.utils.notifications.unmask_notification_params_secret_on_task(
+                run = framework.utils.notifications.unmask_notification_params_secret_on_task(
                     db, db_session, run
                 )
                 unmasked_runs.append(run)

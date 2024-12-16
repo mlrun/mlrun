@@ -18,6 +18,7 @@ import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 
+import mlrun.common.constants
 import mlrun.common.schemas
 from mlrun.utils.helpers import tag_name_regex_as_string
 
@@ -60,6 +61,8 @@ async def overwrite_object_tags_with_tag(
         )
     )
 
+    _check_reserved_tag(tag)
+
     await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Tags().overwrite_object_tags_with_tag,
         db_session,
@@ -98,6 +101,8 @@ async def append_tag_to_objects(
             auth_info=auth_info,
         )
     )
+
+    _check_reserved_tag(tag)
 
     await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Tags().append_tag_to_objects,
@@ -139,6 +144,8 @@ async def delete_tag_from_objects(
         )
     )
 
+    _check_reserved_tag(tag)
+
     await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Tags().delete_tag_from_objects,
         db_session,
@@ -147,3 +154,11 @@ async def delete_tag_from_objects(
         tag_objects,
     )
     return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
+
+def _check_reserved_tag(tag: str):
+    if tag == mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"`{mlrun.common.constants.RESERVED_TAG_NAME_LATEST}` is a reserved tag name and cannot "
+            "be deleted or modified."
+        )

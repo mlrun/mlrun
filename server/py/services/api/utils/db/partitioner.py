@@ -121,6 +121,23 @@ class MySQLPartitioner:
             )
         )
 
+        if not partition_expression:
+            # if partition expression is not found, there are two possible reasons:
+            # 1. the table is not partitioned
+            # 2. the table doesn't exist
+            # to identify the reason, we need to check if the table exists
+            if framework.utils.singletons.db.get_db().table_exist(
+                session=session, table_name=table_name
+            ):
+                reason = "Table is not partitioned"
+            else:
+                reason = "Table does not exist"
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot find partition expression for table",
+                table_name=table_name,
+                reason=reason,
+            )
+
         partition_function = partition_expression[
             : partition_expression.find("(")
         ].upper()

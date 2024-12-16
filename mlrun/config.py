@@ -160,6 +160,7 @@ default_config = {
         # migration from artifacts to artifacts_v2 is done in batches, and requires a state file to keep track of the
         # migration progress.
         "artifact_migration_batch_size": 200,
+        "artifact_migration_v9_batch_size": 30000,
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
         "datasets": {
             "max_preview_columns": 100,

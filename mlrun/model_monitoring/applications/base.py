@@ -175,10 +175,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param func_name: The name of the function. If not passed, the class name is used.
         :param tag:       An optional tag for the function.
         :param run_local: Whether to run the function locally or remotely.
-        :param sample_df: Optional - pandas data-frame as the current dataset.
-                          When set, it replaces the data read from the model endpoint's offline source.
-        :param feature_stats: Optional - statistics dictionary of the reference data.
-                              When set, it overrides the model endpoint's feature stats.
+        :param sample_data:       Optional - pandas data-frame as the current dataset.
+                                  When set, it replaces the data read from the model endpoint's offline source.
+        :param reference_data:    Optional - pandas data-frame of the reference dataset.
+                                  When set, its statistics override the model endpoint's feature statistics.
         :param image:             Docker image to run the job on.
         :param with_repo:         Whether to clone the current repo to the build source.
         :param requirements:      List of Python requirements to be installed in the image.

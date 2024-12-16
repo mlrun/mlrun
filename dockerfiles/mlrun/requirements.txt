@@ -6,3 +6,5 @@ scikit-plot~=0.3.7
 mpi4py~=3.1
 # pymysql version should be aligned with mlrun-api due to common use with the model monitoring database
 pymysql~=1.1
+# consumed when training a model using PyTorch
+tqdm~=4.66

@@ -365,6 +365,9 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "docs/genai/development/working-with-rag.ipynb",  # includes a generated requirement
         "dockerfiles/mlrun-api/locked-requirements.txt",  # lock file
         "dockerfiles/mlrun/locked-requirements.txt",  # lock file
+        "dockerfiles/base/locked-requirements.txt",  # lock file
+        "dockerfiles/jupyter/locked-requirements.txt",  # lock file
+        "dockerfiles/gpu/locked-requirements.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 

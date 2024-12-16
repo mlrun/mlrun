@@ -237,9 +237,9 @@ astropy==6.0.1 \
     --hash=sha256:eaff9388a2fed0757bd0b4c41c9346d0edea9e7e938a4bfa8070eaabbb538a23 \
     --hash=sha256:f18536d6f97faa81ed6c9af7bb2e27b376b41b27399f862e3b13387538c966b9
     # via vaex-astro
-astropy-iers-data==0.2024.12.9.0.36.21 \
-    --hash=sha256:b8c235b5420702a8e28bb43d94e634aa4bead38d9e72dea03fd0a22b1057817d \
-    --hash=sha256:f22cc517b5bc164e4d105c14677d918ab732ef10342fe76fc9068fa46755c91f
+astropy-iers-data==0.2024.12.16.0.35.48 \
+    --hash=sha256:c277670bf5324d9e17a28b011d4d7493acc06ce9dc75e7cfab848bd8c4847ce3 \
+    --hash=sha256:dbb95668d66bb160342f058df49953c9d47bac628279169ffd476ca51fe90fac
     # via astropy
 asttokens==3.0.0 \
     --hash=sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7 \
@@ -251,9 +251,9 @@ async-timeout==5.0.1 ; python_full_version <= '3.11.2' \
     # via
     #   aiohttp
     #   redis
-attrs==24.2.0 \
-    --hash=sha256:5cfb1b9148b5b086569baec03f20d7b6bf3bcacc9a42bebf87ffaaca362f6346 \
-    --hash=sha256:81921eb96de3191c8258c199618104dd27ac608d9366f5e35d011eae1867ede2
+attrs==24.3.0 \
+    --hash=sha256:8f5c07333d543103541ba7be0e2ce16eeee8130cb0b3f9238ab904ce1e85baff \
+    --hash=sha256:ac96cd038792094f438ad1f6ff80837353805ac950cd2aa0e0625ef19850c308
     # via
     #   aiohttp
     #   jsonschema
@@ -677,6 +677,7 @@ colorama==0.4.6 ; (python_full_version < '3.10' and platform_machine != 'arm64' 
     # via
     #   click
     #   ipython
+    #   tqdm
     #   uvicorn
 comm==0.2.2 \
     --hash=sha256:3fd7a84065306e07bea1773df6eb8282de51ba82f77c72f9c85716ab11fe980e \
@@ -3367,9 +3368,9 @@ python-dotenv==1.0.1 \
     # via
     #   -r requirements.txt
     #   uvicorn
-python-json-logger==3.2.0 \
-    --hash=sha256:2c11056458d3f56614480b24e9cb28f7aba69cbfbebddbb77c92f0ec0d4947ab \
-    --hash=sha256:d73522ddcfc6d0461394120feaddea9025dc64bf804d96357dd42fa878cc5fe8
+python-json-logger==3.2.1 \
+    --hash=sha256:8eb0554ea17cb75b05d2848bc14fb02fbdbd9d6972120781b974380bfa162008 \
+    --hash=sha256:cdc17047eb5374bd311e748b42f99d71223f3b0e186f4206cc5d52aefe85b090
     # via jupyter-events
 python-utils==3.9.1 \
     --hash=sha256:0273d7363c7ad4b70999b2791d5ba6b55333d6f7a4e4c8b6b39fb82b5fab4613 \
@@ -4085,8 +4086,8 @@ statsmodels==0.14.4 \
     --hash=sha256:e332c2d9b806083d1797231280602340c5c913f90d4caa0213a6a54679ce9331 \
     --hash=sha256:f5f537f7d000de4a1708c63400755152b862cd4926bb81a86568e347c19c364b
     # via pyod
-storey==1.8.3 \
-    --hash=sha256:02d82e26826bafcfc6c378d1d7ba429e04d94f50dea7a59a2c3c90ea2c545488
+storey==1.8.4 \
+    --hash=sha256:ea3fda066dc4effd904d973da46455c6691dddcd51481bd59a2f8bc81a8718e8
     # via -r requirements.txt
 strip-hints==0.1.10 ; python_full_version < '3.11' \
     --hash=sha256:307c2bd147cd35997c8ed2e9a3bdca48ad9c9617e04ea46599095201b4ce998f
@@ -4177,6 +4178,10 @@ tornado==6.4.2 \
     #   jupyter-server
     #   terminado
     #   vaex-server
+tqdm==4.67.1 \
+    --hash=sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2 \
+    --hash=sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2
+    # via -r dockerfiles/mlrun/requirements.txt
 traitlets==5.14.3 \
     --hash=sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7 \
     --hash=sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f
@@ -4269,9 +4274,9 @@ urllib3==1.26.20 \
     #   kubernetes-asyncio
     #   requests
     #   snowflake-connector-python
-uvicorn==0.33.0 \
-    --hash=sha256:2c30de4aeea83661a520abab179b24084a0019c0c1bbe137e5409f741cbde5f8 \
-    --hash=sha256:3577119f82b7091cf4d3d4177bfda0bae4723ed92ab1439e8d779de880c9cc59
+uvicorn==0.34.0 \
+    --hash=sha256:023dc038422502fa28a09c7a30bf2b6991512da7dcdb8fd35fe57cfc154126f4 \
+    --hash=sha256:404051050cd7e905de2c9a7e61790943440b3416f49cb409f965d9dcd0fa73e9
     # via vaex-server
 uvloop==0.21.0 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32' \
     --hash=sha256:0878c2640cf341b269b7e128b1a5fed890adc4455513ca710d77d5e93aa6d6a0 \

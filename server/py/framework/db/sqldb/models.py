@@ -968,6 +968,17 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}_{self.name}_{self.created}"
 
+    class SystemMetadata(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "system_metadata"
+        __table_args__ = (UniqueConstraint("key", name="_system_metadata_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        key = Column(String(255, collation=SQLTypesUtil.collation()))
+        value = Column(String(255, collation=SQLTypesUtil.collation()))
+
+        def get_identifier_string(self) -> str:
+            return f"{self.key}"
+
 
 def get_partitioned_table_names():
     return [

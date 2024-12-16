@@ -28,7 +28,8 @@ class Events(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     # we cache alert names based on project and event name as key
-    _cache: dict[(str, str), list[str]] = {}
+    # (project, name) -> set[alert_id]
+    _cache: dict[(str, str), set[int]] = {}
     cache_initialized = False
 
     @staticmethod
@@ -42,7 +43,7 @@ class Events(
         return bool(event_data.is_valid())
 
     def add_event_configuration(self, project, name, alert_id):
-        self._cache.setdefault((project, name), []).append(alert_id)
+        self._cache.setdefault((project, name), set()).add(alert_id)
 
     def remove_event_configuration(self, project, name, alert_id):
         alerts = self._cache[(project, name)]

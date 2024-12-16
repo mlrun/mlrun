@@ -80,7 +80,7 @@ class Events(
             return
 
         try:
-            for alert_id in self._cache.get([(project, event_name)], []):
+            for alert_id in self._cache.get((project, event_name), []):
                 services.alerts.crud.Alerts().process_event(
                     session, alert_id, event_data
                 )

@@ -217,9 +217,9 @@ async-timeout==5.0.1 ; python_full_version <= '3.11.2' \
     # via
     #   aiohttp
     #   redis
-attrs==24.2.0 \
-    --hash=sha256:5cfb1b9148b5b086569baec03f20d7b6bf3bcacc9a42bebf87ffaaca362f6346 \
-    --hash=sha256:81921eb96de3191c8258c199618104dd27ac608d9366f5e35d011eae1867ede2
+attrs==24.3.0 \
+    --hash=sha256:8f5c07333d543103541ba7be0e2ce16eeee8130cb0b3f9238ab904ce1e85baff \
+    --hash=sha256:ac96cd038792094f438ad1f6ff80837353805ac950cd2aa0e0625ef19850c308
     # via
     #   aiohttp
     #   jsonschema
@@ -2797,9 +2797,9 @@ python-dotenv==1.0.1 \
     # via
     #   -r dockerfiles/jupyter/requirements.txt
     #   -r requirements.txt
-python-json-logger==3.2.0 \
-    --hash=sha256:2c11056458d3f56614480b24e9cb28f7aba69cbfbebddbb77c92f0ec0d4947ab \
-    --hash=sha256:d73522ddcfc6d0461394120feaddea9025dc64bf804d96357dd42fa878cc5fe8
+python-json-logger==3.2.1 \
+    --hash=sha256:8eb0554ea17cb75b05d2848bc14fb02fbdbd9d6972120781b974380bfa162008 \
+    --hash=sha256:cdc17047eb5374bd311e748b42f99d71223f3b0e186f4206cc5d52aefe85b090
     # via jupyter-events
 pytz==2024.2 \
     --hash=sha256:2aa355083c50a0f93fa581709deac0c9ad65cca8a9e9beac660adcbd493c798a \
@@ -3428,8 +3428,8 @@ starlette==0.41.3 \
     --hash=sha256:0e4ab3d16522a255be6b28260b938eae2482f98ce5cc934cb08dce8dc3ba5835 \
     --hash=sha256:44cedb2b7c77a9de33a8b74b2b90e9f50d11fcf25d8270ea525ad71a25374ff7
     # via fastapi
-storey==1.8.3 \
-    --hash=sha256:02d82e26826bafcfc6c378d1d7ba429e04d94f50dea7a59a2c3c90ea2c545488
+storey==1.8.4 \
+    --hash=sha256:ea3fda066dc4effd904d973da46455c6691dddcd51481bd59a2f8bc81a8718e8
     # via -r requirements.txt
 strip-hints==0.1.10 ; python_full_version < '3.11' \
     --hash=sha256:307c2bd147cd35997c8ed2e9a3bdca48ad9c9617e04ea46599095201b4ce998f

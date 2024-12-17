@@ -54,9 +54,10 @@ def get_or_create_model_endpoint(
     model_endpoint_name: str = "",
     endpoint_id: str = "",
     function_name: str = "",
+    function_tag: str = "latest",
     context: typing.Optional["mlrun.MLClientCtx"] = None,
     sample_set_statistics: typing.Optional[dict[str, typing.Any]] = None,
-    monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.disabled,
+    monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
     db_session=None,
 ) -> ModelEndpoint:
     """
@@ -70,8 +71,8 @@ def get_or_create_model_endpoint(
                                      under this endpoint (applicable only to new endpoint_id).
     :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
                                      on the provided `endpoint_id`.
-    :param function_name:            If a new model endpoint is created, use this function name for generating the
-                                     function URI (applicable only to new endpoint_id).
+    :param function_name:            If a new model endpoint is created, use this function name.
+    :param function_tag:             If a new model endpoint is created, use this function tag.
     :param context:                  MLRun context. If `function_name` not provided, use the context to generate the
                                      full function hash.
     :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
@@ -86,28 +87,32 @@ def get_or_create_model_endpoint(
     if not db_session:
         # Generate a runtime database
         db_session = mlrun.get_run_db()
+    model_endpoint = None
     try:
-        model_endpoint = db_session.get_model_endpoint(
-            project=project,
-            name=model_endpoint_name,
-            endpoint_id=endpoint_id,
-            function_name=function_name,
-        )
-        # If other fields provided, validate that they are correspond to the existing model endpoint data
-        _model_endpoint_validations(
-            model_endpoint=model_endpoint,
-            model_path=model_path,
-            sample_set_statistics=sample_set_statistics,
-        )
+        if endpoint_id:
+            model_endpoint = db_session.get_model_endpoint(
+                project=project,
+                name=model_endpoint_name,
+                endpoint_id=endpoint_id,
+            )
+            # If other fields provided, validate that they are correspond to the existing model endpoint data
+            _model_endpoint_validations(
+                model_endpoint=model_endpoint,
+                model_path=model_path,
+                sample_set_statistics=sample_set_statistics,
+            )
 
     except mlrun.errors.MLRunNotFoundError:
         # Create a new model endpoint with the provided details
+        pass
+    if not model_endpoint:
         model_endpoint = _generate_model_endpoint(
             project=project,
             db_session=db_session,
             model_path=model_path,
             model_endpoint_name=model_endpoint_name,
             function_name=function_name,
+            function_tag=function_tag,
             context=context,
             sample_set_statistics=sample_set_statistics,
             monitoring_mode=monitoring_mode,
@@ -333,9 +338,10 @@ def _generate_model_endpoint(
     model_path: str,
     model_endpoint_name: str,
     function_name: str,
+    function_tag: str,
     context: "mlrun.MLClientCtx",
     sample_set_statistics: dict[str, typing.Any],
-    monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.disabled,
+    monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.enabled,
 ) -> ModelEndpoint:
     """
     Write a new model endpoint record.
@@ -345,8 +351,8 @@ def _generate_model_endpoint(
     :param db_session:               A session that manages the current dialog with the database.
     :param model_path:               The model Store path.
     :param model_endpoint_name:      Model endpoint name will be presented under the new model endpoint.
-    :param function_name:            If a new model endpoint is created, use this function name for generating the
-                                     function URI.
+    :param function_name:            If a new model endpoint is created, use this function name.
+    :param function_tag:             If a new model endpoint is created, use this function tag.
     :param context:                  MLRun context. If function_name not provided, use the context to generate the
                                      full function hash.
     :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
@@ -374,7 +380,8 @@ def _generate_model_endpoint(
             endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.BATCH_EP,
         ),
         spec=mlrun.common.schemas.ModelEndpointSpec(
-            function_name=function_name,
+            function_name=function_name or "function",
+            function_tag=function_tag or "latest",
             model_name=model_obj.metadata.key if model_obj else None,
             model_uid=model_obj.metadata.uid if model_obj else None,
             model_tag=model_obj.metadata.tag if model_obj else None,

@@ -220,6 +220,7 @@ class RemoteStep(storey.SendToHttp):
             headers = self._headers_function_handler(body)
         else:
             headers = copy(self.headers) or {}
+
         if self._url_function_handler:
             url = self._url_function_handler(body)
         else:
@@ -238,6 +239,7 @@ class RemoteStep(storey.SendToHttp):
                 body = self._body_function_handler(body)
             body = json.dumps(body)
             headers["Content-Type"] = "application/json"
+
         return method, url, headers, body
 
     def _get_data(self, data, headers):

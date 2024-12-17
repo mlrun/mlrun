@@ -973,7 +973,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("key", name="_system_metadata_uc"),)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String(255, collation=SQLTypesUtil.collation()))
+        key = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
         value = Column(String(255, collation=SQLTypesUtil.collation()))
 
         def get_identifier_string(self) -> str:

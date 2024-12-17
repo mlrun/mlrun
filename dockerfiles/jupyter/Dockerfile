@@ -72,6 +72,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
+# Use 1.7.x version from mlrun/demos to update the demos(do not update version).
 RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
     ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
     git clone --branch master https://github.com/mlrun/functions.git $HOME/functions

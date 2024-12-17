@@ -149,6 +149,44 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         return start, end
 
     @classmethod
+    def deploy(
+        cls,
+        func_name: str,
+        func_path: Optional[str] = None,
+        image: Optional[str] = None,
+        handler: Optional[str] = None,
+        with_repo: Optional[bool] = False,
+        tag: Optional[str] = None,
+        requirements: Optional[Union[str, list[str]]] = None,
+        requirements_file: str = "",
+        **application_kwargs,
+    ) -> None:
+        """
+        Set the application to the current project and deploy it as a Nuclio serving function.
+        Required for your model monitoring application to work as a part of the model monitoring framework.
+
+        :param func_name: The name of the function.
+        :param func_path: The path of the function, :code:`None` refers to the current Jupyter notebook.
+
+        For the other arguments, refer to
+        :py:meth:`~mlrun.projects.MlrunProject.set_model_monitoring_function`.
+        """
+        project = cast("mlrun.MlrunProject", mlrun.get_current_project())
+        function = project.set_model_monitoring_function(
+            name=func_name,
+            func=func_path,
+            application_class=cls.__name__,
+            handler=handler,
+            image=image,
+            with_repo=with_repo,
+            requirements=requirements,
+            requirements_file=requirements_file,
+            tag=tag,
+            **application_kwargs,
+        )
+        function.deploy()
+
+    @classmethod
     def evaluate(
         cls,
         func_path: Optional[str] = None,
@@ -175,10 +213,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param func_name: The name of the function. If not passed, the class name is used.
         :param tag:       An optional tag for the function.
         :param run_local: Whether to run the function locally or remotely.
-        :param sample_df: Optional - pandas data-frame as the current dataset.
-                          When set, it replaces the data read from the model endpoint's offline source.
-        :param feature_stats: Optional - statistics dictionary of the reference data.
-                              When set, it overrides the model endpoint's feature stats.
+        :param sample_data:       Optional - pandas data-frame as the current dataset.
+                                  When set, it replaces the data read from the model endpoint's offline source.
+        :param reference_data:    Optional - pandas data-frame of the reference dataset.
+                                  When set, its statistics override the model endpoint's feature statistics.
         :param image:             Docker image to run the job on.
         :param with_repo:         Whether to clone the current repo to the build source.
         :param requirements:      List of Python requirements to be installed in the image.

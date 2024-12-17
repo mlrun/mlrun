@@ -5884,6 +5884,10 @@ class SQLDB(DBInterface):
         if not new_partitions:
             return
 
+        logger.info("Creating new partitions for table",
+                    table_name=table_name,
+                    new_partitions=new_partitions)
+
         alter_table_template = f"""
             ALTER TABLE {table_name}
             ADD PARTITION (

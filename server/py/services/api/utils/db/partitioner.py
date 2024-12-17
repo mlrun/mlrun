@@ -138,9 +138,6 @@ class MySQLPartitioner:
                 reason=reason,
             )
 
-        partition_function = partition_expression[
-            : partition_expression.find("(")
-        ].upper()
         partition_interval = (
             mlrun.common.schemas.partition.PartitionInterval.from_function(
                 partition_function

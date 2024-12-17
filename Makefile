@@ -254,7 +254,7 @@ MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-kfp
-mlrun-kfp: update-version-file base## Build mlrun docker image with KFP
+mlrun-kfp: update-version-file ## Build mlrun docker image with KFP
 	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-kfp/Dockerfile \

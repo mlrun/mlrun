@@ -39,7 +39,9 @@ setup(
         "kfp",
     ],
     install_requires=[
-        "kubernetes~=25.3.0",
+        # TODO remove the version requirement once the KFP 1.8 support is removed
+        # kubernetes version < 25.3 conflicts with KFP 1.8
+        "kubernetes>=25.3",
     ],
     extras_require={
         "ipython": [

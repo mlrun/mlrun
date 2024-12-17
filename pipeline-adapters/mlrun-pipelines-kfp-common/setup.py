@@ -42,7 +42,10 @@ setup(
         "kubernetes~=25.3.0",
     ],
     extras_require={
-        "ipython": ["graphviz~=0.20.0", "ipython>=8.10", ]
+        "ipython": [
+            "graphviz~=0.20.0",
+            "ipython>=8.10",
+        ]
     },
     python_requires=">=3.9, <3.12",
     long_description="MLRun Pipelines package for providing KFP common functionality",

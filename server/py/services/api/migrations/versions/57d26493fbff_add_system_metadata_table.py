@@ -15,9 +15,9 @@
 
 """add system metadata table
 
-Revision ID: 4a14e68acb2e
+Revision ID: 57d26493fbff
 Revises: 537d9a20c4b4
-Create Date: 2024-12-17 09:59:45.554476
+Create Date: 2024-12-17 12:21:07.242210
 
 """
 
@@ -25,7 +25,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "4a14e68acb2e"
+revision = "57d26493fbff"
 down_revision = "537d9a20c4b4"
 branch_labels = None
 depends_on = None
@@ -40,7 +40,7 @@ def upgrade():
             "key", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
         ),
         sa.Column(
-            "value", sa.String(length=255, collation="utf8mb3_bin"), nullable=True
+            "value", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("key", name="_system_metadata_uc"),

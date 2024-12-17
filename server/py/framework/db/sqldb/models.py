@@ -974,7 +974,8 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         key = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        value = Column(String(255, collation=SQLTypesUtil.collation()))
+        # This column stores a string value, when extracting or manipulating it, ensure to handle it appropriately
+        value = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
 
         def get_identifier_string(self) -> str:
             return f"{self.key}"

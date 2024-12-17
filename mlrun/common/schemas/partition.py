@@ -46,7 +46,7 @@ class PartitionInterval(StrEnum):
             return timedelta(weeks=1)
 
     @classmethod
-    def from_function(cls, partition_expression: str):
+    def from_expression(cls, partition_expression: str):
         """
         Returns the corresponding PartitionInterval for a given partition function,
         or None if the function is not mapped.
@@ -124,8 +124,12 @@ class PartitionInterval(StrEnum):
         if self == PartitionInterval.YEARWEEK:
             return f"YEARWEEK({column_name}, 1)"
         elif self == PartitionInterval.DAY:
+            # generates value in format %Y%m%d in mysql
+            # mysql query example: `select YEAR(NOW())*10000 + MONTH(NOW())*100 + DAY(NOW());`
             return f"YEAR({column_name}) * 10000 + MONTH({column_name}) * 100 + DAY({column_name})"
         elif self == PartitionInterval.MONTH:
+            # generates value in format %Y%m in mysql
+            # mysql query example: `select YEAR(NOW())*100 + MONTH(NOW());`
             return f"YEAR({column_name}) * 100 + MONTH({column_name})"
 
     def get_number_of_partitions(self, days: int) -> int:

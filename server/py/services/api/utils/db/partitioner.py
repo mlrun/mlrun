@@ -139,7 +139,7 @@ class MySQLPartitioner:
             )
 
         partition_interval = (
-            mlrun.common.schemas.partition.PartitionInterval.from_function(
+            mlrun.common.schemas.partition.PartitionInterval.from_expression(
                 partition_expression
             )
         )

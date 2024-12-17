@@ -171,18 +171,11 @@ def test_model_runner():
     server = function.to_mock_server()
     try:
         resp = server.test(body={"n": 1})
-        assert resp.keys() == {"input", "results"}
-        assert resp["input"] == {"n": 1}
-        results = resp["results"]
-        assert results.keys() == {"my_model"}
-        result = results["my_model"]
-        assert result.keys() == {"runtime", "output"}
-        assert result["output"] == {"n": 2}
+        assert resp == {"n": 2}
     finally:
         server.wait_for_completion()
 
 
-# Try TypeHint and function
 class MyModelSelector(ModelSelector):
     def select(self, event, available_models: list[Model]) -> Optional[list[str]]:
         return event.body.get("models")
@@ -212,22 +205,10 @@ def test_model_runner_with_selector(execution_mechanism: str):
     try:
         # both models
         resp = server.test(body={"n": 1})
-        assert resp.keys() == {"input", "results"}
-        assert resp["input"] == {"n": 1}
-        results = resp["results"]
-        assert results.keys() == {"m1", "m2"}
-        assert results["m1"].keys() == {"runtime", "output"}
-        assert results["m1"]["output"] == {"n": 2}
-        assert results["m2"].keys() == {"runtime", "output"}
-        assert results["m2"]["output"] == {"n": 3}
+        assert resp == {"m1": {"n": 2}, "m2": {"n": 3}}
 
         # only m2
         resp = server.test(body={"n": 1, "models": ["m2"]})
-        assert resp.keys() == {"input", "results"}
-        assert resp["input"] == {"n": 1, "models": ["m2"]}
-        results = resp["results"]
-        assert results.keys() == {"m2"}
-        assert results["m2"].keys() == {"runtime", "output"}
-        assert results["m2"]["output"] == {"n": 3}
+        assert resp == {"m2": {"n": 3}}
     finally:
         server.wait_for_completion()

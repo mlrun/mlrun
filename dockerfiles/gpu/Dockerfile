@@ -13,6 +13,9 @@
 # limitations under the License.
 
 ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.8.0-cudnn8-devel-ubuntu22.04
+ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
+
+FROM ${MLRUN_UV_IMAGE} AS uv-image
 
 FROM ${MLRUN_GPU_BASE_IMAGE}
 
@@ -30,19 +33,18 @@ WORKDIR /mlrun
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
-COPY ./requirements.txt ./
-COPY ./extras-requirements.txt ./extras-requirements.txt
-COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
-RUN python -m pip install \
-    -r requirements.txt \
-    -r extras-requirements.txt \
-    -r mlrun-image-requirements.txt
-
-COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
-RUN python -m pip install \
-    -r base-image-requirements.txt
+# do not require hashes as PyHive is installed via remote repo
+# and do not have a hash set in the locked-requirements.txt
+# therefor, verify the hashes but do not require them.
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/gpu/locked-requirements.txt,target=locked-requirements.txt \
+    uv pip install --verify-hashes -r locked-requirements.txt
 
 COPY . .
 
-RUN python -m pip install .[complete]
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install .[complete]

@@ -573,11 +573,13 @@ def _init_endpoint_record(
         model.get_model()
     if model.model_spec:
         model_name = model.model_spec.metadata.key
+        model_db_key = model.model_spec.spec.db_key
         model_uid = model.model_spec.metadata.uid
         model_tag = model.model_spec.tag
         model_labels = model.model_spec.labels  # todo : check if we still need this
     else:
         model_name = None
+        model_db_key = None
         model_uid = None
         model_tag = None
         model_labels = {}
@@ -611,9 +613,10 @@ def _init_endpoint_record(
             function_tag=graph_server.function_tag or "latest",
             function_uid=function_uid,
             model_name=model_name,
+            model_tag=model_tag,
+            model_db_key=model_db_key,
             model_uid=model_uid,
             model_class=model.__class__.__name__,
-            model_tag=model_tag,
         )
         model_ep = mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
@@ -627,8 +630,10 @@ def _init_endpoint_record(
                 function_uid=function_uid,
                 function_tag=graph_server.function_tag or "latest",
                 model_name=model_name,
+                model_db_key=model_db_key,
                 model_uid=model_uid,
                 model_class=model.__class__.__name__,
+                model_tag=model_tag,
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
@@ -649,6 +654,8 @@ def _init_endpoint_record(
             attributes[ModelEndpointSchema.MODEL_UID] = model_uid
         if model_tag != model_ep.spec.model_tag:
             attributes[ModelEndpointSchema.MODEL_TAG] = model_tag
+        if model_db_key != model_ep.spec.model_db_key:
+            attributes[ModelEndpointSchema.MODEL_DB_KEY] = model_db_key
         if model_labels != model_ep.metadata.labels:
             attributes[ModelEndpointSchema.LABELS] = model_labels
         if model.__class__.__name__ != model_ep.spec.model_class:

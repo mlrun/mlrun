@@ -121,6 +121,7 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
 class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
     model_uid: Optional[str] = ""
     model_name: Optional[str] = ""
+    model_db_key: Optional[str] = ""
     model_tag: Optional[str] = ""
     model_class: Optional[str] = ""
     function_name: Optional[str] = ""

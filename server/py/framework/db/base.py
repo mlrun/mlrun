@@ -936,6 +936,13 @@ class DBInterface(ABC):
     ) -> str:
         pass
 
+    @staticmethod
+    def table_exist(
+        session,
+        table_name: str,
+    ) -> bool:
+        pass
+
     @abstractmethod
     def delete_alert(self, session, project: str, name: str):
         pass

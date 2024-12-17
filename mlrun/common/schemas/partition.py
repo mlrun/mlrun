@@ -56,7 +56,6 @@ class PartitionInterval(StrEnum):
         """
 
         # Match the provided function string to the correct interval
-        # this is the functionality
         partition_expression = partition_expression.upper()
         if "YEARWEEK" in partition_expression:
             return cls.YEARWEEK

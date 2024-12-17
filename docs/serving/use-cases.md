@@ -83,7 +83,7 @@ tests one or more classifier models against a held-out dataset.
 
 Conditional steps use the KFP `dsl.Condition`, a class for creating a conditional control flow “if” block within a pipeline.
 
-```python    
+```    
 project = mlrun.get_current_project()
     
     sample = project.run_function(

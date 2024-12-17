@@ -2076,10 +2076,11 @@ class SQLDB(DBInterface):
             struct = function.struct
             for key, val in updates.items():
                 update_in(struct, key, val)
-            function.kind = struct.pop("kind", None)
+            function.kind = (
+                struct.pop("kind", None) if not function.kind else function.kind
+            )
             function.struct = struct
             self._upsert(session, [function])
-            return function.struct
 
     def update_function_external_invocation_url(
         self,

@@ -476,9 +476,9 @@ bqplot==0.12.43 \
     # via
     #   ipyvolume
     #   vaex-jupyter
-branca==0.8.0 \
-    --hash=sha256:1f8fd0d2f3b7548f2c146093932be5d3064ba21eee6cebf92d416b7f9092324f \
-    --hash=sha256:e78d5be39c8799a42e5c2dd1145a797a3cefc099537907bc1e4c43b6b55f7fa4
+branca==0.8.1 \
+    --hash=sha256:ac397c2d79bd13af0d04193b26d5ed17031d27609a7f1fab50c438b8ae712390 \
+    --hash=sha256:d29c5fab31f7c21a92e34bf3f854234e29fecdcf5d2df306b616f20d816be425
     # via ipyleaflet
 cachetools==5.5.0 \
     --hash=sha256:02134e8439cdc2ffb62023ce1debca2944c3f289d66bb17ead3ab3dede74b292 \
@@ -4239,8 +4239,8 @@ statsmodels==0.14.4 \
     --hash=sha256:e332c2d9b806083d1797231280602340c5c913f90d4caa0213a6a54679ce9331 \
     --hash=sha256:f5f537f7d000de4a1708c63400755152b862cd4926bb81a86568e347c19c364b
     # via pyod
-storey==1.8.5 \
-    --hash=sha256:8afb6b2f960df8eddb07f1c66adabd5cfdca9d0018492973972e6eaff99e0f08
+storey==1.8.6 \
+    --hash=sha256:2b91e6ae54ce1c61aa36b5cc3787e11a645b79e15843aebfc5e80eb44710d93d
     # via -r requirements.txt
 strip-hints==0.1.10 ; python_full_version < '3.11' \
     --hash=sha256:307c2bd147cd35997c8ed2e9a3bdca48ad9c9617e04ea46599095201b4ce998f

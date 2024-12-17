@@ -45,10 +45,11 @@ class Events(
         self._cache.setdefault((project, name), []).append(alert_id)
 
     def remove_event_configuration(self, project, name, alert_id):
-        alerts = self._cache[(project, name)]
-        alerts.remove(alert_id)
-        if len(alerts) == 0:
-            self._cache.pop((project, name))
+        alerts = self._cache.get((project, name), [])
+        if alert_id in alerts:
+            alerts.remove(alert_id)
+            if len(alerts) == 0:
+                self._cache.pop((project, name))
 
     def delete_project_alert_events(self, project):
         to_delete = [name for proj, name in self._cache if proj == project]
@@ -79,7 +80,7 @@ class Events(
             return
 
         try:
-            for alert_id in self._cache[(project, event_name)]:
+            for alert_id in self._cache.get((project, event_name), []):
                 services.alerts.crud.Alerts().process_event(
                     session, alert_id, event_data
                 )

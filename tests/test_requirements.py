@@ -112,7 +112,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.8.5"},
+        "storey": {"~=1.8.6"},
         "pydantic": {">=1.10.15"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},

@@ -234,19 +234,30 @@ def test_remote_advance(httpserver, engine):
             url=httpserver.url_for("/"),
             url_expression="endpoint + event['url']",
             body_expression="event['data']",
+            headers_expression="event['body_headers']",
             input_path="req",
             result_path="resp",
         )
-    ).to(name="s3", handler="echo").respond()
+    ).to(name="s3", handler="echo", full_event=True).respond()
 
     server = function.to_mock_server()
     try:
-        resp = server.test(body={"req": {"url": "/dog", "data": {"x": 5}}})
+        resp = server.test(
+            body={
+                "req": {
+                    "url": "/dog",
+                    "data": {"x": 5},
+                    "body_headers": {"Test-header": "true"},
+                }
+            }
+        )
     except Exception as e:
         raise e
     finally:
         server.wait_for_completion()
+    resp_headers = resp["req"].pop("body_headers")
     assert resp == {"req": {"url": "/dog", "data": {"x": 5}}, "resp": {"post": "ok"}}
+    assert resp_headers["Test-header"] == "true"
 
 
 def _timed_out_handler(request: Request):

@@ -25,13 +25,6 @@
 |-------|----------------------------------------------------------------------------|
 |ML-7818|Serving graphs can now use a conditional step. See the [example of a conditional step](../serving/use-cases.md#example-of-a-conditional-step).|
 
-
-### Infrastructure
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-6808|MLRun supports external MySQL databases. See {ref}`external-mysql`. 
-
-
 ### Breaking changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|

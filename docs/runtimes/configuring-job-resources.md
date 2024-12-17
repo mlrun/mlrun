@@ -215,7 +215,7 @@ The MLRun parameter {py:meth}`mlrun.runtimes.KubeResource.with_preemption_mode` 
 - none: The function has no preemptible configuration applied to it.
 
 ```{admonition} Caution
-Do not configure the `prevent` preemption mode with a node selector defined in `mlconf.get_preemptible_node_selector()`: MLRun removes the node selector to avoid conflicts.
+Do not configure a node selector defined in `mlconf.get_preemptible_node_selector()` while using the 'prevent' preemption mode : MLRun removes the node selector to avoid conflicts.
 ```
 
 To change the default function preemption mode, you need to override the API configuration 
@@ -314,8 +314,7 @@ for jobs executed by a service, and at the project level.  When specified, the
 service/function/project can only run on nodes whose labels match the node selector entries configured for the specific service/function/project. 
 
 ```{admonition} Caution
-- Do not use node selectors for scheduling on spot/on-demand nodes. See [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes).
-- Do not configure the `prevent` preemption mode with a node selector defined in `mlconf.get_preemptible_node_selector()`: MLRun removes the node selector to avoid conflicts.
+Do not configure a node selector defined in `mlconf.get_preemptible_node_selector()` while using the 'prevent' preemption mode : MLRun removes the node selector to avoid conflicts.
 ```
 Configurations at the project and function levels are treated as a cohesive unit, prioritizing the function level. 
 Therefore, configurations defined at the function level take precedence over those at the project level. 
@@ -406,13 +405,13 @@ A merge with precedence is then performed with the project and MLRun config leve
 
 
 ### Best Practice
-
-Node selection is often used for assigning jobs/pods to GPU nodes. But not all jobs/pods benefit from a GPU node.
-For example:
-- With Databricks, the node selector is only relevant for the "helper" pod running in the MLRun Kubernetes cluster,  
-and it behaves similarly to how node selectors are applied in Kubejob. It does not affect the actual Databricks cluster, 
-which does not run in the MLRun cluster: node selectors have no significance in that context.
-- A Spark function includes an executor and a driver; the driver does not benefit from a GPU node.
+- Do not use node selectors for scheduling on spot/on-demand nodes. See [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes).
+- Node selection is often used for assigning jobs/pods to GPU nodes. But not all jobs/pods benefit from a GPU node.
+   For example:
+   - With Databricks, the node selector is only relevant for the "helper" pod running in the MLRun Kubernetes cluster,  
+   and it behaves similarly to how node selectors are applied in Kubejob. It does not affect the actual Databricks cluster, 
+   which does not run in the MLRun cluster: node selectors have no significance in that context.
+   - A Spark function includes an executor and a driver; the driver does not benefit from a GPU node.
 
 ### SDK configuration
 

@@ -20,19 +20,18 @@ Revises: 537d9a20c4b4
 Create Date: 2024-12-17 14:48:45.556742
 
 """
+
 import os
 from datetime import datetime
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import mysql
 
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.partition
 
 # revision identifiers, used by Alembic.
-revision = '69c3d6deab3d'
-down_revision = '537d9a20c4b4'
+revision = "69c3d6deab3d"
+down_revision = "537d9a20c4b4"
 branch_labels = None
 depends_on = None
 
@@ -56,8 +55,12 @@ def upgrade():
             partition_interval
         )
 
-        partition_name, partition_value = partition_interval.get_partition_info(now_utc)[0]
-        partition_expression = partition_interval.get_partition_expression(column_name="activation_time")
+        partition_name, partition_value = partition_interval.get_partition_info(
+            now_utc
+        )[0]
+        partition_expression = partition_interval.get_partition_expression(
+            column_name="activation_time"
+        )
 
         # Construct SQL for partitioning
         partition_sql = f"""

@@ -43,7 +43,7 @@ setup(
     ],
     extras_require={
         "ipython": [
-            "graphviz~=0.20.0",
+            "graphviz>=0.20",
             "ipython>=8.10",
         ]
     },

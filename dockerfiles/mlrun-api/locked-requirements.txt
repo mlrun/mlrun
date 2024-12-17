@@ -1963,9 +1963,9 @@ mistune==3.0.2 \
     --hash=sha256:71481854c30fdbc938963d3605b72501f5c10a9320ecd412c121c163a1c7d205 \
     --hash=sha256:fc7f93ded930c92394ef2cb6f04a8aabab4117a91449e72dcc8dfa646a508be8
     # via nbconvert
-mlflow==2.14.3 \
-    --hash=sha256:292cae4b83574a0cb223117e224caa6798933078af0233719c2b612bea645617 \
-    --hash=sha256:2de915346c8e34a9d13efbd6469551980923619274db57fd2253621a2c666e18
+mlflow==2.16.0 \
+    --hash=sha256:82ea1a2e800f404f1586783b7636091c0a5754cf9ff45afeadf3a5e467f5168f \
+    --hash=sha256:9f27ef6ae7a82d7ecd67b6b4a4d50637a5e8160639115570fbc689758f9c0b54
     # via -r extras-requirements.txt
 mlrun-pipelines-kfp-common==0.2.3 \
     --hash=sha256:485c94c727b5e5a953190527e074d44ce5af1fe64c0ccc7cdd4553e0d2cd2b4f \

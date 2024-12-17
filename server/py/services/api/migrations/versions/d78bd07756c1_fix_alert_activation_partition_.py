@@ -15,9 +15,9 @@
 
 """fix_alert_activation_partition_expression
 
-Revision ID: 69c3d6deab3d
-Revises: 537d9a20c4b4
-Create Date: 2024-12-17 14:48:45.556742
+Revision ID: d78bd07756c1
+Revises: 57d26493fbff
+Create Date: 2024-12-17 15:29:44.532042
 
 """
 
@@ -30,8 +30,8 @@ import mlrun.common.schemas.alert
 import mlrun.common.schemas.partition
 
 # revision identifiers, used by Alembic.
-revision = "69c3d6deab3d"
-down_revision = "537d9a20c4b4"
+revision = "d78bd07756c1"
+down_revision = "57d26493fbff"
 branch_labels = None
 depends_on = None
 

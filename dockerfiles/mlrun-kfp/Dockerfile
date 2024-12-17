@@ -13,10 +13,19 @@
 # limitations under the License.
 ARG MLRUN_DOCKER_REGISTRY
 ARG MLRUN_VERSION=unstable
+ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 # Compute the base image name, adding a slash only if the registry is not empty
-ARG BASE_IMAGE=${MLRUN_DOCKER_REGISTRY:+${MLRUN_DOCKER_REGISTRY}/}mlrun/mlrun
+ARG BASE_IMAGE=${MLRUN_DOCKER_REGISTRY:+${MLRUN_DOCKER_REGISTRY}/}mlrun/ml-base
+
+FROM ${MLRUN_UV_IMAGE} AS uv-image
 
 FROM ${BASE_IMAGE}:${MLRUN_VERSION}
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 
-RUN python -m pip install .[kfp18]
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/mlrun-kfp/locked-requirements.txt,target=locked-requirements.txt \
+    uv pip sync --require-hashes locked-requirements.txt
 
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+uv pip install .[kfp18]

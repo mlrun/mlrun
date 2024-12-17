@@ -471,7 +471,7 @@ class _PipelineRunner(abc.ABC):
         namespace=None,
         source=None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
-            context: typing.Optional[mlrun.execution.MLClientCtx] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -724,7 +724,7 @@ class _LocalRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
-            context: typing.Optional[mlrun.execution.MLClientCtx] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(

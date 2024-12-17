@@ -105,7 +105,15 @@ class SQLRunDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         raise NotImplementedError()
 
-    def push_run_notifications(self, uid, project="", iter=0, timeout=45, status_text=""):
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        iter=0,
+        custom_message=None,
+        custom_html=None,
+        timeout=45,
+    ):
         raise NotImplementedError()
 
     def read_run(

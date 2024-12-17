@@ -755,13 +755,25 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def push_run_notifications(self, uid, project="", iter=0, timeout=45, status_text=""):
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        iter=0,
+        custom_message=None,
+        custom_html=None,
+        timeout=45,
+    ):
         """
         Push notifications for a run.
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
         project = project or config.default_project
-        params = {"iter": iter}
+        params = {
+            "iter": iter,
+            "custom_html": custom_html,
+            "custom_message": custom_message,
+        }
 
         response = self.api_call(
             "POST",

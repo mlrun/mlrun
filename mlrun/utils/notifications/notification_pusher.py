@@ -97,6 +97,7 @@ class NotificationPusher(_NotificationPusherBase):
         "completed": "{resource} completed",
         "error": "{resource} failed",
         "aborted": "{resource} aborted",
+        "running": "{resource} started",
     }
 
     def __init__(
@@ -150,7 +151,11 @@ class NotificationPusher(_NotificationPusherBase):
         if self._should_notify(run, notification):
             self._load_notification(run, notification)
 
-    def push(self):
+    def push(
+        self,
+        custom_html: typing.Optional[str] = None,
+        custom_message: typing.Optional[str] = None,
+    ):
         """
         Asynchronously push notifications for all runs in the initialized runs list (if they should be pushed).
         When running from a sync environment, the notifications will be pushed asynchronously however the function will
@@ -167,6 +172,8 @@ class NotificationPusher(_NotificationPusherBase):
                         notification_data[0],
                         notification_data[1],
                         notification_data[2],
+                        custom_html,
+                        custom_message,
                     )
                 except Exception as exc:
                     logger.warning(
@@ -182,6 +189,8 @@ class NotificationPusher(_NotificationPusherBase):
                         notification_data[0],
                         notification_data[1],
                         notification_data[2],
+                        custom_html,
+                        custom_message,
                     )
                 )
 
@@ -285,6 +294,7 @@ class NotificationPusher(_NotificationPusherBase):
 
         message = (
             self.messages.get(run.state(), "").format(resource=resource)
+            + f" in project {run.metadata.project}"
             + custom_message
         )
 
@@ -299,10 +309,16 @@ class NotificationPusher(_NotificationPusherBase):
         notification: base.NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
+        custom_html: typing.Optional[str] = None,
+        custom_message: typing.Optional[str] = None,
     ):
         message, severity, runs = self._prepare_notification_args(
             run, notification_object
         )
+
+        if custom_message:
+            message = custom_message
+
         logger.debug(
             "Pushing sync notification",
             notification=sanitize_notification(notification_object.to_dict()),
@@ -313,9 +329,10 @@ class NotificationPusher(_NotificationPusherBase):
             "project": run.metadata.project,
             "notification": notification_object,
             "status": mlrun.common.schemas.NotificationStatus.SENT,
+            "run_state": run.state(),
         }
         try:
-            notification.push(message, severity, runs)
+            notification.push(message, severity, runs, custom_html=custom_html)
             logger.debug(
                 "Notification sent successfully",
                 notification=sanitize_notification(notification_object.to_dict()),
@@ -347,10 +364,15 @@ class NotificationPusher(_NotificationPusherBase):
         notification: base.NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
+        custom_html: typing.Optional[str] = None,
+        custom_message: typing.Optional[str] = None,
     ):
         message, severity, runs = self._prepare_notification_args(
             run, notification_object
         )
+        if custom_message:
+            message = custom_message
+
         logger.debug(
             "Pushing async notification",
             notification=sanitize_notification(notification_object.to_dict()),
@@ -360,10 +382,11 @@ class NotificationPusher(_NotificationPusherBase):
             "run_uid": run.metadata.uid,
             "project": run.metadata.project,
             "notification": notification_object,
+            "run_state": run.state(),
             "status": mlrun.common.schemas.NotificationStatus.SENT,
         }
         try:
-            await notification.push(message, severity, runs)
+            await notification.push(message, severity, runs, custom_html=custom_html)
             logger.debug(
                 "Notification sent successfully",
                 notification=sanitize_notification(notification_object.to_dict()),
@@ -397,10 +420,20 @@ class NotificationPusher(_NotificationPusherBase):
         run_uid: str,
         project: str,
         notification: mlrun.model.Notification,
+        run_state: runtimes_constants.RunStates,
         status: typing.Optional[str] = None,
         sent_time: typing.Optional[datetime.datetime] = None,
         reason: typing.Optional[str] = None,
     ):
+        if run_state not in runtimes_constants.RunStates.terminal_states():
+            # we want to update the notification status only if the run is in a terminal state for BC
+            logger.debug(
+                "Skip updating notification status - run not in terminal state",
+                run_uid=run_uid,
+                state=run_state,
+            )
+            return
+
         db = mlrun.get_run_db()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
@@ -668,28 +701,29 @@ class CustomNotificationPusher(_NotificationPusherBase):
         pipeline_id: typing.Optional[str] = None,
         has_workflow_url: bool = False,
     ):
+        message = f"Workflow started in project {project}"
+        if pipeline_id:
+            message += f" id={pipeline_id}"
+        commit_id = (
+            commit_id or os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA")
+        )
+        if commit_id:
+            message += f", commit={commit_id}"
+        if has_workflow_url:
+            url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
+        else:
+            url = mlrun.utils.helpers.get_ui_url(project)
+        html = ""
+        if url:
+            html = (
+                message
+                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
+            )
+            message = message + f", check progress in {url}"
         db = mlrun.get_run_db()
-        db.push_run_notifications(pipeline_id, project)
-        # message = f"Workflow started in project {project}"
-        # if pipeline_id:
-        #     message += f" id={pipeline_id}"
-        # commit_id = (
-        #     commit_id or os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA")
-        # )
-        # if commit_id:
-        #     message += f", commit={commit_id}"
-        # if has_workflow_url:
-        #     url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
-        # else:
-        #     url = mlrun.utils.helpers.get_ui_url(project)
-        # html = ""
-        # if url:
-        #     html = (
-        #         message
-        #         + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
-        #     )
-        #     message = message + f", check progress in {url}"
-        # self.push(message, "info", custom_html=html)
+        db.push_run_notifications(
+            pipeline_id, project, custom_message=message, custom_html=html
+        )
 
     def push_pipeline_run_results(
         self,

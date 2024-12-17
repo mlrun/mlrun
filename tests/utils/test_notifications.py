@@ -22,6 +22,7 @@ import aiohttp
 import pytest
 import tabulate
 
+import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
 import mlrun.utils.notifications.notification.mail as mail
@@ -145,6 +146,7 @@ def test_notification_should_notify(
         mlrun.common.schemas.notification.NotificationKind.git,
         mlrun.common.schemas.notification.NotificationKind.webhook,
         mlrun.common.schemas.notification.NotificationKind.ipython,
+        mlrun.common.schemas.notification.NotificationKind.mail,
     ],
 )
 def test_notification_reason(notification_kind):
@@ -188,6 +190,65 @@ def test_notification_reason(notification_kind):
     assert (
         str(error_exc)
         in notification_pusher._update_notification_status.call_args.kwargs["reason"]
+    )
+
+
+@pytest.mark.parametrize(
+    "notification_kind",
+    [
+        mlrun.common.schemas.notification.NotificationKind.console,
+        mlrun.common.schemas.notification.NotificationKind.slack,
+        mlrun.common.schemas.notification.NotificationKind.git,
+        mlrun.common.schemas.notification.NotificationKind.webhook,
+        mlrun.common.schemas.notification.NotificationKind.ipython,
+        mlrun.common.schemas.notification.NotificationKind.mail,
+    ],
+)
+@pytest.mark.parametrize(
+    "run_status",
+    [runtimes_constants.RunStates.running, runtimes_constants.RunStates.completed],
+)
+def test_update_notification_status(notification_kind, run_status):
+    run = mlrun.model.RunObject.from_dict({"status": {"state": run_status}})
+    run.spec.notifications = [
+        mlrun.model.Notification.from_dict(
+            {
+                "kind": notification_kind,
+                "status": "pending",
+                "message": "test-abc",
+                "when": ["running", "completed"],
+            }
+        ),
+    ]
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+
+    # mock the push method to raise an exception
+    notification_kind_type = getattr(
+        mlrun.utils.notifications.NotificationTypes, notification_kind
+    ).get_notification()
+    if asyncio.iscoroutinefunction(notification_kind_type.push):
+        concrete_notification = notification_pusher._async_notifications[0][0]
+    else:
+        concrete_notification = notification_pusher._sync_notifications[0][0]
+
+    concrete_notification.push = unittest.mock.MagicMock()
+
+    db = mlrun.get_run_db()
+    db.store_run_notifications = unittest.mock.MagicMock()
+
+    # send notifications
+    notification_pusher.push()
+
+    # we don't want to call the store_run_notifications method on running
+    expected_store_run_notifications_call_count = (
+        0 if run_status == runtimes_constants.RunStates.running else 1
+    )
+    assert (
+        expected_store_run_notifications_call_count
+        == db.store_run_notifications.call_count
     )
 
 

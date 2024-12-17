@@ -533,6 +533,8 @@ async def push_notifications(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     iter: int = 0,
+    custom_html: str = None,
+    custom_message: str = None,
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -564,11 +566,13 @@ async def push_notifications(
         ),
         db_session,
         run,
+        custom_html,
+        custom_message,
     )
     return background_task
 
 
-def _push_notifications(db_session, run):
+def _push_notifications(db_session, run, custom_html, custom_message):
     db = db_singleton.get_db()
     framework.utils.notifications.unmask_notification_params_secret_on_task(
         db, db_session, run
@@ -579,4 +583,4 @@ def _push_notifications(db_session, run):
     run_notification_pusher_class(
         [run],
         run_notification_pusher_class.resolve_notifications_default_params(),
-    ).push()
+    ).push(custom_html, custom_message)

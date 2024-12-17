@@ -255,10 +255,9 @@ def test_remote_advance(httpserver, engine):
         raise e
     finally:
         server.wait_for_completion()
-    # resp_body = resp['body']
-    resp__headers = resp["req"].pop("body_headers")
+    resp_headers = resp["req"].pop("body_headers")
     assert resp == {"req": {"url": "/dog", "data": {"x": 5}}, "resp": {"post": "ok"}}
-    assert resp__headers["Test-header"] == "true"
+    assert resp_headers["Test-header"] == "true"
 
 
 def _timed_out_handler(request: Request):

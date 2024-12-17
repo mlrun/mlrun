@@ -14,6 +14,7 @@
 #
 import asyncio
 import json
+from copy import copy
 from typing import Optional
 
 import aiohttp
@@ -218,7 +219,7 @@ class RemoteStep(storey.SendToHttp):
         if self._headers_function_handler:
             headers = self._headers_function_handler(body)
         else:
-            headers = self.headers or {}
+            headers = copy(self.headers) or {}
         if self._url_function_handler:
             url = self._url_function_handler(body)
         else:
@@ -228,10 +229,8 @@ class RemoteStep(storey.SendToHttp):
                 url = url + "/" + striped_path
             if striped_path:
                 headers[event_path_key] = event.path
-
         if event.id:
             headers[event_id_key] = event.id
-
         if method == "GET":
             body = None
         elif body is not None and not isinstance(body, (str, bytes)):

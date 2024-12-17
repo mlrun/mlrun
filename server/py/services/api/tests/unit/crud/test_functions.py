@@ -24,6 +24,7 @@ def test_set_function_deletion_task_id_updates_correctly(db: sqlalchemy.orm.Sess
     function_tag = "latest"
     function = {
         "metadata": {"name": function_name, "tag": function_tag},
+        "kind": "nuclio",
     }
     project = "test_project"
     deletion_task_id = "12345"
@@ -35,8 +36,9 @@ def test_set_function_deletion_task_id_updates_correctly(db: sqlalchemy.orm.Sess
     function = services.api.crud.Functions().get_function(
         db, name=function_name, project=project, tag=function_tag
     )
+    kind_before_update = function["kind"]
 
-    result = services.api.crud.Functions().update_function(
+    services.api.crud.Functions().update_function(
         db_session=db,
         function=function,
         project=project,
@@ -45,7 +47,11 @@ def test_set_function_deletion_task_id_updates_correctly(db: sqlalchemy.orm.Sess
         },
     )
 
-    assert result["status"]["deletion_task_id"] == deletion_task_id
+    function = services.api.crud.Functions().get_function(
+        db, name=function_name, project=project, tag=function_tag
+    )
+    assert function["status"]["deletion_task_id"] == deletion_task_id
+    assert function["kind"] == kind_before_update
 
 
 def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):

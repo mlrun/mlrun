@@ -424,7 +424,8 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preempt
 ```
 ```
 # Run a project on specific instances
-project.with_node_selection(node_selector={"zone": "us-west1"})
+project.default_function_node_selector = {"zone": "us-west1"}
+project.save()
 ```
 
 ```
@@ -432,7 +433,7 @@ project.with_node_selection(node_selector={"zone": "us-west1"})
 fn.with_node_selection(node_selector={"zone": })
 ```
 
-See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_node_selection`.
+See {py:meth}`~mlrun.projects.MlrunProject.default_function_node_selector` and {py:meth}`~mlrun.runtimes.RemoteRuntime.with_node_selection`.
 
 ### UI configuration
 

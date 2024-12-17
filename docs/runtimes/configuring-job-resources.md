@@ -170,15 +170,13 @@ for each volume to mount to the pod. Multiple volumes can be configured for a si
 
 ## Preemption mode: Spot vs. On-demand nodes
 
-Spot (preemptible) nodes give you access to spare computing capacity from your cloud environment. 
-With Spot instances, you request capacity from specific availability zones, though it is 
-dependent on spare computing capacity. This is a good choice if you can be flexible about when your applications runs 
-and if your applications can be interrupted. Since spot instances run when there is available capacity, the cost is significantly lower. 
-
-On-demand instances give you full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
-reboot or terminate it. On-demand instances have a fixed (higher) price and are always available. 
-
 You can control whether to run your MLRun functions on spot nodes or on-demand nodes. 
+- **Spot (preemptible)** nodes give you access to spare computing capacity from your cloud environment. 
+With spot instances, you request capacity from specific availability zones, dependent on spare computing capacity. This is a good choice if you can be flexible about when your application runs,
+and if your applications can be interrupted. Since spot instances run when there is available capacity, the cost is significantly lower. 
+- **On-demand** nodes give you full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
+reboot or terminate the instance. On-demand instances have a fixed (higher) price and are always available. 
+
 MLRun supports spot nodes for all functions.
 
 Kubernetes has a few methods for configuring which nodes to run on. To get a deeper understanding, see 
@@ -190,8 +188,6 @@ The specific taints and tolerations in use differ between the different cloud pr
 MLRun aims to hide this complexity from the user by creating a standard interface that lets users specify the preemption mode type, and translates 
 it to the underlying Kubernetes constructs per the deployment type.<br>
 You still have the option of manually setting these low-level configurations, given that you know the specific configurations that are needed.
-
-
 
 ### Choosing the node type
 
@@ -210,13 +206,17 @@ Here are some questions to consider when choosing the type of node:
 - When an MLRun job is running on a spot node and it fails, it won't get back up again. However, if Nuclio goes down due to a spot issue, Kubernetes will bring it up.
 - Cloud providers use interruption handlers to warn before terminating a spot instance. MLRun does not currently support interruption handlers. 
 ```
-### Supported preemption modes
+### Preemption modes
 
 The MLRun parameter {py:meth}`mlrun.runtimes.KubeResource.with_preemption_mode` controls the node type, and has these values:
 - allow: The function pod can run on a spot node if one is available.
 - constrain: The function pod only runs on spot nodes and does not run if none is available. 
 - prevent: Default. The function pod cannot run on a spot node. 
 - none: The function has no preemptible configuration applied to it.
+
+```{admonition} Caution
+Do not configure the `prevent` preemption mode with a node selector defined in `mlconf.get_preemptible_node_selector()`: MLRun removes the node selector to avoid conflicts.
+```
 
 To change the default function preemption mode, you need to override the API configuration 
 (and specifically, "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environment variable to either one of the above modes).
@@ -246,7 +246,7 @@ train_fn.run(inputs={"dataset": my_data})
 
 Alternatively, you can specify the preemption using {py:meth}`~mlrun.runtimes.KubeResource.with_priority_class` and 
 {py:meth}`~mlrun.runtimes.KubeResource.with_node_selection` parameters. This example specifies that 
-the pod/function runs only on non-preemptible nodes:
+the pod/function runs only on non-preemptible (on-demand) nodes:
 
 ```
 import mlrun
@@ -308,11 +308,15 @@ of the function, **Edit** | **Resources** | **Pods Priority** drop-down list.
 ```{admonition} Note
 Requires Nuclio v1.13.5 or higher.
 ```
-Node selection can be used to specify where to run workloads (e.g. specific node groups, instance types, etc.). This is a more advanced 
+Node selection can be used to specify where to run workloads (e.g. specific node, node groups, node types, etc.). This is a more advanced 
 parameter mainly used in production deployments to isolate platform services from workloads. You can assign a node or a node group for MLRun or Nuclio service, 
 for jobs executed by a service, and at the project level.  When specified, the 
 service/function/project can only run on nodes whose labels match the node selector entries configured for the specific service/function/project. 
 
+```{admonition} Caution
+- Do not use node selectors for scheduling on spot/on-demand nodes. See [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes).
+- Do not configure the `prevent` preemption mode with a node selector defined in `mlconf.get_preemptible_node_selector()`: MLRun removes the node selector to avoid conflicts.
+```
 Configurations at the project and function levels are treated as a cohesive unit, prioritizing the function level. 
 Therefore, configurations defined at the function level take precedence over those at the project level. 
 Configurations set at either the project or function level (or both) take precedence over 

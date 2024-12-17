@@ -39,10 +39,11 @@ setup(
         "kfp",
     ],
     install_requires=[
-        "graphviz~=0.20.0",
-        "kubernetes>=31.0.0",
-        "ipython>=8.10",
+        "kubernetes~=25.3.0",
     ],
+    extras_require={
+        "ipython": ["graphviz~=0.20.0", "ipython>=8.10", ]
+    },
     python_requires=">=3.9, <3.12",
     long_description="MLRun Pipelines package for providing KFP common functionality",
     long_description_content_type="text/markdown",

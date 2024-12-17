@@ -48,11 +48,11 @@ class PartitionInterval(StrEnum):
     @classmethod
     def from_expression(cls, partition_expression: str):
         """
-        Returns the corresponding PartitionInterval for a given partition function,
+        Returns the corresponding PartitionInterval for a given partition expression,
         or None if the function is not mapped.
 
-        :param partition_expression: The partition function to map to an interval.
-        :return: PartitionInterval corresponding to the function, or None if no match is found.
+        :param partition_expression: The partition expression to map to an interval.
+        :return: PartitionInterval corresponding to the expression, or `month` if no match is found.
         """
 
         # Match the provided function string to the correct interval

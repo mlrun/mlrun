@@ -1344,8 +1344,9 @@ class FlowStep(BaseStep):
 
         if self._controller:
             if hasattr(self._controller, "terminate"):
-                self._controller.terminate()
-            return self._controller.await_termination()
+                return self._controller.terminate(wait=True)
+            else:
+                return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz

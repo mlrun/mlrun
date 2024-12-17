@@ -2117,13 +2117,13 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_function(
         self,
+        name: str,
         func: typing.Union[str, mlrun.runtimes.RemoteRuntime, None] = None,
         application_class: typing.Union[
             str, mm_app.ModelMonitoringApplicationBase, None
         ] = None,
-        name: Optional[str] = None,
         image: Optional[str] = None,
-        handler=None,
+        handler: Optional[str] = None,
         with_repo: Optional[bool] = None,
         tag: Optional[str] = None,
         requirements: Optional[typing.Union[str, list[str]]] = None,
@@ -2135,7 +2135,7 @@ class MlrunProject(ModelObj):
         Note: to deploy the function after linking it to the project,
         call `fn.deploy()` where `fn` is the object returned by this method.
 
-        examples::
+        Example::
 
             project.set_model_monitoring_function(
                 name="myApp", application_class="MyApp", image="mlrun/mlrun"
@@ -2144,8 +2144,7 @@ class MlrunProject(ModelObj):
         :param func:                    Remote function object or spec/code URL. :code:`None` refers to the current
                                         notebook.
         :param name:                    Name of the function (under the project), can be specified with a tag to support
-                                        versions (e.g. myfunc:v1)
-                                        Default: job
+                                        versions (e.g. myfunc:v1).
         :param image:                   Docker image to be used, can also be specified in
                                         the function object/yaml
         :param handler:                 Default function handler to invoke (can only be set with .py/.ipynb files)
@@ -2183,12 +2182,13 @@ class MlrunProject(ModelObj):
 
     def create_model_monitoring_function(
         self,
+        name: str,
         func: Optional[str] = None,
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
+            None,
         ] = None,
-        name: Optional[str] = None,
         image: Optional[str] = None,
         handler: Optional[str] = None,
         with_repo: Optional[bool] = None,
@@ -2200,16 +2200,15 @@ class MlrunProject(ModelObj):
         """
         Create a monitoring function object without setting it to the project
 
-        examples::
+        Example::
 
             project.create_model_monitoring_function(
-                application_class_name="MyApp", image="mlrun/mlrun", name="myApp"
+                name="myApp", application_class="MyApp", image="mlrun/mlrun"
             )
 
         :param func:                    The function's code URL. :code:`None` refers to the current notebook.
         :param name:                    Name of the function, can be specified with a tag to support
-                                        versions (e.g. myfunc:v1)
-                                        Default: job
+                                        versions (e.g. myfunc:v1).
         :param image:                   Docker image to be used, can also be specified in
                                         the function object/yaml
         :param handler:                 Default function handler to invoke (can only be set with .py/.ipynb files)

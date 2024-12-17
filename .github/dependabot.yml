@@ -36,7 +36,7 @@ updates:
   # go modules
   - package-ecosystem: gomod
     directories:
-      - "server/log-collector/go.mod"
+      - "server/go/services/**/*"
     schedule:
       interval: daily
     commit-message:

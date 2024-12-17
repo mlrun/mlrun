@@ -318,7 +318,6 @@ def update_model_endpoint_last_request(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
             name=model_endpoint.metadata.name,
-            function_name=model_endpoint.spec.function_name,
             attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
         )
     else:  # model endpoint without any serving function - close the window "manually"

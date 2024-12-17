@@ -260,9 +260,14 @@ class TestMLRunSystem:
 
         kubeconfig_content = None
         try:
-            base64_kubeconfig_content = os.environ["MLRUN_SYSTEM_TEST_KUBECONFIG"]
-            kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
-        except (ValueError, KeyError) as exc:
+            if kubeconfig_path := os.environ.get("MLRUN_SYSTEM_TEST_KUBECONFIG_PATH"):
+                with open(kubeconfig_path, "rb") as file:
+                    kubeconfig_content = file.read()
+            elif base64_kubeconfig_content := os.environ.get(
+                "MLRUN_SYSTEM_TEST_KUBECONFIG"
+            ):
+                kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
+        except ValueError as exc:
             logger.warning(
                 "Kubeconfig was empty or invalid.",
                 exc_info=mlrun.errors.err_to_str(exc),

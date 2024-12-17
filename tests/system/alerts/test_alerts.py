@@ -82,6 +82,14 @@ class TestAlerts(TestMLRunSystem):
         # in order to trigger the periodic monitor runs function, to detect the failed run and send an event on it
         time.sleep(35)
 
+        # get project summary to validate the alert activations counters
+        project_summary = mlrun.get_run_db().get_project_summary(
+            project=self.project_name
+        )
+        assert project_summary.job_alerts_count == 2
+        assert project_summary.endpoint_alerts_count == 0
+        assert project_summary.other_alerts_count == 0
+
         # Validate that the notifications was sent on the failed job
         expected_notifications = ["notification failure"]
         self._validate_notifications_on_nuclio(
@@ -357,6 +365,16 @@ class TestAlerts(TestMLRunSystem):
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )
+
+        # wait for the periodic project summaries calculation to start
+        time.sleep(20)
+        # validate the alert activations counters
+        project_summary = mlrun.get_run_db().get_project_summary(
+            project=self.project_name
+        )
+        assert project_summary.job_alerts_count == 0
+        assert project_summary.endpoint_alerts_count == 4
+        assert project_summary.other_alerts_count == 0
 
     def test_job_failure_alert_sliding_window(self):
         """

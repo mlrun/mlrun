@@ -17,7 +17,7 @@ MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 
-GO_VERSION=$(shell grep -m1 'go ' go.work | cut -d' ' -f2)
+GO_VERSION=$(shell grep -m1 'go ' go.work | awk '{split($$2,a,"."); print a[1] "." a[2]}')
 GOPATH ?= $(shell go env GOPATH)
 OS_NAME = $(shell uname)
 KUBECONFIG := $(if $(KUBECONFIG),$(KUBECONFIG),$(HOME)/.kube/config)
@@ -138,4 +138,4 @@ ensure-test-files-annotated:
 .PHONY: ensure-golangci
 ensure-golangci:
 	@test -e $(CI_BIN_DIR)/golangci-lint || \
-		(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.55.2)
+		(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.62.2)

@@ -91,15 +91,13 @@ class TestModelEndpoint(TestDatabaseBase):
             mep = self._db.store_model_endpoint(
                 self._db_session,
                 model_endpoint,
-                name=model_endpoint.metadata.name,
-                project=model_endpoint.metadata.project,
-                function_name="function-1",
             )
             model_endpoint_from_db = self._db.get_model_endpoint(
                 self._db_session,
                 name=model_endpoint.metadata.name,
                 project=model_endpoint.metadata.project,
                 function_name="function-1",
+                function_tag="latest",
             )
             assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
             assert model_endpoint_from_db.metadata.project == "project-1"
@@ -117,6 +115,7 @@ class TestModelEndpoint(TestDatabaseBase):
             project=model_endpoint.metadata.project,
             uid=uids[0],
             function_name="function-1",
+            function_tag="latest",
         )
 
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
@@ -133,8 +132,9 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db_session,
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
-            function_name="function-1",
             uid="*",
+            function_name="function-1",
+            function_tag="latest",
         )
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self._db.get_model_endpoint(
@@ -142,6 +142,7 @@ class TestModelEndpoint(TestDatabaseBase):
                 name=model_endpoint.metadata.name,
                 project=model_endpoint.metadata.project,
                 function_name="function-1",
+                function_tag="latest",
             )
         for uid in uids:
             with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -150,7 +151,6 @@ class TestModelEndpoint(TestDatabaseBase):
                     name=model_endpoint.metadata.name,
                     project=model_endpoint.metadata.project,
                     uid=uid,
-                    function_name="function-1",
                 )
 
     def test_list_filters(self) -> None:
@@ -180,9 +180,6 @@ class TestModelEndpoint(TestDatabaseBase):
             mep = self._db.store_model_endpoint(
                 self._db_session,
                 model_endpoint,
-                name=model_endpoint.metadata.name,
-                project=model_endpoint.metadata.project,
-                function_name="function-1",
             )
             uids.append(mep.metadata.uid)
 
@@ -222,6 +219,7 @@ class TestModelEndpoint(TestDatabaseBase):
         list_mep = self._db.list_model_endpoints(
             self._db_session, project=model_endpoint.metadata.project, uids=uids
         ).endpoints
+        print(list_mep[0])
         assert len(list_mep) == 2
 
         list_mep = self._db.list_model_endpoints(
@@ -237,12 +235,10 @@ class TestModelEndpoint(TestDatabaseBase):
         assert len(list_mep) == 2
 
         model_endpoint.metadata.endpoint_type = EndpointType.LEAF_EP
+        model_endpoint.spec.function_tag = "v1"
         last_stored_mep = self._db.store_model_endpoint(
             self._db_session,
             model_endpoint,
-            name=model_endpoint.metadata.name,
-            project=model_endpoint.metadata.project,
-            function_name="function-1",
         )
 
         list_mep = self._db.list_model_endpoints(
@@ -250,6 +246,23 @@ class TestModelEndpoint(TestDatabaseBase):
         ).endpoints
 
         assert len(list_mep) == 2
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            latest_only=True,
+        ).endpoints
+
+        assert len(list_mep) == 2
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            function_name="function-1",
+            function_tag="v1",
+        ).endpoints
+
+        assert len(list_mep) == 1
 
         list_mep = self._db.list_model_endpoints(
             self._db_session,
@@ -263,8 +276,31 @@ class TestModelEndpoint(TestDatabaseBase):
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_name="function-1",
+            function_tag="v1",
             uid="*",
         )
+
+        self._db.delete_model_endpoint(
+            self._db_session,
+            name=model_endpoint.metadata.name,
+            project=model_endpoint.metadata.project,
+            uid=uids[0],
+        )
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            function_name="function-1",
+            function_tag="v1",
+        ).endpoints
+        assert len(list_mep) == 0
+
+        list_mep = self._db.list_model_endpoints(
+            self._db_session,
+            project=model_endpoint.metadata.project,
+            function_name="function-1",
+        ).endpoints
+        assert len(list_mep) == 1
 
     def test_update_automatically_after_function_update(self) -> None:
         model_uids = []
@@ -287,9 +323,6 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db.store_model_endpoint(
                 self._db_session,
                 model_endpoint,
-                name=model_endpoint.metadata.name,
-                project=model_endpoint.metadata.project,
-                function_name="function-1",
             )
             self._db.update_function(
                 self._db_session,
@@ -303,6 +336,7 @@ class TestModelEndpoint(TestDatabaseBase):
                 name=model_endpoint.metadata.name,
                 project=model_endpoint.metadata.project,
                 function_name="function-1",
+                function_tag="latest",
             )
             assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
             assert model_endpoint_from_db.metadata.project == "project-1"
@@ -315,13 +349,6 @@ class TestModelEndpoint(TestDatabaseBase):
             )
             assert model_endpoint_from_db.spec.model_name == "model-1"
             assert model_endpoint_from_db.status.state == "error"
-        self._db.delete_model_endpoint(
-            self._db_session,
-            name=model_endpoint.metadata.name,
-            project=model_endpoint.metadata.project,
-            function_name="function-1",
-            uid="*",
-        )
 
     def test_update_automatically_after_model_update(self) -> None:
         model_uids = []
@@ -345,15 +372,13 @@ class TestModelEndpoint(TestDatabaseBase):
         self._db.store_model_endpoint(
             self._db_session,
             model_endpoint,
-            name=model_endpoint.metadata.name,
-            project=model_endpoint.metadata.project,
-            function_name="function-1",
         )
         model_endpoint_from_db = self._db.get_model_endpoint(
             self._db_session,
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_name="function-1",
+            function_tag="latest",
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
@@ -378,19 +403,12 @@ class TestModelEndpoint(TestDatabaseBase):
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_name="function-1",
+            function_tag="latest",
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
         assert model_endpoint_from_db.spec.model_name == "model-1"
-        assert model_endpoint_from_db.spec.model_tag is None
-
-        self._db.delete_model_endpoint(
-            self._db_session,
-            name=model_endpoint.metadata.name,
-            project=model_endpoint.metadata.project,
-            function_name="function-1",
-            uid="*",
-        )
+        assert model_endpoint_from_db.spec.model_tag == "latest"
 
     def test_update(self) -> None:
         model_uids = []
@@ -414,9 +432,6 @@ class TestModelEndpoint(TestDatabaseBase):
             mep = self._db.store_model_endpoint(
                 self._db_session,
                 model_endpoint,
-                name=model_endpoint.metadata.name,
-                project=model_endpoint.metadata.project,
-                function_name="function-1",
             )
             uids.append(mep.metadata.uid)
 
@@ -425,6 +440,7 @@ class TestModelEndpoint(TestDatabaseBase):
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_name="function-1",
+            function_tag="latest",
             attributes={"monitoring_mode": ModelMonitoringMode.disabled},
         )
 
@@ -433,6 +449,7 @@ class TestModelEndpoint(TestDatabaseBase):
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_name="function-1",
+            function_tag="latest",
         )
         # check that the monitoring mode was updated for the latest model endpoint
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
@@ -445,7 +462,6 @@ class TestModelEndpoint(TestDatabaseBase):
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             uid=uids[0],
-            function_name="function-1",
         )
         # check that the monitoring mode was not updated for the old model endpoint
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
@@ -459,7 +475,6 @@ class TestModelEndpoint(TestDatabaseBase):
             project=model_endpoint.metadata.project,
             uid=uids[0],
             attributes={"feature_names": ["a", "b"], "function_uid": "111"},
-            function_name="function-1",
         )
 
         model_endpoint_from_db = self._db.get_model_endpoint(
@@ -467,6 +482,7 @@ class TestModelEndpoint(TestDatabaseBase):
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_name="function-1",
+            function_tag="latest",
         )
         # check that the feature_names value was not updated for the latest model endpoint
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
@@ -478,7 +494,6 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db_session,
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
-            function_name="function-1",
             uid=uids[0],
         )
         # check that the feature_names value was updated for the old model endpoint
@@ -509,9 +524,6 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db.store_model_endpoint(
                 self._db_session,
                 model_endpoint,
-                name=model_endpoint.metadata.name,
-                project=model_endpoint.metadata.project,
-                function_name="function-1",
             )
 
         assert self._db_session.query(ModelEndpoint.Label).count() == 0
@@ -539,15 +551,13 @@ class TestModelEndpoint(TestDatabaseBase):
         mep = self._db.store_model_endpoint(
             self._db_session,
             model_endpoint,
-            name=model_endpoint.metadata.name,
-            project=model_endpoint.metadata.project,
-            function_name="function-1",
         )
         model_endpoint_from_db = self._db.get_model_endpoint(
             self._db_session,
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
             function_name="function-1",
+            function_tag="latest",
         )
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
@@ -562,7 +572,7 @@ class TestModelEndpoint(TestDatabaseBase):
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata={"name": "model-endpoint-1", "project": "project-1"},
             spec={
-                "function_name": None,
+                "function_name": "some-non-mlrun-function",
                 "function_uid": None,
             },
             status={"monitoring_mode": "enabled", "last_request": datetime.now()},
@@ -570,21 +580,19 @@ class TestModelEndpoint(TestDatabaseBase):
         mep = self._db.store_model_endpoint(
             self._db_session,
             model_endpoint,
-            name=model_endpoint.metadata.name,
-            project=model_endpoint.metadata.project,
-            function_name=None,
         )
         model_endpoint_from_db = self._db.get_model_endpoint(
             self._db_session,
             name=model_endpoint.metadata.name,
             project=model_endpoint.metadata.project,
-            function_name=None,
+            uid=mep.metadata.uid,
         )
+        print("model_endpoint_from_db", model_endpoint_from_db.spec.function_name)
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
         assert model_endpoint_from_db.metadata.uid == mep.metadata.uid
         assert model_endpoint_from_db.spec.model_name == ""
-        assert model_endpoint_from_db.spec.function_name is None
+        assert model_endpoint_from_db.spec.function_name == "some-non-mlrun-function"
 
     def test_2_functions(self) -> None:
         for i in range(2):
@@ -599,9 +607,6 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db.store_model_endpoint(
                 self._db_session,
                 model_endpoint,
-                name=model_endpoint.metadata.name,
-                project=model_endpoint.metadata.project,
-                function_name=f"f-{i}",
             )
 
         endpoints = self._db.list_model_endpoints(
@@ -613,3 +618,8 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db_session, project="project-1", function_name="f-0"
         ).endpoints
         assert len(endpoints) == 1
+
+        endpoints = self._db.list_model_endpoints(
+            self._db_session, project="project-1", function_tag="v2"
+        ).endpoints
+        assert len(endpoints) == 0

@@ -216,7 +216,7 @@ func RetryUntilSuccessfulWithResult(duration time.Duration,
 	if lastErr != nil {
 
 		// wrap last error
-		return result, errors.Wrapf(lastErr, TimedOutErrorMessage)
+		return result, errors.Wrap(lastErr, TimedOutErrorMessage)
 	}
 
 	// duration expired, but last callback failed

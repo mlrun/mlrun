@@ -41,6 +41,7 @@ import framework.utils.time_window_tracker
 import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
+import services.api.utils.pagination
 from framework.db.session import close_session, create_session
 from framework.routers import (
     alert_activations,
@@ -400,7 +401,7 @@ class Service(framework.service.Service):
         page_token: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session,
-    ):
+    ) -> mlrun.common.schemas.AlertActivations:
         allowed_projects_with_creation_time = await (
             services.api.crud.Projects().list_allowed_project_names_with_creation_time(
                 db_session,
@@ -439,10 +440,10 @@ class Service(framework.service.Service):
             event_kind=event_kind,
         )
 
-        return {
-            "activations": activations,
-            "pagination": page_info,
-        }
+        return mlrun.common.schemas.AlertActivations(
+            activations=activations,
+            pagination=page_info,
+        )
 
     async def _move_service_to_online(self):
         if not get_project_member():

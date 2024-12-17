@@ -1027,6 +1027,7 @@ class TestMailNotification:
         "validate_certs": True,
         "start_tls": False,
     }
+    MOCKED_HTML = "mocked_html"
 
     @pytest.mark.parametrize(
         "params, expectation",
@@ -1182,3 +1183,37 @@ class TestMailNotification:
         )
         default_params_copy.update(expected_params)
         assert enriched_params == default_params_copy
+
+    @pytest.mark.parametrize(
+        ["name", "params", "message", "severity", "expected"],
+        [
+            (
+                "empty_params",
+                {},
+                "test-message",
+                "info",
+                {
+                    "subject": "[info] test-message",
+                    "body": MOCKED_HTML,
+                },
+            ),
+            (
+                "with_params_message",
+                {"message_body_override": "runs: {{runs}}"},
+                "test-message",
+                "warning",
+                {
+                    "subject": "[warning] test-message",
+                    "body": f"runs: {MOCKED_HTML}",
+                },
+            ),
+        ],
+    )
+    async def test_push(self, name, params, message, severity, expected):
+        logger.debug(f"Testing {name}")
+        notification = mail.MailNotification(params=params)
+        notification._send_email = unittest.mock.AsyncMock()
+        notification._get_html = unittest.mock.MagicMock(return_value=self.MOCKED_HTML)
+        await notification.push(message, severity, [])
+        assert notification.params["subject"] == expected["subject"]
+        assert notification.params["body"] == expected["body"]

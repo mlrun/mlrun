@@ -22,6 +22,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.lists
+import mlrun.model_monitoring
 
 from ..config import config
 from ..utils import logger
@@ -573,39 +574,58 @@ class NopDB(RunDBInterface):
 
     def create_model_endpoint(
         self,
-        project: str,
-        endpoint_id: str,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ):
+    ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
-    def delete_model_endpoint(self, project: str, endpoint_id: str):
+    def delete_model_endpoint(
+        self,
+        name: str,
+        project: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+    ):
         pass
 
     def list_model_endpoints(
         self,
         project: str,
-        model: Optional[str] = None,
-        function: Optional[str] = None,
+        name: Optional[str] = None,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        model_name: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        start: str = "now-1h",
-        end: str = "now",
-        metrics: Optional[list[str]] = None,
-    ):
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        tsdb_metrics: bool = True,
+        top_level: bool = False,
+        uids: Optional[list[str]] = None,
+        latest_only: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpointList:
         pass
 
     def get_model_endpoint(
         self,
+        name: str,
         project: str,
-        endpoint_id: str,
-        start: Optional[str] = None,
-        end: Optional[str] = None,
-        metrics: Optional[list[str]] = None,
-        features: bool = False,
-    ):
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+        tsdb_metrics: bool = True,
+        feature_analysis: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
-    def patch_model_endpoint(self, project: str, endpoint_id: str, attributes: dict):
+    def patch_model_endpoint(
+        self,
+        name: str,
+        project: str,
+        attributes: dict,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+    ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
     def create_hub_source(
@@ -901,4 +921,7 @@ class NopDB(RunDBInterface):
         page_token: Optional[str] = None,
         **kwargs,
     ):
+        pass
+
+    def get_project_summary(self, project: str):
         pass

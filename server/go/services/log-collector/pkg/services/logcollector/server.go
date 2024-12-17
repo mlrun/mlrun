@@ -23,6 +23,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -37,7 +38,6 @@ import (
 	"github.com/mlrun/log-collector/pkg/services/logcollector/statestore/factory"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
-	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -694,7 +694,7 @@ func (s *Server) ListRunsInProgress(request *protologcollector.ListRunsRequest, 
 
 	// merge the two maps
 	for _, runUID := range runsInProgressCurrentState {
-		if !lo.Contains[string](runsInProgress, runUID) {
+		if !slices.Contains(runsInProgress, runUID) {
 			runsInProgress = append(runsInProgress, runUID)
 		}
 	}

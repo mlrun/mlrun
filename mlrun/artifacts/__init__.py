@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Don't remove this, used by sphinx documentation
-__all__ = ["get_model", "update_model"]
+__all__ = ["get_model", "update_model", "DocumentLoaderSpec", "MLRunLoader"]
 
 from .base import (
     Artifact,
@@ -23,7 +23,7 @@ from .base import (
     get_artifact_meta,
 )
 from .dataset import DatasetArtifact, TableArtifact, update_dataset_meta
-from .document import DocumentArtifact, DocumentLoader, DocumentLoaderSpec
+from .document import DocumentArtifact, DocumentLoaderSpec, MLRunLoader
 from .manager import (
     ArtifactManager,
     ArtifactProducer,

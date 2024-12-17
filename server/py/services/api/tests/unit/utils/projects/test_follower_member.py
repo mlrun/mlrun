@@ -24,8 +24,8 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+import mlrun.utils
 import mlrun_pipelines.utils
-from mlrun.utils import logger
 
 import framework.utils.background_tasks
 import framework.utils.projects.follower
@@ -38,13 +38,13 @@ import services.api.tests.unit.conftest
 
 @pytest.fixture()
 def projects_follower() -> typing.Iterator[framework.utils.projects.follower.Member]:
-    logger.info("Creating projects follower")
+    mlrun.utils.logger.info("Creating projects follower")
     mlrun.mlconf.httpdb.projects.leader = "nop"
     mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
     framework.utils.singletons.project_member.initialize_project_member()
     projects_follower = framework.utils.singletons.project_member.get_project_member()
     yield projects_follower
-    logger.info("Stopping projects follower")
+    mlrun.utils.logger.info("Stopping projects follower")
     projects_follower.shutdown()
 
 
@@ -447,15 +447,18 @@ async def test_list_project_summaries(
 
 @pytest.mark.asyncio
 async def test_list_project_summaries_fails_to_list_pipeline_runs(
-    kfp_client_mock: mlrun_pipelines.utils.kfp.Client,
+    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
     db: sqlalchemy.orm.Session,
     projects_follower: framework.utils.projects.follower.Member,
     nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project_name = "project-name"
+    project_creation_time = mlrun.utils.datetime_now()
     project = _generate_project(name=project_name)
     framework.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
-        return_value=mlrun.common.schemas.ProjectsOutput(projects=[project_name])
+        return_value=mlrun.common.schemas.ProjectsOutput(
+            projects=[(project_name, project_creation_time)]
+        )
     )
     services.api.crud.projects.Projects()._list_pipelines = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunNotFoundError("not found")
@@ -466,7 +469,9 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
         project,
     )
     framework.utils.singletons.db.get_db().get_project_resources_counters = (
-        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(9)))
+        unittest.mock.AsyncMock(
+            return_value=tuple({project_name: i} for i in range(12))
+        )
     )
     await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
     project_summaries = await projects_follower.list_project_summaries(db)

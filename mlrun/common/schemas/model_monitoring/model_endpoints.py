@@ -11,27 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import enum
+import abc
 import json
 from datetime import datetime
 from typing import Any, NamedTuple, Optional, TypeVar
 
-from pydantic.v1 import BaseModel, Extra, Field, constr, validator
+from pydantic.v1 import BaseModel, Field, constr
 
 # TODO: remove the unused import below after `mlrun.datastore` and `mlrun.utils` usage is removed.
 # At the moment `make lint` fails if this is removed.
-import mlrun.common.model_monitoring
-
-from ..object import ObjectKind, ObjectSpec, ObjectStatus
+from ..object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from . import ModelEndpointSchema
 from .constants import (
     FQN_REGEX,
     MODEL_ENDPOINT_ID_PATTERN,
     PROJECT_PATTERN,
     EndpointType,
-    EventFieldType,
-    EventKeyMetrics,
-    EventLiveStats,
     ModelEndpointMonitoringMetricType,
     ModelMonitoringMode,
     ResultKindApp,
@@ -45,81 +40,6 @@ class ModelMonitoringStoreKinds:
     # TODO: do changes in examples & demos In 1.5.0 remove
     ENDPOINTS = "endpoints"
     EVENTS = "events"
-
-
-class ModelEndpointMetadata(BaseModel):
-    project: constr(regex=PROJECT_PATTERN)
-    uid: constr(regex=MODEL_ENDPOINT_ID_PATTERN)
-    labels: Optional[dict] = {}
-
-    class Config:
-        extra = Extra.allow
-
-    @classmethod
-    def from_flat_dict(
-        cls, endpoint_dict: dict, json_parse_values: Optional[list] = None
-    ):
-        """Create a `ModelEndpointMetadata` object from an endpoint dictionary
-
-        :param endpoint_dict:     Model endpoint dictionary.
-        :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
-                                  dictionary using json.loads().
-        """
-        if json_parse_values is None:
-            json_parse_values = [EventFieldType.LABELS]
-
-        return _mapping_attributes(
-            model_class=cls,
-            flattened_dictionary=endpoint_dict,
-            json_parse_values=json_parse_values,
-        )
-
-
-class ModelEndpointSpec(ObjectSpec):
-    function_uri: Optional[str] = ""  # <project_name>/<function_name>:<tag>
-    model: Optional[str] = ""  # <model_name>:<version>
-    model_class: Optional[str] = ""
-    model_uri: Optional[str] = ""
-    feature_names: Optional[list[str]] = []
-    label_names: Optional[list[str]] = []
-    stream_path: Optional[str] = ""
-    algorithm: Optional[str] = ""
-    monitor_configuration: Optional[dict] = {}
-    active: Optional[bool] = True
-    monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled.value
-
-    @classmethod
-    def from_flat_dict(
-        cls, endpoint_dict: dict, json_parse_values: Optional[list] = None
-    ):
-        """Create a `ModelEndpointSpec` object from an endpoint dictionary
-
-        :param endpoint_dict:     Model endpoint dictionary.
-        :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
-                                  dictionary using json.loads().
-        """
-        if json_parse_values is None:
-            json_parse_values = [
-                EventFieldType.FEATURE_NAMES,
-                EventFieldType.LABEL_NAMES,
-                EventFieldType.MONITOR_CONFIGURATION,
-            ]
-        return _mapping_attributes(
-            model_class=cls,
-            flattened_dictionary=endpoint_dict,
-            json_parse_values=json_parse_values,
-        )
-
-    @validator("model_uri")
-    @classmethod
-    def validate_model_uri(cls, model_uri):
-        """Validate that the model uri includes the required prefix"""
-        prefix, uri = mlrun.datastore.parse_store_uri(model_uri)
-        if prefix and prefix != mlrun.utils.helpers.StorePrefix.Model:
-            return mlrun.datastore.get_store_uri(
-                mlrun.utils.helpers.StorePrefix.Model, uri
-            )
-        return model_uri
 
 
 class Histogram(BaseModel):
@@ -167,50 +87,24 @@ class Features(BaseModel):
         )
 
 
-class ModelEndpointStatus(ObjectStatus):
-    feature_stats: Optional[dict] = {}
-    current_stats: Optional[dict] = {}
-    first_request: Optional[str] = ""
-    last_request: Optional[str] = ""
-    error_count: Optional[int] = 0
-    drift_status: Optional[str] = ""
-    drift_measures: Optional[dict] = {}
-    metrics: Optional[dict[str, dict[str, Any]]] = {
-        EventKeyMetrics.GENERIC: {
-            EventLiveStats.LATENCY_AVG_1H: 0,
-            EventLiveStats.PREDICTIONS_PER_SECOND: 0,
-        }
-    }
-    features: Optional[list[Features]] = []
-    children: Optional[list[str]] = []
-    children_uids: Optional[list[str]] = []
-    endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP
-    monitoring_feature_set_uri: Optional[str] = ""
-    state: Optional[str] = ""
-
-    class Config:
-        extra = Extra.allow
+class ModelEndpointParser(abc.ABC, BaseModel):
+    @classmethod
+    def json_parse_values(cls) -> list[str]:
+        return []
 
     @classmethod
     def from_flat_dict(
         cls, endpoint_dict: dict, json_parse_values: Optional[list] = None
-    ):
-        """Create a `ModelEndpointStatus` object from an endpoint dictionary
+    ) -> "ModelEndpointParser":
+        """Create a `ModelEndpointParser` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
                                   dictionary using json.loads().
         """
         if json_parse_values is None:
-            json_parse_values = [
-                EventFieldType.FEATURE_STATS,
-                EventFieldType.CURRENT_STATS,
-                EventFieldType.DRIFT_MEASURES,
-                EventFieldType.METRICS,
-                EventFieldType.CHILDREN,
-                EventFieldType.CHILDREN_UIDS,
-                EventFieldType.ENDPOINT_TYPE,
-            ]
+            json_parse_values = cls.json_parse_values()
+
         return _mapping_attributes(
             model_class=cls,
             flattened_dictionary=endpoint_dict,
@@ -218,16 +112,54 @@ class ModelEndpointStatus(ObjectStatus):
         )
 
 
+class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
+    project: constr(regex=PROJECT_PATTERN)
+    endpoint_type: EndpointType = EndpointType.NODE_EP
+    uid: Optional[constr(regex=MODEL_ENDPOINT_ID_PATTERN)]
+
+
+class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
+    model_uid: Optional[str] = ""
+    model_name: Optional[str] = ""
+    model_db_key: Optional[str] = ""
+    model_tag: Optional[str] = ""
+    model_class: Optional[str] = ""
+    function_name: Optional[str] = ""
+    function_tag: Optional[str] = ""
+    function_uid: Optional[str] = ""
+    feature_names: Optional[list[str]] = []
+    label_names: Optional[list[str]] = []
+    feature_stats: Optional[dict] = {}
+    function_uri: Optional[str] = ""  # <project_name>/<function_hash>
+    model_uri: Optional[str] = ""
+    children: Optional[list[str]] = []
+    children_uids: Optional[list[str]] = []
+    monitoring_feature_set_uri: Optional[str] = ""
+
+
+class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
+    state: Optional[str] = "unknown"  # will be updated according to the function state
+    first_request: Optional[datetime] = None
+    monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled
+
+    # operative
+    last_request: Optional[datetime] = None
+    result_status: Optional[int] = -1
+    avg_latency: Optional[float] = None
+    error_count: Optional[int] = 0
+    current_stats: Optional[dict] = {}
+    current_stats_timestamp: Optional[datetime] = None
+    drift_measures: Optional[dict] = {}
+    drift_measures_timestamp: Optional[datetime] = None
+
+
 class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
     metadata: ModelEndpointMetadata
-    spec: ModelEndpointSpec = ModelEndpointSpec()
-    status: ModelEndpointStatus = ModelEndpointStatus()
+    spec: ModelEndpointSpec
+    status: ModelEndpointStatus
 
-    class Config:
-        extra = Extra.allow
-
-    def flat_dict(self):
+    def flat_dict(self) -> dict[str, Any]:
         """Generate a flattened `ModelEndpoint` dictionary. The flattened dictionary result is important for storing
         the model endpoint object in the database.
 
@@ -235,35 +167,24 @@ class ModelEndpoint(BaseModel):
         """
         # Convert the ModelEndpoint object into a dictionary using BaseModel dict() function
         # In addition, remove the BaseModel kind as it is not required by the DB schema
-        model_endpoint_dictionary = self.dict(exclude={"kind"})
 
+        model_endpoint_dictionary = self.dict(exclude={"kind"})
+        exclude = {
+            "tag",
+            ModelEndpointSchema.FEATURE_STATS,
+            ModelEndpointSchema.CURRENT_STATS,
+            ModelEndpointSchema.DRIFT_MEASURES,
+            ModelEndpointSchema.FUNCTION_URI,
+            ModelEndpointSchema.MODEL_URI,
+        }
         # Initialize a flattened dictionary that will be filled with the model endpoint dictionary attributes
         flatten_dict = {}
         for k_object in model_endpoint_dictionary:
             for key in model_endpoint_dictionary[k_object]:
-                # Extract the value of the current field
-                current_value = model_endpoint_dictionary[k_object][key]
+                if key not in exclude:
+                    # Extract the value of the current field
+                    flatten_dict[key] = model_endpoint_dictionary[k_object][key]
 
-                # If the value is not from type str or bool (e.g. dict), convert it into a JSON string
-                # for matching the database required format
-                if not isinstance(current_value, (str, bool, int)) or isinstance(
-                    current_value, enum.IntEnum
-                ):
-                    flatten_dict[key] = json.dumps(current_value)
-                else:
-                    flatten_dict[key] = current_value
-
-        if EventFieldType.METRICS not in flatten_dict:
-            # Initialize metrics dictionary
-            flatten_dict[EventFieldType.METRICS] = {
-                EventKeyMetrics.GENERIC: {
-                    EventLiveStats.LATENCY_AVG_1H: 0,
-                    EventLiveStats.PREDICTIONS_PER_SECOND: 0,
-                }
-            }
-
-        # Remove the features from the dictionary as this field will be filled only within the feature analysis process
-        flatten_dict.pop(EventFieldType.FEATURES, None)
         return flatten_dict
 
     @classmethod
@@ -280,9 +201,17 @@ class ModelEndpoint(BaseModel):
             status=ModelEndpointStatus.from_flat_dict(endpoint_dict=endpoint_dict),
         )
 
+    def get(self, field, default=None):
+        return (
+            getattr(self.metadata, field, None)
+            or getattr(self.spec, field, None)
+            or getattr(self.status, field, None)
+            or default
+        )
+
 
 class ModelEndpointList(BaseModel):
-    endpoints: list[ModelEndpoint] = []
+    endpoints: list[ModelEndpoint]
 
 
 class ModelEndpointMonitoringMetric(BaseModel):

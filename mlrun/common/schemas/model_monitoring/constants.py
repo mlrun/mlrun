@@ -41,30 +41,32 @@ class ModelEndpointSchema(MonitoringStrEnum):
 
     # spec
     FUNCTION_NAME = "function_name"
+    FUNCTION_TAG = "function_tag"
     FUNCTION_UID = "function_uid"
     MODEL_NAME = "model_name"
+    MODEL_DB_KEY = "model_db_key"
     MODEL_TAG = "model_tag"
     MODEL_CLASS = "model_class"
     MODEL_UID = "model_uid"
     FEATURE_NAMES = "feature_names"
     LABEL_NAMES = "label_names"
+    FEATURE_STATS = "feature_stats"
+    MONITORING_FEATURE_SET_URI = "monitoring_feature_set_uri"
+    CHILDREN = "children"
+    CHILDREN_UIDS = "children_uids"
+    FUNCTION_URI = "function_uri"
+    MODEL_URI = "model_uri"
 
     # status
     STATE = "state"
     MONITORING_MODE = "monitoring_mode"
-    MONITORING_FEATURE_SET_URI = "monitoring_feature_set_uri"
-    CHILDREN = "children"
-    CHILDREN_UIDS = "children_uids"
     FIRST_REQUEST = "first_request"
-    FUNCTION_URI = "function_uri"
-    MODEL_URI = "model_uri"
 
     # status - operative
     LAST_REQUEST = "last_request"
-    DRIFT_STATUS = "drift_status"
+    RESULT_STATUS = "result_status"
     AVG_LATENCY = "avg_latency"
     ERROR_COUNT = "error_count"
-    FEATURE_STATS = "feature_stats"
     CURRENT_STATS = "current_stats"
     DRIFT_MEASURES = "drift_measures"
 
@@ -80,6 +82,7 @@ class EventFieldType:
     TIMESTAMP = "timestamp"
     # `endpoint_id` is deprecated as a field in the model endpoint schema since 1.3.1, replaced by `uid`.
     ENDPOINT_ID = "endpoint_id"
+    ENDPOINT_NAME = "endpoint_name"
     UID = "uid"
     ENDPOINT_TYPE = "endpoint_type"
     REQUEST_ID = "request_id"
@@ -148,10 +151,12 @@ class ApplicationEvent:
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
     ENDPOINT_ID = "endpoint_id"
+    ENDPOINT_NAME = "endpoint_name"
     OUTPUT_STREAM_URI = "output_stream_uri"
 
 
 class WriterEvent(MonitoringStrEnum):
+    ENDPOINT_NAME = "endpoint_name"
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
@@ -222,7 +227,6 @@ class TSDBTarget(MonitoringStrEnum):
 
 
 class ProjectSecretKeys:
-    ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
@@ -230,7 +234,6 @@ class ProjectSecretKeys:
     @classmethod
     def mandatory_secrets(cls):
         return [
-            cls.ENDPOINT_STORE_CONNECTION,
             cls.STREAM_PATH,
             cls.TSDB_CONNECTION,
         ]

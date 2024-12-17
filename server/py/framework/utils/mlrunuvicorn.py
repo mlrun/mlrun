@@ -14,6 +14,8 @@
 
 import uvicorn
 
+from mlrun.utils import logger
+
 
 def _get_uvicorn_log_config(formatter_class):
     base_log_config = uvicorn.config.LOGGING_CONFIG
@@ -23,14 +25,15 @@ def _get_uvicorn_log_config(formatter_class):
     return base_log_config
 
 
-def run(logger, httpdb_config):
+def run(httpdb_config, service_name="api"):
     logger.info(
         "Starting API server",
         port=httpdb_config.port,
         debug=httpdb_config.debug,
+        service_name=service_name,
     )
     uvicorn.run(
-        "services.api.daemon:app",
+        f"services.{service_name}.daemon:app",
         host="0.0.0.0",
         port=httpdb_config.port,
         access_log=False,

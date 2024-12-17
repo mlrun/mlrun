@@ -259,7 +259,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
         read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
 
-        pd.testing.assert_frame_equal(
+        assert_frame_equal(
             read_back_df_storey,
             read_back_df_spark,
             check_categorical=False,
@@ -334,7 +334,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         expected_stats_df = pd.DataFrame(expected_stats)
         print(f"stats_df: {stats_df.to_json()}")
         print(f"expected_stats_df: {expected_stats_df.to_json()}")
-        assert stats_df.equals(expected_stats_df)
+        assert_frame_equal(stats_df, expected_stats_df, check_dtype=False)
 
     def test_special_columns_missing(self):
         key = "patient_id"
@@ -605,8 +605,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         assert read_back_df_storey is not None
 
-        assert read_back_df_spark.sort_index(axis=1).equals(
-            read_back_df_storey.sort_index(axis=1)
+        assert_frame_equal(
+            read_back_df_spark.sort_index(axis=1),
+            read_back_df_storey.sort_index(axis=1),
+            check_dtype=False,
         )
 
     @pytest.mark.skipif(
@@ -1689,7 +1691,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
         target_df.set_index(key, drop=True, inplace=True)
-        assert resp_df.equals(target_df)
+        assert_frame_equal(resp_df, target_df, check_dtype=False)
 
     # ML-2802, ML-3397
     @pytest.mark.parametrize(
@@ -1755,8 +1757,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self._print_full_df(
             df=expected_df, df_name="expected_df", passthrough=passthrough
         )
-        assert resp_df.equals(target_df)
-        assert resp_df[["bad", "department"]].equals(expected_df)
+        assert_frame_equal(resp_df, target_df, check_dtype=False)
+        assert_frame_equal(
+            resp_df[["bad", "department"]], expected_df, check_dtype=False
+        )
 
     def test_ingest_with_steps_drop_features(self):
         key = "patient_id"

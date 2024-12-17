@@ -39,9 +39,10 @@ import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
-from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
+from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.runtimes import BaseRuntime
+from mlrun.utils import generate_artifact_uri
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
@@ -55,109 +56,150 @@ _MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_mon
 class TestModelEndpointsOperations(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
-    project_name = "pr-endpoints-operations"
+    project_name = "mm-app-project"
 
     def setup_method(self, method):
         super().setup_method(method)
+        if method.__name__ == "test_list_endpoints_without_creds":
+            return
         self.project.set_model_monitoring_credentials(
-            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
 
-    def test_clear_endpoint(self):
+    @pytest.mark.parametrize("by_uid", [True, False])
+    def test_clear_endpoint(self, by_uid):
         """Validates the process of create and delete a basic model endpoint"""
-
-        endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
-
-        db.create_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
-        )
-
+        model_endpoint = self._mock_random_endpoint("testing")
+        db.create_model_endpoint(model_endpoint)
         endpoint_response = db.get_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid
+            name=model_endpoint.metadata.name,
+            project=model_endpoint.metadata.project,
+            function_name=model_endpoint.spec.function_name,
+            function_tag=model_endpoint.spec.function_tag,
         )
         assert endpoint_response
-        assert endpoint_response.metadata.uid == endpoint.metadata.uid
+        assert endpoint_response.metadata.name == model_endpoint.metadata.name
 
-        db.delete_model_endpoint(endpoint.metadata.project, endpoint.metadata.uid)
+        if by_uid:
+            attributes = {"endpoint_id": endpoint_response.metadata.uid}
+        else:
+            attributes = {
+                "function_name": endpoint_response.spec.function_name,
+                "function_tag": endpoint_response.spec.function_tag,
+            }
+
+        db.delete_model_endpoint(
+            name=endpoint_response.metadata.name,
+            project=endpoint_response.metadata.project,
+            **attributes,
+        )
 
         # test for existence with "underlying layers" functions
-        with pytest.raises(MLRunNotFoundError):
-            endpoint = db.get_model_endpoint(
-                endpoint.metadata.project, endpoint.metadata.uid
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.get_model_endpoint(
+                name=endpoint_response.metadata.name,
+                project=endpoint_response.metadata.project,
+                **attributes,
             )
 
     def test_store_endpoint_update_existing(self):
         """Validates the process of create and update a basic model endpoint"""
 
-        endpoint = self._mock_random_endpoint()
+        model_endpoint = self._mock_random_endpoint(
+            "testing",
+            function_name="function1",
+            function_tag=None,  # latest is the default
+        )
         db = mlrun.get_run_db()
 
-        db.create_model_endpoint(
-            project=endpoint.metadata.project,
-            endpoint_id=endpoint.metadata.uid,
-            model_endpoint=endpoint.dict(),
-        )
+        db.create_model_endpoint(model_endpoint=model_endpoint)
 
         endpoint_before_update = db.get_model_endpoint(
-            project=endpoint.metadata.project, endpoint_id=endpoint.metadata.uid
+            project=model_endpoint.metadata.project,
+            name=model_endpoint.metadata.name,
+            function_name=model_endpoint.spec.function_name,
+            function_tag="latest",
         )
 
-        assert endpoint_before_update.status.state == "null"
-
-        updated_state = "testing...testing...1 2 1 2"
-        drift_status = "DRIFT_DETECTED"
-        current_stats = {
-            "f1": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.4},
-            "f2": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.5},
-        }
+        assert endpoint_before_update.status.monitoring_mode == "enabled"
+        assert endpoint_before_update.spec.model_class == "modelcc"
 
         # Create attributes dictionary according to the required format
         attributes = {
-            "state": updated_state,
-            "drift_status": drift_status,
-            "current_stats": json.dumps(current_stats),
+            "monitoring_mode": "disabled",
+            "model_class": "modelcc-2",
         }
-
         db.patch_model_endpoint(
+            name=endpoint_before_update.metadata.name,
             project=endpoint_before_update.metadata.project,
             endpoint_id=endpoint_before_update.metadata.uid,
             attributes=attributes,
         )
-
         endpoint_after_update = db.get_model_endpoint(
-            project=endpoint.metadata.project, endpoint_id=endpoint.metadata.uid
+            project=endpoint_before_update.metadata.project,
+            endpoint_id=endpoint_before_update.metadata.uid,
+            name=endpoint_before_update.metadata.name,
         )
+        assert endpoint_after_update.status.monitoring_mode == "disabled"
+        assert endpoint_after_update.spec.model_class == "modelcc-2"
 
-        assert endpoint_after_update.status.state == updated_state
-        assert endpoint_after_update.status.drift_status == drift_status
-        assert endpoint_after_update.status.current_stats == current_stats
+        attributes = {
+            "monitoring_mode": "enabled",
+            "model_class": "modelcc-3",
+        }
+        db.patch_model_endpoint(
+            name=endpoint_before_update.metadata.name,
+            project=endpoint_before_update.metadata.project,
+            attributes=attributes,
+            function_name="function1",
+            function_tag="latest",
+        )
+        endpoint_after_update = db.get_model_endpoint(
+            project=endpoint_before_update.metadata.project,
+            endpoint_id=endpoint_before_update.metadata.uid,
+            name=endpoint_before_update.metadata.name,
+        )
+        assert endpoint_after_update.status.monitoring_mode == "enabled"
+        assert endpoint_after_update.spec.model_class == "modelcc-3"
 
     def test_list_endpoints_on_empty_project(self):
         endpoints_out = self.project.list_model_endpoints()
-        assert len(endpoints_out) == 0
+        assert len(endpoints_out.endpoints) == 0
+
+    def test_list_endpoints_without_creds(self):
+        # empty project
+        endpoints_out = self.project.list_model_endpoints()
+        assert len(endpoints_out.endpoints) == 0
+
+        # add endpoint
+        db = mlrun.get_run_db()
+        model_endpoint = self._mock_random_endpoint("testing")
+        db.create_model_endpoint(model_endpoint)
+
+        # list endpoints without credentials
+        endpoints_out = self.project.list_model_endpoints()
+        assert len(endpoints_out.endpoints) == 1
 
     def test_list_endpoints(self):
         db = mlrun.get_run_db()
 
         number_of_endpoints = 5
         endpoints_in = [
-            self._mock_random_endpoint("testing") for _ in range(number_of_endpoints)
+            self._mock_random_endpoint(f"testing-{i}")
+            for i in range(number_of_endpoints)
         ]
 
         for endpoint in endpoints_in:
-            db.create_model_endpoint(
-                endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
-            )
+            db.create_model_endpoint(endpoint)
 
-        endpoints_out = self.project.list_model_endpoints()
+        endpoints_out = self.project.list_model_endpoints().endpoints
 
-        in_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_in))
-        out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out))
+        in_endpoint_names = set(map(lambda e: e.metadata.name, endpoints_in))
+        out_endpoint_names = set(map(lambda e: e.metadata.name, endpoints_out))
 
-        endpoints_intersect = in_endpoint_ids.intersection(out_endpoint_ids)
+        endpoints_intersect = in_endpoint_names.intersection(out_endpoint_names)
         assert len(endpoints_intersect) == number_of_endpoints
 
     def test_list_endpoints_filter(self):
@@ -166,50 +208,66 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         # access_key = auth_info.data_session
         for i in range(number_of_endpoints):
-            endpoint_details = self._mock_random_endpoint()
-
-            if i < 1:
-                endpoint_details.spec.model = "filterme:latest"
-
-            if i < 2:
-                endpoint_details.spec.function_uri = "test/filterme"
-
-            if i < 4:
-                endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
-
-            db.create_model_endpoint(
-                endpoint_details.metadata.project,
-                endpoint_details.metadata.uid,
-                endpoint_details.dict(),
+            endpoint = self._mock_random_endpoint(
+                name=f"testing-{i}", function_tag=None
             )
 
-        filter_model = self.project.list_model_endpoints(model="filterme")
-        assert len(filter_model) == 1
+            if i < 1:
+                endpoint.spec.model_name = "filterme"
+                endpoint.spec.function_tag = "v45"
+            if i < 2:
+                endpoint.metadata.name = "test-filter"
+                endpoint.spec.function_name = "filter_function"
 
-        # TODO: Uncomment the following assertions once the KV labels filters is fixed.
-        #       Following the implementation of supporting SQL store for model endpoints records, this table
-        #       has static schema. That means, in order to keep the schema logic for both SQL and KV,
-        #       it is not possible to add new label columns dynamically to the KV table. Therefore, the label filtering
-        #       process for the KV should be updated accordingly.
-        #
+            if i < 4:
+                endpoint.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-        # filter_labels = db.list_model_endpoints(
-        #     self.project_name, labels=["filtermex=1"]
-        # )
-        # assert len(filter_labels) == 4
-        #
-        # filter_labels = db.list_model_endpoints(
-        #     self.project_name, labels=["filtermex=1", "filtermey=2"]
-        # )
-        # assert len(filter_labels) == 4
-        #
-        # filter_labels = db.list_model_endpoints(
-        #     self.project_name, labels=["filtermey=2"]
-        # )
-        # assert len(filter_labels) == 4
+            db.create_model_endpoint(model_endpoint=endpoint)
+
+        all_meps = self.project.list_model_endpoints()
+        assert len(all_meps.endpoints) == number_of_endpoints
+
+        filter_model = self.project.list_model_endpoints(model_name="filterme")
+        assert len(filter_model.endpoints) == 1
+
+        filter_functions = self.project.list_model_endpoints(
+            function_name="filter_function", function_tag="v45"
+        )
+        assert len(filter_functions.endpoints) == 1
+
+        filter_functions = self.project.list_model_endpoints(
+            function_name="filter_function", function_tag="latest"
+        )
+        assert len(filter_functions.endpoints) == 1
+
+        filter_functions_latest = self.project.list_model_endpoints(
+            name="test-filter", latest_only=True
+        )
+        assert len(filter_functions_latest.endpoints) == 2
+
+        filter_labels = db.list_model_endpoints(
+            self.project_name, labels=["filtermex=1"]
+        )
+        assert len(filter_labels.endpoints) == 4
+
+        filter_labels = db.list_model_endpoints(
+            self.project_name, labels=["filtermex=1", "filtermey=2"]
+        )
+        assert len(filter_labels.endpoints) == 4
+
+        filter_labels = db.list_model_endpoints(
+            self.project_name, labels=["filtermey=2"]
+        )
+        assert len(filter_labels.endpoints) == 4
 
     def _mock_random_endpoint(
-        self, state: Optional[str] = None
+        self,
+        name: str,
+        function_name: Optional[str] = "function-1",
+        function_uid: Optional[str] = None,
+        function_tag: Optional[str] = "v1",
+        model_name: Optional[str] = None,
+        model_uid: Optional[str] = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         def random_labels():
             return {
@@ -218,18 +276,21 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         return mlrun.common.schemas.model_monitoring.ModelEndpoint(
             metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+                name=name,
                 project=self.project_name,
                 labels=random_labels(),
-                uid=str(randint(1000, 5000)),
             ),
             spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
-                function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
-                model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
-                model_class="classifier",
-                active=True,
+                function_name=function_name,
+                function_tag=function_tag,
+                function_uid=function_uid,
+                model_name=model_name,
+                model_uid=model_uid,
+                model_class="modelcc",
+                model_tag="latest",
             ),
             status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
-                state=state
+                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
             ),
         )
 
@@ -245,14 +306,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     image: Optional[str] = None
 
     @pytest.mark.timeout(540)
-    @pytest.mark.parametrize(
-        "with_sql_target",
-        [
-            True,
-            False,
-        ],
-    )
-    def test_basic_model_monitoring(self, with_sql_target: bool) -> None:
+    def test_basic_model_monitoring(self) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - model name, tag and values are recorded as expected under the model endpoint
@@ -263,9 +317,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         project = self.project
 
         project.set_model_monitoring_credentials(
-            endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
-            if with_sql_target
-            else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
             replace_creds=True,  # remove once ML-7501 is resolved
@@ -330,67 +381,59 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(choice([0.01, 0.04]))
 
-        sleep(5)
-        endpoints_list = mlrun.get_run_db().list_model_endpoints(
-            self.project_name, metrics=["predictions_per_second"]
-        )
-        assert len(endpoints_list) == 1
+        sleep(15)
+        endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
+        assert len(endpoints_list.endpoints) == 1
 
-        endpoint = endpoints_list[0]
+        endpoint = endpoints_list.endpoints[0]
 
-        assert not endpoint.status.feature_stats
+        assert not endpoint.spec.feature_stats
 
         self._assert_model_endpoint_tags_and_labels(
-            endpoint=endpoint, model_name=model_name, tag=tag, labels=labels
+            endpoint=endpoint,
+            model_name=model_name,
+            tag=["some-tag", "latest"],
+            labels=labels,
         )
-
-        # Test metrics
-        self._assert_model_endpoint_metrics(endpoint=endpoint)
-
         self._assert_model_uri(model_obj=model_obj, endpoint=endpoint)
 
         metrics = mlrun.get_run_db().get_model_endpoint_monitoring_metrics(
             self.project_name, endpoint.metadata.uid
         )
         assert len(metrics) == 1
-        assert (
-            metrics[0].full_name
-            == f"{self.project_name}.mlrun-infra.metric.invocations"
+        expected_metric_fqn = f"{endpoint.metadata.uid}.mlrun-infra.result.invocations"
+        metric_fqn = get_result_instance_fqn(
+            model_endpoint_id=endpoint.metadata.uid,
+            app_name=metrics[0].app,
+            result_name=metrics[0].name,
         )
+        assert metric_fqn == expected_metric_fqn
 
     def _assert_model_uri(
         self,
         model_obj: mlrun.artifacts.ModelArtifact,
-        endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint,
+        endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> None:
-        assert (
-            endpoint.spec.model_uri
-            == f"store://models/{model_obj.metadata.project}/{model_obj.key}#{model_obj.iter}@{model_obj.tree}"
+        assert endpoint.spec.model_uri == mlrun.datastore.get_store_uri(
+            kind=mlrun.utils.helpers.StorePrefix.Model,
+            uri=generate_artifact_uri(
+                project=model_obj.project,
+                key=model_obj.key,
+                iter=model_obj.iter,
+                tree=model_obj.tree,
+            ),
         )
 
     def _assert_model_endpoint_tags_and_labels(
         self,
-        endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint,
+        endpoint: mlrun.common.schemas.ModelEndpoint,
         model_name: str,
-        tag: str,
+        tag: list[str],
         labels: dict[str, str],
     ) -> None:
         assert endpoint.metadata.labels == labels
-        assert endpoint.spec.model == f"{model_name}:{tag}"
-
-    def _assert_model_endpoint_metrics(
-        self, endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint
-    ) -> None:
-        assert len(endpoint.status.metrics) > 0
-        self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
-
-        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 102
-
-        predictions_per_second = endpoint.status.metrics["real_time"][
-            "predictions_per_second"
-        ]
-        total = sum(m[1] for m in predictions_per_second)
-        assert total > 0
+        assert endpoint.spec.model_name == model_name
+        assert endpoint.spec.model_tag == tag
 
 
 @pytest.mark.skip(reason="Chronically fails, see ML-5820")
@@ -398,7 +441,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 class TestModelMonitoringRegression(TestMLRunSystem):
     """Train, deploy and apply monitoring on a regression model"""
 
-    project_name = "pr-regression-model-monitoring-v4"
+    project_name = "pr-regression-model-monitoring"
 
     # TODO: Temporary skip this test on open source until fixed
     @pytest.mark.enterprise
@@ -746,7 +789,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                 ) <= start_time + timedelta(0, simulation_time)
                 assert endpoint.status.drift_status == "NO_DRIFT"
                 endpoint_with_details = mlrun.get_run_db().get_model_endpoint(
-                    self.project_name, endpoint.metadata.uid, feature_analysis=True
+                    self.project_name,
+                    name=endpoint.metadata.name,
+                    endpoint_id=endpoint.metadata.uid,
+                    feature_analysis=True,
                 )
                 drift_measures = endpoint_with_details.status.drift_measures
                 measures = [
@@ -878,7 +924,6 @@ class TestBatchDrift(TestMLRunSystem):
 
         # Deploy model monitoring infra
         project.set_model_monitoring_credentials(
-            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
@@ -905,10 +950,8 @@ class TestBatchDrift(TestMLRunSystem):
         )
 
         # Record results and trigger the monitoring batch job
-        endpoint_id = "123123123123"
-        mlrun.model_monitoring.api.record_results(
+        model_endpoint = mlrun.model_monitoring.api.record_results(
             project=project.metadata.name,
-            endpoint_id=endpoint_id,
             model_path=project.get_artifact_uri(
                 key=model_name, category="model", tag="latest"
             ),
@@ -922,7 +965,10 @@ class TestBatchDrift(TestMLRunSystem):
         sleep(130)
 
         model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
-            project=project.name, endpoint_id=endpoint_id
+            project=project.name,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint_name="batch-drift-test",
+            function_name="batch-drift-function",
         )
         # Validate that model_uri is based on models prefix
         self._validate_model_uri(model_obj=model, model_endpoint=model_endpoint)
@@ -932,7 +978,7 @@ class TestBatchDrift(TestMLRunSystem):
             labels={
                 "mlrun/producer-type": "model-monitoring-app",
                 "mlrun/app-name": "histogram-data-drift",
-                "mlrun/endpoint-id": endpoint_id,
+                "mlrun/endpoint-id": model_endpoint.metadata.uid,
             }
         )
         assert len(artifacts) == 2
@@ -947,6 +993,7 @@ class TestBatchDrift(TestMLRunSystem):
             key=model_obj.key,
             iter=model_obj.iter,
             tree=model_obj.tree,
+            uid=model_obj.metadata.uid,
         )
 
         # Enrich the uri schema with the store prefix
@@ -1016,7 +1063,6 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         )
 
         project.set_model_monitoring_credentials(
-            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=f"kafka://{self.brokers}",
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
@@ -1085,6 +1131,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
     @classmethod
     def custom_setup_class(cls) -> None:
+        # todo testsssss
         cls.classif = SVC()
         cls.model_name = "classif_model"
         cls.columns = ["feat 1", "b (C)", "Last   for df "]
@@ -1107,7 +1154,6 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         mlrun.runtimes.utils.global_context.set(None)
         # Set the model monitoring credentials
         self.project.set_model_monitoring_credentials(
-            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
@@ -1129,8 +1175,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
     def _get_monitoring_feature_set(self) -> mlrun.feature_store.FeatureSet:
         model_endpoint = mlrun.get_run_db().get_model_endpoint(
-            project=self.project_name,
-            endpoint_id=self.endpoint_id,
+            project=self.project_name, endpoint_id=self.endpoint_id, name="testsssssss"
         )
         return mlrun.feature_store.get_feature_set(
             model_endpoint.status.monitoring_feature_set_uri
@@ -1248,7 +1293,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     def test_record(self) -> None:
         self.project.set_model_monitoring_credentials(
-            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
@@ -1283,20 +1327,10 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystem):
 
     project_name = "pr-many-features-model-monitoring"
 
-    @pytest.mark.parametrize(
-        "with_sql_target",
-        [
-            True,
-            False,
-        ],
-    )
-    def test_model_endpoint_with_many_features(self, with_sql_target: bool) -> None:
+    def test_model_endpoint_with_many_features(self) -> None:
         project = self.project
 
         project.set_model_monitoring_credentials(
-            endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
-            if with_sql_target
-            else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
@@ -1328,4 +1362,4 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystem):
             model_endpoint_name="dummy_ep",
         )
 
-        assert len(model_endpoint.status.feature_stats) == 501
+        assert len(model_endpoint.spec.feature_stats) == 501

@@ -30,6 +30,7 @@ from mlrun.common.model_monitoring.helpers import (
     pad_features_hist,
     pad_hist,
 )
+from mlrun.common.schemas import EndpointType, ModelEndpoint
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
 from mlrun.model_monitoring.controller import (
@@ -42,10 +43,10 @@ from mlrun.model_monitoring.helpers import (
     _BatchDict,
     _get_monitoring_time_window_from_controller_run,
     batch_dict2timedelta,
+    filter_results_by_regex,
     get_invocations_fqn,
     update_model_endpoint_last_request,
 )
-from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import datetime_now
 
 
@@ -366,18 +367,10 @@ class TestBatchInterval:
 
 class TestBatchWindowGenerator:
     @staticmethod
-    @pytest.mark.parametrize(
-        ("first_request", "expected"),
-        [("2023-11-09 09:25:59.554971+00:00", 1699521959)],
-    )
-    def test_normalize_first_request(first_request: str, expected: int) -> None:
-        assert _BatchWindowGenerator._date_string2timestamp(first_request) == expected
-
-    @staticmethod
     def test_last_updated_is_in_the_past() -> None:
         last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            last_request=last_request.isoformat(), has_stream=True
+            last_request=last_request, not_batch_endpoint=True
         )
         assert last_updated
         assert (
@@ -399,7 +392,13 @@ class TestBumpModelEndpointLastRequest:
     @staticmethod
     @pytest.fixture
     def empty_model_endpoint() -> ModelEndpoint:
-        return ModelEndpoint()
+        return ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                name="test", project="test-project"
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(),
+            status=mlrun.common.schemas.ModelEndpointStatus(),
+        )
 
     @staticmethod
     @pytest.fixture
@@ -427,7 +426,6 @@ class TestBumpModelEndpointLastRequest:
         last_request: str,
         function: mlrun.runtimes.ServingRuntime,
     ) -> None:
-        model_endpoint.spec.stream_path = "stream"
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
             with patch.object(db, "get_function", return_value=function):
                 update_model_endpoint_last_request(
@@ -437,12 +435,10 @@ class TestBumpModelEndpointLastRequest:
                     db=db,
                 )
         patch_patch_model_endpoint.assert_called_once()
-        assert datetime.datetime.fromisoformat(
-            patch_patch_model_endpoint.call_args.kwargs["attributes"][
-                EventFieldType.LAST_REQUEST
-            ]
-        ) == datetime.datetime.fromisoformat(last_request)
-        model_endpoint.spec.stream_path = ""
+        assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
+            EventFieldType.LAST_REQUEST
+        ] == datetime.datetime.fromisoformat(last_request)
+        model_endpoint.metadata.endpoint_type = EndpointType.BATCH_EP
 
         with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
             with patch.object(db, "get_function", return_value=function):
@@ -453,11 +449,9 @@ class TestBumpModelEndpointLastRequest:
                     db=db,
                 )
         patch_patch_model_endpoint.assert_called_once()
-        assert datetime.datetime.fromisoformat(
-            patch_patch_model_endpoint.call_args.kwargs["attributes"][
-                EventFieldType.LAST_REQUEST
-            ]
-        ) == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
+        assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
+            EventFieldType.LAST_REQUEST
+        ] == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
             minutes=1
         ) + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
@@ -473,6 +467,7 @@ class TestBumpModelEndpointLastRequest:
             with patch.object(
                 db, "get_function", side_effect=mlrun.errors.MLRunNotFoundError
             ):
+                model_endpoint.metadata.endpoint_type = EndpointType.BATCH_EP
                 update_model_endpoint_last_request(
                     project=project,
                     model_endpoint=model_endpoint,
@@ -502,3 +497,41 @@ def test_batch_dict2timedelta() -> None:
     assert batch_dict2timedelta(
         _BatchDict(minutes=32, hours=0, days=4)
     ) == datetime.timedelta(minutes=32, days=4), "Different timedelta than expected"
+
+
+def test_filter_results_by_regex():
+    existing_result_names = [
+        "mep1.app1.result.metric1",
+        "mep1.app1.result.metric2",
+        "mep1.app2.result.metric1",
+        "mep1.app2.result.metric2",
+        "mep1.app2.result.metric3",
+        "mep1.app2.result.result-a",
+        "mep1.app2.result.result-b",
+        "mep1.app3.result.result1",
+        "mep1.app3.result.result2",
+        "mep1.app4.result.result1",
+        "mep1.app4.result.result2",
+    ]
+
+    expected_result_names = [
+        "mep1.app1.result.metric1",
+        "mep1.app2.result.metric1",
+        "mep1.app2.result.result-a",
+        "mep1.app2.result.result-b",
+        "mep1.app3.result.result1",
+        "mep1.app3.result.result2",
+        "mep1.app4.result.result1",
+    ]
+
+    results_names_filters = [
+        "*.metric1",
+        "app2.result-*",
+        "app3.*",
+        "app4.result1",
+    ]
+    filtered_results = filter_results_by_regex(
+        existing_result_names=existing_result_names,
+        result_name_filters=results_names_filters,
+    )
+    assert sorted(filtered_results) == sorted(expected_result_names)

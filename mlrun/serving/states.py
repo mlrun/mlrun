@@ -557,6 +557,8 @@ class TaskStep(BaseStep):
             self._object.post_init(mode)
             if hasattr(self._object, "model_endpoint_uid"):
                 self.endpoint_uid = self._object.model_endpoint_uid
+            if hasattr(self._object, "name"):
+                self.endpoint_name = self._object.name
 
     def respond(self):
         """mark this step as the responder.
@@ -1287,11 +1289,19 @@ class FlowStep(BaseStep):
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            resp = self._controller.emit(
-                event, return_awaitable_result=self._wait_for_result
-            )
-            if self._wait_for_result and resp:
-                return resp.await_result()
+            if self.context.is_mock:
+                resp = self._controller.emit(
+                    event, return_awaitable_result=self._wait_for_result
+                )
+                if self._wait_for_result and resp:
+                    return resp.await_result()
+            else:
+                resp_awaitable = self._controller.emit(
+                    event, await_result=self._wait_for_result
+                )
+                if self._wait_for_result:
+                    return resp_awaitable
+                return self._await_and_return_id(resp_awaitable, event)
             event = copy(event)
             event.body = {"id": event.id}
             return event
@@ -1334,8 +1344,9 @@ class FlowStep(BaseStep):
 
         if self._controller:
             if hasattr(self._controller, "terminate"):
-                self._controller.terminate()
-            return self._controller.await_termination()
+                return self._controller.terminate(wait=True)
+            else:
+                return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz
@@ -1708,8 +1719,12 @@ def _init_async_objects(context, steps):
         is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
     )
 
-    # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
-    default_source = storey.SyncEmitSource(
+    if context.is_mock:
+        source_class = storey.SyncEmitSource
+    else:
+        source_class = storey.AsyncEmitSource
+
+    default_source = source_class(
         context=context,
         explicit_ack=explicit_ack,
         **source_args,

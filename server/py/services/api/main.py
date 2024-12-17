@@ -38,7 +38,6 @@ import framework.constants
 import framework.db.base
 import framework.service
 import framework.utils.clients.chief
-import framework.utils.clients.discovery
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
 import framework.utils.notifications.notification_pusher
@@ -107,8 +106,7 @@ class Service(framework.service.Service):
         *args,
         **kwargs,
     ):
-        messaging_client = framework.utils.clients.messaging.Client()
-        return await messaging_client.proxy_request(request=request)
+        return await self._messaging_client.proxy_request(request=request)
 
     def _register_routes(self):
         # TODO: This should be configurable and resolved in the base class
@@ -759,7 +757,7 @@ class Service(framework.service.Service):
         unmasked_runs = []
         for run in runs:
             try:
-                framework.utils.notifications.unmask_notification_params_secret_on_task(
+                run = framework.utils.notifications.unmask_notification_params_secret_on_task(
                     db, db_session, run
                 )
                 unmasked_runs.append(run)
@@ -878,8 +876,6 @@ if __name__ == "__main__":
     # __main__.py on mlrun client and mlrun integration tests.
     # mlrun container image will run the server using uvicorn directly.
     # see /dockerfiles/mlrun-api/Dockerfile for more details.
-    from mlrun.utils import logger
+    import framework.utils.mlrunuvicorn as uvicorn
 
-    import services.api.apiuvicorn as uvicorn
-
-    uvicorn.run(logger, httpdb_config=mlconf.httpdb)
+    uvicorn.run(httpdb_config=mlconf.httpdb, service_name="api")

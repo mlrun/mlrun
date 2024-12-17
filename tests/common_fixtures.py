@@ -44,6 +44,7 @@ import mlrun.launcher.factory
 import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
+from mlrun import new_function
 from mlrun.common.schemas import ModelMonitoringMode
 from mlrun.config import config
 from mlrun.lists import ArtifactList
@@ -349,10 +350,20 @@ class RunDBMock:
     ) -> mlrun.lists.RunList:
         return mlrun.lists.RunList(self._runs.values())
 
-    def get_function(self, function, project, tag, hash_key=None):
-        if function not in self._functions:
+    def get_function(
+        self, function=None, project=None, tag=None, hash_key=None, name=None
+    ):
+        if name:
+            func = new_function(
+                name=name,
+                tag=tag,
+            )
+            func.metadata.uid = "my_uid"
+            return func.to_dict()
+        elif function and function not in self._functions:
             raise mlrun.errors.MLRunNotFoundError(f"Function {function} not found")
-        return self._functions[function]
+        elif function and function in self._functions:
+            return self._functions[function]
 
     def delete_function(self, name: str, project: str = ""):
         self._functions.pop(name, None)
@@ -644,11 +655,27 @@ class RunDBMock:
 
         assert categories == expected_categories
 
-    def get_model_endpoint(self, project: str, endpoint_id: str):
-        mep = ModelEndpoint()
+    def get_model_endpoint(
+        self,
+        name: str,
+        project: str,
+        function_name: Optional[str] = None,
+        function_tag: Optional[str] = None,
+        endpoint_id: Optional[str] = None,
+        tsdb_metrics: bool = True,
+        feature_analysis: bool = False,
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        mep = ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                name=name, project=project
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(),
+            status=mlrun.common.schemas.ModelEndpointStatus(),
+        )
         mep.metadata.uid = endpoint_id
-        mep.metadata.project = project
         mep.spec.monitoring_mode = ModelMonitoringMode.enabled
+        mep.spec.function_name = function_name
+        mep.spec.function_tag = function_tag
         return mep
 
 

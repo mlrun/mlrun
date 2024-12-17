@@ -25,7 +25,7 @@ import pathlib
 import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import storey.utils
 
@@ -805,6 +805,106 @@ class RouterStep(TaskStep):
         )
 
 
+class Model(storey.ParallelExecutionRunnable):
+    def load(self) -> None:
+        """Override to load model if needed."""
+        pass
+
+    def init(self):
+        self.load()
+
+    def predict(self, body: Any) -> Any:
+        """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
+        return body
+
+    async def predict_async(self, body: Any) -> Any:
+        """Override to implement prediction logic if the logic requires asyncio."""
+        return body
+
+    def run(self, body: Any, path: str) -> Any:
+        return self.predict(body)
+
+    async def run_async(self, body: Any, path: str) -> Any:
+        return self.predict(body)
+
+
+class ModelSelector:
+    """Used to select which models to run on each event."""
+
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        """
+        Given an event, returns a list of model names or a list of model objects to run on the event.
+        If None is returned, all models will be run.
+
+        :param event: The full event
+        :param available_models: List of available models
+        """
+        pass
+
+
+class ModelRunner(storey.ParallelExecution):
+    """
+    Runs multiple Models on each event. See ModelRunnerStep.
+
+    :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
+      event. Optional. If not passed, all models will be run.
+    """
+
+    def __init__(self, *args, model_selector: Optional[ModelSelector] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.model_selector = model_selector or ModelSelector()
+
+    def select_runnables(self, event):
+        models = cast(list[Model], self.runnables)
+        return self.model_selector.select(event, models)
+
+
+class ModelRunnerStep(TaskStep):
+    """
+    Runs multiple Models on each event.
+
+    example::
+
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(MyModel(name="my_model"))
+        graph.to(model_runner_step)
+
+    :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
+      event. Optional. If not passed, all models will be run.
+    """
+
+    kind = "model_runner"
+
+    def __init__(
+        self,
+        *args,
+        model_selector: Optional[Union[str, ModelSelector]] = None,
+        **kwargs,
+    ):
+        self._models = []
+        super().__init__(
+            *args,
+            class_name="mlrun.serving.ModelRunner",
+            class_args=dict(runnables=self._models, model_selector=model_selector),
+            **kwargs,
+        )
+
+    def add_model(self, model: Model) -> None:
+        """Add a Model to this ModelRunner."""
+        self._models.append(model)
+
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        model_selector = self.class_args.get("model_selector")
+        if isinstance(model_selector, str):
+            model_selector = get_class(model_selector, namespace)()
+        self._async_object = ModelRunner(
+            self.class_args.get("runnables"),
+            model_selector=model_selector,
+        )
+
+
 class QueueStep(BaseStep):
     """queue step, implement an async queue or represent a stream"""
 
@@ -1434,6 +1534,7 @@ classes_map = {
     "queue": QueueStep,
     "error_step": ErrorStep,
     "monitoring_application": MonitoringApplicationStep,
+    "model_runner": ModelRunnerStep,
 }
 
 

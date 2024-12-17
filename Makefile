@@ -189,6 +189,7 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
 	mlrun \
 	mlrun-gpu \
+	mlrun-kfp \
 	jupyter \
 	base \
 	log-collector
@@ -253,7 +254,7 @@ MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
 
 .PHONY: mlrun-kfp
-mlrun-kfp: update-version-file mlrun## Build mlrun docker image with KFP
+mlrun-kfp: update-version-file base## Build mlrun docker image with KFP
 	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-kfp/Dockerfile \
@@ -874,6 +875,12 @@ upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter lock
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
+upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
+	uv pip compile \
+		requirements.txt \
+		$(MLRUN_UV_UPGRADE_FLAG) \
+		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
+
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
 upgrade-mlrun-deps-lock: upgrade-mlrun-mlrun-deps-lock
@@ -881,3 +888,4 @@ upgrade-mlrun-deps-lock: upgrade-mlrun-api-deps-lock
 upgrade-mlrun-deps-lock: upgrade-mlrun-jupyter-deps-lock
 upgrade-mlrun-deps-lock: upgrade-mlrun-base-deps-lock
 upgrade-mlrun-deps-lock: upgrade-mlrun-gpu-deps-lock
+upgrade-mlrun-deps-lock: upgrade-mlrun-kfp-deps-lock

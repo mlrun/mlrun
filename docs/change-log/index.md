@@ -18,7 +18,6 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.7.1, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
-|ML-5494|The {py:meth}`do_tracking <mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication.do_tracking>` API now 
 
 ### Serving graph
 | ID    |Description                                                                 |

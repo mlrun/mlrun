@@ -17,7 +17,6 @@ import pytest
 import sqlalchemy.orm
 
 import framework.db.session
-import framework.utils.object_counters
 import framework.utils.singletons.db
 
 SOME_VALUE = 5

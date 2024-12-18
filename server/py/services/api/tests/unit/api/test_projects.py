@@ -46,7 +46,6 @@ import framework.api.utils
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.log_collector
-import framework.utils.object_counters
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member

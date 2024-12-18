@@ -1040,6 +1040,76 @@ class TestArtifacts(TestDatabaseBase):
         tags = self._db.list_artifact_tags(self._db_session, project)
         assert len(tags) == 0
 
+    def test_delete_artifact_with_latest_tag_moves_latest_to_most_recent_artifact_with_best_iteration(
+        self,
+    ):
+        project = "artifact_project"
+        artifact_key = "artifact-key"
+        artifact_1_tree = "artifact_tree_1"
+        artifact_1_body = self._generate_artifact(artifact_key, tree=artifact_1_tree)
+        artifact_2_tree = "artifact_tree_2"
+        artifact_2_body = self._generate_artifact(artifact_key, tree=artifact_2_tree)
+
+        # Log the first artifact as part of a function run with hyperparameters (iteration 1, best_iteration=True)
+        uid1 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v1",
+            iter=1,
+            best_iteration=True,
+        )
+
+        # Log the second artifact as part of a function run with hyperparameters (iteration 2, without best_iteration)
+        uid2 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v2",
+            iter=2,
+        )
+
+        # Logging artifact in a regular way, with iteration = 0 best_iteration=True.
+        # The "latest" tag should now be assigned to this artifact.
+        uid3 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_2_body,
+            project=project,
+            tag="v3",
+            best_iteration=True,
+        )
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project
+        )
+        assert len(artifacts) == 4
+
+        # Verify that the "latest" tag is correctly attached to the artifact with uid3
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == uid3
+        assert artifacts[0]["metadata"]["tag"] == "latest"
+
+        # Delete the artifact that currently holds the "latest" tag (uid3)
+        self._db.del_artifact(
+            self._db_session, artifact_key, project=project, tag="latest"
+        )
+
+        # The "latest" tag should move to the most recent artifact with the best_iteration flag
+        # This should be the artifact with uid1 (iteration 1, best_iteration=True)
+        # even though it is not the latest artifact in the iteration
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == uid1
+        assert artifacts[0]["metadata"]["tag"] == "latest"
+
     def test_list_artifacts_exact_name_match(self):
         artifact_1_key = "pre_artifact_key_suffix"
         artifact_2_key = "pre-artifact-key-suffix"

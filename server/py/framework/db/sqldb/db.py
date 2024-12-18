@@ -4739,6 +4739,21 @@ class SQLDB(DBInterface):
             # get the object id from the object record
             object_id = object_record.id
 
+            if cls == ArtifactV2:
+                # Handle the "latest" tag if it exists
+                latest_tag = self._find_artifact_latest_tag(session, object_record)
+
+                # If the "latest" tag is found, move it to the most recent artifact
+                if latest_tag:
+                    most_recent_artifact = self._find_most_recent_artifact(
+                        session, object_record
+                    )
+
+                    if most_recent_artifact:
+                        # Move the "latest" tag to the most recent artifact
+                        latest_tag.obj_id = most_recent_artifact.id
+                        session.commit()
+
         if object_id:
             if not commit:
                 return "id", object_id
@@ -7143,3 +7158,33 @@ class SQLDB(DBInterface):
             query = query.limit(limit)
 
         return query
+
+    def _find_artifact_latest_tag(self, session, object_record):
+        """Find the 'latest' tag for an object."""
+        return (
+            session.query(ArtifactV2.Tag)
+            .filter(
+                ArtifactV2.Tag.obj_id == object_record.id,
+                ArtifactV2.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                ArtifactV2.Tag.project == object_record.project,
+            )
+            .one_or_none()
+        )
+
+    def _find_most_recent_artifact(self, session, object_record):
+        """Find the most recent artifact based on the update timestamp."""
+        query = session.query(ArtifactV2).filter(
+            ArtifactV2.id != object_record.id,
+            ArtifactV2.project == object_record.project,
+            ArtifactV2.key == object_record.key,
+        )
+
+        # If the artifact has iteration 0, find based on best_iteration
+        if object_record.iteration == 0:
+            query = query.filter(ArtifactV2.best_iteration == True)
+        else:
+            # Otherwise, match the same iteration
+            query = query.filter(ArtifactV2.iteration == object_record.iteration)
+
+        # Return the most recent artifact based on the update timestamp
+        return query.order_by(ArtifactV2.updated.desc()).first()

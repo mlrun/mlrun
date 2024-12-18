@@ -115,6 +115,7 @@ from framework.db.sqldb.models import (
     ProjectSummary,
     Run,
     Schedule,
+    SystemMetadata,
     TimeWindowTracker,
     _labeled,
     _tagged,
@@ -7073,6 +7074,23 @@ class SQLDB(DBInterface):
             main_table_identifier=ModelEndpoint.uid if uids else None,
             main_table_identifier_values=uids,
         )
+
+    def get_system_id(self, session: Session) -> typing.Optional[str]:
+        system_id_record = (
+            self._query(session, SystemMetadata)
+            .filter(SystemMetadata.key == "system_id")
+            .one_or_none()
+        )
+        if not system_id_record:
+            logger.debug("System id not found in DB")
+            return None
+        return system_id_record.value
+
+    def create_system_id(self, session: Session, system_id: str):
+        logger.debug("Creating a new system id in DB", system_id=system_id)
+
+        system_id_record = SystemMetadata(key="system_id", value=system_id)
+        self._upsert(session, [system_id_record])
 
     # ---- Utils ----
     def delete_table_records(

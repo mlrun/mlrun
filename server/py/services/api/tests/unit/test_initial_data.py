@@ -375,6 +375,48 @@ def test_add_producer_uri_to_artifact():
     _verify_artifact_producer_uri(db, db_session, "name-11", "")
 
 
+@pytest.mark.parametrize(
+    "system_id_source, expected_system_id",
+    [
+        # system id should be generated
+        ("random", None),
+        # simulated configmap system id
+        ("configmap", "111111"),
+        # simulated mlconf system id
+        ("mlconf", "222222"),
+    ],
+)
+def test_system_id(
+    system_id_source, expected_system_id, monkeypatch: pytest.MonkeyPatch
+):
+    if system_id_source == "configmap":
+        monkeypatch.setenv("SYSTEM_ID", "111111")
+    elif system_id_source == "mlconf":
+        mlrun.mlconf.system_id = "222222"
+
+    db, db_session = _initialize_db_without_migrations()
+
+    # start with no system id
+    system_id = db.get_system_id(db_session)
+    assert system_id is None
+
+    # initialize the system id
+    services.api.initial_data._init_system_id(db_session)
+    system_id = db.get_system_id(db_session)
+    assert system_id is not None
+
+    # ensure that the system id has the correct length (6 characters, as it is base64 encoded without padding)
+    assert len(system_id) == 6
+
+    if system_id_source != "random":
+        assert system_id == expected_system_id
+
+    # ensure reinitialization does not change an existing system id
+    services.api.initial_data._init_system_id(db_session)
+    system_id_after_second_init = db.get_system_id(db_session)
+    assert system_id_after_second_init == system_id
+
+
 def _initialize_db_without_migrations() -> (
     tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):

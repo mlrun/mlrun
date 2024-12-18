@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import datetime
 import json
 import os
@@ -115,6 +116,14 @@ def init_data(
             logger.warning("Migrations failed, changing API state", state=state)
             config.httpdb.state = state
             raise
+
+    # initialize system id
+    db_session = create_session()
+    try:
+        _init_system_id(db_session)
+    finally:
+        close_session(db_session)
+
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
@@ -991,6 +1000,43 @@ def _create_project_summaries(db, db_session):
         for project_name in projects.projects
     ]
     db._upsert(db_session, project_summaries, ignore=True)
+
+
+def _init_system_id(db_session: sqlalchemy.orm.Session):
+    db = framework.db.sqldb.db.SQLDB()
+
+    # check if a system id already exists in the database
+    system_id = db.get_system_id(db_session)
+
+    if system_id is not None:
+        logger.info("Existing system id found in the database", system_id=system_id)
+        return
+
+    # check if the system id is configured via environment variables or configmap
+    system_id = _get_configured_system_id()
+
+    if system_id is not None:
+        logger.info("Using configured system id", system_id=system_id)
+        db.create_system_id(db_session, system_id)
+        return
+
+    # if no system id is found, generate a new one
+    system_id_str = _generate_system_id()
+    db.create_system_id(db_session, system_id_str)
+
+
+def _get_configured_system_id() -> typing.Optional[str]:
+    system_id = os.environ.get("SYSTEM_ID")
+    if system_id:
+        return system_id
+    return mlrun.mlconf.system_id or None
+
+
+def _generate_system_id() -> str:
+    # Generate a random 32-bit unsigned integer and encode it as base64 string without padding
+    random_int = os.urandom(4)
+    base64_str = base64.b64encode(random_int).decode("utf-8").rstrip("=")
+    return base64_str
 
 
 def main() -> None:

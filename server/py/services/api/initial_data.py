@@ -117,9 +117,9 @@ def init_data(
             config.httpdb.state = state
             raise
 
-    # initialize system id
     db_session = create_session()
     try:
+        # initialize system id
         _init_system_id(db_session)
     finally:
         close_session(db_session)
@@ -1003,6 +1003,9 @@ def _create_project_summaries(db, db_session):
 
 
 def _init_system_id(db_session: sqlalchemy.orm.Session):
+    # Initializes a system id for MLRun deployment.
+    # The system id is first checked in the database. If it does not exist, the function checks for a configured id
+    # (from environment variables or config), and if neither is found, a new random one is generated and stored.
     db = framework.db.sqldb.db.SQLDB()
 
     # check if a system id already exists in the database

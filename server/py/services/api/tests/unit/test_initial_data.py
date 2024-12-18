@@ -381,18 +381,18 @@ def test_add_producer_uri_to_artifact():
         # system id should be generated
         ("random", None),
         # simulated configmap system id
-        ("configmap", "111111"),
+        ("configmap", "1111"),
         # simulated mlconf system id
-        ("mlconf", "222222"),
+        ("mlconf", "123"),
     ],
 )
-def test_system_id(
+def test_init_system_id(
     system_id_source, expected_system_id, monkeypatch: pytest.MonkeyPatch
 ):
     if system_id_source == "configmap":
-        monkeypatch.setenv("SYSTEM_ID", "111111")
+        monkeypatch.setenv("SYSTEM_ID", "1111")
     elif system_id_source == "mlconf":
-        mlrun.mlconf.system_id = "222222"
+        mlrun.mlconf.system_id = "123"
 
     db, db_session = _initialize_db_without_migrations()
 
@@ -405,10 +405,10 @@ def test_system_id(
     system_id = db.get_system_id(db_session)
     assert system_id is not None
 
-    # ensure that the system id has the correct length (6 characters, as it is base64 encoded without padding)
-    assert len(system_id) == 6
-
-    if system_id_source != "random":
+    if system_id_source == "random":
+        # ensure that the generated id has the correct length (6 characters, as it is base64 encoded without padding)
+        assert len(system_id) == 6
+    else:
         assert system_id == expected_system_id
 
     # ensure reinitialization does not change an existing system id

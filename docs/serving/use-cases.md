@@ -81,28 +81,7 @@ tests one or more classifier models against a held-out dataset.
 
 ## Example of a conditional step
 
-Conditional steps use the KFP `dsl.Condition`, a class for creating a conditional control flow “if” block within a pipeline.
 
-```    
-project = mlrun.get_current_project()
-    
-    sample = project.run_function(
-        function="metric-sample",
-        name="metric-sample",
-        handler="sample",
-        params = {"metric_name" : metric_name},
-        outputs=['alert_triggered']
-    )
-
-    with dsl.Condition(sample.outputs['alert_triggered'] == "True"):
-
-        # Generate a new dataset based on the traffic
-        ds = project.run_function(
-            function="generate-ds",
-            handler="generate_ds",
-            params={"input_ds" : input_ds}, 
-            outputs=["new-train-ds","dataset"])
-```
 			
 ## Example of advanced data processing and serving ensemble
 

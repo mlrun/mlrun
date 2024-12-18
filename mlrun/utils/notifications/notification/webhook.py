@@ -105,7 +105,7 @@ class WebhookNotification(NotificationBase):
                     parsed_run = {
                         "project": run["metadata"]["project"],
                         "name": run["metadata"]["name"],
-                        "host": run["metadata"]["labels"]["host"],
+                        "host": run["metadata"].get("labels", {}).get("host", ""),
                         "status": {"state": run["status"]["state"]},
                     }
                     if run["status"].get("error", None):

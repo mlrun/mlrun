@@ -32,6 +32,7 @@ import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.artifacts
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.common.constants as mlrun_constants
@@ -45,6 +46,7 @@ import framework.api.utils
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.log_collector
+import framework.utils.object_counters
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
@@ -315,9 +317,9 @@ async def test_list_and_get_project_summaries(
     project_name = "project-with-resources"
 
     # create files for the project
-    files_count = 5
+    artifacts_count = 5
     _create_artifacts(
-        client, project_name, files_count, mlrun.artifacts.PlotArtifact.kind
+        client, project_name, artifacts_count, mlrun.artifacts.PlotArtifact.kind
     )
 
     # create feature sets for the project
@@ -436,7 +438,7 @@ async def test_list_and_get_project_summaries(
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
-                files_count,
+                artifacts_count,
                 feature_sets_count,
                 models_count,
                 runs_completed_recent_count,
@@ -455,7 +457,7 @@ async def test_list_and_get_project_summaries(
     project_summary = mlrun.common.schemas.ProjectSummary(**response.json())
     _assert_project_summary(
         project_summary,
-        files_count,
+        artifacts_count,
         feature_sets_count,
         models_count,
         runs_completed_recent_count,
@@ -1332,6 +1334,9 @@ def _create_resources_of_all_kinds(
                             producer_id=artifact_tree,
                         )
                     )
+                    framework.utils.object_counters.ObjectCounter(
+                        project, mlrun.artifacts.Artifact.kind
+                    ).increment(db_session)
 
     # Create several runs
     run = {
@@ -1756,7 +1761,7 @@ def _assert_project_response(
 
 def _assert_project_summary(
     project_summary: mlrun.common.schemas.ProjectSummary,
-    files_count: int,
+    artifacts_count: int,
     feature_sets_count: int,
     models_count: int,
     runs_completed_recent_count,
@@ -1767,7 +1772,11 @@ def _assert_project_summary(
     distinct_scheduled_pipelines_pending_count: int,
     pipelines_running_count: int,
 ):
-    assert project_summary.files_count == files_count
+    assert (
+        project_summary.files_count
+        == project_summary.artifacts_count
+        == artifacts_count
+    )
     assert project_summary.feature_sets_count == feature_sets_count
     assert project_summary.models_count == models_count
     assert project_summary.runs_completed_recent_count == runs_completed_recent_count

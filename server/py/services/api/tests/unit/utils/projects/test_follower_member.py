@@ -406,6 +406,7 @@ async def test_list_project_summaries(
     project_summary = mlrun.common.schemas.ProjectSummary(
         name=project.metadata.name,
         files_count=4,
+        artifacts_count=4,
         feature_sets_count=5,
         models_count=6,
         runs_failed_recent_count=7,
@@ -478,7 +479,11 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     assert len(project_summaries.project_summaries) == 1
     assert project_summaries.project_summaries[0].name == project_name
     assert project_summaries.project_summaries[0].pipelines_running_count == 0
-    assert project_summaries.project_summaries[0].files_count == 0
+    assert (
+        project_summaries.project_summaries[0].files_count
+        == project_summaries.project_summaries[0].artifacts_count
+        == 0
+    )
 
 
 def test_list_project_leader_format(

@@ -1497,9 +1497,11 @@ class TestArtifacts(TestDatabaseBase):
         tags = self._db.list_artifact_tags(self._db_session, project=project)
         assert len(tags) == 4
 
-        # files counters should return the most recent artifacts, for each key -> 5 artifacts
-        project_to_files_count = self._db._calculate_files_counters(self._db_session)
-        assert project_to_files_count[project] == 5
+        # artifacts counters should return the most recent artifacts, for each key -> 5 artifacts
+        project_to_artifacts_count = self._db._calculate_artifacts_counters(
+            self._db_session
+        )
+        assert project_to_artifacts_count[project] == 5
 
     def test_migrate_artifacts_to_v2(self):
         artifact_tree = "tree1"

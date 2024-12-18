@@ -456,7 +456,7 @@ class Projects(
             self._calculate_pipelines_counters(),
         )
         (
-            project_to_files_count,
+            project_to_artifacts_count,
             project_to_schedule_count,
             project_to_schedule_pending_jobs_count,
             project_to_schedule_pending_workflows_count,
@@ -481,7 +481,8 @@ class Projects(
             project_summaries.append(
                 mlrun.common.schemas.ProjectSummary(
                     name=project_name,
-                    files_count=project_to_files_count.get(project_name, 0),
+                    files_count=project_to_artifacts_count.get(project_name, 0),
+                    artifacts_count=project_to_artifacts_count.get(project_name, 0),
                     distinct_schedules_count=project_to_schedule_count.get(
                         project_name, 0
                     ),

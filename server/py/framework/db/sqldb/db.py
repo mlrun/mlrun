@@ -2984,7 +2984,7 @@ class SQLDB(DBInterface):
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
-                self._calculate_files_counters,
+                self._calculate_artifacts_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
@@ -3009,7 +3009,7 @@ class SQLDB(DBInterface):
             ),
         )
         (
-            project_to_files_count,
+            project_to_artifacts_count,
             (
                 project_to_schedule_count,
                 project_to_schedule_pending_jobs_count,
@@ -3029,7 +3029,7 @@ class SQLDB(DBInterface):
             ),
         ) = results
         return (
-            project_to_files_count,
+            project_to_artifacts_count,
             project_to_schedule_count,
             project_to_schedule_pending_jobs_count,
             project_to_schedule_pending_workflows_count,
@@ -3149,7 +3149,7 @@ class SQLDB(DBInterface):
             project_to_models_count[model_artifact.project] += 1
         return project_to_models_count
 
-    def _calculate_files_counters(self, session) -> dict[str, int]:
+    def _calculate_artifacts_counters(self, session) -> dict[str, int]:
         # We're using the "most_recent" flag which gives us only one version of each artifact key, which is what we
         # want to count (artifact count, not artifact versions count)
         file_artifacts = self._find_artifacts(
@@ -3158,10 +3158,10 @@ class SQLDB(DBInterface):
             category=mlrun.common.schemas.ArtifactCategories.other,
             most_recent=True,
         )
-        project_to_files_count = collections.defaultdict(int)
+        project_to_artifacts_count = collections.defaultdict(int)
         for file_artifact in file_artifacts:
-            project_to_files_count[file_artifact.project] += 1
-        return project_to_files_count
+            project_to_artifacts_count[file_artifact.project] += 1
+        return project_to_artifacts_count
 
     @staticmethod
     def _calculate_runs_counters(
@@ -3426,6 +3426,7 @@ class SQLDB(DBInterface):
         self._delete_project_feature_vectors(session, name)
         self._delete_project_background_tasks(session, project=name)
         self._delete_project_datastore_profiles(session, project=name)
+        self._delete_project_object_counters(session, project=name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -5919,6 +5920,9 @@ class SQLDB(DBInterface):
             object_kind=object_kind,
             object_subkind=object_subkind,
         )
+
+    def _delete_project_object_counters(self, session: Session, project: str):
+        self._delete_multi_objects(session, main_table=ObjectCounter, project=project)
 
     @staticmethod
     def create_partitions(

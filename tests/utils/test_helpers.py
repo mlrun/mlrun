@@ -34,6 +34,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    parse_artifact_uri,
     resolve_image_tag_suffix,
     str_to_timestamp,
     template_artifact_path,
@@ -367,6 +368,125 @@ def test_validate_artifact_name(artifact_name, expected):
             artifact_name,
             field_name="artifact.db_key",
         )
+
+
+@pytest.mark.parametrize(
+    "uri,project,expected_project,expected_key,expected_iteration,expected_tag,expected_tree,expected_uid",
+    [
+        # Backward compatibility: URI without uid
+        ("artifact_key", "default", "default", "artifact_key", 0, None, None, None),
+        (
+            "project_name/artifact_key",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key#1",
+            "",
+            "project_name",
+            "artifact_key",
+            1,
+            None,
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key:latest",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            "latest",
+            None,
+            None,
+        ),
+        (
+            "project_name/artifact_key@a1b2c3",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            "a1b2c3",
+            None,
+        ),
+        (
+            "artifact_key#2:tag@us3jfdrkj",
+            "default",
+            "default",
+            "artifact_key",
+            2,
+            "tag",
+            "us3jfdrkj",
+            None,
+        ),
+        # New functionality: URI with uid
+        (
+            "artifact_key^uid123",
+            "default",
+            "default",
+            "artifact_key",
+            0,
+            None,
+            None,
+            "uid123",
+        ),
+        (
+            "project_name/artifact_key^uid123",
+            "",
+            "project_name",
+            "artifact_key",
+            0,
+            None,
+            None,
+            "uid123",
+        ),
+        (
+            "project_name/artifact_key#1:latest@branch^uid123",
+            "",
+            "project_name",
+            "artifact_key",
+            1,
+            "latest",
+            "branch",
+            "uid123",
+        ),
+        (
+            "artifact_key@branch^uid123",
+            "default",
+            "default",
+            "artifact_key",
+            0,
+            None,
+            "branch",
+            "uid123",
+        ),
+    ],
+)
+def test_parse_artifact_uri(
+    uri,
+    project,
+    expected_project,
+    expected_key,
+    expected_iteration,
+    expected_tag,
+    expected_tree,
+    expected_uid,
+):
+    result = parse_artifact_uri(uri, project)
+    assert result == (
+        expected_project,
+        expected_key,
+        expected_iteration,
+        expected_tag,
+        expected_tree,
+        expected_uid,
+    ), f"Failed to parse artifact URI: {uri}"
 
 
 @pytest.mark.parametrize(
@@ -1043,60 +1163,91 @@ def test_is_safe_path(basedir, path, is_symlink, is_valid):
 
 
 @pytest.mark.parametrize(
-    "kind, tag, target_path, expected",
+    "kind, tag, target_path, uid, expected",
     [
         (
             "artifact",
             "v1",
             "/path/to/artifact",
+            None,
             f"{ARTIFACT_STORE_PREFIX}:v1@dummy-tree",
         ),
         (
             "artifact",
             None,
             "/path/to/artifact",
-            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree",
+            "dummy-uid",
+            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree^dummy-uid",
         ),
         (
             "artifact",
             "latest",
             "/path/to/artifact",
-            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree",
+            "dummy-uid",
+            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree^dummy-uid",
         ),
-        ("dataset", "v1", "/path/to/artifact", f"{DATASET_STORE_PREFIX}:v1@dummy-tree"),
+        (
+            "dataset",
+            "v1",
+            "/path/to/artifact",
+            None,
+            f"{DATASET_STORE_PREFIX}:v1@dummy-tree",
+        ),
         (
             "dataset",
             None,
             "/path/to/artifact",
+            None,
             f"{DATASET_STORE_PREFIX}:latest@dummy-tree",
+        ),
+        (
+            "dataset",
+            None,
+            "/path/to/artifact",
+            "dummy-uid",
+            f"{DATASET_STORE_PREFIX}:latest@dummy-tree^dummy-uid",
         ),
         (
             "dataset",
             "latest",
             "/path/to/artifact",
+            None,
             f"{DATASET_STORE_PREFIX}:latest@dummy-tree",
         ),
-        ("model", "v1", "/path/to/artifact", f"{MODEL_STORE_PREFIX}:v1@dummy-tree"),
-        ("model", None, "/path/to/artifact", f"{MODEL_STORE_PREFIX}:latest@dummy-tree"),
+        (
+            "model",
+            "v1",
+            "/path/to/artifact",
+            "dummy-uid",
+            f"{MODEL_STORE_PREFIX}:v1@dummy-tree^dummy-uid",
+        ),
+        (
+            "model",
+            None,
+            "/path/to/artifact",
+            None,
+            f"{MODEL_STORE_PREFIX}:latest@dummy-tree",
+        ),
         (
             "model",
             "latest",
             "/path/to/artifact",
-            f"{MODEL_STORE_PREFIX}:latest@dummy-tree",
+            "dummy-uid",
+            f"{MODEL_STORE_PREFIX}:latest@dummy-tree^dummy-uid",
         ),
-        ("dir", "v1", "/path/to/artifact", "/path/to/artifact"),
-        ("table", "v1", "/path/to/artifact", "/path/to/artifact"),
-        ("plot", "v1", "/path/to/artifact", "/path/to/artifact"),
+        ("dir", "v1", "/path/to/artifact", "dummy-uid", "/path/to/artifact"),
+        ("table", "v1", "/path/to/artifact", "dummy-uid", "/path/to/artifact"),
+        ("plot", "v1", "/path/to/artifact", "dummy-uid", "/path/to/artifact"),
     ],
 )
-def test_get_artifact_target(kind, tag, target_path, expected):
+def test_get_artifact_target(kind, tag, target_path, uid, expected):
     item = {
         "kind": kind,
         "spec": {
             "db_key": "dummy-db-key",
             "target_path": target_path,
         },
-        "metadata": {"tree": "dummy-tree", "tag": tag},
+        "metadata": {"tree": "dummy-tree", "tag": tag, "uid": uid},
     }
     target = mlrun.utils.get_artifact_target(item, project="dummy-project")
     assert target == expected
@@ -1153,3 +1304,64 @@ def test_validate_single_def_handler_valid_handler(code):
         pytest.fail(
             "validate_single_def_handler raised MLRunInvalidArgumentError unexpectedly."
         )
+
+
+@pytest.mark.parametrize(
+    "base_url, path, expected_result",
+    [
+        # Base URL without trailing slash
+        (
+            "http://example.com",
+            "path/to/resource",
+            "http://example.com/path/to/resource",
+        ),
+        (
+            "http://example.com",
+            "/path/to/resource",
+            "http://example.com/path/to/resource",
+        ),
+        ("http://example.com", "", "http://example.com"),
+        ("http://example.com", None, "http://example.com"),
+        # Base URL with trailing slash
+        (
+            "http://example.com/",
+            "path/to/resource",
+            "http://example.com/path/to/resource",
+        ),
+        (
+            "http://example.com/",
+            "/path/to/resource",
+            "http://example.com/path/to/resource",
+        ),
+        ("http://example.com/", "", "http://example.com/"),
+        ("http://example.com/", None, "http://example.com/"),
+        # Path with or without leading slash
+        ("http://example.com", "path", "http://example.com/path"),
+        ("http://example.com/", "/path", "http://example.com/path"),
+        ("http://example.com", "/path", "http://example.com/path"),
+        # Complex cases
+        (
+            "http://example.com/base",
+            "subpath/resource",
+            "http://example.com/base/subpath/resource",
+        ),
+        (
+            "http://example.com/base/",
+            "/subpath/resource",
+            "http://example.com/base/subpath/resource",
+        ),
+        # Empty base_url
+        (
+            "",
+            "/path",
+            "/path",
+        ),
+        (
+            None,
+            "/path",
+            "/path",
+        ),
+    ],
+)
+def test_join_urls(base_url, path, expected_result):
+    assert mlrun.utils.helpers.join_urls(base_url, path) == expected_result

@@ -11,4 +11,8 @@ mlrun.datastore
    :members:
    :show-inheritance:
    :undoc-members:
+.. automodule:: mlrun.datastore.vectorstore
+   :members:
+   :show-inheritance:
+   :undoc-members:
 

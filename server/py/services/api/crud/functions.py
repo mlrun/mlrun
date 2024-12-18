@@ -100,8 +100,8 @@ class Functions(
         kind: Optional[str] = None,
         labels: Optional[list[str]] = None,
         hash_key: Optional[str] = None,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
         format_: mlrun.common.formatters.FunctionFormat = None,
         since: Optional[datetime.datetime] = None,
         until: Optional[datetime.datetime] = None,
@@ -120,8 +120,8 @@ class Functions(
             format_=format_,
             since=since,
             until=until,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         )
 
     def get_function_status(

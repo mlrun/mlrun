@@ -12,4 +12,10 @@ fi
 
 cd ${HOME}
 
-start-notebook.sh  --ip=0.0.0.0 --port=8888 --NotebookApp.token="" --NotebookApp.password="" --NotebookApp.allow_origin="*" --NotebookApp.default_url=/lab
+start-notebook.sh \
+  --ip=0.0.0.0 \
+  --port=8888 \
+  --NotebookApp.token="" \
+  --NotebookApp.password="" \
+  --NotebookApp.allow_origin="*" \
+  --NotebookApp.default_url=/lab

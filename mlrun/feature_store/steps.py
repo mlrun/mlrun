@@ -671,7 +671,7 @@ class SetEventMetadata(MapClass):
 
         self._tagging_funcs = []
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         def add_metadata(name, path, operator=str):
             def _add_meta(event):
                 value = get_in(event.body, path)

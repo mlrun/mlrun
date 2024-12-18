@@ -13,6 +13,7 @@
 # limitations under the License.
 import datetime
 import http
+from typing import Optional, Union
 
 import fastapi
 import semver
@@ -40,8 +41,16 @@ import framework.utils.time_window_tracker
 import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
+import services.api.utils.pagination
 from framework.db.session import close_session, create_session
-from framework.routers import alert_template, alerts, auth, events, healthz
+from framework.routers import (
+    alert_activations,
+    alert_template,
+    alerts,
+    auth,
+    events,
+    healthz,
+)
 from framework.utils.singletons.project_member import (
     get_project_member,
     initialize_project_member,
@@ -59,6 +68,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo = None,
         db_session: sqlalchemy.orm.Session = None,
     ) -> mlrun.common.schemas.AlertConfig:
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -98,6 +109,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> mlrun.common.schemas.AlertConfig:
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -124,12 +137,15 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
-        await run_in_threadpool(
-            framework.utils.singletons.project_member.get_project_member().ensure_project,
-            db_session,
-            project,
-            auth_info=auth_info,
-        )
+        if project != "*":
+            # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+            #  not access it directly (ML-8565)
+            await run_in_threadpool(
+                framework.utils.singletons.project_member.get_project_member().ensure_project,
+                db_session,
+                project,
+                auth_info=auth_info,
+            )
         allowed_project_names = (
             await services.api.crud.Projects().list_allowed_project_names(
                 db_session, auth_info, project=project
@@ -162,6 +178,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ):
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -197,6 +215,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ):
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -232,6 +252,8 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ):
+        # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
+        #  not access it directly (ML-8565)
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -363,6 +385,66 @@ class Service(framework.service.Service):
             name,
         )
 
+    async def list_alert_activations(
+        self,
+        request: fastapi.Request,
+        project: str,
+        name: Optional[str],
+        since: Optional[str],
+        until: Optional[str],
+        entity: Optional[str],
+        severity: Optional[list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]],
+        entity_kind: Optional[Union[mlrun.common.schemas.alert.EventEntityKind, str]],
+        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]],
+        page: int,
+        page_size: int,
+        page_token: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session,
+    ) -> mlrun.common.schemas.AlertActivations:
+        allowed_projects_with_creation_time = await (
+            services.api.crud.Projects().list_allowed_project_names_with_creation_time(
+                db_session,
+                auth_info,
+                project=project,
+            )
+        )
+        paginator = services.api.utils.pagination.Paginator()
+
+        async def _filter_alert_activations_by_permissions(_alert_activations):
+            return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+                mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
+                _alert_activations,
+                lambda alert_activation: (
+                    alert_activation.project,
+                    alert_activation.name,
+                ),
+                auth_info,
+            )
+
+        activations, page_info = await paginator.paginate_permission_filtered_request(
+            db_session,
+            services.alerts.crud.AlertActivation().list_alert_activations,
+            _filter_alert_activations_by_permissions,
+            auth_info,
+            token=page_token,
+            page=page,
+            page_size=page_size,
+            projects_with_creation_time=allowed_projects_with_creation_time,
+            name=name,
+            since=mlrun.utils.datetime_from_iso(since),
+            until=mlrun.utils.datetime_from_iso(until),
+            entity=entity,
+            severity=severity,
+            entity_kind=entity_kind,
+            event_kind=event_kind,
+        )
+
+        return mlrun.common.schemas.AlertActivations(
+            activations=activations,
+            pagination=page_info,
+        )
+
     async def _move_service_to_online(self):
         if not get_project_member():
             await fastapi.concurrency.run_in_threadpool(initialize_project_member)
@@ -398,6 +480,12 @@ class Service(framework.service.Service):
             tags=["alert-templates"],
             dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
         )
+        alerts_v1_router.include_router(
+            alert_activations.router,
+            tags=["alert-activations"],
+            dependencies=[fastapi.Depends(framework.api.deps.authenticate_request)],
+        )
+
         self.app.include_router(
             alerts_v1_router, prefix=self.base_versioned_service_prefix
         )
@@ -504,3 +592,9 @@ class Service(framework.service.Service):
             == mlrun.common.schemas.ClusterizationRole.chief
             or mlconf.services.service_name == "alerts"
         )
+
+
+if __name__ == "__main__":
+    import framework.utils.mlrunuvicorn as uvicorn
+
+    uvicorn.run(httpdb_config=mlconf.httpdb, service_name="alerts")

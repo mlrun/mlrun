@@ -30,6 +30,8 @@ __all__ = [
     "DatabricksFileSystemDisableCache",
     "DatabricksFileBugFixed",
     "get_stream_pusher",
+    "ConfigProfile",
+    "VectorStoreCollection",
 ]
 
 import fsspec

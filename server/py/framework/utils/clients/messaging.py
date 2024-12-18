@@ -44,19 +44,17 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
     async def proxy_request(self, request: fastapi.Request):
         method = request.method
-        path = str(request.url.path)
-        match = PREFIX_GROUPING.match(path)
-        prefix, version = match.group(1), match.group(2) or "v1"
+        path = request.url.path
 
-        # Remove the service and version prefix from the path
-        # The service prefix is to be replaced with the new service name
-        # The version will be re-added or default to v1 if not present
-        path = path.removeprefix(f"{prefix}/").removeprefix(f"{version}/")
-        service_instance = self._discovery.resolve_service_by_request(method, path)
+        path, version, service_instance = self._prepare_request_data(method, path)
         if not service_instance:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Failed to proxy request, service for path {path} not found"
             )
+
+        # The service and version prefixes have been removed from the path earlier in the process.
+        # The service prefix will be replaced with the new service name, and the version will be re-added
+        # (or default to v1 if not present) during the final URL construction for the request.
         url = f"{service_instance.url}/{service_instance.name}/{version}/{path}"
         return await self.proxy_request_to_service(
             service_instance.name, method, url, request
@@ -72,7 +70,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(
+        request_kwargs = await self._resolve_request_kwargs_from_request(
             request, json, **kwargs
         )
 
@@ -101,12 +99,14 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
             )
+
+        kwargs_to_log = self._resolve_kwargs_to_log(kwargs)
         logger.debug(
             "Sending request to service",
             service_name=service_name,
             method=method,
             url=url,
-            **kwargs,
+            **kwargs_to_log,
         )
         response = None
         try:
@@ -128,7 +128,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
                     service_name=service_name,
                     method=method,
                     url=url,
-                    **kwargs,
+                    **kwargs_to_log,
                 )
             yield response
         finally:
@@ -149,6 +149,19 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             ),  # service_response.headers is of type CaseInsensitiveDict
             media_type="application/json",
         )
+
+    def is_forwarded_request(self, request: fastapi.Request) -> bool:
+        """
+        Checks whether the request should be forwarded to another service based on
+        the service and path being resolved.
+
+        :param request: The incoming FastAPI request.
+        :return: True if the request should be forwarded, False otherwise.
+        """
+        method = request.method
+        path = request.url.path
+        path, version, service_instance = self._prepare_request_data(method, path)
+        return service_instance is not None
 
     async def _ensure_session(self):
         if not self._session:
@@ -179,14 +192,14 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         raise_on_failure: bool,
         **kwargs,
     ):
-        log_kwargs = copy.deepcopy(kwargs)
+        log_kwargs = Client._resolve_kwargs_to_log(kwargs)
         log_kwargs.update({"method": method, "path": path})
         log_kwargs.update(
             {
                 "service_name": service_name,
                 "status_code": response.status,
                 "reason": response.reason,
-                "real_url": response.real_url,
+                "real_url": str(response.real_url),
             }
         )
         if response.content:
@@ -205,19 +218,51 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
             mlrun.errors.raise_for_status(response)
 
     @staticmethod
-    def _resolve_request_kwargs_from_request(
+    def _resolve_kwargs_to_log(kwargs: dict) -> dict:
+        kwargs_to_log = {}
+        for key in ["headers", "params", "timeout"]:
+            kwargs_to_log[key] = copy.deepcopy(kwargs.get(key))
+
+        # omit sensitive data from logs
+        if headers := kwargs_to_log.get("headers", {}):
+            for header in ["cookie", "authorization"]:
+                if header in headers:
+                    headers[header] = "****"
+            kwargs_to_log["headers"] = headers
+        return kwargs_to_log
+
+    @staticmethod
+    async def _resolve_request_kwargs_from_request(
         request: fastapi.Request = None, json: typing.Optional[dict] = None, **kwargs
     ) -> dict:
         request_kwargs = {}
         if request:
-            json = json if json else {}
-            request_kwargs.update({"json": json})
+            # either explicitly passed json or read from request body
+            content_length = request.headers.get("content-length", "0")
+            if json is not None:
+                request_kwargs.update({"json": json})
+            elif content_length and content_length != "0":
+                try:
+                    request_kwargs.update({"json": await request.json()})
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to read request body",
+                        error=mlrun.errors.err_to_str(exc),
+                        request_id=request.state.request_id,
+                    )
+                    raise mlrun.errors.MLRunBadRequestError(
+                        "Failed to read request body, expected json body"
+                    ) from exc
             request_kwargs.update({"headers": dict(request.headers)})
             request_kwargs.update({"params": dict(request.query_params)})
             request_kwargs.update({"cookies": request.cookies})
             request_kwargs["headers"].setdefault(
                 "x-request-id", request.state.request_id
             )
+            if service_name := request.app.extra.get("mlrun_service_name"):
+                request_kwargs["headers"].setdefault(
+                    "x-mlrun-origin-service-name", service_name
+                )
 
         # mask clients host with worker's host
         origin_host = request_kwargs.get("headers", {}).pop("host", None)
@@ -249,3 +294,20 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
         request_kwargs.update(**kwargs)
         return request_kwargs
+
+    @staticmethod
+    def _get_prefix_and_version(path: str):
+        match = PREFIX_GROUPING.match(path)
+        if not match:
+            raise ValueError(f"Invalid path format: {path}")
+
+        prefix = match.group(1)
+        # default to v1 if not present
+        version = match.group(2) or "v1"
+        return prefix, version
+
+    def _prepare_request_data(self, method: str, path: str):
+        prefix, version = self._get_prefix_and_version(path)
+        path = path.removeprefix(f"{prefix}/").removeprefix(f"{version}/")
+        service_instance = self._discovery.resolve_service_by_request(method, path)
+        return path, version, service_instance

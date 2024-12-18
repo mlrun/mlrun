@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import socket
 from typing import Any, Optional, Protocol, cast
 
@@ -22,17 +21,17 @@ import pandas as pd
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.errors
 import mlrun.feature_store as fstore
 import mlrun.features
 import mlrun.serving
 import mlrun.utils
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact, get_model
-from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
+from mlrun.common.model_monitoring.helpers import FeatureStats
+from mlrun.common.schemas import ModelEndpoint
 from mlrun.model_monitoring.helpers import (
     calculate_inputs_statistics,
-    get_endpoint_record,
 )
-from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 
 
 class _ArtifactsLogger(Protocol):
@@ -63,6 +62,7 @@ class MonitoringApplicationContext:
     :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
     :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
     :param endpoint_id:             (str) ID of the monitored model endpoint
+    :param endpoint_name:           (str) Name of the monitored model endpoint
     :param output_stream_uri:       (str) URI of the output stream for results
     :param model_endpoint:          (ModelEndpoint) The model endpoint object.
     :param feature_names:           (list[str]) List of models feature names.
@@ -80,26 +80,44 @@ class MonitoringApplicationContext:
         event: dict[str, Any],
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
         logger: Optional[mlrun.utils.Logger] = None,
-        nuclio_logger: Optional[nuclio.request.Logger] = None,
+        graph_context: Optional[mlrun.serving.GraphContext] = None,
+        context: Optional["mlrun.MLClientCtx"] = None,
         artifacts_logger: Optional[_ArtifactsLogger] = None,
+        sample_df: Optional[pd.DataFrame] = None,
+        feature_stats: Optional[FeatureStats] = None,
     ) -> None:
         """
-        Initialize a :code:`MonitoringApplicationContext` object.
+        The :code:`__init__` method initializes a :code:`MonitoringApplicationContext` object
+        and has the following attributes.
         Note: this object should not be instantiated manually.
 
         :param application_name:    The application name.
         :param event:               The instance data dictionary.
         :param model_endpoint_dict: Optional - dictionary of model endpoints.
         :param logger:              Optional - MLRun logger instance.
-        :param nuclio_logger:       Optional - Nuclio logger instance.
+        :param graph_context:       Optional - GraphContext instance.
+        :param context:             Optional - MLClientCtx instance.
         :param artifacts_logger:    Optional - an object that can log artifacts,
                                     typically :py:class:`~mlrun.projects.MlrunProject` or
                                     :py:class:`~mlrun.execution.MLClientCtx`.
+        :param sample_df:           Optional - pandas data-frame as the current dataset.
+                                    When set, it replaces the data read from the offline source.
+        :param feature_stats:       Optional - statistics dictionary of the reference data.
+                                    When set, it overrides the model endpoint's feature stats.
         """
         self.application_name = application_name
 
-        self.project = cast("mlrun.MlrunProject", mlrun.get_current_project())
-        self.project_name = self.project.name
+        if graph_context:
+            self.project_name = graph_context.project
+            self.project = mlrun.load_project(url=self.project_name)
+        elif context:
+            potential_project = context.get_project_object()
+            if not potential_project:
+                raise mlrun.errors.MLRunValueError(
+                    "Could not load project from context"
+                )
+            self.project = potential_project
+            self.project_name = self.project.name
 
         self._artifacts_logger: _ArtifactsLogger = artifacts_logger or self.project
 
@@ -111,8 +129,12 @@ class MonitoringApplicationContext:
         )
         # Nuclio logger - `nuclio.request.Logger`.
         # Note: this logger accepts keyword arguments only in its `_with` methods, e.g. `info_with`.
-        self.nuclio_logger = nuclio_logger or nuclio.request.Logger(
-            level=mlrun.mlconf.log_level, name=self._logger_name
+        self.nuclio_logger = (
+            graph_context.logger
+            if graph_context
+            else nuclio.request.Logger(
+                level=mlrun.mlconf.log_level, name=self._logger_name
+            )
         )
 
         # event data
@@ -125,29 +147,38 @@ class MonitoringApplicationContext:
         self.endpoint_id = cast(
             str, event.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
         )
+        self.endpoint_name = cast(
+            str, event.get(mm_constants.ApplicationEvent.ENDPOINT_NAME)
+        )
         self.output_stream_uri = cast(
             str, event.get(mm_constants.ApplicationEvent.OUTPUT_STREAM_URI)
         )
 
-        self._feature_stats: Optional[FeatureStats] = None
+        self._feature_stats: Optional[FeatureStats] = feature_stats
         self._sample_df_stats: Optional[FeatureStats] = None
 
         # Default labels for the artifacts
         self._default_labels = self._get_default_labels()
 
         # Persistent data - fetched when needed
-        self._sample_df: Optional[pd.DataFrame] = None
+        self._sample_df: Optional[pd.DataFrame] = sample_df
         self._model_endpoint: Optional[ModelEndpoint] = (
             model_endpoint_dict.get(self.endpoint_id) if model_endpoint_dict else None
         )
 
     def _get_default_labels(self) -> dict[str, str]:
-        return {
+        labels = {
             mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
             mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-app",
             mlrun_constants.MLRunInternalLabels.app_name: self.application_name,
-            mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
         }
+        for key, value in [
+            (mlrun_constants.MLRunInternalLabels.endpoint_id, self.endpoint_id),
+            (mlrun_constants.MLRunInternalLabels.endpoint_name, self.endpoint_name),
+        ]:
+            if value:
+                labels[key] = value
+        return labels
 
     def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""
@@ -157,7 +188,7 @@ class MonitoringApplicationContext:
     def sample_df(self) -> pd.DataFrame:
         if self._sample_df is None:
             feature_set = fstore.get_feature_set(
-                self.model_endpoint.status.monitoring_feature_set_uri
+                self.model_endpoint.spec.monitoring_feature_set_uri
             )
             features = [f"{feature_set.metadata.name}.*"]
             vector = fstore.FeatureVector(
@@ -179,16 +210,18 @@ class MonitoringApplicationContext:
     @property
     def model_endpoint(self) -> ModelEndpoint:
         if not self._model_endpoint:
-            self._model_endpoint = ModelEndpoint.from_flat_dict(
-                get_endpoint_record(self.project_name, self.endpoint_id)
+            self._model_endpoint = mlrun.db.get_run_db().get_model_endpoint(
+                name=self.endpoint_name,
+                project=self.project_name,
+                endpoint_id=self.endpoint_id,
+                feature_analysis=True,
             )
         return self._model_endpoint
 
     @property
     def feature_stats(self) -> FeatureStats:
         if not self._feature_stats:
-            self._feature_stats = json.loads(self.model_endpoint.status.feature_stats)
-            pad_features_hist(self._feature_stats)
+            self._feature_stats = self.model_endpoint.spec.feature_stats
         return self._feature_stats
 
     @property
@@ -203,18 +236,12 @@ class MonitoringApplicationContext:
     @property
     def feature_names(self) -> list[str]:
         """The feature names of the model"""
-        feature_names = self.model_endpoint.spec.feature_names
-        return (
-            feature_names
-            if isinstance(feature_names, list)
-            else json.loads(feature_names)
-        )
+        return self.model_endpoint.spec.feature_names
 
     @property
     def label_names(self) -> list[str]:
         """The label names of the model"""
-        label_names = self.model_endpoint.spec.label_names
-        return label_names if isinstance(label_names, list) else json.loads(label_names)
+        return self.model_endpoint.spec.label_names
 
     @property
     def model(self) -> tuple[str, ModelArtifact, dict]:

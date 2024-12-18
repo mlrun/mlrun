@@ -44,10 +44,9 @@ import mlrun.launcher.factory
 import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
-from mlrun.common.schemas import ModelMonitoringMode
+from mlrun import new_function
 from mlrun.config import config
 from mlrun.lists import ArtifactList
-from mlrun.model_monitoring import ModelEndpoint
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
@@ -349,10 +348,20 @@ class RunDBMock:
     ) -> mlrun.lists.RunList:
         return mlrun.lists.RunList(self._runs.values())
 
-    def get_function(self, function, project, tag, hash_key=None):
-        if function not in self._functions:
+    def get_function(
+        self, function=None, project=None, tag=None, hash_key=None, name=None
+    ):
+        if name:
+            func = new_function(
+                name=name,
+                tag=tag,
+            )
+            func.metadata.uid = "my_uid"
+            return func.to_dict()
+        elif function and function not in self._functions:
             raise mlrun.errors.MLRunNotFoundError(f"Function {function} not found")
-        return self._functions[function]
+        elif function and function in self._functions:
+            return self._functions[function]
 
     def delete_function(self, name: str, project: str = ""):
         self._functions.pop(name, None)
@@ -644,13 +653,6 @@ class RunDBMock:
 
         assert categories == expected_categories
 
-    def get_model_endpoint(self, project: str, endpoint_id: str):
-        mep = ModelEndpoint()
-        mep.metadata.uid = endpoint_id
-        mep.metadata.project = project
-        mep.spec.monitoring_mode = ModelMonitoringMode.enabled
-        return mep
-
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
@@ -665,7 +667,7 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
-    mock_object.patch_model_endpoint = unittest.mock.Mock()
+    mock_object.create_model_endpoint = unittest.mock.Mock()
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:

@@ -14,7 +14,11 @@ mlrun.serving
 
 .. automodule:: mlrun.serving.remote
    :members:
-   :special-members: __init__
+   :undoc-members:
+
+.. automodule:: mlrun.serving.routers
+   :members:
+   :undoc-members:
 
 .. autoclass:: mlrun.serving.utils.StepToDict
    :members:

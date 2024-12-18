@@ -16,7 +16,6 @@ import asyncio
 import collections
 import functools
 import hashlib
-import json
 import pathlib
 import re
 import typing
@@ -48,6 +47,7 @@ from sqlalchemy.orm import Session, aliased
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
+import mlrun.common.model_monitoring
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
@@ -67,7 +67,6 @@ from mlrun.lists import ArtifactList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
     fill_function_hash,
-    fill_model_endpoint_hash,
     fill_object_hash,
     generate_artifact_uri,
     generate_object_uri,
@@ -110,7 +109,6 @@ from framework.db.sqldb.models import (
     FeatureVector,
     Function,
     HubSource,
-    Log,
     ModelEndpoint,
     PaginationCache,
     Project,
@@ -118,7 +116,6 @@ from framework.db.sqldb.models import (
     Run,
     Schedule,
     TimeWindowTracker,
-    User,
     _labeled,
     _tagged,
     _with_notifications,
@@ -204,21 +201,6 @@ class SQLDB(DBInterface):
 
     def get_log(self, session, uid, project="", offset=0, size=0):
         raise NotImplementedError("DB should not be used for logs storage")
-
-    def delete_log(self, session: Session, project: str, uid: str):
-        project = project or config.default_project
-        self._delete(session, Log, project=project, uid=uid)
-
-    def _delete_project_logs(self, session: Session, project: str):
-        logger.debug("Removing project logs from db", project=project)
-        self._delete_multi_objects(
-            session=session,
-            main_table=Log,
-            project=project,
-        )
-
-    def _list_logs(self, session: Session, project: str):
-        return self._query(session, Log, project=project).all()
 
     # ---- Runs ----
     @retry_on_conflict
@@ -437,8 +419,8 @@ class SQLDB(DBInterface):
         requested_logs: typing.Optional[bool] = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> RunList:
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -486,7 +468,7 @@ class SQLDB(DBInterface):
                 max_partitions,
             )
 
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
 
         if not return_as_run_structs:
             return query.all()
@@ -606,7 +588,7 @@ class SQLDB(DBInterface):
         always_overwrite=False,
     ) -> str:
         project = project or config.default_project
-        tag = tag or "latest"
+        tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
 
         # handle link artifacts separately
         if artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value:
@@ -749,8 +731,13 @@ class SQLDB(DBInterface):
             )
 
         # we want to tag the artifact also as "latest" if it's the first time we store it
-        if tag != "latest":
-            self.tag_artifacts(session, "latest", [db_artifact], project)
+        if tag != mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+            self.tag_artifacts(
+                session,
+                mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                [db_artifact],
+                project,
+            )
 
         return uid
 
@@ -773,6 +760,7 @@ class SQLDB(DBInterface):
         producer_uri: typing.Optional[str] = None,
         most_recent: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         partition_by: typing.Optional[
             mlrun.common.schemas.ArtifactPartitionByField
@@ -784,8 +772,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
     ) -> typing.Union[list, ArtifactList]:
         project = project or config.default_project
 
@@ -811,13 +797,12 @@ class SQLDB(DBInterface):
             best_iteration=best_iteration,
             most_recent=most_recent,
             attach_tags=not as_records,
+            offset=offset,
             limit=limit,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
             partition_order=partition_order,
-            page=page,
-            page_size=page_size,
         )
         if as_records:
             return artifact_records
@@ -839,14 +824,14 @@ class SQLDB(DBInterface):
         session,
         producer_id: str,
         project: typing.Optional[str] = None,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ) -> ArtifactList:
         project = project or mlrun.mlconf.default_project
         artifact_records = self._find_artifacts_for_producer_id(
             session,
             producer_id=producer_id,
             project=project,
-            key_tag_iteration_pairs=key_tag_iteration_pairs,
+            artifact_identifiers=artifact_identifiers,
         )
 
         artifacts = ArtifactList()
@@ -877,13 +862,15 @@ class SQLDB(DBInterface):
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
 
-        if tag == "latest" and uid:
+        if tag == mlrun.common.constants.RESERVED_TAG_NAME_LATEST and uid:
             # Make a best-effort attempt to find the "latest" tag. It will be present in the response if the
             # latest tag exists, otherwise, it will not be included.
             # This is due to 'latest' being a special case and is enriched in the client side
             latest_query = query.join(
                 ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
-            ).filter(ArtifactV2.Tag.name == "latest")
+            ).filter(
+                ArtifactV2.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            )
             if latest_query.one_or_none():
                 enrich_tag = True
         elif tag:
@@ -917,7 +904,7 @@ class SQLDB(DBInterface):
 
             if fail:
                 if raise_on_not_found:
-                    artifact_uri = generate_artifact_uri(project, key, tag, iter)
+                    artifact_uri = generate_artifact_uri(project, key, tag, iter, uid)
                     raise mlrun.errors.MLRunNotFoundError(
                         f"Artifact {artifact_uri} not found"
                     )
@@ -1410,9 +1397,11 @@ class SQLDB(DBInterface):
         commit: bool = True,
     ):
         artifacts_ids = [artifact.id for artifact in artifacts]
+        # Delete all tags except the "latest" tag, or filter by specific tags if provided
         query = session.query(ArtifactV2.Tag).filter(
             ArtifactV2.Tag.project == project,
             ArtifactV2.Tag.obj_id.in_(artifacts_ids),
+            ArtifactV2.Tag.name != mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
         )
         if tags:
             query = query.filter(ArtifactV2.Tag.name.in_(tags))
@@ -1440,6 +1429,7 @@ class SQLDB(DBInterface):
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
+        offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
         with_entities: typing.Optional[list[Any]] = None,
         partition_by: typing.Optional[
@@ -1452,8 +1442,6 @@ class SQLDB(DBInterface):
         partition_order: typing.Optional[
             mlrun.common.schemas.OrderType
         ] = mlrun.common.schemas.OrderType.desc,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
     ) -> typing.Union[list[Any],]:
         """
         Find artifacts by the given filters.
@@ -1485,8 +1473,8 @@ class SQLDB(DBInterface):
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
             Currently the only allowed values are `created` and `updated`. Default is `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
 
         :return: May return:
             1. a list of tuples of (ArtifactV2, tag_name)
@@ -1497,11 +1485,6 @@ class SQLDB(DBInterface):
             message = "Category and Kind filters can't be given together"
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
-
-        if limit and page_size:
-            raise mlrun.errors.MLRunConflictError(
-                "'page_size' and 'limit' are conflicting, only one can be specified."
-            )
 
         # create a sub query that gets only the artifact IDs
         # apply all filters and limits
@@ -1576,7 +1559,9 @@ class SQLDB(DBInterface):
         if limit:
             # Order the results before applying the limit to ensure that the limit is applied to the correctly
             # ordered results.
-            query = query.order_by(ArtifactV2.updated.desc()).limit(limit)
+            query = self._paginate_query(
+                query.order_by(ArtifactV2.updated.desc()), offset, limit
+            )
 
         # limit operation loads all the results before performing the actual limiting,
         # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
@@ -1591,9 +1576,9 @@ class SQLDB(DBInterface):
         if not limit:
             # When a limit is applied, the results are ordered before limiting, so no additional ordering is needed.
             # If no limit is specified, ensure the results are ordered after all filtering and joins have been applied.
-            outer_query = outer_query.order_by(ArtifactV2.updated.desc())
-
-        outer_query = self._paginate_query(outer_query, page, page_size)
+            outer_query = self._paginate_query(
+                outer_query.order_by(ArtifactV2.updated.desc()), offset, limit=None
+            )
 
         results = outer_query.all()
         if not attach_tags:
@@ -1611,14 +1596,14 @@ class SQLDB(DBInterface):
         session: Session,
         producer_id: str,
         project: str,
-        key_tag_iteration_pairs: list[tuple] = "",
+        artifact_identifiers: list[tuple] = "",
     ) -> list[tuple[ArtifactV2, str]]:
         """
-        Find a producer's artifacts matching the given (key, tag, iteration) tuples.
+        Find a producer's artifacts matching the given (key, tag, iteration, uid) tuples.
         :param session:                 DB session
         :param producer_id:             The artifact producer ID to filter by
         :param project:                 Project name to filter by
-        :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
+        :param artifact_identifiers: List of tuples of (key, tag, iteration, uid)
         :return: A list of tuples of (ArtifactV2, tag_name)
         """
         query = session.query(ArtifactV2, ArtifactV2.Tag.name)
@@ -1630,14 +1615,18 @@ class SQLDB(DBInterface):
         query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
 
         tuples_filter = []
-        for key, tag, iteration in key_tag_iteration_pairs:
+        for key, tag, iteration, uid in artifact_identifiers:
             iteration = iteration or 0
-            tag = tag or "latest"
-            tuples_filter.append(
+            tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+            base_filter = (
                 (ArtifactV2.key == key)
                 & (ArtifactV2.Tag.name == tag)
                 & (ArtifactV2.iteration == iteration)
             )
+            # Add UID filter only if UID is not None
+            if uid is not None:
+                base_filter = base_filter & (ArtifactV2.uid == uid)
+            tuples_filter.append(base_filter)
 
         query = query.filter(or_(*tuples_filter))
         return query.all()
@@ -1745,7 +1734,7 @@ class SQLDB(DBInterface):
         art.struct = artifact
         self._upsert(session, [art])
         if tag_artifact:
-            tag = tag or "latest"
+            tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
 
             # we want to ensure that the tag is valid before storing,
             # if it isn't, MLRunInvalidArgumentError will be raised
@@ -1755,8 +1744,13 @@ class SQLDB(DBInterface):
             # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
             # changes to be reflected in the "latest" tag, as this in not actual the "latest" version of the artifact
             # which was produced by the user
-            if not existed and tag != "latest":
-                self._tag_artifacts_v1(session, [art], project, "latest")
+            if not existed and tag != mlrun.common.constants.RESERVED_TAG_NAME_LATEST:
+                self._tag_artifacts_v1(
+                    session,
+                    [art],
+                    project,
+                    mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                )
 
     def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
         """
@@ -1905,7 +1899,11 @@ class SQLDB(DBInterface):
         )
         function = deepcopy(function)
         project = project or config.default_project
-        tag = tag or get_in(function, "metadata.tag") or "latest"
+        tag = (
+            tag
+            or get_in(function, "metadata.tag")
+            or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+        )
         hash_key = fill_function_hash(function, tag)
 
         # clear tag from object in case another function will "take" that tag
@@ -1962,8 +1960,8 @@ class SQLDB(DBInterface):
         labels: typing.Optional[list[str]] = None,
         hash_key: typing.Optional[str] = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
     ) -> list[dict]:
@@ -1979,8 +1977,8 @@ class SQLDB(DBInterface):
             since=since,
             until=until,
             kind=kind,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         ):
             function_dict = function.struct
             function_dict["kind"] = function.kind
@@ -2078,10 +2076,11 @@ class SQLDB(DBInterface):
             struct = function.struct
             for key, val in updates.items():
                 update_in(struct, key, val)
-            function.kind = struct.pop("kind", None)
+            function.kind = (
+                struct.pop("kind", None) if not function.kind else function.kind
+            )
             function.struct = struct
             self._upsert(session, [function])
-            return function.struct
 
     def update_function_external_invocation_url(
         self,
@@ -2104,7 +2103,7 @@ class SQLDB(DBInterface):
             session,
             normalized_function_name,
             project,
-            tag=tag or "latest",
+            tag=tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             hash_key=hash_key,
         )
         if not function:
@@ -2163,7 +2162,7 @@ class SQLDB(DBInterface):
         format_: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
-        computed_tag = tag or "latest"
+        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
 
         obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
         tag_function_uid = None if not tag and hash_key else uid
@@ -2172,6 +2171,7 @@ class SQLDB(DBInterface):
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
+                function["metadata"]["uid"] = tag_function_uid
             function["kind"] = obj.kind
             return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
@@ -2201,7 +2201,7 @@ class SQLDB(DBInterface):
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str
     ):
-        computed_tag = tag or "latest"
+        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         if not tag and hash_key:
             return hash_key
         else:
@@ -2223,13 +2223,13 @@ class SQLDB(DBInterface):
             project=project,
         )
 
-    def _list_project_function_names(self, session: Session, project: str) -> list[str]:
-        return [
-            name
-            for (name,) in self._query(
-                session, distinct(Function.name), project=project
-            ).all()
-        ]
+    def _list_project_function_names(
+        self, session: Session, project: str, limit: Optional[int] = None
+    ) -> list[str]:
+        q = self._query(session, distinct(Function.name), project=project)
+        if limit:
+            q = q.limit(limit)
+        return [name for (name,) in q.all()]
 
     def _delete_resources_tags(self, session: Session, project: str):
         for tagged_class in _tagged:
@@ -2459,11 +2459,23 @@ class SQLDB(DBInterface):
         name: typing.Optional[str] = None,
         labels: typing.Optional[list[str]] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
+        next_run_time_since: Optional[datetime] = None,
+        next_run_time_until: Optional[datetime] = None,
         as_records: bool = False,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
         query = self._filter_query_by_resource_project(query, Schedule, project)
+        if next_run_time_since or next_run_time_until:
+            query = generate_time_range_query(
+                query=query,
+                field=Schedule.next_run_time,
+                since=next_run_time_since,
+                until=next_run_time_until,
+            )
+        if limit:
+            query = query.limit(limit)
 
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
@@ -2648,14 +2660,12 @@ class SQLDB(DBInterface):
         )
 
     def _list_project_feature_vector_names(
-        self, session: Session, project: str
+        self, session: Session, project: str, limit: Optional[int] = None
     ) -> list[str]:
-        return [
-            name
-            for (name,) in self._query(
-                session, distinct(FeatureVector.name), project=project
-            ).all()
-        ]
+        q = self._query(session, distinct(FeatureVector.name), project=project)
+        if limit:
+            q = q.limit(limit)
+        return [name for (name,) in q.all()]
 
     def tag_objects_v2(
         self,
@@ -2663,16 +2673,26 @@ class SQLDB(DBInterface):
         objs,
         project: str,
         name: str,
-        obj_name_attribute: str = "name",
+        obj_name_attribute: Union[str, list[str]] = "name",
     ):
         tags = []
+        obj_name_attribute = (
+            [obj_name_attribute]
+            if isinstance(obj_name_attribute, str)
+            else obj_name_attribute
+        )
         for obj in objs:
             query = self._query(
                 session,
                 obj.Tag,
                 name=name,
                 project=project,
-                obj_name=getattr(obj, obj_name_attribute),
+                obj_name="-".join(
+                    [
+                        getattr(obj, attr) if getattr(obj, attr) else ""
+                        for attr in obj_name_attribute
+                    ]
+                ),
             )
 
             tag = query.one_or_none()
@@ -2680,7 +2700,12 @@ class SQLDB(DBInterface):
                 tag = obj.Tag(
                     project=project,
                     name=name,
-                    obj_name=getattr(obj, obj_name_attribute),
+                    obj_name="-".join(
+                        [
+                            getattr(obj, attr) if getattr(obj, attr) else ""
+                            for attr in obj_name_attribute
+                        ]
+                    ),
                 )
             tag.obj_id = obj.id
             tags.append(tag)
@@ -2940,7 +2965,11 @@ class SQLDB(DBInterface):
 
     async def get_project_resources_counters(
         self,
+        projects_with_creation_time: list[tuple[str, datetime]],
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -2972,6 +3001,11 @@ class SQLDB(DBInterface):
                 framework.db.session.run_function_with_new_db_session,
                 self._calculate_runs_counters,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_alert_activations_counters,
+                projects_with_creation_time,
+            ),
         )
         (
             project_to_files_count,
@@ -2987,6 +3021,11 @@ class SQLDB(DBInterface):
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ),
+            (
+                project_to_endpoint_alerts_count,
+                project_to_job_alerts_count,
+                project_to_other_alerts_count,
+            ),
         ) = results
         return (
             project_to_files_count,
@@ -2998,6 +3037,9 @@ class SQLDB(DBInterface):
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_other_alerts_count,
         )
 
     @staticmethod
@@ -3183,6 +3225,92 @@ class SQLDB(DBInterface):
             project_to_running_runs_count,
         )
 
+    def _calculate_alert_activations_counters(
+        self,
+        session,
+        projects_with_creation_time: list[tuple[str, datetime]],
+    ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+    ]:
+        project_to_endpoint_alerts_count = collections.defaultdict(int)
+        project_to_job_alerts_count = collections.defaultdict(int)
+        project_to_other_alerts_count = collections.defaultdict(int)
+
+        last_day = mlrun.utils.datetime_now() - timedelta(hours=24)
+
+        # construct a base query to count different types of alert activations, labels are added to improve readability
+        query = session.query(
+            AlertActivation.project,
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind
+                        == mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                        1,
+                    )
+                )
+            ).label("model_endpoint_alerts_count"),
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind
+                        == mlrun.common.schemas.alert.EventEntityKind.JOB,
+                        1,
+                    )
+                )
+            ).label("job_alerts_count"),
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind.not_in(
+                            [
+                                mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                                mlrun.common.schemas.alert.EventEntityKind.JOB,
+                            ]
+                        ),
+                        1,
+                    )
+                )
+            ).label("other_alerts_count"),
+        )
+
+        # filter by project, creation time, and activations within the last 24 hours
+        query_results = (
+            self._apply_alert_activation_project_filters(
+                query, projects_with_creation_time
+            )
+            .filter(AlertActivation.activation_time > last_day)
+            .group_by(AlertActivation.project)
+            .all()
+        )
+
+        for project, endpoint_counter, job_counter, other_counter in query_results:
+            project_to_endpoint_alerts_count[project] = endpoint_counter
+            project_to_job_alerts_count[project] = job_counter
+            project_to_other_alerts_count[project] = other_counter
+
+        return (
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_other_alerts_count,
+        )
+
+    @staticmethod
+    def _apply_alert_activation_project_filters(
+        query: sqlalchemy.orm.query.Query,
+        projects_with_creation_time: list[tuple[str, datetime]],
+    ) -> sqlalchemy.orm.query.Query:
+        project_filter_conditions = [
+            and_(
+                AlertActivation.project == project,
+                AlertActivation.activation_time > created,
+            )
+            for project, created in projects_with_creation_time
+        ]
+        return query.filter(or_(*project_filter_conditions))
+
     def _update_project_record_from_project(
         self,
         session: Session,
@@ -3260,41 +3388,34 @@ class SQLDB(DBInterface):
         return project_record
 
     def verify_project_has_no_related_resources(self, session: Session, name: str):
-        artifacts = self._find_artifacts(session, project=name, ids="*")
-        self._verify_empty_list_of_project_related_resources(
-            name, artifacts, "artifacts"
-        )
-        logs = self._list_logs(session, name)
-        self._verify_empty_list_of_project_related_resources(name, logs, "logs")
-        runs = self._find_runs(session, None, name, []).all()
-        self._verify_empty_list_of_project_related_resources(name, runs, "runs")
-        notifications = []
+        # it is enough to sample few resources, we do not need to retrieve all resources really.
+        resource_limit = 5
+        for resource_name, resource_list_function in [
+            ("runs", self.list_runs),
+            ("artifacts", self._find_artifacts),
+            ("schedules", self.list_schedules),
+            ("functions", self._list_project_function_names),
+            ("feature_sets", self._list_project_feature_set_names),
+            ("feature_vectors", self._list_project_feature_vector_names),
+        ]:
+            resources = resource_list_function(
+                session, project=name, limit=resource_limit
+            )
+            self._verify_empty_list_of_project_related_resources(
+                name, resources, resource_name
+            )
+
         for cls in _with_notifications:
-            notifications.extend(self._get_db_notifications(session, cls, project=name))
-        self._verify_empty_list_of_project_related_resources(
-            name, notifications, "notifications"
-        )
-        schedules = self.list_schedules(session, project=name)
-        self._verify_empty_list_of_project_related_resources(
-            name, schedules, "schedules"
-        )
-        functions = self._list_project_function_names(session, name)
-        self._verify_empty_list_of_project_related_resources(
-            name, functions, "functions"
-        )
-        feature_sets = self._list_project_feature_set_names(session, name)
-        self._verify_empty_list_of_project_related_resources(
-            name, feature_sets, "feature_sets"
-        )
-        feature_vectors = self._list_project_feature_vector_names(session, name)
-        self._verify_empty_list_of_project_related_resources(
-            name, feature_vectors, "feature_vectors"
-        )
+            notifications = self._get_db_notifications(
+                session, cls, project=name, limit=resource_limit
+            )
+            self._verify_empty_list_of_project_related_resources(
+                name, notifications, "notifications"
+            )
 
     def delete_project_related_resources(self, session: Session, name: str):
         self.delete_model_endpoints(session, project=name)
         self._delete_project_artifacts(session, project=name)
-        self._delete_project_logs(session, name)
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
         self._delete_project_runs(session, project=name)
@@ -3331,7 +3452,7 @@ class SQLDB(DBInterface):
     ):
         kwargs = {obj_name_attribute: name, "project": project}
         query = self._query(session, cls, **kwargs)
-        computed_tag = tag or "latest"
+        computed_tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
         object_tag_uid = None
         if tag or not uid:
             object_tag_uid = self._resolve_class_tag_uid(
@@ -3453,20 +3574,30 @@ class SQLDB(DBInterface):
         session,
         project: str,
         name: str,
+        function_name: typing.Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
     ) -> typing.Union[ModelEndpoint, None]:
+        self._check_model_endpoint_params(uid, function_name, function_tag)
         if uid:
             mep_record = self._get_class_instance_by_uid(
                 session, ModelEndpoint, name, project, uid
             )
         else:
-            mep_record = self._get_class_latest_instance(
-                session, ModelEndpoint, name, project
+            mep_record = self._get_mep_latest_instance(
+                session, ModelEndpoint, name, function_name, project, function_tag
             )
         if mep_record:
             return mep_record
         else:
             return None
+
+    @staticmethod
+    def _check_model_endpoint_params(uid: str, function_name: str, function_tag: str):
+        if not uid and (not function_name or not function_tag):
+            raise mlrun.errors.MLRunNotFoundError(
+                "Either uid or function_name and function_tag must be provided"
+            )
 
     def _get_records_to_tags_map(self, session, cls, project, tag, name=None):
         # Find object IDs by tag, project and object-name (which is a like query)
@@ -4318,14 +4449,12 @@ class SQLDB(DBInterface):
         )
 
     def _list_project_feature_set_names(
-        self, session: Session, project: str
+        self, session: Session, project: str, limit: Optional[int] = None
     ) -> list[str]:
-        return [
-            name
-            for (name,) in self._query(
-                session, distinct(FeatureSet.name), project=project
-            ).all()
-        ]
+        q = self._query(session, distinct(FeatureSet.name), project=project)
+        if limit:
+            q = q.limit(limit)
+        return [name for (name,) in q.all()]
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
         self._delete_tagged_object(
@@ -4684,32 +4813,27 @@ class SQLDB(DBInterface):
     def _get_count(self, session, cls):
         return session.query(func.count(inspect(cls).primary_key[0])).scalar()
 
-    def _find_or_create_users(self, session, user_names):
-        users = list(self._query(session, User).filter(User.name.in_(user_names)))
-        new = set(user_names) - {user.name for user in users}
-        if new:
-            for name in new:
-                user = User(name=name)
-                session.add(user)
-                users.append(user)
-            try:
-                session.commit()
-            except SQLAlchemyError as err:
-                session.rollback()
-                raise mlrun.errors.MLRunConflictError(
-                    f"Failed to add user: {err_to_str(err)}"
-                ) from err
-        return users
-
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
-        query = self._query(session, cls, name=name, project=project, uid=uid)
+        query = (
+            self._query(session, cls, name=name, project=project, uid=uid)
+            if name
+            else self._query(session, cls, project=project, uid=uid)
+        )
         return query.one_or_none()
 
-    def _get_class_latest_instance(self, session, cls, name, project):
+    def _get_mep_latest_instance(
+        self, session, cls, name, function_name, project, function_tag
+    ):
         query = (
             session.query(cls)
             .join(cls.Tag)
-            .filter(cls.project == project, cls.name == name, cls.Tag.name == "latest")
+            .filter(
+                cls.project == project,
+                cls.name == name,
+                cls.function_name == function_name,
+                cls.function_tag == function_tag,
+                cls.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            )
         )
 
         return query.one_or_none()
@@ -4824,9 +4948,8 @@ class SQLDB(DBInterface):
                 _try_commit_obj,
             )
 
-    def _find_runs(self, session, uid, project, labels):
+    def _find_runs(self, session, uid, project, labels=None):
         labels = label_set(labels)
-
         query = self._query(session, Run)
         query = self._filter_query_by_resource_project(query, Run, project)
 
@@ -4843,10 +4966,14 @@ class SQLDB(DBInterface):
         name: typing.Optional[str] = None,
         parent_id: typing.Optional[str] = None,
         project: typing.Optional[str] = None,
+        limit: typing.Optional[int] = None,
     ):
-        return self._query(
+        q = self._query(
             session, cls.Notification, name=name, parent_id=parent_id, project=project
-        ).all()
+        )
+        if limit:
+            q = q.limit(limit)
+        return q.all()
 
     @staticmethod
     def _escape_characters_for_like_query(value: str) -> str:
@@ -4865,8 +4992,8 @@ class SQLDB(DBInterface):
         since: typing.Optional[datetime] = None,
         until: typing.Optional[datetime] = None,
         kind: typing.Optional[str] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
         """
         Query functions from the DB by the given filters.
@@ -4880,8 +5007,8 @@ class SQLDB(DBInterface):
         :param since: Filter functions that were updated after this time
         :param until: Filter functions that were updated before this time
         :param kind: The kind of the function to query.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
         """
         query = session.query(Function, Function.Tag.name)
         query = self._filter_query_by_resource_project(query, Function, project)
@@ -4921,7 +5048,8 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
-        query = self._paginate_query(query, page, page_size)
+        query = query.order_by(Function.updated.desc())
+        query = self._paginate_query(query, offset, limit)
         return query
 
     def _find_model_endpoints(
@@ -4930,15 +5058,17 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         function_name: str,
+        function_tag: str,
         model_name: str,
+        model_tag: str,
         top_level: bool,
         labels: list[str],
         start: datetime,
         end: datetime,
         uids: list[str],
         latest_only: bool,
-        page: int,
-        page_size: int,
+        offset: int,
+        limit: int,
     ) -> sqlalchemy.orm.query.Query:
         """
         Query model_endpoints from the DB by the given filters.
@@ -4953,8 +5083,8 @@ class SQLDB(DBInterface):
         :param end: Filter model endpoints that were crated before this time
         :param uids : The uids of the model endpoint to query.
         :param latest_only: If true, then return only the latest model endpoint.
-        :param page: The page number to query.
-        :param page_size: The page size to query.
+        :param offset: SQL query offset.
+        :param limit: SQL query limit.
         """
         query = session.query(ModelEndpoint)
         query = query.filter(ModelEndpoint.project == project)
@@ -4976,6 +5106,13 @@ class SQLDB(DBInterface):
                 cls=model_endpoints_table,
                 key_filter=ModelEndpointSchema.FUNCTION_NAME,
                 filtered_values=[function_name],
+            )
+        if function_tag:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.FUNCTION_TAG,
+                filtered_values=[function_tag],
             )
 
         if uids:
@@ -5005,11 +5142,18 @@ class SQLDB(DBInterface):
                 combined=False,
             )
 
+        if model_tag:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.MODEL_TAG,
+                filtered_values=[model_tag],
+                combined=False,
+            )
+
         if start or end:
-            start = start or datetime.min
-            end = end or datetime.max
-            query = query.filter(
-                and_(ModelEndpoint.created >= start, ModelEndpoint.created <= end)
+            query = generate_time_range_query(
+                query=query, field=ModelEndpoint.created, since=start, until=end
             )
 
         if latest_only:
@@ -5023,7 +5167,7 @@ class SQLDB(DBInterface):
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, ModelEndpoint, labels)
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
         return query
 
     @staticmethod
@@ -5194,7 +5338,7 @@ class SQLDB(DBInterface):
         self,
         model_endpoint_record: ModelEndpoint,
         format_: mlrun.common.formatters.ModelEndpointFormat = mlrun.common.formatters.ModelEndpointFormat.full,
-    ) -> mlrun.common.schemas.ModelEndpointV2:
+    ) -> mlrun.common.schemas.ModelEndpoint:
         model_endpoint_full_dict = model_endpoint_record.struct
         model_endpoint_full_dict[ModelEndpointSchema.UPDATED] = (
             model_endpoint_record.updated
@@ -5202,7 +5346,10 @@ class SQLDB(DBInterface):
         model_endpoint_full_dict[ModelEndpointSchema.CREATED] = (
             model_endpoint_record.created
         )
-
+        model_endpoint_full_dict[ModelEndpointSchema.UID] = model_endpoint_record.uid
+        model_endpoint_full_dict[ModelEndpointSchema.FUNCTION_TAG] = (
+            model_endpoint_record.function_tag
+        )
         model_endpoint_full_dict = self._fill_model_endpoint_with_function_data(
             model_endpoint_record, model_endpoint_full_dict
         )
@@ -5215,14 +5362,9 @@ class SQLDB(DBInterface):
                 model_endpoint_full_dict, format_
             )
         )
-        model_endpoint_resp = mlrun.common.schemas.ModelEndpointV2.from_flat_dict(
+        model_endpoint_resp = mlrun.common.schemas.ModelEndpoint.from_flat_dict(
             model_endpoint_full_dict
         )
-
-        # TODO : add the following data
-        # next step in status : operative data
-        # from tsdb - latency, drift_status, error_count, last_request
-        # from json - current_stats, drift_measures
 
         return model_endpoint_resp
 
@@ -5236,7 +5378,11 @@ class SQLDB(DBInterface):
                 function_full_dict.get("status", {}).get(ModelEndpointSchema.STATE)
             )
             model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG.FUNCTION_URI] = (
-                f"{model_endpoint_record.project}/{function_full_dict.get('metadata', {}).get('hash')}"
+                generate_object_uri(
+                    project=model_endpoint_record.project,
+                    name=model_endpoint_record.function_name,
+                    hash_key=function_full_dict.get("metadata", {}).get("hash"),
+                )
             )
         return model_endpoint_full_dict
 
@@ -5245,44 +5391,21 @@ class SQLDB(DBInterface):
         model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
     ) -> dict:
         if model_endpoint_record.model:
-            model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = (
-                model_endpoint_record.model.key
-            )
-            try:
-                model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = (
-                    model_endpoint_record.model.tags[0].name
-                )
-            except IndexError:
-                model_endpoint_full_dict[ModelEndpointSchema.MODEL_TAG] = ""
-            model_artifact_uri = generate_artifact_uri(
-                project=model_endpoint_record.project,
-                key=model_endpoint_record.model.key,
-                iter=model_endpoint_record.model.full_object.get("metadata", {}).get(
-                    "iter"
-                ),
-                tree=model_endpoint_record.model.full_object.get("metadata", {}).get(
-                    "tree"
+            model_artifact_uri = mlrun.datastore.get_store_uri(
+                kind=mlrun.utils.helpers.StorePrefix.Model,
+                uri=generate_artifact_uri(
+                    project=model_endpoint_record.project,
+                    key=model_endpoint_record.model.key,
+                    iter=model_endpoint_record.model.full_object.get(
+                        "metadata", {}
+                    ).get("iter"),
+                    tree=model_endpoint_record.model.full_object.get(
+                        "metadata", {}
+                    ).get("tree"),
                 ),
             )
 
-            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = (
-                mlrun.datastore.get_store_uri(
-                    kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
-                )
-            )
-
-            model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS] = (
-                model_endpoint_record.model.full_object.get(
-                    "spec", {}
-                ).get(ModelEndpointSchema.FEATURE_STATS, {})
-            )
-            if not isinstance(
-                model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS], dict
-            ):
-                model_endpoint_full_dict[ModelEndpointSchema.FEATURE_STATS] = (
-                    json.loads(model_endpoint_full_dict["feature_stats"])
-                )
-
+            model_endpoint_full_dict[ModelEndpointSchema.MODEL_URI] = model_artifact_uri
         return model_endpoint_full_dict
 
     def _transform_project_record_to_schema(
@@ -5700,6 +5823,10 @@ class SQLDB(DBInterface):
         alert.count = state.count
         alert.created = state.created
 
+        # if this is a new alert, initialize the updated field with the created time
+        if alert.updated is None:
+            alert.updated = state.created
+
         def _enrich_notification(_notification):
             _notification = _notification.to_dict()
             # we don't want to return the secret
@@ -5844,6 +5971,29 @@ class SQLDB(DBInterface):
             ),
             {"table_name": table_name},
         ).scalar()
+
+    @staticmethod
+    def table_exist(
+        session: Session,
+        table_name: str,
+    ) -> bool:
+        """
+        Checks if a table exists in the current database schema.
+
+        :param session: SQLAlchemy session.
+        :param table_name: Name of the table to check.
+
+        :return: True if the table exists, False otherwise.
+        """
+        result = session.execute(
+            text(
+                "SELECT COUNT(*) "
+                "FROM information_schema.tables "
+                "WHERE TABLE_NAME = :table_name "
+            ),
+            {"table_name": table_name},
+        ).scalar()
+        return result > 0
 
     @staticmethod
     def _transform_alert_template_schema_to_record(
@@ -6040,23 +6190,17 @@ class SQLDB(DBInterface):
             Union[mlrun.common.schemas.alert.EventEntityKind, str]
         ] = None,
         event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         query = self._query(session, AlertActivation)
 
         # Filter alert activations for the project created after the project creation date,
         # excluding activations linked to any previous instances of the project.
         # TODO: reconsider this approach when we move alerts out of main MLRun db
-        project_filter_conditions = [
-            and_(
-                AlertActivation.project == project,
-                AlertActivation.activation_time > created,
-            )
-            for project, created in projects_with_creation_time
-        ]
-
-        query = query.filter(or_(*project_filter_conditions))
+        query = self._apply_alert_activation_project_filters(
+            query, projects_with_creation_time
+        )
 
         if name:
             query = query.filter(
@@ -6084,7 +6228,7 @@ class SQLDB(DBInterface):
             query = query.filter(AlertActivation.entity_kind == entity_kind)
 
         query = query.order_by(AlertActivation.activation_time.desc())
-        query = self._paginate_query(query, page, page_size)
+        query = self._paginate_query(query, offset, limit)
         return [
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()
@@ -6726,64 +6870,68 @@ class SQLDB(DBInterface):
     def store_model_endpoint(
         self,
         session,
-        model_endpoint: mlrun.common.schemas.ModelEndpointV2,
-        name: str,
-        project: str,
-    ) -> str:
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        if not model_endpoint.metadata.name or not model_endpoint.metadata.project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Model endpoint name and project must be provided"
+            )
         logger.debug(
             "Storing Model Endpoint to DB",
-            name=name,
-            project=project,
             metadata=model_endpoint.metadata,
         )
-        body_name = model_endpoint.metadata.name
-        if body_name and body_name != name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Conflict between requested name and name in MEP body, MEP name is {name} while body_name is"
-                f" {body_name}"
-            )
-        body_project = model_endpoint.metadata.project
-        if body_project and body_project != project:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Conflict between requested project and project in MEP body, MEP project is {project} "
-                f"while body_project is {body_project}"
-            )
-
-        created_time = datetime.now(timezone.utc)
-        uid = fill_model_endpoint_hash(
-            model_endpoint, created_time.isoformat(sep=" ", timespec="microseconds")
-        )
-
+        current_time = datetime.now(timezone.utc)
         mep = ModelEndpoint(
-            name=name,
-            project=project,
-            uid=uid,
-            created=created_time,
+            name=model_endpoint.metadata.name,
+            project=model_endpoint.metadata.project,
             function_name=model_endpoint.spec.function_name,
             function_uid=model_endpoint.spec.function_uid,
+            function_tag=model_endpoint.spec.function_tag
+            or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
             model_uid=model_endpoint.spec.model_uid,
             model_name=model_endpoint.spec.model_name,
-            updated=created_time,
-            endpoint_type=model_endpoint.metadata.endpoint_type,
+            model_tag=model_endpoint.spec.model_tag,
+            model_db_key=model_endpoint.spec.model_db_key,
+            endpoint_type=model_endpoint.metadata.endpoint_type.value,
+            created=current_time,
+            updated=current_time,
         )
 
         update_labels(mep, model_endpoint.metadata.labels)
-        mep.struct = model_endpoint.flat_dict(exclude=model_endpoint._operative_data())
+        mep.struct = model_endpoint.flat_dict()
         self._upsert(session, [mep])
-        self.tag_objects_v2(session, [mep], project, "latest")
-        return uid
+        self.tag_objects_v2(
+            session,
+            [mep],
+            model_endpoint.metadata.project,
+            mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+            obj_name_attribute=["name", "function_name", "function_tag"],
+        )
+        mep_record = self._get_model_endpoint(
+            session,
+            model_endpoint.metadata.project,
+            model_endpoint.metadata.name,
+            function_name=model_endpoint.spec.function_name,
+            function_tag=model_endpoint.spec.function_tag
+            or mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+        )
+        return self._transform_model_endpoint_model_to_schema(mep_record)
 
     def get_model_endpoint(
         self,
         session,
         project: str,
         name: str,
+        function_name: Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpointV2:
-        mep_record = self._get_model_endpoint(session, project, name, uid)
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        mep_record = self._get_model_endpoint(
+            session, project, name, function_name, function_tag, uid
+        )
         if not mep_record:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Model Endpoint not found in project {project} with name {name}"
+                f"Model Endpoint not found in project {project} with name {name} under function {function_name}"
             )
         return self._transform_model_endpoint_model_to_schema(mep_record)
 
@@ -6793,22 +6941,42 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         attributes: dict,
+        function_name: Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-    ) -> str:
-        mep_record = self._get_model_endpoint(session, project, name, uid)
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        mep_record = self._get_model_endpoint(
+            session, project, name, function_name, function_tag, uid
+        )
         updated = datetime.now(timezone.utc)
+        attributes, schema_attr, labels = self._split_mep_update_attr(attributes)
         if mep_record:
             struct = mep_record.struct
             for key, val in attributes.items():
                 update_in(struct, key, val)
+            for key, val in schema_attr.items():
+                setattr(mep_record, key, val)
+                update_in(struct, key, val)
+            if labels and isinstance(labels, dict):
+                update_labels(mep_record, labels)
+            update_in(struct, "labels", labels)
             mep_record.struct = struct
             mep_record.updated = updated
             self._upsert(session, [mep_record])
-            return mep_record.uid
+            return self._transform_model_endpoint_model_to_schema(mep_record)
         else:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Model Endpoint not found in project {project} with name {name}"
+                f"Model Endpoint not found in project {project} with name {name} under function {function_name}"
             )
+
+    def _split_mep_update_attr(self, attributes: dict):
+        labels = attributes.pop("labels", {})
+        schema_attr = {}
+        for key in list(attributes.keys()):
+            if hasattr(ModelEndpoint, key):
+                schema_attr[key] = attributes.pop(key)
+
+        return attributes, schema_attr, labels
 
     def list_model_endpoints(
         self,
@@ -6816,67 +6984,88 @@ class SQLDB(DBInterface):
         project: str,
         name: typing.Optional[str] = None,
         function_name: typing.Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
+        model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
         uids: typing.Optional[list[str]] = None,
         latest_only: bool = False,
-        page: typing.Optional[int] = None,
-        page_size: typing.Optional[int] = None,
-    ) -> list[mlrun.common.schemas.ModelEndpointV2]:
-        model_endpoints: list[mlrun.common.schemas.ModelEndpointV2] = []
+        offset: typing.Optional[int] = None,
+        limit: typing.Optional[int] = None,
+    ) -> mlrun.common.schemas.ModelEndpointList:
+        model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
         for mep_record in self._find_model_endpoints(
             session=session,
             name=name,
             project=project,
             labels=labels,
             function_name=function_name,
+            function_tag=function_tag,
             model_name=model_name,
+            model_tag=model_tag,
             top_level=top_level,
             start=start,
             end=end,
             uids=uids,
             latest_only=latest_only,
-            page=page,
-            page_size=page_size,
+            offset=offset,
+            limit=limit,
         ):
             model_endpoints.append(
                 self._transform_model_endpoint_model_to_schema(mep_record)
             )
-        return model_endpoints
+        return mlrun.common.schemas.ModelEndpointList(endpoints=model_endpoints)
 
     def delete_model_endpoint(
         self,
         session,
         project: str,
         name: str,
-        uid: str,
+        function_name: Optional[str] = None,
+        function_tag: typing.Optional[str] = None,
+        uid: typing.Optional[str] = None,
     ) -> None:
+        self._check_model_endpoint_params(uid, function_name, function_tag)
         logger.debug(
             "Removing model endpoint from db", project=project, name=name, uid=uid
         )
+
         if uid != "*":
-            self._delete(session, ModelEndpoint, project=project, name=name, uid=uid)
+            self._delete(
+                session,
+                ModelEndpoint,
+                project=project,
+                name=name,
+                uid=uid,
+            )
         else:
-            self._delete(session, ModelEndpoint, project=project, name=name)
+            self._delete(
+                session,
+                ModelEndpoint,
+                project=project,
+                name=name,
+                function_name=function_name,
+                function_tag=function_tag,
+            )
 
     def delete_model_endpoints(
         self,
         session: Session,
         project: str,
-        names: typing.Optional[typing.Union[str, list[str]]] = None,
+        uids: typing.Optional[list[str]] = None,
     ) -> None:
-        logger.debug("Removing model endpoints from db", project=project, name=names)
+        logger.debug("Removing model endpoints from db", project=project)
 
         self._delete_multi_objects(
             session=session,
             main_table=ModelEndpoint,
             related_tables=[ModelEndpoint.Tag, ModelEndpoint.Label],
             project=project,
-            main_table_identifier=ModelEndpoint.name if names else None,
-            main_table_identifier_values=names,
+            main_table_identifier=ModelEndpoint.uid if uids else None,
+            main_table_identifier_values=uids,
         )
 
     # ---- Utils ----
@@ -6943,12 +7132,14 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _paginate_query(
-        query, page: typing.Optional[int] = None, page_size: typing.Optional[int] = None
+        query, offset: typing.Optional[int] = None, limit: typing.Optional[int] = None
     ):
-        if page is not None:
-            page_size = page_size or config.httpdb.pagination.default_page_size
-            if query.count() < page_size * (page - 1):
-                raise StopIteration
-            query = query.limit(page_size).offset((page - 1) * page_size)
+        if offset:
+            query = query.offset(offset)
+
+        if limit == 0:
+            raise mlrun.errors.MLRunInvalidArgumentError("Limit cannot be 0")
+        elif limit:
+            query = query.limit(limit)
 
         return query

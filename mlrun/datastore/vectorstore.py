@@ -13,65 +13,61 @@
 # limitations under the License.
 
 import inspect
-from importlib import import_module
-from typing import Union
+from collections.abc import Iterable
+from typing import Optional, Union
 
 from mlrun.artifacts import DocumentArtifact
 
 
+def _extract_collection_name(vectorstore: "VectorStore") -> str:  # noqa: F821
+    # List of possible attribute names for collection name
+    possible_attributes = ["collection_name", "_collection_name"]
+
+    for attr in possible_attributes:
+        if hasattr(vectorstore, attr):
+            collection_name = getattr(vectorstore, attr)
+            if collection_name:
+                return collection_name
+
+    store_class = vectorstore.__class__.__name__.lower()
+    if store_class == "mongodbatlasvectorsearch":
+        return vectorstore.collection.name
+
+    # If we get here, we couldn't find a valid collection name
+    raise ValueError(
+        "Failed to extract collection name from the vector store. "
+        "Please provide the collection name explicitly. "
+    )
+
+
 class VectorStoreCollection:
     """
-    VectorStoreCollection is a class that manages a collection of vector stores, providing methods to add and delete
-    documents and artifacts, and to interact with an MLRun context.
+    A wrapper class for vector store collections with MLRun integration.
 
-    Attributes:
-        _collection_impl (object): The underlying collection implementation.
-        _mlrun_context (Union[MlrunProject, MLClientCtx]): The MLRun context associated with the collection.
-        collection_name (str): The name of the collection.
-        id (str): The unique identifier of the collection, composed of the datastore profile and collection name.
+    This class wraps a vector store implementation (like Milvus, Chroma) and provides
+    integration with MLRun context for document and artifact management. It delegates
+    most operations to the underlying vector store while handling MLRun-specific
+    functionality.
 
-    Methods:
-        add_documents(documents: list["Document"], **kwargs):
-            Adds a list of documents to the collection and updates the MLRun artifacts associated with the documents
-            if an MLRun context is present.
-
-        add_artifacts(artifacts: list[DocumentArtifact], splitter=None, **kwargs):
-            Adds a list of DocumentArtifact objects to the collection, optionally using a splitter to convert
-            artifacts to documents.
-
-        remove_itself_from_artifact(artifact: DocumentArtifact):
-            Removes the current object from the given artifact's collection and updates the artifact.
-
-        delete_artifacts(artifacts: list[DocumentArtifact]):
-            Deletes a list of DocumentArtifact objects from the collection and updates the MLRun context.
-            Raises NotImplementedError if the delete operation is not supported for the collection implementation.
+    The class implements attribute delegation through __getattr__ and __setattr__,
+    allowing direct access to the underlying vector store's methods and attributes
+    while maintaining MLRun integration.
     """
 
     def __init__(
         self,
-        vector_store_class: str,
         mlrun_context: Union["MlrunProject", "MLClientCtx"],  # noqa: F821
-        datastore_profile: str,
-        collection_name: str,
-        **kwargs,
+        vector_store: "VectorStore",  # noqa: F821
+        collection_name: Optional[str] = None,
     ):
-        # Import the vector store class dynamically
-        module_name, class_name = vector_store_class.rsplit(".", 1)
-        module = import_module(module_name)
-        vector_store_class = getattr(module, class_name)
-
-        signature = inspect.signature(vector_store_class)
-
-        # Create the vector store instance
-        if "collection_name" in signature.parameters.keys():
-            vector_store = vector_store_class(collection_name=collection_name, **kwargs)
-        else:
-            vector_store = vector_store_class(**kwargs)
-
         self._collection_impl = vector_store
         self._mlrun_context = mlrun_context
-        self.collection_name = collection_name
-        self.id = datastore_profile + "/" + collection_name
+        self.collection_name = collection_name or _extract_collection_name(vector_store)
+
+    @property
+    def __class__(self):
+        # Make isinstance() check the wrapped object's class
+        return self._collection_impl.__class__
 
     def __getattr__(self, name):
         # This method is called when an attribute is not found in the usual places
@@ -85,6 +81,9 @@ class VectorStoreCollection:
         else:
             # Forward the attribute setting to _collection_impl
             setattr(self._collection_impl, name, value)
+
+    def delete(self, *args, **kwargs):
+        self._collection_impl.delete(*args, **kwargs)
 
     def add_documents(
         self,
@@ -112,40 +111,80 @@ class VectorStoreCollection:
                 )
                 if mlrun_uri:
                     artifact = self._mlrun_context.get_store_resource(mlrun_uri)
-                    artifact.collection_add(self.id)
+                    artifact.collection_add(self.collection_name)
                     self._mlrun_context.update_artifact(artifact)
+
         return self._collection_impl.add_documents(documents, **kwargs)
 
     def add_artifacts(self, artifacts: list[DocumentArtifact], splitter=None, **kwargs):
         """
-        Add a list of DocumentArtifact objects to the collection.
+        Add a list of DocumentArtifact objects to the vector store collection.
 
-        Args:
-            artifacts (list[DocumentArtifact]): A list of DocumentArtifact objects to be added.
-            splitter (optional): An optional splitter to be used when converting artifacts to documents.
-            **kwargs: Additional keyword arguments to be passed to the collection's add_documents method.
+        Converts artifacts to LangChain documents, adds them to the vector store, and
+        updates the MLRun context. If documents are split, the IDs are handled appropriately.
 
-        Returns:
-            list: A list of IDs of the added documents.
+        :param artifacts: List of DocumentArtifact objects to add
+        :type artifacts: list[DocumentArtifact]
+        :param splitter: Document splitter to break artifacts into smaller chunks.
+                        If None, each artifact becomes a single document.
+        :type splitter: TextSplitter, optional
+        :param kwargs: Additional arguments passed to the underlying add_documents method.
+                    Special handling for 'ids' kwarg:
+
+                    * If provided and document is split, IDs are generated as "{original_id}_{i}"
+                        where i starts from 1 (e.g., "doc1_1", "doc1_2", etc.)
+                    * If provided and document isn't split, original IDs are used as-is
+
+        :return: List of IDs for all added documents. When no custom IDs are provided:
+
+                * Without splitting: Vector store generates IDs automatically
+                * With splitting: Vector store generates separate IDs for each chunk
+
+                When custom IDs are provided:
+
+                * Without splitting: Uses provided IDs directly
+                * With splitting: Generates sequential IDs as "{original_id}_{i}" for each chunk
+        :rtype: list
+
         """
         all_ids = []
-        for artifact in artifacts:
+        user_ids = kwargs.pop("ids", None)
+
+        if user_ids:
+            if not isinstance(user_ids, Iterable):
+                raise ValueError("IDs must be an iterable collection")
+            if len(user_ids) != len(artifacts):
+                raise ValueError(
+                    "The number of IDs should match the number of artifacts"
+                )
+        for index, artifact in enumerate(artifacts):
             documents = artifact.to_langchain_documents(splitter)
-            artifact.collection_add(self.id)
-            self._mlrun_context.update_artifact(artifact)
+            artifact.collection_add(self.collection_name)
+            if self._mlrun_context:
+                self._mlrun_context.update_artifact(artifact)
+            if user_ids:
+                num_of_documents = len(documents)
+                if num_of_documents > 1:
+                    ids_to_pass = [
+                        f"{user_ids[index]}_{i}" for i in range(1, num_of_documents + 1)
+                    ]
+                else:
+                    ids_to_pass = [user_ids[index]]
+                kwargs["ids"] = ids_to_pass
             ids = self._collection_impl.add_documents(documents, **kwargs)
             all_ids.extend(ids)
         return all_ids
 
-    def remove_itself_from_artifact(self, artifact: DocumentArtifact):
+    def remove_from_artifact(self, artifact: DocumentArtifact):
         """
         Remove the current object from the given artifact's collection and update the artifact.
 
         Args:
             artifact (DocumentArtifact): The artifact from which the current object should be removed.
         """
-        artifact.collection_remove(self.id)
-        self._mlrun_context.update_artifact(artifact)
+        artifact.collection_remove(self.collection_name)
+        if self._mlrun_context:
+            self._mlrun_context.update_artifact(artifact)
 
     def delete_artifacts(self, artifacts: list[DocumentArtifact]):
         """
@@ -162,13 +201,15 @@ class VectorStoreCollection:
         """
         store_class = self._collection_impl.__class__.__name__.lower()
         for artifact in artifacts:
-            artifact.collection_remove(self.id)
-            self._mlrun_context.update_artifact(artifact)
+            artifact.collection_remove(self.collection_name)
+            if self._mlrun_context:
+                self._mlrun_context.update_artifact(artifact)
+
             if store_class == "milvus":
-                expr = f"{DocumentArtifact.METADATA_SOURCE_KEY} == '{artifact.source}'"
+                expr = f"{DocumentArtifact.METADATA_SOURCE_KEY} == '{artifact.get_source()}'"
                 return self._collection_impl.delete(expr=expr)
             elif store_class == "chroma":
-                where = {DocumentArtifact.METADATA_SOURCE_KEY: artifact.source}
+                where = {DocumentArtifact.METADATA_SOURCE_KEY: artifact.get_source()}
                 return self._collection_impl.delete(where=where)
 
             elif (
@@ -177,7 +218,9 @@ class VectorStoreCollection:
                 in inspect.signature(self._collection_impl.delete).parameters
             ):
                 filter = {
-                    "metadata": {DocumentArtifact.METADATA_SOURCE_KEY: artifact.source}
+                    "metadata": {
+                        DocumentArtifact.METADATA_SOURCE_KEY: artifact.get_source()
+                    }
                 }
                 return self._collection_impl.delete(filter=filter)
             else:

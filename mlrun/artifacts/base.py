@@ -36,7 +36,16 @@ from ..utils import (
 
 
 class ArtifactMetadata(ModelObj):
-    _dict_fields = ["key", "project", "iter", "tree", "description", "hash", "tag"]
+    _dict_fields = [
+        "key",
+        "project",
+        "iter",
+        "tree",
+        "description",
+        "hash",
+        "tag",
+        "uid",
+    ]
     _extra_fields = ["updated", "labels"]
 
     def __init__(
@@ -48,6 +57,7 @@ class ArtifactMetadata(ModelObj):
         description=None,
         hash=None,
         tag=None,
+        uid=None,
     ):
         self.key = key
         self.project = project
@@ -58,6 +68,7 @@ class ArtifactMetadata(ModelObj):
         self.labels = {}
         self.updated = None
         self.tag = tag  # temp store of the tag
+        self.uid = uid
 
     def base_dict(self):
         return super().to_dict()
@@ -368,6 +379,7 @@ class Artifact(ModelObj):
             iter=self.metadata.iter,
             tree=tree,
             tag=tag,
+            uid=self.uid,
         )
         return mlrun.datastore.get_store_uri(self._store_prefix, uri)
 
@@ -641,6 +653,14 @@ class Artifact(ModelObj):
     @hash.setter
     def hash(self, hash):
         self.metadata.hash = hash
+
+    @property
+    def uid(self):
+        return self.metadata.uid
+
+    @uid.setter
+    def uid(self, uid):
+        self.metadata.uid = uid
 
     def generate_target_path(self, artifact_path, producer):
         return generate_target_path(self, artifact_path, producer)

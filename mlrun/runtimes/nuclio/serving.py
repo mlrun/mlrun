@@ -22,7 +22,7 @@ import nuclio
 from nuclio import KafkaTrigger
 
 import mlrun
-import mlrun.common.schemas
+import mlrun.common.schemas as schemas
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -39,7 +39,7 @@ from mlrun.serving.states import (
 )
 from mlrun.utils import get_caller_globals, logger, set_paths
 
-from .function import NuclioSpec, RemoteRuntime
+from .function import NuclioSpec, RemoteRuntime, min_nuclio_versions
 
 serving_subkind = "serving_v2"
 
@@ -362,6 +362,9 @@ class ServingRuntime(RemoteRuntime):
         handler: Optional[str] = None,
         router_step: Optional[str] = None,
         child_function: Optional[str] = None,
+        creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -384,6 +387,11 @@ class ServingRuntime(RemoteRuntime):
         :param router_step: router step name (to determine which router we add the model to in graphs
                             with multiple router steps)
         :param child_function: child function name, when the model runs in a child function
+        :param creation_strategy: model endpoint creation strategy :
+                                    * overwrite - Create a new model endpoint and delete the last old one if it exists.
+                                    * inplace - Use the existing model endpoint if it already exists (default).
+                                    * archive - Preserve the old model endpoint and create a new one,
+                                    tagging it as the latest.
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -419,10 +427,13 @@ class ServingRuntime(RemoteRuntime):
         if class_name and hasattr(class_name, "to_dict"):
             if model_path:
                 class_name.model_path = model_path
-            key, state = params_to_step(class_name, key)
+            key, state = params_to_step(
+                class_name,
+                key,
+                model_endpoint_creation_strategy=creation_strategy,
+                endpoint_type=schemas.EndpointType.LEAF_EP,
+            )
         else:
-            if not model_path and not model_url:
-                raise ValueError("model_path or model_url must be provided")
             class_name = class_name or self.spec.default_class
             if class_name and not isinstance(class_name, str):
                 raise ValueError(
@@ -434,12 +445,22 @@ class ServingRuntime(RemoteRuntime):
                 model_path = str(model_path)
 
             if model_url:
-                state = new_remote_endpoint(model_url, **class_args)
+                state = new_remote_endpoint(
+                    model_url,
+                    creation_strategy=creation_strategy,
+                    endpoint_type=schemas.EndpointType.LEAF_EP,
+                    **class_args,
+                )
             else:
                 class_args = deepcopy(class_args)
                 class_args["model_path"] = model_path
                 state = TaskStep(
-                    class_name, class_args, handler=handler, function=child_function
+                    class_name,
+                    class_args,
+                    handler=handler,
+                    function=child_function,
+                    model_endpoint_creation_strategy=creation_strategy,
+                    endpoint_type=schemas.EndpointType.LEAF_EP,
                 )
 
         return graph.add_route(key, state)
@@ -577,12 +598,13 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
+    @min_nuclio_versions("1.12.10")
     def deploy(
         self,
         project="",
         tag="",
         verbose=False,
-        auth_info: mlrun.common.schemas.AuthInfo = None,
+        auth_info: schemas.AuthInfo = None,
         builder_env: Optional[dict] = None,
         force_build: bool = False,
     ):
@@ -644,9 +666,12 @@ class ServingRuntime(RemoteRuntime):
 
     def _get_serving_spec(self):
         function_name_uri_map = {f.name: f.uri(self) for f in self.spec.function_refs}
-
         serving_spec = {
+            "function_name": self.metadata.name,
+            "function_tag": self.metadata.tag,
             "function_uri": self._function_uri(),
+            "function_hash": self.metadata.hash,
+            "project": self.metadata.project,
             "version": "v2",
             "parameters": self.spec.parameters,
             "graph": self.spec.graph.to_dict() if self.spec.graph else {},
@@ -707,6 +732,9 @@ class ServingRuntime(RemoteRuntime):
             function_uri=self._function_uri(),
             secret_sources=self.spec.secret_sources,
             default_content_type=self.spec.default_content_type,
+            function_name=self.metadata.name,
+            function_tag=self.metadata.tag,
+            project=self.metadata.project,
             **kwargs,
         )
         server.init_states(

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import datetime
+import typing
 import uuid
 from http import HTTPStatus
 from typing import Optional
@@ -533,8 +534,8 @@ async def push_notifications(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
     iter: int = 0,
-    custom_html: str = None,
-    custom_message: str = None,
+    custom_html: typing.Optional[str] = None,
+    custom_message: typing.Optional[str] = None,
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

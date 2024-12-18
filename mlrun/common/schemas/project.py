@@ -146,10 +146,9 @@ class ProjectOwner(pydantic.v1.BaseModel):
 
 class ProjectSummary(pydantic.v1.BaseModel):
     name: str
-    files_count: int = pydantic.v1.Field(
-        0,
-        deprecated="files_count is deprecated and will be removed in 1.10.0. Use artifacts_count instead.",
-    )
+
+    # TODO: files_count is deprecated, remove it in 1.10.0. Use artifacts_count instead.
+    files_count: int = 0
     artifacts_count: int = 0
     feature_sets_count: int = 0
     models_count: int = 0

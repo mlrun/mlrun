@@ -1308,7 +1308,7 @@ class DBInterface(ABC):
         """
         pass
 
-    def get_or_create_object_counter(
+    def increment_object_counter(
         self,
         session,
         project: str,
@@ -1318,13 +1318,33 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.ObjectCounter:
         pass
 
-    def store_object_counter(
+    def decrement_object_counter(
+        self,
+        session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+        commit: bool = True,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        pass
+
+    def populate_object_counter(
         self,
         session,
         project: str,
         object_kind: str,
         object_subkind: typing.Optional[str] = None,
         counter: int = 0,
+        commit: bool = True,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        pass
+
+    def get_or_create_object_counter(
+        self,
+        session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
         commit: bool = True,
     ) -> mlrun.common.schemas.ObjectCounter:
         pass

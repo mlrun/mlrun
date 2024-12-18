@@ -1334,9 +1334,9 @@ def _create_resources_of_all_kinds(
                             producer_id=artifact_tree,
                         )
                     )
-                    framework.utils.object_counters.ObjectCounter(
-                        project, mlrun.artifacts.Artifact.kind
-                    ).increment(db_session)
+                    db.increment_object_counter(
+                        db_session, project, object_kind="artifact"
+                    )
 
     # Create several runs
     run = {

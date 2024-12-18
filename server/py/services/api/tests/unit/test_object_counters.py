@@ -18,6 +18,7 @@ import sqlalchemy.orm
 
 import framework.db.session
 import framework.utils.object_counters
+import framework.utils.singletons.db
 
 SOME_VALUE = 5
 POPULATE_VALUE = 10  # the value to populate the counter with in the 'populate' tests (to simplify the parametrizing)
@@ -36,9 +37,9 @@ POPULATE_VALUE = 10  # the value to populate the counter with in the 'populate' 
         ("decrement", None, 0),
         ("decrement", 0, 0),
         ("decrement", SOME_VALUE, SOME_VALUE - 1),
-        ("counter", None, 0),
-        ("counter", 0, 0),
-        ("counter", SOME_VALUE, SOME_VALUE),
+        ("get_or_create", None, 0),
+        ("get_or_create", 0, 0),
+        ("get_or_create", SOME_VALUE, SOME_VALUE),
     ],
 )
 def test_object_counters(
@@ -48,24 +49,30 @@ def test_object_counters(
     object_kind = "object_kind"
     object_subkind = "object_subkind"
 
-    # initialize the object counter instance (no db communication yet)
-    object_counter = framework.utils.object_counters.ObjectCounter(
-        project, object_kind, object_subkind
-    )
+    mldb = framework.utils.singletons.db.get_db()
 
     # if counter already exists for the test, populate it with the existing value
     if existing_counter is not None:
-        counter = object_counter.populate(db, existing_counter)
-        assert counter == existing_counter
+        object_counter = mldb.populate_object_counter(
+            db, project, object_kind, object_subkind, existing_counter
+        )
+        assert object_counter.counter == existing_counter
 
     if action == "populate":
         # 'populate' is the only action that accepts a parameter
-        counter = object_counter.populate(db, POPULATE_VALUE)
-        assert counter == expected_counter
+        object_counter = mldb.populate_object_counter(
+            db, project, object_kind, object_subkind, POPULATE_VALUE
+        )
+        assert object_counter.counter == expected_counter
     else:
         # the rest of the actions only require the db session
-        counter = getattr(object_counter, action)(db)
-        assert counter == expected_counter
+        object_counter = getattr(mldb, f"{action}_object_counter")(
+            db, project, object_kind, object_subkind
+        )
+        assert object_counter.counter == expected_counter
 
-    object_counter.delete(db)
-    assert object_counter.counter(db) == 0
+    mldb.delete_object_counter(db, project, object_kind, object_subkind)
+    object_counter = mldb.get_or_create_object_counter(
+        db, project, object_kind, object_subkind
+    )
+    assert object_counter.counter == 0

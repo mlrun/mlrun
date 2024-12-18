@@ -5858,6 +5858,103 @@ class SQLDB(DBInterface):
             for cooldown, notification in zip(cooldowns, notifications)
         ]
 
+    def increment_object_counter(
+        self,
+        session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+        commit: bool = True,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        """
+        Increment the object counter value in the database.
+        If the counter does not exist, it will be created with a value of 0 and then incremented to 1.
+        :param session: SQLAlchemy session for database connection.
+        :param project: The project of the object counter.
+        :param object_kind: The kind of the object.
+        :param object_subkind: The subkind of the object.
+        :param commit: Whether to commit the transaction.
+        :return: The object counter after the increment operation.
+        """
+        object_counter = self._get_or_create_object_counter_instance(
+            session,
+            project=project,
+            object_kind=object_kind,
+            object_subkind=object_subkind,
+            with_for_update=True,
+        )
+        object_counter.counter += 1
+        session.add(object_counter)
+        if commit:
+            self._commit(session, [object_counter])
+        return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
+
+    def decrement_object_counter(
+        self,
+        session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+        commit: bool = True,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        """
+        Decrement the object counter value in the database.
+        If the counter does not exist, it will be created with a value of 0. In this case or in the case where the
+        counter is already 0, the counter will not be decremented.
+        :param session: SQLAlchemy session for database connection.
+        :param project: The project of the object counter.
+        :param object_kind: The kind of the object.
+        :param object_subkind: The subkind of the object.
+        :param commit: Whether to commit the transaction.
+        :return: The object counter after the decrement operation.
+        """
+        object_counter = self._get_or_create_object_counter_instance(
+            session,
+            project=project,
+            object_kind=object_kind,
+            object_subkind=object_subkind,
+            with_for_update=True,
+        )
+        if object_counter.counter > 0:
+            object_counter.counter -= 1
+        session.add(object_counter)
+        if commit:
+            self._commit(session, [object_counter])
+        return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
+
+    def populate_object_counter(
+        self,
+        session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+        counter: int = 0,
+        commit: bool = True,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        """
+        Set the counter value in the database.
+        If the counter does not exist, it will be created with the provided value.
+        :param session: SQLAlchemy session for database connection.
+        :param project: The project of the object counter.
+        :param object_kind: The kind of the object.
+        :param object_subkind: The subkind of the object.
+        :param counter: The value to set the counter to.
+        :param commit: Whether to commit the transaction.
+        :return: The object counter after the population operation.
+        """
+        object_counter = self._get_or_create_object_counter_instance(
+            session,
+            project=project,
+            object_kind=object_kind,
+            object_subkind=object_subkind,
+            with_for_update=True,
+        )
+        object_counter.counter = counter
+        session.add(object_counter)
+        if commit:
+            self._commit(session, [object_counter])
+        return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
+
     def get_or_create_object_counter(
         self,
         session: Session,
@@ -5866,51 +5963,27 @@ class SQLDB(DBInterface):
         object_subkind: typing.Optional[str] = None,
         commit: bool = True,
     ) -> mlrun.common.schemas.ObjectCounter:
-        object_counter = self._query(
+        """
+        Get the object counter value from the database.
+        If the counter does not exist, it will be created with a value of 0.
+        :param session: SQLAlchemy session for database connection.
+        :param project: The project of the object counter.
+        :param object_kind: The kind of the object.
+        :param object_subkind: The subkind of the object.
+        :param commit: Whether to commit the transaction.
+        :return: The object counter.
+        """
+        object_counter = self._get_or_create_object_counter_instance(
             session,
-            ObjectCounter,
-            project=project,
-            object_kind=object_kind,
-            object_subkind=object_subkind,
-        ).one_or_none()
-        if not object_counter:
-            object_counter = ObjectCounter(
-                project=project,
-                object_kind=object_kind,
-                object_subkind=object_subkind,
-                counter=0,
-            )
-            session.add(object_counter)
-            if commit:
-                self._commit(session, [object_counter])
-
-        return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
-
-    def store_object_counter(
-        self,
-        session: Session,
-        project: str,
-        object_kind: str,
-        object_subkind: typing.Optional[str] = None,
-        counter: int = 0,
-        commit: bool = True,
-    ) -> mlrun.common.schemas.ObjectCounter:
-        object_counter = self._query(
-            session,
-            ObjectCounter,
-            project=project,
-            object_kind=object_kind,
-            object_subkind=object_subkind,
-        ).one_or_none()
-        if not object_counter:
-            object_counter = ObjectCounter(
-                project=project, object_kind=object_kind, object_subkind=object_subkind
-            )
-
-        object_counter.counter = counter
+            project,
+            object_kind,
+            object_subkind,
+            with_for_update=False,
+        )
         session.add(object_counter)
         if commit:
             self._commit(session, [object_counter])
+
         return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
 
     def delete_object_counter(
@@ -5921,6 +5994,14 @@ class SQLDB(DBInterface):
         object_subkind: typing.Optional[str] = None,
         commit: bool = True,
     ):
+        """
+        Delete the object counter from the database.
+        :param session: SQLAlchemy session for database connection.
+        :param project: The project of the object counter.
+        :param object_kind: The kind of the object.
+        :param object_subkind: The subkind of the object.
+        :param commit: Whether to commit the transaction.
+        """
         query = session.query(ObjectCounter).filter_by(
             project=project,
             object_kind=object_kind,
@@ -5930,6 +6011,34 @@ class SQLDB(DBInterface):
             session.delete(obj)
         if commit:
             session.commit()
+
+    def _get_or_create_object_counter_instance(
+        self,
+        session: Session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+        with_for_update: bool = False,
+    ) -> ObjectCounter:
+        query = self._query(
+            session,
+            ObjectCounter,
+            project=project,
+            object_kind=object_kind,
+            object_subkind=object_subkind,
+        )
+        if with_for_update:
+            query = query.with_for_update()
+
+        object_counter = query.one_or_none()
+        if not object_counter:
+            object_counter = ObjectCounter(
+                project=project,
+                object_kind=object_kind,
+                object_subkind=object_subkind,
+                counter=0,
+            )
+        return object_counter
 
     def _delete_project_object_counters(self, session: Session, project: str):
         self._delete_multi_objects(session, main_table=ObjectCounter, project=project)

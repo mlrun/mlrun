@@ -1314,6 +1314,7 @@ class DBInterface(ABC):
         project: str,
         object_kind: str,
         object_subkind: typing.Optional[str] = None,
+        commit: bool = True,
     ) -> mlrun.common.schemas.ObjectCounter:
         pass
 
@@ -1324,6 +1325,7 @@ class DBInterface(ABC):
         object_kind: str,
         object_subkind: typing.Optional[str] = None,
         counter: int = 0,
+        commit: bool = True,
     ) -> mlrun.common.schemas.ObjectCounter:
         pass
 
@@ -1333,5 +1335,6 @@ class DBInterface(ABC):
         project: str,
         object_kind: str,
         object_subkind: typing.Optional[str] = None,
+        commit: bool = True,
     ):
         pass

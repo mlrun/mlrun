@@ -5864,6 +5864,7 @@ class SQLDB(DBInterface):
         project: str,
         object_kind: str,
         object_subkind: typing.Optional[str] = None,
+        commit: bool = True,
     ) -> mlrun.common.schemas.ObjectCounter:
         object_counter = self._query(
             session,
@@ -5879,7 +5880,10 @@ class SQLDB(DBInterface):
                 object_subkind=object_subkind,
                 counter=0,
             )
-            self._upsert(session, [object_counter])
+            session.add(object_counter)
+            if commit:
+                self._commit(session, [object_counter])
+
         return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
 
     def store_object_counter(
@@ -5889,6 +5893,7 @@ class SQLDB(DBInterface):
         object_kind: str,
         object_subkind: typing.Optional[str] = None,
         counter: int = 0,
+        commit: bool = True,
     ) -> mlrun.common.schemas.ObjectCounter:
         object_counter = self._query(
             session,
@@ -5903,7 +5908,9 @@ class SQLDB(DBInterface):
             )
 
         object_counter.counter = counter
-        self._upsert(session, [object_counter])
+        session.add(object_counter)
+        if commit:
+            self._commit(session, [object_counter])
         return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
 
     def delete_object_counter(
@@ -5912,14 +5919,17 @@ class SQLDB(DBInterface):
         project: str,
         object_kind: str,
         object_subkind: typing.Optional[str] = None,
+        commit: bool = True,
     ):
-        self._delete(
-            session,
-            ObjectCounter,
+        query = session.query(ObjectCounter).filter_by(
             project=project,
             object_kind=object_kind,
             object_subkind=object_subkind,
         )
+        for obj in query:
+            session.delete(obj)
+        if commit:
+            session.commit()
 
     def _delete_project_object_counters(self, session: Session, project: str):
         self._delete_multi_objects(session, main_table=ObjectCounter, project=project)

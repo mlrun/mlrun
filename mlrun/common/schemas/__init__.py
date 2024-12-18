@@ -168,6 +168,7 @@ from .notification import (
     SetNotificationRequest,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
+from .object_counter import ObjectCounter
 from .pagination import PaginationInfo
 from .partition import PartitionInterval
 from .pipeline import PipelinesOutput, PipelinesPagination

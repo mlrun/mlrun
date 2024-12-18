@@ -110,6 +110,7 @@ from framework.db.sqldb.models import (
     Function,
     HubSource,
     ModelEndpoint,
+    ObjectCounter,
     PaginationCache,
     Project,
     ProjectSummary,
@@ -5855,6 +5856,69 @@ class SQLDB(DBInterface):
             )
             for cooldown, notification in zip(cooldowns, notifications)
         ]
+
+    def get_or_create_object_counter(
+        self,
+        session: Session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        object_counter = self._query(
+            session,
+            ObjectCounter,
+            project=project,
+            object_kind=object_kind,
+            object_subkind=object_subkind,
+        ).one_or_none()
+        if not object_counter:
+            object_counter = ObjectCounter(
+                project=project,
+                object_kind=object_kind,
+                object_subkind=object_subkind,
+                counter=0,
+            )
+            self._upsert(session, [object_counter])
+        return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
+
+    def store_object_counter(
+        self,
+        session: Session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+        counter: int = 0,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        object_counter = self._query(
+            session,
+            ObjectCounter,
+            project=project,
+            object_kind=object_kind,
+            object_subkind=object_subkind,
+        ).one_or_none()
+        if not object_counter:
+            object_counter = ObjectCounter(
+                project=project, object_kind=object_kind, object_subkind=object_subkind
+            )
+
+        object_counter.counter = counter
+        self._upsert(session, [object_counter])
+        return mlrun.common.schemas.ObjectCounter.from_orm(object_counter)
+
+    def delete_object_counter(
+        self,
+        session: Session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+    ):
+        self._delete(
+            session,
+            ObjectCounter,
+            project=project,
+            object_kind=object_kind,
+            object_subkind=object_subkind,
+        )
 
     @staticmethod
     def create_partitions(

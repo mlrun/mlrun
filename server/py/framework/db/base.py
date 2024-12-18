@@ -1307,3 +1307,31 @@ class DBInterface(ABC):
         :param project: The project name.
         """
         pass
+
+    def get_or_create_object_counter(
+        self,
+        session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        pass
+
+    def store_object_counter(
+        self,
+        session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+        counter: int = 0,
+    ) -> mlrun.common.schemas.ObjectCounter:
+        pass
+
+    def delete_object_counter(
+        self,
+        session,
+        project: str,
+        object_kind: str,
+        object_subkind: typing.Optional[str] = None,
+    ):
+        pass

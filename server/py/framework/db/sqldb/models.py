@@ -980,6 +980,32 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.key}"
 
+    class ObjectCounter(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "object_counters"
+        __table_args__ = (
+            UniqueConstraint(
+                "project", "object_kind", "object_subkind", name="_object_counters_uc"
+            ),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        object_kind = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        object_subkind = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=True
+        )
+        counter = Column(Integer, nullable=False)
+
+        def get_identifier_string(self) -> str:
+            if self.object_subkind:
+                return f"{self.project}/{self.object_kind}/{self.object_subkind}"
+
+            return f"{self.project}/{self.object_kind}"
+
 
 def get_partitioned_table_names():
     return [

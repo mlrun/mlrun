@@ -917,7 +917,7 @@ class DBInterface(ABC):
     def create_partitions(
         session,
         table_name: str,
-        partitioning_information_list: list[tuple[str, str, str]],
+        partitioning_information_list: list[tuple[str, str]],
     ):
         pass
 

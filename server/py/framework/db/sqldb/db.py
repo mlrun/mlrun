@@ -6163,7 +6163,7 @@ class SQLDB(DBInterface):
         activation = query.one_or_none()
         if not activation:
             # if the activation is not found, we try to find it again by id only
-            # (in case if something happened with activation time)
+            # (in case something happened with activation time)
             # usually it won't really happen, but just stay in safe side
             query = self._query(session, AlertActivation, id=activation_id)
             activation = query.one_or_none()

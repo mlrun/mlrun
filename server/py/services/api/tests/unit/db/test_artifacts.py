@@ -1129,7 +1129,8 @@ class TestArtifacts(TestDatabaseBase):
         # 5. Delete an artifact from the first run (iteration 3).
         # 6. The "latest" tag should not move, because artifact is not holding the latest tag (artifact is untaged).
         # 7. Delete the last artifact from the first run (iteration 1).
-        # 8. The "latest" tag should move because there is no other latest tag in the same producer id for other iterations
+        # 8. The "latest" tag should move because there is no other latest tag in the same producer id
+        # for other iterations
         # move the latest tag to the best-iteration of the previous latest run.
 
         project = "artifact_project"
@@ -1228,8 +1229,8 @@ class TestArtifacts(TestDatabaseBase):
         # Delete artifact uid4
         self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid4)
 
-        # The "latest" tag should be moved because there is no other "latest" tag for the same producer ID in other iterations.
-        # Moved to the best iteration of the previous latest run.
+        # The "latest" tag should be moved because there is no other "latest" tag for the same producer ID in
+        # other iterations. Moved to the best iteration of the previous latest run.
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )

@@ -7186,7 +7186,7 @@ class SQLDB(DBInterface):
             ArtifactV2.id != object_record.id,
             ArtifactV2.project == object_record.project,
             ArtifactV2.key == object_record.key,
-            ArtifactV2.best_iteration == True,
+            ArtifactV2.best_iteration,
         )
 
         # Return the most recent artifact based on the update timestamp
@@ -7208,7 +7208,8 @@ class SQLDB(DBInterface):
 
                 if other_latest:
                     logger.debug(
-                        "Another 'latest' tag exists in other iterations for the same producer_id. Not moving the 'latest' tag",
+                        "Another 'latest' tag exists in other iterations for the same producer_id. "
+                        "Not moving the 'latest' tag",
                         artifact_uid=object_record.uid,
                         producer_id=object_record.producer_id,
                     )

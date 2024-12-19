@@ -1816,9 +1816,9 @@ ipyleaflet==0.19.2 \
     --hash=sha256:7cc9157848baca2e1793b96e79f8bdb1aa7340521d2b7d8a62aa8bc30eab5278 \
     --hash=sha256:b3b83fe3460e742964c2a5924ea7934365a3749bb75310ce388d45fd751372d2
     # via vaex-jupyter
-ipympl==0.9.4 \
-    --hash=sha256:5b0c08c6f4f6ea655ba58239363457c10fb921557f5038c1a46db4457d6d6b0e \
-    --hash=sha256:cfb53c5b4fcbcee6d18f095eecfc6c6c474303d5b744e72cc66e7a2804708907
+ipympl==0.9.5 \
+    --hash=sha256:b702db4bd1138cee21ab3c731e1c1bc5c3efbfa81b9b42a1820f79122d946dc8 \
+    --hash=sha256:ff14a357f43552ec92582eb8b2f76b844b469aa2fa76833f15ead7fa584c19fc
     # via vaex-jupyter
 ipython==8.18.1 ; python_full_version < '3.10' \
     --hash=sha256:ca6f079bb33457c66e233e4580ebfc4128855b4cf6370dddd73842a9563e8a27 \
@@ -1838,10 +1838,6 @@ ipython==8.30.0 ; python_full_version >= '3.10' \
     #   ipympl
     #   ipywidgets
     #   nuclio-jupyter
-ipython-genutils==0.2.0 \
-    --hash=sha256:72dd37233799e619666c9f639a9da83c34013a73e8bbc79a7a6348d93c61fab8 \
-    --hash=sha256:eb2e116e75ecef9d4d228fdc66af54269afa26ab4463042e33785b887c628ba8
-    # via ipympl
 ipyvolume==0.6.3 \
     --hash=sha256:550761b5cc1a9fb0e8931056fd523b2f0074ddea46633a248f996168e5b0d7f6 \
     --hash=sha256:823226f90a59ce08b1da2699a9ec505f34f65f01ce43accd80e7d3554082d035
@@ -1952,9 +1948,9 @@ jupyter-core==5.7.2 \
     #   nbclient
     #   nbconvert
     #   nbformat
-jupyter-events==0.10.0 \
-    --hash=sha256:4b72130875e59d57716d327ea70d3ebc3af1944d3717e5a498b8a06c6c159960 \
-    --hash=sha256:670b8229d3cc882ec782144ed22e0d29e1c2d639263f92ca8383e66682845e22
+jupyter-events==0.11.0 \
+    --hash=sha256:36399b41ce1ca45fe8b8271067d6a140ffa54cec4028e95491c93b78a855cacf \
+    --hash=sha256:c0bc56a37aac29c1fbc3bcfbddb8c8c49533f9cf11f1c4e6adadba936574ab90
     # via jupyter-server
 jupyter-leaflet==0.19.2 \
     --hash=sha256:0d57e15e80c08a4360f0cde0b4c490beddc5d422bb0e9bc1c0b4479d3fb725a6 \
@@ -2113,9 +2109,9 @@ kubernetes==25.3.0 \
     # via
     #   dask-kubernetes
     #   kfp
-kubernetes-asyncio==31.1.1 \
-    --hash=sha256:393bb60a2740d482651d474956296b341348c3e4f883b171740e5a4bf105a87b \
-    --hash=sha256:d5e441674fde5dd8d0366cb6a204d7fbaef8d0dce7ca7a34c0791af0d13b6ff1
+kubernetes-asyncio==32.0.0 \
+    --hash=sha256:77f28a026aff8a40fd34a7ebad9f3813dcb7e549c7240275fc4bfbff0a6b49d0 \
+    --hash=sha256:f9baa8f73c182948e063bb9448d8e614f73df4aae52d28f173a3a1c2b77fbfb4
     # via dask-kubernetes
 lazy-loader==0.4 \
     --hash=sha256:342aa8e14d543a154047afb4ba8ef17f5563baad3fc610d7b15b213b0f119efc \
@@ -4239,8 +4235,8 @@ statsmodels==0.14.4 \
     --hash=sha256:e332c2d9b806083d1797231280602340c5c913f90d4caa0213a6a54679ce9331 \
     --hash=sha256:f5f537f7d000de4a1708c63400755152b862cd4926bb81a86568e347c19c364b
     # via pyod
-storey==1.8.6 \
-    --hash=sha256:2b91e6ae54ce1c61aa36b5cc3787e11a645b79e15843aebfc5e80eb44710d93d
+storey==1.8.7 \
+    --hash=sha256:850e4b4e22466f875a7c31caaf610311934061207da3ce217c6062f042b76a31
     # via -r requirements.txt
 strip-hints==0.1.10 ; python_full_version < '3.11' \
     --hash=sha256:307c2bd147cd35997c8ed2e9a3bdca48ad9c9617e04ea46599095201b4ce998f

@@ -120,7 +120,7 @@ class RemoteStep(storey.SendToHttp):
         self._body_function_handler = None
         self._headers_function_handler = None
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         self._endpoint = self.url
         if self.url and self.context:
             self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")
@@ -346,7 +346,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
     async def _cleanup(self):
         await self._client_session.close()
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         self._endpoint = self.url
         if self.url and self.context:
             self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")

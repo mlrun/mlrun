@@ -1568,9 +1568,9 @@ jupyter-core==5.7.2 \
     #   nbclient
     #   nbconvert
     #   nbformat
-jupyter-events==0.10.0 \
-    --hash=sha256:4b72130875e59d57716d327ea70d3ebc3af1944d3717e5a498b8a06c6c159960 \
-    --hash=sha256:670b8229d3cc882ec782144ed22e0d29e1c2d639263f92ca8383e66682845e22
+jupyter-events==0.11.0 \
+    --hash=sha256:36399b41ce1ca45fe8b8271067d6a140ffa54cec4028e95491c93b78a855cacf \
+    --hash=sha256:c0bc56a37aac29c1fbc3bcfbddb8c8c49533f9cf11f1c4e6adadba936574ab90
     # via jupyter-server
 jupyter-server==2.14.2 \
     --hash=sha256:47ff506127c2f7851a17bf4713434208fc490955d0e8632e95014a9a9afbeefd \
@@ -1721,9 +1721,9 @@ kubernetes==25.3.0 \
     # via
     #   dask-kubernetes
     #   kfp
-kubernetes-asyncio==31.1.1 \
-    --hash=sha256:393bb60a2740d482651d474956296b341348c3e4f883b171740e5a4bf105a87b \
-    --hash=sha256:d5e441674fde5dd8d0366cb6a204d7fbaef8d0dce7ca7a34c0791af0d13b6ff1
+kubernetes-asyncio==32.0.0 \
+    --hash=sha256:77f28a026aff8a40fd34a7ebad9f3813dcb7e549c7240275fc4bfbff0a6b49d0 \
+    --hash=sha256:f9baa8f73c182948e063bb9448d8e614f73df4aae52d28f173a3a1c2b77fbfb4
     # via dask-kubernetes
 linkify-it-py==2.0.3 ; sys_platform != 'win32' \
     --hash=sha256:68cda27e162e9215c17d786649d1da0021a451bdc436ef9e0fa0ba5234b9b048 \
@@ -3536,8 +3536,8 @@ starlette==0.41.3 \
     --hash=sha256:0e4ab3d16522a255be6b28260b938eae2482f98ce5cc934cb08dce8dc3ba5835 \
     --hash=sha256:44cedb2b7c77a9de33a8b74b2b90e9f50d11fcf25d8270ea525ad71a25374ff7
     # via fastapi
-storey==1.8.6 \
-    --hash=sha256:2b91e6ae54ce1c61aa36b5cc3787e11a645b79e15843aebfc5e80eb44710d93d
+storey==1.8.7 \
+    --hash=sha256:850e4b4e22466f875a7c31caaf610311934061207da3ce217c6062f042b76a31
     # via -r requirements.txt
 strip-hints==0.1.10 ; python_full_version < '3.11' \
     --hash=sha256:307c2bd147cd35997c8ed2e9a3bdca48ad9c9617e04ea46599095201b4ce998f

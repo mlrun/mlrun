@@ -260,6 +260,36 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         )
         assert len(filter_labels.endpoints) == 4
 
+    @pytest.mark.parametrize(
+        "creation_strategy", mm_constants.ModelEndpointCreationStrategy.list()
+    )
+    def test_creation_strategy(self, creation_strategy):
+        db = mlrun.get_run_db()
+        model_endpoint = self._mock_random_endpoint("testing", model_name="model-1")
+        db.create_model_endpoint(model_endpoint, creation_strategy)
+        model_endpoint = self._mock_random_endpoint("testing", model_name="model-2")
+        db.create_model_endpoint(model_endpoint, creation_strategy)
+
+        endpoints_out = self.project.list_model_endpoints().endpoints
+        if creation_strategy == mm_constants.ModelEndpointCreationStrategy.ARCHIVE:
+            assert len(endpoints_out) == 2
+            endpoints_out = self.project.list_model_endpoints(
+                latest_only=True
+            ).endpoints
+
+        assert len(endpoints_out) == 1
+        assert endpoints_out[0].spec.model_name == "model-2"
+
+        mep = mlrun.get_run_db().get_model_endpoint(
+            project=endpoints_out[0].metadata.project,
+            name=endpoints_out[0].metadata.name,
+            endpoint_id=endpoints_out[0].metadata.uid,
+            feature_analysis=True,
+        )
+
+        assert mep.status.drift_measures_timestamp is not None
+        assert mep.status.current_stats_timestamp is not None
+
     def _mock_random_endpoint(
         self,
         name: str,

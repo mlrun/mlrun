@@ -46,24 +46,23 @@ class PartitionInterval(StrEnum):
             return timedelta(weeks=1)
 
     @classmethod
-    def from_function(cls, partition_function: str):
+    def from_expression(cls, partition_expression: str):
         """
-        Returns the corresponding PartitionInterval for a given partition function,
+        Returns the corresponding PartitionInterval for a given partition expression,
         or None if the function is not mapped.
 
-        :param partition_function: The partition function to map to an interval.
-        :return: PartitionInterval corresponding to the function, or None if no match is found.
+        :param partition_expression: The partition expression to map to an interval.
+        :return: PartitionInterval corresponding to the expression, or `month` if no match is found.
         """
-        partition_function_to_partitions_interval = {
-            "DAY": "DAY",
-            "DAYOFMONTH": "DAY",
-            "MONTH": "MONTH",
-            "YEARWEEK": "YEARWEEK",
-        }
-        interval = partition_function_to_partitions_interval.get(partition_function)
-        if interval and cls.is_valid(interval):
-            return cls[interval]
-        raise KeyError(f"Partition function: {partition_function} isn't supported")
+
+        # Match the provided function string to the correct interval
+        partition_expression = partition_expression.upper()
+        if "YEARWEEK" in partition_expression:
+            return cls.YEARWEEK
+        elif "DAYOFMONTH" in partition_expression:
+            return cls.DAY
+        else:
+            return cls.MONTH
 
     def get_partition_info(
         self,
@@ -120,11 +119,17 @@ class PartitionInterval(StrEnum):
             year, week, _ = current_datetime.isocalendar()
             return f"{year}{week:02d}"
 
-    def get_partition_expression(self):
+    def get_partition_expression(self, column_name: str):
         if self == PartitionInterval.YEARWEEK:
-            return "YEARWEEK(activation_time, 1)"
-        else:
-            return f"{self}(activation_time)"
+            return f"YEARWEEK({column_name}, 1)"
+        elif self == PartitionInterval.DAY:
+            # generates value in format %Y%m%d in mysql
+            # mysql query example: `select YEAR(NOW())*10000 + MONTH(NOW())*100 + DAY(NOW());`
+            return f"YEAR({column_name}) * 10000 + MONTH({column_name}) * 100 + DAY({column_name})"
+        elif self == PartitionInterval.MONTH:
+            # generates value in format %Y%m in mysql
+            # mysql query example: `select YEAR(NOW())*100 + MONTH(NOW());`
+            return f"YEAR({column_name}) * 100 + MONTH({column_name})"
 
     def get_number_of_partitions(self, days: int) -> int:
         # Calculate the number partitions based on given number of days

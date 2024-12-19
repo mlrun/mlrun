@@ -45,10 +45,8 @@ import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
 from mlrun import new_function
-from mlrun.common.schemas import ModelMonitoringMode
 from mlrun.config import config
 from mlrun.lists import ArtifactList
-from mlrun.model_monitoring import ModelEndpoint
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
@@ -655,29 +653,6 @@ class RunDBMock:
 
         assert categories == expected_categories
 
-    def get_model_endpoint(
-        self,
-        name: str,
-        project: str,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
-        tsdb_metrics: bool = True,
-        feature_analysis: bool = False,
-    ) -> mlrun.common.schemas.ModelEndpoint:
-        mep = ModelEndpoint(
-            metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                name=name, project=project
-            ),
-            spec=mlrun.common.schemas.ModelEndpointSpec(),
-            status=mlrun.common.schemas.ModelEndpointStatus(),
-        )
-        mep.metadata.uid = endpoint_id
-        mep.spec.monitoring_mode = ModelMonitoringMode.enabled
-        mep.spec.function_name = function_name
-        mep.spec.function_tag = function_tag
-        return mep
-
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
@@ -692,7 +667,7 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
-    mock_object.patch_model_endpoint = unittest.mock.Mock()
+    mock_object.create_model_endpoint = unittest.mock.Mock()
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:

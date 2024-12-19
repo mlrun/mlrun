@@ -1873,6 +1873,34 @@ class MlrunProject(ModelObj):
         vector_store: "VectorStore",  # noqa: F821
         collection_name: Optional[str] = None,
     ) -> VectorStoreCollection:
+        """
+        Create a VectorStoreCollection wrapper for a given vector store instance.
+
+        This method wraps a vector store implementation (like Milvus, Chroma) with MLRun
+        integration capabilities. The wrapper provides access to the underlying vector
+        store's functionality while adding MLRun-specific features like document and
+        artifact management.
+
+        Args:
+            vector_store: The vector store instance to wrap (e.g., Milvus, Chroma).
+                        This is the underlying implementation that will handle
+                        vector storage and retrieval.
+            collection_name: Optional name for the collection. If not provided,
+                            will attempt to extract it from the vector_store object
+                            by looking for 'collection_name', '_collection_name',
+                            'index_name', or '_index_name' attributes.
+
+        Returns:
+            VectorStoreCollection: A wrapped vector store instance with MLRun integration.
+                                This wrapper provides both access to the original vector
+                                store's capabilities and additional MLRun functionality.
+
+        Example:
+            >>> vector_store = Chroma(embedding_function=embeddings)
+            >>> collection = project.get_vector_store_collection(
+            ...     vector_store, collection_name="my_collection"
+            ... )
+        """
         return VectorStoreCollection(
             self,
             vector_store,
@@ -1899,12 +1927,39 @@ class MlrunProject(ModelObj):
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
         :param artifact_path: Target path for artifact storage
-        :param document_loader_spec: Spec to use to load the artifact as langchain document
+        :param document_loader_spec: Spec to use to load the artifact as langchain document.
+
+            By default, uses DocumentLoaderSpec() which initializes with:
+
+            * loader_class_name="langchain_community.document_loaders.TextLoader"
+            * src_name="file_path"
+            * kwargs=None
+
+            Can be customized for different document types, e.g.::
+
+                DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.PDFLoader",
+                    src_name="file_path",
+                    kwargs={"extract_images": True}
+                )
         :param upload: Whether to upload the artifact
         :param labels: Key-value labels
         :param target_path: Target file path
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
+
+        Example:
+            >>> # Log a PDF document with custom loader
+            >>> project.log_document(
+            ...     key="my_doc",
+            ...     local_path="path/to/doc.pdf",
+            ...     document_loader=DocumentLoaderSpec(
+            ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
+            ...         src_name="file_path",
+            ...         kwargs={"extract_images": True},
+            ...     ),
+            ... )
+
         """
         doc_artifact = DocumentArtifact(
             key=key,
@@ -3550,6 +3605,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
@@ -3564,12 +3620,13 @@ class MlrunProject(ModelObj):
         model endpoint. This functions supports filtering by the following parameters:
         1) name
         2) model_name
-        3) function_name
-        4) function_tag
-        5) labels
-        6) top level
-        7) uids
-        8) start and end time, corresponding to the `created` field.
+        3) model_tag
+        4) function_name
+        5) function_tag
+        6) labels
+        7) top level
+        8) uids
+        9) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -3598,6 +3655,7 @@ class MlrunProject(ModelObj):
             project=self.name,
             name=name,
             model_name=model_name,
+            model_tag=model_tag,
             function_name=function_name,
             function_tag=function_tag,
             labels=labels,

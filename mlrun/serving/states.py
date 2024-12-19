@@ -30,6 +30,7 @@ from typing import Any, Optional, Union, cast
 import storey.utils
 
 import mlrun
+import mlrun.common.schemas as schemas
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -81,22 +82,28 @@ _task_step_fields = [
     "responder",
     "input_path",
     "result_path",
+    "model_endpoint_creation_strategy",
+    "endpoint_type",
 ]
 
 
 MAX_ALLOWED_STEPS = 4500
 
 
-def new_model_endpoint(class_name, model_path, handler=None, **class_args):
-    class_args = deepcopy(class_args)
-    class_args["model_path"] = model_path
-    return TaskStep(class_name, class_args, handler=handler)
-
-
-def new_remote_endpoint(url, **class_args):
+def new_remote_endpoint(
+    url: str,
+    creation_strategy: schemas.ModelEndpointCreationStrategy,
+    endpoint_type: schemas.EndpointType,
+    **class_args,
+):
     class_args = deepcopy(class_args)
     class_args["url"] = url
-    return TaskStep("$remote", class_args)
+    return TaskStep(
+        "$remote",
+        class_args=class_args,
+        model_endpoint_creation_strategy=creation_strategy,
+        endpoint_type=endpoint_type,
+    )
 
 
 class BaseStep(ModelObj):
@@ -419,6 +426,10 @@ class TaskStep(BaseStep):
         responder: Optional[bool] = None,
         input_path: Optional[str] = None,
         result_path: Optional[str] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
     ):
         super().__init__(name, after)
         self.class_name = class_name
@@ -438,6 +449,8 @@ class TaskStep(BaseStep):
         self.on_error = None
         self._inject_context = False
         self._call_with_event = False
+        self.model_endpoint_creation_strategy = model_endpoint_creation_strategy
+        self.endpoint_type = endpoint_type
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
@@ -554,7 +567,11 @@ class TaskStep(BaseStep):
 
     def _post_init(self, mode="sync"):
         if self._object and hasattr(self._object, "post_init"):
-            self._object.post_init(mode)
+            self._object.post_init(
+                mode,
+                creation_strategy=self.model_endpoint_creation_strategy,
+                endpoint_type=self.endpoint_type,
+            )
             if hasattr(self._object, "model_endpoint_uid"):
                 self.endpoint_uid = self._object.model_endpoint_uid
             if hasattr(self._object, "name"):
@@ -705,6 +722,7 @@ class RouterStep(TaskStep):
         )
         self._routes: ObjectDict = None
         self.routes = routes
+        self.endpoint_type = schemas.EndpointType.ROUTER
 
     def get_children(self):
         """get child steps (routes)"""
@@ -726,6 +744,7 @@ class RouterStep(TaskStep):
         class_name=None,
         handler=None,
         function=None,
+        creation_strategy: schemas.ModelEndpointCreationStrategy = schemas.ModelEndpointCreationStrategy.INPLACE,
         **class_args,
     ):
         """add child route step or class to the router
@@ -736,12 +755,31 @@ class RouterStep(TaskStep):
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
         :param function:   function this step should run in
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+
         """
 
         if not route and not class_name and not handler:
             raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
-            route = TaskStep(class_name, class_args, handler=handler)
+            route = TaskStep(
+                class_name,
+                class_args,
+                handler=handler,
+                model_endpoint_creation_strategy=creation_strategy,
+                endpoint_type=schemas.EndpointType.LEAF_EP
+                if self.class_name and "serving.VotingEnsemble" in self.class_name
+                else schemas.EndpointType.NODE_EP,
+            )
         route.function = function or route.function
 
         if len(self._routes) >= MAX_ALLOWED_STEPS:
@@ -1674,6 +1712,10 @@ def params_to_step(
     input_path: Optional[str] = None,
     result_path: Optional[str] = None,
     class_args=None,
+    model_endpoint_creation_strategy: Optional[
+        schemas.ModelEndpointCreationStrategy
+    ] = None,
+    endpoint_type: Optional[schemas.EndpointType] = None,
 ):
     """return step object from provided params or classes/objects"""
 
@@ -1689,6 +1731,9 @@ def params_to_step(
         step.full_event = full_event or step.full_event
         step.input_path = input_path or step.input_path
         step.result_path = result_path or step.result_path
+        if kind == StepKinds.task:
+            step.model_endpoint_creation_strategy = model_endpoint_creation_strategy
+            step.endpoint_type = endpoint_type
 
     elif class_name and class_name in queue_class_names:
         if "path" not in class_args:
@@ -1729,6 +1774,8 @@ def params_to_step(
             full_event=full_event,
             input_path=input_path,
             result_path=result_path,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
+            endpoint_type=endpoint_type,
         )
     else:
         raise MLRunInvalidArgumentError("class_name or handler must be provided")

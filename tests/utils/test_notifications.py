@@ -50,7 +50,7 @@ from mlrun.utils.notifications.notification.webhook import WebhookNotification
 def test_load_notification(notification_kind, params, default_params, expected_params):
     run_uid = "test-run-uid"
     notification_name = "test-notification-name"
-    when_state = "completed"
+    when_state = runtimes_constants.RunStates.completed
     notification = mlrun.model.Notification.from_dict(
         {
             "kind": notification_kind,
@@ -89,30 +89,210 @@ def test_load_notification(notification_kind, params, default_params, expected_p
 @pytest.mark.parametrize(
     "when,condition,run_state,notification_previously_sent,expected",
     [
-        (["completed"], "", "completed", False, True),
-        (["completed"], "", "completed", True, False),
-        (["completed"], "", "error", False, False),
-        (["completed"], "", "error", True, False),
-        (["completed"], "> 4", "completed", False, True),
-        (["completed"], "> 4", "completed", True, False),
-        (["completed"], "< 4", "completed", False, False),
-        (["completed"], "< 4", "completed", True, False),
-        (["error"], "", "completed", False, False),
-        (["error"], "", "completed", True, False),
-        (["error"], "", "error", False, True),
-        (["error"], "", "error", True, False),
-        (["completed", "error"], "", "completed", False, True),
-        (["completed", "error"], "", "completed", True, False),
-        (["completed", "error"], "", "error", False, True),
-        (["completed", "error"], "", "error", True, False),
-        (["completed", "error"], "> 4", "completed", False, True),
-        (["completed", "error"], "> 4", "completed", True, False),
-        (["completed", "error"], "> 4", "error", False, True),
-        (["completed", "error"], "> 4", "error", True, False),
-        (["completed", "error"], "< 4", "completed", False, False),
-        (["completed", "error"], "< 4", "completed", True, False),
-        (["completed", "error"], "< 4", "error", False, True),
-        (["completed", "error"], "< 4", "error", True, False),
+        (
+            [runtimes_constants.RunStates.completed],
+            "",
+            runtimes_constants.RunStates.completed,
+            False,
+            True,
+        ),
+        (
+            [runtimes_constants.RunStates.completed],
+            "",
+            runtimes_constants.RunStates.completed,
+            True,
+            False,
+        ),
+        (
+            [runtimes_constants.RunStates.completed],
+            "",
+            runtimes_constants.RunStates.error,
+            False,
+            False,
+        ),
+        (
+            [runtimes_constants.RunStates.completed],
+            "",
+            runtimes_constants.RunStates.error,
+            True,
+            False,
+        ),
+        (
+            [runtimes_constants.RunStates.completed],
+            "> 4",
+            runtimes_constants.RunStates.completed,
+            False,
+            True,
+        ),
+        (
+            [runtimes_constants.RunStates.completed],
+            "> 4",
+            runtimes_constants.RunStates.completed,
+            True,
+            False,
+        ),
+        (
+            [runtimes_constants.RunStates.completed],
+            "< 4",
+            runtimes_constants.RunStates.completed,
+            False,
+            False,
+        ),
+        (
+            [runtimes_constants.RunStates.completed],
+            "< 4",
+            runtimes_constants.RunStates.completed,
+            True,
+            False,
+        ),
+        (
+            [runtimes_constants.RunStates.error],
+            "",
+            runtimes_constants.RunStates.completed,
+            False,
+            False,
+        ),
+        (
+            [runtimes_constants.RunStates.error],
+            "",
+            runtimes_constants.RunStates.completed,
+            True,
+            False,
+        ),
+        (
+            [runtimes_constants.RunStates.error],
+            "",
+            runtimes_constants.RunStates.error,
+            False,
+            True,
+        ),
+        (
+            [runtimes_constants.RunStates.error],
+            "",
+            runtimes_constants.RunStates.error,
+            True,
+            False,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "",
+            runtimes_constants.RunStates.completed,
+            False,
+            True,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "",
+            runtimes_constants.RunStates.completed,
+            True,
+            False,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "",
+            runtimes_constants.RunStates.error,
+            False,
+            True,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "",
+            runtimes_constants.RunStates.error,
+            True,
+            False,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "> 4",
+            runtimes_constants.RunStates.completed,
+            False,
+            True,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "> 4",
+            runtimes_constants.RunStates.completed,
+            True,
+            False,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "> 4",
+            runtimes_constants.RunStates.error,
+            False,
+            True,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "> 4",
+            runtimes_constants.RunStates.error,
+            True,
+            False,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "< 4",
+            runtimes_constants.RunStates.completed,
+            False,
+            False,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "< 4",
+            runtimes_constants.RunStates.completed,
+            True,
+            False,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "< 4",
+            runtimes_constants.RunStates.error,
+            False,
+            True,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
+            "< 4",
+            runtimes_constants.RunStates.error,
+            True,
+            False,
+        ),
     ],
 )
 def test_notification_should_notify(
@@ -151,7 +331,9 @@ def test_notification_should_notify(
 )
 def test_notification_reason(notification_kind):
     error_exc = Exception("Blew up")
-    run = mlrun.model.RunObject.from_dict({"status": {"state": "completed"}})
+    run = mlrun.model.RunObject.from_dict(
+        {"status": {"state": runtimes_constants.RunStates.completed}}
+    )
     run.spec.notifications = [
         mlrun.model.Notification.from_dict(
             {
@@ -216,7 +398,10 @@ def test_update_notification_status(notification_kind, run_status):
                 "kind": notification_kind,
                 "status": "pending",
                 "message": "test-abc",
-                "when": ["running", "completed"],
+                "when": [
+                    runtimes_constants.RunStates.running,
+                    runtimes_constants.RunStates.completed,
+                ],
             }
         ),
     ]
@@ -264,10 +449,19 @@ def test_condition_evaluation_timeout():
     """
 
     run = mlrun.model.RunObject.from_dict(
-        {"status": {"state": "completed", "results": {"val": 5}}}
+        {
+            "status": {
+                "state": runtimes_constants.RunStates.completed,
+                "results": {"val": 5},
+            }
+        }
     )
     notification = mlrun.model.Notification.from_dict(
-        {"when": ["completed"], "condition": condition, "status": "pending"}
+        {
+            "when": [runtimes_constants.RunStates.completed],
+            "condition": condition,
+            "status": "pending",
+        }
     )
 
     notification_pusher = (
@@ -287,7 +481,9 @@ def test_condition_evaluation_timeout():
 )
 async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
-    run = _generate_run_result(state="completed", results={"return": 1})
+    run = _generate_run_result(
+        state=runtimes_constants.RunStates.completed, results={"return": 1}
+    )
     await WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
@@ -306,9 +502,7 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
         (
             {
                 "metadata": {"name": "x", "project": "y"},
-                "status": {
-                    "state": runtimes_constants.RunStates.completed
-                },
+                "status": {"state": runtimes_constants.RunStates.completed},
             },
             {
                 "message": "[{'project': 'y', 'name': 'x', 'status': {'state': 'completed'}}]"
@@ -330,7 +524,9 @@ async def test_serialize_runs_in_request_body(run, expected_override_body):
 )
 async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
-    run = _generate_run_result(state="error", error="some_error")
+    run = _generate_run_result(
+        state=runtimes_constants.RunStates.error, error="some_error"
+    )
     await WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [run])
@@ -361,7 +557,7 @@ async def test_webhook_override_body_job_failed(monkeypatch, override_body):
             [
                 {
                     "metadata": {"name": "test-run", "uid": "test-run-uid"},
-                    "status": {"state": "error"},
+                    "status": {"state": runtimes_constants.RunStates.error},
                 }
             ],
             [["error", "test-run", "..un-uid", ""]],
@@ -405,7 +601,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             [
                 {
                     "metadata": {"name": "test-run", "uid": "test-run-uid"},
-                    "status": {"state": "completed"},
+                    "status": {"state": runtimes_constants.RunStates.completed},
                 }
             ],
             {
@@ -430,7 +626,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             [
                 {
                     "metadata": {"name": "test-run", "uid": "test-run-uid"},
-                    "status": {"state": "error"},
+                    "status": {"state": runtimes_constants.RunStates.error},
                 }
             ],
             {
@@ -658,7 +854,10 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
     ),
     (
         {
-            "when": ["completed", "error"],
+            "when": [
+                runtimes_constants.RunStates.completed,
+                runtimes_constants.RunStates.error,
+            ],
         },
         does_not_raise(),
     ),
@@ -670,7 +869,7 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
     ),
     (
         {
-            "message": "completed",
+            "message": runtimes_constants.RunStates.completed,
         },
         does_not_raise(),
     ),
@@ -706,7 +905,7 @@ def test_notification_validation_defaults(monkeypatch):
         "kind": mlrun.common.schemas.notification.NotificationKind.slack,
         "message": "",
         "severity": mlrun.common.schemas.notification.NotificationSeverity.INFO,
-        "when": ["completed"],
+        "when": [runtimes_constants.RunStates.completed],
         "condition": "",
         "name": "",
     }
@@ -724,7 +923,7 @@ def test_notification_validation_defaults(monkeypatch):
 )
 def test_notification_validation_on_run(monkeypatch, notification_kwargs, expectation):
     notification = mlrun.model.Notification(
-        name="test-notification", when=["completed"]
+        name="test-notification", when=[runtimes_constants.RunStates.completed]
     )
     for key, value in notification_kwargs.items():
         setattr(notification, key, value)
@@ -755,7 +954,7 @@ def test_notification_sent_on_handler_run(monkeypatch):
         context.log_result("multiplier", p1 * p2)
 
     notification = mlrun.model.Notification(
-        name="test-notification", when=["completed"]
+        name="test-notification", when=[runtimes_constants.RunStates.completed]
     )
 
     grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
@@ -775,7 +974,7 @@ def test_notification_sent_on_dask_run(monkeypatch):
     monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
 
     notification = mlrun.model.Notification(
-        name="test-notification", when=["completed"]
+        name="test-notification", when=[runtimes_constants.RunStates.completed]
     )
 
     function = mlrun.new_function(
@@ -807,10 +1006,10 @@ def test_notification_name_uniqueness_validation(
     notification1_name, notification2_name, expectation
 ):
     notification1 = mlrun.model.Notification(
-        name=notification1_name, when=["completed"]
+        name=notification1_name, when=[runtimes_constants.RunStates.completed]
     )
     notification2 = mlrun.model.Notification(
-        name=notification2_name, when=["completed"]
+        name=notification2_name, when=[runtimes_constants.RunStates.completed]
     )
     function = mlrun.new_function(
         "function-from-module",
@@ -1078,7 +1277,10 @@ def _generate_run_result(
             "output_path": "v3io:///projects/test-remote-workflow/artifacts",
             "notifications": [
                 {
-                    "when": ["error", "completed"],
+                    "when": [
+                        runtimes_constants.RunStates.error,
+                        runtimes_constants.RunStates.completed,
+                    ],
                     "name": "Test",
                     "params": {
                         "url": "https://webhook.site/5da7ac4d-39dc-4896-b18f-e13c5712a96a",
@@ -1094,10 +1296,10 @@ def _generate_run_result(
             "handler": "func",
         },
     }
-    if state == "completed":
+    if state == runtimes_constants.RunStates.completed:
         run_example["status"]["results"] = results
         run_example["status"]["state"] = state
-    elif state == "error":
+    elif state == runtimes_constants.RunStates.error:
         run_example["status"]["error"] = error
         run_example["status"]["state"] = state
     return run_example

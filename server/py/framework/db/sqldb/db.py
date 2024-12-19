@@ -6140,8 +6140,8 @@ class SQLDB(DBInterface):
 
         # we need to keep id to be able to update number_of_events for manual reset policy
         # and to update notification state when notification is sent
-        # activation time is retrieved to get the cut activation_time from db
-        # because 2024-12-18T16:06:09.083606+00:00 will be saved as 2024-12-18T16:06:09.084000+00:00
+        # NOTE: activation time is truncated to milliseconds when being saved to the database as we use mysql.DATETIME
+        # example: 2024-12-18T16:06:09.083606+00:00 will be saved as 2024-12-18T16:06:09.084000+00:00
         return self._upsert_object_and_flush_to_get_field(
             session, alert_activation_record, "id"
         )

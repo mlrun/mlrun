@@ -13,7 +13,6 @@ Click on the step names in the following sections to see the full usage.
 
 See also [Data transformations](../feature-store/transformations.md#data-transformation-steps).
 
-
 ## Base Operators
 
 | Class name                                                                                                                  | Description                                                                                                                                                                 |   
@@ -31,9 +30,6 @@ See also [Data transformations](../feature-store/transformations.md#data-transfo
 |storey.Reduce                                                                                                               | Reduces incoming events into a single value that is returned upon the successful termination of the flow.                                                                   |
 |{py:class}`~storey.transformations.SampleWindow` | Emits a single event in a window of `window_size` events, in accordance with `emit_period` and `emit_before_termination`.                                                   | 
 
-
-
-
 ## External IO and data enrichment
 | Class name                                                                                                                    | Description                                                                                    |   
 |-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
@@ -41,11 +37,10 @@ See also [Data transformations](../feature-store/transformations.md#data-transfo
 | {py:class}`~mlrun.datastore.DataItem`                                                                                         | Data input/output class abstracting access to various local/remote data sources.               |
 | {py:class}`~storey.transformations.JoinWithTable`                                                                   | Joins each event with data from the given table.                                               |
 | JoinWithV3IOTable                                                                                                             | Joins each event with a V3IO table. Used for event augmentation.                               | 
-| [QueryByKey](https://storey.readthedocs.io/en/latest/api.html#storey.aggregations.QueryByKey)                                 | Similar to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
+| {py:class}`~storey.transformations.QueryByKey`                                 | Similar to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
 | {py:class}`~mlrun.serving.remote.RemoteStep`                                                                                  | Class for calling remote endpoints.                                                            | 
 | {py:class}`~storey.transformations.SendToHttp`                                                   | Joins each event with data from any HTTP source. Used for event augmentation.                  |
  
-({py:meth}`~mlrun.runtimes.ServingRuntime.add_model`))
 ## Models
 | Class name                                                | Description                                                                                |   
 |-----------------------------------------------------------|--------------------------------------------------------------------------------------------|
@@ -63,7 +58,6 @@ See also [Data transformations](../feature-store/transformations.md#data-transfo
 | {py:class}`~mlrun.serving.routers.EnrichmentVotingEnsemble` | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
 | {py:class}`~mlrun.serving.routers.ModelRouter`              | Basic model router, for calling different models per each model path.                                                                                                                                                                                                         | 
 | {py:class}`~mlrun.serving.routers.VotingEnsemble`           | An ensemble machine learning model that combines the prediction of several models.                                                                                                                                                                                            |       
-
 
 ## Other
 | Class name                                                 | Description                                                                                                   |   

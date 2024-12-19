@@ -627,7 +627,11 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         for i in range(1, 4):
             self._post_event(project_name, event_name, alert_entity)
+            # we ensure that activation already has its notification state updated right after the event was posted
             activations = project.list_alert_activations(name=alert_name)
+
+            # if fails, it means that the notification state was not updated fast enough and adding sleep is needed
+            # or some performance optimisation required (for sending notifications)
             assert (
                 activations[0].notifications[0].err
                 == "All webhook notifications failed. Errors: incorrect-url"

@@ -118,6 +118,8 @@ class MonitoringApplicationContext:
                 )
             self.project = potential_project
             self.project_name = self.project.name
+        else:
+            raise ValueError
 
         self._artifacts_logger: _ArtifactsLogger = artifacts_logger or self.project
 

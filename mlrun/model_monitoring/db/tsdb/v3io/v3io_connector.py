@@ -58,6 +58,7 @@ class V3IOTSDBConnector(TSDBConnector):
         project: str,
         container: str = _CONTAINER,
         v3io_framesd: Optional[str] = None,
+        v3io_access_key: str = "",
         create_table: bool = False,
     ) -> None:
         super().__init__(project=project)
@@ -65,6 +66,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self.container = container
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
+        self._v3io_access_key = v3io_access_key
         self._frames_client: Optional[v3io_frames.client.ClientBase] = None
         self._init_tables_path()
         self._create_table = create_table
@@ -72,7 +74,9 @@ class V3IOTSDBConnector(TSDBConnector):
     @property
     def frames_client(self) -> v3io_frames.client.ClientBase:
         if not self._frames_client:
-            self._frames_client = self._get_v3io_frames_client(self.container)
+            self._frames_client = self._get_v3io_frames_client(
+                self.container, v3io_access_key=self._v3io_access_key
+            )
             if self._create_table:
                 self.create_tables()
         return self._frames_client
@@ -564,10 +568,13 @@ class V3IOTSDBConnector(TSDBConnector):
         return source_directory
 
     @staticmethod
-    def _get_v3io_frames_client(v3io_container: str) -> v3io_frames.client.ClientBase:
+    def _get_v3io_frames_client(
+        v3io_container: str, v3io_access_key: str = ""
+    ) -> v3io_frames.client.ClientBase:
         return mlrun.utils.v3io_clients.get_frames_client(
             address=mlrun.mlconf.v3io_framesd,
             container=v3io_container,
+            token=v3io_access_key,
         )
 
     def read_metrics_data(

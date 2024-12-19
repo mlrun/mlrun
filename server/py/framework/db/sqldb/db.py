@@ -4740,18 +4740,7 @@ class SQLDB(DBInterface):
             object_id = object_record.id
 
             if cls == ArtifactV2:
-                # Handle the "latest" tag if it exists
-                latest_tag = self._find_artifact_latest_tag(session, object_record)
-
-                # If the "latest" tag is found, move it to the most recent artifact
-                if latest_tag:
-                    most_recent_artifact = self._find_previous_most_recent_artifact(
-                        session, object_record
-                    )
-
-                    if most_recent_artifact:
-                        # Move the "latest" tag to the most recent artifact
-                        latest_tag.obj_id = most_recent_artifact.id
+                self._handle_latest_tag(session, object_record, commit)
 
         if object_id:
             if not commit:
@@ -7172,20 +7161,85 @@ class SQLDB(DBInterface):
         )
 
     @staticmethod
+    def _find_other_latest_in_other_iterations(session, object_record):
+        """Check if there are other 'latest' tags in other iterations for the same producer_id."""
+        return (
+            session.query(ArtifactV2.Tag)
+            .filter(
+                ArtifactV2.Tag.obj_id != object_record.id,
+                ArtifactV2.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                ArtifactV2.Tag.project == object_record.project,
+                ArtifactV2.Tag.obj_id.in_(
+                    session.query(ArtifactV2.id).filter(
+                        ArtifactV2.producer_id == object_record.producer_id,
+                        ArtifactV2.iteration != object_record.iteration,
+                    )
+                ),
+            )
+            .first()
+        )
+
+    @staticmethod
     def _find_previous_most_recent_artifact(session, object_record):
         """Find the most recent artifact based on the update timestamp, excluding the current artifact."""
         query = session.query(ArtifactV2).filter(
             ArtifactV2.id != object_record.id,
             ArtifactV2.project == object_record.project,
             ArtifactV2.key == object_record.key,
+            ArtifactV2.best_iteration == True,
         )
-
-        # If the artifact has iteration 0, find based on best_iteration
-        if object_record.iteration == 0:
-            query = query.filter(ArtifactV2.best_iteration == True)
-        else:
-            # In case of hyperparams, match the same iteration
-            query = query.filter(ArtifactV2.iteration == object_record.iteration)
 
         # Return the most recent artifact based on the update timestamp
         return query.order_by(ArtifactV2.updated.desc()).first()
+
+    def _handle_latest_tag(self, session, object_record, commit):
+        """Handle the 'latest' tag for an ArtifactV2 object."""
+
+        # Step 1: Find the "latest" tag
+        latest_tag = self._find_artifact_latest_tag(session, object_record)
+
+        if latest_tag:
+            # Check if we should check for other 'latest' tags (only when iteration != 0) for hyperparameters
+            if object_record.iteration != 0:
+                # Step 2: Check if there are other "latest" tags in the other iterations
+                other_latest = self._find_other_latest_in_other_iterations(
+                    session, object_record
+                )
+
+                if other_latest:
+                    logger.debug(
+                        "Another 'latest' tag exists in other iterations for the same producer_id. Not moving the 'latest' tag",
+                        artifact_uid=object_record.uid,
+                        producer_id=object_record.producer_id,
+                    )
+                    return
+            else:
+                logger.debug(
+                    "Skipping 'latest' tag check because the iteration is 0",
+                    artifact_uid=object_record.uid,
+                )
+
+            # Step 3: Move the "latest" tag if no other "latest" exists in other iterations
+            most_recent_artifact = self._find_previous_most_recent_artifact(
+                session, object_record
+            )
+
+            if most_recent_artifact:
+                logger.debug(
+                    "Moved 'latest' tag to the most recent artifact",
+                    artifact_uid=most_recent_artifact.uid,
+                )
+                latest_tag.obj_id = most_recent_artifact.id
+                if commit:
+                    session.commit()
+                # TODO: Handle the case when commit=False (e.g., deleting multiple artifact keys)
+            else:
+                logger.warning(
+                    "No more recent artifact found to move 'latest' tag",
+                    artifact_uid=object_record.uid,
+                )
+        else:
+            logger.debug(
+                "No 'latest' tag found for artifact",
+                artifact_uid=object_record.uid,
+            )

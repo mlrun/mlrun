@@ -1124,10 +1124,13 @@ class TestArtifacts(TestDatabaseBase):
         # 1. Log 3 artifacts with hyperparameters - iteration 1 (best_iteration), iteration 2, and iteration 3.
         # 2. Log 2 artifacts with hyperparameters (same artifacts, but fewer iterations) - iteration 1 and iteration 2.
         # 3. Delete an artifact from the second run (iteration 2).
-        # 4. The "latest" tag should move to the most recent artifact with the same iteration (iteration 2).
+        # 4. The "latest" tag should not move because there is still an artifact with the latest tag in other
+        # iterations with the same producer id.
         # 5. Delete an artifact from the first run (iteration 3).
-        # 6. The "latest" tag should not move, as there is no artifact with the matching combination
-        # of project, key, and iteration.
+        # 6. The "latest" tag should not move, because artifact is not holding the latest tag (artifact is untaged).
+        # 7. Delete the last artifact from the first run (iteration 1).
+        # 8. The "latest" tag should move because there is no other latest tag in the same producer id for other iterations
+        # move the latest tag to the best-iteration of the previous latest run.
 
         project = "artifact_project"
         artifact_key = "artifact-key"
@@ -1198,29 +1201,40 @@ class TestArtifacts(TestDatabaseBase):
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )
+        # All the artifacts from previous runs are now untagged.
+        assert len(artifacts) == 2
         assert artifacts[0]["metadata"]["uid"] == uid5
         assert artifacts[1]["metadata"]["uid"] == uid4
 
         # Delete artifact uid5
         self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid5)
 
-        # The "latest" tag should move to the most recent artifact with the same iteration - uid2
+        # The "latest" tag should not be moved, as there is still an artifact in other iterations with
+        # the "latest" tag and the same producer ID.
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )
-        assert len(artifacts) == 2
+        assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["uid"] == uid4
-        assert artifacts[1]["metadata"]["uid"] == uid2
 
-        # Delete artifact uid3 (which does not match the current project + key + iteration combination)
-        # The "latest" tag should not move, as there is no matching combination for iteration 3
+        # Delete artifact uid3 (which does not have the "latest" tag) - The "latest" tag should not be moved.
         self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid3)
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )
-        assert len(artifacts) == 2
+        assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["uid"] == uid4
-        assert artifacts[1]["metadata"]["uid"] == uid2
+
+        # Delete artifact uid4
+        self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid4)
+
+        # The "latest" tag should be moved because there is no other "latest" tag for the same producer ID in other iterations.
+        # Moved to the best iteration of the previous latest run.
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == uid1
 
     def test_list_artifacts_exact_name_match(self):
         artifact_1_key = "pre_artifact_key_suffix"

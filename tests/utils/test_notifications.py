@@ -226,8 +226,8 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [runs])
     expected_body = {
-        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-8lvl8', "
-        "'status': {'state': 'completed', 'results': {'return': 1}}}]"
+        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
+        "'status': {'state': 'completed', 'results': {'return': 1}}, 'host': 'func-func-8lvl8'}]"
     }
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None
@@ -240,15 +240,13 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
 )
 async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
-    runs = _generate_run_result(
-        state="error", error='can only concatenate str (not "int") to str'
-    )
+    runs = _generate_run_result(state="error", error="some_error")
     await WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [runs])
     expected_body = {
-        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-8lvl8', "
-        "'status': {'state': 'error', 'error': 'can only concatenate str (not \"int\") to str'}}]"
+        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
+        "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"
     }
     requests_mock.assert_called_once_with(
         "http://test.com", headers={}, json=expected_body, ssl=None

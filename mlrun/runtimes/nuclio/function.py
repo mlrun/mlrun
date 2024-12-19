@@ -1039,9 +1039,7 @@ class RemoteRuntime(KubeResource):
         # put the configured resources on the sidecar container instead of the reverse proxy container
         if self.spec.resources:
             sidecar["resources"] = self.spec.resources
-            self.spec.resources = self.spec.enrich_resources_with_default_pod_resources(
-                "resources", None
-            )
+            self.spec.resources = None
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])

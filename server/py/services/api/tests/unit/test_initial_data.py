@@ -24,6 +24,7 @@ import mlrun.common.db.sql_session
 import mlrun.common.schemas
 from mlrun.config import config
 
+import framework.constants
 import framework.db.init_db
 import framework.db.sqldb.db
 import framework.db.sqldb.models
@@ -388,7 +389,9 @@ def test_init_system_id(
     system_id_source, expected_system_id, monkeypatch: pytest.MonkeyPatch
 ):
     if system_id_source == "mlconf":
-        monkeypatch.setattr(mlrun.mlconf, "system_id", "123")
+        monkeypatch.setattr(
+            mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, expected_system_id
+        )
 
     db, db_session = _initialize_db_without_migrations()
 

@@ -17,6 +17,7 @@ import datetime
 import json
 import os
 import pathlib
+import random
 import typing
 
 import dateutil.parser
@@ -1001,8 +1002,8 @@ def _create_project_summaries(db, db_session):
 def _init_system_id(db_session: sqlalchemy.orm.Session):
     """
     Initializes a system id for MLRun deployment.
-    The system id is first checked in the database. If it does not exist, the function checks for a configured id
-    (from environment variables or config), and if neither is found, a new random one is generated and stored.
+    The system id is first checked in the database. If it does not exist, the function checks if an id was set in the
+    config, and if neither is found, a new random one is generated and stored.
     """
 
     db = framework.db.sqldb.db.SQLDB()
@@ -1011,21 +1012,25 @@ def _init_system_id(db_session: sqlalchemy.orm.Session):
     system_id = db.get_system_id(db_session)
 
     if system_id is not None:
-        logger.info("Existing system id found in the database", system_id=system_id)
-    else:
-        # check if the system id is already set in the config
-        system_id = _get_configured_system_id()
+        logger.debug("Existing system id found in the database", system_id=system_id)
+        mlrun.mlconf.system_id = system_id
+        return
 
-        if system_id is not None:
-            logger.info("Using configured system id", system_id=system_id)
-            db.store_system_id(db_session, system_id)
-        else:
-            # if no system id is found, generate a new one
-            system_id = _generate_system_id()
-            db.store_system_id(db_session, system_id)
+    logger.debug("System id not found in DB")
+    # check if the system id is already set in the config
+    system_id = _get_configured_system_id()
+
+    if system_id:
+        logger.debug("Using configured system id", system_id=system_id)
+    else:
+        # if no system id is found, generate a new one
+        system_id = _generate_system_id()
+    db.store_system_id(db_session, system_id)
 
     # set the system id in mlrun config
     mlrun.mlconf.system_id = system_id
+
+    logger.info("Initialized system ID", system_id=system_id)
 
 
 def _get_configured_system_id() -> typing.Optional[str]:
@@ -1033,8 +1038,9 @@ def _get_configured_system_id() -> typing.Optional[str]:
 
 
 def _generate_system_id() -> str:
-    # Generate 4 random bytes and encode them as base64 string without padding
-    random_bytes = os.urandom(4)
+    # Generate a random 32-bit unsigned integer, convert it to 4 bytes, and encode as a Base64 string without padding
+    random_number = random.getrandbits(32)
+    random_bytes = random_number.to_bytes(4, "big")
     base64_str = base64.b64encode(random_bytes).decode("utf-8").rstrip("=")
     return base64_str
 

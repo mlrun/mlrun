@@ -78,6 +78,7 @@ from mlrun.utils import (
     validate_tag_name,
 )
 
+import framework.constants
 import framework.db.session
 import framework.utils.helpers
 from framework.db.base import DBInterface
@@ -7078,18 +7079,17 @@ class SQLDB(DBInterface):
     def get_system_id(self, session: Session) -> typing.Optional[str]:
         system_id_record = (
             self._query(session, SystemMetadata)
-            .filter(SystemMetadata.key == "system_id")
+            .filter(SystemMetadata.key == framework.constants.SYSTEM_ID_KEY)
             .one_or_none()
         )
-        if not system_id_record:
-            logger.debug("System id not found in DB")
-            return None
-        return system_id_record.value
+        return system_id_record.value if system_id_record else None
 
     def store_system_id(self, session: Session, system_id: str):
         logger.debug("Storing a new system id in DB", system_id=system_id)
 
-        system_id_record = SystemMetadata(key="system_id", value=system_id)
+        system_id_record = SystemMetadata(
+            key=framework.constants.SYSTEM_ID_KEY, value=system_id
+        )
         self._upsert(session, [system_id_record])
 
     # ---- Utils ----

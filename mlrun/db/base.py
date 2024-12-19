@@ -63,9 +63,6 @@ class RunDBInterface(ABC):
         self,
         uid,
         project="",
-        iter=0,
-        custom_message=None,
-        custom_html=None,
         timeout=45,
     ):
         pass

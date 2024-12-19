@@ -648,9 +648,7 @@ class _KFPRunner(_PipelineRunner):
                 )
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
-            project.get_param("commit_id", None),
             context.uid,
-            True,
         )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
@@ -747,7 +745,7 @@ class _LocalRunner(_PipelineRunner):
         pipeline_context.workflow_artifact_path = artifact_path
 
         project.notifiers.push_pipeline_start_message(
-            project.metadata.name, pipeline_id=context.uid
+            project.metadata.name, pipeline_id=workflow_id
         )
         err = None
         try:

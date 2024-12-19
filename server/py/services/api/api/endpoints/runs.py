@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import datetime
-import typing
 import uuid
 from http import HTTPStatus
 from typing import Optional
@@ -533,9 +532,6 @@ async def push_notifications(
     background_tasks: BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    iter: int = 0,
-    custom_html: typing.Optional[str] = None,
-    custom_message: typing.Optional[str] = None,
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -550,7 +546,7 @@ async def push_notifications(
         services.api.crud.Runs().get_run,
         db_session,
         uid,
-        iter,
+        0,
         project,
         mlrun.common.formatters.RunFormat.notifications,
     )
@@ -567,13 +563,11 @@ async def push_notifications(
         ),
         db_session,
         run,
-        custom_html,
-        custom_message,
     )
     return background_task
 
 
-def _push_notifications(db_session, run, custom_html, custom_message):
+def _push_notifications(db_session, run):
     db = db_singleton.get_db()
     framework.utils.notifications.unmask_notification_params_secret_on_task(
         db, db_session, run
@@ -584,4 +578,4 @@ def _push_notifications(db_session, run, custom_html, custom_message):
     run_notification_pusher_class(
         [run],
         run_notification_pusher_class.resolve_notifications_default_params(),
-    ).push(custom_html, custom_message)
+    ).push()

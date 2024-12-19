@@ -117,6 +117,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 application_name=self.__class__.__name__,
                 logger=context.logger,
                 artifacts_logger=context,
+                context=context,
                 sample_df=sample_data,
                 feature_stats=feature_stats,
             )

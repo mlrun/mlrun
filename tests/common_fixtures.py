@@ -324,10 +324,10 @@ class RunDBMock:
         return self._runs.get(uid, {})
 
     def push_run_notifications(
-            self,
-            uid,
-            project="",
-            timeout=45,
+        self,
+        uid,
+        project="",
+        timeout=45,
     ):
         pass
 

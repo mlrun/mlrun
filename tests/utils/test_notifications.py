@@ -22,6 +22,7 @@ import aiohttp
 import pytest
 import tabulate
 
+import mlrun.common.runtimes
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
 import mlrun.utils.notifications.notification.mail as mail
@@ -217,14 +218,19 @@ def test_condition_evaluation_timeout():
 
 @pytest.mark.parametrize(
     "override_body",
-    [({"message": "runs: {{runs}}"}), ({"message": "runs: {{ runs }}"})],
+    [
+        ({"message": "runs: {{runs}}"}),
+        ({"message": "runs: {{ runs }}"}),
+        ({"message": "runs: {{ runs}}"}),
+        ({"message": "runs: {{runs }}"}),
+    ],
 )
 async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
-    runs = _generate_run_result(state="completed", results={"return": 1})
+    run = _generate_run_result(state="completed", results={"return": 1})
     await WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
-    ).push("test-message", "info", [runs])
+    ).push("test-message", "info", [run])
     expected_body = {
         "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
         "'status': {'state': 'completed', 'results': {'return': 1}}, 'host': 'func-func-8lvl8'}]"
@@ -235,15 +241,39 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
 
 
 @pytest.mark.parametrize(
+    "run,expected_override_body",
+    [
+        (
+            {
+                "metadata": {"name": "x", "project": "y"},
+                "status": {
+                    "state": mlrun.common.runtimes.constants.RunStates.completed
+                },
+            },
+            {
+                "message": "[{'project': 'y', 'name': 'x', 'status': {'state': 'completed'}}]"
+            },
+        )
+    ],
+)
+async def test_serialize_runs_in_request_body(run, expected_override_body):
+    override_body = mlrun.utils.notifications.notification.webhook.WebhookNotification._serialize_runs_in_request_body(
+        override_body={"message": "{{runs}}"},
+        runs=[run],
+    )
+    assert override_body == expected_override_body
+
+
+@pytest.mark.parametrize(
     "override_body",
     [({"message": "runs: {{runs}}"}), ({"message": "runs: {{ runs }}"})],
 )
 async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
-    runs = _generate_run_result(state="error", error="some_error")
+    run = _generate_run_result(state="error", error="some_error")
     await WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
-    ).push("test-message", "info", [runs])
+    ).push("test-message", "info", [run])
     expected_body = {
         "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', "
         "'status': {'state': 'error', 'error': 'some_error'}, 'host': 'func-func-8lvl8'}]"

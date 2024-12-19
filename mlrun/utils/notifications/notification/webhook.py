@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import typing
 
 import aiohttp
@@ -93,7 +94,6 @@ class WebhookNotification(NotificationBase):
 
     @staticmethod
     def _serialize_runs_in_request_body(override_body, runs):
-        str_parsed_runs = ""
         runs = runs or []
 
         def parse_runs():
@@ -118,10 +118,10 @@ class WebhookNotification(NotificationBase):
 
         if isinstance(override_body, dict):
             for key, value in override_body.items():
-                if "{{ runs }}" or "{{runs}}" in value:
-                    if not str_parsed_runs:
-                        str_parsed_runs = parse_runs()
-                    override_body[key] = value.replace(
-                        "{{ runs }}", str_parsed_runs
-                    ).replace("{{runs}}", str_parsed_runs)
+                if re.search(r"{{\s*runs\s*}}", value):
+                    str_parsed_runs = parse_runs()
+                    override_body[key] = re.sub(
+                        r"{{\s*runs\s*}}", str_parsed_runs, value
+                    )
+
         return override_body

@@ -766,8 +766,6 @@ class HTTPRunDB(RunDBInterface):
 
         :param uid: Unique ID of the run.
         :param project: Project that the run belongs to.
-        :param custom_message: Custom message to send in the notification.
-        :param custom_html: Custom HTML to send in the notification.
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
         project = project or config.default_project

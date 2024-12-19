@@ -4745,14 +4745,13 @@ class SQLDB(DBInterface):
 
                 # If the "latest" tag is found, move it to the most recent artifact
                 if latest_tag:
-                    most_recent_artifact = self._find_most_recent_artifact(
+                    most_recent_artifact = self._find_previous_most_recent_artifact(
                         session, object_record
                     )
 
                     if most_recent_artifact:
                         # Move the "latest" tag to the most recent artifact
                         latest_tag.obj_id = most_recent_artifact.id
-                        session.commit()
 
         if object_id:
             if not commit:
@@ -7159,8 +7158,9 @@ class SQLDB(DBInterface):
 
         return query
 
-    def _find_artifact_latest_tag(self, session, object_record):
-        """Find the 'latest' tag for an object."""
+    @staticmethod
+    def _find_artifact_latest_tag(session, object_record):
+        """Find the 'latest' tag for an artifact object."""
         return (
             session.query(ArtifactV2.Tag)
             .filter(
@@ -7171,8 +7171,9 @@ class SQLDB(DBInterface):
             .one_or_none()
         )
 
-    def _find_most_recent_artifact(self, session, object_record):
-        """Find the most recent artifact based on the update timestamp."""
+    @staticmethod
+    def _find_previous_most_recent_artifact(session, object_record):
+        """Find the most recent artifact based on the update timestamp, excluding the current artifact."""
         query = session.query(ArtifactV2).filter(
             ArtifactV2.id != object_record.id,
             ArtifactV2.project == object_record.project,
@@ -7183,7 +7184,7 @@ class SQLDB(DBInterface):
         if object_record.iteration == 0:
             query = query.filter(ArtifactV2.best_iteration == True)
         else:
-            # Otherwise, match the same iteration
+            # In case of hyperparams, match the same iteration
             query = query.filter(ArtifactV2.iteration == object_record.iteration)
 
         # Return the most recent artifact based on the update timestamp

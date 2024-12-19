@@ -319,6 +319,12 @@ def test_application_runtime_resources(rundb_mock, igz_version_mock):
         }
     ]
 
+    # assert the resources for the function itself remain the defaults
+    assert fn.spec.resources == {
+        "limits": {"cpu": "2", "memory": "20Gi"},
+        "requests": {"cpu": "25m", "memory": "1Mi"},
+    }
+
 
 def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
     mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
@@ -371,6 +377,10 @@ def _assert_application_post_deploy_spec(fn, image):
                     "protocol": "TCP",
                 }
             ],
+            "resources": {
+                "limits": {"cpu": "2", "memory": "20Gi"},
+                "requests": {"cpu": "25m", "memory": "1Mi"},
+            },
         }
     ]
     assert fn.get_env("SIDECAR_PORT") == "8050"

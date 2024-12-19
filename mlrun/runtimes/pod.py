@@ -522,7 +522,9 @@ class KubeResourceSpec(FunctionSpec):
         self._verify_and_set_requests("resources", mem, cpu, patch)
 
     def enrich_resources_with_default_pod_resources(
-        self, resources_field_name: str, resources: dict
+        self,
+        resources_field_name: str,
+        resources: typing.Optional[dict] = None,
     ):
         resources_types = ["cpu", "memory"]
         resource_requirements = ["requests", "limits"]

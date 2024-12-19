@@ -1040,9 +1040,17 @@ class TestArtifacts(TestDatabaseBase):
         tags = self._db.list_artifact_tags(self._db_session, project)
         assert len(tags) == 0
 
-    def test_delete_artifact_with_latest_tag_moves_latest_to_most_recent_artifact_with_best_iteration(
+    def test_delete_artifact_with_latest_tag_and_iteration_0(
         self,
     ):
+        # This test is based on the following scenario:
+        # 1. Log an artifact hyperparameters - iteration 1, best_iteration=True
+        # 2. Log an artifact hyperparameters - iteration 2, best_iteration=False
+        # 3. Log an artifact without hyperparameters - iteration 0, best_iteration=True
+        # 4. Delete the artifact with the "latest" tag - the last artifact that was logged (iteration 0)
+        # 5. The "latest" tag should move to the most recent artifact with the best_iteration flag
+        # (the first artifact that was logged)
+
         project = "artifact_project"
         artifact_key = "artifact-key"
         artifact_1_tree = "artifact_tree_1"
@@ -1082,6 +1090,7 @@ class TestArtifacts(TestDatabaseBase):
             best_iteration=True,
         )
 
+        assert uid1 != uid2 != uid3
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project
         )
@@ -1109,6 +1118,109 @@ class TestArtifacts(TestDatabaseBase):
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["uid"] == uid1
         assert artifacts[0]["metadata"]["tag"] == "latest"
+
+    def test_delete_artifact_with_latest_tag_and_iteration_not_0(self):
+        # This test is based on the following scenario:
+        # 1. Log 3 artifacts with hyperparameters - iteration 1 (best_iteration), iteration 2, and iteration 3.
+        # 2. Log 2 artifacts with hyperparameters (same artifacts, but fewer iterations) - iteration 1 and iteration 2.
+        # 3. Delete an artifact from the second run (iteration 2).
+        # 4. The "latest" tag should move to the most recent artifact with the same iteration (iteration 2).
+        # 5. Delete an artifact from the first run (iteration 3).
+        # 6. The "latest" tag should not move, as there is no artifact with the matching combination
+        # of project, key, and iteration.
+
+        project = "artifact_project"
+        artifact_key = "artifact-key"
+        artifact_1_tree = "artifact_tree_1"
+        artifact_1_body = self._generate_artifact(artifact_key, tree=artifact_1_tree)
+        artifact_2_tree = "artifact_tree_2"
+        artifact_2_body = self._generate_artifact(artifact_key, tree=artifact_2_tree)
+
+        # Log the first artifact as part of a function run with hyperparameters (iteration 1, best_iteration=True)
+        uid1 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v1",
+            iter=1,
+            best_iteration=True,
+        )
+
+        # Log the second artifact as part of a function run with hyperparameters (iteration 2, without best_iteration)
+        uid2 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v1",
+            iter=2,
+        )
+
+        # Log the third artifact as part of a function run with hyperparameters (iteration 3, without best_iteration)
+        uid3 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_1_body,
+            project=project,
+            tag="v1",
+            iter=3,
+        )
+
+        assert uid1 != uid2 != uid3
+
+        # Should have both "v1" and "latest" tags for each of the artifacts
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project
+        )
+        assert len(artifacts) == 6
+
+        # Log the same function again with hyperparameters, but now only with 2 iterations (iteration 1 and iteration 2)
+        uid4 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_2_body,
+            project=project,
+            tag="v1",
+            iter=1,
+        )
+
+        uid5 = self._db.store_artifact(
+            self._db_session,
+            artifact_key,
+            artifact_2_body,
+            project=project,
+            tag="v1",
+            iter=2,
+            best_iteration=True,
+        )
+        assert uid1 != uid2 != uid3 != uid4 != uid5
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert artifacts[0]["metadata"]["uid"] == uid5
+        assert artifacts[1]["metadata"]["uid"] == uid4
+
+        # Delete artifact uid5
+        self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid5)
+
+        # The "latest" tag should move to the most recent artifact with the same iteration - uid2
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 2
+        assert artifacts[0]["metadata"]["uid"] == uid4
+        assert artifacts[1]["metadata"]["uid"] == uid2
+
+        # Delete artifact uid3 (which does not match the current project + key + iteration combination)
+        # The "latest" tag should not move, as there is no matching combination for iteration 3
+        self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid3)
+        artifacts = self._db.list_artifacts(
+            self._db_session, name=artifact_key, project=project, tag="latest"
+        )
+        assert len(artifacts) == 2
+        assert artifacts[0]["metadata"]["uid"] == uid4
+        assert artifacts[1]["metadata"]["uid"] == uid2
 
     def test_list_artifacts_exact_name_match(self):
         artifact_1_key = "pre_artifact_key_suffix"

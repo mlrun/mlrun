@@ -7086,8 +7086,8 @@ class SQLDB(DBInterface):
             return None
         return system_id_record.value
 
-    def create_system_id(self, session: Session, system_id: str):
-        logger.debug("Creating a new system id in DB", system_id=system_id)
+    def store_system_id(self, session: Session, system_id: str):
+        logger.debug("Storing a new system id in DB", system_id=system_id)
 
         system_id_record = SystemMetadata(key="system_id", value=system_id)
         self._upsert(session, [system_id_record])

@@ -101,24 +101,20 @@ def init_data(
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
 
-    if is_migration_from_scratch or is_migration_needed:
-        try:
-            _perform_schema_migrations(alembic_util)
-            init_db()
-            db_session = create_session()
-            try:
-                _add_initial_data(db_session)
-                _perform_data_migrations(db_session)
-            finally:
-                close_session(db_session)
-        except Exception:
-            state = mlrun.common.schemas.APIStates.migrations_failed
-            logger.warning("Migrations failed, changing API state", state=state)
-            config.httpdb.state = state
-            raise
-
     db_session = create_session()
     try:
+        if is_migration_from_scratch or is_migration_needed:
+            try:
+                _perform_schema_migrations(alembic_util)
+                init_db()
+                _add_initial_data(db_session)
+                _perform_data_migrations(db_session)
+            except Exception:
+                state = mlrun.common.schemas.APIStates.migrations_failed
+                logger.warning("Migrations failed, changing API state", state=state)
+                config.httpdb.state = state
+                raise
+
         # initialize system id
         _init_system_id(db_session)
     finally:
@@ -1003,9 +999,12 @@ def _create_project_summaries(db, db_session):
 
 
 def _init_system_id(db_session: sqlalchemy.orm.Session):
-    # Initializes a system id for MLRun deployment.
-    # The system id is first checked in the database. If it does not exist, the function checks for a configured id
-    # (from environment variables or config), and if neither is found, a new random one is generated and stored.
+    """
+    Initializes a system id for MLRun deployment.
+    The system id is first checked in the database. If it does not exist, the function checks for a configured id
+    (from environment variables or config), and if neither is found, a new random one is generated and stored.
+    """
+
     db = framework.db.sqldb.db.SQLDB()
 
     # check if a system id already exists in the database
@@ -1013,32 +1012,30 @@ def _init_system_id(db_session: sqlalchemy.orm.Session):
 
     if system_id is not None:
         logger.info("Existing system id found in the database", system_id=system_id)
-        return
+    else:
+        # check if the system id is already set in the config
+        system_id = _get_configured_system_id()
 
-    # check if the system id is configured via environment variables or configmap
-    system_id = _get_configured_system_id()
+        if system_id is not None:
+            logger.info("Using configured system id", system_id=system_id)
+            db.store_system_id(db_session, system_id)
+        else:
+            # if no system id is found, generate a new one
+            system_id = _generate_system_id()
+            db.store_system_id(db_session, system_id)
 
-    if system_id is not None:
-        logger.info("Using configured system id", system_id=system_id)
-        db.create_system_id(db_session, system_id)
-        return
-
-    # if no system id is found, generate a new one
-    system_id_str = _generate_system_id()
-    db.create_system_id(db_session, system_id_str)
+    # set the system id in mlrun config
+    mlrun.mlconf.system_id = system_id
 
 
 def _get_configured_system_id() -> typing.Optional[str]:
-    system_id = os.environ.get("SYSTEM_ID")
-    if system_id:
-        return system_id
     return mlrun.mlconf.system_id or None
 
 
 def _generate_system_id() -> str:
-    # Generate a random 32-bit unsigned integer and encode it as base64 string without padding
-    random_int = os.urandom(4)
-    base64_str = base64.b64encode(random_int).decode("utf-8").rstrip("=")
+    # Generate 4 random bytes and encode them as base64 string without padding
+    random_bytes = os.urandom(4)
+    base64_str = base64.b64encode(random_bytes).decode("utf-8").rstrip("=")
     return base64_str
 
 

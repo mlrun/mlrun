@@ -102,7 +102,9 @@ def upgrade():
     )
 
     partition_name, partition_value = partition_interval.get_partition_info(now_utc)[0]
-    partition_expression = partition_interval.get_partition_expression()
+    partition_expression = partition_interval.get_partition_expression(
+        column_name="activation_time"
+    )
 
     # Construct SQL for partitioning
     partition_sql = f"""

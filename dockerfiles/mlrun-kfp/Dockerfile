@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,41 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 ARG MLRUN_PYTHON_VERSION=3.9
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
-  gcc \
-  git-core \
-  graphviz \
-  make \
- && rm -rf /var/lib/apt/lists/*
+# Update OS packages:
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
+    rm -rf /var/lib/apt/lists/*
 
-ARG MLRUN_PIP_VERSION=24.2
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+WORKDIR /mlrun
 
-WORKDIR /tmp/mlrun
+COPY . .
+
+# non-recursive chmod for the run to be able to create the handler file with any security context
+RUN chmod 777 /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt
-
-COPY . .
-
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete]
-
-RUN mv tests /tests && mv Makefile /Makefile
-
-COPY . /tmp/mlrun
-
-# Clean up all code used for building to simulate user env
-RUN rm -rf /tmp/mlrun
-
-CMD ["make",  "test-system"]
+    uv pip install .[kfp18]

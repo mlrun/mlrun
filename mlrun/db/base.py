@@ -908,6 +908,14 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def update_alert_activation(
+        self,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        notifications_states,
+    ):
+        pass
+
     @abstractmethod
     def get_builder_status(
         self,

@@ -595,6 +595,50 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert_criteria=alert_criteria,
         )
 
+    def test_alert_activation_notification_state(self):
+        project_name = "my-new-project"
+        project = mlrun.new_project(project_name)
+
+        alert_name = "alert1"
+        alert_entity = alert_objects.EventEntityKind.JOB
+        event_name = alert_objects.EventKind.FAILED
+
+        failure_webhook_notification = mlrun.common.schemas.Notification(
+            name="webhook1",
+            kind="webhook",
+            params={"url": "incorrect-url"},
+            when=["error"],
+            message="fail",
+            condition="",
+        )
+        self._create_alert(
+            project_name,
+            alert_name,
+            alert_entity,
+            project_name,
+            "Alert summary",
+            event_name,
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+            notifications=[
+                mlrun.common.schemas.AlertNotification(
+                    notification=failure_webhook_notification
+                )
+            ],
+        )
+        for i in range(1, 4):
+            self._post_event(project_name, event_name, alert_entity)
+            # we ensure that activation already has its notification state updated right after the event was posted
+            activations = project.list_alert_activations(name=alert_name)
+
+            # if fails, it means that the notification state was not updated fast enough and adding sleep is needed
+            # or some performance optimisation required (for sending notifications)
+            assert (
+                activations[0].notifications[0].err
+                == "All webhook notifications failed. Errors: incorrect-url"
+            )
+            assert activations[0].notifications[0].summary.failed == 1
+            assert activations[0].notifications[0].summary.succeeded == 0
+
     def _create_alerts_test(self, project_name, alert1, alert2):
         invalid_notification = [
             {

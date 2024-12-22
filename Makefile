@@ -883,9 +883,10 @@ upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requi
 
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
-upgrade-mlrun-deps-lock: upgrade-mlrun-mlrun-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-api-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-jupyter-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-base-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-gpu-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-kfp-deps-lock
+	@$(MAKE) -j \
+		upgrade-mlrun-mlrun-deps-lock \
+		upgrade-mlrun-api-deps-lock \
+		upgrade-mlrun-jupyter-deps-lock \
+		upgrade-mlrun-base-deps-lock \
+		upgrade-mlrun-gpu-deps-lock \
+		upgrade-mlrun-kfp-deps-lock

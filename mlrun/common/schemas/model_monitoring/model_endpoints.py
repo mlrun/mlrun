@@ -117,6 +117,10 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
     endpoint_type: EndpointType = EndpointType.NODE_EP
     uid: Optional[constr(regex=MODEL_ENDPOINT_ID_PATTERN)]
 
+    @classmethod
+    def mutable_fields(cls):
+        return ["labels"]
+
 
 class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
     model_uid: Optional[str] = ""
@@ -136,6 +140,21 @@ class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
     children_uids: Optional[list[str]] = []
     monitoring_feature_set_uri: Optional[str] = ""
 
+    @classmethod
+    def mutable_fields(cls):
+        return [
+            "model_uid",
+            "model_name",
+            "model_db_key",
+            "model_tag",
+            "model_class",
+            "function_uid",
+            "feature_names",
+            "label_names",
+            "children",
+            "children_uids",
+        ]
+
 
 class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
     state: Optional[str] = "unknown"  # will be updated according to the function state
@@ -152,12 +171,28 @@ class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
     drift_measures: Optional[dict] = {}
     drift_measures_timestamp: Optional[datetime] = None
 
+    @classmethod
+    def mutable_fields(cls):
+        return [
+            "monitoring_mode",
+            "first_request",
+            "last_request",
+        ]
+
 
 class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
     metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec
     status: ModelEndpointStatus
+
+    @classmethod
+    def mutable_fields(cls):
+        return (
+            ModelEndpointMetadata.mutable_fields()
+            + ModelEndpointSpec.mutable_fields()
+            + ModelEndpointStatus.mutable_fields()
+        )
 
     def flat_dict(self) -> dict[str, Any]:
         """Generate a flattened `ModelEndpoint` dictionary. The flattened dictionary result is important for storing

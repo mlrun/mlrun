@@ -23,6 +23,7 @@ import mlrun.common
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 
@@ -56,6 +57,15 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
+        pass
+
+    @abstractmethod
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
         pass
 
     @abstractmethod
@@ -666,6 +676,9 @@ class RunDBInterface(ABC):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        creation_strategy: Optional[
+            mm_constants.ModelEndpointCreationStrategy
+        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
@@ -688,6 +701,7 @@ class RunDBInterface(ABC):
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
@@ -891,6 +905,14 @@ class RunDBInterface(ABC):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         **kwargs,
+    ):
+        pass
+
+    def update_alert_activation(
+        self,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        notifications_states,
     ):
         pass
 

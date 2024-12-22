@@ -367,7 +367,9 @@ def _set_callbacks(server, context):
 
         async def termination_callback():
             context.logger.info("Termination callback called")
-            server.wait_for_completion()
+            maybe_coroutine = server.wait_for_completion()
+            if asyncio.iscoroutine(maybe_coroutine):
+                await maybe_coroutine
             context.logger.info("Termination of async flow is completed")
 
         context.platform.set_termination_callback(termination_callback)
@@ -379,7 +381,9 @@ def _set_callbacks(server, context):
 
         async def drain_callback():
             context.logger.info("Drain callback called")
-            server.wait_for_completion()
+            maybe_coroutine = server.wait_for_completion()
+            if asyncio.iscoroutine(maybe_coroutine):
+                await maybe_coroutine
             context.logger.info(
                 "Termination of async flow is completed. Rerunning async flow."
             )

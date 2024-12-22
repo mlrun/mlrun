@@ -211,3 +211,11 @@ alert_from_template.with_notifications(notifications=notifications)
 
 project.store_alert_config(alert_from_template)
 ```
+
+## Alert activations
+
+When an existing [alert](./alerts.md) is activated by its configured trigger, MLRun saves the activation record.
+There is a way to get all activations of alerts - see [alert activations tutorial](./alert_activations.ipynb)
+
+Alert activation records are stored in a partitioned table. The table is partitioned weekly and supports retention.
+The default retention period is 14 weeks, but it can be adjusted by setting `object_retentions.alert_activations` in the MLRun configuration. The value should be specified in days.

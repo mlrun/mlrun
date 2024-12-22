@@ -1873,6 +1873,34 @@ class MlrunProject(ModelObj):
         vector_store: "VectorStore",  # noqa: F821
         collection_name: Optional[str] = None,
     ) -> VectorStoreCollection:
+        """
+        Create a VectorStoreCollection wrapper for a given vector store instance.
+
+        This method wraps a vector store implementation (like Milvus, Chroma) with MLRun
+        integration capabilities. The wrapper provides access to the underlying vector
+        store's functionality while adding MLRun-specific features like document and
+        artifact management.
+
+        Args:
+            vector_store: The vector store instance to wrap (e.g., Milvus, Chroma).
+                        This is the underlying implementation that will handle
+                        vector storage and retrieval.
+            collection_name: Optional name for the collection. If not provided,
+                            will attempt to extract it from the vector_store object
+                            by looking for 'collection_name', '_collection_name',
+                            'index_name', or '_index_name' attributes.
+
+        Returns:
+            VectorStoreCollection: A wrapped vector store instance with MLRun integration.
+                                This wrapper provides both access to the original vector
+                                store's capabilities and additional MLRun functionality.
+
+        Example:
+            >>> vector_store = Chroma(embedding_function=embeddings)
+            >>> collection = project.get_vector_store_collection(
+            ...     vector_store, collection_name="my_collection"
+            ... )
+        """
         return VectorStoreCollection(
             self,
             vector_store,
@@ -1899,12 +1927,39 @@ class MlrunProject(ModelObj):
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
         :param artifact_path: Target path for artifact storage
-        :param document_loader_spec: Spec to use to load the artifact as langchain document
+        :param document_loader_spec: Spec to use to load the artifact as langchain document.
+
+            By default, uses DocumentLoaderSpec() which initializes with:
+
+            * loader_class_name="langchain_community.document_loaders.TextLoader"
+            * src_name="file_path"
+            * kwargs=None
+
+            Can be customized for different document types, e.g.::
+
+                DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.PDFLoader",
+                    src_name="file_path",
+                    kwargs={"extract_images": True}
+                )
         :param upload: Whether to upload the artifact
         :param labels: Key-value labels
         :param target_path: Target file path
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
+
+        Example:
+            >>> # Log a PDF document with custom loader
+            >>> project.log_document(
+            ...     key="my_doc",
+            ...     local_path="path/to/doc.pdf",
+            ...     document_loader=DocumentLoaderSpec(
+            ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
+            ...         src_name="file_path",
+            ...         kwargs={"extract_images": True},
+            ...     ),
+            ... )
+
         """
         doc_artifact = DocumentArtifact(
             key=key,
@@ -2117,13 +2172,13 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_function(
         self,
+        name: str,
         func: typing.Union[str, mlrun.runtimes.RemoteRuntime, None] = None,
         application_class: typing.Union[
             str, mm_app.ModelMonitoringApplicationBase, None
         ] = None,
-        name: Optional[str] = None,
         image: Optional[str] = None,
-        handler=None,
+        handler: Optional[str] = None,
         with_repo: Optional[bool] = None,
         tag: Optional[str] = None,
         requirements: Optional[typing.Union[str, list[str]]] = None,
@@ -2135,7 +2190,7 @@ class MlrunProject(ModelObj):
         Note: to deploy the function after linking it to the project,
         call `fn.deploy()` where `fn` is the object returned by this method.
 
-        examples::
+        Example::
 
             project.set_model_monitoring_function(
                 name="myApp", application_class="MyApp", image="mlrun/mlrun"
@@ -2144,8 +2199,7 @@ class MlrunProject(ModelObj):
         :param func:                    Remote function object or spec/code URL. :code:`None` refers to the current
                                         notebook.
         :param name:                    Name of the function (under the project), can be specified with a tag to support
-                                        versions (e.g. myfunc:v1)
-                                        Default: job
+                                        versions (e.g. myfunc:v1).
         :param image:                   Docker image to be used, can also be specified in
                                         the function object/yaml
         :param handler:                 Default function handler to invoke (can only be set with .py/.ipynb files)
@@ -2183,12 +2237,13 @@ class MlrunProject(ModelObj):
 
     def create_model_monitoring_function(
         self,
+        name: str,
         func: Optional[str] = None,
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
+            None,
         ] = None,
-        name: Optional[str] = None,
         image: Optional[str] = None,
         handler: Optional[str] = None,
         with_repo: Optional[bool] = None,
@@ -2200,16 +2255,15 @@ class MlrunProject(ModelObj):
         """
         Create a monitoring function object without setting it to the project
 
-        examples::
+        Example::
 
             project.create_model_monitoring_function(
-                application_class_name="MyApp", image="mlrun/mlrun", name="myApp"
+                name="myApp", application_class="MyApp", image="mlrun/mlrun"
             )
 
         :param func:                    The function's code URL. :code:`None` refers to the current notebook.
         :param name:                    Name of the function, can be specified with a tag to support
-                                        versions (e.g. myfunc:v1)
-                                        Default: job
+                                        versions (e.g. myfunc:v1).
         :param image:                   Docker image to be used, can also be specified in
                                         the function object/yaml
         :param handler:                 Default function handler to invoke (can only be set with .py/.ipynb files)
@@ -2586,6 +2640,24 @@ class MlrunProject(ModelObj):
 
         self._set_function(resolved_function_name, tag, function_object, func)
         return function_object
+
+    def push_run_notifications(
+        self,
+        uid,
+        timeout=45,
+    ):
+        """
+        Push notifications for a run.
+
+        :param uid: Unique ID of the run.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.push_run_notifications(
+            project=self.name,
+            uid=uid,
+            timeout=timeout,
+        )
 
     def _instantiate_function(
         self,
@@ -3240,6 +3312,7 @@ class MlrunProject(ModelObj):
         cleanup_ttl: Optional[int] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3282,6 +3355,7 @@ class MlrunProject(ModelObj):
                           This allows you to control and specify where the workflow runner pod will be scheduled.
                           This setting is only relevant when the engine is set to 'remote' or for scheduled workflows,
                           and it will be ignored if the workflow is not run on a remote engine.
+        :param context:             mlrun context.
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
@@ -3368,6 +3442,7 @@ class MlrunProject(ModelObj):
             namespace=namespace,
             source=source,
             notifications=notifications,
+            context=context,
         )
         # run is None when scheduling
         if run and run.state == mlrun_pipelines.common.models.RunStatuses.failed:
@@ -3551,6 +3626,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
@@ -3565,12 +3641,13 @@ class MlrunProject(ModelObj):
         model endpoint. This functions supports filtering by the following parameters:
         1) name
         2) model_name
-        3) function_name
-        4) function_tag
-        5) labels
-        6) top level
-        7) uids
-        8) start and end time, corresponding to the `created` field.
+        3) model_tag
+        4) function_name
+        5) function_tag
+        6) labels
+        7) top level
+        8) uids
+        9) start and end time, corresponding to the `created` field.
         By default, when no filters are applied, all available endpoints for the given project will be listed.
 
         In addition, this functions provides a facade for listing endpoint related metrics. This facade is time-based
@@ -3599,6 +3676,7 @@ class MlrunProject(ModelObj):
             project=self.name,
             name=name,
             model_name=model_name,
+            model_tag=model_tag,
             function_name=function_name,
             function_tag=function_tag,
             labels=labels,

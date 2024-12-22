@@ -917,7 +917,7 @@ class DBInterface(ABC):
     def create_partitions(
         session,
         table_name: str,
-        partitioning_information_list: list[tuple[str, str, str]],
+        partitioning_information_list: list[tuple[str, str]],
     ):
         pass
 
@@ -984,7 +984,6 @@ class DBInterface(ABC):
         session,
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
-        notifications_states: list[mlrun.common.schemas.NotificationState],
     ):
         pass
 
@@ -994,7 +993,11 @@ class DBInterface(ABC):
         session,
         activation_id: int,
         activation_time: datetime.datetime,
-        number_of_events: Optional[int],
+        number_of_events: Optional[int] = None,
+        notifications_states: Optional[
+            list[mlrun.common.schemas.NotificationState]
+        ] = None,
+        update_reset_time: bool = False,
     ):
         pass
 
@@ -1240,6 +1243,7 @@ class DBInterface(ABC):
         function_name: typing.Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
+        model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime.datetime] = None,
@@ -1258,6 +1262,7 @@ class DBInterface(ABC):
         :param function_name:   The function name.
         :param function_tag:    The function tag.
         :param model_name:      The model name.
+        :param model_tag:       The model tag.
         :param top_level:       Whether to return only top level model endpoints (1,2,4).
         :param labels:          The labels to filter by.
         :param start:           The start time to filter by.
@@ -1296,6 +1301,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
+        uids: typing.Optional[list[str]] = None,
     ) -> None:
         """
         Delete model endpoints across projects and names.

@@ -23,11 +23,13 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db.factory
 from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
 
 import framework.db.session
+import services.alerts.crud
 import services.api.crud
 from framework.db.base import DBError
 from framework.db.sqldb.db import SQLDB
@@ -103,6 +105,14 @@ class SQLRunDB(RunDBInterface):
         )
 
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
+        raise NotImplementedError()
+
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
         raise NotImplementedError()
 
     def read_run(
@@ -1008,6 +1018,9 @@ class SQLRunDB(RunDBInterface):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        creation_strategy: Optional[
+            mm_constants.ModelEndpointCreationStrategy
+        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         raise NotImplementedError()
 
@@ -1028,6 +1041,7 @@ class SQLRunDB(RunDBInterface):
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
@@ -1303,6 +1317,22 @@ class SQLRunDB(RunDBInterface):
         event_kind: Optional[str] = None,
     ):
         raise NotImplementedError
+
+    def update_alert_activation(
+        self,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        notifications_states,
+    ):
+        # We run this function with a new session because it may run concurrently.
+        # Older sessions will not be able to see the changes made by this function until they are committed.
+        return self._transform_db_error(
+            framework.db.session.run_function_with_new_db_session,
+            services.alerts.crud.AlertActivation().update_alert_activation,
+            activation_id=activation_id,
+            activation_time=activation_time,
+            notifications_states=notifications_states,
+        )
 
     def paginated_list_alert_activations(
         self,

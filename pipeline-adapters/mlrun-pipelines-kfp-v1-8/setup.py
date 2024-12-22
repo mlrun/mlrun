@@ -21,7 +21,7 @@ logger = logging.getLogger("mlrun-kfp-setup")
 
 setup(
     name="mlrun-pipelines-kfp-v1-8",
-    version="0.2.3",
+    version="0.3.0",
     description="MLRun Pipelines package for providing KFP 1.8 compatibility",
     author="Yaron Haviv",
     author_email="yaronh@iguazio.com",
@@ -40,9 +40,13 @@ setup(
     ],
     python_requires=">=3.9, <3.12",
     install_requires=[
-        "kfp_server_api~=1.8.5",
-        "kfp~=1.8",
+        "inflection>=0.5.1",
+        "kfp_server_api>=1.8.5",
+        "mlrun_pipelines_kfp_common~=0.2.3",
     ],
+    extras_require={
+        "kfp": ["kfp~=1.8.22"],
+    },
     long_description="MLRun Pipelines package for providing KFP 1.8 compatibility",
     long_description_content_type="text/markdown",
 )

@@ -21,7 +21,7 @@ logger = logging.getLogger("mlrun-kfp-setup")
 
 setup(
     name="mlrun-pipelines-kfp-common",
-    version="0.2.3",
+    version="0.3.0",
     description="MLRun Pipelines package for providing KFP common functionality",
     author="Yaron Haviv",
     author_email="yaronh@iguazio.com",
@@ -38,6 +38,17 @@ setup(
         "mlrun",
         "kfp",
     ],
+    install_requires=[
+        # TODO remove the version requirement once the KFP 1.8 support is removed
+        # kubernetes version < 25.3 conflicts with KFP 1.8
+        "kubernetes>=25.3",
+    ],
+    extras_require={
+        "ipython": [
+            "graphviz>=0.20",
+            "ipython>=8.10",
+        ]
+    },
     python_requires=">=3.9, <3.12",
     long_description="MLRun Pipelines package for providing KFP common functionality",
     long_description_content_type="text/markdown",

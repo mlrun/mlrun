@@ -35,7 +35,7 @@ def test_log_object_signature(method: str) -> None:
 
 @patch("mlrun.load_project")
 def test_from_graph_context(mock: Mock) -> None:
-    app_ctx = MonitoringApplicationContext(
+    app_ctx = MonitoringApplicationContext._from_graph_ctx(
         application_name="app-context-from-graph",
         event={},
         graph_context=GraphContext(
@@ -53,7 +53,7 @@ def test_from_graph_context(mock: Mock) -> None:
 def test_from_ml_context_error(ml_ctx_dict: dict[str, str]) -> None:
     ml_ctx = MLClientCtx.from_dict(ml_ctx_dict)
     with pytest.raises(MLRunValueError, match="Could not load project from context"):
-        MonitoringApplicationContext(
+        MonitoringApplicationContext._from_ml_ctx(
             application_name="app-context-from-ml",
             event={},
             context=ml_ctx,
@@ -65,7 +65,7 @@ def test_from_ml_context(mock: Mock) -> None:
     project_name = "my-proj"
     ml_ctx = MLClientCtx.from_dict({"metadata": {"project": project_name}})
     assert ml_ctx.project == project_name
-    app_ctx = MonitoringApplicationContext(
+    app_ctx = MonitoringApplicationContext._from_ml_ctx(
         application_name="app-context-from-ml",
         event={},
         context=ml_ctx,

@@ -44,6 +44,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
@@ -3579,8 +3580,6 @@ class MlrunProject(ModelObj):
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
                                             exact path.
-                                          * MySQL/SQLite - for SQL endpoint store, provide the full connection string,
-                                            for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
         :param stream_path:               Path to the model monitoring stream. By default, None. Options:
 
                                           * None - will be set from the system configuration.
@@ -3603,12 +3602,18 @@ class MlrunProject(ModelObj):
                                           & tracked model server.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
+        if tsdb_connection == "v3io":
+            profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+                name="mm-infra-tsdb"
+            )
+            self.register_datastore_profile(profile)
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
                 "access_key": access_key,
                 "stream_path": stream_path,
                 "tsdb_connection": tsdb_connection,
+                "tsdb_profile_name": profile.name,
             },
             replace_creds=replace_creds,
         )

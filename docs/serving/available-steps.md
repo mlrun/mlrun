@@ -17,7 +17,7 @@ See also [Data transformations](../feature-store/transformations.md#data-transfo
 
 | Class name                                                                                                                  | Description                                                                                                                                                                 |   
 |-----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|      
-|{py:class}`~storey.transformations.Batch`                                                                 | Batches events. This step emits a batch every `max_events` events, or when `timeout` seconds have passed since the first event in the batch was received.                   |
+|{py:class}`~storey.transformations.Batch`             | Batches events. This step emits a batch every `max_events` events, or when `timeout` seconds have passed since the first event in the batch was received.                   |
 |{py:class}`~storey.transformations.Choice`           | Redirects each input element into one of the multiple downstreams.                                                                                                          |
 |{py:class}`~storey.transformations.Extend`                       | Adds fields to each incoming event.                                                                                                                                         | 
 |{py:class}`~storey.transformations.Filter`             | Filters events based on a user-provided function.                                                                                                                           | 
@@ -27,7 +27,7 @@ See also [Data transformations](../feature-store/transformations.md#data-transfo
 |{py:class}`~storey.transformations.MapClass`         | Similar to Map, but instead of a function argument, this class should be extended and its do() method overridden.                                                           |
 |{py:class}`~storey.transformations.MapWithState` | Maps, or transforms, incoming events using a stateful user-provided function, and an initial state, which can be a database table.                                          |
 |{py:class}`~storey.transformations.Partition`      | Partitions events by calling a predicate function on each event. Each processed event results in a Partitioned named tuple of (left=Optional[Event], right=Optional[Event]). |
-|storey.Reduce                                                                                                               | Reduces incoming events into a single value that is returned upon the successful termination of the flow.                                                                   |
+|storey.Reduce                                       | Reduces incoming events into a single value that is returned upon the successful termination of the flow.                                                                   |
 |{py:class}`~storey.transformations.SampleWindow` | Emits a single event in a window of `window_size` events, in accordance with `emit_period` and `emit_before_termination`.                                                   | 
 
 ## External IO and data enrichment

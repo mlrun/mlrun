@@ -45,32 +45,6 @@ class _ArtifactsLogger(Protocol):
 
 
 class MonitoringApplicationContext:
-    """
-    The monitoring context holds all the relevant information for the monitoring application,
-    and also it can be used for logging artifacts and results.
-    The monitoring context has the following attributes:
-
-    :param application_name:        (str) The model monitoring application name.
-    :param project_name:            (str) The project name.
-    :param project:                 (MlrunProject) The project object.
-    :param logger:                  (mlrun.utils.Logger) MLRun logger.
-    :param nuclio_logger:           (nuclio.request.Logger) Nuclio logger.
-    :param sample_df_stats:         (FeatureStats) The new sample distribution dictionary.
-    :param feature_stats:           (FeatureStats) The train sample distribution dictionary.
-    :param sample_df:               (pd.DataFrame) The new sample DataFrame.
-    :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
-    :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
-    :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
-    :param endpoint_id:             (str) ID of the monitored model endpoint
-    :param endpoint_name:           (str) Name of the monitored model endpoint
-    :param output_stream_uri:       (str) URI of the output stream for results
-    :param model_endpoint:          (ModelEndpoint) The model endpoint object.
-    :param feature_names:           (list[str]) List of models feature names.
-    :param label_names:             (list[str]) List of models label names.
-    :param model:                   (tuple[str, ModelArtifact, dict]) The model file, model spec object,
-                                    and a list of extra data items.
-    """
-
     _logger_name = "monitoring-application"
 
     def __init__(
@@ -78,64 +52,51 @@ class MonitoringApplicationContext:
         *,
         application_name: str,
         event: dict[str, Any],
+        project: "mlrun.MlrunProject",
+        artifacts_logger: _ArtifactsLogger,
+        logger: mlrun.utils.Logger,
+        nuclio_logger: nuclio.request.Logger,
         model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
-        logger: Optional[mlrun.utils.Logger] = None,
-        graph_context: Optional[mlrun.serving.GraphContext] = None,
-        context: Optional["mlrun.MLClientCtx"] = None,
-        artifacts_logger: Optional[_ArtifactsLogger] = None,
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
     ) -> None:
         """
-        The :code:`__init__` method initializes a :code:`MonitoringApplicationContext` object
-        and has the following attributes.
-        Note: this object should not be instantiated manually.
+        The :code:`MonitoringApplicationContext` object holds all the relevant information for the
+        model monitoring application, and can be used for logging artifacts and messages.
+        The monitoring context has the following attributes:
 
-        :param application_name:    The application name.
-        :param event:               The instance data dictionary.
-        :param model_endpoint_dict: Optional - dictionary of model endpoints.
-        :param logger:              Optional - MLRun logger instance.
-        :param graph_context:       Optional - GraphContext instance.
-        :param context:             Optional - MLClientCtx instance.
-        :param artifacts_logger:    Optional - an object that can log artifacts,
-                                    typically :py:class:`~mlrun.projects.MlrunProject` or
-                                    :py:class:`~mlrun.execution.MLClientCtx`.
-        :param sample_df:           Optional - pandas data-frame as the current dataset.
-                                    When set, it replaces the data read from the offline source.
-        :param feature_stats:       Optional - statistics dictionary of the reference data.
-                                    When set, it overrides the model endpoint's feature stats.
+        :param application_name:        (str) The model monitoring application name.
+        :param project:                 (:py:class:`~mlrun.projects.MlrunProject`) The current MLRun project object.
+        :param project_name:            (str) The project name.
+        :param logger:                  (:py:class:`~mlrun.utils.Logger`) MLRun logger.
+        :param nuclio_logger:           (nuclio.request.Logger) Nuclio logger.
+        :param sample_df_stats:         (FeatureStats) The new sample distribution dictionary.
+        :param feature_stats:           (FeatureStats) The train sample distribution dictionary.
+        :param sample_df:               (pd.DataFrame) The new sample DataFrame.
+        :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
+        :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
+        :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
+        :param endpoint_id:             (str) ID of the monitored model endpoint
+        :param endpoint_name:           (str) Name of the monitored model endpoint
+        :param output_stream_uri:       (str) URI of the output stream for results
+        :param model_endpoint:          (ModelEndpoint) The model endpoint object.
+        :param feature_names:           (list[str]) List of models feature names.
+        :param label_names:             (list[str]) List of models label names.
+        :param model:                   (tuple[str, ModelArtifact, dict]) The model file, model spec object,
+                                        and a list of extra data items.
         """
         self.application_name = application_name
 
-        if graph_context:
-            self.project_name = graph_context.project
-            self.project = mlrun.load_project(url=self.project_name)
-        elif context:
-            potential_project = context.get_project_object()
-            if not potential_project:
-                raise mlrun.errors.MLRunValueError(
-                    "Could not load project from context"
-                )
-            self.project = potential_project
-            self.project_name = self.project.name
+        self.project = project
+        self.project_name = project.name
 
-        self._artifacts_logger: _ArtifactsLogger = artifacts_logger or self.project
+        self._artifacts_logger = artifacts_logger
 
         # MLRun Logger
-        self.logger = logger or mlrun.utils.create_logger(
-            level=mlrun.mlconf.log_level,
-            formatter_kind=mlrun.mlconf.log_formatter,
-            name=self._logger_name,
-        )
+        self.logger = logger
         # Nuclio logger - `nuclio.request.Logger`.
         # Note: this logger accepts keyword arguments only in its `_with` methods, e.g. `info_with`.
-        self.nuclio_logger = (
-            graph_context.logger
-            if graph_context
-            else nuclio.request.Logger(
-                level=mlrun.mlconf.log_level, name=self._logger_name
-            )
-        )
+        self.nuclio_logger = nuclio_logger
 
         # event data
         self.start_infer_time = pd.Timestamp(
@@ -164,6 +125,68 @@ class MonitoringApplicationContext:
         self._sample_df: Optional[pd.DataFrame] = sample_df
         self._model_endpoint: Optional[ModelEndpoint] = (
             model_endpoint_dict.get(self.endpoint_id) if model_endpoint_dict else None
+        )
+
+    @classmethod
+    def _from_ml_ctx(
+        cls,
+        context: "mlrun.MLClientCtx",
+        *,
+        application_name: str,
+        event: dict[str, Any],
+        model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
+        sample_df: Optional[pd.DataFrame] = None,
+        feature_stats: Optional[FeatureStats] = None,
+    ) -> "MonitoringApplicationContext":
+        project = context.get_project_object()
+        if not project:
+            raise mlrun.errors.MLRunValueError("Could not load project from context")
+        logger = context.logger
+        artifacts_logger = context
+        nuclio_logger = nuclio.request.Logger(
+            level=mlrun.mlconf.log_level, name=cls._logger_name
+        )
+        return cls(
+            application_name=application_name,
+            event=event,
+            model_endpoint_dict=model_endpoint_dict,
+            project=project,
+            logger=logger,
+            nuclio_logger=nuclio_logger,
+            artifacts_logger=artifacts_logger,
+            sample_df=sample_df,
+            feature_stats=feature_stats,
+        )
+
+    @classmethod
+    def _from_graph_ctx(
+        cls,
+        graph_context: mlrun.serving.GraphContext,
+        *,
+        application_name: str,
+        event: dict[str, Any],
+        model_endpoint_dict: Optional[dict[str, ModelEndpoint]] = None,
+        sample_df: Optional[pd.DataFrame] = None,
+        feature_stats: Optional[FeatureStats] = None,
+    ) -> "MonitoringApplicationContext":
+        project = mlrun.load_project(url=graph_context.project)
+        nuclio_logger = graph_context.logger
+        artifacts_logger = project
+        logger = mlrun.utils.create_logger(
+            level=mlrun.mlconf.log_level,
+            formatter_kind=mlrun.mlconf.log_formatter,
+            name=cls._logger_name,
+        )
+        return cls(
+            application_name=application_name,
+            event=event,
+            project=project,
+            model_endpoint_dict=model_endpoint_dict,
+            logger=logger,
+            nuclio_logger=nuclio_logger,
+            artifacts_logger=artifacts_logger,
+            sample_df=sample_df,
+            feature_stats=feature_stats,
         )
 
     def _get_default_labels(self) -> dict[str, str]:

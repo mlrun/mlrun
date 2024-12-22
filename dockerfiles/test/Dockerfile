@@ -63,11 +63,9 @@ RUN python -m pip install \
 
 # if we give all the requirements together pip resolver go nuts so separating between the package and the image
 # requirements
-COPY ./dev-requirements.txt ./
 RUN python -m pip install \
     -r dev-requirements.txt
 
-COPY ./docs/requirements.txt ./docs-requirements.txt
 RUN python -m pip install \
     -r docs-requirements.txt
 

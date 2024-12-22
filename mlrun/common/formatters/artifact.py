@@ -32,7 +32,7 @@ class ArtifactFormat(ObjectFormat, mlrun.common.types.StrEnum):
                 [
                     "kind",
                     "metadata",
-                    "status",
+                    "status.state",
                     "project",
                     "spec.producer",
                     "spec.db_key",

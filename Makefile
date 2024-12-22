@@ -245,7 +245,7 @@ pull-mlrun: ## Pull mlrun docker image
 
 MLRUN_KFP_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-kfp
 MLRUN_KFP_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-kfp
-MLRUN_KFP_IMAGE_NAME_TAGGED := $(MLRUN_KFP_IMAGE_NAME)-kfp:$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_KFP_IMAGE_NAME_TAGGED := $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_KFP_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED)),)
 MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
@@ -497,6 +497,7 @@ test-publish: package-wheel ## Test python package publishing
 .PHONY: clean
 clean: ## Clean python package build artifacts
 	rm -rf build dist mlrun.egg-info
+	rm -rf pipeline-adapters/*/dist pipeline-adapters/*/build pipeline-adapters/*/mlrun.egg-info pipeline-adapters/*/src/mlrun_pipelines_*
 	find . -name '*.pyc' -not -path "./venv" -exec rm {} \;
 
 .PHONY: test-dockerized
@@ -878,14 +879,16 @@ upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter lock
 upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
-upgrade-mlrun-deps-lock: upgrade-mlrun-mlrun-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-api-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-jupyter-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-base-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-gpu-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-kfp-deps-lock
+	@$(MAKE) -j \
+		upgrade-mlrun-mlrun-deps-lock \
+		upgrade-mlrun-api-deps-lock \
+		upgrade-mlrun-jupyter-deps-lock \
+		upgrade-mlrun-base-deps-lock \
+		upgrade-mlrun-gpu-deps-lock \
+		upgrade-mlrun-kfp-deps-lock

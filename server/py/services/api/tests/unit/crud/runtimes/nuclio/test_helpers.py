@@ -47,6 +47,7 @@ def test_compiled_function_config_nuclio_python():
     fn = mlrun.code_to_function(
         "nuclio", filename=name, kind="nuclio", handler="my_hand"
     )
+    fn.metadata.annotations = {"something": "somewhat"}
     (
         name,
         project,
@@ -60,6 +61,7 @@ def test_compiled_function_config_nuclio_python():
     assert (
         mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand"
     ), "wrong handler"
+    assert mlrun.utils.get_in(config, "metadata.annotations.something") == "somewhat"
 
 
 def test_compiled_function_config_sidecar_image_enrichment():

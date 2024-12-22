@@ -189,6 +189,7 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
 	mlrun \
 	mlrun-gpu \
+	mlrun-kfp \
 	jupyter \
 	base \
 	log-collector
@@ -240,6 +241,37 @@ push-mlrun: mlrun ## Push mlrun docker image
 .PHONY: pull-mlrun
 pull-mlrun: ## Pull mlrun docker image
 	docker pull $(MLRUN_IMAGE_NAME_TAGGED)
+
+
+MLRUN_KFP_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-kfp
+MLRUN_KFP_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-kfp
+MLRUN_KFP_IMAGE_NAME_TAGGED := $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_KFP_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_KFP_IMAGE_NAME_TAGGED) $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_KFP_CACHE_IMAGE_NAME_TAGGED),)
+
+DEFAULT_IMAGES += $(MLRUN_KFP_IMAGE_NAME_TAGGED)
+
+.PHONY: mlrun-kfp
+mlrun-kfp: update-version-file ## Build mlrun docker image with KFP
+	$(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
+	docker build \
+		--file dockerfiles/mlrun-kfp/Dockerfile \
+		--build-arg MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		--build-arg MLRUN_VERSION=$(MLRUN_VERSION) \
+		$(MLRUN_KFP_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		--tag $(MLRUN_KFP_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) .
+
+.PHONY: push-mlrun-kfp
+push-mlrun-kfp: mlrun-kfp ## Push mlrun docker image
+	docker push $(MLRUN_KFP_IMAGE_NAME_TAGGED)
+	$(MLRUN_KFP_CACHE_IMAGE_PUSH_COMMAND)
+
+.PHONY: pull-mlrun-kfp
+pull-mlrun-kfp: ## Pull mlrun docker image
+	docker pull $(MLRUN_KFP_CACHE_IMAGE_PULL_COMMAND)
 
 MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:$(MLRUN_GPU_CUDA_VERSION)
 MLRUN_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-gpu
@@ -843,10 +875,18 @@ upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter lock
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
+upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
+	uv pip compile \
+		requirements.txt \
+		$(MLRUN_UV_UPGRADE_FLAG) \
+		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
+
 .PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
-upgrade-mlrun-deps-lock: upgrade-mlrun-mlrun-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-api-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-jupyter-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-base-deps-lock
-upgrade-mlrun-deps-lock: upgrade-mlrun-gpu-deps-lock
+	@$(MAKE) -j \
+		upgrade-mlrun-mlrun-deps-lock \
+		upgrade-mlrun-api-deps-lock \
+		upgrade-mlrun-jupyter-deps-lock \
+		upgrade-mlrun-base-deps-lock \
+		upgrade-mlrun-gpu-deps-lock \
+		upgrade-mlrun-kfp-deps-lock

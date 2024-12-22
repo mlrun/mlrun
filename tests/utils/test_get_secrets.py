@@ -34,7 +34,7 @@ def reverser(key):
     return key[::-1]
 
 
-def test_get_secret_from_env():
+def test_get_secret_from_env(reset_config):
     # Set the prefix to "MLRUN_K8S_SECRET__" as this test validates behavior with a defined prefix,
     # while the default configuration has been changed to empty.
     config.secret_stores.kubernetes.env_variable_prefix = "MLRUN_K8S_SECRET__"

@@ -14,9 +14,20 @@
 #
 import os
 
+import pytest
+
 import mlrun
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
+
+
+@pytest.fixture
+def reset_config():
+    # Save the original configuration value
+    original_prefix = config.secret_stores.kubernetes.env_variable_prefix
+    yield
+    # Revert the configuration after the test
+    config.secret_stores.kubernetes.env_variable_prefix = original_prefix
 
 
 def reverser(key):

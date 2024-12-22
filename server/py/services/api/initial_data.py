@@ -1038,11 +1038,16 @@ def _get_configured_system_id() -> typing.Optional[str]:
 
 
 def _generate_system_id() -> str:
-    # Generate a random 32-bit unsigned integer, convert it to 4 bytes, and encode as a Base64 string without padding
-    random_number = random.getrandbits(32)
-    random_bytes = random_number.to_bytes(4, "big")
-    base64_str = base64.b64encode(random_bytes).decode("utf-8").rstrip("=")
-    return base64_str
+    # Generate a random 32-bit unsigned integer and encode as a URL-safe Base64 string without padding
+    while True:
+        random_number = random.getrandbits(32)
+        random_bytes = random_number.to_bytes(4, "big")
+        base64_str = base64.urlsafe_b64encode(random_bytes).decode("utf-8").rstrip("=")
+
+        # ensure the string does not start with '-' or '_', as these characters are not allowed at the start of DNS
+        # names or Kubernetes resource names
+        if not base64_str.startswith(("-", "_")):
+            return base64_str
 
 
 def main() -> None:

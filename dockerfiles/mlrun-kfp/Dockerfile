@@ -25,12 +25,21 @@ RUN apt-get update && \
 
 WORKDIR /mlrun
 
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/mlrun-kfp/locked-requirements.txt,target=locked-requirements.txt \
+    uv pip sync --require-hashes locked-requirements.txt
+
+COPY ./pipeline-adapters ./pipeline-adapters
+
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-common && \
+    uv pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+
 COPY . .
 
-# non-recursive chmod for the run to be able to create the handler file with any security context
-RUN chmod 777 /mlrun
-
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     uv pip install .[kfp18]

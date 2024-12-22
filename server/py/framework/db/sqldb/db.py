@@ -7175,6 +7175,7 @@ class SQLDB(DBInterface):
                 ArtifactV2.Tag.obj_id != object_record.id,
                 ArtifactV2.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
                 ArtifactV2.Tag.project == object_record.project,
+                ArtifactV2.Tag.obj_name == object_record.key,
                 ArtifactV2.Tag.obj_id.in_(
                     session.query(ArtifactV2.id).filter(
                         ArtifactV2.producer_id == object_record.producer_id,

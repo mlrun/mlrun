@@ -497,6 +497,7 @@ test-publish: package-wheel ## Test python package publishing
 .PHONY: clean
 clean: ## Clean python package build artifacts
 	rm -rf build dist mlrun.egg-info
+	rm -rf pipeline-adapters/*/dist pipeline-adapters/*/build pipeline-adapters/*/mlrun.egg-info pipeline-adapters/*/src/mlrun_pipelines_*
 	find . -name '*.pyc' -not -path "./venv" -exec rm {} \;
 
 .PHONY: test-dockerized

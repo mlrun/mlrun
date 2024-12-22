@@ -42,7 +42,7 @@ setup(
     install_requires=[
         "inflection>=0.5.1",
         "kfp_server_api>=1.8.5",
-        "mlrun_pipelines_kfp_common~=0.3.0",
+        "mlrun_pipelines_kfp_common~=0.3.1",
     ],
     extras_require={
         "kfp": ["kfp~=1.8.22"],

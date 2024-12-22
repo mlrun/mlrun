@@ -560,6 +560,9 @@ def _deploy_nuclio_runtime(
             )
 
         if serving_to_monitor:
+            # todo : delete this after solving ML-8771 and implement ML-7930
+            fn.spec.min_replicas = 1
+            fn.spec.max_replicas = 1
             if not client_version:
                 framework.api.utils.log_and_raise(
                     HTTPStatus.BAD_REQUEST.value,

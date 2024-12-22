@@ -532,7 +532,6 @@ async def push_notifications(
     background_tasks: BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    iter: int = 0,
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -547,7 +546,7 @@ async def push_notifications(
         services.api.crud.Runs().get_run,
         db_session,
         uid,
-        iter,
+        0,
         project,
         mlrun.common.formatters.RunFormat.notifications,
     )

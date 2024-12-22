@@ -88,10 +88,10 @@ def plot_produce(context: mlrun.MLClientCtx):
         Mock(return_value=Mock(spec=mlrun.projects.project.MlrunProject)),
     ):
         with mocked_graph_context_project():
-            monitoring_context = mm_context.MonitoringApplicationContext(
+            monitoring_context = mm_context.MonitoringApplicationContext._from_ml_ctx(
                 application_name="histogram-data-drift",
                 event={},
-                artifacts_logger=context,
+                context=context,
             )
             monitoring_context._feature_stats = inputs_statistics
             monitoring_context._sample_df_stats = sample_data_statistics

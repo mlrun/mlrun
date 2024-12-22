@@ -17,7 +17,7 @@ import pathlib
 import pytest
 
 import mlrun
-from mlrun.serving import GraphContext, V2ModelServer
+from mlrun.serving import GraphContext, V2ModelServer  # noqa
 from mlrun.serving.states import TaskStep
 
 from .demo_states import *  # noqa

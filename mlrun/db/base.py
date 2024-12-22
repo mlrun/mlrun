@@ -60,6 +60,15 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        pass
+
+    @abstractmethod
     def read_run(
         self,
         uid: str,

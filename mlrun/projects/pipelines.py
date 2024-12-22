@@ -646,6 +646,9 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
+
+        # TODO: we should check how can we get the run uid when we don't the the context (for example on
+        #  mlrun.load_project() and later call directly to project.run)
         if context:
             project.notifiers.push_pipeline_start_message(
                 project.metadata.name,

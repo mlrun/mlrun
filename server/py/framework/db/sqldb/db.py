@@ -1879,7 +1879,7 @@ class SQLDB(DBInterface):
         artifact.pop("tag", None)
         return updated, key, labels
 
-    def _update_artifact_latest_tag(self, session, object_record):
+    def _update_artifact_latest_tag_on_deletion(self, session, object_record):
         """Update the 'latest' tag for an ArtifactV2 object, moving it to the most recent artifact if necessary."""
 
         # Step 1: Find the "latest" tag
@@ -4841,7 +4841,7 @@ class SQLDB(DBInterface):
 
             if cls == ArtifactV2 and commit:
                 # TODO: Handle the case when commit=False (e.g., deleting multiple artifact keys)
-                self._update_artifact_latest_tag(session, object_record)
+                self._update_artifact_latest_tag_on_deletion(session, object_record)
 
         if object_id:
             if not commit:

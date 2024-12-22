@@ -846,7 +846,9 @@ grpcio-tools==1.48.2 \
     --hash=sha256:f0feb4f2b777fa6377e977faa89c26359d4f31953de15e035505b92f41aa6906 \
     --hash=sha256:f75973a42c710999acd419968bc79f00327e03e855bbe82c6529e003e49af660 \
     --hash=sha256:f766050e491d0b3203b6b85638015f543816a2eb7d089fc04e86e00f6de0e31d
-    # via v3io-frames
+    # via
+    #   -r requirements.txt
+    #   v3io-frames
 httplib2==0.22.0 ; python_full_version < '3.11' \
     --hash=sha256:14ae0a53c1ba8f3d37e9e27cf37eabb0fb9980f435ba405d546948b009dd64dc \
     --hash=sha256:d7a10bc5ef5ab08322488bde8c726eeee5c8618723fdb399597ec58f3d82df81

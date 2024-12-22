@@ -1094,6 +1094,9 @@ class TestArtifacts(TestDatabaseBase):
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project
         )
+        # When logging an artifact with hyperparameters, each artifact also receives the 'latest' tag
+        # (v1, latest, v2, latest). However, when logging the artifact without hyperparameters, the 'latest' tag
+        # moves to this artifact and is removed from the others (v1, v2, v3, latest).
         assert len(artifacts) == 4
 
         # Verify that the "latest" tag is correctly attached to the artifact with uid3

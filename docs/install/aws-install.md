@@ -166,7 +166,7 @@ You can add and configure a Kubernetes ingress-controller for better security an
       ```
       helm install --wait --dependency-update --namespace mlrun -f aws_values.yaml --set global.domainNameCertificate="<CERTIFICATE ARN>" mlrun-ce mlrun-ce/mlrun-ce --version 0.7.0
       ```
-2. Get the AWS Load Balancer CNAME and set it as as a value for your DNS record. Configure the CNAME in your domain, pointing **\*.<system_name>.\<domain>** to the Load Balancer URL:
+2. Get the AWS Load Balancer CNAME and set it as a value for your DNS record. Configure the CNAME in your domain, pointing **\*.<system_name>.\<domain>** to the Load Balancer URL:
    ```
    kubectl -n mlrun get ingress mlrun-ce-ingress -o custom-columns=":status.loadBalancer.ingress[0].hostname" --no-headers
    ```

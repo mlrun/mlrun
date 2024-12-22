@@ -646,10 +646,11 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-            context.uid,
-        )
+        if context:
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
+                context.uid,
+            )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 

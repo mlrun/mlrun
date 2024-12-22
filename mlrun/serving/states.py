@@ -776,7 +776,9 @@ class RouterStep(TaskStep):
                 class_args,
                 handler=handler,
                 model_endpoint_creation_strategy=creation_strategy,
-                endpoint_type=schemas.EndpointType.NODE_EP,
+                endpoint_type=schemas.EndpointType.LEAF_EP
+                if self.class_name and "serving.VotingEnsemble" in self.class_name
+                else schemas.EndpointType.NODE_EP,
             )
         route.function = function or route.function
 

@@ -619,7 +619,10 @@ class VotingEnsemble(ParallelRun):
 
         if not self.context.is_mock or self.context.monitoring_mock:
             self.model_endpoint_uid = _init_endpoint_record(
-                server, self, creation_strategy=kwargs.get("creation_strategy")
+                server,
+                self,
+                creation_strategy=kwargs.get("creation_strategy"),
+                endpoint_type=kwargs.get("endpoint_type"),
             )
 
         self._update_weights(self.weights)

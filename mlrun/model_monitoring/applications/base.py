@@ -112,11 +112,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         def call_do_tracking(event: Optional[dict] = None):
             if event is None:
                 event = {}
-            monitoring_context = mm_context.MonitoringApplicationContext(
+            monitoring_context = mm_context.MonitoringApplicationContext._from_ml_ctx(
                 event=event,
                 application_name=self.__class__.__name__,
-                logger=context.logger,
-                artifacts_logger=context,
+                context=context,
                 sample_df=sample_data,
                 feature_stats=feature_stats,
             )

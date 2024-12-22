@@ -166,6 +166,8 @@ class AlertNotificationPusher(_NotificationPusherBase):
                         error=mlrun.errors.err_to_str(result),
                     )
             if activation_id and activation_time:
+                # after notifications are sent, update the alert activation state
+                # because only then the alert object had all the necessary data
                 try:
                     self._update_alert_activation_notification_state(
                         activation_id=activation_id,

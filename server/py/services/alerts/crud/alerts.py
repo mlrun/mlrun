@@ -266,6 +266,7 @@ class Alerts(
             state["active"] = True
             state_obj["last_activation_id"] = activation_id
 
+        logger.debug("Sending notifications for alert", name=alert.name)
         AlertNotificationPusher().push(
             alert,
             event_data,

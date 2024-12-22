@@ -70,7 +70,7 @@ def extra_requirements() -> dict[str, list[str]]:
         ],
         "redis": ["redis~=4.3"],
         "mlflow": ["mlflow~=2.16"],
-        "databricks-sdk": ["databricks-sdk~=0.13.0"],
+        "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=1.4"],
         "dask": [
             "dask~=2023.12.1",

@@ -1597,6 +1597,7 @@ def _assert_db_resources_in_project(
             or cls.__tablename__ == "alert_states"
             or cls.__tablename__ == "alert_templates"
             or cls.__tablename__ == "alert_activations"
+            or cls.__tablename__ == "system_metadata"
         ):
             continue
         number_of_cls_records = 0

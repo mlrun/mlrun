@@ -89,12 +89,17 @@ class MLRunLoader:
     A factory class for creating instances of a dynamically defined document loader.
 
     Args:
-        artifact_key (str): The key for the artifact to be logged.It can include '%%' which will be replaced
-        by a hex-encoded version of the source path.
+        artifact_key (str, optional): The key for the artifact to be logged. Special characters and symbols
+            not valid in artifact names will be encoded as their hexadecimal representation. The '%%' pattern
+            in the key will be replaced by the hex-encoded version of the source path. Defaults to "doc%%".
         local_path (str): The source path of the document to be loaded.
         loader_spec (DocumentLoaderSpec): Specification for the document loader.
-        producer (Optional[Union[MlrunProject, str, MLClientCtx]], optional): The producer of the document
+        producer (Optional[Union[MlrunProject, str, MLClientCtx]], optional): The producer of the document.
+                                If not specified, will try to get the current MLRun context or project.
+                                Defaults to None.
         upload (bool, optional): Flag indicating whether to upload the document.
+        labels (Optional[Dict[str, str]], optional): Key-value labels to attach to the artifact. Defaults to None.
+        tag (str, optional): Version tag for the artifact. Defaults to "".
 
     Returns:
         DynamicDocumentLoader: An instance of a dynamically defined subclass of BaseLoader.
@@ -146,6 +151,8 @@ class MLRunLoader:
         artifact_key="doc%%",
         producer: Optional[Union["MlrunProject", str, "MLClientCtx"]] = None,  # noqa: F821
         upload: bool = False,
+        tag: str = "",
+        labels: Optional[dict[str, str]] = None,
     ):
         # Dynamically import BaseLoader
         from langchain_community.document_loaders.base import BaseLoader
@@ -158,6 +165,8 @@ class MLRunLoader:
                 artifact_key,
                 producer,
                 upload,
+                tag,
+                labels,
             ):
                 self.producer = producer
                 self.artifact_key = (
@@ -168,6 +177,8 @@ class MLRunLoader:
                 self.loader_spec = loader_spec
                 self.local_path = local_path
                 self.upload = upload
+                self.tag = tag
+                self.labels = labels
 
                 # Resolve the producer
                 if not self.producer:
@@ -181,9 +192,11 @@ class MLRunLoader:
                     document_loader_spec=self.loader_spec,
                     local_path=self.local_path,
                     upload=self.upload,
+                    labels=self.labels,
+                    tag=self.tag,
                 )
                 res = artifact.to_langchain_documents()
-                yield res[0]
+                return res
 
         # Return an instance of the dynamically defined subclass
         instance = DynamicDocumentLoader(
@@ -192,6 +205,8 @@ class MLRunLoader:
             loader_spec=loader_spec,
             producer=producer,
             upload=upload,
+            tag=tag,
+            labels=labels,
         )
         return instance
 
@@ -257,6 +272,9 @@ class DocumentArtifact(Artifact):
     METADATA_CHUNK_KEY = "mlrun_chunk"
     METADATA_ARTIFACT_URI_KEY = "mlrun_object_uri"
     METADATA_ARTIFACT_TARGET_PATH_KEY = "mlrun_target_path"
+    METADATA_ARTIFACT_TAG = "mlrun_tag"
+    METADATA_ARTIFACT_KEY = "mlrun_key"
+    METADATA_ARTIFACT_PROJECT = "mlrun_project"
 
     def __init__(
         self,
@@ -331,6 +349,10 @@ class DocumentArtifact(Artifact):
             metadata[self.METADATA_ORIGINAL_SOURCE_KEY] = self.spec.original_source
             metadata[self.METADATA_SOURCE_KEY] = self.get_source()
             metadata[self.METADATA_ARTIFACT_URI_KEY] = self.uri
+            metadata[self.METADATA_ARTIFACT_TAG] = self.tag or "latest"
+            metadata[self.METADATA_ARTIFACT_KEY] = self.key
+            metadata[self.METADATA_ARTIFACT_PROJECT] = self.metadata.project
+
             if self.get_target_path():
                 metadata[self.METADATA_ARTIFACT_TARGET_PATH_KEY] = (
                     self.get_target_path()
@@ -346,7 +368,7 @@ class DocumentArtifact(Artifact):
                 idx = idx + 1
         return results
 
-    def collection_add(self, collection_id: str) -> None:
+    def collection_add(self, collection_id: str) -> bool:
         """
         Add a collection ID to the artifact's collection list.
 
@@ -361,8 +383,10 @@ class DocumentArtifact(Artifact):
         """
         if collection_id not in self.spec.collections:
             self.spec.collections[collection_id] = "1"
+            return True
+        return False
 
-    def collection_remove(self, collection_id: str) -> None:
+    def collection_remove(self, collection_id: str) -> bool:
         """
         Remove a collection ID from the artifact's collection list.
 
@@ -376,3 +400,5 @@ class DocumentArtifact(Artifact):
         """
         if collection_id in self.spec.collections:
             self.spec.collections.pop(collection_id)
+            return True
+        return False

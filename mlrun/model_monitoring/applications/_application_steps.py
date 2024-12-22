@@ -136,7 +136,7 @@ class _PrepareMonitoringEvent(StepToDict):
         :param event: Application event.
         :return: Application context.
         """
-        application_context = MonitoringApplicationContext(
+        application_context = MonitoringApplicationContext._from_graph_ctx(
             application_name=self.application_name,
             event=event,
             model_endpoint_dict=self.model_endpoints,

@@ -41,8 +41,8 @@ setup(
     python_requires=">=3.9, <3.12",
     install_requires=[
         "inflection>=0.5.1",
-        "kfp_server_api>=1.8.5",
-        "mlrun_pipelines_kfp_common~=0.3.1",
+        "kfp_server_api~=1.8",
+        "mlrun_pipelines_kfp_common~=0.3.2",
     ],
     extras_require={
         "kfp": ["kfp~=1.8.22"],

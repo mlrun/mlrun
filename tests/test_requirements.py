@@ -327,6 +327,12 @@ def _load_requirements(path):
                 deps.append(f"{package} @ {line}")
                 continue
 
+            if line.startswith("-r"):
+                path = line.split("-r", 1)[-1].strip()
+                other_deps = _load_requirements(path)
+                deps.extend(other_deps)
+                continue
+
             # append package
             deps.append(line)
         return deps

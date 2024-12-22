@@ -23,13 +23,11 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
+WORKDIR /mlrun
+
+COPY . .
 
 # non-recursive chmod for the run to be able to create the handler file with any security context
-
-
-
-WORKDIR /mlrun
-COPY . .
 RUN chmod 777 /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy

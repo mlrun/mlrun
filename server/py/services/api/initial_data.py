@@ -29,6 +29,7 @@ import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.utils.regex
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
@@ -1044,10 +1045,17 @@ def _generate_system_id() -> str:
         random_bytes = random_number.to_bytes(4, "big")
         base64_str = base64.urlsafe_b64encode(random_bytes).decode("utf-8").rstrip("=")
 
-        # ensure the string does not start with '-' or '_', as these characters are not allowed at the start of DNS
-        # names or Kubernetes resource names
-        if not base64_str.startswith(("-", "_")):
-            return base64_str
+        # convert to lowercase and remove underscores for compatibility with Kubernetes names
+        sanitized_str = base64_str.lower().replace("_", "-")
+
+        # validate the result against the qualified_name regex
+        try:
+            mlrun.utils.helpers.verify_field_regex(
+                "system_id", sanitized_str, mlrun.utils.regex.qualified_name
+            )
+            return sanitized_str
+        except mlrun.errors.MLRunInvalidArgumentError:
+            continue
 
 
 def main() -> None:

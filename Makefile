@@ -876,6 +876,16 @@ upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter lock
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
+.PHONY: upgrade-mlrun-test-deps-lock
+upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked requirements file
+	uv pip compile \
+		requirements.txt \
+		extras-requirements.txt \
+		dockerfiles/mlrun-api/requirements.txt \
+		docs/requirements.txt \
+		$(MLRUN_UV_UPGRADE_FLAG) \
+		--output-file dockerfiles/test/locked-requirements.txt
+
 upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
@@ -891,4 +901,5 @@ upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirement
 		upgrade-mlrun-jupyter-deps-lock \
 		upgrade-mlrun-base-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
-		upgrade-mlrun-kfp-deps-lock
+		upgrade-mlrun-kfp-deps-lock \
+		upgrade-mlrun-test-deps-lock

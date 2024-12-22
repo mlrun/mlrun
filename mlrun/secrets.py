@@ -151,7 +151,7 @@ def get_secret_or_env(
     secret_provider: Union[dict, SecretsStore, Callable, None] = None,
     default: Optional[str] = None,
     prefix: Optional[str] = None,
-) -> str:
+) -> Optional[str]:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
     The function will retrieve a secret value, attempting to find it according to the following order:
 

@@ -304,6 +304,11 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             )
 
     def test_k8s_project_secrets_with_runtime(self):
+        # This test validates both retrieval flows:
+        # 1. Secrets accessed via get_secret_or_env, handling upper-case conversion and prefix completion.
+        # 2. Secrets accessed directly from os.environ when use_prefix=False.
+        # Project secrets are mounted as upper-case environment variables, affecting their accessibility.
+
         secrets = {"secret1": "JustMySecret", "secret2": "!@#$$%^^&&"}
         no_prefix_secrets = {"SECRET3": "ShhItsASecret"}
 

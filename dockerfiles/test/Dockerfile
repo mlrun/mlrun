@@ -17,7 +17,6 @@ ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
-ENV PIP_NO_CACHE_DIR=1
 ENV NO_COLOR=1
 
 LABEL maintainer="yaronh@iguazio.com"
@@ -57,11 +56,10 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip install --no-deps --require-hashes -r locked-requirements.txt
+    uv pip sync --require-hashes locked-requirements.txt
 
 COPY . .
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete,kfp18]
-
+    uv pip install .[complete]

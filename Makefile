@@ -461,6 +461,7 @@ build-test: compile-schemas update-version-file ## Build test docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_PIPELINES_KFP_VERSION=$(MLRUN_PIPELINES_KFP_VERSION) \
+		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) .
@@ -479,6 +480,7 @@ build-test-system: compile-schemas update-version-file ## Build system tests doc
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_SYSTEM_TEST_IMAGE_NAME) .
 
@@ -886,6 +888,17 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test/locked-requirements.txt
 
+.PHONY: upgrade-mlrun-system-test-deps-lock
+upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system test locked requirements file
+	uv pip compile \
+		requirements.txt \
+		extras-requirements.txt \
+		dockerfiles/mlrun-api/requirements.txt \
+		dev-requirements.txt \
+		$(MLRUN_UV_UPGRADE_FLAG) \
+		--output-file dockerfiles/test-system/locked-requirements.txt
+
+
 upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
@@ -901,4 +914,5 @@ upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirement
 		upgrade-mlrun-base-deps-lock \
 		upgrade-mlrun-gpu-deps-lock \
 		upgrade-mlrun-kfp-deps-lock \
-		upgrade-mlrun-test-deps-lock
+		upgrade-mlrun-test-deps-lock \
+		upgrade-mlrun-system-test-deps-lock

@@ -20,8 +20,7 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 ## Deployment options
 
 The deployment options are:
-- {ref}`AWS cluster<aws-install>`: Deploy an MLRun server on AWS.
-   This option deploys MLRun on an AWS cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
+- {ref}`AWS cluster<aws-install>`: Deploys the MLRun CE server on an AWS cluster.
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
 

@@ -261,6 +261,8 @@ def _get_tsdb_profile(
         key=mm_constants.ProjectSecretKeys.TSDB_PROFILE_NAME,
         secret_provider=secret_provider,
     )
+    if not profile_name:
+        raise mlrun.errors.MLRunNotFoundError("Not found TSDB profile name")
     return mlrun.datastore.datastore_profile.datastore_profile_read(
         url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
     )

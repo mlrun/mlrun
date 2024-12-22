@@ -14,6 +14,7 @@
 #
 import asyncio
 import json
+from copy import copy
 from typing import Optional
 
 import aiohttp
@@ -53,6 +54,7 @@ class RemoteStep(storey.SendToHttp):
         retries=None,
         backoff_factor=None,
         timeout=None,
+        headers_expression: Optional[str] = None,
         **kwargs,
     ):
         """class for calling remote endpoints
@@ -86,6 +88,7 @@ class RemoteStep(storey.SendToHttp):
         :param retries:     number of retries (in exponential backoff)
         :param backoff_factor: A backoff factor in seconds to apply between attempts after the second try
         :param timeout:     How long to wait for the server to send data before giving up, float in seconds
+        :param headers_expression: an expression for getting the request headers from the event, e.g. "event['headers']"
         """
         # init retry args for storey
         retries = default_retries if retries is None else retries
@@ -102,6 +105,7 @@ class RemoteStep(storey.SendToHttp):
         self.url = url
         self.url_expression = url_expression
         self.body_expression = body_expression
+        self.headers_expression = headers_expression
         self.headers = headers
         self.method = method
         self.return_json = return_json
@@ -114,8 +118,9 @@ class RemoteStep(storey.SendToHttp):
         self._session = None
         self._url_function_handler = None
         self._body_function_handler = None
+        self._headers_function_handler = None
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         self._endpoint = self.url
         if self.url and self.context:
             self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")
@@ -129,6 +134,12 @@ class RemoteStep(storey.SendToHttp):
             self._url_function_handler = eval(
                 "lambda event: " + self.url_expression,
                 {"endpoint": self._endpoint, "context": self.context},
+                {},
+            )
+        if self.headers_expression:
+            self._headers_function_handler = eval(
+                "lambda event: " + self.headers_expression,
+                {"context": self.context},
                 {},
             )
         elif self.subpath:
@@ -205,7 +216,10 @@ class RemoteStep(storey.SendToHttp):
 
     def _generate_request(self, event, body):
         method = self.method or event.method or "POST"
-        headers = self.headers or {}
+        if self._headers_function_handler:
+            headers = self._headers_function_handler(body)
+        else:
+            headers = copy(self.headers) or {}
 
         if self._url_function_handler:
             url = self._url_function_handler(body)
@@ -216,10 +230,8 @@ class RemoteStep(storey.SendToHttp):
                 url = url + "/" + striped_path
             if striped_path:
                 headers[event_path_key] = event.path
-
         if event.id:
             headers[event_id_key] = event.id
-
         if method == "GET":
             body = None
         elif body is not None and not isinstance(body, (str, bytes)):
@@ -334,7 +346,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
     async def _cleanup(self):
         await self._client_session.close()
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         self._endpoint = self.url
         if self.url and self.context:
             self._endpoint = self.context.get_remote_endpoint(self.url).strip("/")

@@ -71,6 +71,12 @@ class ModelEndpointSchema(MonitoringStrEnum):
     DRIFT_MEASURES = "drift_measures"
 
 
+class ModelEndpointCreationStrategy(MonitoringStrEnum):
+    INPLACE = "inplace"
+    ARCHIVE = "archive"
+    OVERWRITE = "overwrite"
+
+
 class EventFieldType:
     FUNCTION_URI = "function_uri"
     FUNCTION = "function"

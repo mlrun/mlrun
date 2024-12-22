@@ -623,3 +623,36 @@ class TestModelEndpoint(TestDatabaseBase):
             self._db_session, project="project-1", function_tag="v2"
         ).endpoints
         assert len(endpoints) == 0
+
+    def test_delete_multi_by_uids(self):
+        uids = []
+        for i in range(4):
+            model_endpoint = mlrun.common.schemas.ModelEndpoint(
+                metadata={"name": "model-endpoint-1", "project": "project-1"},
+                spec={
+                    "function_name": "func",
+                    "function_uid": None,
+                },
+                status={"monitoring_mode": "enabled", "last_request": datetime.now()},
+            )
+            mep = self._db.store_model_endpoint(
+                self._db_session,
+                model_endpoint,
+            )
+            uids.append(mep.metadata.uid)
+
+        endpoints = self._db.list_model_endpoints(
+            self._db_session, project="project-1"
+        ).endpoints
+
+        assert len(endpoints) == 4
+
+        self._db.delete_model_endpoints(
+            session=self._db_session, project="project-1", uids=uids
+        )
+
+        endpoints = self._db.list_model_endpoints(
+            self._db_session, project="project-1"
+        ).endpoints
+
+        assert len(endpoints) == 0

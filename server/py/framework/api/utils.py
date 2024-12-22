@@ -1091,6 +1091,7 @@ async def _delete_function(
         function_name=function_name,
         functions_count=len(functions),
         project=project,
+        kind=functions[0].get("kind"),
     )
 
     # update functions with deletion task id

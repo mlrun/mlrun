@@ -35,6 +35,7 @@ import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
 import mlrun.platforms
@@ -746,6 +747,34 @@ class HTTPRunDB(RunDBInterface):
             error="Failed run abortion",
             params=params,
             body=body,
+            timeout=timeout,
+        )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+        return None
+
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        """
+        Push notifications for a run.
+
+        :param uid: Unique ID of the run.
+        :param project: Project that the run belongs to.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        project = project or config.default_project
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/runs/{uid}/push_notifications",
+            error="Failed push notifications",
             timeout=timeout,
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
@@ -3582,12 +3611,24 @@ class HTTPRunDB(RunDBInterface):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        creation_strategy: Optional[
+            mm_constants.ModelEndpointCreationStrategy
+        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Creates a DB record with the given model_endpoint record.
 
         :param model_endpoint: An object representing the model endpoint.
-
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
         :return: The created model endpoint object.
         """
 
@@ -3596,6 +3637,9 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.POST,
             path=path,
             body=model_endpoint.json(),
+            params={
+                "creation_strategy": creation_strategy,
+            },
         )
         return mlrun.common.schemas.ModelEndpoint(**response.json())
 
@@ -3637,6 +3681,7 @@ class HTTPRunDB(RunDBInterface):
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
@@ -3653,6 +3698,7 @@ class HTTPRunDB(RunDBInterface):
         :param function_name:   The name of the function
         :param function_tag:    The tag of the function
         :param model_name:      The name of the model
+        :param model_tag:       The tag of the model
         :param labels:          A list of labels to filter by. (see mlrun.common.schemas.LabelsModel)
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
@@ -3671,6 +3717,7 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "name": name,
                 "model_name": model_name,
+                "model_tag": model_tag,
                 "function_name": function_name,
                 "function_tag": function_tag,
                 "label": labels,

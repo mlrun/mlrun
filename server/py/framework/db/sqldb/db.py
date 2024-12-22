@@ -2076,10 +2076,11 @@ class SQLDB(DBInterface):
             struct = function.struct
             for key, val in updates.items():
                 update_in(struct, key, val)
-            function.kind = struct.pop("kind", None)
+            function.kind = (
+                struct.pop("kind", None) if not function.kind else function.kind
+            )
             function.struct = struct
             self._upsert(session, [function])
-            return function.struct
 
     def update_function_external_invocation_url(
         self,
@@ -5059,6 +5060,7 @@ class SQLDB(DBInterface):
         function_name: str,
         function_tag: str,
         model_name: str,
+        model_tag: str,
         top_level: bool,
         labels: list[str],
         start: datetime,
@@ -5137,6 +5139,15 @@ class SQLDB(DBInterface):
                 cls=model_endpoints_table,
                 key_filter=ModelEndpointSchema.MODEL_NAME,
                 filtered_values=[model_name],
+                combined=False,
+            )
+
+        if model_tag:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.MODEL_TAG,
+                filtered_values=[model_tag],
                 combined=False,
             )
 
@@ -5380,9 +5391,6 @@ class SQLDB(DBInterface):
         model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
     ) -> dict:
         if model_endpoint_record.model:
-            model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = (
-                model_endpoint_record.model.key
-            )
             model_artifact_uri = mlrun.datastore.get_store_uri(
                 kind=mlrun.utils.helpers.StorePrefix.Model,
                 uri=generate_artifact_uri(
@@ -5883,6 +5891,12 @@ class SQLDB(DBInterface):
 
         if not new_partitions:
             return
+
+        logger.info(
+            "Creating new partitions for table",
+            table_name=table_name,
+            new_partitions=new_partitions,
+        )
 
         alter_table_template = f"""
             ALTER TABLE {table_name}
@@ -6978,6 +6992,7 @@ class SQLDB(DBInterface):
         function_name: typing.Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
+        model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime] = None,
@@ -6996,6 +7011,7 @@ class SQLDB(DBInterface):
             function_name=function_name,
             function_tag=function_tag,
             model_name=model_name,
+            model_tag=model_tag,
             top_level=top_level,
             start=start,
             end=end,
@@ -7045,6 +7061,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project: str,
+        uids: typing.Optional[list[str]] = None,
     ) -> None:
         logger.debug("Removing model endpoints from db", project=project)
 
@@ -7053,6 +7070,8 @@ class SQLDB(DBInterface):
             main_table=ModelEndpoint,
             related_tables=[ModelEndpoint.Tag, ModelEndpoint.Label],
             project=project,
+            main_table_identifier=ModelEndpoint.uid if uids else None,
+            main_table_identifier_values=uids,
         )
 
     # ---- Utils ----

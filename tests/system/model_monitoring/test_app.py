@@ -453,7 +453,13 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                         requirements=app_data.requirements,
                         **app_data.kwargs,
                     )
-                    executor.submit(fn.deploy)
+
+                    def deploy_function():
+                        nonlocal fn
+                        fn.deploy()
+                        fn._wait_for_function_deployment(db=mlrun.get_run_db())
+
+                    executor.submit(deploy_function)
 
     def _log_model(self, with_training_set: bool) -> tuple[set[str], set[str]]:
         train_set = None

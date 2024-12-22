@@ -23,7 +23,6 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.model_monitoring
 from mlrun.utils import logger, now_date
 
-from ..common.schemas.model_monitoring import ModelEndpointSchema
 from .server import GraphServer
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
@@ -130,7 +129,7 @@ class V2ModelServer(StepToDict):
         self.ready = True
         self.context.logger.info(f"model {self.name} was loaded")
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         """sync/async model loading, for internal use"""
         if not self.ready:
             if mode == "async":
@@ -149,7 +148,10 @@ class V2ModelServer(StepToDict):
 
         if not self.context.is_mock or self.context.monitoring_mock:
             self.model_endpoint_uid = _init_endpoint_record(
-                graph_server=server, model=self
+                graph_server=server,
+                model=self,
+                creation_strategy=kwargs.get("creation_strategy"),
+                endpoint_type=kwargs.get("endpoint_type"),
             )
         self._model_logger = (
             _ModelLogPusher(self, self.context)
@@ -554,7 +556,10 @@ class _ModelLogPusher:
 
 
 def _init_endpoint_record(
-    graph_server: GraphServer, model: V2ModelServer
+    graph_server: GraphServer,
+    model: V2ModelServer,
+    creation_strategy: mlrun.common.schemas.ModelEndpointCreationStrategy,
+    endpoint_type: mlrun.common.schemas.EndpointType,
 ) -> Union[str, None]:
     """
     Initialize model endpoint record and write it into the DB. In general, this method retrieve the unique model
@@ -564,6 +569,17 @@ def _init_endpoint_record(
     :param graph_server: A GraphServer object which will be used for getting the function uri.
     :param model:        Base model serving class (v2). It contains important details for the model endpoint record
                          such as model name, model path, and model version.
+    :param creation_strategy: Strategy for creating or updating the model endpoint:
+        * **overwrite**:
+        1. If model endpoints with the same name exist, delete the `latest` one.
+        2. Create a new model endpoint entry and set it as `latest`.
+        * **inplace** (default):
+        1. If model endpoints with the same name exist, update the `latest` entry.
+        2. Otherwise, create a new entry.
+        * **archive**:
+        1. If model endpoints with the same name exist, preserve them.
+        2. Create a new model endpoint with the same name and set it to `latest`.
+    :param endpoint_type    model endpoint type
 
     :return: Model endpoint unique ID.
     """
@@ -583,51 +599,30 @@ def _init_endpoint_record(
         model_uid = None
         model_tag = None
         model_labels = {}
-    try:
-        model_ep = mlrun.get_run_db().get_model_endpoint(
-            project=graph_server.project,
-            name=model.name,
-            function_name=graph_server.function_name,
-            function_tag=graph_server.function_tag or "latest",
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        model_ep = None
-    except mlrun.errors.MLRunBadRequestError as err:
-        logger.info(
-            "Cannot get the model endpoints store", err=mlrun.errors.err_to_str(err)
-        )
-        return
-
-    function = mlrun.get_run_db().get_function(
-        name=graph_server.function_name,
+    logger.info(
+        "Creating Or Updating a new model endpoint record",
+        name=model.name,
         project=graph_server.project,
-        tag=graph_server.function_tag or "latest",
+        function_name=graph_server.function_name,
+        function_tag=graph_server.function_tag or "latest",
+        model_name=model_name,
+        model_tag=model_tag,
+        model_db_key=model_db_key,
+        model_uid=model_uid,
+        model_class=model.__class__.__name__,
+        creation_strategy=creation_strategy,
+        endpoint_type=endpoint_type,
     )
-    function_uid = function.get("metadata", {}).get("uid")
-    if not model_ep and model.context.server.track_models:
-        logger.info(
-            "Creating a new model endpoint record",
-            name=model.name,
-            project=graph_server.project,
-            function_name=graph_server.function_name,
-            function_tag=graph_server.function_tag or "latest",
-            function_uid=function_uid,
-            model_name=model_name,
-            model_tag=model_tag,
-            model_db_key=model_db_key,
-            model_uid=model_uid,
-            model_class=model.__class__.__name__,
-        )
+    try:
         model_ep = mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
                 project=graph_server.project,
                 labels=model_labels,
                 name=model.name,
-                endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP,
+                endpoint_type=endpoint_type,
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=graph_server.function_name,
-                function_uid=function_uid,
                 function_tag=graph_server.function_tag or "latest",
                 model_name=model_name,
                 model_db_key=model_db_key,
@@ -642,49 +637,11 @@ def _init_endpoint_record(
             ),
         )
         db = mlrun.get_run_db()
-        model_ep = db.create_model_endpoint(model_endpoint=model_ep)
-
-    elif model_ep:
-        attributes = {}
-        if function_uid != model_ep.spec.function_uid:
-            attributes[ModelEndpointSchema.FUNCTION_UID] = function_uid
-        if model_name != model_ep.spec.model_name:
-            attributes[ModelEndpointSchema.MODEL_NAME] = model_name
-        if model_uid != model_ep.spec.model_uid:
-            attributes[ModelEndpointSchema.MODEL_UID] = model_uid
-        if model_tag != model_ep.spec.model_tag:
-            attributes[ModelEndpointSchema.MODEL_TAG] = model_tag
-        if model_db_key != model_ep.spec.model_db_key:
-            attributes[ModelEndpointSchema.MODEL_DB_KEY] = model_db_key
-        if model_labels != model_ep.metadata.labels:
-            attributes[ModelEndpointSchema.LABELS] = model_labels
-        if model.__class__.__name__ != model_ep.spec.model_class:
-            attributes[ModelEndpointSchema.MODEL_CLASS] = model.__class__.__name__
-        if (
-            model_ep.status.monitoring_mode
-            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-        ) != model.context.server.track_models:
-            attributes[ModelEndpointSchema.MONITORING_MODE] = (
-                mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-                if model.context.server.track_models
-                else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
-            )
-        if attributes:
-            logger.info(
-                "Updating model endpoint attributes",
-                attributes=attributes,
-                project=model_ep.metadata.project,
-                name=model_ep.metadata.name,
-                function_name=model_ep.spec.function_name,
-            )
-            db = mlrun.get_run_db()
-            model_ep = db.patch_model_endpoint(
-                project=model_ep.metadata.project,
-                name=model_ep.metadata.name,
-                endpoint_id=model_ep.metadata.uid,
-                attributes=attributes,
-            )
-    else:
+        model_ep = db.create_model_endpoint(
+            model_endpoint=model_ep, creation_strategy=creation_strategy
+        )
+    except mlrun.errors.MLRunBadRequestError as e:
+        logger.info("Failed to create model endpoint record", error=e)
         return None
 
     return model_ep.metadata.uid

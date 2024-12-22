@@ -843,7 +843,7 @@ upgrade-mlrun-jupyter-deps-lock: verify-uv-version ## Upgrade mlrun-jupyter lock
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/jupyter/locked-requirements.txt
 
-.PHONY: upgrade-mlrun-mlrun-deps-lock
+.PHONY: upgrade-mlrun-deps-lock
 upgrade-mlrun-deps-lock: verify-uv-version ## Upgrade mlrun-* locked requirements file
 upgrade-mlrun-deps-lock: upgrade-mlrun-mlrun-deps-lock
 upgrade-mlrun-deps-lock: upgrade-mlrun-api-deps-lock

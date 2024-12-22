@@ -57,7 +57,7 @@ class NotificationBase:
             typing.Union[mlrun.common.schemas.NotificationSeverity, str]
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
-        custom_html: typing.Optional[typing.Optional[str]] = None,
+        custom_html: typing.Optional[str] = None,
         alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
         event_data: typing.Optional[mlrun.common.schemas.Event] = None,
     ):

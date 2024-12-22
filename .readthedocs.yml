@@ -29,9 +29,6 @@ formats: all
 python:
   install:
     - requirements:
-      - requirements.txt
-      - dev-requirements.txt
-      - dockerfiles/mlrun-api/requirements.txt
       - docs/requirements.txt
 
 search:

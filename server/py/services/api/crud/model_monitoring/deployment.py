@@ -297,7 +297,10 @@ class MonitoringDeployment:
             stream_source = mlrun.datastore.sources.KafkaSource(
                 brokers=brokers,
                 topics=[topic],
-                attributes={"max_workers": stream_args.kafka.num_workers},
+                attributes={
+                    "max_workers": stream_args.kafka.num_workers,
+                    "worker_allocation_mode": "static",
+                },
             )
             stream_source.create_topics(
                 num_partitions=stream_args.kafka.partition_count,
@@ -316,7 +319,7 @@ class MonitoringDeployment:
             kwargs = {"access_key": access_key}
             if mlrun.mlconf.is_explicit_ack_enabled():
                 kwargs["explicit_ack_mode"] = "explicitOnly"
-                kwargs["worker_allocation_mode"] = "static"
+            kwargs["worker_allocation_mode"] = "static"
             kwargs["max_workers"] = stream_args.v3io.num_workers
             services.api.api.endpoints.nuclio.create_model_monitoring_stream(
                 project=self.project,

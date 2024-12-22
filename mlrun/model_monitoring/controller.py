@@ -544,12 +544,8 @@ class MonitoringApplicationController:
                     "Should not monitor model endpoint, didn't push regular event",
                     endpoint_id=endpoint.metadata.uid,
                     endpoint_name=endpoint.metadata.name,
-                    timestamp=endpoint.status.last_request.isoformat(
-                        sep=" ", timespec="microseconds"
-                    ),
-                    first_request=endpoint.status.first_request.isoformat(
-                        sep=" ", timespec="microseconds"
-                    ),
+                    timestamp=endpoint.status.last_request,
+                    first_request=endpoint.status.first_request,
                     endpoint_type=endpoint.metadata.endpoint_type,
                     feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
                 )

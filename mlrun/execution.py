@@ -1306,4 +1306,6 @@ def _cast_result(value):
         return float(value)
     if isinstance(value, np.ndarray):
         return value.tolist()
+    if value is None:
+        return value
     return str(value)

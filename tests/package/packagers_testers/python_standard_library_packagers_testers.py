@@ -47,17 +47,12 @@ from tests.package.packager_tester import (
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-NoneType = type(None)  # TODO: Replace with types.NoneType from python 3.10
-
-
-def pack_none() -> NoneType:
+def pack_none() -> None:
     return None
 
 
-def validate_none(result: NoneType) -> bool:
-    # TODO: None values should not be casted to strings when casted to results, once it is implemented in
-    #       'execution._cast_result`, change this validation to `return result is None`.
-    return result == "None"
+def validate_none(result: None) -> bool:
+    return result is None
 
 
 class NonePackagerTester(PackagerTester):
@@ -173,7 +168,7 @@ class FloatPackagerTester(PackagerTester):
 _BOOL_SAMPLE = True
 
 
-def pack_bool() -> float:
+def pack_bool() -> bool:
     return _BOOL_SAMPLE
 
 

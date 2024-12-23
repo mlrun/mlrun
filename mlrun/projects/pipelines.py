@@ -471,6 +471,7 @@ class _PipelineRunner(abc.ABC):
         namespace=None,
         source=None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -595,6 +596,7 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -644,12 +646,14 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-            project.get_param("commit_id", None),
-            run_id,
-            True,
-        )
+
+        # TODO: we should check how can we get the run uid when we don't the the context (for example on
+        #  mlrun.load_project() and later call directly to project.run)
+        if context:
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
+                context.uid,
+            )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
@@ -722,6 +726,7 @@ class _LocalRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -805,6 +810,7 @@ class _RemoteRunner(_PipelineRunner):
         namespace: typing.Optional[str] = None,
         source: typing.Optional[str] = None,
         notifications: typing.Optional[list[mlrun.model.Notification]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
@@ -1127,6 +1133,7 @@ def load_and_run_workflow(
         engine=engine,
         local=local,
         notifications=start_notifications,
+        context=context,
     )
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)

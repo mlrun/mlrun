@@ -253,24 +253,26 @@ class Alerts(
         keep_cache = True
         active = False
         state["count"] += 1
-        logger.debug("Sending notifications for alert", name=alert.name)
-        AlertNotificationPusher().push(alert, event_data)
 
         if alert.reset_policy == "auto":
             self.reset_alert(session, alert.project, alert.name)
-            services.alerts.crud.AlertActivation().store_alert_activation(
-                session, alert, event_data
-            )
             keep_cache = False
-        else:
+        activation_id = services.alerts.crud.AlertActivation().store_alert_activation(
+            session, alert, event_data
+        )
+
+        if alert.reset_policy == "manual":
             active = True
             state["active"] = True
-            activation_id = (
-                services.alerts.crud.AlertActivation().store_alert_activation(
-                    session, alert, event_data
-                )
-            )
             state_obj["last_activation_id"] = activation_id
+
+        logger.debug("Sending notifications for alert", name=alert.name)
+        AlertNotificationPusher().push(
+            alert,
+            event_data,
+            activation_id=activation_id,
+            activation_time=event_data.timestamp,
+        )
 
         framework.utils.singletons.db.get_db().store_alert_state(
             session,
@@ -460,6 +462,7 @@ class Alerts(
                 number_of_events=number_of_events
                 if number_of_events > alert.criteria.count
                 else None,
+                update_reset_time=True,
             )
         else:
             logger.warning(

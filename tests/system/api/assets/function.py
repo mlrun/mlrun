@@ -16,16 +16,21 @@ import os
 from typing import Optional
 
 
-def secret_test_function(context, secrets: Optional[list] = None):
-    """Validate that given secrets exists
+def secret_test_function(
+    context, secrets: Optional[list] = None, use_prefix: bool = True
+):
+    """Validate that given secrets exist
 
     :param context: the MLRun context
-    :param secrets: name of the secrets that we want to look at
+    :param secrets: list of secret names to validate
+    :param use_prefix: whether to fetch secrets using context.get_secret (True) or os.environ (False)
     """
     context.logger.info("running function")
     secrets = secrets or []
     for sec_name in secrets:
-        sec_value = context.get_secret(sec_name)
+        sec_value = (
+            context.get_secret(sec_name) if use_prefix else os.environ.get(sec_name)
+        )
         context.logger.info(f"Secret: {sec_name} ==> {sec_value}")
         context.log_result(sec_name, sec_value)
     return True

@@ -5,6 +5,11 @@
     "include-suffix":""
   },
   {
+    "image-name":"mlrun-kfp",
+    "python-version":"3.9",
+    "include-suffix":""
+  },
+  {
     "image-name":"api",
     "python-version":"3.9",
     "include-suffix":""

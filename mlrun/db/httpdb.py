@@ -850,8 +850,9 @@ class HTTPRunDB(RunDBInterface):
         with_notifications: bool = False,
     ) -> RunList:
         """
-        Retrieve a list of runs, filtered by various options.
-        If no filter is provided, will return runs from the last week.
+        Retrieve a list of runs.
+        The default returns the runs from the last week, partitioned by project/name.
+        To override the default, specify any filter.
 
         Example::
 

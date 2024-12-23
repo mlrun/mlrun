@@ -500,7 +500,7 @@ comm==0.2.2 \
     --hash=sha256:3fd7a84065306e07bea1773df6eb8282de51ba82f77c72f9c85716ab11fe980e \
     --hash=sha256:e6fb86cb70ff661ee8c9c14e7d36d6de3b4066f1441be4063df9c5009f0a64d3
     # via ipykernel
-contourpy==1.3.0 \
+contourpy==1.3.0 ; python_full_version < '3.10' \
     --hash=sha256:00ccd0dbaad6d804ab259820fa7cb0b8036bda0686ef844d24125d8287178ce0 \
     --hash=sha256:0be4d8425bfa755e0fd76ee1e019636ccc7c29f77a7c86b4328a9eb6a26d0639 \
     --hash=sha256:0dce35502151b6bd35027ac39ba6e5a44be13a68f55735c3612c568cac3805fd \
@@ -566,6 +566,62 @@ contourpy==1.3.0 \
     --hash=sha256:f317576606de89da6b7e0861cf6061f6146ead3528acabff9236458a6ba467f8 \
     --hash=sha256:fd2a0fc506eccaaa7595b7e1418951f213cf8255be2600f1ea1b61e46a60c55f \
     --hash=sha256:fe41b41505a5a33aeaed2a613dccaeaa74e0e3ead6dd6fd3a118fb471644fd6c
+    # via matplotlib
+contourpy==1.3.1 ; python_full_version >= '3.10' \
+    --hash=sha256:041b640d4ec01922083645a94bb3b2e777e6b626788f4095cf21abbe266413c1 \
+    --hash=sha256:05e806338bfeaa006acbdeba0ad681a10be63b26e1b17317bfac3c5d98f36cda \
+    --hash=sha256:08d9d449a61cf53033612cb368f3a1b26cd7835d9b8cd326647efe43bca7568d \
+    --hash=sha256:0ffa84be8e0bd33410b17189f7164c3589c229ce5db85798076a3fa136d0e509 \
+    --hash=sha256:113231fe3825ebf6f15eaa8bc1f5b0ddc19d42b733345eae0934cb291beb88b6 \
+    --hash=sha256:14c102b0eab282427b662cb590f2e9340a9d91a1c297f48729431f2dcd16e14f \
+    --hash=sha256:174e758c66bbc1c8576992cec9599ce8b6672b741b5d336b5c74e35ac382b18e \
+    --hash=sha256:19c1555a6801c2f084c7ddc1c6e11f02eb6a6016ca1318dd5452ba3f613a1751 \
+    --hash=sha256:19d40d37c1c3a4961b4619dd9d77b12124a453cc3d02bb31a07d58ef684d3d86 \
+    --hash=sha256:1bf98051f1045b15c87868dbaea84f92408337d4f81d0e449ee41920ea121d3b \
+    --hash=sha256:20914c8c973f41456337652a6eeca26d2148aa96dd7ac323b74516988bea89fc \
+    --hash=sha256:287ccc248c9e0d0566934e7d606201abd74761b5703d804ff3df8935f523d546 \
+    --hash=sha256:2ba94a401342fc0f8b948e57d977557fbf4d515f03c67682dd5c6191cb2d16ec \
+    --hash=sha256:31c1b55c1f34f80557d3830d3dd93ba722ce7e33a0b472cba0ec3b6535684d8f \
+    --hash=sha256:36987a15e8ace5f58d4d5da9dca82d498c2bbb28dff6e5d04fbfcc35a9cb3a82 \
+    --hash=sha256:3a04ecd68acbd77fa2d39723ceca4c3197cb2969633836ced1bea14e219d077c \
+    --hash=sha256:3e8b974d8db2c5610fb4e76307e265de0edb655ae8169e8b21f41807ccbeec4b \
+    --hash=sha256:3ea9924d28fc5586bf0b42d15f590b10c224117e74409dd7a0be3b62b74a501c \
+    --hash=sha256:4318af1c925fb9a4fb190559ef3eec206845f63e80fb603d47f2d6d67683901c \
+    --hash=sha256:44a29502ca9c7b5ba389e620d44f2fbe792b1fb5734e8b931ad307071ec58c53 \
+    --hash=sha256:47734d7073fb4590b4a40122b35917cd77be5722d80683b249dac1de266aac80 \
+    --hash=sha256:4d76d5993a34ef3df5181ba3c92fabb93f1eaa5729504fb03423fcd9f3177242 \
+    --hash=sha256:4dbbc03a40f916a8420e420d63e96a1258d3d1b58cbdfd8d1f07b49fcbd38e85 \
+    --hash=sha256:500360b77259914f7805af7462e41f9cb7ca92ad38e9f94d6c8641b089338124 \
+    --hash=sha256:523a8ee12edfa36f6d2a49407f705a6ef4c5098de4f498619787e272de93f2d5 \
+    --hash=sha256:573abb30e0e05bf31ed067d2f82500ecfdaec15627a59d63ea2d95714790f5c2 \
+    --hash=sha256:5b75aa69cb4d6f137b36f7eb2ace9280cfb60c55dc5f61c731fdf6f037f958a3 \
+    --hash=sha256:61332c87493b00091423e747ea78200659dc09bdf7fd69edd5e98cef5d3e9a8d \
+    --hash=sha256:805617228ba7e2cbbfb6c503858e626ab528ac2a32a04a2fe88ffaf6b02c32bc \
+    --hash=sha256:841ad858cff65c2c04bf93875e384ccb82b654574a6d7f30453a04f04af71342 \
+    --hash=sha256:89785bb2a1980c1bd87f0cb1517a71cde374776a5f150936b82580ae6ead44a1 \
+    --hash=sha256:8eb96e79b9f3dcadbad2a3891672f81cdcab7f95b27f28f1c67d75f045b6b4f1 \
+    --hash=sha256:974d8145f8ca354498005b5b981165b74a195abfae9a8129df3e56771961d595 \
+    --hash=sha256:9ddeb796389dadcd884c7eb07bd14ef12408aaae358f0e2ae24114d797eede30 \
+    --hash=sha256:a045f341a77b77e1c5de31e74e966537bba9f3c4099b35bf4c2e3939dd54cdab \
+    --hash=sha256:a0cffcbede75c059f535725c1680dfb17b6ba8753f0c74b14e6a9c68c29d7ea3 \
+    --hash=sha256:a761d9ccfc5e2ecd1bf05534eda382aa14c3e4f9205ba5b1684ecfe400716ef2 \
+    --hash=sha256:a7895f46d47671fa7ceec40f31fae721da51ad34bdca0bee83e38870b1f47ffd \
+    --hash=sha256:a9fa36448e6a3a1a9a2ba23c02012c43ed88905ec80163f2ffe2421c7192a5d7 \
+    --hash=sha256:ab29962927945d89d9b293eabd0d59aea28d887d4f3be6c22deaefbb938a7277 \
+    --hash=sha256:abbb49fb7dac584e5abc6636b7b2a7227111c4f771005853e7d25176daaf8453 \
+    --hash=sha256:ac4578ac281983f63b400f7fe6c101bedc10651650eef012be1ccffcbacf3697 \
+    --hash=sha256:adce39d67c0edf383647a3a007de0a45fd1b08dedaa5318404f1a73059c2512b \
+    --hash=sha256:ade08d343436a94e633db932e7e8407fe7de8083967962b46bdfc1b0ced39454 \
+    --hash=sha256:b2bdca22a27e35f16794cf585832e542123296b4687f9fd96822db6bae17bfc9 \
+    --hash=sha256:b2f926efda994cdf3c8d3fdb40b9962f86edbc4457e739277b961eced3d0b4c1 \
+    --hash=sha256:b457d6430833cee8e4b8e9b6f07aa1c161e5e0d52e118dc102c8f9bd7dd060d6 \
+    --hash=sha256:c414fc1ed8ee1dbd5da626cf3710c6013d3d27456651d156711fa24f24bd1291 \
+    --hash=sha256:cb76c1a154b83991a3cbbf0dfeb26ec2833ad56f95540b442c73950af2013750 \
+    --hash=sha256:dfd97abd83335045a913e3bcc4a09c0ceadbe66580cf573fe961f4a825efa699 \
+    --hash=sha256:e914a8cb05ce5c809dd0fe350cfbb4e881bde5e2a38dc04e3afe1b3e58bd158e \
+    --hash=sha256:ece6df05e2c41bd46776fbc712e0996f7c94e0d0543af1656956d150c4ca7c81 \
+    --hash=sha256:efa874e87e4a647fd2e4f514d5e91c7d493697127beb95e77d2f7561f6905bd9 \
+    --hash=sha256:f611e628ef06670df83fce17805c344710ca5cde01edfdc72751311da8585375
     # via matplotlib
 crcmod==1.7 \
     --hash=sha256:dc7051a0db5f2bd48665a990d3ec1cc305a466a77358ca4492826f41f283601e
@@ -1372,9 +1428,16 @@ ipykernel==6.29.5 \
     --hash=sha256:afdb66ba5aa354b09b91379bac28ae4afebbb30e8b39510c9690afb7a10421b5 \
     --hash=sha256:f093a22c4a40f8828f8e330a9c297cb93dcab13bd9678ded6de8e5cf81c56215
     # via nuclio-jupyter
-ipython==8.18.1 \
+ipython==8.18.1 ; python_full_version < '3.10' \
     --hash=sha256:ca6f079bb33457c66e233e4580ebfc4128855b4cf6370dddd73842a9563e8a27 \
     --hash=sha256:e8267419d72d81955ec1177f8a29aaa90ac80ad647499201119e2f05e99aa397
+    # via
+    #   -r requirements.txt
+    #   ipykernel
+    #   nuclio-jupyter
+ipython==8.31.0 ; python_full_version >= '3.10' \
+    --hash=sha256:46ec58f8d3d076a61d128fe517a51eb730e3aaf0c184ea8c17d16e366660c6a6 \
+    --hash=sha256:b6a2274606bec6166405ff05e54932ed6e5cfecaca1fc05f2cacde7bb074d70b
     # via
     #   -r requirements.txt
     #   ipykernel
@@ -1690,7 +1753,7 @@ markupsafe==3.0.2 \
     #   mako
     #   nbconvert
     #   werkzeug
-matplotlib==3.9.4 \
+matplotlib==3.9.4 ; python_full_version < '3.10' \
     --hash=sha256:0229803bd7e19271b03cb09f27db76c918c467aa4ce2ae168171bc67c3f508df \
     --hash=sha256:04c519587f6c210626741a1e9a68eefc05966ede24205db8982841826af5871a \
     --hash=sha256:09debb9ce941eb23ecdbe7eab972b1c3e0276dcf01688073faff7b0f61d6c6ca \
@@ -1732,6 +1795,46 @@ matplotlib==3.9.4 \
     --hash=sha256:ef5f2d1b67d2d2145ff75e10f8c008bfbf71d45137c4b648c87193e7dd053eac \
     --hash=sha256:f4c12302c34afa0cf061bea23b331e747e5e554b0fa595c96e01c7b75bc3b858 \
     --hash=sha256:fba1f52c6b7dc764097f52fd9ab627b90db452c9feb653a59945de16752e965f
+    # via
+    #   -r dockerfiles/mlrun/requirements.txt
+    #   mlflow
+    #   scikit-plot
+    #   seaborn
+matplotlib==3.10.0 ; python_full_version >= '3.10' \
+    --hash=sha256:01d2b19f13aeec2e759414d3bfe19ddfb16b13a1250add08d46d5ff6f9be83c6 \
+    --hash=sha256:12eaf48463b472c3c0f8dbacdbf906e573013df81a0ab82f0616ea4b11281908 \
+    --hash=sha256:2c5829a5a1dd5a71f0e31e6e8bb449bc0ee9dbfb05ad28fc0c6b55101b3a4be6 \
+    --hash=sha256:2fbbabc82fde51391c4da5006f965e36d86d95f6ee83fb594b279564a4c5d0d2 \
+    --hash=sha256:3547d153d70233a8496859097ef0312212e2689cdf8d7ed764441c77604095ae \
+    --hash=sha256:359f87baedb1f836ce307f0e850d12bb5f1936f70d035561f90d41d305fdacea \
+    --hash=sha256:3b427392354d10975c1d0f4ee18aa5844640b512d5311ef32efd4dd7db106ede \
+    --hash=sha256:4659665bc7c9b58f8c00317c3c2a299f7f258eeae5a5d56b4c64226fca2f7c59 \
+    --hash=sha256:4673ff67a36152c48ddeaf1135e74ce0d4bce1bbf836ae40ed39c29edf7e2765 \
+    --hash=sha256:503feb23bd8c8acc75541548a1d709c059b7184cde26314896e10a9f14df5f12 \
+    --hash=sha256:5439f4c5a3e2e8eab18e2f8c3ef929772fd5641876db71f08127eed95ab64683 \
+    --hash=sha256:5cdbaf909887373c3e094b0318d7ff230b2ad9dcb64da7ade654182872ab2593 \
+    --hash=sha256:5e6c6461e1fc63df30bf6f80f0b93f5b6784299f721bc28530477acd51bfc3d1 \
+    --hash=sha256:5fd41b0ec7ee45cd960a8e71aea7c946a28a0b8a4dcee47d2856b2af051f334c \
+    --hash=sha256:607b16c8a73943df110f99ee2e940b8a1cbf9714b65307c040d422558397dac5 \
+    --hash=sha256:7e8632baebb058555ac0cde75db885c61f1212e47723d63921879806b40bec6a \
+    --hash=sha256:81713dd0d103b379de4516b861d964b1d789a144103277769238c732229d7f03 \
+    --hash=sha256:845d96568ec873be63f25fa80e9e7fae4be854a66a7e2f0c8ccc99e94a8bd4ef \
+    --hash=sha256:95b710fea129c76d30be72c3b38f330269363fbc6e570a5dd43580487380b5ff \
+    --hash=sha256:96f2886f5c1e466f21cc41b70c5a0cd47bfa0015eb2d5793c88ebce658600e25 \
+    --hash=sha256:994c07b9d9fe8d25951e3202a68c17900679274dadfc1248738dcfa1bd40d7f3 \
+    --hash=sha256:9ade1003376731a971e398cc4ef38bb83ee8caf0aee46ac6daa4b0506db1fd06 \
+    --hash=sha256:9b0558bae37f154fffda54d779a592bc97ca8b4701f1c710055b609a3bac44c8 \
+    --hash=sha256:a2a43cbefe22d653ab34bb55d42384ed30f611bcbdea1f8d7f431011a2e1c62e \
+    --hash=sha256:a994f29e968ca002b50982b27168addfd65f0105610b6be7fa515ca4b5307c95 \
+    --hash=sha256:ad2e15300530c1a94c63cfa546e3b7864bd18ea2901317bae8bbf06a5ade6dcf \
+    --hash=sha256:ae80dc3a4add4665cf2faa90138384a7ffe2a4e37c58d83e115b54287c4f06ef \
+    --hash=sha256:b886d02a581b96704c9d1ffe55709e49b4d2d52709ccebc4be42db856e511278 \
+    --hash=sha256:c40ba2eb08b3f5de88152c2333c58cee7edcead0a2a0d60fcafa116b17117adc \
+    --hash=sha256:c55b20591ced744aa04e8c3e4b7543ea4d650b6c3c4b208c08a05b4010e8b442 \
+    --hash=sha256:c58a9622d5dbeb668f407f35f4e6bfac34bb9ecdcc81680c04d0258169747997 \
+    --hash=sha256:d44cb942af1693cced2604c33a9abcef6205601c445f6d0dc531d813af8a2f5a \
+    --hash=sha256:d907fddb39f923d011875452ff1eca29a9e7f21722b873e90db32e5d8ddff12e \
+    --hash=sha256:fd44fc75522f58612ec4a33958a7e5552562b7705b42ef1b4f8c0818e304a363
     # via
     #   -r dockerfiles/mlrun/requirements.txt
     #   mlflow
@@ -2221,7 +2324,7 @@ partd==1.4.2 \
     --hash=sha256:978e4ac767ec4ba5b86c6eaa52e5a2a3bc748a2ca839e8cc798f1cc6ce6efb0f \
     --hash=sha256:d022c33afbdc8405c226621b015e8067888173d85f7f5ecebb3cafed9a20f02c
     # via dask
-pexpect==4.9.0 ; sys_platform != 'win32' \
+pexpect==4.9.0 ; (python_full_version < '3.10' and sys_platform == 'emscripten') or (sys_platform != 'emscripten' and sys_platform != 'win32') \
     --hash=sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523 \
     --hash=sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f
     # via ipython
@@ -2490,7 +2593,7 @@ psutil==6.1.1 \
     # via
     #   distributed
     #   ipykernel
-ptyprocess==0.7.0 ; os_name != 'nt' or sys_platform != 'win32' \
+ptyprocess==0.7.0 ; (python_full_version < '3.10' and sys_platform == 'emscripten') or os_name != 'nt' or (sys_platform != 'emscripten' and sys_platform != 'win32') \
     --hash=sha256:4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35 \
     --hash=sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220
     # via
@@ -3320,9 +3423,8 @@ taos-ws-py==0.3.2 \
     # via
     #   -r extras-requirements.txt
     #   taoswswrap
-taoswswrap==0.2.1 \
-    --hash=sha256:db2c80675af8ef9a1f88bfedb15c2d9dd54eaaab6b40df73c626341426b46e90 \
-    --hash=sha256:e7571a83dcbd48cf0fe07fd38cf21ea0e3ad5d8e518f66af033cfd6b039a2d6b
+taoswswrap==0.3.0 \
+    --hash=sha256:6f01af767ab4554a0cdcd4bf1eea9ea801a5b1203f37026107560152755ba46c
     # via -r extras-requirements.txt
 tblib==3.0.0 \
     --hash=sha256:80a6c77e59b55e83911e1e607c649836a69c103963c5f28a46cbeef44acf8129 \

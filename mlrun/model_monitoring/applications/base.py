@@ -93,7 +93,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         context: "mlrun.MLClientCtx",
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
-        endpoint_names: Optional[list[str]] = None,
+        endpoints: Optional[list[tuple[str, str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ):
@@ -121,12 +121,13 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             )
             return self.do_tracking(monitoring_context)
 
-        if endpoint_names is not None:
+        if endpoints is not None:
             start, end = self._validate_times(start, end)
-            for endpoint_name in endpoint_names:
+            for endpoint_name, endpoint_id in endpoints:
                 result = call_do_tracking(
                     event={
                         mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+                        mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
                         mm_constants.ApplicationEvent.START_INFER_TIME: start,
                         mm_constants.ApplicationEvent.END_INFER_TIME: end,
                     }
@@ -199,7 +200,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         with_repo: Optional[bool] = False,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
-        endpoint_names: Optional[list[str]] = None,
+        endpoints: Optional[list[tuple[str, str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> "mlrun.RunObject":
@@ -220,8 +221,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param with_repo:         Whether to clone the current repo to the build source.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
-        :param endpoint_names:    The model endpoint names to get the data from. When the names are passed,
-                                  you have to provide also the start and end times of the data to analyze.
+        :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from.
+                                  When the names are passed, you have to provide also the start and end times of
+                                  the data to analyze.
         :param start:             The start time of the sample data.
         :param end:               The end time of the sample data.
 
@@ -249,10 +251,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             ),
         )
 
-        params: dict[str, Union[list[str], datetime]] = {}
-        if endpoint_names:
+        params: dict[str, Union[list[tuple[str, str]], datetime]] = {}
+        if endpoints:
             start, end = cls._validate_times(start, end)
-            params["endpoint_names"] = endpoint_names
+            params["endpoints"] = endpoints
             params["start"] = start
             params["end"] = end
 

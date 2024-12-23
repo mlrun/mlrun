@@ -3562,9 +3562,8 @@ taos-ws-py==0.3.2 \
     # via
     #   -r extras-requirements.txt
     #   taoswswrap
-taoswswrap==0.2.1 \
-    --hash=sha256:db2c80675af8ef9a1f88bfedb15c2d9dd54eaaab6b40df73c626341426b46e90 \
-    --hash=sha256:e7571a83dcbd48cf0fe07fd38cf21ea0e3ad5d8e518f66af033cfd6b039a2d6b
+taoswswrap==0.3.0 \
+    --hash=sha256:6f01af767ab4554a0cdcd4bf1eea9ea801a5b1203f37026107560152755ba46c
     # via -r extras-requirements.txt
 tblib==3.0.0 \
     --hash=sha256:80a6c77e59b55e83911e1e607c649836a69c103963c5f28a46cbeef44acf8129 \

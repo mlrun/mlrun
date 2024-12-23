@@ -883,6 +883,7 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		requirements.txt \
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		dev-requirements.txt \
 		docs/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
@@ -893,6 +894,7 @@ upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system t
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \

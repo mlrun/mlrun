@@ -268,9 +268,9 @@ astropy==6.1.7 ; python_full_version >= '3.10' \
     --hash=sha256:fbeaf04427987c0c6fa2e579eb40011802b06fba6b3a7870e082d5c693564e1b \
     --hash=sha256:fcd99e627692f8e58bb3097d330bfbd109a22e00dab162a67f203b0a0601ad2c
     # via vaex-astro
-astropy-iers-data==0.2024.12.16.0.35.48 \
-    --hash=sha256:c277670bf5324d9e17a28b011d4d7493acc06ce9dc75e7cfab848bd8c4847ce3 \
-    --hash=sha256:dbb95668d66bb160342f058df49953c9d47bac628279169ffd476ca51fe90fac
+astropy-iers-data==0.2024.12.23.0.33.24 \
+    --hash=sha256:40d3c6b6a5cf4dc6ad91b92b7e0f949e5366234e3c4440302247429fc8294302 \
+    --hash=sha256:f9bb8f676233f5bb564fdffa4b81af28160e3040a796dcaf0a9436f842fee951
     # via astropy
 asttokens==3.0.0 \
     --hash=sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7 \

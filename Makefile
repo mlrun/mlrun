@@ -124,7 +124,6 @@ install-requirements: ## Install all requirements needed for development
 
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-	conda install --yes --file conda-arm64-requirements.txt
 	make install-requirements
 
 .PHONY: install-complete-requirements
@@ -883,6 +882,7 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		requirements.txt \
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		dev-requirements.txt \
 		docs/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
@@ -893,6 +893,7 @@ upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system t
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
@@ -902,6 +903,7 @@ upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system t
 upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 

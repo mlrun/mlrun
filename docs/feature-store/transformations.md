@@ -163,7 +163,7 @@ Internally, MLRun makes use of functions defined in the `storey` package for var
 feature-set and configuring it with sources and targets, what MLRun does behind the scenes is to add steps to the 
 execution graph that wraps methods and classes that perform the actions. When defining an async execution graph, 
 `storey` classes are used. For example, when defining a Parquet data-target in MLRun, a graph step is created that 
-wraps storey's [ParquetTarget function](https://storey.readthedocs.io/en/latest/api.html#storey.targets.ParquetTarget).
+wraps storey's ParquetTarget function.
 ```
 
 To use a function:

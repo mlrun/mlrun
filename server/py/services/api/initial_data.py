@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import datetime
 import json
 import os
 import pathlib
+import random
 import typing
 
 import dateutil.parser
@@ -27,6 +29,7 @@ import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.utils.regex
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
@@ -100,21 +103,25 @@ def init_data(
     logger.info("Creating initial data")
     config.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
 
-    if is_migration_from_scratch or is_migration_needed:
-        try:
-            _perform_schema_migrations(alembic_util)
-            init_db()
-            db_session = create_session()
+    db_session = create_session()
+    try:
+        if is_migration_from_scratch or is_migration_needed:
             try:
+                _perform_schema_migrations(alembic_util)
+                init_db()
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
-            finally:
-                close_session(db_session)
-        except Exception:
-            state = mlrun.common.schemas.APIStates.migrations_failed
-            logger.warning("Migrations failed, changing API state", state=state)
-            config.httpdb.state = state
-            raise
+            except Exception:
+                state = mlrun.common.schemas.APIStates.migrations_failed
+                logger.warning("Migrations failed, changing API state", state=state)
+                config.httpdb.state = state
+                raise
+
+        # initialize system id
+        _init_system_id(db_session)
+    finally:
+        close_session(db_session)
+
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
@@ -991,6 +998,64 @@ def _create_project_summaries(db, db_session):
         for project_name in projects.projects
     ]
     db._upsert(db_session, project_summaries, ignore=True)
+
+
+def _init_system_id(db_session: sqlalchemy.orm.Session):
+    """
+    Initializes a system id for MLRun deployment.
+    The system id is first checked in the database. If it does not exist, the function checks if an id was set in the
+    config, and if neither is found, a new random one is generated and stored.
+    """
+
+    db = framework.db.sqldb.db.SQLDB()
+
+    # check if a system id already exists in the database
+    system_id = db.get_system_id(db_session)
+
+    if system_id is not None:
+        logger.debug("Existing system id found in the database", system_id=system_id)
+        mlrun.mlconf.system_id = system_id
+        return
+
+    logger.debug("System id not found in DB")
+    # check if the system id is already set in the config
+    system_id = _get_configured_system_id()
+
+    if system_id:
+        logger.debug("Using configured system id", system_id=system_id)
+    else:
+        # if no system id is found, generate a new one
+        system_id = _generate_system_id()
+    db.store_system_id(db_session, system_id)
+
+    # set the system id in mlrun config
+    mlrun.mlconf.system_id = system_id
+
+    logger.info("Initialized system ID", system_id=system_id)
+
+
+def _get_configured_system_id() -> typing.Optional[str]:
+    return mlrun.mlconf.system_id or None
+
+
+def _generate_system_id() -> str:
+    # Generate a random 32-bit unsigned integer and encode as a URL-safe Base64 string without padding
+    while True:
+        random_number = random.getrandbits(32)
+        random_bytes = random_number.to_bytes(4, "big")
+        base64_str = base64.urlsafe_b64encode(random_bytes).decode("utf-8").rstrip("=")
+
+        # convert to lowercase and remove underscores for compatibility with Kubernetes names
+        sanitized_str = base64_str.lower().replace("_", "-")
+
+        # validate the result against the qualified_name regex
+        try:
+            mlrun.utils.helpers.verify_field_regex(
+                "system_id", sanitized_str, mlrun.utils.regex.qualified_name
+            )
+            return sanitized_str
+        except mlrun.errors.MLRunInvalidArgumentError:
+            continue
 
 
 def main() -> None:

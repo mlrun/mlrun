@@ -327,6 +327,14 @@ def _load_requirements(path):
                 deps.append(f"{package} @ {line}")
                 continue
 
+            if line.startswith("-r"):
+                path = line.split("-r", 1)[-1].strip()
+                other_deps = _load_requirements(
+                    pathlib.Path(__file__).resolve().parent / path
+                )
+                deps.extend(other_deps)
+                continue
+
             # append package
             deps.append(line)
         return deps
@@ -368,6 +376,8 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "dockerfiles/base/locked-requirements.txt",  # lock file
         "dockerfiles/jupyter/locked-requirements.txt",  # lock file
         "dockerfiles/gpu/locked-requirements.txt",  # lock file
+        "dockerfiles/test/locked-requirements.txt",  # lock file
+        "dockerfiles/test-system/locked-requirements.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 

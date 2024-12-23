@@ -841,6 +841,7 @@ default_config = {
             "refresh_interval": "30",
         }
     },
+    "system_id": "",
 }
 _is_running_as_api = None
 

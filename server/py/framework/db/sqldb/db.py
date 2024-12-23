@@ -80,6 +80,7 @@ from mlrun.utils import (
     validate_tag_name,
 )
 
+import framework.constants
 import framework.db.session
 import framework.utils.helpers
 from framework.db.base import DBInterface
@@ -117,6 +118,7 @@ from framework.db.sqldb.models import (
     ProjectSummary,
     Run,
     Schedule,
+    SystemMetadata,
     TimeWindowTracker,
     _labeled,
     _tagged,
@@ -7190,6 +7192,22 @@ class SQLDB(DBInterface):
             main_table_identifier=ModelEndpoint.uid if uids else None,
             main_table_identifier_values=uids,
         )
+
+    def get_system_id(self, session: Session) -> typing.Optional[str]:
+        system_id_record = (
+            self._query(session, SystemMetadata)
+            .filter(SystemMetadata.key == framework.constants.SYSTEM_ID_KEY)
+            .one_or_none()
+        )
+        return system_id_record.value if system_id_record else None
+
+    def store_system_id(self, session: Session, system_id: str):
+        logger.debug("Storing a new system id in DB", system_id=system_id)
+
+        system_id_record = SystemMetadata(
+            key=framework.constants.SYSTEM_ID_KEY, value=system_id
+        )
+        self._upsert(session, [system_id_record])
 
     # ---- Utils ----
     def delete_table_records(

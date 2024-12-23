@@ -20,7 +20,7 @@ You can also create a custom `source` to access various databases or data source
 | [SnowFlakeSource](#snowflake-source)                                                               | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
 | [SQLSource](#sql-source)                                                                           | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
 | {py:class}`~mlrun.datastore.CSVSource`                                                             | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
-| [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
+| DataframeSource                                                                                    | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
 | [ParquetSource](#parquet-source)                                                                   | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
 | [S3/Azure source](#s3azure-source)                                                                 | Batch.                                                                 |       |      |       |
 | {py:class}`~mlrun.datastore.HttpSource`                                                            |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |

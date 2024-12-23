@@ -523,7 +523,7 @@ async def abort_run(
 
 
 @router.post(
-    "/projects/{project}/runs/{uid}/push_notifications",
+    "/projects/{project}/runs/{uid}/push-notifications",
     response_model=mlrun.common.schemas.BackgroundTask,
 )
 async def push_notifications(

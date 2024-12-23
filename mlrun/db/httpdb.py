@@ -773,7 +773,7 @@ class HTTPRunDB(RunDBInterface):
 
         response = self.api_call(
             "POST",
-            path=f"projects/{project}/runs/{uid}/push_notifications",
+            path=f"projects/{project}/runs/{uid}/push-notifications",
             error="Failed push notifications",
             timeout=timeout,
         )

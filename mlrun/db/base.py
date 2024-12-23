@@ -60,6 +60,15 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        pass
+
+    @abstractmethod
     def read_run(
         self,
         uid: str,
@@ -896,6 +905,14 @@ class RunDBInterface(ABC):
         page_size: Optional[int] = None,
         page_token: Optional[str] = None,
         **kwargs,
+    ):
+        pass
+
+    def update_alert_activation(
+        self,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        notifications_states,
     ):
         pass
 

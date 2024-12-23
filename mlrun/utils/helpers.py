@@ -26,7 +26,7 @@ import sys
 import typing
 import uuid
 import warnings
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
 from types import ModuleType
@@ -403,6 +403,28 @@ def get_pretty_types_names(types):
 
 def now_date(tz: timezone = timezone.utc) -> datetime:
     return datetime.now(tz=tz)
+
+
+def datetime_to_mysql_ts(datetime_object: datetime) -> datetime:
+    """
+    Convert a Python datetime object to a MySQL-compatible timestamp string,
+    rounded to the nearest millisecond.
+    Example: 2024-12-18T16:36:05.235687+00:00 -> 2024-12-18T16:36:05.236000
+
+    :param datetime_object: A Python datetime object.
+
+    :return: A MySQL-compatible timestamp string with millisecond precision.
+    """
+    if not datetime_object.tzinfo:
+        datetime_object = datetime_object.replace(tzinfo=timezone.utc)
+
+    # Round to the nearest millisecond
+    ms = round(datetime_object.microsecond / 1000) * 1000
+    if ms == 1000000:
+        datetime_object += timedelta(seconds=1)
+        ms = 0
+
+    return datetime_object.replace(microsecond=ms)
 
 
 def datetime_min(tz: timezone = timezone.utc) -> datetime:

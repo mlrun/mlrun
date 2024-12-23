@@ -21,7 +21,7 @@ from mlrun.common.schemas import (
     NotificationSummary,
 )
 
-import services.api.crud
+import framework.utils.notifications.notification_pusher
 
 
 @pytest.mark.parametrize(
@@ -125,7 +125,7 @@ import services.api.crud
     ],
 )
 def test_prepare_notifications_states(notifications, expected_states):
-    result = services.alerts.crud.AlertActivation._prepare_notification_states(
+    result = framework.utils.notifications.notification_pusher.AlertNotificationPusher._prepare_notification_states(
         notifications
     )
 

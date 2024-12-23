@@ -23,6 +23,7 @@ jobs:
   upgrade:
     name: Upgrade uv lock files
     runs-on: ubuntu-latest
+    if: github.repository_owner == 'mlrun'
     steps:
     - uses: actions/checkout@v4
     - name: Get uv version from the Makefile

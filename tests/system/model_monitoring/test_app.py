@@ -234,7 +234,7 @@ class _V3IORecordsChecker:
         last_request: typing.Optional[datetime] = None,
         error_count: typing.Optional[float] = None,
     ) -> None:
-        # cls._test_parquet(ep_id, inputs, outputs)
+        cls._test_parquet(ep_id, inputs, outputs)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
 
     @classmethod

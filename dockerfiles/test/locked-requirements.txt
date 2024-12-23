@@ -1792,11 +1792,9 @@ kfp==1.8.22 ; python_full_version < '3.11' \
 kfp-pipeline-spec==0.1.16 ; python_full_version < '3.11' \
     --hash=sha256:4cefae00ac50145cf862127202a8b8a783ed7504c773d7d7c517bd115283be25
     # via kfp
-kfp-server-api==1.8.5 \
+kfp-server-api==1.8.5 ; python_full_version < '3.11' \
     --hash=sha256:482d71765ba57c003164dbb980a8cb1a18d234b578d064dc88dbeb3e4c7ab6de
     # via
-    #   -r docs/../requirements.txt
-    #   -r requirements.txt
     #   kfp
     #   mlrun-pipelines-kfp-v1-8
 kiwisolver==1.4.7 \
@@ -2154,16 +2152,16 @@ mlflow==2.14.3 \
     --hash=sha256:292cae4b83574a0cb223117e224caa6798933078af0233719c2b612bea645617 \
     --hash=sha256:2de915346c8e34a9d13efbd6469551980923619274db57fd2253621a2c666e18
     # via -r extras-requirements.txt
-mlrun-pipelines-kfp-common==0.3.2 \
-    --hash=sha256:cc5215467d65b792159a86591fcf1ccd7180ad3c73bd6b736174c9fcd7575556 \
-    --hash=sha256:d07dbe09ee027bec4cb8133f8e17c00b31fa51ce66980a7f9573a5d26cca55a3
+mlrun-pipelines-kfp-common==0.3.3 \
+    --hash=sha256:5f3ee7078ba070f8cb629a2d384a0d1a27443ac41e5f60aebbe03cc89768c986 \
+    --hash=sha256:be417d586cbdd1c6101f1e2ec1565f38d9b5d73a75e953d5b91e2f643e572359
     # via
     #   -r docs/../requirements.txt
     #   -r requirements.txt
     #   mlrun-pipelines-kfp-v1-8
-mlrun-pipelines-kfp-v1-8==0.3.2 ; python_full_version < '3.11' \
-    --hash=sha256:34064d160393510f6b88040e3cc6aea8b403e564d3e9e0c424184b847873ef99 \
-    --hash=sha256:87f1e39743c0b837573384cf3f05fab2b4ea84dcf10aa8cdfa4f4205d738d31e
+mlrun-pipelines-kfp-v1-8==0.3.3 ; python_full_version < '3.11' \
+    --hash=sha256:0075966baba1289ce3c94443cfc4e6d2eb995bf3f50e77a880b3c725c03c3ea3 \
+    --hash=sha256:017f0ded00a6c6ebf6ad0a3e22bf14654929fa4edbae7913c4bbfb9bcf4b46e4
     # via
     #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   -r docs/../requirements.txt
@@ -3096,6 +3094,8 @@ pydantic==1.10.19 \
     --hash=sha256:fea36c2065b7a1d28c6819cc2e93387b43dd5d3cf5a1e82d8132ee23f36d1f10 \
     --hash=sha256:ff09600cebe957ecbb4a27496fe34c1d449e7957ed20a202d5029a71a8af2e35
     # via
+    #   -r dockerfiles/mlrun-api/requirements.txt
+    #   -r docs/../dockerfiles/mlrun-api/requirements.txt
     #   -r docs/../requirements.txt
     #   -r requirements.txt
     #   fastapi

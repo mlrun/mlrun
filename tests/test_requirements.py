@@ -119,7 +119,7 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
         "storey": {"~=1.8.7"},
-        "pydantic": {">=1.10.15"},
+        "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "sphinx-book-theme": {"~=1.0.1"},
@@ -196,6 +196,7 @@ def test_requirement_specifiers_inconsistencies():
             '>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"',
             '~=0.10.14; python_version < "3.11"',
         },
+        "pydantic": {">=1,<2", ">=1.10.15"},
     }
 
     for (
@@ -386,11 +387,13 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "dockerfiles/gpu/locked-requirements.txt",  # lock file
         "dockerfiles/test/locked-requirements.txt",  # lock file
         "dockerfiles/test-system/locked-requirements.txt",  # lock file
+        "dockerfiles/mlrun-kfp/locked-requirements.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 
     output = subprocess.run(
         ["git", "grep", "--line-number", "--perl-regexp", pattern, "--", *pathspec],
+        cwd=tests.conftest.root_path,
         capture_output=True,
     )
     no_matches = output.returncode == 1

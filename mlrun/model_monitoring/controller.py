@@ -272,18 +272,17 @@ class MonitoringApplicationController:
         Main method for controller chief, runs all the relevant monitoring applications for a single endpoint.
         Handles nop events logic.
         This method handles the following:
-        1. List applications from endpoint_policy
+        1. Read applications from the event (endpoint_policy)
         2. Check model monitoring windows
         3. Send data to applications
-        4. Delete old parquets
-        5. Pushes nop event to main stream if needed
+        4. Pushes nop event to main stream if needed
         """
         logger.info("Start running monitoring controller worker")
         try:
             body = json.loads(event.body.decode("utf-8"))
         except Exception as e:
             logger.error(
-                "Failed to decode event",  # TODO Royi make more specific handling
+                "Failed to decode event",
                 exc=err_to_str(e),
             )
             return
@@ -296,8 +295,7 @@ class MonitoringApplicationController:
     ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
-        for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
-        for a specific time range.
+        for each endpoint.
 
         :param event:                       (dict) Event that triggered the monitoring process.
         """
@@ -457,7 +455,7 @@ class MonitoringApplicationController:
                 [data]
             )
 
-    def push_regular_event_to_controller_stream(self, event: nuclio_sdk.Event):
+    def push_regular_event_to_controller_stream(self, event: nuclio_sdk.Event) -> None:
         """
         pushes a regular event to the controller stream.
         :param event: the nuclio trigger event

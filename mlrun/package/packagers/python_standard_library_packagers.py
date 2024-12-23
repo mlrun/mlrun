@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+import datetime
 import os
 import pathlib
 import tempfile
@@ -628,8 +629,32 @@ class PathPackager(StrPackager):
 # ----------------------------------------------------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------------------------------------------------
-# TODO: datetime packagers:
+# datetime packagers:
+# TODO: datetime.date packager.
+# TODO: datetime.time packager.
 # ----------------------------------------------------------------------------------------------------------------------
+
+
+class DatetimePackager(DefaultPackager):
+    """
+    ``datetime.datetime`` packager.
+    """
+
+    PACKABLE_OBJECT_TYPE = datetime.datetime
+    DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
+    DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.RESULT
+
+    def pack_result(self, obj: datetime.datetime, key: str) -> dict:
+        """
+        Pack the :code:`datetime.datetime` as a string result.
+
+        :param obj: The `datetime.datetime` to pack.
+        :param key: The key to use in the results dictionary.
+
+        :return: The packed result.
+        """
+        return super().pack_result(obj=obj.isoformat(), key=key)
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # TODO: enum packagers:

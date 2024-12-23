@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import ast
+import datetime
 import os
 import pathlib
 import tempfile
@@ -22,6 +23,7 @@ from mlrun.package.packagers.python_standard_library_packagers import (
     BoolPackager,
     BytearrayPackager,
     BytesPackager,
+    DatetimePackager,
     DictPackager,
     FloatPackager,
     FrozensetPackager,
@@ -964,4 +966,54 @@ class PathPackagerTester(PackagerTester):
             )
             for archive_format in ArchiveSupportedFormat.get_all_formats()
         ],
+    ]
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# datetime packagers:
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+_DATETIME_SAMPLE = datetime.datetime(2021, 3, 30, tzinfo=datetime.timezone.utc)
+
+
+def pack_datetime() -> datetime.datetime:
+    return _DATETIME_SAMPLE
+
+
+def validate_datetime(result: str) -> bool:
+    return datetime.datetime.fromisoformat(result) == _DATETIME_SAMPLE
+
+
+def unpack_datetime(obj: datetime.datetime) -> None:
+    assert isinstance(obj, datetime.datetime)
+    assert obj == _DATETIME_SAMPLE
+
+
+class DatetimePackagerTester(PackagerTester):
+    """
+    A tester for the `DatetimePackager`.
+    """
+
+    PACKAGER_IN_TEST = DatetimePackager()
+
+    TESTS = [
+        PackTest(
+            pack_handler="pack_datetime",
+            log_hint="my_datetime",
+            validation_function=validate_datetime,
+        ),
+        PackToUnpackTest(
+            pack_handler="pack_datetime",
+            log_hint="my_datetime",
+        ),
+        PackToUnpackTest(
+            pack_handler="pack_datetime",
+            log_hint="my_datetime: object",
+            expected_instructions={
+                **COMMON_OBJECT_INSTRUCTIONS,
+                "object_module_name": datetime.datetime.__module__,
+            },
+            unpack_handler="unpack_datetime",
+        ),
     ]

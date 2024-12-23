@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import logging
 import os
 import uuid
@@ -1306,6 +1307,8 @@ def _cast_result(value):
         return float(value)
     if isinstance(value, np.ndarray):
         return value.tolist()
+    if isinstance(value, datetime.datetime):
+        return value
     if value is None:
         return value
     return str(value)

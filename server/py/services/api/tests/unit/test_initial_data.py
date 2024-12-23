@@ -24,6 +24,7 @@ import mlrun.common.db.sql_session
 import mlrun.common.schemas
 from mlrun.config import config
 
+import framework.constants
 import framework.db.init_db
 import framework.db.sqldb.db
 import framework.db.sqldb.models
@@ -373,6 +374,48 @@ def test_add_producer_uri_to_artifact():
     # Verify producer_uri for the artifacts with None as URI in spec.producer
     _verify_artifact_producer_uri(db, db_session, "name-10", "")
     _verify_artifact_producer_uri(db, db_session, "name-11", "")
+
+
+@pytest.mark.parametrize(
+    "system_id_source, expected_system_id",
+    [
+        # when no system id is configured, a new random one should be generated
+        ("random", None),
+        # when a system id is set in mlconf, it should be used
+        ("mlconf", "123"),
+    ],
+)
+def test_init_system_id(
+    system_id_source, expected_system_id, monkeypatch: pytest.MonkeyPatch
+):
+    if system_id_source == "mlconf":
+        monkeypatch.setattr(
+            mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, expected_system_id
+        )
+
+    db, db_session = _initialize_db_without_migrations()
+
+    # start with no system id
+    system_id = db.get_system_id(db_session)
+    assert system_id is None
+
+    # initialize the system id
+    services.api.initial_data._init_system_id(db_session)
+    system_id = db.get_system_id(db_session)
+    assert system_id is not None
+
+    if system_id_source == "random":
+        # ensure that the generated id has the correct length (6 characters, as it is base64 encoded without padding)
+        assert len(system_id) == 6
+    else:
+        assert system_id == expected_system_id
+
+    assert mlrun.mlconf.system_id == system_id
+
+    # ensure reinitialization does not change an existing system id
+    services.api.initial_data._init_system_id(db_session)
+    system_id_after_second_init = db.get_system_id(db_session)
+    assert system_id_after_second_init == system_id
 
 
 def _initialize_db_without_migrations() -> (

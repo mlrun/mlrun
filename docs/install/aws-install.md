@@ -7,8 +7,8 @@ These instructions install the community edition (CE).
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Community Edition flavors](#community-edition-flavors)
-- [Usage](#usage)
+- [IAM requirements](#iam-requirements)
+- [Community Edition services](#community-edition-services)
 - [Installation](#installation)
 - [Uninstalling the cluster and deleting the resources](#uninstalling-the-cluster-and-deleting-the-resources)
 
@@ -22,54 +22,209 @@ These instructions install the community edition (CE).
 - A bash shell to run the commands        
 
 ```{admonition} Important
-Restart your MAC after following the prerequisites steps to effect the changes.
+Restart your computer after following the prerequisites steps to effect the changes.
+```
+## IAM requirements
+Verify that your AWS account has the following IAM policies:
+
+
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "BasicServices",
+            "Effect": "Allow",
+            "Action": [
+                "autoscaling:*",
+                "cloudwatch:*",
+                "elasticloadbalancing:*",
+                "sns:*",
+                "ec2:*",
+                "s3:*",
+                "s3-object-lambda:*",
+                "eks:*",
+                "elasticfilesystem:*",
+                "cloudformation:*",
+                "acm:*",
+                "route53:*",
+                "ecr:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "ServiceLinkedRoles",
+            "Effect": "Allow",
+            "Action": "iam:CreateServiceLinkedRole",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:AWSServiceName": [
+                        "autoscaling.amazonaws.com",
+                        "ec2scheduled.amazonaws.com",
+                        "elasticloadbalancing.amazonaws.com",
+                        "spot.amazonaws.com",
+                        "spotfleet.amazonaws.com",
+                        "transitgateway.amazonaws.com"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "IAMPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "iam:AddRoleToInstanceProfile",
+                "iam:TagRole",
+                "iam:AttachRolePolicy",
+                "iam:TagOpenIDConnectProvider",
+                "iam:CreateInstanceProfile",
+                "iam:CreateOpenIDConnectProvider",
+                "iam:CreateRole",
+                "iam:CreateServiceLinkedRole",
+                "iam:DeleteInstanceProfile",
+                "iam:DeleteOpenIDConnectProvider",
+                "iam:DeleteRole",
+                "iam:DeleteRolePolicy",
+                "iam:DetachRolePolicy",
+                "iam:GenerateServiceLastAccessedDetails",
+                "iam:GetAccessKeyLastUsed",
+                "iam:GetAccountPasswordPolicy",
+                "iam:GetAccountSummary",
+                "iam:GetGroup",
+                "iam:GetInstanceProfile",
+                "iam:GetLoginProfile",
+                "iam:GetOpenIDConnectProvider",
+                "iam:GetPolicy",
+                "iam:GetPolicyVersion",
+                "iam:GetRole",
+                "iam:GetRolePolicy",
+                "iam:GetServiceLastAccessedDetails",
+                "iam:GetUser",
+                "iam:ListAccessKeys",
+                "iam:ListAccountAliases",
+                "iam:ListAttachedGroupPolicies",
+                "iam:ListAttachedRolePolicies",
+                "iam:ListAttachedUserPolicies",
+                "iam:ListGroupPolicies",
+                "iam:ListGroups",
+                "iam:ListGroupsForUser",
+                "iam:ListInstanceProfilesForRole",
+                "iam:ListMFADevices",
+                "iam:ListOpenIDConnectProviders",
+                "iam:ListPolicies",
+                "iam:ListPoliciesGrantingServiceAccess",
+                "iam:ListRolePolicies",
+                "iam:ListRoles",
+                "iam:ListRoleTags",
+                "iam:ListSAMLProviders",
+                "iam:ListSigningCertificates",
+                "iam:ListUserPolicies",
+                "iam:ListUsers",
+                "iam:ListUserTags",
+                "iam:PassRole",
+                "iam:PutRolePolicy",
+                "iam:RemoveRoleFromInstanceProfile",
+                "kms:CreateGrant",
+                "kms:CreateKey",
+                "kms:Decrypt",
+                "kms:DescribeKey",
+                "kms:Encrypt",
+                "kms:GenerateDataKeyWithoutPlaintext",
+                "kms:GetKeyPolicy",
+                "kms:GetKeyRotationStatus",
+                "kms:ListResourceTags",
+                "kms:PutKeyPolicy",
+                "kms:ScheduleKeyDeletion",
+                "kms:TagResource"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "AllowLanbda",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:CreateAlias",
+                "lambda:CreateCodeSigningConfig",
+                "lambda:CreateEventSourceMapping",
+                "lambda:CreateFunction",
+                "lambda:CreateFunctionUrlConfig",
+                "lambda:Delete*",
+                "lambda:Get*",
+                "lambda:InvokeAsync",
+                "lambda:InvokeFunction",
+                "lambda:InvokeFunctionUrl",
+                "lambda:List*",
+                "lambda:PublishLayerVersion",
+                "lambda:PublishVersion",
+                "lambda:PutFunctionCodeSigningConfig",
+                "lambda:PutFunctionConcurrency",
+                "lambda:PutFunctionEventInvokeConfig",
+                "lambda:PutProvisionedConcurrencyConfig",
+                "lambda:TagResource",
+                "lambda:UntagResource",
+                "lambda:UpdateAlias",
+                "lambda:UpdateCodeSigningConfig",
+                "lambda:UpdateEventSourceMapping",
+                "lambda:UpdateFunctionCode",
+                "lambda:UpdateFunctionCodeSigningConfig",
+                "lambda:UpdateFunctionConfiguration",
+                "lambda:UpdateFunctionEventInvokeConfig",
+                "lambda:UpdateFunctionUrlConfig"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "CertificateService",
+            "Effect": "Allow",
+            "Action": "iam:CreateServiceLinkedRole",
+            "Resource": "arn:aws:iam::*:role/aws-service-role/acm.amazonaws.com/AWSServiceRoleForCertificateManager*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:AWSServiceName": "acm.amazonaws.com"
+                }
+            }
+        },
+        {
+            "Sid": "DeleteRole",
+            "Effect": "Allow",
+            "Action": [
+                "iam:DeleteServiceLinkedRole",
+                "iam:GetServiceLinkedRoleDeletionStatus",
+                "iam:GetRole"
+            ],
+            "Resource": "arn:aws:iam::*:role/aws-service-role/acm.amazonaws.com/AWSServiceRoleForCertificateManager*"
+        },
+        {
+            "Sid": "SSM",
+            "Effect": "Allow",
+            "Action": [
+                "logs:*",
+                "ssm:AddTagsToResource",
+                "ssm:GetParameter",
+                "ssm:DeleteParameter",
+                "ssm:PutParameter",
+                "cloudtrail:GetTrail",
+                "cloudtrail:ListTrails"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
 ```
 
-``` {admonition} Note
-The MLRun Community Edition resources are configured initially with the default cluster/namespace resource limits. You can modify the resources from outside if needed.
-```
+## Community Edition services
 
-## Community Edition flavors
-
-The MLRun CE (Community Edition) includes the following components:
-* MLRun - https://github.com/mlrun/mlrun
+The MLRun CE (Community Edition) includes the following services:
+- MLRun - https://github.com/mlrun/mlrun
   - MLRun API
   - MLRun UI
   - MLRun DB (MySQL)
-* Nuclio - https://github.com/nuclio/nuclio
-* Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
-* MPI Operator - https://github.com/kubeflow/mpi-operator
-* MinIO - https://github.com/minio/minio/tree/master/helm/minio
-* Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
-* Pipelines - https://github.com/kubeflow/pipelines
-* Prometheus stack - https://github.com/prometheus-community/helm-charts
+- Nuclio - https://github.com/nuclio/nuclio
+- Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
+- Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
-
-## Usage
-
-Your applications are now available in your local browser:
-- Jupyter Notebook - `http://<host-machine-address>:30040`
-- Nuclio - `http://<host-machine-address>:30050`
-- MLRun UI - `http://<host-machine-address>:30060`
-- MLRun API (external) - `http://<host-machine-address>:30070`
-- MinIO API - `http://<host-machine-address>:30080`
-- MinIO UI - `http://<host-machine-address>:30090`
-- Pipeline UI - `http://<host-machine-address>:30100`
-- Grafana UI - `http://<host-machine-address>:30110`
-
-
-```{admonition} Check state
-You can check the current state of the installation via the command `kubectl -n mlrun get pods`, where the main information
-is in columns `Ready` and `State`. If all images have already been pulled locally, typically it takes 
-a minute for all services to start.
-```
-
-```{admonition} Note
-You can change the ports by providing values to the helm install command.
-You can add and configure a Kubernetes ingress-controller for better security and control over external access.
-```
-
 
 ## Installation
 1. [Optional] Create or import a certificate to AWS Certificate Manager for the relevant domain including wildcards **\*.SYSTEM_NAME.example.com** by one of:
@@ -83,7 +238,7 @@ You can add and configure a Kubernetes ingress-controller for better security an
    ```
 2. Export a comma-delimited list of CIDR ranges that will be able to access the MLRun services via the AWS ALB:
    ```
-   export INBOUND_CIDRS="<CIDR_RANGE>[,<CIDR_RANGE>].."</br>
+   export INBOUND_CIDRS="<CIDR_RANGE>[,<CIDR_RANGE>].."
    ```
    Ensure the CIDR_RANGE is correctly formatted, including the subnet mask (e.g. 192.168.1.0/24).
 2. Export the remaining derived values:

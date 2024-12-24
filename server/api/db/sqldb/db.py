@@ -2924,6 +2924,9 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _calculate_functions_counters(session) -> dict[str, int]:
+        if mlrun.mlconf.monitoring.projects.summaries.functions != "enabled":
+            return collections.defaultdict(lambda: 0)
+
         functions_count_per_project = (
             session.query(Function.project, func.count(distinct(Function.name)))
             .group_by(Function.project)

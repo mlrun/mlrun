@@ -185,20 +185,21 @@ def test_requirement_specifiers_inconsistencies():
             inconsistent_specifiers_map[requirement_name] = requirement_specifiers
 
     ignored_inconsistencies_map = {
-        # The empty specifier is from tests/runtimes/assets/requirements.txt which is there specifically to test the
-        # scenario of requirements without version specifiers
-        "python-dotenv": {"", "~=0.17.0"},
-        # conda requirements since conda does not support ~= operator and
-        # since platform condition is not required for docker
-        "protobuf": {'~=3.20.3; python_version < "3.11"', ">=3.20.3,<4"},
-        "pyyaml": {">=6.0.2, <7"},
         "v3io-frames": {
             '>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"',
             '~=0.10.14; python_version < "3.11"',
         },
+        # mlrun api must have v1 due to fastapi https://github.com/fastapi/fastapi/issues/10360
+        # and the fact out pydantic currently requires v1
+        # on the other hand, mlrun client can have both and thus the inconsistency
         "pydantic": {">=1,<2", ">=1.10.15"},
+        # mlrun client installs mlrun-pipelines-kfp-v1-8
+        # while api/kfp install with mlrun-pipelines-kfp-v1-8[kfp]
+        # the reason is that both api and kfp requires kfp itself
+        "mlrun-pipelines-kfp-v1-8": {'~=0.3.3; python_version < "3.11"', "~=0.3.3"},
     }
 
+    all_keys_verified = set(ignored_inconsistencies_map.keys())
     for (
         inconsistent_requirement_name,
         inconsistent_specifiers,
@@ -211,7 +212,9 @@ def test_requirement_specifiers_inconsistencies():
             )
             if diff == {}:
                 del inconsistent_specifiers_map[inconsistent_requirement_name]
+            all_keys_verified.remove(inconsistent_requirement_name)
 
+    assert len(all_keys_verified) == 0, f"Keys not verified: {all_keys_verified}"
     assert inconsistent_specifiers_map == {}
 
 

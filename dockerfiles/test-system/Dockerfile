@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
+FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
-
-ENV PIP_NO_CACHE_DIR 1
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
   gcc \
@@ -27,19 +27,25 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 ARG MLRUN_PIP_VERSION=24.2
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
-COPY ./dockerfiles/mlrun-api/requirements.txt /tmp/mlrun-requirements/mlrun-api-requirements.txt
-COPY ./extras-requirements.txt /tmp/mlrun-requirements
-COPY ./requirements.txt /tmp/mlrun-requirements
-COPY ./dev-requirements.txt /tmp/mlrun-requirements
-RUN python -m pip install \
-  -r /tmp/mlrun-requirements/requirements.txt \
-  -r /tmp/mlrun-requirements/dev-requirements.txt \
-  -r /tmp/mlrun-requirements/extras-requirements.txt \
-  -r /tmp/mlrun-requirements/mlrun-api-requirements.txt
+WORKDIR /tmp/mlrun
+
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/test-system/locked-requirements.txt,target=locked-requirements.txt \
+    uv pip sync --require-hashes locked-requirements.txt
+
+COPY . .
+
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install .[complete]
+
+RUN mv tests /tests && mv Makefile /Makefile
+
 COPY . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && mv Makefile /Makefile
 
 # Clean up all code used for building to simulate user env
-RUN rm -rf /tmp/mlrun-requirements && rm -rf /tmp/mlrun
+RUN rm -rf /tmp/mlrun
 
 CMD ["make",  "test-system"]

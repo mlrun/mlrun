@@ -41,6 +41,12 @@ def test_extras_requirement_file_aligned():
     extras_requirements_file_specifiers_map = _parse_requirement_specifiers_list(
         extras_requirements_file_specifiers
     )
+    # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
+    # we exclude them from the comparison
+    excluded_packages = ["mlrun_pipelines_kfp_v1_8", "mlrun_pipelines_kfp_v2"]
+    for package in excluded_packages:
+        if package in setup_py_extras_requirements_specifiers_map:
+            setup_py_extras_requirements_specifiers_map.pop(package)
     assert (
         deepdiff.DeepDiff(
             setup_py_extras_requirements_specifiers_map,
@@ -112,8 +118,8 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.8.6"},
-        "pydantic": {">=1.10.15"},
+        "storey": {"~=1.8.7"},
+        "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "sphinx-book-theme": {"~=1.0.1"},
@@ -146,6 +152,8 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
+        "mlrun_pipelines_kfp_v2": {">=0.2.5 ; python_version >= '3.11'"},
+        "grpcio-tools": {"~=1.48.2"},
     }
 
     for (
@@ -188,6 +196,7 @@ def test_requirement_specifiers_inconsistencies():
             '>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"',
             '~=0.10.14; python_version < "3.11"',
         },
+        "pydantic": {">=1,<2", ">=1.10.15"},
     }
 
     for (
@@ -327,6 +336,14 @@ def _load_requirements(path):
                 deps.append(f"{package} @ {line}")
                 continue
 
+            if line.startswith("-r"):
+                path = line.split("-r", 1)[-1].strip()
+                other_deps = _load_requirements(
+                    pathlib.Path(__file__).resolve().parent / path
+                )
+                deps.extend(other_deps)
+                continue
+
             # append package
             deps.append(line)
         return deps
@@ -368,11 +385,15 @@ def test_scikit_learn_requirements_are_aligned() -> None:
         "dockerfiles/base/locked-requirements.txt",  # lock file
         "dockerfiles/jupyter/locked-requirements.txt",  # lock file
         "dockerfiles/gpu/locked-requirements.txt",  # lock file
+        "dockerfiles/test/locked-requirements.txt",  # lock file
+        "dockerfiles/test-system/locked-requirements.txt",  # lock file
+        "dockerfiles/mlrun-kfp/locked-requirements.txt",  # lock file
     ]
     pathspec = [f":!{file}" for file in ignored_files]
 
     output = subprocess.run(
         ["git", "grep", "--line-number", "--perl-regexp", pattern, "--", *pathspec],
+        cwd=tests.conftest.root_path,
         capture_output=True,
     )
     no_matches = output.returncode == 1

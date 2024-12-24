@@ -26,7 +26,6 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.model_monitoring.db.tsdb.tdengine.schemas import TDEngineSchema
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
@@ -147,8 +146,9 @@ class TDEngineConnector(TSDBConnector):
         create_table_sql = table._create_subtable_sql(subtable=table_name, values=event)
 
         insert_statement = Statement(
-            TDEngineSchema._insert_subtable_stmt,
-            dict(columns=table.columns, subtable=table_name, values=event),
+            columns=table.columns,
+            subtable=table_name,
+            values=event,
         )
 
         self.connection.run(

@@ -917,7 +917,7 @@ class DBInterface(ABC):
     def create_partitions(
         session,
         table_name: str,
-        partitioning_information_list: list[tuple[str, str, str]],
+        partitioning_information_list: list[tuple[str, str]],
     ):
         pass
 
@@ -984,7 +984,6 @@ class DBInterface(ABC):
         session,
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
-        notifications_states: list[mlrun.common.schemas.NotificationState],
     ):
         pass
 
@@ -994,7 +993,11 @@ class DBInterface(ABC):
         session,
         activation_id: int,
         activation_time: datetime.datetime,
-        number_of_events: Optional[int],
+        number_of_events: Optional[int] = None,
+        notifications_states: Optional[
+            list[mlrun.common.schemas.NotificationState]
+        ] = None,
+        update_reset_time: bool = False,
     ):
         pass
 

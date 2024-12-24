@@ -319,6 +319,9 @@ def test_application_runtime_resources(rundb_mock, igz_version_mock):
         }
     ]
 
+    # assert the resources for the function itself remain the defaults
+    assert fn.spec.resources == {}
+
 
 def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
     mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()

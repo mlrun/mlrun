@@ -321,6 +321,14 @@ class RunDBMock:
     def read_run(self, uid, project, iter=0, format_=None):
         return self._runs.get(uid, {})
 
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        pass
+
     def list_runs(
         self,
         name: Optional[str] = None,

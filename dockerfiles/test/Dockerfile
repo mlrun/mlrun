@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG MLRUN_PYTHON_VERSION=3.9
+ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 
+FROM ${MLRUN_UV_IMAGE} AS uv-image
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
-ENV PIP_NO_CACHE_DIR=1
+ENV NO_COLOR=1
 
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
@@ -50,33 +52,14 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
 
-COPY ./requirements.txt ./
-COPY ./extras-requirements.txt ./extras-requirements.txt
-COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
-COPY ./dev-requirements.txt ./
-COPY ./docs/requirements.txt ./docs-requirements.txt
-
-RUN python -m pip install \
-    -r requirements.txt \
-    -r extras-requirements.txt \
-    -r mlrun-api-requirements.txt
-
-# if we give all the requirements together pip resolver go nuts so separating between the package and the image
-# requirements
-COPY ./dev-requirements.txt ./
-RUN python -m pip install \
-    -r dev-requirements.txt
-
-COPY ./docs/requirements.txt ./docs-requirements.txt
-RUN python -m pip install \
-    -r docs-requirements.txt
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
+    uv pip sync --require-hashes locked-requirements.txt
 
 COPY . .
 
-ARG MLRUN_PIPELINES_KFP_VERSION=1-8
-
-RUN python -m pip install -e .[complete] && \
-    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common && \
-    python -m pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v${MLRUN_PIPELINES_KFP_VERSION}
-
-ENV NO_COLOR=1
+RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv pip install .[complete]

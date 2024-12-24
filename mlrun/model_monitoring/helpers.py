@@ -15,9 +15,8 @@
 import datetime
 import functools
 import os
-import typing
 from fnmatch import fnmatchcase
-from typing import Optional
+from typing import TYPE_CHECKING, Callable, Optional, TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -37,13 +36,13 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
 )
 from mlrun.utils import logger
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from mlrun.datastore import DataItem
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
 
 
-class _BatchDict(typing.TypedDict):
+class _BatchDict(TypedDict):
     minutes: int
     hours: int
     days: int
@@ -116,8 +115,8 @@ def filter_results_by_regex(
 def get_stream_path(
     project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-    stream_uri: typing.Optional[str] = None,
-    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+    stream_uri: Optional[str] = None,
+    secret_provider: Optional[Callable[[str], str]] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
@@ -241,7 +240,7 @@ def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataI
 
 
 def get_tsdb_connection_string(
-    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+    secret_provider: Optional[Callable[[str], str]] = None,
 ) -> str:
     """Get TSDB connection string from the project secret. If wasn't set, take it from the system
     configurations.
@@ -257,7 +256,7 @@ def get_tsdb_connection_string(
 
 def _get_profile(
     project: str,
-    secret_provider: typing.Optional[typing.Callable[[str], str]],
+    secret_provider: Optional[Callable[[str], str]],
     profile_name_key: str,
 ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
     """
@@ -476,7 +475,7 @@ def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
 
 
 def _get_monitoring_schedules_folder_path(project: str) -> str:
-    return typing.cast(
+    return cast(
         str,
         mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES

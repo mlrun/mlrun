@@ -83,3 +83,25 @@ class ErrApp(ModelMonitoringApplicationBase):
     ) -> list[mm_results.ModelMonitoringApplicationResult]:
         monitoring_context.logger.info("Running error app")
         raise ValueError(f"This is an ERROR from {self.NAME} app!")
+
+
+class CountApp(ModelMonitoringApplicationBase):
+    def do_tracking(
+        self, monitoring_context: mm_context.MonitoringApplicationContext
+    ) -> ModelMonitoringApplicationResult:
+        sample_df = monitoring_context.sample_df
+        monitoring_context.logger.debug("Sample data-frame", sample_df=sample_df)
+        count = len(sample_df)
+        monitoring_context.logger.info(
+            "Counted events for model endpoint window",
+            model_endpoint_name=monitoring_context.model_endpoint.metadata.name,
+            count=count,
+            start=monitoring_context.start_infer_time,
+            end=monitoring_context.end_infer_time,
+        )
+        return ModelMonitoringApplicationResult(
+            name="count",
+            value=count,
+            kind=ResultKindApp.model_performance,
+            status=ResultStatusApp.no_detection,
+        )

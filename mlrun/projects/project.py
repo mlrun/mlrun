@@ -3603,17 +3603,23 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if tsdb_connection == "v3io":
-            profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+            tsdb_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
                 name="mm-infra-tsdb"
             )
-            self.register_datastore_profile(profile)
+            self.register_datastore_profile(tsdb_profile)
+        if stream_path == "v3io":
+            stream_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+                name="mm-infra-stream"
+            )
+            self.register_datastore_profile(stream_profile)
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
                 "access_key": access_key,
                 "stream_path": stream_path,
                 "tsdb_connection": tsdb_connection,
-                "tsdb_profile_name": profile.name,
+                "tsdb_profile_name": tsdb_profile.name,
+                "stream_profile_name": stream_profile.name,
             },
             replace_creds=replace_creds,
         )

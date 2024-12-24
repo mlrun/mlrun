@@ -238,6 +238,7 @@ class ProjectSecretKeys:
     STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
     TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
+    STREAM_PROFILE_NAME = "STREAM_PROFILE_NAME"
 
     @classmethod
     def mandatory_secrets(cls):

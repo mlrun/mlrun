@@ -193,10 +193,6 @@ def test_requirement_specifiers_inconsistencies():
         # and the fact out pydantic currently requires v1
         # on the other hand, mlrun client can have both and thus the inconsistency
         "pydantic": {">=1,<2", ">=1.10.15"},
-        # mlrun client installs mlrun-pipelines-kfp-v1-8
-        # while api/kfp install with mlrun-pipelines-kfp-v1-8[kfp]
-        # the reason is that both api and kfp requires kfp itself
-        "mlrun-pipelines-kfp-v1-8": {'~=0.3.3; python_version < "3.11"', "~=0.3.3"},
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())
@@ -214,8 +210,10 @@ def test_requirement_specifiers_inconsistencies():
                 del inconsistent_specifiers_map[inconsistent_requirement_name]
             all_keys_verified.remove(inconsistent_requirement_name)
 
-    assert len(all_keys_verified) == 0, f"Keys not verified: {all_keys_verified}"
     assert inconsistent_specifiers_map == {}
+    assert (
+        len(all_keys_verified) == 0
+    ), f"Keys not verified: {all_keys_verified}, remove them from dictionary"
 
 
 def test_requirement_from_remote():

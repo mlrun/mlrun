@@ -2923,21 +2923,6 @@ class SQLDB(DBInterface):
         )
 
     @staticmethod
-    def _calculate_functions_counters(session) -> dict[str, int]:
-        if mlrun.mlconf.monitoring.projects.summaries.functions != "enabled":
-            return collections.defaultdict(lambda: 0)
-
-        functions_count_per_project = (
-            session.query(Function.project, func.count(distinct(Function.name)))
-            .group_by(Function.project)
-            .all()
-        )
-        project_to_function_count = {
-            result[0]: result[1] for result in functions_count_per_project
-        }
-        return project_to_function_count
-
-    @staticmethod
     def _calculate_schedules_counters(
         session,
     ) -> [dict[str, int], dict[str, int], dict[str, int]]:

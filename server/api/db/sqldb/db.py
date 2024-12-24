@@ -2938,7 +2938,6 @@ class SQLDB(DBInterface):
     def _calculate_schedules_counters(
         session,
     ) -> [dict[str, int], dict[str, int], dict[str, int]]:
-
         if mlrun.mlconf.monitoring.projects.summaries.schedules != "enabled":
             return [
                 collections.defaultdict(lambda: 0),
@@ -3031,7 +3030,6 @@ class SQLDB(DBInterface):
         return project_to_models_count
 
     def _calculate_files_counters(self, session) -> dict[str, int]:
-
         if mlrun.mlconf.monitoring.projects.summaries.artifacts != "enabled":
             return collections.defaultdict(lambda: 0)
 

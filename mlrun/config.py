@@ -127,7 +127,7 @@ default_config = {
                     "models": "enabled",
                     "runs": "enabled",
                     "pipelines": "enabled",
-                }
+                },
             },
         },
     },

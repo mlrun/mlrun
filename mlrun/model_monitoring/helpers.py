@@ -130,6 +130,14 @@ def get_stream_path(
     :return:                    Monitoring stream path to the relevant application.
     """
 
+    try:
+        profile = _get_stream_profile(project=project, secret_provider=secret_provider)
+    except mlrun.errors.MLRunNotFoundError:
+        profile = None
+
+    if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
+        stream_uri = "v3io"
+
     stream_uri = stream_uri or mlrun.get_secret_or_env(
         key=mm_constants.ProjectSecretKeys.STREAM_PATH, secret_provider=secret_provider
     )
@@ -248,11 +256,11 @@ def get_tsdb_connection_string(
 
 
 def _get_tsdb_profile(
-    project: str = "",
-    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+    project: str,
+    secret_provider: typing.Optional[typing.Callable[[str], str]],
 ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
     """
-    Get TSDB datastore profile the project name and secret provider.
+    Get TSDB datastore profile from the project name and secret provider.
 
     :param project:         The project name. If not set, the default project name is used.
     :param secret_provider: Optional secret provider to get the connection string secret.
@@ -265,6 +273,27 @@ def _get_tsdb_profile(
     )
     if not profile_name:
         raise mlrun.errors.MLRunNotFoundError("Not found TSDB profile name")
+    return mlrun.datastore.datastore_profile.datastore_profile_read(
+        url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
+    )
+
+
+def _get_stream_profile(
+    project: str, secret_provider: typing.Optional[typing.Callable[[str], str]]
+) -> mlrun.datastore.datastore_profile.DatastoreProfile:
+    """
+    Get stream datastore profile from the project name and secret provider.
+
+    :param project:         The project name.
+    :param secret_provider: Secret provider to get the secrets from, or `None` for env vars.
+    :return:                Stream datastore profile.
+    """
+    profile_name = mlrun.get_secret_or_env(
+        key=mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME,
+        secret_provider=secret_provider,
+    )
+    if not profile_name:
+        raise mlrun.errors.MLRunNotFoundError("Not found stream profile name")
     return mlrun.datastore.datastore_profile.datastore_profile_read(
         url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
     )

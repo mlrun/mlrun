@@ -6189,8 +6189,7 @@ class SQLDB(DBInterface):
             return state.to_dict()
 
     def create_alert_state(self, session, alert_record):
-        current_time = datetime.now(timezone.utc)
-        state = AlertState(count=0, parent_id=alert_record.id, created=current_time)
+        state = AlertState(count=0, parent_id=alert_record.id)
         self._upsert(session, [state])
 
     def delete_alert_notifications(

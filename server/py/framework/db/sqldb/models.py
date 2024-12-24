@@ -762,7 +762,7 @@ with warnings.catch_warnings():
         count = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
-            default=datetime.now(timezone.utc),
+            default=datetime.utcnow,
         )
         last_updated = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921

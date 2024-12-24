@@ -38,12 +38,10 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 
 def parse_monitoring_stream_path(
     stream_uri: str, project: str, function_name: typing.Optional[str] = None
-):
+) -> str:
     if stream_uri.startswith("kafka://"):
         if "?topic" in stream_uri:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Custom kafka topic is not allowed"
-            )
+            raise mlrun.errors.MLRunValueError("Custom kafka topic is not allowed")
         # Add topic to stream kafka uri
         if (
             function_name is None

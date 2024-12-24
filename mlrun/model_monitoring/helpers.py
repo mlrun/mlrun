@@ -117,19 +117,21 @@ def get_stream_path(
     project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
     stream_uri: typing.Optional[str] = None,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
     :param function_name:       Application name. Default is model_monitoring_stream.
-    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project secret.
-
+    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project's secret.
+    :param secret_provider:     Optional secret provider to get the connection string secret.
+                                If not set, the env vars are used.
     :return:                    Monitoring stream path to the relevant application.
     """
 
     stream_uri = stream_uri or mlrun.get_secret_or_env(
-        mm_constants.ProjectSecretKeys.STREAM_PATH
+        key=mm_constants.ProjectSecretKeys.STREAM_PATH, secret_provider=secret_provider
     )
 
     if not stream_uri or stream_uri == "v3io":

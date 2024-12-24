@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import asyncio
 import json
 import time
@@ -30,6 +31,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.controller
@@ -94,6 +96,9 @@ class MonitoringDeployment:
         self.model_monitoring_access_key = model_monitoring_access_key
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
+        self._secret_provider = services.api.crud.secrets.get_project_secret_provider(
+            project=project
+        )
 
     def deploy_monitoring_functions(
         self,
@@ -290,8 +295,10 @@ class MonitoringDeployment:
         """
 
         # Get the stream path from the configuration
-        stream_path = services.api.crud.model_monitoring.get_stream_path(
-            project=self.project, function_name=function_name
+        stream_path = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            function_name=function_name,
+            secret_provider=self._secret_provider,
         )
         if stream_path.startswith("kafka://"):
             topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
@@ -388,12 +395,8 @@ class MonitoringDeployment:
             framework.api.utils.get_run_db_instance(self.db_session)
         )
 
-        secret_provider = services.api.crud.secrets.get_project_secret_provider(
-            project=self.project
-        )
-
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project, secret_provider=secret_provider
+            project=self.project, secret_provider=self._secret_provider
         )
 
         # Create monitoring serving graph
@@ -520,10 +523,7 @@ class MonitoringDeployment:
         graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
         graph.to(
             ModelMonitoringWriter(
-                project=self.project,
-                secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                    project=self.project
-                ),
+                project=self.project, secret_provider=self._secret_provider
             )
         )  # writer
 
@@ -827,8 +827,9 @@ class MonitoringDeployment:
         )
         if delete_app_stream_resources:
             try:
-                MonitoringDeployment._delete_model_monitoring_stream_resources(
-                    project=project,
+                MonitoringDeployment(
+                    project=project
+                )._delete_model_monitoring_stream_resources(
                     function_names=[function_name],
                     access_key=access_key,
                 )
@@ -840,29 +841,24 @@ class MonitoringDeployment:
                     error=mlrun.errors.err_to_str(e),
                 )
 
-    @staticmethod
     def _delete_model_monitoring_stream_resources(
-        project: str,
-        function_names: list[str],
-        access_key: typing.Optional[str] = None,
+        self, function_names: list[str], access_key: typing.Optional[str] = None
     ) -> None:
         """
-        :param project:        The name of the project.
         :param function_names: A list of functions that their resources should be deleted.
         :param access_key:     If the stream is V3IO, the access key is required.
-
         """
         logger.debug(
             "Deleting model monitoring stream resources deployment",
-            project_name=project,
+            project_name=self.project,
         )
         stream_paths = []
         for function_name in function_names:
-            qualified_function_name = f"{project}-{function_name}"
+            qualified_function_name = f"{self.project}-{function_name}"
             if len(qualified_function_name) > 63:
                 logger.info(
                     "k8s 63 characters limit exceeded, skipping deletion of stream resources",
-                    project_name=project,
+                    project_name=self.project,
                     function_label_name=qualified_function_name,
                 )
                 continue
@@ -883,7 +879,7 @@ class MonitoringDeployment:
                 if not function_pod:
                     logger.debug(
                         "No function pod found for project, deleting stream",
-                        project_name=project,
+                        project_name=self.project,
                         function=function_name,
                     )
                     break
@@ -892,8 +888,10 @@ class MonitoringDeployment:
                     time.sleep(5)
 
             stream_paths.append(
-                services.api.crud.model_monitoring.get_stream_path(
-                    project=project, function_name=function_name
+                mlrun.model_monitoring.get_stream_path(
+                    project=self.project,
+                    function_name=function_name,
+                    secret_provider=self._secret_provider,
                 )
             )
 
@@ -918,7 +916,9 @@ class MonitoringDeployment:
                 try:
                     # if the stream path is in the users directory, we need to use pipelines access key to delete it
                     logger.debug(
-                        "Deleting v3io stream", project=project, stream_path=stream_path
+                        "Deleting v3io stream",
+                        project=self.project,
+                        stream_path=stream_path,
                     )
                     v3io_client.stream.delete(
                         container,
@@ -928,7 +928,9 @@ class MonitoringDeployment:
                         else access_key,
                     )
                     logger.debug(
-                        "Deleted v3io stream", project=project, stream_path=stream_path
+                        "Deleted v3io stream",
+                        project=self.project,
+                        stream_path=stream_path,
                     )
                 except Exception as exc:
                     # Raise an error that will be caught by the caller and skip the deletion of the stream
@@ -952,7 +954,7 @@ class MonitoringDeployment:
             try:
                 kafka_client = kafka.KafkaAdminClient(
                     bootstrap_servers=brokers,
-                    client_id=project,
+                    client_id=self.project,
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
@@ -968,7 +970,7 @@ class MonitoringDeployment:
             )
         logger.debug(
             "Successfully deleted model monitoring stream resources deployment",
-            project_name=project,
+            project_name=self.project,
         )
 
     def _get_monitoring_mandatory_project_secrets(self) -> dict[str, str]:
@@ -1184,8 +1186,10 @@ class MonitoringDeployment:
     def _verify_v3io_access(self, stream_path: str):
         import v3io.dataplane
 
-        stream_path = services.api.crud.model_monitoring.get_stream_path(
-            project=self.project, stream_uri=stream_path
+        stream_path = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            stream_uri=stream_path,
+            secret_provider=self._secret_provider,
         )
         v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
         container, path = split_path(stream_path)

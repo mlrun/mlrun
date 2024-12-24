@@ -849,8 +849,11 @@ class ModelEndpoints:
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
         # TODO : adjust for ce scenario
-        stream_path = services.api.crud.model_monitoring.get_stream_path(
+        stream_path = mlrun.model_monitoring.get_stream_path(
             project=project_name,
+            secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                project=project_name
+            ),
         )
         if stream_path.startswith("v3io") and (
             not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api
@@ -986,8 +989,9 @@ class ModelEndpoints:
         )
 
         try:
-            services.api.crud.model_monitoring.deployment.MonitoringDeployment._delete_model_monitoring_stream_resources(
-                project=project_name,
+            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=project_name
+            )._delete_model_monitoring_stream_resources(
                 function_names=model_monitoring_applications,
                 access_key=model_monitoring_access_key,
             )

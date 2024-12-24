@@ -13,19 +13,14 @@
 # limitations under the License.
 
 import datetime
+import functools
 import os
 import typing
+from fnmatch import fnmatchcase
+from typing import Optional
 
 import numpy as np
 import pandas as pd
-
-if typing.TYPE_CHECKING:
-    from mlrun.datastore import DataItem
-    from mlrun.db.base import RunDBInterface
-    from mlrun.projects import MlrunProject
-
-from fnmatch import fnmatchcase
-from typing import Optional
 
 import mlrun
 import mlrun.artifacts
@@ -41,6 +36,11 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _compose_full_name,
 )
 from mlrun.utils import logger
+
+if typing.TYPE_CHECKING:
+    from mlrun.datastore import DataItem
+    from mlrun.db.base import RunDBInterface
+    from mlrun.projects import MlrunProject
 
 
 class _BatchDict(typing.TypedDict):
@@ -255,48 +255,38 @@ def get_tsdb_connection_string(
     )
 
 
-def _get_tsdb_profile(
+def _get_profile(
     project: str,
     secret_provider: typing.Optional[typing.Callable[[str], str]],
+    profile_name_key: str,
 ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
     """
-    Get TSDB datastore profile from the project name and secret provider.
+    Get the datastore profile from the project name and secret provider, where the profile's name
+    is saved as a secret named `profile_name_key`.
 
-    :param project:         The project name. If not set, the default project name is used.
-    :param secret_provider: Optional secret provider to get the connection string secret.
-                            If not set, the env vars are used.
-    :return:                TSDB datastore profile.
+    :param project:          The project name.
+    :param secret_provider:  Secret provider to get the secrets from, or `None` for env vars.
+    :param profile_name_key: The profile name key in the secret store.
+    :return:                 Datastore profile.
     """
     profile_name = mlrun.get_secret_or_env(
-        key=mm_constants.ProjectSecretKeys.TSDB_PROFILE_NAME,
-        secret_provider=secret_provider,
+        key=profile_name_key, secret_provider=secret_provider
     )
     if not profile_name:
-        raise mlrun.errors.MLRunNotFoundError("Not found TSDB profile name")
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Not found `{profile_name_key}` profile name"
+        )
     return mlrun.datastore.datastore_profile.datastore_profile_read(
         url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
     )
 
 
-def _get_stream_profile(
-    project: str, secret_provider: typing.Optional[typing.Callable[[str], str]]
-) -> mlrun.datastore.datastore_profile.DatastoreProfile:
-    """
-    Get stream datastore profile from the project name and secret provider.
-
-    :param project:         The project name.
-    :param secret_provider: Secret provider to get the secrets from, or `None` for env vars.
-    :return:                Stream datastore profile.
-    """
-    profile_name = mlrun.get_secret_or_env(
-        key=mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME,
-        secret_provider=secret_provider,
-    )
-    if not profile_name:
-        raise mlrun.errors.MLRunNotFoundError("Not found stream profile name")
-    return mlrun.datastore.datastore_profile.datastore_profile_read(
-        url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
-    )
+_get_tsdb_profile = functools.partial(
+    _get_profile, profile_name_key=mm_constants.ProjectSecretKeys.TSDB_PROFILE_NAME
+)
+_get_stream_profile = functools.partial(
+    _get_profile, profile_name_key=mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME
+)
 
 
 def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:

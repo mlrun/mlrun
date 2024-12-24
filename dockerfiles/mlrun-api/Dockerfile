@@ -63,7 +63,7 @@ COPY . .
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete-api]
+    uv pip install .[complete-api,kfp18]
 
 VOLUME /mlrun/db
 ENV PYTHONPATH=/mlrun/server/py

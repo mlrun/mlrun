@@ -451,7 +451,10 @@ class Projects(
         dict[str, typing.Union[int, None]],
         dict[str, typing.Union[int, None]],
     ):
-        if mlrun.mlconf.monitoring.projects.summaries.pipelines != "enabled":
+        if (
+            mlrun.mlconf.monitoring.projects.summaries.feature_gates.pipelines
+            != "enabled"
+        ):
             return (
                 collections.defaultdict(lambda: 0),
                 collections.defaultdict(lambda: 0),

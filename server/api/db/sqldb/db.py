@@ -2926,7 +2926,10 @@ class SQLDB(DBInterface):
     def _calculate_schedules_counters(
         session,
     ) -> [dict[str, int], dict[str, int], dict[str, int]]:
-        if mlrun.mlconf.monitoring.projects.summaries.schedules != "enabled":
+        if (
+            mlrun.mlconf.monitoring.projects.summaries.feature_gates.schedules
+            != "enabled"
+        ):
             return [
                 collections.defaultdict(lambda: 0),
                 collections.defaultdict(lambda: 0),
@@ -2987,7 +2990,10 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _calculate_feature_sets_counters(session) -> dict[str, int]:
-        if mlrun.mlconf.monitoring.projects.summaries.feature_sets != "enabled":
+        if (
+            mlrun.mlconf.monitoring.projects.summaries.feature_gates.feature_sets
+            != "enabled"
+        ):
             return collections.defaultdict(lambda: 0)
 
         feature_sets_count_per_project = (
@@ -3001,7 +3007,7 @@ class SQLDB(DBInterface):
         return project_to_feature_set_count
 
     def _calculate_models_counters(self, session) -> dict[str, int]:
-        if mlrun.mlconf.monitoring.projects.summaries.models != "enabled":
+        if mlrun.mlconf.monitoring.projects.summaries.feature_gates.models != "enabled":
             return collections.defaultdict(lambda: 0)
 
         # We're using the "most_recent" which gives us only one version of each artifact key, which is what we want to
@@ -3018,7 +3024,10 @@ class SQLDB(DBInterface):
         return project_to_models_count
 
     def _calculate_files_counters(self, session) -> dict[str, int]:
-        if mlrun.mlconf.monitoring.projects.summaries.artifacts != "enabled":
+        if (
+            mlrun.mlconf.monitoring.projects.summaries.feature_gates.artifacts
+            != "enabled"
+        ):
             return collections.defaultdict(lambda: 0)
 
         # We're using the "most_recent" flag which gives us only one version of each artifact key, which is what we
@@ -3042,7 +3051,7 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
-        if mlrun.mlconf.monitoring.projects.summaries.runs != "enabled":
+        if mlrun.mlconf.monitoring.projects.summaries.feature_gates.runs != "enabled":
             return (
                 collections.defaultdict(lambda: 0),
                 collections.defaultdict(lambda: 0),

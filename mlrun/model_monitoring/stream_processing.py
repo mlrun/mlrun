@@ -34,11 +34,9 @@ from mlrun.common.schemas.model_monitoring.constants import (
     EndpointType,
     EventFieldType,
     FileTargetKind,
-    MonitoringFunctionNames,
     ProjectSecretKeys,
 )
 from mlrun.datastore import parse_kafka_url
-from mlrun.model_monitoring import get_stream_path
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.utils import logger
 
@@ -125,6 +123,7 @@ class EventStreamProcessor:
         self,
         fn: mlrun.runtimes.ServingRuntime,
         tsdb_connector: TSDBConnector,
+        controller_stream_uri: str,
     ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
@@ -153,6 +152,8 @@ class EventStreamProcessor:
 
         :param fn: A serving function.
         :param tsdb_connector: Time series database connector.
+        :param controller_stream_uri: The controller stream URI. Runs on server api pod so needed to be provided as
+        input
         """
 
         graph = typing.cast(
@@ -270,11 +271,8 @@ class EventStreamProcessor:
         apply_parquet_target()
 
         # controller branch
-        def apply_push_controller_stream():
-            stream_uri = get_stream_path(
-                project=self.project,
-                function_name=MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            )
+        def apply_push_controller_stream(stream_uri: str):
+            logger.info("stream uri", stream_uri=stream_uri)
             if stream_uri.startswith("v3io://"):
                 graph.add_step(
                     ">>",
@@ -285,17 +283,31 @@ class EventStreamProcessor:
                     after="ForwardNOP",
                 )
             elif stream_uri.startswith("kafka://"):
-                _, brokers = parse_kafka_url(stream_uri)
+                topic, brokers = parse_kafka_url(stream_uri)
+                logger.info(
+                    "stream uri for kafka",
+                    stream_uri=stream_uri,
+                    topic=topic,
+                    brokers=brokers,
+                )
+                if isinstance(brokers, list):
+                    path = f"kafka://{brokers[0]}/{topic}"
+                elif isinstance(brokers, str):
+                    path = f"kafka://{brokers}/{topic}"
+                else:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Brokers must be a list or str check controller stream uri"
+                    )
                 graph.add_step(
                     ">>",
                     "controller_stream_kafka",
-                    path=stream_uri,
+                    path=path,
                     kafka_brokers=brokers,
-                    sharding_func=ControllerEvent.ENDPOINT_ID,
+                    _sharding_func="kafka_sharding_func",
                     after="ForwardNOP",
                 )
 
-        apply_push_controller_stream()
+        apply_push_controller_stream(controller_stream_uri)
 
 
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
@@ -861,3 +873,7 @@ def update_monitoring_feature_set(
         )
 
     monitoring_feature_set.save()
+
+
+def kafka_sharding_func(event):
+    return event.body[ControllerEvent.ENDPOINT_ID].encode("UTF-8")

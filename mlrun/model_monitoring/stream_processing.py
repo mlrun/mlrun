@@ -272,7 +272,6 @@ class EventStreamProcessor:
 
         # controller branch
         def apply_push_controller_stream(stream_uri: str):
-            logger.info("stream uri", stream_uri=stream_uri)
             if stream_uri.startswith("v3io://"):
                 graph.add_step(
                     ">>",
@@ -285,7 +284,7 @@ class EventStreamProcessor:
             elif stream_uri.startswith("kafka://"):
                 topic, brokers = parse_kafka_url(stream_uri)
                 logger.info(
-                    "stream uri for kafka",
+                    "Controller stream uri for kafka",
                     stream_uri=stream_uri,
                     topic=topic,
                     brokers=brokers,

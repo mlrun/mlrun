@@ -257,6 +257,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             params["endpoints"] = endpoints
             params["start"] = start
             params["end"] = end
+        elif start or end:
+            raise mlrun.errors.MLRunValueError(
+                "Custom start or end times are supported only with endpoints data"
+            )
 
         inputs: dict[str, str] = {}
         for data, identifier in [

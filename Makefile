@@ -122,6 +122,11 @@ install-complete-requirements: ## Install all requirements needed for developmen
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete]
 
+# just a backport fix to ensure system test running against this branch works
+# read: system tests are running the commands given on development branch
+.PHONY: install-complete-kfp-requirements
+install-complete-kfp-requirements: install-complete-requirements
+
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)

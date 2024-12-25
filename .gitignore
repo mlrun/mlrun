@@ -56,3 +56,9 @@ credentials.txt
 credentials.json
 google-big-query-credentials.json
 *.coverage
+
+# auto generated on > 1.7
+dockerfiles/test*/Dockerfile.dockerignore
+
+# part of project restructure on > 1.7
+server/py/schemas/proto

@@ -412,7 +412,7 @@ class MonitoringDeployment:
         controller_stream_uri = get_stream_path(
             project=self.project,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            secret_provider=secret_provider,
+            secret_provider=self._secret_provider,
         )
 
         # Create monitoring serving graph

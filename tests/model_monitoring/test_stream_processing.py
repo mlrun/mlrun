@@ -20,7 +20,7 @@ from mlrun.model_monitoring.stream_processing import EventStreamProcessor
 
 
 @pytest.mark.parametrize("tsdb_connector", ["v3io", "taosws"])
-@pytest.mark.parametrize("stream_path", ["v3io", "kafka://"])
+@pytest.mark.parametrize("stream_path", ["v3io", "kafka://192.168.226.176:9092/topic"])
 def test_plot_monitoring_serving_graph(tsdb_connector, stream_path):
     project_name = "test-stream-processing"
     project = mlrun.get_or_create_project(project_name)

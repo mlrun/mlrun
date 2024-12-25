@@ -209,21 +209,23 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
         model monitoring logic as a :py:class:`~mlrun.runtimes.KubejobRuntime`, which is an MLRun function.
 
-        :param func_path: The path to the function. If not passed, the current notebook is used.
-        :param func_name: The name of the function. If not passed, the class name is used.
-        :param tag:       An optional tag for the function.
-        :param run_local: Whether to run the function locally or remotely.
-        :param sample_data:       Optional - pandas data-frame as the current dataset.
+        This method has default values for all of its arguments. You should be change them when you want to pass
+        data to the application.
+
+        :param func_path:         The path to the function. If ``None``, the current notebook is used.
+        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param tag:               Tag for the function.
+        :param run_local:         Whether to run the function locally or remotely.
+        :param sample_data:       Pandas data-frame as the current dataset.
                                   When set, it replaces the data read from the model endpoint's offline source.
-        :param reference_data:    Optional - pandas data-frame of the reference dataset.
+        :param reference_data:    Pandas data-frame of the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
         :param image:             Docker image to run the job on.
         :param with_repo:         Whether to clone the current repo to the build source.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from.
-                                  When the names are passed, you have to provide also the start and end times of
-                                  the data to analyze.
+                                  If provided, you have to provide also the start and end times of the data to analyze.
         :param start:             The start time of the sample data.
         :param end:               The end time of the sample data.
 

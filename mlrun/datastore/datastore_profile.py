@@ -29,7 +29,7 @@ from ..secrets import get_secret_or_env
 
 
 class DatastoreProfile(pydantic.v1.BaseModel):
-    type: typing.ClassVar[str]
+    type: str
     name: str
     _private_attributes: list = ()
 
@@ -220,7 +220,7 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
 
 
 class DatastoreProfileV3io(DatastoreProfile):
-    type: typing.ClassVar[str] = "v3io"
+    type: str = pydantic.v1.Field("v3io")
     v3io_access_key: typing.Optional[str] = None
     _private_attributes = "v3io_access_key"
 

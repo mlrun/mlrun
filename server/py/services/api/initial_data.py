@@ -879,6 +879,7 @@ def _perform_version_9_data_migrations(
 ):
     _ensure_function_kind(db, db_session)
     _add_producer_uri_to_artifact(db, db_session)
+    _ensure_latest_tag_for_artifacts(db, db_session)
 
 
 def _ensure_function_kind(
@@ -974,6 +975,91 @@ def _migrate_data(
         if not records:
             logger.info("No more records to migrate", model=model.__name__)
             break
+
+
+def _ensure_latest_tag_for_artifacts(db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
+    # Query 1: Get the IDs, project, and key of the latest artifact for each combination of project/key/iteration based on updated_date
+    subquery = db_session.query(
+        framework.db.sqldb.models.ArtifactV2.id,
+        framework.db.sqldb.models.ArtifactV2.project,
+        framework.db.sqldb.models.ArtifactV2.key,
+        sqlalchemy.func.row_number()
+        .over(
+            partition_by=[
+                framework.db.sqldb.models.ArtifactV2.project,
+                framework.db.sqldb.models.ArtifactV2.key,
+                framework.db.sqldb.models.ArtifactV2.iteration,
+            ],
+            order_by=framework.db.sqldb.models.ArtifactV2.updated.desc(),
+        )
+        .label("row_num"),
+    ).subquery()
+
+    # Query to get the latest artifacts based on row number
+    latest_artifacts_data = (
+        db_session.query(subquery.c.id, subquery.c.project, subquery.c.key)
+        .filter(subquery.c.row_num == 1)
+        .all()
+    )
+
+    #  Query 2: Get the artifact IDs that already have the "latest" tag
+    subquery = db_session.query(
+        framework.db.sqldb.models.ArtifactV2.id,
+        sqlalchemy.func.row_number()
+        .over(
+            partition_by=[
+                framework.db.sqldb.models.ArtifactV2.project,
+                framework.db.sqldb.models.ArtifactV2.key,
+                framework.db.sqldb.models.ArtifactV2.iteration,
+            ],
+        )
+        .label("row_num"),
+    ).subquery()
+
+    tagged_artifacts_ids = (
+        db_session.query(
+            subquery.c.id,
+        )
+        .join(
+            framework.db.sqldb.models.ArtifactV2.Tag,
+            framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery.c.id,
+        )
+        .filter(
+            subquery.c.row_num == 1,
+            framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
+        )
+        .all()
+    )
+
+    # Extract the artifact IDs from the result (list of tuples)
+    tagged_ids = {tagged_artifact[0] for tagged_artifact in tagged_artifacts_ids}
+
+    # Compare the latest artifacts with the already tagged artifacts
+    artifacts_to_tag = {
+        (artifact_id, project, key)
+        for artifact_id, project, key in latest_artifacts_data
+        if artifact_id not in tagged_ids
+    }
+
+    if artifacts_to_tag:
+        logger.info(f"Adding 'latest' tag to {len(artifacts_to_tag)} artifacts")
+
+        # Add "latest" tag to artifacts that are not tagged
+        new_tags = [
+            framework.db.sqldb.models.ArtifactV2.Tag(
+                obj_id=artifact_id,
+                name="latest",
+                project=project,
+                obj_name=key,
+            )
+            for artifact_id, project, key in artifacts_to_tag
+        ]
+
+        # Commit the tags using the correct session commit method
+        db_session.add_all(new_tags)
+        db_session.commit()  # Commit the transaction
+
+        logger.info(f"Successfully added 'latest' tags to {len(new_tags)} artifacts")
 
 
 def _create_project_summaries(db, db_session):

@@ -375,6 +375,56 @@ def test_add_producer_uri_to_artifact():
     _verify_artifact_producer_uri(db, db_session, "name-11", "")
 
 
+def test_ensure_latest_tag_for_artifacts():
+    db, db_session = _initialize_db_without_migrations()
+    key = "key1"
+    project = "project1"
+    tree1 = "tree1"
+
+    artifact = {
+        "kind": "artifact",
+        "metadata": {"key": key, "tree": tree1},
+    }
+    db.store_artifact(
+        db_session, key=key, project=project, iter=0, artifact=artifact, tag="v1"
+    )
+    db.store_artifact(
+        db_session, key=key, project=project, iter=0, artifact=artifact, tag="v2"
+    )
+    db.store_artifact(db_session, key=key, project=project, iter=1, artifact=artifact)
+    db.store_artifact(
+        db_session, key=key, project=project, iter=2, artifact=artifact, tag="v1"
+    )
+
+    artifacts = db.list_artifacts(
+        db_session, project=project, name=key, tag="latest", as_records=True
+    )
+    assert len(artifacts) == 3
+    artifact_3_id = artifacts[0].id
+    artifact_2_id = artifacts[1].id
+    artifact_1_id = artifacts[2].id
+
+    # Delete latest tag
+    db._delete(db_session, framework.db.sqldb.db.ArtifactV2.Tag, obj_id=artifact_1_id)
+    db._delete(db_session, framework.db.sqldb.db.ArtifactV2.Tag, obj_id=artifact_2_id)
+    db_session.flush()
+
+    artifacts = db.list_artifacts(
+        db_session, project=project, name=key, tag="latest", as_records=True
+    )
+    assert len(artifacts) == 1
+    assert artifacts[0].id == artifact_3_id
+
+    # perform migration
+    services.api.initial_data._ensure_latest_tag_for_artifacts(
+        db,
+        db_session,
+    )
+
+    artifacts = db.list_artifacts(db_session, project=project, name=key, tag="latest")
+    assert len(artifacts) == 3
+
+
 def _initialize_db_without_migrations() -> (
     tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):

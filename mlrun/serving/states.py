@@ -428,7 +428,7 @@ class TaskStep(BaseStep):
         result_path: Optional[str] = None,
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        ] = schemas.ModelEndpointCreationStrategy.SKIP,
         endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
     ):
         super().__init__(name, after)
@@ -723,6 +723,11 @@ class RouterStep(TaskStep):
         self._routes: ObjectDict = None
         self.routes = routes
         self.endpoint_type = schemas.EndpointType.ROUTER
+        self.model_endpoint_creation_strategy = (
+            schemas.ModelEndpointCreationStrategy.INPLACE
+            if class_name and "serving.VotingEnsemble" in class_name
+            else schemas.ModelEndpointCreationStrategy.SKIP
+        )
 
     def get_children(self):
         """get child steps (routes)"""
@@ -755,11 +760,17 @@ class RouterStep(TaskStep):
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
         :param function:   function this step should run in
-        :param creation_strategy: model endpoint creation strategy :
-                            * overwrite - Create a new model endpoint and delete the last old one if it exists.
-                            * inplace - Use the existing model endpoint if it already exists (default).
-                            * archive - Preserve the old model endpoint and create a new one,
-                            tagging it as the latest.
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+
         """
 
         if not route and not class_name and not handler:
@@ -770,7 +781,9 @@ class RouterStep(TaskStep):
                 class_args,
                 handler=handler,
                 model_endpoint_creation_strategy=creation_strategy,
-                endpoint_type=schemas.EndpointType.NODE_EP,
+                endpoint_type=schemas.EndpointType.LEAF_EP
+                if self.class_name and "serving.VotingEnsemble" in self.class_name
+                else schemas.EndpointType.NODE_EP,
             )
         route.function = function or route.function
 

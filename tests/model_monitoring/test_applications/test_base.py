@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Iterator
+from unittest.mock import Mock, patch
+
 import pytest
 
 import mlrun
@@ -33,7 +36,8 @@ class InProgressApp0(ModelMonitoringApplicationBase):
         self, monitoring_context: MonitoringApplicationContext
     ) -> ModelMonitoringApplicationResult:
         monitoring_context.logger.info(
-            "This test app is failing on purpose - ignore the failure!"
+            "This test app is failing on purpose - ignore the failure!",
+            project=monitoring_context.project_name,
         )
         raise ValueError
 
@@ -42,7 +46,10 @@ class InProgressApp1(ModelMonitoringApplicationBase):
     def do_tracking(
         self, monitoring_context: MonitoringApplicationContext
     ) -> ModelMonitoringApplicationResult:
-        monitoring_context.logger.info("It should work now")
+        monitoring_context.logger.info(
+            "It should work now",
+            project=monitoring_context.project_name,
+        )
         return ModelMonitoringApplicationResult(
             name="res0",
             value=0,
@@ -59,8 +66,10 @@ def test_no_deprecation_instantiation() -> None:
 class TestEvaluate:
     @classmethod
     @pytest.fixture(autouse=True)
-    def _set_project(cls) -> None:
-        mlrun.get_or_create_project("test")
+    def _set_project(cls) -> Iterator[None]:
+        project = mlrun.get_or_create_project("test")
+        with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
+            yield
 
     @staticmethod
     def test_local_no_params() -> None:

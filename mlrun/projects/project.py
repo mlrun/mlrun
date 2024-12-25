@@ -44,6 +44,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
@@ -1873,6 +1874,34 @@ class MlrunProject(ModelObj):
         vector_store: "VectorStore",  # noqa: F821
         collection_name: Optional[str] = None,
     ) -> VectorStoreCollection:
+        """
+        Create a VectorStoreCollection wrapper for a given vector store instance.
+
+        This method wraps a vector store implementation (like Milvus, Chroma) with MLRun
+        integration capabilities. The wrapper provides access to the underlying vector
+        store's functionality while adding MLRun-specific features like document and
+        artifact management.
+
+        Args:
+            vector_store: The vector store instance to wrap (e.g., Milvus, Chroma).
+                        This is the underlying implementation that will handle
+                        vector storage and retrieval.
+            collection_name: Optional name for the collection. If not provided,
+                            will attempt to extract it from the vector_store object
+                            by looking for 'collection_name', '_collection_name',
+                            'index_name', or '_index_name' attributes.
+
+        Returns:
+            VectorStoreCollection: A wrapped vector store instance with MLRun integration.
+                                This wrapper provides both access to the original vector
+                                store's capabilities and additional MLRun functionality.
+
+        Example:
+            >>> vector_store = Chroma(embedding_function=embeddings)
+            >>> collection = project.get_vector_store_collection(
+            ...     vector_store, collection_name="my_collection"
+            ... )
+        """
         return VectorStoreCollection(
             self,
             vector_store,
@@ -1899,12 +1928,39 @@ class MlrunProject(ModelObj):
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
         :param artifact_path: Target path for artifact storage
-        :param document_loader_spec: Spec to use to load the artifact as langchain document
+        :param document_loader_spec: Spec to use to load the artifact as langchain document.
+
+            By default, uses DocumentLoaderSpec() which initializes with:
+
+            * loader_class_name="langchain_community.document_loaders.TextLoader"
+            * src_name="file_path"
+            * kwargs=None
+
+            Can be customized for different document types, e.g.::
+
+                DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.PDFLoader",
+                    src_name="file_path",
+                    kwargs={"extract_images": True}
+                )
         :param upload: Whether to upload the artifact
         :param labels: Key-value labels
         :param target_path: Target file path
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
+
+        Example:
+            >>> # Log a PDF document with custom loader
+            >>> project.log_document(
+            ...     key="my_doc",
+            ...     local_path="path/to/doc.pdf",
+            ...     document_loader=DocumentLoaderSpec(
+            ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
+            ...         src_name="file_path",
+            ...         kwargs={"extract_images": True},
+            ...     ),
+            ... )
+
         """
         doc_artifact = DocumentArtifact(
             key=key,
@@ -2586,6 +2642,24 @@ class MlrunProject(ModelObj):
         self._set_function(resolved_function_name, tag, function_object, func)
         return function_object
 
+    def push_run_notifications(
+        self,
+        uid,
+        timeout=45,
+    ):
+        """
+        Push notifications for a run.
+
+        :param uid: Unique ID of the run.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.push_run_notifications(
+            project=self.name,
+            uid=uid,
+            timeout=timeout,
+        )
+
     def _instantiate_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
@@ -3239,6 +3313,7 @@ class MlrunProject(ModelObj):
         cleanup_ttl: Optional[int] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
         workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
+        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3281,6 +3356,7 @@ class MlrunProject(ModelObj):
                           This allows you to control and specify where the workflow runner pod will be scheduled.
                           This setting is only relevant when the engine is set to 'remote' or for scheduled workflows,
                           and it will be ignored if the workflow is not run on a remote engine.
+        :param context:             mlrun context.
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
@@ -3367,6 +3443,7 @@ class MlrunProject(ModelObj):
             namespace=namespace,
             source=source,
             notifications=notifications,
+            context=context,
         )
         # run is None when scheduling
         if run and run.state == mlrun_pipelines.common.models.RunStatuses.failed:
@@ -3503,8 +3580,6 @@ class MlrunProject(ModelObj):
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
                                             exact path.
-                                          * MySQL/SQLite - for SQL endpoint store, provide the full connection string,
-                                            for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
         :param stream_path:               Path to the model monitoring stream. By default, None. Options:
 
                                           * None - will be set from the system configuration.
@@ -3527,12 +3602,18 @@ class MlrunProject(ModelObj):
                                           & tracked model server.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
+        if tsdb_connection == "v3io":
+            profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+                name="mm-infra-tsdb"
+            )
+            self.register_datastore_profile(profile)
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
                 "access_key": access_key,
                 "stream_path": stream_path,
                 "tsdb_connection": tsdb_connection,
+                "tsdb_profile_name": profile.name,
             },
             replace_creds=replace_creds,
         )
@@ -4443,7 +4524,9 @@ class MlrunProject(ModelObj):
         last_update_time_to: Optional[datetime.datetime] = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
-        """Retrieve a list of runs, filtered by various options.
+        """Retrieve a list of runs.
+        The default returns the runs from the last week, partitioned by name.
+        To override the default, specify any filter.
 
         The returned result is a `` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
         `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to

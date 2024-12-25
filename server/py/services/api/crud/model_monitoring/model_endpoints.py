@@ -38,7 +38,7 @@ from mlrun.model_monitoring.db._stats import (
     ModelMonitoringDriftMeasuresFile,
     delete_model_monitoring_stats_folder,
 )
-from mlrun.utils import logger
+from mlrun.utils import logger, parse_artifact_uri
 
 import framework.api.utils
 import framework.utils.singletons.db
@@ -52,11 +52,12 @@ DEFAULT_FUNCTION_TAG = "latest"
 class ModelEndpoints:
     """Provide different methods for handling model endpoints such as listing, writing and deleting"""
 
-    def create_model_endpoint(
+    async def create_model_endpoint(
         self,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         creation_strategy: mlrun.common.schemas.ModelEndpointCreationStrategy,
+        model_path: Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Creates model endpoint record in DB. The DB store target is defined either by a provided connection string
@@ -64,32 +65,75 @@ class ModelEndpoints:
 
         :param db_session:             A session that manages the current dialog with the database.
         :param model_endpoint:         Model endpoint object to update.
-        :param creation_strategy: model endpoint creation strategy :
-                            * overwrite - Create a new model endpoint and delete the last old one if it exists.
-                            * inplace - Use the existing model endpoint if it already exists.
-                            * archive - Preserve the old model endpoint and create a new one,
-                            tagging it as the latest.
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+        :param model_path:             The path to the model artifact.
 
-        :return: `ModelEndpoint` object.
+        :return:    The created `ModelEndpoint` object or `None` if the creation strategy is `SKIP`.
+        :raise:     MLRunInvalidArgumentError if the creation strategy is not valid
         """
         if model_endpoint.spec.function_name and not model_endpoint.spec.function_tag:
             logger.info("Function tag not provided, setting to 'latest'")
             model_endpoint.spec.function_tag = DEFAULT_FUNCTION_TAG
 
-        # get function_uid from db
-        try:
-            current_function = framework.utils.singletons.db.get_db().get_function(
-                db_session,
-                name=model_endpoint.spec.function_name,
-                tag=model_endpoint.spec.function_tag,
-                project=model_endpoint.metadata.project,
-            )
-            model_endpoint.spec.function_uid = current_function.get("metadata", {}).get(
-                "uid"
-            )
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info("The model endpoint is created on a non-existing function")
-            pass
+        logger.info(
+            "Creating Model Endpoint record",
+            model_endpoint_metadata=model_endpoint.metadata,
+            creation_strategy=creation_strategy,
+        )
+
+        if not model_endpoint.spec.function_uid:
+            # get function_uid from db
+            try:
+                current_function = framework.utils.singletons.db.get_db().get_function(
+                    db_session,
+                    name=model_endpoint.spec.function_name,
+                    tag=model_endpoint.spec.function_tag,
+                    project=model_endpoint.metadata.project,
+                )
+                model_endpoint.spec.function_uid = current_function.get(
+                    "metadata", {}
+                ).get("uid")
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info("The model endpoint is created on a non-existing function")
+
+        if model_path and mlrun.datastore.is_store_uri(model_path):
+            try:
+                _, model_uri = mlrun.datastore.parse_store_uri(model_path)
+                project, key, iteration, tag, tree, uid = parse_artifact_uri(
+                    model_uri, model_endpoint.metadata.project
+                )
+                model = mlrun.artifacts.dict_to_artifact(
+                    services.api.crud.Artifacts().get_artifact(
+                        db_session,
+                        key=key,
+                        tag=tag,
+                        iter=iteration,
+                        project=project,
+                        producer_id=tree,
+                        object_uid=uid,
+                    )
+                )
+
+                model_endpoint.spec.model_name = model.metadata.key
+                model_endpoint.spec.model_db_key = model.spec.db_key
+                model_endpoint.spec.model_uid = model.metadata.uid
+                model_endpoint.spec.model_tag = model.tag
+                model_endpoint.metadata.labels.update(
+                    model.labels
+                )  # todo : check if we still need this
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info("The model endpoint is created on a non-existing model")
+        else:
+            logger.info("The model endpoint is created on a non-existing model")
 
         if (
             creation_strategy
@@ -116,7 +160,9 @@ class ModelEndpoints:
                 model_endpoint=model_endpoint,
             )
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError("Invalid creation strategy")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{creation_strategy} is invalid creation strategy"
+            )
         if attributes:
             # 5. write the model endpoint to the db again
             framework.utils.singletons.db.get_db().update_model_endpoint(
@@ -152,6 +198,8 @@ class ModelEndpoints:
             exist_model_endpoint = None
 
         if not exist_model_endpoint:
+            # there is no model endpoint with the same name
+            # create a new model endpoint using the same logic as archive
             return self._archive_model_endpoint(
                 db_session=db_session, model_endpoint=model_endpoint
             )
@@ -204,7 +252,7 @@ class ModelEndpoints:
                 model_endpoint.spec.feature_names
             )
             attributes[mlrun.common.schemas.ModelEndpointSchema.LABEL_NAMES] = (
-                model_endpoint.spec.feature_names
+                model_endpoint.spec.label_names
             )
 
         return model_endpoint, attributes
@@ -260,7 +308,7 @@ class ModelEndpoints:
             model_endpoint.spec.feature_names
         )
         attributes[mlrun.common.schemas.ModelEndpointSchema.LABEL_NAMES] = (
-            model_endpoint.spec.feature_names
+            model_endpoint.spec.label_names
         )
         if (
             model_endpoint.status.monitoring_mode

@@ -16,7 +16,9 @@ import enum
 import typing
 
 import mlrun.common.schemas.secret
+import mlrun.datastore.datastore_profile
 import mlrun.errors
+import mlrun.model_monitoring.helpers
 
 from .base import TSDBConnector
 
@@ -80,6 +82,13 @@ def get_tsdb_connector(
             or the provided TSDB connection is invalid.
     """
 
+    try:
+        profile = mlrun.model_monitoring.helpers._get_tsdb_profile(
+            project=project, secret_provider=secret_provider
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        profile = None
+
     tsdb_connection_string = (
         tsdb_connection_string
         or mlrun.model_monitoring.helpers.get_tsdb_connection_string(
@@ -92,6 +101,9 @@ def get_tsdb_connector(
         kwargs["connection_string"] = tsdb_connection_string
     elif tsdb_connection_string and tsdb_connection_string == "v3io":
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
+    elif isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
+        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
+        kwargs["v3io_access_key"] = profile.v3io_access_key
     else:
         raise mlrun.errors.MLRunInvalidMMStoreTypeError(
             "You must provide a valid tsdb store connection by using "

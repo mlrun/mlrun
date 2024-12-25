@@ -35,6 +35,7 @@ import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
 import mlrun.platforms
@@ -579,6 +580,7 @@ class HTTPRunDB(RunDBInterface):
                 or config.feature_store.default_targets
             )
             config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
+            config.system_id = server_cfg.get("system_id") or config.system_id
 
         except Exception as exc:
             logger.warning(
@@ -755,6 +757,34 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        """
+        Push notifications for a run.
+
+        :param uid: Unique ID of the run.
+        :param project: Project that the run belongs to.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        project = project or config.default_project
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/runs/{uid}/push-notifications",
+            error="Failed push notifications",
+            timeout=timeout,
+        )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+        return None
+
     def read_run(
         self,
         uid,
@@ -821,8 +851,9 @@ class HTTPRunDB(RunDBInterface):
         with_notifications: bool = False,
     ) -> RunList:
         """
-        Retrieve a list of runs, filtered by various options.
-        If no filter is provided, will return runs from the last week.
+        Retrieve a list of runs.
+        The default returns the runs from the last week, partitioned by project/name.
+        To override the default, specify any filter.
 
         Example::
 
@@ -3582,18 +3613,24 @@ class HTTPRunDB(RunDBInterface):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        creation_strategy: mlrun.common.schemas.ModelEndpointCreationStrategy = "inplace",
+        creation_strategy: Optional[
+            mm_constants.ModelEndpointCreationStrategy
+        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Creates a DB record with the given model_endpoint record.
 
         :param model_endpoint: An object representing the model endpoint.
-        :param creation_strategy: model endpoint creation strategy :
-                            * overwrite - Create a new model endpoint and delete the last old one if it exists.
-                            * inplace - Use the existing model endpoint if it already exists (default).
-                            * archive - Preserve the old model endpoint and create a new one,
-                            tagging it as the latest.
-
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
         :return: The created model endpoint object.
         """
 
@@ -3809,7 +3846,7 @@ class HTTPRunDB(RunDBInterface):
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PATCH,
-            path=f"projects/{project}/model-monitoring/model-monitoring-controller",
+            path=f"projects/{project}/model-monitoring/controller",
             params={
                 "base_period": base_period,
                 "image": image,
@@ -3845,8 +3882,8 @@ class HTTPRunDB(RunDBInterface):
 
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
-            path=f"projects/{project}/model-monitoring/enable-model-monitoring",
+            method=mlrun.common.types.HTTPMethod.PUT,
+            path=f"projects/{project}/model-monitoring/",
             params={
                 "base_period": base_period,
                 "image": image,
@@ -3890,7 +3927,7 @@ class HTTPRunDB(RunDBInterface):
         """
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,
-            path=f"projects/{project}/model-monitoring/disable-model-monitoring",
+            path=f"projects/{project}/model-monitoring/",
             params={
                 "delete_resources": delete_resources,
                 "delete_stream_function": delete_stream_function,
@@ -3973,8 +4010,8 @@ class HTTPRunDB(RunDBInterface):
         :param image:   The image on which the application will run.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
-            path=f"projects/{project}/model-monitoring/deploy-histogram-data-drift-app",
+            method=mlrun.common.types.HTTPMethod.PUT,
+            path=f"projects/{project}/model-monitoring/histogram-data-drift-app",
             params={"image": image},
         )
 
@@ -3992,8 +4029,8 @@ class HTTPRunDB(RunDBInterface):
         :param replace_creds:       If True, will override the existing credentials.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
-            path=f"projects/{project}/model-monitoring/set-model-monitoring-credentials",
+            method=mlrun.common.types.HTTPMethod.PUT,
+            path=f"projects/{project}/model-monitoring/credentials",
             params={**credentials, "replace_creds": replace_creds},
         )
 

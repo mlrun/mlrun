@@ -24,6 +24,7 @@ MINIMUM_CLIENT_VERSION_FOR_MM = (
 )
 
 internal_abort_task_id = "internal-abort"
+SYSTEM_ID_KEY = "system_id"
 
 
 class LogSources(Enum):

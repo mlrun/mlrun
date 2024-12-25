@@ -321,6 +321,14 @@ class RunDBMock:
     def read_run(self, uid, project, iter=0, format_=None):
         return self._runs.get(uid, {})
 
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        pass
+
     def list_runs(
         self,
         name: Optional[str] = None,
@@ -667,7 +675,7 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
-    mock_object.create_model_endpoint = unittest.mock.Mock()
+    mock_object.get_model_endpoint = unittest.mock.Mock()
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:

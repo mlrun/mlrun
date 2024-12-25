@@ -580,6 +580,7 @@ class HTTPRunDB(RunDBInterface):
                 or config.feature_store.default_targets
             )
             config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
+            config.system_id = server_cfg.get("system_id") or config.system_id
 
         except Exception as exc:
             logger.warning(
@@ -773,7 +774,7 @@ class HTTPRunDB(RunDBInterface):
 
         response = self.api_call(
             "POST",
-            path=f"projects/{project}/runs/{uid}/push_notifications",
+            path=f"projects/{project}/runs/{uid}/push-notifications",
             error="Failed push notifications",
             timeout=timeout,
         )
@@ -850,8 +851,9 @@ class HTTPRunDB(RunDBInterface):
         with_notifications: bool = False,
     ) -> RunList:
         """
-        Retrieve a list of runs, filtered by various options.
-        If no filter is provided, will return runs from the last week.
+        Retrieve a list of runs.
+        The default returns the runs from the last week, partitioned by project/name.
+        To override the default, specify any filter.
 
         Example::
 
@@ -3844,7 +3846,7 @@ class HTTPRunDB(RunDBInterface):
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PATCH,
-            path=f"projects/{project}/model-monitoring/model-monitoring-controller",
+            path=f"projects/{project}/model-monitoring/controller",
             params={
                 "base_period": base_period,
                 "image": image,
@@ -3880,8 +3882,8 @@ class HTTPRunDB(RunDBInterface):
 
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
-            path=f"projects/{project}/model-monitoring/enable-model-monitoring",
+            method=mlrun.common.types.HTTPMethod.PUT,
+            path=f"projects/{project}/model-monitoring/",
             params={
                 "base_period": base_period,
                 "image": image,
@@ -3925,7 +3927,7 @@ class HTTPRunDB(RunDBInterface):
         """
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,
-            path=f"projects/{project}/model-monitoring/disable-model-monitoring",
+            path=f"projects/{project}/model-monitoring/",
             params={
                 "delete_resources": delete_resources,
                 "delete_stream_function": delete_stream_function,
@@ -4008,8 +4010,8 @@ class HTTPRunDB(RunDBInterface):
         :param image:   The image on which the application will run.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
-            path=f"projects/{project}/model-monitoring/deploy-histogram-data-drift-app",
+            method=mlrun.common.types.HTTPMethod.PUT,
+            path=f"projects/{project}/model-monitoring/histogram-data-drift-app",
             params={"image": image},
         )
 
@@ -4027,8 +4029,8 @@ class HTTPRunDB(RunDBInterface):
         :param replace_creds:       If True, will override the existing credentials.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
-            path=f"projects/{project}/model-monitoring/set-model-monitoring-credentials",
+            method=mlrun.common.types.HTTPMethod.PUT,
+            path=f"projects/{project}/model-monitoring/credentials",
             params={**credentials, "replace_creds": replace_creds},
         )
 

@@ -44,6 +44,7 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -79,6 +80,7 @@ from mlrun.utils import (
     validate_tag_name,
 )
 
+import framework.constants
 import framework.db.session
 import framework.utils.helpers
 from framework.db.base import DBInterface
@@ -116,6 +118,7 @@ from framework.db.sqldb.models import (
     ProjectSummary,
     Run,
     Schedule,
+    SystemMetadata,
     TimeWindowTracker,
     _labeled,
     _tagged,
@@ -6220,13 +6223,9 @@ class SQLDB(DBInterface):
         session,
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
-        notifications_states: list[mlrun.common.schemas.NotificationState],
-    ) -> Optional[str]:
+    ) -> int:
         extra_data = {
-            "notifications": [
-                notification.dict() for notification in notifications_states
-            ],
-            "criteria": alert_data.criteria.dict() if alert_data.criteria else None,
+            "criteria": alert_data.criteria.dict(),
         }
 
         # For JOB entities, construct entity_id as "name.uid" format
@@ -6249,17 +6248,18 @@ class SQLDB(DBInterface):
             data=extra_data,
         )
 
-        # if reset_policy is MANUAL, we need to keep id to be able to update number_of_events
-        # when the alert is reset
-        if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
-            return self._upsert_object_and_flush_to_get_field(
-                session, alert_activation_record, "id"
-            )
-        else:
-            # for auto reset policy reset_time is the same as the activation time
-            # for manual reset policy, we keep it empty until the alert is reset
+        # for auto reset policy reset_time is the same as the activation time
+        # for manual reset policy, we keep it empty until the alert is reset
+        if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO:
             alert_activation_record.reset_time = alert_activation_record.activation_time
-            self._upsert(session, [alert_activation_record])
+
+        # we need to keep id to be able to update number_of_events for manual reset policy
+        # and to update notification state when notification is sent
+        # NOTE: activation time is truncated to milliseconds when being saved to the database as we use mysql.DATETIME
+        # example: 2024-12-18T16:06:09.083606+00:00 will be saved as 2024-12-18T16:06:09.084000+00:00
+        return self._upsert_object_and_flush_to_get_field(
+            session, alert_activation_record, "id"
+        )
 
     def update_alert_activation(
         self,
@@ -6267,18 +6267,37 @@ class SQLDB(DBInterface):
         activation_id: int,
         activation_time: datetime,
         number_of_events: Optional[int] = None,
+        notifications_states: Optional[
+            list[mlrun.common.schemas.NotificationState]
+        ] = None,
+        update_reset_time: bool = False,
     ):
         query = self._query(
             session, AlertActivation, id=activation_id, activation_time=activation_time
         )
         activation = query.one_or_none()
         if not activation:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Alert activation not found for id: {activation_id}"
-            )
+            # if the activation is not found, we try to find it again by id only
+            # (in case something happened with activation time)
+            # usually it won't really happen, but just stay in safe side
+            query = self._query(session, AlertActivation, id=activation_id)
+            activation = query.one_or_none()
+            if not activation:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Alert activation not found for id: {activation_id}"
+                )
         if number_of_events:
             activation.number_of_events = number_of_events
-        activation.reset_time = mlrun.utils.now_date()
+        if update_reset_time:
+            activation.reset_time = mlrun.utils.now_date()
+        if notifications_states:
+            data = activation.data or {}
+            data["notifications"] = [
+                notification.dict() for notification in notifications_states
+            ]
+            activation.data = data
+            # is needed for proper update of JSON field
+            flag_modified(activation, "data")
         self._upsert(session, [activation])
 
     def list_alert_activations(
@@ -7173,6 +7192,22 @@ class SQLDB(DBInterface):
             main_table_identifier=ModelEndpoint.uid if uids else None,
             main_table_identifier_values=uids,
         )
+
+    def get_system_id(self, session: Session) -> typing.Optional[str]:
+        system_id_record = (
+            self._query(session, SystemMetadata)
+            .filter(SystemMetadata.key == framework.constants.SYSTEM_ID_KEY)
+            .one_or_none()
+        )
+        return system_id_record.value if system_id_record else None
+
+    def store_system_id(self, session: Session, system_id: str):
+        logger.debug("Storing a new system id in DB", system_id=system_id)
+
+        system_id_record = SystemMetadata(
+            key=framework.constants.SYSTEM_ID_KEY, value=system_id
+        )
+        self._upsert(session, [system_id_record])
 
     # ---- Utils ----
     def delete_table_records(

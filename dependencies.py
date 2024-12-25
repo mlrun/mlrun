@@ -69,15 +69,15 @@ def extra_requirements() -> dict[str, list[str]]:
             "avro~=1.11",
         ],
         "redis": ["redis~=4.3"],
-        "mlflow": ["mlflow~=2.8"],
-        "databricks-sdk": ["databricks-sdk~=0.13.0"],
+        "mlflow": ["mlflow~=2.16"],
+        "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=1.4"],
         "dask": [
             "dask~=2023.12.1",
             "distributed~=2023.12.1",
         ],
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
-        "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.2.0"],
+        "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.3.0"],
         "snowflake": ["snowflake-connector-python~=3.7"],
     }
 
@@ -87,6 +87,9 @@ def extra_requirements() -> dict[str, list[str]]:
     )
     extras_require.update(
         {
+            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]>=0.3.2; python_version < '3.11'"],
+            # TODO uncomment when KFP 1.8 support is removed
+            # "kfp2": ["mlrun_pipelines_kfp_v2[kfp]>=0.3.2 ; python_version >= '3.11'"],
             "api": api_deps,
             "all": _get_extra_dependencies(extras_require=extras_require),
             "complete": _get_extra_dependencies(

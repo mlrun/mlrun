@@ -260,9 +260,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         )
         assert len(filter_labels.endpoints) == 4
 
-    @pytest.mark.parametrize(
-        "creation_strategy", mm_constants.ModelEndpointCreationStrategy.list()
-    )
+    @pytest.mark.parametrize("creation_strategy", ["archive", "inplace", "overwrite"])
     def test_creation_strategy(self, creation_strategy):
         db = mlrun.get_run_db()
         model_endpoint = self._mock_random_endpoint("testing", model_name="model-1")

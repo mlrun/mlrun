@@ -1,0 +1,1 @@
+mlrun-pipelines-kfp-v1-8[kfp]~=0.3.3; python_version < "3.11"

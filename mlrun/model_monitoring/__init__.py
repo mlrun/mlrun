@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# for backwards compatibility
-
 from mlrun.common.schemas import ModelEndpoint, ModelEndpointList
 
 from .db import get_tsdb_connector

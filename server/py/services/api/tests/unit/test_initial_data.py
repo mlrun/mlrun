@@ -482,7 +482,6 @@ def test_ensure_latest_tag_for_artifacts():
 
     # perform migration to ensure the "latest" tag is reassigned correctly
     services.api.initial_data._ensure_latest_tag_for_artifacts(
-        db,
         db_session,
     )
 

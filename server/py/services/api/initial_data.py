@@ -886,7 +886,7 @@ def _perform_version_9_data_migrations(
 ):
     _ensure_function_kind(db, db_session)
     _add_producer_uri_to_artifact(db, db_session)
-    _ensure_latest_tag_for_artifacts(db, db_session)
+    _ensure_latest_tag_for_artifacts(db_session)
 
 
 def _ensure_function_kind(
@@ -984,9 +984,7 @@ def _migrate_data(
             break
 
 
-def _ensure_latest_tag_for_artifacts(
-    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
+def _ensure_latest_tag_for_artifacts(db_session: sqlalchemy.orm.Session):
     # Query 1: Get the IDs, project, and key of the latest artifact for each combination of project/key/iteration
     # based on updated_date
     subquery = db_session.query(

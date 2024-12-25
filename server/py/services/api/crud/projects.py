@@ -547,6 +547,16 @@ class Projects(
         dict[str, typing.Union[int, None]],
         dict[str, typing.Union[int, None]],
     ):
+        if (
+            mlrun.mlconf.monitoring.projects.summaries.feature_gates.pipelines
+            != "enabled"
+        ):
+            return (
+                collections.defaultdict(lambda: 0),
+                collections.defaultdict(lambda: 0),
+                collections.defaultdict(lambda: 0),
+            )
+
         # creating defaultdict instead of a regular dict, because it possible that not all projects have pipelines
         # and we want to return 0 for those projects, or None if we failed to get the information
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)

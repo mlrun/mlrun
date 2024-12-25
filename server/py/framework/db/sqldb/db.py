@@ -3158,21 +3158,19 @@ class SQLDB(DBInterface):
         return query
 
     @staticmethod
-    def _calculate_functions_counters(session) -> dict[str, int]:
-        functions_count_per_project = (
-            session.query(Function.project, func.count(distinct(Function.name)))
-            .group_by(Function.project)
-            .all()
-        )
-        project_to_function_count = {
-            result[0]: result[1] for result in functions_count_per_project
-        }
-        return project_to_function_count
-
-    @staticmethod
     def _calculate_schedules_counters(
         session,
     ) -> [dict[str, int], dict[str, int], dict[str, int]]:
+        if (
+            mlrun.mlconf.monitoring.projects.summaries.feature_gates.schedules
+            != "enabled"
+        ):
+            return [
+                collections.defaultdict(lambda: 0),
+                collections.defaultdict(lambda: 0),
+                collections.defaultdict(lambda: 0),
+            ]
+
         schedules_count_per_project = (
             session.query(Schedule.project, func.count(distinct(Schedule.name)))
             .group_by(Schedule.project)
@@ -3227,6 +3225,12 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _calculate_feature_sets_counters(session) -> dict[str, int]:
+        if (
+            mlrun.mlconf.monitoring.projects.summaries.feature_gates.feature_sets
+            != "enabled"
+        ):
+            return collections.defaultdict(lambda: 0)
+
         feature_sets_count_per_project = (
             session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
             .group_by(FeatureSet.project)
@@ -3238,6 +3242,9 @@ class SQLDB(DBInterface):
         return project_to_feature_set_count
 
     def _calculate_models_counters(self, session) -> dict[str, int]:
+        if mlrun.mlconf.monitoring.projects.summaries.feature_gates.models != "enabled":
+            return collections.defaultdict(lambda: 0)
+
         # We're using the "most_recent" which gives us only one version of each artifact key, which is what we want to
         # count (artifact count, not artifact versions count)
         model_artifacts = self._find_artifacts(
@@ -3252,6 +3259,12 @@ class SQLDB(DBInterface):
         return project_to_models_count
 
     def _calculate_files_counters(self, session) -> dict[str, int]:
+        if (
+            mlrun.mlconf.monitoring.projects.summaries.feature_gates.artifacts
+            != "enabled"
+        ):
+            return collections.defaultdict(lambda: 0)
+
         # We're using the "most_recent" flag which gives us only one version of each artifact key, which is what we
         # want to count (artifact count, not artifact versions count)
         file_artifacts = self._find_artifacts(
@@ -3273,6 +3286,13 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
     ]:
+        if mlrun.mlconf.monitoring.projects.summaries.feature_gates.runs != "enabled":
+            return (
+                collections.defaultdict(lambda: 0),
+                collections.defaultdict(lambda: 0),
+                collections.defaultdict(lambda: 0),
+            )
+
         running_runs_count_per_project = (
             session.query(Run.project, func.count(distinct(Run.name)))
             .filter(

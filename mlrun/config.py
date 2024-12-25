@@ -123,6 +123,14 @@ default_config = {
         "projects": {
             "summaries": {
                 "cache_interval": "30",
+                "feature_gates": {
+                    "artifacts": "enabled",
+                    "schedules": "enabled",
+                    "feature_sets": "enabled",
+                    "models": "enabled",
+                    "runs": "enabled",
+                    "pipelines": "enabled",
+                },
             },
         },
     },

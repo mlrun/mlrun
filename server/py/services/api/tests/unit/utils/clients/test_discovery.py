@@ -14,6 +14,8 @@
 
 import re
 
+import fastapi.testclient
+
 from mlrun import mlconf
 
 import framework.utils.clients.discovery
@@ -45,7 +47,7 @@ def test_discovery_register_api_hydra():
 
 def test_star_notation_translation():
     mlconf.services.hydra.services = ""
-    star_pattern = "projects/.+/alerts.*"
+    star_pattern = r"projects/[^/\s]+/alerts(\/.*)?"
     discovery = framework.utils.clients.discovery.Client()
 
     chief_routes = discovery._service_routes("alerts")
@@ -75,3 +77,35 @@ def test_find_service():
     discovery.initialize()
     service_instance = discovery.resolve_service_by_request(method, path)
     assert service_instance.name == "alerts"
+
+
+def test_find_service_correctness(client: fastapi.testclient.TestClient):
+    """Test that the service resolution is correct for all routes.
+    It gets all fastapi app routes, strips the prefixes and tries to resolve the service.
+    for specific tagged routes, we expect the service to be "alerts"
+    and for the rest we expect the service to be None as it would be resolved to itself (api).
+    """
+    mlconf.services.hydra.services = ""
+    discovery = framework.utils.clients.discovery.Client()
+    alert_route_tags = {
+        "events",
+        "alerts",
+        "alert-templates",
+        "alert-activations",
+    }
+    for app_route in client.app.router.routes:
+        app_route: fastapi.routing.APIRoute
+        for method in app_route.methods:
+            path = app_route.path
+            for prefix in ["/api", "/api/v1", "/api/v2", "/v1", "/v2", "/"]:
+                path = path.removeprefix(prefix)
+            app_route_tags = set(getattr(app_route, "tags", []))
+            is_alerts_route = alert_route_tags.intersection(app_route_tags)
+            expected_service = "alerts" if is_alerts_route else None
+            service_instance = discovery.resolve_service_by_request(method, path)
+            service_name = (
+                service_instance.name if service_instance else service_instance
+            )
+            assert (
+                service_name == expected_service
+            ), f"for route path {path} with {app_route_tags} tags, expected service is {expected_service}"

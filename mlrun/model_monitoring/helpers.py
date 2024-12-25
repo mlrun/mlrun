@@ -16,7 +16,7 @@ import datetime
 import functools
 import os
 from fnmatch import fnmatchcase
-from typing import TYPE_CHECKING, Callable, Optional, TypedDict, cast, Union
+from typing import TYPE_CHECKING, Callable, Optional, TypedDict, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -117,9 +117,7 @@ def get_stream_path(
     project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
     stream_uri: Optional[str] = None,
-    secret_provider: Optional[
-        Union[dict, SecretsStore, Callable[[str], str]]
-    ] = None,
+    secret_provider: Optional[Union[dict, SecretsStore, Callable[[str], str]]] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations

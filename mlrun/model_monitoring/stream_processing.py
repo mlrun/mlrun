@@ -302,7 +302,7 @@ class EventStreamProcessor:
                     "controller_stream_kafka",
                     path=path,
                     kafka_brokers=brokers,
-                    _sharding_func="kafka_sharding_func", # TODO: remove this when storey handle str key
+                    _sharding_func="kafka_sharding_func",  # TODO: remove this when storey handle str key
                     after="ForwardNOP",
                 )
 

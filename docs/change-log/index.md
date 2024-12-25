@@ -22,7 +22,7 @@
 ### Serving graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-7818|Serving graphs can now use a conditional step. See the [example of a conditional step](../serving/use-cases.md#example-of-a-conditional-step).|
+|ML-7818|Serving graphs can now use a conditional step.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -1110,6 +1110,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8064|When using notifications with `when=running` the user always gets a default notification.|NA| v1.7.0|
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 |ML-8754|The default spot-labels node-selector are removed when configuring the `allow` preemption mode with one of the node selectors defined in `mlconf.get_preemptible_node_selector()`.|Use a non-default label.|v1.7.1|
+|ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. |    |v1.7.1|
+
 ## Limitations
 
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

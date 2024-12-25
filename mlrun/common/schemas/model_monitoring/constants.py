@@ -75,6 +75,7 @@ class ModelEndpointCreationStrategy(MonitoringStrEnum):
     INPLACE = "inplace"
     ARCHIVE = "archive"
     OVERWRITE = "overwrite"
+    SKIP = "skip"
 
 
 class EventFieldType:
@@ -255,6 +256,7 @@ class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
+    TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
 
     @classmethod
     def mandatory_secrets(cls):

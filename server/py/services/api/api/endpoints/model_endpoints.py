@@ -76,11 +76,6 @@ async def create_model_endpoint(
 
     :return: A Model endpoint object without operative data.
     """
-    logger.info(
-        "Creating Model Endpoint record",
-        model_endpoint_metadata=model_endpoint.metadata,
-        creation_strategy=creation_strategy,
-    )
     if project != model_endpoint.metadata.project:
         raise MLRunInvalidArgumentError(
             f"Project name in the URL '{project}' does not match the project name in the model endpoint metadata "
@@ -99,8 +94,7 @@ async def create_model_endpoint(
     if not model_endpoint.metadata.project or not model_endpoint.metadata.name:
         raise MLRunInvalidArgumentError("Model endpoint must have project and name")
 
-    return await run_in_threadpool(
-        services.api.crud.ModelEndpoints().create_model_endpoint,
+    return await services.api.crud.ModelEndpoints().create_model_endpoint(
         db_session=db_session,
         model_endpoint=model_endpoint,
         creation_strategy=creation_strategy,

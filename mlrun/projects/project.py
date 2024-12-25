@@ -3607,19 +3607,25 @@ class MlrunProject(ModelObj):
                 name="mm-infra-tsdb"
             )
             self.register_datastore_profile(tsdb_profile)
+            tsdb_profile_name = tsdb_profile.name
+        else:
+            tsdb_profile_name = None
         if stream_path == "v3io":
             stream_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
                 name="mm-infra-stream"
             )
             self.register_datastore_profile(stream_profile)
+            stream_profile_name = stream_profile.name
+        else:
+            stream_profile_name = None
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
                 "access_key": access_key,
                 "stream_path": stream_path,
                 "tsdb_connection": tsdb_connection,
-                "tsdb_profile_name": tsdb_profile.name,
-                "stream_profile_name": stream_profile.name,
+                "tsdb_profile_name": tsdb_profile_name,
+                "stream_profile_name": stream_profile_name,
             },
             replace_creds=replace_creds,
         )

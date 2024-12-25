@@ -32,6 +32,7 @@ import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
+import mlrun.datastore.datastore_profile
 import mlrun.model_monitoring
 import mlrun.utils.helpers
 from mlrun.common.schemas import ModelEndpoint
@@ -241,6 +242,29 @@ def get_tsdb_connection_string(
     return mlrun.get_secret_or_env(
         key=mm_constants.ProjectSecretKeys.TSDB_CONNECTION,
         secret_provider=secret_provider,
+    )
+
+
+def _get_tsdb_profile(
+    project: str = "",
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+) -> mlrun.datastore.datastore_profile.DatastoreProfile:
+    """
+    Get TSDB datastore profile the project name and secret provider.
+
+    :param project:         The project name. If not set, the default project name is used.
+    :param secret_provider: Optional secret provider to get the connection string secret.
+                            If not set, the env vars are used.
+    :return:                TSDB datastore profile.
+    """
+    profile_name = mlrun.get_secret_or_env(
+        key=mm_constants.ProjectSecretKeys.TSDB_PROFILE_NAME,
+        secret_provider=secret_provider,
+    )
+    if not profile_name:
+        raise mlrun.errors.MLRunNotFoundError("Not found TSDB profile name")
+    return mlrun.datastore.datastore_profile.datastore_profile_read(
+        url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
     )
 
 

@@ -104,6 +104,8 @@ def test_client_spec(
 
     mlrun.mlconf.alerts.mode = "disabled"
 
+    mlrun.mlconf.system_id = "12345"
+
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
@@ -145,6 +147,7 @@ def test_client_spec(
     )
 
     assert response_body["alerts_mode"] == "disabled"
+    assert response_body["system_id"] == "12345"
 
 
 def test_client_spec_response_based_on_client_version(

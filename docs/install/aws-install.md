@@ -25,8 +25,9 @@ These instructions install the community edition (CE).
 Restart your computer after following the prerequisites steps to effect the changes.
 ```
 ## IAM requirements
-Verify that your AWS account has the following IAM policies:
+Verify that your AWS account has the following IAM policies.
 
+````{dropdown} Expand to see the IAM policies:
 
 ```
 {
@@ -212,6 +213,7 @@ Verify that your AWS account has the following IAM policies:
     ]
 }
 ```
+````
 
 ## Community Edition services
 

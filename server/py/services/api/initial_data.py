@@ -1005,28 +1005,14 @@ def _ensure_latest_tag_for_artifacts(
         .label("row_num"),
     ).subquery()
 
-    # Query to get the latest artifacts based on row number
     latest_artifacts_data = (
         db_session.query(subquery.c.id, subquery.c.project, subquery.c.key)
         .filter(subquery.c.row_num == 1)
         .all()
     )
 
-    #  Query 2: Get the artifact IDs that already have the "latest" tag
-    subquery = db_session.query(
-        framework.db.sqldb.models.ArtifactV2.id,
-        sqlalchemy.func.row_number()
-        .over(
-            partition_by=[
-                framework.db.sqldb.models.ArtifactV2.project,
-                framework.db.sqldb.models.ArtifactV2.key,
-                framework.db.sqldb.models.ArtifactV2.iteration,
-            ],
-        )
-        .label("row_num"),
-    ).subquery()
-
-    tagged_artifacts_ids = (
+    # Query 2: Get the IDs of the artifacts that are already tagged with "latest"
+    latest_tagged_artifacts_ids = (
         db_session.query(
             subquery.c.id,
         )
@@ -1041,9 +1027,9 @@ def _ensure_latest_tag_for_artifacts(
     )
 
     # Extract the artifact IDs from the result (list of tuples)
-    tagged_ids = {tagged_artifact[0] for tagged_artifact in tagged_artifacts_ids}
+    tagged_ids = {tagged_artifact[0] for tagged_artifact in latest_tagged_artifacts_ids}
 
-    # Compare the latest artifacts with the already tagged artifacts
+    # Compare the latest artifacts with the already latest tagged artifacts
     artifacts_to_tag = {
         (artifact_id, project, key)
         for artifact_id, project, key in latest_artifacts_data
@@ -1064,9 +1050,8 @@ def _ensure_latest_tag_for_artifacts(
             for artifact_id, project, key in artifacts_to_tag
         ]
 
-        # Commit the tags using the correct session commit method
         db_session.add_all(new_tags)
-        db_session.commit()  # Commit the transaction
+        db_session.commit()
 
         logger.info(f"Successfully added 'latest' tags to {len(new_tags)} artifacts")
 

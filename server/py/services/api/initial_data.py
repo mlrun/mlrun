@@ -977,8 +977,11 @@ def _migrate_data(
             break
 
 
-def _ensure_latest_tag_for_artifacts(db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session):
-    # Query 1: Get the IDs, project, and key of the latest artifact for each combination of project/key/iteration based on updated_date
+def _ensure_latest_tag_for_artifacts(
+    db: framework.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    # Query 1: Get the IDs, project, and key of the latest artifact for each combination of project/key/iteration
+    # based on updated_date
     subquery = db_session.query(
         framework.db.sqldb.models.ArtifactV2.id,
         framework.db.sqldb.models.ArtifactV2.project,
@@ -1025,7 +1028,6 @@ def _ensure_latest_tag_for_artifacts(db: framework.db.sqldb.db.SQLDB, db_session
             framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery.c.id,
         )
         .filter(
-            subquery.c.row_num == 1,
             framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
         )
         .all()

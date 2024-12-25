@@ -357,15 +357,7 @@ def test_notification_reason(notification_kind):
 
 
 @pytest.mark.parametrize(
-    "notification_kind",
-    [
-        mlrun.common.schemas.notification.NotificationKind.console,
-        mlrun.common.schemas.notification.NotificationKind.slack,
-        mlrun.common.schemas.notification.NotificationKind.git,
-        mlrun.common.schemas.notification.NotificationKind.webhook,
-        mlrun.common.schemas.notification.NotificationKind.ipython,
-        mlrun.common.schemas.notification.NotificationKind.mail,
-    ],
+    "notification_kind", mlrun.common.schemas.notification.NotificationKind
 )
 @pytest.mark.parametrize(
     "run_status",

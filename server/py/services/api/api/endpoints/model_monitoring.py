@@ -363,6 +363,7 @@ def set_model_monitoring_credentials(
     stream_path: Optional[str] = None,
     tsdb_connection: Optional[str] = None,
     tsdb_profile_name: Optional[str] = None,
+    stream_profile_name: Optional[str] = None,
     replace_creds: bool = False,
 ) -> None:
     """
@@ -386,6 +387,7 @@ def set_model_monitoring_credentials(
                                       3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                          for example taosws://<username>:<password>@<host>:<port>.
     :param tsdb_profile_name:         TSDB datastore profile name. If specified, takes precedence over tsdb_connection.
+    :param stream_profile_name:       Stream datastore profile name. If specified, takes precedence over stream_path.
     :param replace_creds:             If True, it will force the credentials update. By default, False.
     """
     MonitoringDeployment(
@@ -398,5 +400,6 @@ def set_model_monitoring_credentials(
         stream_path=stream_path,
         tsdb_connection=tsdb_connection,
         tsdb_profile_name=tsdb_profile_name,
+        stream_profile_name=stream_profile_name,
         replace_creds=replace_creds,
     )

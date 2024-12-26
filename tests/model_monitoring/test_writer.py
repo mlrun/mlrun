@@ -33,12 +33,10 @@ from mlrun.model_monitoring.writer import (
     ResultData,
     WriterEvent,
     _AppResultEvent,
-    _Notifier,
     _RawEvent,
     _WriterEventTypeError,
     _WriterEventValueError,
 )
-from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
 from mlrun.utils.v3io_clients import V3IOClient
 
 TEST_PROJECT = "test-application-results"
@@ -108,11 +106,6 @@ def event(request: pytest.FixtureRequest) -> _AppResultEvent:
         )
     else:
         raise ValueError
-
-
-@pytest.fixture
-def notification_pusher() -> CustomNotificationPusher:
-    return Mock(spec=CustomNotificationPusher)
 
 
 @pytest.mark.parametrize(
@@ -257,28 +250,6 @@ class TestTSDB:
         )
 
         assert record_from_tsdb.empty
-
-    @staticmethod
-    @pytest.mark.parametrize(
-        ("event", "expected_notification_call"),
-        [
-            ((2, "1.6.0", "result"), True),
-            ((1, "1.6.0", "result"), False),
-            ((0, "1.6.0", "result"), False),
-            ((2, "1.7.0", "result"), True),
-            ((1, "1.7.0", "result"), False),
-            ((0, "1.7.0", "result"), False),
-        ],
-        indirect=["event"],
-    )
-    def test_notifier(
-        event: _AppResultEvent,
-        expected_notification_call: bool,
-        notification_pusher: Mock,
-    ) -> None:
-        event, kind = ModelMonitoringWriter._reconstruct_event(event)
-        _Notifier(event=event, notification_pusher=notification_pusher).notify()
-        assert notification_pusher.push.call_count == expected_notification_call
 
     @staticmethod
     @pytest.mark.parametrize(

@@ -847,7 +847,9 @@ class TestArtifacts(TestDatabaseBase):
         )
         with (
             unittest.mock.patch.object(
-                self._db, "_delete_multi_objects", return_value=0
+                self._db,
+                "_delete",
+                side_effect=mlrun.errors.MLRunInternalServerError("some error"),
             ),
             pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
         ):
@@ -856,7 +858,9 @@ class TestArtifacts(TestDatabaseBase):
 
         with (
             unittest.mock.patch.object(
-                self._db, "_delete_multi_objects", return_value=1
+                self._db,
+                "_delete",
+                side_effect=[mlrun.errors.MLRunInternalServerError("some error"), None],
             ),
             pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
         ):

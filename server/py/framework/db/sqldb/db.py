@@ -969,7 +969,7 @@ class SQLDB(DBInterface):
 
         logger.info(f"Deleting {total_artifacts} artifacts")
 
-        deleted_artifacts = 0
+        failed_deletions_count = 0
 
         for key, uid in distinct_keys_and_uids:
             try:
@@ -981,18 +981,22 @@ class SQLDB(DBInterface):
                     key=key,
                     producer_id=producer_id,
                 )
-                deleted_artifacts += 1
             except Exception as exc:
                 logger.error(
                     "Failed to delete artifact",
                     project=project,
                     key=key,
                     uid=uid,
-                    error=str(exc),
+                    err=err_to_str(exc),
                 )
+                failed_deletions_count += 1
                 continue
 
-        logger.info(f"Successfully deleted {deleted_artifacts} artifacts.")
+        if failed_deletions_count:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Failed to delete {failed_deletions_count} artifacts"
+            )
+        logger.info(f"Successfully deleted {total_artifacts} artifacts")
 
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None

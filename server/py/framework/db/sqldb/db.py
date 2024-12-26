@@ -3125,17 +3125,21 @@ class SQLDB(DBInterface):
                 project_to_other_alerts_count,
             ),
         ) = results
+        # TODO: counters by artifact categories should be expanded to include all categories (currently only models
+        #       and other)
         return (
-            project_to_artifact_category_count[
-                mlrun.common.schemas.ArtifactCategories.other
-            ],
+            project_to_artifact_category_count.get(
+                mlrun.common.schemas.ArtifactCategories.other,
+                collections.defaultdict(lambda: 0),
+            ),
             project_to_schedule_count,
             project_to_schedule_pending_jobs_count,
             project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
-            project_to_artifact_category_count[
-                mlrun.common.schemas.ArtifactCategories.model
-            ],
+            project_to_artifact_category_count.get(
+                mlrun.common.schemas.ArtifactCategories.model,
+                collections.defaultdict(lambda: 0),
+            ),
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,

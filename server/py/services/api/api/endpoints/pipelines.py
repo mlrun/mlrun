@@ -21,8 +21,6 @@ import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 import yaml
-from fastapi import BackgroundTasks, Depends
-from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -35,7 +33,6 @@ import framework.api
 import framework.api.deps
 import framework.api.utils
 import framework.utils.auth.verifier
-import framework.utils.singletons.db as db_singleton
 import framework.utils.singletons.k8s
 import services.api.crud
 
@@ -161,61 +158,6 @@ async def retry_pipeline(
         namespace,
     )
     return run_id
-
-
-@router.post(
-    "{run_id}/push-notifications",
-    response_model=mlrun.common.schemas.BackgroundTask,
-)
-async def push_notifications(
-    project: str,
-    run_id: str,
-    background_tasks: BackgroundTasks,
-    db_session: Session = Depends(framework.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        framework.api.deps.authenticate_request
-    ),
-    namespace: str = fastapi.Query(mlrun.config.config.namespace),
-    notifications: typing.Optional[
-        typing.List[mlrun.common.schemas.Notification]
-    ] = None,
-):
-    if not notifications:
-        return
-
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-            project,
-            run_id,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-    )
-
-    pipeline = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().get_pipeline,
-        db_session,
-        run_id,
-        project,
-        namespace,
-    )
-
-    # background_task = await fastapi.concurrency.run_in_threadpool(
-    #     framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
-    #     db_session,
-    #     project,
-    #     background_tasks,
-    #     _push_notifications,
-    #     mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
-    #     framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
-    #         project, uid
-    #     ),
-    #     db_session,
-    #     run,
-    # )
-    # return background_task
-    return
 
 
 @router.get("/{run_id}")
@@ -366,17 +308,3 @@ def _try_resolve_project_from_body(
     return services.api.crud.Pipelines().resolve_project_from_workflow_manifest(
         mlrun_pipelines.models.PipelineManifest(workflow_manifest)
     )
-
-
-def _push_notifications(db_session, run):
-    db = db_singleton.get_db()
-    framework.utils.notifications.unmask_notification_params_secret_on_task(
-        db, db_session, run
-    )
-    run_notification_pusher_class = (
-        framework.utils.notifications.notification_pusher.RunNotificationPusher
-    )
-    run_notification_pusher_class(
-        [run],
-        run_notification_pusher_class.resolve_notifications_default_params(),
-    ).push()

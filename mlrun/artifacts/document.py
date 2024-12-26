@@ -255,6 +255,9 @@ class DocumentArtifact(Artifact):
             "collections",
             "original_source",
         ]
+        _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+            "collections",
+        ]
 
         def __init__(
             self,
@@ -274,7 +277,6 @@ class DocumentArtifact(Artifact):
     METADATA_SOURCE_KEY = "source"
     METADATA_ORIGINAL_SOURCE_KEY = "original_source"
     METADATA_CHUNK_KEY = "mlrun_chunk"
-    METADATA_ARTIFACT_URI_KEY = "mlrun_object_uri"
     METADATA_ARTIFACT_TARGET_PATH_KEY = "mlrun_target_path"
     METADATA_ARTIFACT_TAG = "mlrun_tag"
     METADATA_ARTIFACT_KEY = "mlrun_key"
@@ -352,7 +354,6 @@ class DocumentArtifact(Artifact):
 
             metadata[self.METADATA_ORIGINAL_SOURCE_KEY] = self.spec.original_source
             metadata[self.METADATA_SOURCE_KEY] = self.get_source()
-            metadata[self.METADATA_ARTIFACT_URI_KEY] = self.uri
             metadata[self.METADATA_ARTIFACT_TAG] = self.tag or "latest"
             metadata[self.METADATA_ARTIFACT_KEY] = self.key
             metadata[self.METADATA_ARTIFACT_PROJECT] = self.metadata.project

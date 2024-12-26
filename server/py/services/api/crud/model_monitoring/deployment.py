@@ -301,42 +301,20 @@ class MonitoringDeployment:
             secret_provider=self._secret_provider,
         )
         if stream_path.startswith("kafka://"):
-            topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-            # Generate Kafka stream source
-            stream_source = mlrun.datastore.sources.KafkaSource(
-                brokers=brokers,
-                topics=[topic],
-                attributes={"max_workers": stream_args.kafka.num_workers},
+            self._apply_and_create_kafka_source(
+                stream_path=stream_path,
+                function=function,
+                function_name=function_name,
+                stream_args=stream_args,
             )
-            stream_source.create_topics(
-                num_partitions=stream_args.kafka.partition_count,
-                replication_factor=stream_args.kafka.replication_factor,
-            )
-            function = stream_source.add_nuclio_trigger(function)
-            function.spec.min_replicas = stream_args.kafka.min_replicas
-            function.spec.max_replicas = stream_args.kafka.max_replicas
+
         elif stream_path.startswith("v3io://"):
-            access_key = self.model_monitoring_access_key
-            kwargs = {"access_key": self.model_monitoring_access_key}
-            if mlrun.mlconf.is_explicit_ack_enabled():
-                kwargs["explicit_ack_mode"] = "explicitOnly"
-                kwargs["worker_allocation_mode"] = "static"
-            kwargs["max_workers"] = stream_args.v3io.num_workers
-            services.api.api.endpoints.nuclio.create_model_monitoring_stream(
-                project=self.project,
+            self._apply_and_create_v3io_source(
                 stream_path=stream_path,
-                shard_count=stream_args.v3io.shard_count,
-                retention_period_hours=stream_args.v3io.retention_period_hours,
-                access_key=access_key,
+                function=function,
+                function_name=function_name,
+                stream_args=stream_args,
             )
-            # Generate V3IO stream trigger
-            function.add_v3io_stream_trigger(
-                stream_path=stream_path,
-                name=f"monitoring_{function_name}_trigger",
-                **kwargs,
-            )
-            function.spec.min_replicas = stream_args.v3io.min_replicas
-            function.spec.max_replicas = stream_args.v3io.max_replicas
         else:
             framework.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
@@ -351,6 +329,71 @@ class MonitoringDeployment:
         function.spec.disable_default_http_trigger = True
 
         return function
+
+    def _apply_and_create_kafka_source(
+        self,
+        stream_path: str,
+        function: mlrun.runtimes.ServingRuntime,
+        function_name: str,
+        stream_args: mlrun.config.Config,
+    ):
+        import kafka.errors
+
+        topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+        # Generate Kafka stream source
+        stream_source = mlrun.datastore.sources.KafkaSource(
+            brokers=brokers,
+            topics=[topic],
+            attributes={"max_workers": stream_args.kafka.num_workers},
+        )
+        try:
+            stream_source.create_topics(
+                num_partitions=stream_args.kafka.partition_count,
+                replication_factor=stream_args.kafka.replication_factor,
+            )
+        except kafka.errors.TopicAlreadyExistsError as exc:
+            if function_name == mm_constants.MonitoringFunctionNames.STREAM:
+                logger.info(
+                    "Kafka topic of model monitoring stream already exists. "
+                    "Skipping topic creation and using `earliest` offsett.",
+                    project=self.project,
+                    stream_path=stream_path,
+                )
+            else:
+                raise exc
+
+        function = stream_source.add_nuclio_trigger(function)
+        function.spec.min_replicas = stream_args.kafka.min_replicas
+        function.spec.max_replicas = stream_args.kafka.max_replicas
+
+    def _apply_and_create_v3io_source(
+        self,
+        stream_path: str,
+        function: mlrun.runtimes.ServingRuntime,
+        function_name: str,
+        stream_args: mlrun.config.Config,
+    ):
+        access_key = self.model_monitoring_access_key
+        kwargs = {"access_key": self.model_monitoring_access_key}
+        if mlrun.mlconf.is_explicit_ack_enabled():
+            kwargs["explicit_ack_mode"] = "explicitOnly"
+            kwargs["worker_allocation_mode"] = "static"
+        kwargs["max_workers"] = stream_args.v3io.num_workers
+        services.api.api.endpoints.nuclio.create_model_monitoring_stream(
+            project=self.project,
+            stream_path=stream_path,
+            shard_count=stream_args.v3io.shard_count,
+            retention_period_hours=stream_args.v3io.retention_period_hours,
+            access_key=access_key,
+        )
+        # Generate V3IO stream trigger
+        function.add_v3io_stream_trigger(
+            stream_path=stream_path,
+            name=f"monitoring_{function_name}_trigger",
+            **kwargs,
+        )
+        function.spec.min_replicas = stream_args.v3io.min_replicas
+        function.spec.max_replicas = stream_args.v3io.max_replicas
 
     def _initial_model_monitoring_stream_processing_function(
         self,

@@ -967,7 +967,7 @@ class SQLDB(DBInterface):
                 f"is {max_deletions}. Refine the filter and try again with a smaller batch."
             )
 
-        logger.info(f"Deleting {total_artifacts} artifacts")
+        logger.info("Deleting artifacts", total_artifacts=total_artifacts)
 
         failed_deletions_count = 0
 
@@ -996,7 +996,7 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInternalServerError(
                 f"Failed to delete {failed_deletions_count} artifacts"
             )
-        logger.info(f"Successfully deleted {total_artifacts} artifacts")
+        logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None

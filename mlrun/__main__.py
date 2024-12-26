@@ -1355,7 +1355,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
     return runtime
 
 
-def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
+def load_notification(notifications: list, project: mlrun.projects.MlrunProject):
     """
     A dictionary or json file containing notification dictionaries can be used by the user to set notifications.
     Each notification is stored in a tuple called notifications.
@@ -1378,7 +1378,7 @@ def load_notification(notifications: str, project: mlrun.projects.MlrunProject):
 
 
 def add_notification_to_project(
-    notification: str, project: mlrun.projects.MlrunProject
+    notification: dict, project: mlrun.projects.MlrunProject
 ):
     for notification_type, notification_params in notification.items():
         project.notifiers.add_notification(

@@ -31,7 +31,8 @@ from mlrun_pipelines.common.helpers import (
     PROJECT_ANNOTATION,
     RUN_ANNOTATION,
 )
-from mlrun_pipelines.common.ops import KFPMETA_DIR, PipelineRunType
+from mlrun_pipelines.common.ops import KFPMETA_DIR
+from mlrun_pipelines.common.pipeline_run_type import PipelineRunType
 from mlrun_pipelines.imports import dsl
 
 

@@ -126,6 +126,9 @@ class BaseStep(ModelObj):
         self.shape = shape
         self.on_error = None
         self._on_error_handler = None
+        self.model_endpoint_creation_strategy = (
+            schemas.ModelEndpointCreationStrategy.SKIP
+        )
 
     def get_shape(self):
         """graphviz shape"""

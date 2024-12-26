@@ -35,6 +35,7 @@ import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun_pipelines.common.models
+import mlrun_pipelines.common.pipeline_run_type as pipeline_run_type
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
@@ -55,12 +56,6 @@ from mlrun.utils import (
 # directories to /tmp to allow running with security context
 KFPMETA_DIR = "/tmp"
 KFP_ARTIFACTS_DIR = "/tmp"
-
-
-class PipelineRunType:
-    run = "run"
-    build = "build"
-    deploy = "deploy"
 
 
 def mlrun_op(
@@ -503,9 +498,9 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
         mlrun_pipelines.common.models.RunStatuses.skipped: "white",
     }
     runtype_to_shape = {
-        PipelineRunType.run: "ellipse",
-        PipelineRunType.build: "box",
-        PipelineRunType.deploy: "box3d",
+        pipeline_run_type.PipelineRunType.run: "ellipse",
+        pipeline_run_type.PipelineRunType.build: "box",
+        pipeline_run_type.PipelineRunType.deploy: "box3d",
     }
     if not run or "graph" not in run:
         return

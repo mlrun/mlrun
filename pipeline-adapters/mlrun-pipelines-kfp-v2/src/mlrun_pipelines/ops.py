@@ -28,7 +28,7 @@ from mlrun_pipelines.common.helpers import (
     PROJECT_ANNOTATION,
     RUN_ANNOTATION,
 )
-from mlrun_pipelines.common.ops import PipelineRunType
+from mlrun_pipelines.common.pipeline_run_type import PipelineRunType
 from mlrun_pipelines.imports import dsl
 from mlrun_pipelines.imports import kubernetes as kfp_k8s
 

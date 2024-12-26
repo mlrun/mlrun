@@ -45,7 +45,3 @@ mlrun-pipelines-kfp-v1-8~=0.3.3; python_version < "3.11"
 docstring_parser~=0.16
 # TODO: Remove it after moving notificaions to the server side(ML-8069)
 aiosmtplib~=3.0
-
-# TODO: discuss with v3io-frames owners how to remove such dependency
-grpcio-tools~=1.48.2 ; python_version < "3.11"
-grpcio~=1.48.2 ; python_version < "3.11"

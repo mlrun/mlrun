@@ -131,7 +131,7 @@ def test_delayed():
     graph = fn.set_topology("flow", exist_ok=True)
     dbl = graph.to(name="double", handler="double")
     dbl.to(name="add3", class_name="AsyncAdder", add=3, wait=0.1)
-    dbl.to(name="add2", class_name="AsyncAdder", add=2, wait=0.2)
+    dbl.to(name="add2", class_name="AsyncAdder", add=2, wait=0.8)
 
     graph.add_step(Merge(name="Merge", max_behind=3), after=["add2", "add3"]).to(
         "Gather"

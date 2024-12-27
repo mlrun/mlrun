@@ -182,13 +182,13 @@ bleach==6.2.0 \
     --hash=sha256:117d9c6097a7c3d22fd578fcd8d35ff1e125df6736f554da4e432fdd63f31e5e \
     --hash=sha256:123e894118b8a599fd80d3ec1a6d4cc7ce4e5882b1317a7e1ba69b56e95f991f
     # via nbconvert
-boto3==1.35.87 \
-    --hash=sha256:341c58602889078a4a25dc4331b832b5b600a33acd73471d2532c6f01b16fbb4 \
-    --hash=sha256:588ab05e2771c50fca5c242be14e7a25200ffd3dd95c45950ce40993473864c7
+boto3==1.35.89 \
+    --hash=sha256:40a980841771bdba49214aeb045b0e8046b4c1b0788987f03fc966a34c4d0d2f \
+    --hash=sha256:966bb926688f086d609d1c3044f06a66405461077abe8b66a26cbabe30689f7d
     # via nuclio-jupyter
-botocore==1.35.87 \
-    --hash=sha256:3062d073ce4170a994099270f469864169dc1a1b8b3d4a21c14ce0ae995e0f89 \
-    --hash=sha256:81cf84f12030d9ab3829484b04765d5641697ec53c2ac2b3987a99eefe501692
+botocore==1.35.89 \
+    --hash=sha256:70d55f9882a40e2a5fea1f2fc1efed3fd27c35d87f0a949b1cbac32d25bb49e1 \
+    --hash=sha256:b073751c5a33eec2879f73120e2636d9bed3178f7498c49aca76274d9d8a5442
     # via
     #   boto3
     #   s3transfer
@@ -1114,15 +1114,13 @@ mistune==3.0.2 \
     --hash=sha256:71481854c30fdbc938963d3605b72501f5c10a9320ecd412c121c163a1c7d205 \
     --hash=sha256:fc7f93ded930c92394ef2cb6f04a8aabab4117a91449e72dcc8dfa646a508be8
     # via nbconvert
-mlrun-pipelines-kfp-common==0.3.3 \
-    --hash=sha256:5f3ee7078ba070f8cb629a2d384a0d1a27443ac41e5f60aebbe03cc89768c986 \
-    --hash=sha256:be417d586cbdd1c6101f1e2ec1565f38d9b5d73a75e953d5b91e2f643e572359
-    # via
-    #   -r requirements.txt
-    #   mlrun-pipelines-kfp-v1-8
-mlrun-pipelines-kfp-v1-8==0.3.3 ; python_full_version < '3.11' \
-    --hash=sha256:0075966baba1289ce3c94443cfc4e6d2eb995bf3f50e77a880b3c725c03c3ea3 \
-    --hash=sha256:017f0ded00a6c6ebf6ad0a3e22bf14654929fa4edbae7913c4bbfb9bcf4b46e4
+mlrun-pipelines-kfp-common==0.3.5 \
+    --hash=sha256:695fc65394a986864bc89c05ce0c7ad45eeef94044a05b0bc5e3d4be360ac312 \
+    --hash=sha256:8bfaec8692445585f320271bf906cf0556927a820aa42e6f06b8cb682c5e1c20
+    # via -r requirements.txt
+mlrun-pipelines-kfp-v1-8==0.3.5 ; python_full_version < '3.11' \
+    --hash=sha256:1fce92076ecebb3fad93442fc39eef1fccfb38d7dae6973476fdb82b9f105ecc \
+    --hash=sha256:318ce848e6678e0649dab8e56608fb4093e5752a0835d189ce3d835ebae89379
     # via
     #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   -r requirements.txt

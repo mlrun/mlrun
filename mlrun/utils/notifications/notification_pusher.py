@@ -31,6 +31,7 @@ import mlrun.model
 import mlrun.utils.helpers
 import mlrun.utils.notifications.notification as notification_module
 import mlrun.utils.notifications.notification.base as base
+import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
@@ -500,9 +501,9 @@ class NotificationPusher(_NotificationPusherBase):
                 steps.append(function)
 
         step_methods = {
-            mlrun_pipelines.common.ops.PipelineRunType.run: _add_run_step,
-            mlrun_pipelines.common.ops.PipelineRunType.build: _add_deploy_function_step,
-            mlrun_pipelines.common.ops.PipelineRunType.deploy: _add_deploy_function_step,
+            mlrun_pipelines.common.constants.PipelineRunType.run: _add_run_step,
+            mlrun_pipelines.common.constants.PipelineRunType.build: _add_deploy_function_step,
+            mlrun_pipelines.common.constants.PipelineRunType.deploy: _add_deploy_function_step,
         }
 
         workflow_id = run.status.results.get("workflow_id", None)

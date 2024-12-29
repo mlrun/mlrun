@@ -1045,8 +1045,6 @@ def _ensure_latest_tag_for_artifacts(
         model=framework.db.sqldb.models.ArtifactV2.Tag,
         count=len(artifacts_to_tag),
     )
-    if not artifacts_to_tag:
-        return
 
     while artifacts_to_tag:
         new_tags = [

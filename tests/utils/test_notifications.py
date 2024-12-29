@@ -497,22 +497,38 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
 
 
 @pytest.mark.parametrize(
-    "run,expected_override_body",
+    "run,input_override_body,expected_override_body",
     [
         (
             {
                 "metadata": {"name": "x", "project": "y"},
                 "status": {"state": runtimes_constants.RunStates.completed},
             },
+            {"message": "{{runs}}"},
             {
                 "message": "[{'project': 'y', 'name': 'x', 'status': {'state': 'completed'}}]"
             },
-        )
+        ),
+        (
+            {
+                "metadata": {"name": "x", "project": "y"},
+                "status": {"state": runtimes_constants.RunStates.completed},
+            },
+            {"message": "{{runs}}", "ignore_non_str_values": ["{{runs}}"]},
+            {
+                "message": "[{'project': 'y', 'name': 'x', 'status': {'state': 'completed'}}]",
+                "ignore_non_str_values": ["{{runs}}"],
+            },
+        ),
     ],
 )
-async def test_serialize_runs_in_request_body(run, expected_override_body):
-    override_body = mlrun.utils.notifications.notification.webhook.WebhookNotification._serialize_runs_in_request_body(
-        override_body={"message": "{{runs}}"},
+async def test_serialize_runs_in_request_body(
+    run, input_override_body, expected_override_body
+):
+    # just to make line shorter
+    webhook_cls = mlrun.utils.notifications.notification.webhook.WebhookNotification
+    override_body = webhook_cls._serialize_runs_in_request_body(
+        override_body=input_override_body,
         runs=[run],
     )
     assert override_body == expected_override_body

@@ -1662,7 +1662,9 @@ class TestProject(TestMLRunSystem):
         project.set_source(source)
 
         # Build the image, load the source to the target dir and save the project
-        project.build_image(target_dir=source_code_target_dir)
+        project.build_image(
+            target_dir=source_code_target_dir, base_image="mlrun/mlrun-kfp"
+        )
         project.save()
 
         run = project.run(

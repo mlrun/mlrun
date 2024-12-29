@@ -987,7 +987,6 @@ def _migrate_data(
 def _ensure_latest_tag_for_artifacts(
     db_session: sqlalchemy.orm.Session, chunk_size: typing.Optional[int] = None
 ):
-    # Set default chunk size if not provided
     chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
 
     # Query to get latest artifacts that are NOT tagged 'latest'
@@ -1016,7 +1015,6 @@ def _ensure_latest_tag_for_artifacts(
         .subquery()
     )
 
-    # Main query to fetch latest artifacts that are NOT tagged 'latest'
     query = (
         db_session.query(
             framework.db.sqldb.models.ArtifactV2.id,
@@ -1053,7 +1051,6 @@ def _ensure_latest_tag_for_artifacts(
         db_session.add_all(new_tags)
         db_session.commit()
 
-        # Fetch next batch of records to migrate (if any)
         artifacts_to_tag = query.limit(chunk_size).all()
 
         # If no records left to migrate, stop

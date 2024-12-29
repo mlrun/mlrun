@@ -21,8 +21,6 @@ import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 import yaml
-from fastapi import BackgroundTasks, Depends
-from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -35,7 +33,6 @@ import framework.api
 import framework.api.deps
 import framework.api.utils
 import framework.utils.auth.verifier
-import framework.utils.singletons.db as db_singleton
 import framework.utils.singletons.k8s
 import services.api.crud
 

@@ -1035,6 +1035,17 @@ def _ensure_latest_tag_for_artifacts(
     artifacts_to_tag = query.limit(chunk_size).all()
 
     if not artifacts_to_tag:
+        logger.info(
+            "No records to migrate", model=framework.db.sqldb.models.ArtifactV2.Tag
+        )
+        return
+
+    logger.info(
+        "Starting migration",
+        model=framework.db.sqldb.models.ArtifactV2.Tag,
+        count=len(artifacts_to_tag),
+    )
+    if not artifacts_to_tag:
         return
 
     while artifacts_to_tag:
@@ -1048,13 +1059,21 @@ def _ensure_latest_tag_for_artifacts(
             for artifact_id, project, key in artifacts_to_tag
         ]
 
+        logger.info(
+            "Committing migrated records",
+            model=framework.db.sqldb.models.ArtifactV2.Tag,
+            count=len(new_tags),
+        )
         db_session.add_all(new_tags)
         db_session.commit()
 
         artifacts_to_tag = query.limit(chunk_size).all()
 
-        # If no records left to migrate, stop
         if not artifacts_to_tag:
+            logger.info(
+                "No more records to migrate",
+                model=framework.db.sqldb.models.ArtifactV2.Tag,
+            )
             break
 
 

@@ -28,6 +28,7 @@ from kfp import dsl
 import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.utils
 import mlrun.utils.logger
 import mlrun_pipelines.common.models
 import tests.system.common.helpers.notifications as notification_helpers
@@ -706,9 +707,15 @@ class TestProject(TestMLRunSystem):
             workflow_name,
             engine="remote",
         )
-        assert (
-            run.state == mlrun_pipelines.common.models.RunStatuses.running
-        ), "pipeline failed"
+        # wait 30s for pipeline to start running
+        mlrun.utils.retry_until_successful(
+            backoff=1,
+            timeout=30,
+            logger=self._logger,
+            verbose=True,
+            _function=lambda: run.state
+            != mlrun_pipelines.common.models.RunStatuses.running,
+        )
 
         # Retrieve the project from the database or create it from the context
         context = f"{projects_dir}/get-{project_name}"

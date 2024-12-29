@@ -984,13 +984,18 @@ def _migrate_data(
             break
 
 
-def _ensure_latest_tag_for_artifacts(db_session: sqlalchemy.orm.Session):
-    # Query 1: Get the IDs, project, and key of the latest artifact for each combination of project/key/iteration
-    # based on updated_date
+def _ensure_latest_tag_for_artifacts(
+    db_session: sqlalchemy.orm.Session, chunk_size: typing.Optional[int] = None
+):
+    # Set default chunk size if not provided
+    chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
+
+    # Query to get latest artifacts that are NOT tagged 'latest'
     subquery = db_session.query(
         framework.db.sqldb.models.ArtifactV2.id,
-        framework.db.sqldb.models.ArtifactV2.project,
         framework.db.sqldb.models.ArtifactV2.key,
+        framework.db.sqldb.models.ArtifactV2.project,
+        framework.db.sqldb.models.ArtifactV2.Tag.name,
         sqlalchemy.func.row_number()
         .over(
             partition_by=[
@@ -1000,39 +1005,29 @@ def _ensure_latest_tag_for_artifacts(db_session: sqlalchemy.orm.Session):
             ],
             order_by=framework.db.sqldb.models.ArtifactV2.updated.desc(),
         )
-        .label("row_num"),
+        .label("row_number")
+    ).outerjoin(
+        framework.db.sqldb.models.ArtifactV2.Tag,
+        framework.db.sqldb.models.ArtifactV2.Tag.obj_id == framework.db.sqldb.models.ArtifactV2.id
     ).subquery()
 
-    latest_artifacts_data = (
-        db_session.query(subquery.c.id, subquery.c.project, subquery.c.key)
-        .filter(subquery.c.row_num == 1)
-        .all()
+    # Main query to fetch latest artifacts that are NOT tagged 'latest'
+    query = db_session.query(
+        framework.db.sqldb.models.ArtifactV2.id,
+        framework.db.sqldb.models.ArtifactV2.key,
+        framework.db.sqldb.models.ArtifactV2.project,
+    ).join(
+        subquery,
+        framework.db.sqldb.models.ArtifactV2.id == subquery.c.id
+    ).filter(
+        subquery.c.row_number == 1,  # Only the latest artifact for each project/key/iteration
+        sqlalchemy.or_(
+            subquery.c.name != "latest",  # Exclude if already tagged 'latest'
+            subquery.c.name == None,  # Include artifacts with no tag
+        ),
     )
 
-    # Query 2: Get the IDs of the artifacts that are already tagged with "latest"
-    latest_tagged_artifacts_ids = (
-        db_session.query(
-            subquery.c.id,
-        )
-        .join(
-            framework.db.sqldb.models.ArtifactV2.Tag,
-            framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery.c.id,
-        )
-        .filter(
-            framework.db.sqldb.models.ArtifactV2.Tag.name == "latest",
-        )
-        .all()
-    )
-
-    # Extract the artifact IDs from the result (list of tuples)
-    tagged_ids = {tagged_artifact[0] for tagged_artifact in latest_tagged_artifacts_ids}
-
-    # Compare the latest artifacts with the already latest tagged artifacts
-    artifacts_to_tag = {
-        (artifact_id, project, key)
-        for artifact_id, project, key in latest_artifacts_data
-        if artifact_id not in tagged_ids
-    }
+    artifacts_to_tag = query.all()
 
     if artifacts_to_tag:
         logger.info(f"Adding 'latest' tag to {len(artifacts_to_tag)} artifacts")

@@ -23,6 +23,7 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
+import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.ops
 from mlrun.config import config
 from mlrun.utils import get_in
@@ -31,7 +32,7 @@ from mlrun_pipelines.common.helpers import (
     PROJECT_ANNOTATION,
     RUN_ANNOTATION,
 )
-from mlrun_pipelines.common.ops import KFPMETA_DIR, PipelineRunType
+from mlrun_pipelines.common.ops import KFPMETA_DIR
 from mlrun_pipelines.imports import dsl
 
 
@@ -50,7 +51,9 @@ def generate_deployer_pipeline_node(
     cop = add_default_function_resources(cop)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
-    add_annotations(cop, PipelineRunType.deploy, function, func_url)
+    add_annotations(
+        cop, mlrun_pipelines.common.constants.PipelineRunType.deploy, function, func_url
+    )
     add_default_env(k8s_client, cop)
     return cop
 
@@ -88,7 +91,9 @@ def generate_image_builder_pipeline_node(
     cop = add_default_function_resources(cop)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
-    add_annotations(cop, PipelineRunType.build, function, func_url)
+    add_annotations(
+        cop, mlrun_pipelines.common.constants.PipelineRunType.build, function, func_url
+    )
     if config.httpdb.builder.docker_registry:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
@@ -146,7 +151,13 @@ def generate_pipeline_node(
     cop = add_default_function_resources(cop)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
-    add_annotations(cop, PipelineRunType.run, function, func_url, project_name)
+    add_annotations(
+        cop,
+        mlrun_pipelines.common.constants.PipelineRunType.run,
+        function,
+        func_url,
+        project_name,
+    )
     add_labels(cop, function, scrape_metrics)
     if code_env:
         cop.container.add_env_variable(

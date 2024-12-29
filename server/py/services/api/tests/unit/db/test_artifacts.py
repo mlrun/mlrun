@@ -847,7 +847,9 @@ class TestArtifacts(TestDatabaseBase):
         )
         with (
             unittest.mock.patch.object(
-                self._db, "_delete_multi_objects", return_value=0
+                self._db,
+                "_delete",
+                side_effect=mlrun.errors.MLRunInternalServerError("some error"),
             ),
             pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
         ):
@@ -856,7 +858,9 @@ class TestArtifacts(TestDatabaseBase):
 
         with (
             unittest.mock.patch.object(
-                self._db, "_delete_multi_objects", return_value=1
+                self._db,
+                "_delete",
+                side_effect=[mlrun.errors.MLRunInternalServerError("some error"), None],
             ),
             pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
         ):
@@ -868,6 +872,42 @@ class TestArtifacts(TestDatabaseBase):
         self._db.del_artifacts(self._db_session)
         artifacts = self._db.list_artifacts(self._db_session)
         assert len(artifacts) == 0
+
+    def test_delete_artifacts_exceeds_max_allowed_deletions(self):
+        project = "artifact_project"
+        artifact_key = "artifact_key"
+        artifact_body = self._generate_artifact(artifact_key)
+
+        # Store two artifacts with the same project and key
+        self._db.store_artifact(
+            self._db_session,
+            key=artifact_key,
+            project=project,
+            iter=0,
+            artifact=artifact_body,
+        )
+        self._db.store_artifact(
+            self._db_session,
+            key=artifact_key,
+            project=project,
+            iter=1,
+            artifact=artifact_body,
+        )
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_key
+        )
+        assert len(artifacts) == 2
+
+        mlrun.mlconf.artifacts.limits.max_deletions = 1
+
+        with (
+            pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
+        ):
+            self._db.del_artifacts(self._db_session, project=project, name=artifact_key)
+        assert (
+            "Cannot delete 2 artifacts. The maximum allowed artifacts deletions"
+            in str(exc.value)
+        )
 
     def test_delete_artifacts_with_specific_iteration(self):
         project = "artifact_project"

@@ -14,6 +14,7 @@
 
 import asyncio
 import datetime
+import os
 import re
 import traceback
 import typing
@@ -30,6 +31,7 @@ import mlrun.model
 import mlrun.utils.helpers
 import mlrun.utils.notifications.notification as notification_module
 import mlrun.utils.notifications.notification.base as base
+import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
 import mlrun_pipelines.utils
@@ -499,9 +501,9 @@ class NotificationPusher(_NotificationPusherBase):
                 steps.append(function)
 
         step_methods = {
-            mlrun_pipelines.common.ops.PipelineRunType.run: _add_run_step,
-            mlrun_pipelines.common.ops.PipelineRunType.build: _add_deploy_function_step,
-            mlrun_pipelines.common.ops.PipelineRunType.deploy: _add_deploy_function_step,
+            mlrun_pipelines.common.constants.PipelineRunType.run: _add_run_step,
+            mlrun_pipelines.common.constants.PipelineRunType.build: _add_deploy_function_step,
+            mlrun_pipelines.common.constants.PipelineRunType.deploy: _add_deploy_function_step,
         }
 
         workflow_id = run.status.results.get("workflow_id", None)
@@ -683,6 +685,34 @@ class CustomNotificationPusher(_NotificationPusherBase):
     ):
         db = mlrun.get_run_db()
         db.push_run_notifications(pipeline_id, project)
+
+    def push_pipeline_start_message_from_client(
+        self,
+        project: str,
+        commit_id: typing.Optional[str] = None,
+        pipeline_id: typing.Optional[str] = None,
+        has_workflow_url: bool = False,
+    ):
+        message = f"Workflow started in project {project}"
+        if pipeline_id:
+            message += f" id={pipeline_id}"
+        commit_id = (
+            commit_id or os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA")
+        )
+        if commit_id:
+            message += f", commit={commit_id}"
+        if has_workflow_url:
+            url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
+        else:
+            url = mlrun.utils.helpers.get_ui_url(project)
+        html = ""
+        if url:
+            html = (
+                message
+                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
+            )
+            message = message + f", check progress in {url}"
+        self.push(message, "info", custom_html=html)
 
     def push_pipeline_run_results(
         self,

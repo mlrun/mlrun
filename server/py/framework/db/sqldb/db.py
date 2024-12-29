@@ -958,44 +958,45 @@ class SQLDB(DBInterface):
             producer_id=producer_id,
             with_entities=[ArtifactV2.key, ArtifactV2.uid],
         )
+        total_artifacts = len(distinct_keys_and_uids)
+        max_deletions = config.artifacts.limits.max_deletions
 
-        artifact_column_identifiers = {}
-        for key, uid in distinct_keys_and_uids:
-            artifact_column_identifier, column_value = self._delete_tagged_object(
-                session,
-                ArtifactV2,
-                project=project,
-                uid=uid,
-                key=key,
-                commit=False,
-                producer_id=producer_id,
+        if total_artifacts > max_deletions:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Cannot delete {total_artifacts} artifacts. The maximum allowed artifacts deletions "
+                f"is {max_deletions}. Refine the filter and try again with a smaller batch."
             )
-            if artifact_column_identifier is None:
-                # record was not found
-                continue
 
-            artifact_column_identifiers.setdefault(
-                artifact_column_identifier, []
-            ).append(column_value)
+        logger.info("Deleting artifacts", total_artifacts=total_artifacts)
 
         failed_deletions_count = 0
-        for (
-            artifact_column_identifier,
-            column_values,
-        ) in artifact_column_identifiers.items():
-            deletions_count = self._delete_multi_objects(
-                session=session,
-                main_table=ArtifactV2,
-                project=project,
-                main_table_identifier=getattr(ArtifactV2, artifact_column_identifier),
-                main_table_identifier_values=column_values,
-            )
-            failed_deletions_count += len(column_values) - deletions_count
+
+        for key, uid in distinct_keys_and_uids:
+            try:
+                self._delete_tagged_object(
+                    session,
+                    ArtifactV2,
+                    project=project,
+                    uid=uid,
+                    key=key,
+                    producer_id=producer_id,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to delete artifact",
+                    project=project,
+                    key=key,
+                    uid=uid,
+                    err=err_to_str(exc),
+                )
+                failed_deletions_count += 1
+                continue
 
         if failed_deletions_count:
             raise mlrun.errors.MLRunInternalServerError(
                 f"Failed to delete {failed_deletions_count} artifacts"
             )
+        logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
@@ -4793,7 +4794,6 @@ class SQLDB(DBInterface):
         uid=None,
         name=None,
         key=None,
-        commit=True,
         **kwargs,
     ):
         # TODO: Tag is now cascaded in the DB level so this should not be needed anymore
@@ -4842,19 +4842,12 @@ class SQLDB(DBInterface):
             # get the object id from the object record
             object_id = object_record.id
 
-            if cls == ArtifactV2 and commit:
-                # TODO: Handle the case when commit=False (e.g., deleting multiple artifact keys)
+            if cls == ArtifactV2:
                 self._update_artifact_latest_tag_on_deletion(session, object_record)
 
         if object_id:
-            if not commit:
-                return "id", object_id
             self._delete(session, cls, id=object_id)
         else:
-            if not commit:
-                if name:
-                    return "name", obj_name
-                return "key", obj_name
             # If we got here, neither tag nor uid were provided - delete all references by name.
             identifier = {"name": obj_name} if name else {"key": obj_name}
             self._delete(session, cls, project=project, **identifier)

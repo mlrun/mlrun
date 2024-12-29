@@ -153,7 +153,6 @@ def test_requirement_specifiers_convention():
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
         "mlrun_pipelines_kfp_v2": {">=0.2.5 ; python_version >= '3.11'"},
-        "grpcio-tools": {"~=1.48.2"},
     }
 
     for (

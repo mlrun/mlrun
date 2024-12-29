@@ -13,6 +13,10 @@
 # limitations under the License.
 
 from collections.abc import Iterator
+from contextlib import AbstractContextManager
+from contextlib import nullcontext as does_not_raise
+from datetime import datetime, timezone
+from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -78,3 +82,116 @@ class TestEvaluate:
         assert run.state() == "created"  # Should be "error", see ML-8507
         run = InProgressApp1.evaluate(func_path=__file__, func_name=func_name)
         assert run.state() == "completed"
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "base_period", "expectation"),
+    [
+        (
+            None,
+            None,
+            None,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match=".* you must also pass the start and end times",
+            ),
+        ),
+        (
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            None,
+            does_not_raise(),
+        ),
+        (
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            0,
+            pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="`base_period` must be a nonnegative integer .*",
+            ),
+        ),
+    ],
+)
+def test_validate_times(
+    start: Optional[datetime],
+    end: Optional[datetime],
+    base_period: Optional[int],
+    expectation: AbstractContextManager,
+) -> None:
+    with expectation:
+        ModelMonitoringApplicationBase._validate_times(start, end, base_period)
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "base_period", "expected_windows"),
+    [
+        (
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            None,
+            [
+                (
+                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+                ),
+            ],
+        ),
+        (
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            600,
+            [
+                (
+                    datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2008, 9, 1, 20, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2008, 9, 2, 6, 2, 1, tzinfo=timezone.utc),
+                    datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+                ),
+            ],
+        ),
+        (
+            datetime(2024, 12, 26, 14, 0, 0, tzinfo=timezone.utc),
+            datetime(2024, 12, 26, 14, 4, 0, tzinfo=timezone.utc),
+            1,
+            [
+                (
+                    datetime(2024, 12, 26, 14, 0, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2024, 12, 26, 14, 1, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2024, 12, 26, 14, 2, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=timezone.utc),
+                ),
+                (
+                    datetime(2024, 12, 26, 14, 3, 0, tzinfo=timezone.utc),
+                    datetime(2024, 12, 26, 14, 4, 0, tzinfo=timezone.utc),
+                ),
+            ],
+        ),
+    ],
+)
+def test_windows(
+    start: datetime,
+    end: datetime,
+    base_period: Optional[int],
+    expected_windows: list[tuple[datetime, datetime]],
+) -> None:
+    assert (
+        list(
+            ModelMonitoringApplicationBase._window_generator(
+                start=start, end=end, base_period=base_period
+            )
+        )
+        == expected_windows
+    ), "The generated windows are different than expected"

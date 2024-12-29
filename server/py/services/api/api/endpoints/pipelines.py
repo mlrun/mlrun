@@ -163,61 +163,6 @@ async def retry_pipeline(
     return run_id
 
 
-@router.post(
-    "{run_id}/push-notifications",
-    response_model=mlrun.common.schemas.BackgroundTask,
-)
-async def push_notifications(
-    project: str,
-    run_id: str,
-    background_tasks: BackgroundTasks,
-    db_session: Session = Depends(framework.api.deps.get_db_session),
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        framework.api.deps.authenticate_request
-    ),
-    namespace: str = fastapi.Query(mlrun.config.config.namespace),
-    notifications: typing.Optional[
-        typing.List[mlrun.common.schemas.Notification]
-    ] = None,
-):
-    if not notifications:
-        return
-
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-            project,
-            run_id,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-    )
-
-    pipeline = await fastapi.concurrency.run_in_threadpool(
-        services.api.crud.Pipelines().get_pipeline,
-        db_session,
-        run_id,
-        project,
-        namespace,
-    )
-
-    # background_task = await fastapi.concurrency.run_in_threadpool(
-    #     framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
-    #     db_session,
-    #     project,
-    #     background_tasks,
-    #     _push_notifications,
-    #     mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
-    #     framework.utils.background_tasks.BackgroundTaskKinds.push_notification.format(
-    #         project, uid
-    #     ),
-    #     db_session,
-    #     run,
-    # )
-    # return background_task
-    return
-
-
 @router.get("/{run_id}")
 async def get_pipeline(
     run_id: str,

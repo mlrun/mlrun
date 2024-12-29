@@ -182,13 +182,13 @@ bleach==6.2.0 \
     --hash=sha256:117d9c6097a7c3d22fd578fcd8d35ff1e125df6736f554da4e432fdd63f31e5e \
     --hash=sha256:123e894118b8a599fd80d3ec1a6d4cc7ce4e5882b1317a7e1ba69b56e95f991f
     # via nbconvert
-boto3==1.35.89 \
-    --hash=sha256:40a980841771bdba49214aeb045b0e8046b4c1b0788987f03fc966a34c4d0d2f \
-    --hash=sha256:966bb926688f086d609d1c3044f06a66405461077abe8b66a26cbabe30689f7d
+boto3==1.35.90 \
+    --hash=sha256:b0874233057995a8f0c813f5b45a36c09630e74c43d7a7c64db2feef2915d493 \
+    --hash=sha256:dc56caaaab2157a4bfc109c88b50cd032f3ac66c06d17f8ee335b798eaf53e5c
     # via nuclio-jupyter
-botocore==1.35.89 \
-    --hash=sha256:70d55f9882a40e2a5fea1f2fc1efed3fd27c35d87f0a949b1cbac32d25bb49e1 \
-    --hash=sha256:b073751c5a33eec2879f73120e2636d9bed3178f7498c49aca76274d9d8a5442
+botocore==1.35.90 \
+    --hash=sha256:51dcbe1b32e2ac43dac17091f401a00ce5939f76afe999081802009cce1e92e4 \
+    --hash=sha256:f007f58e8e3c1ad0412a6ddfae40ed92a7bca571c068cb959902bcf107f2ae48
     # via
     #   boto3
     #   s3transfer

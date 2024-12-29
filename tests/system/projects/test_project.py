@@ -24,7 +24,6 @@ import igz_mgmt
 import pandas as pd
 import pytest
 from kfp import dsl
-from kubernetes.client import V1Secret
 
 import mlrun
 import mlrun.common.runtimes.constants
@@ -524,12 +523,13 @@ class TestProject(TestMLRunSystem):
         for env in fn.spec.env:
             if env["name"] in ["V3IO_ACCESS_KEY", "MLRUN_ATH_SESSION"]:
                 assert "valueFrom" in env, "content must be taken from secret"
-                secret_name = env["valueFrom"]["secretKeyRef"]["name"]
-                k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
-                    name=secret_name,
-                    namespace="default-tenant",
-                )
-                assert k8s_secret.data.get("accessKey") is not None
+                # TODO: uncomment when we have system tests with full k8s access
+                # secret_name = env["valueFrom"]["secretKeyRef"]["name"]
+                # k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
+                #     name=secret_name,
+                #     namespace="default-tenant",
+                # )
+                # assert k8s_secret.data.get("accessKey") is not None
 
     def test_local_pipeline(self):
         self._test_new_pipeline("lclpipe", engine="local")

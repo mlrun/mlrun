@@ -27,6 +27,16 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 ARG MLRUN_PIP_VERSION=24.2
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
+# install kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256" \
+    && install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl \
+    && kubectl version --client
+
+# install aws-iam-authenticator (for EKS)
+RUN curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.15.10/2020-02-22/bin/linux/amd64/aws-iam-authenticator \
+    && chmod +x ./aws-iam-authenticator \
+    && mv ./aws-iam-authenticator /usr/local/bin
+
 WORKDIR /tmp/mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy

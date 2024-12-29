@@ -466,8 +466,9 @@ def test_ensure_latest_tag_for_artifacts():
         db_session, project=project1, name=key1, tag="latest", as_records=True
     )
     assert len(artifacts) == 3
-    artifact_2_id = artifacts[1].id
-    artifact_1_id = artifacts[2].id
+    artifact_3_id = artifacts[0].id
+    artifact_1_id = artifacts[1].id
+    artifact_2_id = artifacts[2].id
 
     # Delete the "latest" tags manually (deleting two tags)
     db._delete(db_session, framework.db.sqldb.db.ArtifactV2.Tag, obj_id=artifact_1_id)
@@ -479,14 +480,15 @@ def test_ensure_latest_tag_for_artifacts():
         db_session, project=project1, name=key1, tag="latest", as_records=True
     )
     assert len(artifacts) == 1
+    assert artifacts[0].id == artifact_3_id
 
     # perform migration to ensure the "latest" tag is reassigned correctly
-    services.api.initial_data._ensure_latest_tag_for_artifacts(
-        db_session,
-    )
+    services.api.initial_data._ensure_latest_tag_for_artifacts(db_session, chunk_size=1)
 
     # Verify that the correct artifact is now tagged as "latest"
-    artifacts = db.list_artifacts(db_session, project=project1, name=key1, tag="latest")
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, tag="latest", as_records=True
+    )
     assert (
         len(artifacts) == 3
     ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"

@@ -991,48 +991,55 @@ def _ensure_latest_tag_for_artifacts(
     chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
 
     # Query to get latest artifacts that are NOT tagged 'latest'
-    subquery = db_session.query(
-        framework.db.sqldb.models.ArtifactV2.id,
-        framework.db.sqldb.models.ArtifactV2.key,
-        framework.db.sqldb.models.ArtifactV2.project,
-        framework.db.sqldb.models.ArtifactV2.Tag.name,
-        sqlalchemy.func.row_number()
-        .over(
-            partition_by=[
-                framework.db.sqldb.models.ArtifactV2.project,
-                framework.db.sqldb.models.ArtifactV2.key,
-                framework.db.sqldb.models.ArtifactV2.iteration,
-            ],
-            order_by=framework.db.sqldb.models.ArtifactV2.updated.desc(),
+    subquery = (
+        db_session.query(
+            framework.db.sqldb.models.ArtifactV2.id,
+            framework.db.sqldb.models.ArtifactV2.key,
+            framework.db.sqldb.models.ArtifactV2.project,
+            framework.db.sqldb.models.ArtifactV2.Tag.name,
+            sqlalchemy.func.row_number()
+            .over(
+                partition_by=[
+                    framework.db.sqldb.models.ArtifactV2.project,
+                    framework.db.sqldb.models.ArtifactV2.key,
+                    framework.db.sqldb.models.ArtifactV2.iteration,
+                ],
+                order_by=framework.db.sqldb.models.ArtifactV2.updated.desc(),
+            )
+            .label("row_number"),
         )
-        .label("row_number")
-    ).outerjoin(
-        framework.db.sqldb.models.ArtifactV2.Tag,
-        framework.db.sqldb.models.ArtifactV2.Tag.obj_id == framework.db.sqldb.models.ArtifactV2.id
-    ).subquery()
-
-    # Main query to fetch latest artifacts that are NOT tagged 'latest'
-    query = db_session.query(
-        framework.db.sqldb.models.ArtifactV2.id,
-        framework.db.sqldb.models.ArtifactV2.key,
-        framework.db.sqldb.models.ArtifactV2.project,
-    ).join(
-        subquery,
-        framework.db.sqldb.models.ArtifactV2.id == subquery.c.id
-    ).filter(
-        subquery.c.row_number == 1,  # Only the latest artifact for each project/key/iteration
-        sqlalchemy.or_(
-            subquery.c.name != "latest",  # Exclude if already tagged 'latest'
-            subquery.c.name == None,  # Include artifacts with no tag
-        ),
+        .outerjoin(
+            framework.db.sqldb.models.ArtifactV2.Tag,
+            framework.db.sqldb.models.ArtifactV2.Tag.obj_id
+            == framework.db.sqldb.models.ArtifactV2.id,
+        )
+        .subquery()
     )
 
-    artifacts_to_tag = query.all()
+    # Main query to fetch latest artifacts that are NOT tagged 'latest'
+    query = (
+        db_session.query(
+            framework.db.sqldb.models.ArtifactV2.id,
+            framework.db.sqldb.models.ArtifactV2.key,
+            framework.db.sqldb.models.ArtifactV2.project,
+        )
+        .join(subquery, framework.db.sqldb.models.ArtifactV2.id == subquery.c.id)
+        .filter(
+            subquery.c.row_number
+            == 1,  # Only the latest artifact for each project/key/iteration
+            sqlalchemy.or_(
+                subquery.c.name != "latest",  # Exclude if already tagged 'latest'
+                subquery.c.name.is_(None),  # Include artifacts with no tag
+            ),
+        )
+    )
 
-    if artifacts_to_tag:
-        logger.info(f"Adding 'latest' tag to {len(artifacts_to_tag)} artifacts")
+    artifacts_to_tag = query.limit(chunk_size).all()
 
-        # Add "latest" tag to artifacts that are not tagged
+    if not artifacts_to_tag:
+        return
+
+    while artifacts_to_tag:
         new_tags = [
             framework.db.sqldb.models.ArtifactV2.Tag(
                 obj_id=artifact_id,
@@ -1046,7 +1053,12 @@ def _ensure_latest_tag_for_artifacts(
         db_session.add_all(new_tags)
         db_session.commit()
 
-        logger.info(f"Successfully added 'latest' tags to {len(new_tags)} artifacts")
+        # Fetch next batch of records to migrate (if any)
+        artifacts_to_tag = query.limit(chunk_size).all()
+
+        # If no records left to migrate, stop
+        if not artifacts_to_tag:
+            break
 
 
 def _create_project_summaries(db, db_session):

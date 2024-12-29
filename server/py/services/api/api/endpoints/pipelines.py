@@ -311,17 +311,3 @@ def _try_resolve_project_from_body(
     return services.api.crud.Pipelines().resolve_project_from_workflow_manifest(
         mlrun_pipelines.models.PipelineManifest(workflow_manifest)
     )
-
-
-def _push_notifications(db_session, run):
-    db = db_singleton.get_db()
-    framework.utils.notifications.unmask_notification_params_secret_on_task(
-        db, db_session, run
-    )
-    run_notification_pusher_class = (
-        framework.utils.notifications.notification_pusher.RunNotificationPusher
-    )
-    run_notification_pusher_class(
-        [run],
-        run_notification_pusher_class.resolve_notifications_default_params(),
-    ).push()

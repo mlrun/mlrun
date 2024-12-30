@@ -23,6 +23,7 @@ import os
 import re
 import string
 import sys
+import traceback
 import typing
 import uuid
 import warnings
@@ -44,11 +45,16 @@ from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
+import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
+import mlrun_pipelines.common.constants
+import mlrun_pipelines.models
+import mlrun_pipelines.utils
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 from mlrun.config import config
 from mlrun_pipelines.models import PipelineRun
@@ -1904,3 +1910,131 @@ def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
     if base_url is None:
         base_url = ""
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url
+
+
+class Workflow:
+    @staticmethod
+    def get_workflow_steps(workflow_id: str, project: str) -> list:
+        steps = []
+        db = mlrun.get_run_db()
+
+        def _add_run_step(_step: mlrun_pipelines.models.PipelineStep):
+            try:
+                _run = db.list_runs(
+                    project=project,
+                    labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
+                )[0]
+            except IndexError:
+                _run = {
+                    "metadata": {
+                        "name": _step.display_name,
+                        "project": project,
+                    },
+                }
+            _run["step_kind"] = _step.step_type
+            if _step.skipped:
+                _run.setdefault("status", {})["state"] = (
+                    runtimes_constants.RunStates.skipped
+                )
+            steps.append(_run)
+
+        def _add_deploy_function_step(_step: mlrun_pipelines.models.PipelineStep):
+            project, name, hash_key = Workflow._extract_function_uri(
+                _step.get_annotation("mlrun/function-uri")
+            )
+            if name:
+                try:
+                    function = db.get_function(
+                        project=project, name=name, hash_key=hash_key
+                    )
+                except mlrun.errors.MLRunNotFoundError:
+                    # If the function is not found (if build failed for example), we will create a dummy
+                    # function object for the notification to display the function name
+                    function = {
+                        "metadata": {
+                            "name": name,
+                            "project": project,
+                            "hash_key": hash_key,
+                        },
+                    }
+                pod_phase = _step.phase
+                if _step.skipped:
+                    state = mlrun.common.schemas.FunctionState.skipped
+                else:
+                    state = runtimes_constants.PodPhases.pod_phase_to_run_state(
+                        pod_phase
+                    )
+                function["status"] = {"state": state}
+                if isinstance(function["metadata"].get("updated"), datetime.datetime):
+                    function["metadata"]["updated"] = function["metadata"][
+                        "updated"
+                    ].isoformat()
+                function["step_kind"] = _step.step_type
+                steps.append(function)
+
+        step_methods = {
+            mlrun_pipelines.common.constants.PipelineRunType.run: _add_run_step,
+            mlrun_pipelines.common.constants.PipelineRunType.build: _add_deploy_function_step,
+            mlrun_pipelines.common.constants.PipelineRunType.deploy: _add_deploy_function_step,
+        }
+
+        if not workflow_id:
+            return steps
+
+        workflow_manifest = Workflow._get_workflow_manifest(workflow_id)
+        if not workflow_manifest:
+            return steps
+
+        try:
+            for step in workflow_manifest.get_steps():
+                step_method = step_methods.get(step.step_type)
+                if step_method:
+                    step_method(step)
+            return steps
+        except Exception:
+            # If we fail to read the pipeline steps, we will return the list of runs that have the same workflow id
+            logger.warning(
+                "Failed to extract workflow steps from workflow manifest, "
+                "returning all runs with the workflow id label",
+                workflow_id=workflow_id,
+                traceback=traceback.format_exc(),
+            )
+            return db.list_runs(
+                project=project,
+                labels=f"workflow={workflow_id}",
+            )
+
+    @staticmethod
+    def _extract_function_uri(function_uri: str) -> tuple[str, str, str]:
+        """
+        Extract the project, name, and hash key from a function uri.
+        Examples:
+            - "project/name@hash_key" returns project, name, hash_key
+            - "project/name returns" project, name, ""
+        """
+        project, name, hash_key = None, None, None
+        hashed_pattern = r"^(.+)/(.+)@(.+)$"
+        pattern = r"^(.+)/(.+)$"
+        match = re.match(hashed_pattern, function_uri)
+        if match:
+            project, name, hash_key = match.groups()
+        else:
+            match = re.match(pattern, function_uri)
+            if match:
+                project, name = match.groups()
+                hash_key = ""
+        return project, name, hash_key
+
+    @staticmethod
+    def _get_workflow_manifest(
+        workflow_id: str,
+    ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
+        kfp_client = mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url)
+
+        # arbitrary timeout of 5 seconds, the workflow should be done by now
+        kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)
+        if not kfp_run:
+            return None
+
+        kfp_run = mlrun_pipelines.models.PipelineRun(kfp_run)
+        return kfp_run.workflow_manifest()

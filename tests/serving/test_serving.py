@@ -254,6 +254,10 @@ def test_ensemble_get_models():
     #           "weights": None}
     assert len(resp["models"]) == 5, f"wrong get models response {resp}"
 
+    assert fn.spec.graph.name == "VotingEnsemble"
+    fn_dict = fn.to_dict()
+    assert fn_dict.get("spec", {}).get("graph", {}).get("name", "") == "VotingEnsemble"
+
 
 def test_ensemble_get_metadata_of_models():
     fn = mlrun.new_function("tests", kind="serving")

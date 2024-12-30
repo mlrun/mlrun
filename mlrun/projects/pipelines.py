@@ -748,7 +748,8 @@ class _LocalRunner(_PipelineRunner):
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
 
-        project.notifiers.push_pipeline_start_message(
+        # TODO: we should create endpoint for sending custom notification from BE
+        project.notifiers.push_pipeline_start_message_from_client(
             project.metadata.name, pipeline_id=workflow_id
         )
         err = None

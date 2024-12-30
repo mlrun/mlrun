@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import pandas as pd
 import taosws
@@ -163,6 +163,17 @@ class TDEngineConnector(TSDBConnector):
     @staticmethod
     def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
         return datetime.fromisoformat(val) if isinstance(val, str) else val
+
+    @staticmethod
+    def _get_endpoint_filter(endpoint_id: typing.Union[str, list[str]]):
+        if isinstance(endpoint_id, str):
+            return f"endpoint_id='{endpoint_id}'"
+        elif isinstance(endpoint_id, list):
+            return f"endpoint_id IN({str(endpoint_id)[1:-1]}) "
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid 'endpoint_id' filter: must be a string or a list."
+            )
 
     def apply_monitoring_stream_steps(self, graph, **kwarg):
         """
@@ -542,12 +553,11 @@ class TDEngineConnector(TSDBConnector):
             },
             inplace=True,
         )
-        df[mm_schemas.EventFieldType.LAST_REQUEST] = df[
-            mm_schemas.EventFieldType.LAST_REQUEST
-        ].map(
-            lambda last_request: datetime.strptime(
-                last_request, "%Y-%m-%d %H:%M:%S.%f %z"
-            ).astimezone(tz=timezone.utc)
+        df[mm_schemas.EventFieldType.LAST_REQUEST] = pd.to_datetime(
+            df[mm_schemas.EventFieldType.LAST_REQUEST],
+            errors="coerce",
+            format="ISO8601",
+            utc=True,
         )
         return df
 
@@ -588,7 +598,7 @@ class TDEngineConnector(TSDBConnector):
 
     def get_metrics_metadata(
         self,
-        endpoint_id: str,
+        endpoint_id: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
@@ -602,11 +612,12 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.MetricData.METRIC_NAME,
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            filter_query=f"endpoint_id='{endpoint_id}'",
+            filter_query=self._get_endpoint_filter(endpoint_id=endpoint_id),
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             group_by=[
                 mm_schemas.WriterEvent.APPLICATION_NAME,
                 mm_schemas.MetricData.METRIC_NAME,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
             agg_funcs=["last"],
         )
@@ -624,7 +635,7 @@ class TDEngineConnector(TSDBConnector):
 
     def get_results_metadata(
         self,
-        endpoint_id: str,
+        endpoint_id: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
@@ -639,11 +650,12 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.ResultData.RESULT_KIND,
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            filter_query=f"endpoint_id='{endpoint_id}'",
+            filter_query=self._get_endpoint_filter(endpoint_id=endpoint_id),
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             group_by=[
                 mm_schemas.WriterEvent.APPLICATION_NAME,
                 mm_schemas.ResultData.RESULT_NAME,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
             agg_funcs=["last"],
         )

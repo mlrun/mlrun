@@ -432,7 +432,6 @@ class MLRunPatcher:
         )
 
         logger.info("Reset DB")
-        # kubectl -n default-tenant exec -ti deployment/mlrun-db -- mysql --socket=/run/mysqld/mysql.sock --user root -D mlrun
         self._exec_remote(
             [
                 "kubectl",

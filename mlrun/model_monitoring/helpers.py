@@ -32,7 +32,7 @@ import mlrun.utils.helpers
 from mlrun.common.schemas import ModelEndpoint
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
-    _compose_full_name,
+    compose_full_name,
 )
 from mlrun.utils import logger
 
@@ -450,7 +450,7 @@ def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
 
 
 def get_invocations_fqn(project: str) -> str:
-    return _compose_full_name(
+    return compose_full_name(
         project=project,
         app=mm_constants.SpecialApps.MLRUN_INFRA,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,

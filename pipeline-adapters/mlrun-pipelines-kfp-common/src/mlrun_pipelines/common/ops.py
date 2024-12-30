@@ -34,6 +34,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.models
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -55,12 +56,6 @@ from mlrun.utils import (
 # directories to /tmp to allow running with security context
 KFPMETA_DIR = "/tmp"
 KFP_ARTIFACTS_DIR = "/tmp"
-
-
-class PipelineRunType:
-    run = "run"
-    build = "build"
-    deploy = "deploy"
 
 
 def mlrun_op(
@@ -503,9 +498,9 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
         mlrun_pipelines.common.models.RunStatuses.skipped: "white",
     }
     runtype_to_shape = {
-        PipelineRunType.run: "ellipse",
-        PipelineRunType.build: "box",
-        PipelineRunType.deploy: "box3d",
+        mlrun_pipelines.common.constants.PipelineRunType.run: "ellipse",
+        mlrun_pipelines.common.constants.PipelineRunType.build: "box",
+        mlrun_pipelines.common.constants.PipelineRunType.deploy: "box3d",
     }
     if not run or "graph" not in run:
         return

@@ -38,6 +38,7 @@ import framework.utils.clients.iguazio
 import services.api.crud
 import services.api.tests.unit.api.utils
 import services.api.tests.unit.conftest
+import services.api.utils.helpers
 from framework.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
@@ -1724,3 +1725,109 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
         db, name=function_name, project=project, tag=function_tag
     )
     assert function["status"]["deletion_task_id"] == deletion_task_id
+
+
+@pytest.mark.parametrize(
+    "project_image,workflow_image,workflow_engine,client_version,expected_image",
+    [
+        (
+            "x",
+            "",
+            mlrun.common.schemas.workflow.EngineType.KFP,
+            "1.8.0",
+            "x",
+        ),
+        (
+            "x",
+            "y",
+            mlrun.common.schemas.workflow.EngineType.KFP,
+            "1.8.0",
+            "y",
+        ),
+        (
+            "",
+            "y",
+            mlrun.common.schemas.workflow.EngineType.KFP,
+            "1.8.0",
+            "y",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.KFP,
+            "1.8.0",
+            "mlrun/mlrun-kfp",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.REMOTE,
+            "1.8.0",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.LOCAL,
+            "1.8.0",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            f"{mlrun.common.schemas.workflow.EngineType.REMOTE}:{mlrun.common.schemas.workflow.EngineType.KFP}",
+            "1.8.0",
+            "mlrun/mlrun-kfp",
+        ),
+        (
+            "",
+            "",
+            "",
+            "1.8.0",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            "",
+            "",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            None,
+            "1.8.0",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.KFP,
+            "1.8.0-rc1",
+            "mlrun/mlrun-kfp",
+        ),
+        ("", "", mlrun.common.schemas.workflow.EngineType.KFP, "1.7.0", "mlrun/mlrun"),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.KFP,
+            "1.7.0-rc1",
+            "mlrun/mlrun",
+        ),
+    ],
+)
+def test_resolve_client_default_kfp_image(
+    project_image, workflow_image, workflow_engine, client_version, expected_image
+):
+    project = mlrun.common.schemas.ProjectOut(
+        spec=mlrun.common.schemas.ProjectSpecOut(default_image=project_image),
+        metadata=mlrun.common.schemas.ProjectMetadata(name="test"),
+    )
+    workflow_spec = mlrun.common.schemas.WorkflowSpec(
+        name="test", engine=workflow_engine, image=workflow_image
+    )
+    image = services.api.utils.helpers.resolve_client_default_kfp_image(
+        project, workflow_spec, client_version
+    )
+    assert image == expected_image

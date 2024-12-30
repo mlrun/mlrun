@@ -14,7 +14,8 @@
 
 import socket
 from abc import ABC, abstractmethod
-from datetime import datetime
+from collections.abc import Iterator
+from datetime import datetime, timedelta
 from typing import Any, Optional, Union, cast
 
 import pandas as pd
@@ -96,6 +97,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         endpoints: Optional[list[tuple[str, str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
+        base_period: Optional[int] = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -122,31 +124,58 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return self.do_tracking(monitoring_context)
 
         if endpoints is not None:
-            start, end = self._validate_times(start, end)
-            for endpoint_name, endpoint_id in endpoints:
-                result = call_do_tracking(
-                    event={
-                        mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
-                        mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
-                        mm_constants.ApplicationEvent.START_INFER_TIME: start,
-                        mm_constants.ApplicationEvent.END_INFER_TIME: end,
-                    }
-                )
-                context.log_result(
-                    f"{endpoint_name}_{start.isoformat()}_{end.isoformat()}", result
-                )
+            start, end = self._validate_times(start, end, base_period)
+            for window_start, window_end in self._window_generator(
+                start, end, base_period
+            ):
+                for endpoint_name, endpoint_id in endpoints:
+                    result = call_do_tracking(
+                        event={
+                            mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+                            mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
+                            mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
+                            mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
+                        }
+                    )
+                    context.log_result(
+                        f"{endpoint_name}_{window_start.isoformat()}_{window_end.isoformat()}",
+                        result,
+                    )
         else:
             return call_do_tracking()
 
     @staticmethod
     def _validate_times(
-        start: Optional[datetime], end: Optional[datetime]
+        start: Optional[datetime],
+        end: Optional[datetime],
+        base_period: Optional[int],
     ) -> tuple[datetime, datetime]:
         if (start is None) or (end is None):
             raise mlrun.errors.MLRunValueError(
                 "When `endpoint_names` is provided, you must also pass the start and end times"
             )
+        if (base_period is not None) and not (
+            isinstance(base_period, int) and base_period > 0
+        ):
+            raise mlrun.errors.MLRunValueError(
+                "`base_period` must be a nonnegative integer - the number of minutes in a monitoring window"
+            )
         return start, end
+
+    @staticmethod
+    def _window_generator(
+        start: datetime, end: datetime, base_period: Optional[int]
+    ) -> Iterator[tuple[datetime, datetime]]:
+        if base_period is None:
+            yield start, end
+            return
+
+        window_length = timedelta(minutes=base_period)
+        current_start_time = start
+        while current_start_time < end:
+            current_end_time = min(current_start_time + window_length, end)
+            yield current_start_time, current_end_time
+            current_start_time = current_end_time
 
     @classmethod
     def deploy(
@@ -203,6 +232,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         endpoints: Optional[list[tuple[str, str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
+        base_period: Optional[int] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
@@ -228,6 +258,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   If provided, you have to provide also the start and end times of the data to analyze.
         :param start:             The start time of the sample data.
         :param end:               The end time of the sample data.
+        :param base_period:       The window length in minutes. If ``None``, the whole window from ``start`` to ``end``
+                                  is taken. If an integer is specified, the application is run from ``start`` to ``end``
+                                  in ``base_period`` length windows, except for the last window that ends at ``end`` and
+                                  therefore may be shorter.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -253,15 +287,16 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             ),
         )
 
-        params: dict[str, Union[list[tuple[str, str]], datetime]] = {}
+        params: dict[str, Union[list[tuple[str, str]], datetime, int, None]] = {}
         if endpoints:
-            start, end = cls._validate_times(start, end)
+            start, end = cls._validate_times(start, end, base_period)
             params["endpoints"] = endpoints
             params["start"] = start
             params["end"] = end
-        elif start or end:
+            params["base_period"] = base_period
+        elif start or end or base_period:
             raise mlrun.errors.MLRunValueError(
-                "Custom start or end times are supported only with endpoints data"
+                "Custom start and end times or base_period are supported only with endpoints data"
             )
 
         inputs: dict[str, str] = {}

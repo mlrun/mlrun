@@ -169,6 +169,7 @@ default_config = {
             "max_chunk_size": 1024 * 1024 * 1,  # 1MB
             "max_preview_size": 1024 * 1024 * 10,  # 10MB
             "max_download_size": 1024 * 1024 * 100,  # 100MB
+            "max_deletions": 200,
         },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to

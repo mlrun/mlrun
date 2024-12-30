@@ -53,6 +53,7 @@ from tests.system.base import TestMLRunSystem
 
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
+    CountApp,
     DemoMonitoringApp,
     ErrApp,
     NoCheckDemoMonitoringApp,
@@ -1473,3 +1474,137 @@ class TestAppJob(TestMLRunSystem):
             artifact_key = f"{run_result.metadata.name}_{artifact_name}"
             artifact = self.project.get_artifact(artifact_key)
             artifact.to_dataitem().get()
+
+
+@pytest.mark.model_monitoring
+class TestAppJobModelEndpointData(TestMLRunSystem):
+    """
+    Test getting the model endpoint data in a simple count application.
+    This is performed via the ``evaluate`` method of the application, with ``base_period``.
+    """
+
+    project_name = "mm-job-mep-data"
+    image: typing.Optional[str] = None
+    _serving_function_name = "model-server"
+    _model_name = "classifier-0"
+
+    def _set_credentials(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
+
+    def _set_infra(self) -> None:
+        self.project.enable_model_monitoring(
+            **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
+            deploy_histogram_data_drift_app=False,
+        )
+
+    def _log_model(self) -> str:
+        return self.project.log_model(
+            "classifier",
+            model_dir=str((Path(__file__).parent / "assets").absolute()),
+            model_file="model.pkl",
+        ).uri
+
+    def _deploy_model_serving(self) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        model_uri = self._log_model()
+        serving_fn = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            self.project.set_function(
+                "hub://v2_model_server", name=self._serving_function_name
+            ),
+        )
+        serving_fn.add_model(self._model_name, model_path=model_uri)
+        serving_fn.set_tracking()
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
+
+        serving_fn.deploy()
+        return serving_fn
+
+    def _setup_resources(self) -> None:
+        self._set_credentials()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.submit(self._deploy_model_serving)
+            executor.submit(self._set_infra)
+
+    def test_histogram_app(self) -> None:
+        # Set up the serving function with a model endpoint, and the necessary infrastructure
+        self._setup_resources()
+
+        # Invoke the serving function with some data
+        serving_fn = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            self.project.get_function(self._serving_function_name),
+        )
+        serving_fn.invoke(
+            f"v2/models/{self._model_name}/infer",
+            body=json.dumps({"inputs": [[0, 0, 0, 0]] * 14}),
+        )
+
+        time.sleep(65)
+
+        # second window
+        serving_fn.invoke(
+            f"v2/models/{self._model_name}/infer",
+            body=json.dumps({"inputs": [[0, 1, 0, 0]] * 3}),
+        )
+        serving_fn.invoke(
+            f"v2/models/{self._model_name}/infer",
+            body=json.dumps({"inputs": [[0, 1, 0, 4.4]]}),
+        )
+
+        # Let the stream pod process the data and write the parquets
+        time.sleep(80)
+
+        # Get the model endpoint
+        model_endpoint = mlrun.get_run_db().get_model_endpoint(
+            name=self._model_name,
+            project=self.project_name,
+            function_name=self._serving_function_name,
+            function_tag="latest",
+        )
+
+        # Call `.evaluate(...)` with a base period of 1 minute
+
+        # To include the first request, make a small offset
+        start = model_endpoint.status.first_request - timedelta(microseconds=1)
+
+        run_result = CountApp.evaluate(
+            func_path=str(Path(__file__).parent / "assets/application.py"),
+            endpoints=[(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
+            start=start,
+            end=model_endpoint.status.last_request,
+            run_local=True,  # `False` does not work, see ML-8817
+            image=self.image,
+            base_period=1,
+        )
+
+        # Test the state
+        assert (
+            run_result.state() == "completed"
+        ), "The job did not complete successfully"
+
+        # Test the passed base period
+        assert (
+            run_result.spec.parameters["base_period"] == 1
+        ), "The base period is different than the passed one"
+
+        # Test the results
+        outputs = run_result.outputs
+        assert outputs, "No returned results"
+        assert (
+            len(outputs) == 2
+        ), "The number of outputs is different than the number of windows"
+        assert set(outputs.values()) == {
+            (
+                "ModelMonitoringApplicationResult(name='count', value=14.0, "
+                "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
+            ),
+            (
+                "ModelMonitoringApplicationResult(name='count', value=4.0, "
+                "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
+            ),
+        }, "The outputs are different than expected"

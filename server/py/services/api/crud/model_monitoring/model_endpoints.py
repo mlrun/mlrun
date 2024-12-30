@@ -24,6 +24,7 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.datastore
 import mlrun.feature_store
@@ -920,17 +921,21 @@ class ModelEndpoints:
     @staticmethod
     def get_model_endpoints_metrics(
         project: str,
-        endpoint_id: str,
+        endpoint_id: typing.Union[str, list[str]],
         type: str,
-    ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        metrics_format: str = mm_constants.GetEventsFormat.SINGLE,
+    ) -> typing.Union[
+        list[mm_endpoints.ModelEndpointMonitoringMetric],
+        dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
+    ]:
         """
         Get the metrics for a given model endpoint.
 
-        :param project:     The name of the project.
-        :param endpoint_id: The unique id of the model endpoint.
-        :param type:        metric or result.
-
-        :return: A dictionary of metrics.
+        :param project:         The name of the project.
+        :param endpoint_id:     The unique id of the model endpoint, Can be a single id or a list of ids.
+        :param type:            metric or result.
+        :param metrics_format:  Determines the format of the result. Can be either 'list' or 'dict'.
+        :return: metrics in the chosen format.
         """
         try:
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
@@ -946,7 +951,6 @@ class ModelEndpoints:
                 error=mlrun.errors.err_to_str(e),
             )
             return []
-
         if type == "metric":
             df = tsdb_connector.get_metrics_metadata(endpoint_id=endpoint_id)
         elif type == "result":
@@ -956,7 +960,20 @@ class ModelEndpoints:
                 "Type must be either 'metric' or 'result'"
             )
 
-        return tsdb_connector.df_to_metrics_list(df=df, type=type, project=project)
+        if metrics_format == mm_constants.GetEventsFormat.SINGLE:
+            return tsdb_connector.df_to_metrics_list(df=df, type=type, project=project)
+        elif metrics_format == mm_constants.GetEventsFormat.SEPARATION:
+            return tsdb_connector.df_to_metrics_grouped_dict(
+                df=df, type=type, project=project
+            )
+        elif metrics_format == mm_constants.GetEventsFormat.INTERSECTION:
+            return tsdb_connector.df_to_events_intersection_dict(
+                df=df, type=type, project=project
+            )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid metrics_format. It must be one of: {', '.join(mm_constants.GetEventsFormat)}."
+            )
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(

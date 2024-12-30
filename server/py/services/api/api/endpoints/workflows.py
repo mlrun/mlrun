@@ -36,6 +36,7 @@ import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
 import services.api.crud
+import services.api.utils.helpers
 from framework.api.utils import log_and_raise
 
 router = fastapi.APIRouter()
@@ -161,20 +162,6 @@ async def submit_workflow(
     updated_request = workflow_request.copy()
     updated_request.spec = workflow_spec
 
-    # set mlrun/mlrun-kfp if engine has KFP in it, else default to mlrun/mlrun
-    default_base_image = (
-        mlrun.mlconf.kfp_image
-        if workflow_spec.engine
-        in [
-            mlrun.common.schemas.workflow.EngineType.KFP,
-        ]
-        else mlrun.mlconf.default_base_image
-    )
-
-    desired_image = (
-        workflow_spec.image or project.spec.default_image or default_base_image
-    )
-
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
     workflow_runner: mlrun.run.KubejobRuntime = await run_in_threadpool(
@@ -186,7 +173,9 @@ async def submit_workflow(
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
-        image=desired_image,
+        image=services.api.utils.helpers.resolve_client_default_kfp_image(
+            project, workflow_spec, client_version
+        ),
     )
 
     logger.debug(

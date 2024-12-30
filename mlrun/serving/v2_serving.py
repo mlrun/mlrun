@@ -96,7 +96,7 @@ class V2ModelServer(StepToDict):
         self.name = name
         self.version = ""
         if name and ":" in name:
-            self.name, self.version = name.split(":", 1)
+            self.version = name.split(":", 1)[-1]
         self.context = context
         self.ready = False
         self.error = ""
@@ -277,7 +277,7 @@ class V2ModelServer(StepToDict):
 
             response = {
                 "id": event_id,
-                "model_name": self.name,
+                "model_name": self.name.split(":")[0],
                 "outputs": outputs,
                 "timestamp": start.isoformat(sep=" ", timespec="microseconds"),
             }
@@ -308,7 +308,7 @@ class V2ModelServer(StepToDict):
             # get model metadata operation
             setattr(event, "terminated", True)
             event_body = {
-                "name": self.name,
+                "name": self.name.split(":")[0],
                 "version": self.version or "",
                 "inputs": [],
                 "outputs": [],

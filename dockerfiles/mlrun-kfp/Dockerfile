@@ -20,8 +20,14 @@ FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
 # Update OS packages:
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install --no-install-recommends -y \
+      build-essential \
+      cmake \
+      gcc \
+      wget \
+      git-core \
+    && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun
 

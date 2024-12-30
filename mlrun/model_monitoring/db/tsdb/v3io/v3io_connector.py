@@ -33,6 +33,8 @@ _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 _CONTAINER = "users"
 
+V3IO_MEPS_LIMIT = 50  # TODO remove limitation after fixing ML-8886
+
 
 def _is_no_schema_error(exc: v3io_frames.Error) -> bool:
     """
@@ -577,6 +579,21 @@ class V3IOTSDBConnector(TSDBConnector):
             token=v3io_access_key,
         )
 
+    @staticmethod
+    def _get_endpoint_filter(endpoint_id: Union[str, list[str]]):
+        if isinstance(endpoint_id, str):
+            return f"endpoint_id=='{endpoint_id}'"
+        elif isinstance(endpoint_id, list):
+            if len(endpoint_id) > V3IO_MEPS_LIMIT:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Filtering more than {V3IO_MEPS_LIMIT} model endpoints in the V3IO connector is not supported."
+                )
+            return f"endpoint_id IN({str(endpoint_id)[1:-1]}) "
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid 'endpoint_id' filter: must be a string or a list, endpoint_id: {endpoint_id}"
+            )
+
     def read_metrics_data(
         self,
         *,
@@ -813,17 +830,18 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def get_metrics_metadata(
         self,
-        endpoint_id: str,
+        endpoint_id: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_id)
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.METRICS,
             start=start,
             end=end,
             columns=[mm_schemas.MetricData.METRIC_VALUE],
-            filter_query=f"endpoint_id=='{endpoint_id}'",
+            filter_query=filter_query,
             agg_funcs=["last"],
         )
         if not df.empty:
@@ -834,11 +852,12 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def get_results_metadata(
         self,
-        endpoint_id: str,
+        endpoint_id: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_id)
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
@@ -846,7 +865,7 @@ class V3IOTSDBConnector(TSDBConnector):
             columns=[
                 mm_schemas.ResultData.RESULT_KIND,
             ],
-            filter_query=f"endpoint_id=='{endpoint_id}'",
+            filter_query=filter_query,
             agg_funcs=["last"],
         )
         if not df.empty:

@@ -958,44 +958,45 @@ class SQLDB(DBInterface):
             producer_id=producer_id,
             with_entities=[ArtifactV2.key, ArtifactV2.uid],
         )
+        total_artifacts = len(distinct_keys_and_uids)
+        max_deletions = config.artifacts.limits.max_deletions
 
-        artifact_column_identifiers = {}
-        for key, uid in distinct_keys_and_uids:
-            artifact_column_identifier, column_value = self._delete_tagged_object(
-                session,
-                ArtifactV2,
-                project=project,
-                uid=uid,
-                key=key,
-                commit=False,
-                producer_id=producer_id,
+        if total_artifacts > max_deletions:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Cannot delete {total_artifacts} artifacts. The maximum allowed artifacts deletions "
+                f"is {max_deletions}. Refine the filter and try again with a smaller batch."
             )
-            if artifact_column_identifier is None:
-                # record was not found
-                continue
 
-            artifact_column_identifiers.setdefault(
-                artifact_column_identifier, []
-            ).append(column_value)
+        logger.info("Deleting artifacts", total_artifacts=total_artifacts)
 
         failed_deletions_count = 0
-        for (
-            artifact_column_identifier,
-            column_values,
-        ) in artifact_column_identifiers.items():
-            deletions_count = self._delete_multi_objects(
-                session=session,
-                main_table=ArtifactV2,
-                project=project,
-                main_table_identifier=getattr(ArtifactV2, artifact_column_identifier),
-                main_table_identifier_values=column_values,
-            )
-            failed_deletions_count += len(column_values) - deletions_count
+
+        for key, uid in distinct_keys_and_uids:
+            try:
+                self._delete_tagged_object(
+                    session,
+                    ArtifactV2,
+                    project=project,
+                    uid=uid,
+                    key=key,
+                    producer_id=producer_id,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to delete artifact",
+                    project=project,
+                    key=key,
+                    uid=uid,
+                    err=err_to_str(exc),
+                )
+                failed_deletions_count += 1
+                continue
 
         if failed_deletions_count:
             raise mlrun.errors.MLRunInternalServerError(
                 f"Failed to delete {failed_deletions_count} artifacts"
             )
+        logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
@@ -3086,7 +3087,7 @@ class SQLDB(DBInterface):
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
-                self._calculate_files_counters,
+                self._calculate_artifact_counters_by_category,
             ),
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
@@ -3095,10 +3096,6 @@ class SQLDB(DBInterface):
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
                 self._calculate_feature_sets_counters,
-            ),
-            fastapi.concurrency.run_in_threadpool(
-                framework.db.session.run_function_with_new_db_session,
-                self._calculate_models_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
@@ -3111,14 +3108,13 @@ class SQLDB(DBInterface):
             ),
         )
         (
-            project_to_files_count,
+            category_to_project_artifact_count,
             (
                 project_to_schedule_count,
                 project_to_schedule_pending_jobs_count,
                 project_to_schedule_pending_workflows_count,
             ),
             project_to_feature_set_count,
-            project_to_models_count,
             (
                 project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
@@ -3130,13 +3126,21 @@ class SQLDB(DBInterface):
                 project_to_other_alerts_count,
             ),
         ) = results
+        # TODO: counters by artifact categories should be expanded to include all categories (currently only models
+        #       and other)
         return (
-            project_to_files_count,
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.other,
+                collections.defaultdict(lambda: 0),
+            ),
             project_to_schedule_count,
             project_to_schedule_pending_jobs_count,
             project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
-            project_to_models_count,
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.model,
+                collections.defaultdict(lambda: 0),
+            ),
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
@@ -3237,33 +3241,22 @@ class SQLDB(DBInterface):
         }
         return project_to_feature_set_count
 
-    def _calculate_models_counters(self, session) -> dict[str, int]:
-        # We're using the "most_recent" which gives us only one version of each artifact key, which is what we want to
-        # count (artifact count, not artifact versions count)
-        model_artifacts = self._find_artifacts(
-            session,
-            None,
-            kind=mlrun.common.schemas.ArtifactCategories.model,
-            most_recent=True,
-        )
-        project_to_models_count = collections.defaultdict(int)
-        for model_artifact in model_artifacts:
-            project_to_models_count[model_artifact.project] += 1
-        return project_to_models_count
+    @staticmethod
+    def _calculate_artifact_counters_by_category(
+        session: Session,
+    ) -> dict[str, dict[str, int]]:
+        query = session.query(
+            ArtifactV2.project, ArtifactV2.kind, func.count(distinct(ArtifactV2.key))
+        ).group_by(ArtifactV2.project, ArtifactV2.kind)
 
-    def _calculate_files_counters(self, session) -> dict[str, int]:
-        # We're using the "most_recent" flag which gives us only one version of each artifact key, which is what we
-        # want to count (artifact count, not artifact versions count)
-        file_artifacts = self._find_artifacts(
-            session,
-            None,
-            category=mlrun.common.schemas.ArtifactCategories.other,
-            most_recent=True,
-        )
-        project_to_files_count = collections.defaultdict(int)
-        for file_artifact in file_artifacts:
-            project_to_files_count[file_artifact.project] += 1
-        return project_to_files_count
+        category_to_project_artifact_count = {}
+        for project, kind, count in query.all():
+            category = mlrun.common.schemas.ArtifactCategories.from_kind(kind)
+            category_to_project_artifact_count.setdefault(category, {})
+            category_to_project_artifact_count[category].setdefault(project, 0)
+            category_to_project_artifact_count[category][project] += count
+
+        return category_to_project_artifact_count
 
     @staticmethod
     def _calculate_runs_counters(
@@ -4793,7 +4786,6 @@ class SQLDB(DBInterface):
         uid=None,
         name=None,
         key=None,
-        commit=True,
         **kwargs,
     ):
         # TODO: Tag is now cascaded in the DB level so this should not be needed anymore
@@ -4842,19 +4834,12 @@ class SQLDB(DBInterface):
             # get the object id from the object record
             object_id = object_record.id
 
-            if cls == ArtifactV2 and commit:
-                # TODO: Handle the case when commit=False (e.g., deleting multiple artifact keys)
+            if cls == ArtifactV2:
                 self._update_artifact_latest_tag_on_deletion(session, object_record)
 
         if object_id:
-            if not commit:
-                return "id", object_id
             self._delete(session, cls, id=object_id)
         else:
-            if not commit:
-                if name:
-                    return "name", obj_name
-                return "key", obj_name
             # If we got here, neither tag nor uid were provided - delete all references by name.
             identifier = {"name": obj_name} if name else {"key": obj_name}
             self._delete(session, cls, project=project, **identifier)

@@ -115,7 +115,9 @@ class Alerts(
                     alert_name=name,
                     reason=reset_reason,
                 )
-                self.reset_alert(session, project, new_alert.name)
+                self.reset_alert(
+                    session, project, new_alert.name, alert_id=new_alert.id
+                )
 
         framework.utils.singletons.db.get_db().enrich_alert(session, new_alert)
 
@@ -205,12 +207,12 @@ class Alerts(
             # we don't want to update the state if reset_alert() was called, as we will override the reset
             self._states[alert.id] = state_obj
 
-    def populate_event_cache(self, session: sqlalchemy.orm.Session):
+    def populate_caches(self, session: sqlalchemy.orm.Session):
         try:
-            self._try_populate_event_cache(session)
+            self._try_populate_caches(session)
         except Exception as exc:
             logger.error(
-                "Error populating event cache. Transitioning state to offline!",
+                "Error populating alert caches. Transitioning state to offline!",
                 exc=mlrun.errors.err_to_str(exc),
             )
             mlconfig.httpdb.state = mlrun.common.schemas.APIStates.offline
@@ -224,7 +226,7 @@ class Alerts(
     ) -> bool:
         if alert.criteria.period:
             offset = self._get_event_offset(alert)
-            self._normalize_events(
+            self._filter_events(
                 state_obj,
                 framework.utils.helpers.string_to_timedelta(
                     alert.criteria.period, offset, raise_on_error=False
@@ -255,7 +257,7 @@ class Alerts(
         state["count"] += 1
 
         if alert.reset_policy == "auto":
-            self.reset_alert(session, alert.project, alert.name)
+            self.reset_alert(session, alert.project, alert.name, alert_id=alert.id)
             keep_cache = False
         activation_id = services.alerts.crud.AlertActivation().store_alert_activation(
             session, alert, event_data
@@ -306,13 +308,16 @@ class Alerts(
             )
         return cls._alert_state_cache
 
-    @staticmethod
-    def _try_populate_event_cache(session: sqlalchemy.orm.Session):
+    def _try_populate_caches(self, session: sqlalchemy.orm.Session):
         for alert in framework.utils.singletons.db.get_db().get_all_alerts(session):
+            # Populate events cache
             for event_name in alert.trigger.events:
                 services.alerts.crud.Events().add_event_configuration(
                     alert.project, event_name, alert.id
                 )
+            # Populate the alert and alert state caches
+            self._get_alert_by_id_cached()(session, alert.id)
+            self._get_alert_state_cached()(session, alert.id)
 
     def process_event_no_cache(
         self,
@@ -398,19 +403,36 @@ class Alerts(
             )
 
     @staticmethod
-    def _normalize_events(obj, period):
+    def _filter_events(obj, period):
+        """
+        Filter out events that are older than the period from the object
+        """
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        events = obj["event_timestamps"]
-        for event in events:
+
+        def _is_valid_event(event):
             if isinstance(event, str):
                 event_time = datetime.datetime.fromisoformat(event)
             else:
                 event_time = event
-            if now > event_time + period:
-                events.remove(event)
+            return now <= event_time + period
 
-    def reset_alert(self, session: sqlalchemy.orm.Session, project: str, name: str):
-        alert = framework.utils.singletons.db.get_db().get_alert(session, project, name)
+        obj["event_timestamps"] = list(filter(_is_valid_event, obj["event_timestamps"]))
+
+    def reset_alert(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        alert_id: typing.Optional[int] = None,
+    ):
+        # Prefer getting alert from cache if alert_id is provided
+        if alert_id is not None:
+            alert = self._get_alert_by_id_cached()(session, alert_id)
+        else:
+            alert = framework.utils.singletons.db.get_db().get_alert(
+                session, project, name
+            )
+
         if alert is None:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Alert {name} for project {project} does not exist"
@@ -434,9 +456,7 @@ class Alerts(
         project: str,
         alert: mlrun.common.schemas.AlertConfig,
     ) -> None:
-        alert_state = framework.utils.singletons.db.get_db().get_alert_state_dict(
-            session, alert.id
-        )
+        alert_state = self._get_alert_state_cached()(session, alert.id)
         if not alert_state:
             logger.warning(
                 "No alert state found for alert, skipping activation update on reset",

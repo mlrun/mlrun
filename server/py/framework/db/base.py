@@ -953,7 +953,7 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        last_updated: datetime.datetime,
+        last_updated: typing.Optional[datetime.datetime],
         count: typing.Optional[int] = None,
         active: bool = False,
         obj: typing.Optional[dict] = None,

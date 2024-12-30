@@ -5853,18 +5853,17 @@ class SQLDB(DBInterface):
         if not alert_record:
             return self._create_alert(session, alert)
         alert_record.full_object = alert.dict()
-        alert_state = self.get_alert_state(session, alert_record.id)
 
         self._delete_alert_notifications(session, alert.name, alert, alert.project)
         self._store_notifications(
             session,
             AlertConfig,
             alert.get_raw_notifications(),
-            alert_record.id,
+            str(alert_record.id),
             alert.project,
         )
 
-        self._upsert(session, [alert_record, alert_state])
+        self._upsert(session, [alert_record])
         return self.get_alert_by_id(session, alert_record.id)
 
     def _create_alert(
@@ -6129,7 +6128,7 @@ class SQLDB(DBInterface):
     @staticmethod
     def _transform_alert_config_record_to_schema(
         alert_config_record: AlertConfig,
-    ) -> mlrun.common.schemas.AlertConfig:
+    ) -> typing.Optional[mlrun.common.schemas.AlertConfig]:
         if alert_config_record is None:
             return None
 
@@ -6170,8 +6169,16 @@ class SQLDB(DBInterface):
         active: bool = False,
         obj: typing.Optional[dict] = None,
     ):
-        alert = self.get_alert(session, project, name)
-        state = self.get_alert_state(session, alert.id)
+        query = (
+            self._query(session, AlertState)
+            .join(AlertConfig, AlertConfig.id == AlertState.parent_id)
+            .filter(
+                AlertConfig.name == name,
+                AlertConfig.project == project,
+            )
+        )
+        state = query.one()
+
         if count is not None:
             state.count = count
         state.last_updated = last_updated

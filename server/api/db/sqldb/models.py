@@ -238,7 +238,6 @@ with warnings.catch_warnings():
                 "project",
                 "kind",
             ),
-            Index("idx_artifacts_name_uid_project", "key", "uid", "project"),
             Index("idx_project_kind_key", "project", "kind", "key"),
         )
 

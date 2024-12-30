@@ -3107,7 +3107,7 @@ class SQLDB(DBInterface):
             ),
         )
         (
-            project_to_artifact_category_count,
+            category_to_project_artifact_count,
             (
                 project_to_schedule_count,
                 project_to_schedule_pending_jobs_count,
@@ -3128,7 +3128,7 @@ class SQLDB(DBInterface):
         # TODO: counters by artifact categories should be expanded to include all categories (currently only models
         #       and other)
         return (
-            project_to_artifact_category_count.get(
+            category_to_project_artifact_count.get(
                 mlrun.common.schemas.ArtifactCategories.other,
                 collections.defaultdict(lambda: 0),
             ),
@@ -3136,7 +3136,7 @@ class SQLDB(DBInterface):
             project_to_schedule_pending_jobs_count,
             project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
-            project_to_artifact_category_count.get(
+            category_to_project_artifact_count.get(
                 mlrun.common.schemas.ArtifactCategories.model,
                 collections.defaultdict(lambda: 0),
             ),
@@ -3248,14 +3248,14 @@ class SQLDB(DBInterface):
             ArtifactV2.project, ArtifactV2.kind, func.count(distinct(ArtifactV2.key))
         ).group_by(ArtifactV2.project, ArtifactV2.kind)
 
-        project_to_artifact_category_count = {}
+        category_to_project_artifact_count = {}
         for project, kind, count in query.all():
             category = mlrun.common.schemas.ArtifactCategories.from_kind(kind)
-            project_to_artifact_category_count.setdefault(category, {})
-            project_to_artifact_category_count[category].setdefault(project, 0)
-            project_to_artifact_category_count[category][project] += count
+            category_to_project_artifact_count.setdefault(category, {})
+            category_to_project_artifact_count[category].setdefault(project, 0)
+            category_to_project_artifact_count[category][project] += count
 
-        return project_to_artifact_category_count
+        return category_to_project_artifact_count
 
     @staticmethod
     def _calculate_runs_counters(

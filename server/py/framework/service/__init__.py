@@ -312,7 +312,7 @@ class Service(ABC):
         clusterization_spec: mlrun.common.schemas.ClusterizationSpec,
     ):
         # if clusterization_spec has different version (take out unstable)
-        # deny the response as it may come from a stable chief
+        # deny the response as it may come from an older, stable chief
         worker_version = semver.version.Version.parse(
             mlrun.utils.version.Version().get()["version"]
         )

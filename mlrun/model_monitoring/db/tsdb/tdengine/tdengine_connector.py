@@ -543,7 +543,7 @@ class TDEngineConnector(TSDBConnector):
             inplace=True,
         )
         df[mm_schemas.EventFieldType.LAST_REQUEST] = pd.to_datetime(
-            df[mm_schemas.EventFieldType.LAST_REQUEST], errors="coerce", utc=True
+            df[mm_schemas.EventFieldType.LAST_REQUEST], errors="coerce", format="ISO8601", utc=True
         )
         return df
 

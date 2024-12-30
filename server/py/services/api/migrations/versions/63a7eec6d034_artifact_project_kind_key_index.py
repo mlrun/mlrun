@@ -16,7 +16,7 @@
 """artifact project_kind_key index
 
 Revision ID: 63a7eec6d034
-Revises: 57d26493fbff
+Revises: dd6049a25a81
 Create Date: 2024-12-26 10:22:25.697652
 
 """
@@ -25,7 +25,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "63a7eec6d034"
-down_revision = "57d26493fbff"
+down_revision = "dd6049a25a81"
 branch_labels = None
 depends_on = None
 

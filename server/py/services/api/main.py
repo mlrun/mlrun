@@ -102,29 +102,27 @@ class Service(framework.service.Service):
         # For the worker, fetch and sync the system metadata from the database to ensure that the config values are
         # correctly set.
         else:
-            await self._sync_system_metadata()
+            self._sync_system_metadata()
         await self._move_mounted_services_to_online()
 
-    async def _sync_system_metadata(self):
+    def _sync_system_metadata(self):
         """
         Sync system metadata values from the database to the config.
         Currently, it synchronizes only the system ID but can be extended for other new metadata values in the future.
         """
 
-        db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+        db_session = create_session()
         try:
             db = framework.db.sqldb.db.SQLDB()
 
-            system_id = await fastapi.concurrency.run_in_threadpool(
-                db.get_system_id, db_session
-            )
+            system_id = db.get_system_id(db_session)
             if system_id is not None:
                 self._logger.debug(
                     "Existing system ID found in the database", system_id=system_id
                 )
                 mlrun.mlconf.system_id = system_id
         finally:
-            await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+            close_session(db_session)
 
     async def _base_handler(
         self,

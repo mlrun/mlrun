@@ -49,7 +49,7 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
 
     @classmethod
     def from_kind(cls, kind: str) -> "ArtifactCategories":
-        if kind in [cls.model.value, cls.dataset.value, cls.document.value]:
+        if kind in [cls.model.value, cls.dataset.value]:
             return cls(kind)
         return cls.other
 

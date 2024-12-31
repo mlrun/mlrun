@@ -379,6 +379,6 @@ def _push_notifications(run_id, project, notifications):
         framework.utils.notifications.notification_pusher.RunNotificationPusher
     )
     default_params = run_notification_pusher.resolve_notifications_default_params()
-    mlrun.utils.notifications.WorkflowNotificationPusher(
+    framework.utils.notifications.notification_pusher.KFPNotificationPusher(
         project, run_id, unmasked_notifications, default_params
     ).push()

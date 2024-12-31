@@ -26,11 +26,11 @@ import mlrun.model
 import mlrun.utils.helpers
 import mlrun.utils.notifications.notification as notification_module
 import mlrun.utils.notifications.notification.base as base
-from mlrun.utils import logger, Workflow
+from mlrun.utils import Workflow, logger
 from mlrun.utils.notifications.notification_pusher import (
     NotificationPusher,
     _NotificationPusherBase,
-    sanitize_notification
+    sanitize_notification,
 )
 
 import framework.api.utils
@@ -359,6 +359,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
             project,
             mask_params=False,
         )
+
 
 class KFPNotificationPusher(NotificationPusher):
     def __init__(

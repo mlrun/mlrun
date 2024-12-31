@@ -446,7 +446,6 @@ class NotificationPusher(_NotificationPusherBase):
         )
 
 
-
 class CustomNotificationPusher(_NotificationPusherBase):
     def __init__(self, notification_types: typing.Optional[list[str]] = None):
         notifications = {

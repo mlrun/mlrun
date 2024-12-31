@@ -47,14 +47,16 @@ from mlrun.utils.notifications.notification.webhook import WebhookNotification
         ),
     ],
 )
-def test_load_notification(notification_kind, params, default_params, expected_params):
+def test_process_notification(
+    notification_kind, params, default_params, expected_params
+):
     run_uid = "test-run-uid"
     notification_name = "test-notification-name"
     when_state = runtimes_constants.RunStates.completed
     notification = mlrun.model.Notification.from_dict(
         {
             "kind": notification_kind,
-            "when": when_state,
+            "when": [when_state],
             "status": "pending",
             "name": notification_name,
             "params": params,
@@ -76,7 +78,6 @@ def test_load_notification(notification_kind, params, default_params, expected_p
             [run], default_params
         )
     )
-    notification_pusher._load_notification(run, notification)
     loaded_notifications = (
         notification_pusher._sync_notifications
         + notification_pusher._async_notifications

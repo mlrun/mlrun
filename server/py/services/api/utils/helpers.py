@@ -21,28 +21,35 @@ import mlrun.common.schemas
 
 
 def resolve_client_default_kfp_image(
-    project: mlrun.common.schemas.ProjectOut,
-    workflow_spec: mlrun.common.schemas.WorkflowSpec,
-    client_version: typing.Optional[str],
+    project: typing.Optional[mlrun.common.schemas.ProjectOut] = None,
+    workflow_spec: typing.Optional[mlrun.common.schemas.WorkflowSpec] = None,
+    client_version: typing.Optional[str] = None,
 ) -> str:
-    if override_image := workflow_spec.image or project.spec.default_image:
-        return override_image
+    # override image by either workflow or project
+    if workflow_spec and workflow_spec.image:
+        return workflow_spec.image
+    elif project and project.spec.default_image:
+        return project.spec.default_image
 
     # set mlrun/mlrun-kfp if engine has KFP in it, else default to mlrun/mlrun
     must_use_mlrun_image = False
     if client_version and "unstable" not in client_version:
-        client_version = semver.Version.parse(client_version)
-        if client_version <= semver.Version.parse("1.7.9999"):
-            print("must_use_mlrun_image", client_version)
-            must_use_mlrun_image = True
+        try:
+            client_version = semver.Version.parse(client_version)
+            if client_version <= semver.Version.parse("1.7.9999"):
+                must_use_mlrun_image = True
+        except ValueError:
+            # client version is not semver, pass
+            pass
+
+    # client is olden than (<) 1.8, must use mlrun image for kfp
+    if must_use_mlrun_image:
+        return mlrun.mlconf.default_base_image
 
     # "kfp" or "remote:kfp"
     kfp_engine = (
-        mlrun.common.schemas.workflow.EngineType.KFP.lower()
+        workflow_spec
+        and mlrun.common.schemas.workflow.EngineType.KFP.lower()
         in (workflow_spec.engine or "").lower()
     )
-    return (
-        mlrun.mlconf.kfp_image
-        if kfp_engine and not must_use_mlrun_image
-        else mlrun.mlconf.default_base_image
-    )
+    return mlrun.mlconf.kfp_image if kfp_engine else mlrun.mlconf.default_base_image

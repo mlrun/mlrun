@@ -359,7 +359,7 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # wait for the nuclio function to check for the stream inputs
-        time.sleep(10)
+        time.sleep(15)
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )

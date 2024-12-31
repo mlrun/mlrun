@@ -2137,18 +2137,23 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         matching_results = []
         alerts = []
-        # TODO: Refactor to use a single request to improve performance at scale, ML-8473
-        for endpoint in endpoints.endpoints:
-            results_by_endpoint = db.get_model_endpoint_monitoring_metrics(
-                project=self.name, endpoint_id=endpoint.metadata.uid, type="results"
-            )
+        endpoint_ids = [endpoint.metadata.uid for endpoint in endpoints.endpoints]
+        # using separation to group by endpoint IDs:
+        # {"mep_id1": [...], "mep_id2": [...]}
+        results_by_endpoint = db.get_metrics_by_multiple_endpoints(
+            project=self.name,
+            endpoint_ids=endpoint_ids,
+            type="results",
+            events_format=mm_constants.GetEventsFormat.SEPARATION,
+        )
+        for endpoint_uid, results in results_by_endpoint.items():
             results_fqn_by_endpoint = [
                 get_result_instance_fqn(
-                    model_endpoint_id=endpoint.metadata.uid,
+                    model_endpoint_id=endpoint_uid,
                     app_name=result.app,
                     result_name=result.name,
                 )
-                for result in results_by_endpoint
+                for result in results
             ]
             matching_results += filter_results_by_regex(
                 existing_result_names=results_fqn_by_endpoint,

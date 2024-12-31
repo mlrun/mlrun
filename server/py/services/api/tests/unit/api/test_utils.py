@@ -1815,6 +1815,13 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
             "1.7.0-rc1",
             "mlrun/mlrun",
         ),
+        (
+            "",
+            "",
+            None,
+            "1.7.1",
+            "mlrun/mlrun",
+        ),
     ],
 )
 def test_resolve_client_default_kfp_image(

@@ -334,6 +334,7 @@ def mlrun_op(
         else:
             raise ValueError("local image registry env not found")
 
+    # TODO: move enrichment to server side
     image = mlrun.utils.enrich_image_url(
         image, mlrun.get_version(), str(version.Version().get_python_version())
     )

@@ -372,7 +372,9 @@ class MLRunPatcher:
 
     def _reset_mlrun_db(self):
         non_mlrun_db_services_deployment_selector = (
-            "app.kubernetes.io/component!=db,app.kubernetes.io/name=mlrun"
+            "app.kubernetes.io/component!=ui,"
+            "app.kubernetes.io/component!=db,"
+            "app.kubernetes.io/name=mlrun"
         )
 
         # in form of "deployment1:replicas1\ndeployment2:replicas2\n..."

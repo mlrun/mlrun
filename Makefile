@@ -119,8 +119,7 @@ install-requirements: ## Install all requirements needed for development
 		-r requirements.txt \
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
-		-r dockerfiles/mlrun-api/requirements.txt \
-		-r docs/requirements.txt
+		-r dockerfiles/mlrun-api/requirements.txt
 
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64

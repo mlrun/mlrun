@@ -857,6 +857,7 @@ class SQLDB(DBInterface):
         uid: typing.Optional[str] = None,
         raise_on_not_found: bool = True,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        as_record: bool = False,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
         enrich_tag = False
@@ -920,6 +921,8 @@ class SQLDB(DBInterface):
         if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, tag)
 
+        if as_record:
+            return db_artifact
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(

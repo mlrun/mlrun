@@ -989,48 +989,54 @@ def _ensure_latest_tag_for_artifacts(
 ):
     chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
 
-    # Query to get latest artifacts that are NOT tagged 'latest'
-    subquery = (
+    # Step 1: Subquery for the latest row based on project, key, iteration, and updated timestamp
+    subquery = db_session.query(
+        framework.db.sqldb.models.ArtifactV2.id,
+        framework.db.sqldb.models.ArtifactV2.key,
+        framework.db.sqldb.models.ArtifactV2.project,
+        sqlalchemy.func.row_number()
+        .over(
+            partition_by=[
+                framework.db.sqldb.models.ArtifactV2.project,
+                framework.db.sqldb.models.ArtifactV2.key,
+                framework.db.sqldb.models.ArtifactV2.iteration,
+            ],
+            order_by=framework.db.sqldb.models.ArtifactV2.updated.desc(),
+        )
+        .label("row_number"),
+    ).subquery()
+
+    # Step 2: Filter to get only the latest row for each combination of project, key, iteration
+    subquery_filtered = (
         db_session.query(
-            framework.db.sqldb.models.ArtifactV2.id,
-            framework.db.sqldb.models.ArtifactV2.key,
-            framework.db.sqldb.models.ArtifactV2.project,
-            framework.db.sqldb.models.ArtifactV2.Tag.name,
-            sqlalchemy.func.row_number()
-            .over(
-                partition_by=[
-                    framework.db.sqldb.models.ArtifactV2.project,
-                    framework.db.sqldb.models.ArtifactV2.key,
-                    framework.db.sqldb.models.ArtifactV2.iteration,
-                ],
-                order_by=framework.db.sqldb.models.ArtifactV2.updated.desc(),
-            )
-            .label("row_number"),
+            subquery.c.id,
+            subquery.c.key,
+            subquery.c.project,
         )
-        .outerjoin(
-            framework.db.sqldb.models.ArtifactV2.Tag,
-            framework.db.sqldb.models.ArtifactV2.Tag.obj_id
-            == framework.db.sqldb.models.ArtifactV2.id,
-        )
+        .filter(subquery.c.row_number == 1)  # Get only the latest for each combination
         .subquery()
     )
 
-    query = (
-        db_session.query(
-            framework.db.sqldb.models.ArtifactV2.id,
-            framework.db.sqldb.models.ArtifactV2.key,
-            framework.db.sqldb.models.ArtifactV2.project,
-        )
-        .join(subquery, framework.db.sqldb.models.ArtifactV2.id == subquery.c.id)
-        .filter(
-            subquery.c.row_number
-            == 1,  # Only the latest artifact for each project/key/iteration
-            sqlalchemy.or_(
-                subquery.c.name != "latest",  # Exclude if already tagged 'latest'
-                subquery.c.name.is_(None),  # Include artifacts with no tag
-            ),
-        )
+    # Step 3: Query to join with Tag table
+    query = db_session.query(
+        subquery_filtered.c.id,
+        subquery_filtered.c.key,
+        subquery_filtered.c.project,
+    ).outerjoin(
+        framework.db.sqldb.models.ArtifactV2.Tag,
+        framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery_filtered.c.id,
     )
+
+    tag_alias = sqlalchemy.orm.aliased(framework.db.sqldb.models.ArtifactV2.Tag)
+
+    # Step 4: Filter out combinations where any record has the "latest" tag
+    query = query.filter(
+        ~sqlalchemy.exists().where(
+            sqlalchemy.and_(
+                tag_alias.obj_id == subquery_filtered.c.id, tag_alias.name == "latest"
+            )
+        )
+    ).distinct()
 
     artifacts_to_tag = query.limit(chunk_size).all()
 
@@ -1049,9 +1055,9 @@ def _ensure_latest_tag_for_artifacts(
     while artifacts_to_tag:
         new_tags = [
             framework.db.sqldb.models.ArtifactV2.Tag(
-                obj_id=artifact_id,
-                name="latest",
                 project=project,
+                name="latest",
+                obj_id=artifact_id,
                 obj_name=key,
             )
             for artifact_id, project, key in artifacts_to_tag

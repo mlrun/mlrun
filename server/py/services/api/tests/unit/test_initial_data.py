@@ -429,7 +429,7 @@ def test_ensure_latest_tag_for_artifacts():
         "kind": "artifact",
     }
     # project1 + key1 + iter 0 -> 3 tags (v1, v2, latest)
-    db.store_artifact(
+    artifact_1_uid = db.store_artifact(
         db_session, key=key1, project=project1, iter=0, artifact=artifact, tag="v1"
     )
     db.store_artifact(
@@ -437,10 +437,12 @@ def test_ensure_latest_tag_for_artifacts():
     )
 
     # project1 + key1 + iter 1 -> 1 tag (latest)
-    db.store_artifact(db_session, key=key1, project=project1, iter=1, artifact=artifact)
+    artifact_2_uid = db.store_artifact(
+        db_session, key=key1, project=project1, iter=1, artifact=artifact
+    )
 
     # project1 + key1 + iter 2 -> 2 tags (v1, latest)
-    db.store_artifact(
+    artifact_3_uid = db.store_artifact(
         db_session, key=key1, project=project1, iter=2, artifact=artifact, tag="v1"
     )
 
@@ -466,13 +468,33 @@ def test_ensure_latest_tag_for_artifacts():
         db_session, project=project1, name=key1, tag="latest", as_records=True
     )
     assert len(artifacts) == 3
-    artifact_3_id = artifacts[0].id
-    artifact_1_id = artifacts[1].id
-    artifact_2_id = artifacts[2].id
+
+    artifact1 = db.read_artifact(
+        db_session, key=key1, project=project1, uid=artifact_1_uid, as_record=True
+    )
+    artifact2 = db.read_artifact(
+        db_session, key=key1, project=project1, uid=artifact_2_uid, as_record=True
+    )
+    artifact3 = db.read_artifact(
+        db_session, key=key1, project=project1, uid=artifact_3_uid, as_record=True
+    )
+    artifact_1_id = artifact1.id
+    artifact_2_id = artifact2.id
+    artifact_3_id = artifact3.id
 
     # Delete the "latest" tags manually (deleting two tags)
-    db._delete(db_session, framework.db.sqldb.db.ArtifactV2.Tag, obj_id=artifact_1_id)
-    db._delete(db_session, framework.db.sqldb.db.ArtifactV2.Tag, obj_id=artifact_2_id)
+    db._delete(
+        db_session,
+        framework.db.sqldb.db.ArtifactV2.Tag,
+        obj_id=artifact_1_id,
+        name="latest",
+    )
+    db._delete(
+        db_session,
+        framework.db.sqldb.db.ArtifactV2.Tag,
+        obj_id=artifact_2_id,
+        name="latest",
+    )
     db_session.flush()
 
     # Assert that only one artifact with the latest tag remains

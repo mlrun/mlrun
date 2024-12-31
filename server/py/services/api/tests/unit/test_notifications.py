@@ -17,6 +17,7 @@ import hashlib
 import json
 import unittest.mock
 
+import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas.notification
 
 import framework.constants
@@ -100,3 +101,48 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     db_mock.store_run_notifications.assert_called_once()
     args, _ = db_mock.store_run_notifications.call_args
     assert args[1][0].status == mlrun.common.schemas.NotificationStatus.ERROR
+
+
+class TestKFPNotificationPusher:
+    def test_push(self):
+        project = "test-project"
+        run_id = "test-run-id"
+        notifications = [
+            mlrun.common.schemas.Notification(
+                name="webhook-notification",
+                kind=mlrun.common.schemas.notification.NotificationKind.webhook,
+                message="test-message",
+                severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
+                when=[runtimes_constants.RunStates.completed],
+            ),
+            mlrun.common.schemas.Notification(
+                name="mail-notification",
+                kind=mlrun.common.schemas.notification.NotificationKind.mail,
+                message="test-message",
+                severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
+                when=[runtimes_constants.RunStates.completed],
+            ),
+            mlrun.common.schemas.Notification(
+                name="console-notification",
+                kind=mlrun.common.schemas.notification.NotificationKind.console,
+                message="test-message",
+                severity=mlrun.common.schemas.notification.NotificationSeverity.INFO,
+                when=[runtimes_constants.RunStates.completed],
+            ),
+        ]
+
+        kfp_notification_pusher = (
+            framework.utils.notifications.notification_pusher.KFPNotificationPusher(
+                project, run_id, notifications, {}
+            )
+        )
+        assert len(kfp_notification_pusher._sync_notifications) == 1
+        assert len(kfp_notification_pusher._async_notifications) == 2
+        with (
+            unittest.mock.patch(
+                "mlrun.utils.Workflow.get_workflow_steps"
+            ) as get_workflow_steps_mock,
+            unittest.mock.patch("mlrun.config.is_running_as_api", return_value=False),
+        ):
+            kfp_notification_pusher.push()
+            assert get_workflow_steps_mock.call_count == 3

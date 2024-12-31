@@ -260,7 +260,7 @@ class NotificationPusher(_NotificationPusherBase):
         )
         params = {}
         params.update(notification_object.secret_params or {})
-        params.update(notification_object.params)
+        params.update(notification_object.params or {})
         default_params = self._default_params.get(notification_type.value, {})
         notification = notification_type.get_notification()(
             name, params, default_params

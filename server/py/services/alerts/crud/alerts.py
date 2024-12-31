@@ -26,9 +26,9 @@ from mlrun.utils import logger
 
 import framework.utils.helpers
 import framework.utils.lru_cache
+import framework.utils.notifications.notification_pusher as notification_pusher
 import framework.utils.singletons.db
 import services.alerts.crud
-from framework.utils.notifications.notification_pusher import AlertNotificationPusher
 
 
 class Alerts(
@@ -267,7 +267,7 @@ class Alerts(
             state_obj["last_activation_id"] = activation_id
 
         logger.debug("Sending notifications for alert", name=alert.name)
-        AlertNotificationPusher().push(
+        notification_pusher.AlertNotificationPusher().push(
             alert,
             event_data,
             activation_id=activation_id,

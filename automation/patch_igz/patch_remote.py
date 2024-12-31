@@ -402,7 +402,7 @@ class MLRunPatcher:
             ).items()
         }
 
-        logger.info("Scaling down services down")
+        logger.info("Scaling down services")
         self._exec_remote(
             [
                 "kubectl",
@@ -426,7 +426,7 @@ class MLRunPatcher:
                 "--timeout=300s",
                 "pod",
                 "--selector",
-                "app.kubernetes.io/component!=db,app.kubernetes.io/name=mlrun",
+                non_mlrun_db_services_deployment_selector,
             ],
             live=True,
         )

@@ -178,9 +178,7 @@ async def push_notifications(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
-    notifications: typing.Optional[
-        typing.List[mlrun.common.schemas.Notification]
-    ] = None,
+    notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,
 ):
     if not notifications:
         return
@@ -377,7 +375,10 @@ def _push_notifications(run_id, project, notifications):
                 notification=notification,
                 exc=exc,
             )
-    default_params = framework.utils.notifications.notification_pusher.RunNotificationPusher.resolve_notifications_default_params()
+    run_notification_pusher = (
+        framework.utils.notifications.notification_pusher.RunNotificationPusher
+    )
+    default_params = run_notification_pusher.resolve_notifications_default_params()
     mlrun.utils.notifications.WorkflowNotificationPusher(
         project, run_id, unmasked_notifications, default_params
     ).push()

@@ -451,7 +451,7 @@ class WorkflowNotificationPusher(NotificationPusher):
         self,
         project: str,
         workflow_id: str,
-        notifications: typing.List[mlrun.common.schemas.Notification],
+        notifications: list[mlrun.common.schemas.Notification],
         default_params: typing.Optional[dict] = None,
     ):
         self._project = project

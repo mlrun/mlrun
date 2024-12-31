@@ -989,7 +989,7 @@ def _ensure_latest_tag_for_artifacts(
 ):
     chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
 
-    # Step 1: Subquery for the latest row based on project, key, iteration, and updated timestamp
+    # Step 1: Get the latest artifact row for each combination of project, key, and iteration
     subquery = db_session.query(
         framework.db.sqldb.models.ArtifactV2.id,
         framework.db.sqldb.models.ArtifactV2.key,
@@ -1006,7 +1006,7 @@ def _ensure_latest_tag_for_artifacts(
         .label("row_number"),
     ).subquery()
 
-    # Step 2: Filter to get only the latest row for each combination of project, key, iteration
+    # Step 2: Get only the latest row for each combination of project, key, and iteration
     subquery_filtered = (
         db_session.query(
             subquery.c.id,
@@ -1027,9 +1027,10 @@ def _ensure_latest_tag_for_artifacts(
         framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery_filtered.c.id,
     )
 
+    # Create an alias for the Tag table for the NOT EXISTS condition
     tag_alias = sqlalchemy.orm.aliased(framework.db.sqldb.models.ArtifactV2.Tag)
 
-    # Step 4: Filter out combinations where any record has the "latest" tag
+    # Step 4: Filter out artifacts that already have the "latest" tag
     query = query.filter(
         ~sqlalchemy.exists().where(
             sqlalchemy.and_(

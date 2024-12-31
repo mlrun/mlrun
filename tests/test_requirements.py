@@ -139,7 +139,7 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
-        "v3io-frames": {'>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"'},
+        "v3io-frames": {">=0.10.14, !=0.11.*, !=0.12.*"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # due to a bug in 3.11
         "aiohttp": {"~=3.10.0"},
@@ -183,10 +183,6 @@ def test_requirement_specifiers_inconsistencies():
             inconsistent_specifiers_map[requirement_name] = requirement_specifiers
 
     ignored_inconsistencies_map = {
-        "v3io-frames": {
-            '>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"',
-            '~=0.10.14; python_version < "3.11"',
-        },
         # mlrun api must have v1 due to fastapi https://github.com/fastapi/fastapi/issues/10360
         # and the fact out pydantic currently requires v1
         # on the other hand, mlrun client can have both and thus the inconsistency

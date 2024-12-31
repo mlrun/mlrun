@@ -200,7 +200,7 @@ async def push_notifications(
         background_tasks,
         _push_notifications,
         mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
-        framework.utils.background_tasks.BackgroundTaskKinds.push_pipeline_notification.format(
+        framework.utils.background_tasks.BackgroundTaskKinds.push_kfp_notification.format(
             project, run_id, time.time()
         ),
         run_id,

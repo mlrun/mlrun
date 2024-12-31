@@ -3524,6 +3524,48 @@ class HTTPRunDB(RunDBInterface):
             list[mm_endpoints.ModelEndpointMonitoringMetric], monitoring_metrics
         )
 
+    def get_metrics_by_multiple_endpoints(
+        self,
+        project: str,
+        endpoint_ids: Union[str, list[str]],
+        type: Literal["results", "metrics", "all"] = "all",
+        events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
+    ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
+        """Get application metrics/results by endpoint id and project.
+
+        :param project:         The name of the project.
+        :param endpoint_ids:    The unique id of the model endpoint. Can be a single id or a list of ids.
+        :param type:            The type of the metrics to return. "all" means "results" and "metrics".
+        :param events_format:   response format:
+
+                                separation: {"mep_id1":[...], "mep_id2":[...]}
+                                intersection {"intersect_metrics":[], "intersect_results":[]}
+        :return: A dictionary of application metrics and/or results for the model endpoints formatted by events_format.
+        """
+        path = f"projects/{project}/model-endpoints/metrics"
+        params = {
+            "type": type,
+            "endpoint-id": endpoint_ids,
+            "events_format": events_format,
+        }
+        error_message = (
+            f"Failed to get model monitoring metrics,"
+            f" endpoint_ids: {endpoint_ids}, project: {project}"
+        )
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.GET,
+            path,
+            error_message,
+            params=params,
+        )
+        monitoring_metrics_by_endpoint = response.json()
+        parsed_metrics_by_endpoint = {}
+        for endpoint, metrics in monitoring_metrics_by_endpoint.items():
+            parsed_metrics_by_endpoint[endpoint] = parse_obj_as(
+                list[mm_endpoints.ModelEndpointMonitoringMetric], metrics
+            )
+        return parsed_metrics_by_endpoint
+
     def create_user_secrets(
         self,
         user: str,

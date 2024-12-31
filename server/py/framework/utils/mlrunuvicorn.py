@@ -35,6 +35,7 @@ def run(httpdb_config, service_name="api"):
     uvicorn.run(
         f"services.{service_name}.daemon:app",
         host="0.0.0.0",
+        factory=True,
         port=httpdb_config.port,
         access_log=False,
         timeout_keep_alive=httpdb_config.http_connection_timeout_keep_alive,

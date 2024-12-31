@@ -1738,7 +1738,9 @@ class TestArtifacts(TestDatabaseBase):
         assert len(tags) == 4
 
         # files counters should return the most recent artifacts, for each key -> 5 artifacts
-        project_to_files_count = self._db._calculate_files_counters(self._db_session)
+        project_to_files_count = self._db._calculate_artifact_counters_by_category(
+            self._db_session
+        )[mlrun.common.schemas.ArtifactCategories.other]
         assert project_to_files_count[project] == 5
 
     def test_migrate_artifacts_to_v2(self):

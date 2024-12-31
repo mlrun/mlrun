@@ -139,7 +139,6 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
-        "protobuf": {'~=3.20.3; python_version < "3.11"', ">=3.20.3,<4"},
         "v3io-frames": {'>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"'},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # due to a bug in 3.11

@@ -371,14 +371,14 @@ class MLRunPatcher:
         )
 
     def _reset_mlrun_db(self):
-        non_mlrun_db_services_deployment_selector = (
+        mlrun_api_services_deployment_selector = (
             "app.kubernetes.io/component!=ui,"
             "app.kubernetes.io/component!=db,"
             "app.kubernetes.io/name=mlrun"
         )
 
         # in form of "deployment1:replicas1\ndeployment2:replicas2\n..."
-        current_non_mlrun_db_services_output = (
+        current_mlrun_api_services_output = (
             self._exec_remote(
                 [
                     "kubectl",
@@ -387,7 +387,7 @@ class MLRunPatcher:
                     "get",
                     "deployments",
                     "--selector",
-                    non_mlrun_db_services_deployment_selector,
+                    mlrun_api_services_deployment_selector,
                     '-o=jsonpath=\'{range .items[*]}{.metadata.name}{":"}{.spec.replicas}{"\\n"}{end}\'',
                 ]
             )
@@ -400,7 +400,7 @@ class MLRunPatcher:
             deployment: int(replicas)
             for deployment, replicas in dict(
                 output.split(":")
-                for output in current_non_mlrun_db_services_output.split()
+                for output in current_mlrun_api_services_output.split()
             ).items()
         }
 
@@ -413,7 +413,7 @@ class MLRunPatcher:
                 "scale",
                 "deploy",
                 "--selector",
-                non_mlrun_db_services_deployment_selector,
+                mlrun_api_services_deployment_selector,
                 "--replicas=0",
             ],
         )
@@ -428,7 +428,7 @@ class MLRunPatcher:
                 "--timeout=300s",
                 "pod",
                 "--selector",
-                non_mlrun_db_services_deployment_selector,
+                mlrun_api_services_deployment_selector,
             ],
             live=True,
         )

@@ -14,6 +14,7 @@
 #
 
 """artifact project_kind_key index
+
 Revision ID: 63a7eec6d034
 Revises: dd6049a25a81
 Create Date: 2024-12-26 10:22:25.697652

@@ -181,8 +181,8 @@ class Alerts(
         alert_id: int,
         event_data: mlrun.common.schemas.Event,
     ):
-        state = self._get_alert_state_cached()(session, alert_id)
         alert = self._get_alert_by_id_cached()(session, alert_id)
+        state = self._get_alert_state_cached()(session, alert_id)
 
         # check if the entity of the alert matches the one in event
         if not self._event_entity_matches(alert.entities, event_data.entity):
@@ -456,7 +456,10 @@ class Alerts(
         project: str,
         alert: mlrun.common.schemas.AlertConfig,
     ) -> None:
-        alert_state = self._get_alert_state_cached()(session, alert.id)
+        # we get the state from the DB and not from the cache, so it will have the updated activation id
+        alert_state = framework.utils.singletons.db.get_db().get_alert_state_dict(
+            session, alert.id
+        )
         if not alert_state:
             logger.warning(
                 "No alert state found for alert, skipping activation update on reset",

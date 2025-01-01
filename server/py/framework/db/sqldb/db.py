@@ -6162,7 +6162,11 @@ class SQLDB(DBInterface):
                 AlertConfig.project == project,
             )
         )
-        state = query.one()
+        state = query.one_or_none()
+        if state is None:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert state not found for alert name: {name}, project: {project}"
+            )
 
         if count is not None:
             state.count = count
@@ -6173,7 +6177,12 @@ class SQLDB(DBInterface):
         self._upsert(session, [state])
 
     def get_alert_state(self, session, alert_id: int) -> AlertState:
-        return self._query(session, AlertState, parent_id=alert_id).one()
+        state = self._query(session, AlertState, parent_id=alert_id).one_or_none()
+        if state is None:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert state not found for alert id: {alert_id}"
+            )
+        return state
 
     def get_alert_state_dict(self, session, alert_id: int) -> dict:
         state = self.get_alert_state(session, alert_id)

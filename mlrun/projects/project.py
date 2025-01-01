@@ -2678,7 +2678,7 @@ class MlrunProject(ModelObj):
         pipeline_id: str,
         current_run_state: "mlrun_pipelines.common.models.RunStatuse",
         message: str,
-        notifications: list = None,
+        notifications: Optional[list] = None,
     ):
         """
         Push notifications for a pipeline run(KFP).

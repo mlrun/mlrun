@@ -1074,12 +1074,10 @@ def _ensure_latest_tag_for_artifacts(
 
         artifacts_to_tag = query.limit(chunk_size).all()
 
-        if not artifacts_to_tag:
-            logger.info(
-                "No more records to migrate",
-                model=framework.db.sqldb.models.ArtifactV2.Tag,
-            )
-            break
+    logger.info(
+        "No more records to migrate",
+        model=framework.db.sqldb.models.ArtifactV2.Tag,
+    )
 
 
 def _create_project_summaries(db, db_session):

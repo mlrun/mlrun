@@ -419,6 +419,17 @@ def test_init_system_id(
 
 
 def test_ensure_latest_tag_for_artifacts():
+    # This test verifies that the migration to ensure the "latest" tag is assigned correctly to artifacts works as
+    # expected. The test creates a set of artifacts with different iteration numbers and tags:
+    # - project1 + key1 + iteration 0 -> 3 tags (v1, v2, latest)
+    # - project1 + key1 + iteration 1 -> 1 tag (latest)
+    # - project1 + key1 + iteration 2 -> 2 tags (v1, latest)
+    # - project2 + key1 + iteration 0 -> 1 tag (latest)
+    # - project2 + key2 + iteration 0 -> 1 tag (latest)
+    # The test then deletes the "latest" tags from the first two artifacts and verifies that only one artifact has the
+    # "latest" tag left. After performing the migration, the test verifies that the correct artifacts are tagged as
+    # "latest".
+
     db, db_session = _initialize_db_without_migrations()
     key1 = "key1"
     project1 = "project1"

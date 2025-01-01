@@ -31,6 +31,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointList,
 )
 from mlrun.datastore import get_stream_pusher
+from mlrun.datastore.datastore_profile import DatastoreProfileV3io
 from mlrun.model_monitoring.helpers import get_stream_path
 from tests.system.base import TestMLRunSystem
 
@@ -332,10 +333,9 @@ class TestAlerts(TestMLRunSystem):
         stream_uri = get_stream_path(
             project=self.project.metadata.name,
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            profile=DatastoreProfileV3io(name="tmp"),
         )
-        output_stream = get_stream_pusher(
-            stream_uri,
-        )
+        output_stream = get_stream_pusher(stream_uri)
 
         result_name = (
             mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME

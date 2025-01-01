@@ -41,6 +41,7 @@ import mlrun.feature_store as fstore
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 import mlrun.model_monitoring.applications.histogram_data_drift
+from mlrun.datastore.datastore_profile import DatastoreProfileV3io
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
     SUPPORTED_EVIDENTLY_VERSION,
@@ -953,7 +954,9 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             # controller and writer(with has stream) should be deleted
             for name in mm_constants.MonitoringFunctionNames.list():
                 stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-                    project=self.project.name, function_name=name
+                    project=self.project.name,
+                    function_name=name,
+                    profile=DatastoreProfileV3io(name="tmp"),
                 )
                 _, container, stream_path = (
                     mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
@@ -981,6 +984,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             stream_path = mlrun.model_monitoring.helpers.get_stream_path(
                 project=self.project.name,
                 function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                profile=DatastoreProfileV3io(name="tmp"),
             )
             _, container, stream_path = (
                 mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
@@ -996,6 +1000,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 stream_path = mlrun.model_monitoring.helpers.get_stream_path(
                     project=self.project.name,
                     function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                    profile=DatastoreProfileV3io(name="tmp"),
                 )
                 _, container, stream_path = (
                     mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(

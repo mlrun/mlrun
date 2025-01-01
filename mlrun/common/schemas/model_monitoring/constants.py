@@ -233,9 +233,13 @@ class TSDBTarget(MonitoringStrEnum):
     TDEngine = "tdengine"
 
 
+class DefaultProfileName(StrEnum):
+    STREAM = "mm-infra-stream"
+    TSDB = "mm-infra-tsdb"
+
+
 class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
     TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
     STREAM_PROFILE_NAME = "STREAM_PROFILE_NAME"
@@ -243,7 +247,7 @@ class ProjectSecretKeys:
     @classmethod
     def mandatory_secrets(cls):
         return [
-            cls.STREAM_PATH,
+            cls.STREAM_PROFILE_NAME,
             cls.TSDB_CONNECTION,
         ]
 

@@ -360,7 +360,6 @@ async def delete_model_monitoring_function(
 def set_model_monitoring_credentials(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     access_key: Optional[str] = None,
-    stream_path: Optional[str] = None,
     tsdb_connection: Optional[str] = None,
     tsdb_profile_name: Optional[str] = None,
     stream_profile_name: Optional[str] = None,
@@ -372,13 +371,6 @@ def set_model_monitoring_credentials(
     model monitoring or serving function.
     :param commons:                   The common parameters of the request.
     :param access_key:                Model Monitoring access key for managing user permissions.
-    :param stream_path:               Path to the model monitoring stream. By default, None.
-                                      Options:
-                                      1. None, will be set from the system configuration.
-                                      2. v3io - for v3io stream,
-                                         pass `v3io` and the system will generate the exact path.
-                                      3. Kafka - for Kafka stream, please provide full connection string without
-                                         custom topic, for example kafka://<some_kafka_broker>:<port>.
     :param tsdb_connection:           Connection string to the time series database. By default, None.
                                       Options:
                                       1. None, will be set from the system configuration.
@@ -388,6 +380,7 @@ def set_model_monitoring_credentials(
                                          for example taosws://<username>:<password>@<host>:<port>.
     :param tsdb_profile_name:         TSDB datastore profile name. If specified, takes precedence over tsdb_connection.
     :param stream_profile_name:       Stream datastore profile name. If specified, takes precedence over stream_path.
+                                      The profile can be V3IO or KafkaSource.
     :param replace_creds:             If True, it will force the credentials update. By default, False.
     """
     MonitoringDeployment(
@@ -397,7 +390,6 @@ def set_model_monitoring_credentials(
         model_monitoring_access_key=commons.model_monitoring_access_key,
     ).set_credentials(
         access_key=access_key,
-        stream_path=stream_path,
         tsdb_connection=tsdb_connection,
         tsdb_profile_name=tsdb_profile_name,
         stream_profile_name=stream_profile_name,

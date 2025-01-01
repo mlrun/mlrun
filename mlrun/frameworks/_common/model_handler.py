@@ -976,7 +976,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             custom_objects_map_json,
             local_path=custom_objects_map_json,
             artifact_path=self._context.artifact_path,
-            db_key=False,
+            db_key=True,
         )
 
         # Zip the custom objects directory:
@@ -997,7 +997,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
             custom_objects_zip,
             local_path=custom_objects_zip,
             artifact_path=self._context.artifact_path,
-            db_key=False,
+            db_key=True,
         )
 
         return artifacts

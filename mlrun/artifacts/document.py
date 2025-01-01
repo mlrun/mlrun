@@ -47,6 +47,7 @@ class DocumentLoaderSpec(ModelObj):
         self,
         loader_class_name: str = "langchain_community.document_loaders.TextLoader",
         src_name: str = "file_path",
+        download_object: bool = False,
         kwargs: Optional[dict] = None,
     ):
         """
@@ -56,7 +57,9 @@ class DocumentLoaderSpec(ModelObj):
             loader_class_name (str): The name of the loader class to use.
             src_name (str): The source name for the document.
             kwargs (Optional[dict]): Additional keyword arguments to pass to the loader class.
-
+            download_object (bool, optional): If True, the file will be downloaded before launching
+                the loader. If False, the loader accepts a link that should not be downloaded.
+                Defaults to False.
         Example:
             >>> # Create a loader specification for PDF documents
             >>> loader_spec = DocumentLoaderSpec(
@@ -72,6 +75,7 @@ class DocumentLoaderSpec(ModelObj):
         """
         self.loader_class_name = loader_class_name
         self.src_name = src_name
+        self.download_object = download_object
         self.kwargs = kwargs
 
     def make_loader(self, src_path):
@@ -251,6 +255,9 @@ class DocumentArtifact(Artifact):
             "collections",
             "original_source",
         ]
+        _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+            "collections",
+        ]
 
         def __init__(
             self,
@@ -270,7 +277,6 @@ class DocumentArtifact(Artifact):
     METADATA_SOURCE_KEY = "source"
     METADATA_ORIGINAL_SOURCE_KEY = "original_source"
     METADATA_CHUNK_KEY = "mlrun_chunk"
-    METADATA_ARTIFACT_URI_KEY = "mlrun_object_uri"
     METADATA_ARTIFACT_TARGET_PATH_KEY = "mlrun_target_path"
     METADATA_ARTIFACT_TAG = "mlrun_tag"
     METADATA_ARTIFACT_KEY = "mlrun_key"
@@ -321,7 +327,7 @@ class DocumentArtifact(Artifact):
         """
 
         loader_spec = DocumentLoaderSpec.from_dict(self.spec.document_loader)
-        if self.get_target_path():
+        if loader_spec.download_object and self.get_target_path():
             with tempfile.NamedTemporaryFile() as tmp_file:
                 mlrun.datastore.store_manager.object(
                     url=self.get_target_path()
@@ -348,7 +354,6 @@ class DocumentArtifact(Artifact):
 
             metadata[self.METADATA_ORIGINAL_SOURCE_KEY] = self.spec.original_source
             metadata[self.METADATA_SOURCE_KEY] = self.get_source()
-            metadata[self.METADATA_ARTIFACT_URI_KEY] = self.uri
             metadata[self.METADATA_ARTIFACT_TAG] = self.tag or "latest"
             metadata[self.METADATA_ARTIFACT_KEY] = self.key
             metadata[self.METADATA_ARTIFACT_PROJECT] = self.metadata.project

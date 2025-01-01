@@ -884,6 +884,7 @@ class MLClientCtx:
         upload: Optional[bool] = False,
         labels: Optional[dict[str, str]] = None,
         target_path: Optional[str] = None,
+        db_key: Optional[str] = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
@@ -914,6 +915,8 @@ class MLClientCtx:
         :param upload: Whether to upload the artifact
         :param labels: Key-value labels
         :param target_path: Path to the local file
+        :param db_key: The key to use in the artifact DB table, by default its run name + '_' + key
+                       db_key=False will not register it in the artifacts table
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
 
@@ -943,6 +946,9 @@ class MLClientCtx:
             tag=tag,
             upload=upload,
             labels=labels,
+            local_path=local_path,
+            target_path=target_path,
+            db_key=db_key,
         )
         self._update_run()
         return item

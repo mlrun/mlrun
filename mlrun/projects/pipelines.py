@@ -646,10 +646,14 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-            context.uid,
-        )
+
+        # TODO: we should check how can we get the run uid when we don't have the context (for example on
+        #  mlrun.load_project() and later call directly to project.run)
+        if context:
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
+                context.uid,
+            )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
@@ -744,7 +748,8 @@ class _LocalRunner(_PipelineRunner):
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
 
-        project.notifiers.push_pipeline_start_message(
+        # TODO: we should create endpoint for sending custom notification from BE
+        project.notifiers.push_pipeline_start_message_from_client(
             project.metadata.name, pipeline_id=workflow_id
         )
         err = None

@@ -34,7 +34,7 @@ MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 24.2
-MLRUN_UV_VERSION ?= 0.5.8
+MLRUN_UV_VERSION ?= 0.5.13
 MLRUN_UV_IMAGE ?= ghcr.io/astral-sh/uv:$(MLRUN_UV_VERSION)
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
@@ -119,18 +119,21 @@ install-requirements: ## Install all requirements needed for development
 		-r requirements.txt \
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
-		-r dockerfiles/mlrun-api/requirements.txt \
-		-r docs/requirements.txt
+		-r dockerfiles/mlrun-api/requirements.txt
 
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-	conda install --yes --file conda-arm64-requirements.txt
 	make install-requirements
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete]
+
+.PHONY: install-complete-kfp-requirements
+install-complete-kfp-requirements: ## Install all requirements needed for development and testing + KFP 1.8
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete,kfp18]
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
@@ -883,6 +886,7 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		requirements.txt \
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		dev-requirements.txt \
 		docs/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
@@ -893,6 +897,7 @@ upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system t
 	uv pip compile \
 		requirements.txt \
 		extras-requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		dev-requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
@@ -902,6 +907,7 @@ upgrade-mlrun-system-test-deps-lock: verify-uv-version ## Upgrade mlrun system t
 upgrade-mlrun-kfp-deps-lock: verify-uv-version ## Upgrade mlrun-kfp locked requirements file
 	uv pip compile \
 		requirements.txt \
+		dockerfiles/mlrun-kfp/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/mlrun-kfp/locked-requirements.txt
 

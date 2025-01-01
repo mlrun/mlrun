@@ -126,6 +126,9 @@ class BaseStep(ModelObj):
         self.shape = shape
         self.on_error = None
         self._on_error_handler = None
+        self.model_endpoint_creation_strategy = (
+            schemas.ModelEndpointCreationStrategy.SKIP
+        )
 
     def get_shape(self):
         """graphviz shape"""
@@ -428,7 +431,7 @@ class TaskStep(BaseStep):
         result_path: Optional[str] = None,
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        ] = schemas.ModelEndpointCreationStrategy.SKIP,
         endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
     ):
         super().__init__(name, after)
@@ -697,7 +700,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes"]
+    _dict_fields = _task_step_fields + ["routes", "name"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
@@ -715,7 +718,7 @@ class RouterStep(TaskStep):
             class_name,
             class_args,
             handler,
-            name=name,
+            name=get_name(name, class_name or RouterStep.kind),
             function=function,
             input_path=input_path,
             result_path=result_path,
@@ -723,6 +726,11 @@ class RouterStep(TaskStep):
         self._routes: ObjectDict = None
         self.routes = routes
         self.endpoint_type = schemas.EndpointType.ROUTER
+        self.model_endpoint_creation_strategy = (
+            schemas.ModelEndpointCreationStrategy.INPLACE
+            if class_name and "serving.VotingEnsemble" in class_name
+            else schemas.ModelEndpointCreationStrategy.SKIP
+        )
 
     def get_children(self):
         """get child steps (routes)"""
@@ -1699,7 +1707,7 @@ def get_name(name, class_name):
         raise MLRunInvalidArgumentError("name or class_name must be provided")
     if isinstance(class_name, type):
         return class_name.__name__
-    return class_name
+    return class_name.split(".")[-1]
 
 
 def params_to_step(

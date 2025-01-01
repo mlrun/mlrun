@@ -15,24 +15,30 @@
 import ast
 import datetime
 import http
+import time
 import typing
 
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 import yaml
+from fastapi import BackgroundTasks, Depends
+from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
+import mlrun.utils.notifications
 import mlrun_pipelines.models
 
 import framework.api
 import framework.api.deps
 import framework.api.utils
 import framework.utils.auth.verifier
+import framework.utils.background_tasks
+import framework.utils.notifications
 import framework.utils.singletons.k8s
 import services.api.crud
 
@@ -158,6 +164,50 @@ async def retry_pipeline(
         namespace,
     )
     return run_id
+
+
+@router.post(
+    "{run_id}/push-notifications",
+    response_model=mlrun.common.schemas.BackgroundTask,
+)
+async def push_notifications(
+    project: str,
+    run_id: str,
+    background_tasks: BackgroundTasks,
+    db_session: Session = Depends(framework.api.deps.get_db_session),
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        framework.api.deps.authenticate_request
+    ),
+    notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,
+):
+    if not notifications:
+        return
+
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            run_id,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+    )
+
+    background_task = await fastapi.concurrency.run_in_threadpool(
+        framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        db_session,
+        project,
+        background_tasks,
+        _push_notifications,
+        mlrun.mlconf.background_tasks.default_timeouts.push_notifications,
+        framework.utils.background_tasks.BackgroundTaskKinds.push_kfp_notification.format(
+            project, run_id, time.time()
+        ),
+        run_id,
+        project,
+        notifications,
+    )
+    return background_task
 
 
 @router.get("/{run_id}")
@@ -308,3 +358,27 @@ def _try_resolve_project_from_body(
     return services.api.crud.Pipelines().resolve_project_from_workflow_manifest(
         mlrun_pipelines.models.PipelineManifest(workflow_manifest)
     )
+
+
+def _push_notifications(run_id, project, notifications):
+    unmasked_notifications = []
+    for notification in notifications:
+        try:
+            unmasked_notifications.append(
+                framework.utils.notifications.unmask_notification_params_secret(
+                    project, notification
+                )
+            )
+        except Exception as exc:
+            mlrun.utils.logger.warning(
+                "Failed to unmask notification params secret",
+                notification=notification,
+                exc=exc,
+            )
+    run_notification_pusher = (
+        framework.utils.notifications.notification_pusher.RunNotificationPusher
+    )
+    default_params = run_notification_pusher.resolve_notifications_default_params()
+    framework.utils.notifications.notification_pusher.KFPNotificationPusher(
+        project, run_id, unmasked_notifications, default_params
+    ).push()

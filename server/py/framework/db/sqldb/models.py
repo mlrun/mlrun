@@ -242,6 +242,7 @@ with warnings.catch_warnings():
                 "kind",
             ),
             Index("idx_artifacts_name_uid_project", "key", "uid", "project"),
+            Index("idx_project_kind_key", "project", "kind", "key"),
         )
 
         Label = make_label(__tablename__)
@@ -762,7 +763,7 @@ with warnings.catch_warnings():
         count = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
-            default=datetime.now(timezone.utc),
+            default=datetime.utcnow,
         )
         last_updated = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921

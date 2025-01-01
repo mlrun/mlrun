@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import ast
 import base64
 import json
@@ -549,6 +549,35 @@ class DatastoreProfile2Json(pydantic.v1.BaseModel):
 
 
 def datastore_profile_read(url, project_name="", secrets: typing.Optional[dict] = None):
+    """
+    Read and retrieve a datastore profile from a given URL.
+
+    This function retrieves a datastore profile either from temporary client storage,
+    or from the MLRun database. It handles both client-side and server-side profile formats
+    and performs necessary conversions.
+
+    Args:
+        url (str): A URL with 'ds' scheme pointing to the datastore profile
+            (e.g., 'ds://profile-name').
+        project_name (str, optional): The project name where the profile is stored.
+            Defaults to MLRun's default project.
+        secrets (dict, optional): Dictionary containing secrets needed for profile retrieval.
+
+    Returns:
+        DatastoreProfile: The retrieved datastore profile object.
+
+    Raises:
+        MLRunInvalidArgumentError: In the following cases:
+            - If the URL scheme is not 'ds'
+            - If the profile cannot be retrieved from either server or local environment
+
+    Note:
+       When running from a client environment (outside MLRun pods), private profile information
+       is not accessible. In this case, use register_temporary_client_datastore_profile() to
+       register the profile with credentials for your local session. When running inside MLRun
+       pods, the private information is automatically available and no temporary registration is needed.
+    """
+
     parsed_url = urlparse(url)
     if parsed_url.scheme.lower() != "ds":
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -580,7 +609,7 @@ def datastore_profile_read(url, project_name="", secrets: typing.Optional[dict] 
     )
     private_body = get_secret_or_env(project_ds_name_private, secret_provider=secrets)
     if not public_profile or not private_body:
-        raise mlrun.errors.MLRunInvalidArgumentError(
+        raise mlrun.errors.MLRunNotFoundError(
             f"Unable to retrieve the datastore profile '{url}' from either the server or local environment. "
             "Make sure the profile is registered correctly, or if running in a local environment, "
             "use register_temporary_client_datastore_profile() to provide credentials locally."

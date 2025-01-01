@@ -75,6 +75,7 @@ class ModelEndpointCreationStrategy(MonitoringStrEnum):
     INPLACE = "inplace"
     ARCHIVE = "archive"
     OVERWRITE = "overwrite"
+    SKIP = "skip"
 
 
 class EventFieldType:
@@ -236,6 +237,8 @@ class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
+    TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
+    STREAM_PROFILE_NAME = "STREAM_PROFILE_NAME"
 
     @classmethod
     def mandatory_secrets(cls):
@@ -243,6 +246,12 @@ class ProjectSecretKeys:
             cls.STREAM_PATH,
             cls.TSDB_CONNECTION,
         ]
+
+
+class GetEventsFormat(MonitoringStrEnum):
+    SINGLE = "single"
+    SEPARATION = "separation"
+    INTERSECTION = "intersection"
 
 
 class ModelEndpointTargetSchemas(MonitoringStrEnum):
@@ -445,3 +454,8 @@ FQN_REGEX = re.compile(FQN_PATTERN)
 PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
 
 MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
+
+INTERSECT_DICT_KEYS = {
+    ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",
+    ModelEndpointMonitoringMetricType.RESULT: "intersect_results",
+}

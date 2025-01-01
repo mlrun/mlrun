@@ -113,16 +113,10 @@ def test_tracked_function(rundb_mock, enable_tracking):
         fn.set_tracking("dummy://", enable_tracking=enable_tracking)
         server = fn.to_mock_server(track_models=True)
         server.test("/v2/models/m1/infer", testdata)
-
+        if enable_tracking:
+            rundb_mock.get_model_endpoint.assert_called_once()
         dummy_stream = server.context.stream.output_stream
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-
-    rundb_mock.create_model_endpoint.assert_called_once()
-    if enable_tracking:
-        assert (
-            rundb_mock.create_model_endpoint.call_args.kwargs["creation_strategy"]
-            == ModelEndpointCreationStrategy.ARCHIVE
-        ), "creation_strategy attribute of the model endpoint was not as expected"
 
 
 def rec_to_data(rec):

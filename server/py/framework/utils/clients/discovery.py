@@ -96,6 +96,7 @@ class Client(
             "put": [],
             "delete": [],
             "patch": [],
+            "head": [],
         }
         routes = self._service_routes(service_name)
         for methods, path in routes:
@@ -120,7 +121,7 @@ class Client(
         for service_name, service_instance in self.services.items():
             routes_patterns = service_instance.method_routes[method]
             for route_pattern in routes_patterns:
-                if route_pattern.match(path):
+                if route_pattern.fullmatch(path):
                     return service_name
         return None
 
@@ -136,9 +137,9 @@ class Client(
             "api-chief": [],
             "api": [],
             "alerts": [
-                (["put", "get", "delete"], "alert-templates.*"),
-                (["*"], "projects/.+/alerts.*"),
-                (["post"], "projects/.+/events.*"),
-                (["get"], "projects/.+/alert-activations"),
+                (["put", "get", "delete"], r"alert-templates(\/.*)?"),
+                (["*"], r"projects/[^/\s]+/alerts(\/.*)?"),
+                (["post"], r"projects/[^/\s]+/events(\/.*)?"),
+                (["get"], r"projects/[^/\s]+/alert-activations(\/.*)?"),
             ],
         }[service_name]

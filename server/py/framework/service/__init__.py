@@ -22,6 +22,7 @@ from abc import ABC, abstractmethod
 import fastapi
 import fastapi.concurrency
 import fastapi.exception_handlers
+import semver
 from dependency_injector import containers, providers
 
 import mlrun.common.schemas
@@ -298,19 +299,34 @@ class Service(ABC):
             clusterization_spec = await chief_client.get_clusterization_spec(
                 return_fastapi_response=False, raise_on_failure=True
             )
+            await self._align_worker_state_with_chief_state(clusterization_spec)
         except Exception as exc:
             self._logger.debug(
                 "Failed receiving clusterization spec",
                 exc=mlrun.errors.err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
-        else:
-            await self._align_worker_state_with_chief_state(clusterization_spec)
 
     async def _align_worker_state_with_chief_state(
         self,
         clusterization_spec: mlrun.common.schemas.ClusterizationSpec,
     ):
+        # if clusterization_spec has different version (take out unstable)
+        # deny the response as it may come from an older, stable chief
+        worker_version = semver.version.Version.parse(
+            mlrun.utils.version.Version().get()["version"]
+        )
+        chief_version = semver.version.Version.parse(clusterization_spec.chief_version)
+        unstable_chief = chief_version.build == "unstable"
+        unstable_worker = worker_version.build == "unstable"
+        if not (unstable_chief or unstable_worker) and worker_version != chief_version:
+            self._logger.warning(
+                "Chief version is different than worker version, denying response",
+                chief_version=chief_version,
+                worker_version=worker_version,
+            )
+            return
+
         chief_state = clusterization_spec.chief_api_state
         if not chief_state:
             self._logger.warning("Chief did not return any state")

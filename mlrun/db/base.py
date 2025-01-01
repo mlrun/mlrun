@@ -337,6 +337,15 @@ class RunDBInterface(ABC):
     ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
         pass
 
+    def get_metrics_by_multiple_endpoints(
+        self,
+        project: str,
+        endpoint_ids: Union[str, list[str]],
+        type: Literal["results", "metrics", "all"] = "all",
+        events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
+    ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
+        pass
+
     @abstractmethod
     def delete_project(
         self,
@@ -1079,7 +1088,7 @@ class RunDBInterface(ABC):
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, str],
+        credentials: dict[str, Optional[str]],
         replace_creds: bool,
     ) -> None:
         pass

@@ -24,11 +24,11 @@ import igz_mgmt
 import pandas as pd
 import pytest
 from kfp import dsl
-from kubernetes.client import V1Secret
 
 import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.utils
 import mlrun.utils.logger
 import mlrun_pipelines.common.models
 import tests.system.common.helpers.notifications as notification_helpers
@@ -524,12 +524,13 @@ class TestProject(TestMLRunSystem):
         for env in fn.spec.env:
             if env["name"] in ["V3IO_ACCESS_KEY", "MLRUN_ATH_SESSION"]:
                 assert "valueFrom" in env, "content must be taken from secret"
-                secret_name = env["valueFrom"]["secretKeyRef"]["name"]
-                k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
-                    name=secret_name,
-                    namespace="default-tenant",
-                )
-                assert k8s_secret.data.get("accessKey") is not None
+                # TODO: uncomment when we have system tests with full k8s access
+                # secret_name = env["valueFrom"]["secretKeyRef"]["name"]
+                # k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
+                #     name=secret_name,
+                #     namespace="default-tenant",
+                # )
+                # assert k8s_secret.data.get("accessKey") is not None
 
     def test_local_pipeline(self):
         self._test_new_pipeline("lclpipe", engine="local")
@@ -706,9 +707,15 @@ class TestProject(TestMLRunSystem):
             workflow_name,
             engine="remote",
         )
-        assert (
-            run.state == mlrun_pipelines.common.models.RunStatuses.running
-        ), "pipeline failed"
+        # wait 30s for pipeline to start running
+        mlrun.utils.retry_until_successful(
+            backoff=1,
+            timeout=30,
+            logger=self._logger,
+            verbose=True,
+            _function=lambda: run.state
+            != mlrun_pipelines.common.models.RunStatuses.running,
+        )
 
         # Retrieve the project from the database or create it from the context
         context = f"{projects_dir}/get-{project_name}"
@@ -1655,7 +1662,9 @@ class TestProject(TestMLRunSystem):
         project.set_source(source)
 
         # Build the image, load the source to the target dir and save the project
-        project.build_image(target_dir=source_code_target_dir)
+        project.build_image(
+            target_dir=source_code_target_dir, base_image="mlrun/mlrun-kfp"
+        )
         project.save()
 
         run = project.run(

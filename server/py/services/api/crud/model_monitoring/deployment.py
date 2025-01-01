@@ -1018,12 +1018,7 @@ class MonitoringDeployment:
 
     def _get_monitoring_mandatory_project_secrets(self) -> dict[str, str]:
         credentials_dict = {
-            key: services.api.crud.Secrets().get_project_secret(
-                project=self.project,
-                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                secret_key=key,
-                allow_secrets_from_k8s=True,
-            )
+            key: mlrun.get_secret_or_env(key, secret_provider=self._secret_provider)
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
 
@@ -1197,9 +1192,7 @@ class MonitoringDeployment:
         for key in (
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         ):
-            try:
-                secrets_dict[key]
-            except KeyError:
+            if key not in secrets_dict:
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     f"You must provide a valid {key} connection while using set_model_monitoring_credentials."
                 )
@@ -1245,12 +1238,7 @@ class MonitoringDeployment:
 
     def _is_the_same_cred(self, stream_path: str, tsdb_connection: str) -> bool:
         credentials_dict = {
-            key: services.api.crud.Secrets().get_project_secret(
-                project=self.project,
-                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                secret_key=key,
-                allow_secrets_from_k8s=True,
-            )
+            key: mlrun.get_secret_or_env(key, self._secret_provider)
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
 

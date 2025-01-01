@@ -228,11 +228,6 @@ class ModelEndpointTarget(MonitoringStrEnum):
     SQL = "sql"
 
 
-class StreamKind(MonitoringStrEnum):
-    V3IO_STREAM = "v3io_stream"
-    KAFKA = "kafka"
-
-
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"

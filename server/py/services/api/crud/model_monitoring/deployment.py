@@ -1118,7 +1118,6 @@ class MonitoringDeployment:
                 old_secrets_dict.get(
                     mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
                 )
-                or mlrun.mlconf.model_endpoint_monitoring.stream_connection
                 or _default_secrets_v3io
             )
 

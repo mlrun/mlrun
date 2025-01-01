@@ -3692,8 +3692,6 @@ class MlrunProject(ModelObj):
                         topics=[],
                     )
                 )
-        else:
-            stream_profile_name = stream_profile_name
 
         db.set_model_monitoring_credentials(
             project=self.name,

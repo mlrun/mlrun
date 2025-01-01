@@ -52,30 +52,40 @@ class MLRunPatcher:
         self,
         conf_file: str,
         patch_file: str,
-        reset_db: str,
+        reset_db: bool,
         image_tag: str,
         patch_log_collector_image: bool,
         patch_mlrun_image: bool,
         skip_patch_api: bool,
+        patch_alerts: bool,
     ):
         self._config = yaml.safe_load(conf_file)
         patch_yaml_data = yaml.safe_load(patch_file)
-        self._deploy_patch = json.dumps(patch_yaml_data)
+        self._deploy_patch = patch_yaml_data
         self._reset_db = reset_db
         self._image_tag = image_tag
         self._patch_log_collector_image = bool(patch_log_collector_image)
         self._validate_config()
         self._patch_mlrun_image = patch_mlrun_image
         self._skip_patch_api = skip_patch_api
+        self._patch_alerts = patch_alerts
+
+        if self._skip_patch_api and self._patch_alerts:
+            raise ValueError("Cannot skip api and patch alerts at the same time")
 
         cluster_data_nodes = self._config["DATA_NODES"]
         if not isinstance(cluster_data_nodes, list):
             cluster_data_nodes = [cluster_data_nodes]
         self._cluster_data_nodes = cluster_data_nodes
+        self._deployments = [
+            "mlrun-api-chief",
+            "mlrun-api-worker",
+        ]
+        if self._patch_alerts:
+            self._deployments.append("mlrun-alerts")
 
     def patch(self):
-        version = self._get_current_version()
-        image_tag = self._get_image_tag(version)
+        image_tag = self._get_current_version()
         targets = []
         if not self._skip_patch_api:
             targets.append(Constants.api)
@@ -214,11 +224,13 @@ class MLRunPatcher:
         logger.debug(f"Connecting to {node}")
 
         self._ssh_client = paramiko.SSHClient()
-        self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
+        self._ssh_client.set_missing_host_key_policy(paramiko.MissingHostKeyPolicy)
         self._ssh_client.connect(
             node,
             username=self._config["SSH_USER"],
             password=self._config["SSH_PASSWORD"],
+            look_for_keys=False,
+            allow_agent=False,
         )
 
     def _disconnect_from_node(self):
@@ -268,36 +280,27 @@ class MLRunPatcher:
             )
 
     def _patch_deployment_from_file(self):
-        logger.info("Patching mlrun-api-chief deployment")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "patch",
-                "deployment",
-                "mlrun-api-chief",
-                "-p",
-                f"{self._deploy_patch}",
-            ]
-        )
-
-        logger.info("Patching mlrun-api-worker deployment")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "patch",
-                "deployment",
-                "mlrun-api-worker",
-                "-p",
-                f"{self._deploy_patch}",
-            ]
-        )
+        for deployment in self._deployments:
+            logger.info(f"Patching deployment {deployment}")
+            deployment_patch = (
+                self._deploy_patch["mlrun_alerts"]
+                if "-alerts" in deployment
+                else self._deploy_patch["mlrun_api"]
+            )
+            self._exec_remote(
+                [
+                    "kubectl",
+                    "-n",
+                    "default-tenant",
+                    "patch",
+                    "deployment",
+                    deployment,
+                    "-p",
+                    f"{json.dumps(deployment_patch)}",
+                ]
+            )
 
     def _replace_deployment_images(self, container, built_image):
-        logger.info(f"Replace container {container} for  mlrun-api-chief")
         if self._config.get("OVERWRITE_IMAGE_REGISTRY"):
             docker_registry, overwrite_registry = self._resolve_overwrite_registry()
             built_image = built_image.replace(
@@ -305,76 +308,52 @@ class MLRunPatcher:
                 overwrite_registry,
             )
 
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "set",
-                "image",
-                "deployment/mlrun-api-chief",
-                f"{container}={built_image}",
-            ]
-        )
-
-        logger.info(f"Replace container {container} for  mlrun-api-worker")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "set",
-                "image",
-                "deployment/mlrun-api-worker",
-                f"{container}={built_image}",
-            ]
-        )
+        for deployment in self._deployments:
+            logger.info(f"Replace container {container} for {deployment}")
+            self._exec_remote(
+                [
+                    "kubectl",
+                    "-n",
+                    "default-tenant",
+                    "set",
+                    "image",
+                    f"deployment/{deployment}",
+                    f"{container}={built_image}",
+                ]
+            )
 
     def _rollout_deployment(self):
-        logger.info("Restarting deployment")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "rollout",
-                "restart",
-                "deployment",
-                "mlrun-api-chief",
-                "mlrun-api-worker",
-            ]
-        )
+        for deployment in self._deployments:
+            logger.info(f"Restarting deployment {deployment}")
+            self._exec_remote(
+                [
+                    "kubectl",
+                    "-n",
+                    "default-tenant",
+                    "rollout",
+                    "restart",
+                    f"deployment/{deployment}",
+                ]
+            )
 
     def _wait_deployment_ready(self):
-        logger.info("Waiting for mlrun-api-chief to become ready")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "rollout",
-                "status",
-                "deployment",
-                "mlrun-api-chief",
-                "--timeout=120s",
-            ],
-            live=True,
-        )
-        logger.info("Waiting for mlrun-api-worker to become ready")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "rollout",
-                "status",
-                "deployment",
-                "mlrun-api-worker",
-                "--timeout=120s",
-            ],
-            live=True,
-        )
-        logger.info("Waiting for mlrun-api to become ready")
+        for deployment in self._deployments:
+            logger.info(f"Waiting for {deployment} to become ready")
+            self._exec_remote(
+                [
+                    "kubectl",
+                    "-n",
+                    "default-tenant",
+                    "rollout",
+                    "status",
+                    "deployment",
+                    deployment,
+                    "--timeout=120s",
+                ],
+                live=True,
+            )
+
+        logger.info("Waiting for mlrun pods to become ready")
         self._exec_remote(
             [
                 "kubectl",
@@ -386,30 +365,46 @@ class MLRunPatcher:
                 "app.kubernetes.io/name=mlrun",
                 "--for",
                 "condition=Ready",
-                "--timeout=240s",
+                "--timeout=300s",
             ],
             live=True,
         )
 
     def _reset_mlrun_db(self):
-        curr_worker_replicas = (
+        mlrun_api_services_deployment_selector = (
+            "app.kubernetes.io/component!=ui,"
+            "app.kubernetes.io/component!=db,"
+            "app.kubernetes.io/name=mlrun"
+        )
+
+        # in form of "deployment1:replicas1\ndeployment2:replicas2\n..."
+        current_mlrun_api_services_output = (
             self._exec_remote(
                 [
                     "kubectl",
                     "-n",
                     "default-tenant",
                     "get",
-                    "deployment",
-                    "mlrun-api-worker",
-                    "-o=jsonpath='{.spec.replicas}'",
+                    "deployments",
+                    "--selector",
+                    mlrun_api_services_deployment_selector,
+                    '-o=jsonpath=\'{range .items[*]}{.metadata.name}{":"}{.spec.replicas}{"\\n"}{end}\'',
                 ]
             )
             .strip()
             .strip("'")
+            .strip()
         )
-        logger.info("Detected current worker replicas: %s", curr_worker_replicas)
+        # in form of {"deployment1": replicas1, "deployment2": replicas2, ...}
+        current_non_mlrun_db_services = {
+            deployment: int(replicas)
+            for deployment, replicas in dict(
+                output.split(":")
+                for output in current_mlrun_api_services_output.split()
+            ).items()
+        }
 
-        logger.info("Scaling down mlrun-api-chief")
+        logger.info("Scaling down services")
         self._exec_remote(
             [
                 "kubectl",
@@ -417,58 +412,26 @@ class MLRunPatcher:
                 "default-tenant",
                 "scale",
                 "deploy",
-                "mlrun-api-chief",
+                "--selector",
+                mlrun_api_services_deployment_selector,
                 "--replicas=0",
             ],
         )
-        logger.info("Scaling down mlrun-api-worker")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "scale",
-                "deploy",
-                "mlrun-api-worker",
-                "--replicas=0",
-            ],
-        )
-
-        logger.info("Waiting for mlrun-api-chief to go down")
+        logger.info("Waiting for pods to go down")
         self._exec_remote(
             [
                 "kubectl",
                 "-n",
                 "default-tenant",
                 "wait",
-                "pods",
-                "-l",
-                "app.kubernetes.io/sub-component=chief",
                 "--for=delete",
-                "--timeout=60s",
+                "--timeout=300s",
+                "pod",
+                "--selector",
+                mlrun_api_services_deployment_selector,
             ],
             live=True,
         )
-
-        logger.info("Waiting for mlrun-api-worker to go down")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "wait",
-                "pods",
-                "-l",
-                "app.kubernetes.io/sub-component=worker",
-                "--for=delete",
-                "--timeout=60s",
-            ],
-            live=True,
-        )
-
-        mlrun_db_pod = self._get_db_pod()
-        if mlrun_db_pod is None:
-            raise RuntimeError("Unable to find DB pod")
 
         logger.info("Reset DB")
         self._exec_remote(
@@ -478,56 +441,34 @@ class MLRunPatcher:
                 "default-tenant",
                 "exec",
                 "-it",
-                mlrun_db_pod,
-                "-c",
+                "deployment/mlrun-db",
+                "--container",
                 "mlrun-db",
                 "--",
                 "mysql",
-                "-u",
+                "--user",
                 self._config["DB_USER"],
-                "-S",
+                "--socket",
                 "/var/run/mysqld/mysql.sock",
-                "-e",
+                "--execute",
                 "DROP DATABASE mlrun; CREATE DATABASE mlrun",
             ],
             live=True,
         )
 
-        logger.info("Scaling up mlrun-api-chief")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "scale",
-                "deploy",
-                "mlrun-api-chief",
-                "--replicas=1",
-            ],
-        )
-        logger.info("Scaling up mlrun-api-worker")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "scale",
-                "deploy",
-                "mlrun-api-worker",
-                f"--replicas={curr_worker_replicas}",
-            ],
-        )
-
-    def _get_db_pod(self):
-        cmd = ["kubectl", "-n", "default-tenant", "get", "pod"]
-
-        for line in self._exec_remote(cmd).splitlines()[1:]:
-            if "mlrun-db" in line:
-                return line.split()[0]
-
-    @staticmethod
-    def _get_image_tag(tag) -> str:
-        return f"{tag}"
+        for deployment, replicas in current_non_mlrun_db_services.items():
+            logger.info(f"Scaling up {deployment} with {replicas}")
+            self._exec_remote(
+                [
+                    "kubectl",
+                    "-n",
+                    "default-tenant",
+                    "scale",
+                    "deploy",
+                    deployment,
+                    f"--replicas={replicas}",
+                ],
+            )
 
     @staticmethod
     def _execute_local_proc_interactive(cmd, env=None):
@@ -638,15 +579,21 @@ class MLRunPatcher:
     is_flag=True,
     help="Deploy the mlrun API image",
 )
+@click.option(
+    "--alerts",
+    is_flag=True,
+    help="Deploy the the alerts service",
+)
 def main(
     verbose: bool,
-    config: bool,
-    patch_file: bool,
+    config: str,
+    patch_file: str,
     reset_db: bool,
-    tag: bool,
+    tag: str,
     log_collector: bool,
     mlrun: bool,
     skip_api: bool,
+    alerts: bool,
 ):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
@@ -659,6 +606,7 @@ def main(
         patch_log_collector_image=log_collector,
         patch_mlrun_image=mlrun,
         skip_patch_api=skip_api,
+        patch_alerts=alerts,
     ).patch()
 
 

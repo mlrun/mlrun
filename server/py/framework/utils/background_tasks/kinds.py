@@ -21,3 +21,4 @@ class BackgroundTaskKinds:
     function_deletion = "function.deletion.{0}"
     refresh_smtp_configuration = "smtp.configuration.refresh"
     push_notification = "notification.push.{0}.{1}"
+    push_kfp_notification = "notification.kfp.push.{0}.{1}.{2}"

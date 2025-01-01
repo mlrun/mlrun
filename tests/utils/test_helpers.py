@@ -1269,6 +1269,20 @@ def handler():
 
 
 @pytest.mark.parametrize(
+    "obj, expected",
+    [
+        ({"a": 1, "b": 2}, {"a": 1, "b": 2}),
+        ('{"a": 1, "b": 2}', {"a": 1, "b": 2}),
+        ({}, {}),
+        ("{}", {}),
+        (None, None),
+    ],
+)
+def test_as_dict(obj, expected):
+    assert expected == mlrun.utils.helpers.as_dict(obj)
+
+
+@pytest.mark.parametrize(
     "code",
     [
         """

@@ -569,7 +569,7 @@ async def push_notifications(
 
 def _push_notifications(db_session, run):
     db = db_singleton.get_db()
-    framework.utils.notifications.unmask_notification_params_secret_on_task(
+    run = framework.utils.notifications.unmask_notification_params_secret_on_task(
         db, db_session, run
     )
     run_notification_pusher_class = (

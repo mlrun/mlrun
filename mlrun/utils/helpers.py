@@ -2038,3 +2038,9 @@ class Workflow:
 
         kfp_run = mlrun_pipelines.models.PipelineRun(kfp_run)
         return kfp_run.workflow_manifest()
+
+
+def as_dict(data: typing.Union[dict, str]) -> dict:
+    if isinstance(data, str):
+        return json.loads(data)
+    return data

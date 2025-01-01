@@ -1043,12 +1043,13 @@ def _ensure_latest_tag_for_artifacts(
 
     if not artifacts_to_tag:
         logger.info(
-            "No records to migrate", model=framework.db.sqldb.models.ArtifactV2.Tag
+            "No artifacts without 'latest' were found",
+            model=framework.db.sqldb.models.ArtifactV2.Tag,
         )
         return
 
     logger.info(
-        "Starting migration",
+        "Starting artifacts without 'latest' tag migration",
         model=framework.db.sqldb.models.ArtifactV2.Tag,
         count=len(artifacts_to_tag),
     )
@@ -1075,8 +1076,7 @@ def _ensure_latest_tag_for_artifacts(
         artifacts_to_tag = query.limit(chunk_size).all()
 
     logger.info(
-        "No more records to migrate",
-        model=framework.db.sqldb.models.ArtifactV2.Tag,
+        "No more artifacts to migrate",
     )
 
 

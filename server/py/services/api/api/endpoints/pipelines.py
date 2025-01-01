@@ -167,7 +167,7 @@ async def retry_pipeline(
 
 
 @router.post(
-    "{run_id}/push-notifications",
+    "/{run_id}/push-notifications",
     response_model=mlrun.common.schemas.BackgroundTask,
 )
 async def push_notifications(

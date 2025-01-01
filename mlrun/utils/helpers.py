@@ -1981,7 +1981,20 @@ class Workflow:
         if not workflow_id:
             return steps
 
-        workflow_manifest = Workflow._get_workflow_manifest(workflow_id)
+        try:
+            workflow_manifest = Workflow._get_workflow_manifest(workflow_id)
+        except Exception:
+            logger.warning(
+                "Failed to extract workflow steps from workflow manifest, "
+                "returning all runs with the workflow id label",
+                workflow_id=workflow_id,
+                traceback=traceback.format_exc(),
+            )
+            return db.list_runs(
+                project=project,
+                labels=f"workflow={workflow_id}",
+            )
+
         if not workflow_manifest:
             return steps
 

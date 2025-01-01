@@ -785,6 +785,37 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        """
+        Push notifications for a pipeline.
+
+        :param pipeline_id: Unique ID of the pipeline(KFP).
+        :param project: Project that the run belongs to.
+        :param notifications: List of notifications to push.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        project = project or config.default_project
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/pipelines/{pipeline_id}/push-notifications",
+            error="Failed push notifications",
+            body=_as_json([notification.to_dict() for notification in notifications]),
+            timeout=timeout,
+        )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+        return None
+
     def read_run(
         self,
         uid,

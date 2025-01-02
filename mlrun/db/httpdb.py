@@ -787,13 +787,17 @@ class HTTPRunDB(RunDBInterface):
                 background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.succeeded
             ):
-                logger.info("Notifications pushed", project=project, run_id=uid)
+                logger.info(
+                    "Notifications for the run have been pushed",
+                    project=project,
+                    run_id=uid,
+                )
             elif (
                 background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.failed
             ):
                 logger.error(
-                    "Failed to push notifications",
+                    "Failed to push run notifications",
                     project=project,
                     run_id=uid,
                     error=background_task.status.error,
@@ -839,14 +843,16 @@ class HTTPRunDB(RunDBInterface):
                 == mlrun.common.schemas.BackgroundTaskState.succeeded
             ):
                 logger.info(
-                    "Notifications pushed", project=project, pipeline_id=pipeline_id
+                    "Pipeline notifications have been pushed",
+                    project=project,
+                    pipeline_id=pipeline_id,
                 )
             elif (
                 background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.failed
             ):
                 logger.error(
-                    "Failed to push notifications",
+                    "Failed to push pipeline notifications",
                     project=project,
                     pipeline_id=pipeline_id,
                     error=background_task.status.error,

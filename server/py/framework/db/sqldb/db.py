@@ -1617,20 +1617,24 @@ class SQLDB(DBInterface):
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
 
-        query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+        # To get all artifacts, even if they don't have tags
+        query = query.outerjoin(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
 
         tuples_filter = []
         for key, tag, iteration, uid in artifact_identifiers:
-            iteration = iteration or 0
-            tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
-            base_filter = (
-                (ArtifactV2.key == key)
-                & (ArtifactV2.Tag.name == tag)
-                & (ArtifactV2.iteration == iteration)
-            )
-            # Add UID filter only if UID is not None
+            base_filter = ArtifactV2.key == key
+
+            # Prioritize filtering by UID if provided
             if uid is not None:
                 base_filter = base_filter & (ArtifactV2.uid == uid)
+            else:
+                iteration = iteration or 0
+                tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
+                base_filter = (
+                    base_filter
+                    & (ArtifactV2.Tag.name == tag)
+                    & (ArtifactV2.iteration == iteration)
+                )
             tuples_filter.append(base_filter)
 
         query = query.filter(or_(*tuples_filter))

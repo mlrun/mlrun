@@ -647,6 +647,11 @@ class _KFPRunner(_PipelineRunner):
                     exc_info=err_to_str(exc),
                 )
 
+        # Pushing only relevant notification for the client (ipython and console)
+        project.notifiers.push_pipeline_start_message_from_client(
+            project.metadata.name, pipeline_id=run_id
+        )
+
         if context:
             project.notifiers.push_pipeline_start_message(
                 project.metadata.name,

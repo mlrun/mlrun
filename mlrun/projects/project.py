@@ -1175,7 +1175,6 @@ class MlrunProject(ModelObj):
         self._artifact_manager = None
         self._notifiers = CustomNotificationPusher(
             [
-                NotificationTypes.slack,
                 NotificationTypes.console,
                 NotificationTypes.ipython,
             ]

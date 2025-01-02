@@ -3677,8 +3677,6 @@ class MlrunProject(ModelObj):
                 stream_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
                     name=mm_constants.DefaultProfileName.STREAM
                 )
-                self.register_datastore_profile(stream_profile)
-                stream_profile_name = stream_profile.name
             else:
                 parsed_stream = urlparse(stream_path)
                 if parsed_stream.scheme != "kafka":
@@ -3692,6 +3690,8 @@ class MlrunProject(ModelObj):
                         topics=[],
                     )
                 )
+            self.register_datastore_profile(stream_profile)
+            stream_profile_name = stream_profile.name
 
         db.set_model_monitoring_credentials(
             project=self.name,

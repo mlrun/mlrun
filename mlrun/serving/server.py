@@ -74,18 +74,18 @@ class _StreamContext:
                 function_uri, config.default_project
             )
 
-            if log_stream != DUMMY_STREAM:
+            stream_args = parameters.get("stream_args", {})
+
+            if log_stream == DUMMY_STREAM:
+                self.stream_uri = DUMMY_STREAM
+            elif not stream_args.get("mock"):
                 self.stream_uri = mlrun.model_monitoring.get_stream_path(
                     project=project
                 )
-            else:
-                self.stream_uri = DUMMY_STREAM
 
             if log_stream:
                 # Update the stream path to the log stream value
                 self.stream_uri = log_stream.format(project=project)
-
-            stream_args = parameters.get("stream_args", {})
 
             self.output_stream = get_stream_pusher(self.stream_uri, **stream_args)
 

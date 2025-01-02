@@ -780,9 +780,24 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info("Notifications pushed", project=project, run_id=uid)
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.error(
+                    "Failed to push notifications",
+                    project=project,
+                    run_id=uid,
+                    error=background_task.status.error,
+                )
         return None
 
     def push_pipeline_notifications(
@@ -801,7 +816,9 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
         if notifications is None or type(notifications) is not list:
-            raise MLRunInvalidArgumentError("notifications must be a list")
+            raise MLRunInvalidArgumentError(
+                "The 'notifications' parameter must be a list."
+            )
 
         project = project or config.default_project
 
@@ -814,11 +831,26 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
-        else:
-            logger.warning("Failed to push notifications", response=response.text)
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info(
+                    "Notifications pushed", project=project, pipeline_id=pipeline_id
+                )
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.error(
+                    "Failed to push notifications",
+                    project=project,
+                    pipeline_id=pipeline_id,
+                    error=background_task.status.error,
+                )
 
         return None
 

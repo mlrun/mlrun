@@ -165,7 +165,7 @@ class TDEngineConnector(TSDBConnector):
         return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     @staticmethod
-    def _get_endpoint_filter(endpoint_id: typing.Union[str, list[str]]):
+    def _get_endpoint_filter(endpoint_id: typing.Union[str, list[str]]) -> str:
         if isinstance(endpoint_id, str):
             return f"endpoint_id='{endpoint_id}'"
         elif isinstance(endpoint_id, list):
@@ -525,9 +525,7 @@ class TDEngineConnector(TSDBConnector):
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.PREDICTIONS].super_table,
@@ -538,7 +536,7 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.EventFieldType.TIME,
                 mm_schemas.EventFieldType.LATENCY,
             ],
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            filter_query=filter_query,
             timestamp_column=mm_schemas.EventFieldType.TIME,
             agg_funcs=["last"],
             group_by=mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -567,9 +565,7 @@ class TDEngineConnector(TSDBConnector):
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -580,7 +576,7 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.ResultData.RESULT_STATUS,
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            filter_query=filter_query,
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             agg_funcs=["max"],
             group_by=mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -678,9 +674,8 @@ class TDEngineConnector(TSDBConnector):
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=self.tables[mm_schemas.TDEngineSuperTables.ERRORS].super_table,
@@ -691,8 +686,7 @@ class TDEngineConnector(TSDBConnector):
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
             agg_funcs=["count"],
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]}) "
-            f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'",
+            filter_query=filter_query,
             group_by=mm_schemas.EventFieldType.ENDPOINT_ID,
             preform_agg_columns=[mm_schemas.EventFieldType.MODEL_ERROR],
         )

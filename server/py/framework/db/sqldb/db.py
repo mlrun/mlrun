@@ -1617,20 +1617,21 @@ class SQLDB(DBInterface):
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
 
-        query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+        # To get all artifacts, even if they don't have tags
+        query = query.outerjoin(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
 
         tuples_filter = []
         for key, tag, iteration, uid in artifact_identifiers:
-            iteration = iteration or 0
-            tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
-            base_filter = (
-                (ArtifactV2.key == key)
-                & (ArtifactV2.Tag.name == tag)
-                & (ArtifactV2.iteration == iteration)
-            )
-            # Add UID filter only if UID is not None
+            base_filter = ArtifactV2.key == key
+
+            # Prioritize filtering by UID if provided
             if uid is not None:
                 base_filter = base_filter & (ArtifactV2.uid == uid)
+            else:
+                iteration = iteration or 0
+                base_filter = base_filter & (ArtifactV2.iteration == iteration)
+                if tag is not None:
+                    base_filter = base_filter & (ArtifactV2.Tag.name == tag)
             tuples_filter.append(base_filter)
 
         query = query.filter(or_(*tuples_filter))
@@ -5163,6 +5164,7 @@ class SQLDB(DBInterface):
         latest_only: bool,
         offset: int,
         limit: int,
+        order_by: str,
     ) -> sqlalchemy.orm.query.Query:
         """
         Query model_endpoints from the DB by the given filters.
@@ -5262,6 +5264,12 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, ModelEndpoint, labels)
         query = self._paginate_query(query, offset, limit)
+        try:
+            if order_by:
+                query = query.order_by(getattr(ModelEndpoint, order_by).asc())
+        except AttributeError as err:
+            logger.warning("Skipping order by", error=mlrun.errors.err_to_str(err))
+
         return query
 
     @staticmethod
@@ -7111,6 +7119,7 @@ class SQLDB(DBInterface):
         latest_only: bool = False,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
+        order_by: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
         for mep_record in self._find_model_endpoints(
@@ -7129,6 +7138,7 @@ class SQLDB(DBInterface):
             latest_only=latest_only,
             offset=offset,
             limit=limit,
+            order_by=order_by,
         ):
             model_endpoints.append(
                 self._transform_model_endpoint_model_to_schema(mep_record)

@@ -1252,6 +1252,7 @@ class DBInterface(ABC):
         latest_only: bool = False,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
+        order_by: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints by project and optional filters.
@@ -1271,6 +1272,7 @@ class DBInterface(ABC):
         :param latest_only:     Whether to return only the latest model endpoint for each name.
         :param offset:          SQL query offset.
         :param limit:           SQL query limit.
+        :param order_by:        Name of column to order by it (in ascending order).
         :return:                A list of model endpoints.
         """
         pass

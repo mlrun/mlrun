@@ -2401,6 +2401,68 @@ class TestArtifacts(TestDatabaseBase):
         )
         assert 1 == len(arts), "since/until t2"
 
+    def test_list_artifacts_for_producer_id(self):
+        project = "project_name"
+        artifact_name = "artifact_name"
+        tree1 = "artifact_tree_1"
+        tree2 = "artifact_tree_2"
+
+        # Generate and store two artifacts with the same name and different producer id
+        artifact_1 = self._generate_artifact(artifact_name, tree=tree1)
+        artifact_2 = self._generate_artifact(artifact_name, project=project, tree=tree2)
+        self._db.store_artifact(
+            self._db_session,
+            artifact_name,
+            artifact_1,
+            project=project,
+        )
+        self._db.store_artifact(
+            self._db_session,
+            artifact_name,
+            artifact_2,
+            project=project,
+        )
+        artifacts = self._db.list_artifacts(
+            self._db_session, project=project, name=artifact_name
+        )
+        assert len(artifacts) == 2
+
+        # Retrieve the first artifact without tag (None) and with specific UID
+        artifact_identifiers = [(artifact_name, None, 0, artifact_1["metadata"]["uid"])]
+        artifacts = self._db.list_artifacts_for_producer_id(
+            self._db_session,
+            project=project,
+            producer_id=tree1,
+            artifact_identifiers=artifact_identifiers,
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == artifact_1["metadata"]["uid"]
+        assert artifacts[0]["metadata"]["tag"] is None
+
+        # Retrieve same artifact without tag (None) and without specific UID
+        artifact_identifiers = [(artifact_name, None, 0, None)]
+        artifacts = self._db.list_artifacts_for_producer_id(
+            self._db_session,
+            project=project,
+            producer_id=tree1,
+            artifact_identifiers=artifact_identifiers,
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == artifact_1["metadata"]["uid"]
+        assert artifacts[0]["metadata"]["tag"] is None
+
+        # Retrieve the second artifact with tag "latest" and no UID
+        artifact_identifiers = [(artifact_name, None, 0, None)]
+        artifacts = self._db.list_artifacts_for_producer_id(
+            self._db_session,
+            project=project,
+            producer_id=tree2,
+            artifact_identifiers=artifact_identifiers,
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == artifact_2["metadata"]["uid"]
+        assert artifacts[0]["metadata"]["tag"] == "latest"
+
     def _generate_artifact_with_iterations(
         self, key, tree, num_iters, best_iter, kind, project=""
     ):

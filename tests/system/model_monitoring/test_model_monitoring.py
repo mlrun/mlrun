@@ -363,11 +363,39 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         endpoints_intersect = in_endpoint_names.intersection(out_endpoint_names)
         assert len(endpoints_intersect) == number_of_endpoints
 
+    def test_max_archive_list_endpoints(self):
+        # Validates the process of listing model endpoints with max archive limitation. In this test
+        # we create 5 model endpoints and then create another one. The oldest one should be deleted
+        db = mlrun.get_run_db()
+
+        number_of_endpoints = 5
+        endpoints_in = [
+            self._mock_random_endpoint("testing") for _ in range(number_of_endpoints)
+        ]
+
+        for endpoint in endpoints_in:
+            db.create_model_endpoint(endpoint, creation_strategy="archive")
+
+        endpoints_out = self.project.list_model_endpoints(latest_only=False).endpoints
+        assert len(endpoints_out) == number_of_endpoints
+        created: Optional[datetime] = None
+        uid: Optional[str] = None
+        for mep in endpoints_out:
+            if not created or mep.metadata.created < created:
+                created = mep.metadata.created
+                uid = mep.metadata.uid
+
+        db.create_model_endpoint(
+            self._mock_random_endpoint("testing"), creation_strategy="archive"
+        )
+        endpoints_out = self.project.list_model_endpoints(latest_only=False).endpoints
+        assert uid not in [mep.metadata.uid for mep in endpoints_out]
+        assert len(endpoints_out) == 5  # max_archive=5
+
     def test_list_endpoints_filter(self):
         number_of_endpoints = 5
         db = mlrun.get_run_db()
 
-        # access_key = auth_info.data_session
         for i in range(number_of_endpoints):
             endpoint = self._mock_random_endpoint(
                 name=f"testing-{i}", function_tag=None

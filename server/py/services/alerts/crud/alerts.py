@@ -142,13 +142,15 @@ class Alerts(
     def get_enriched_alert(
         self, session: sqlalchemy.orm.Session, project: str, name: str
     ):
-        alert = framework.utils.singletons.db.get_db().get_alert(session, project, name)
+        alert, state = framework.utils.singletons.db.get_db().get_alert(
+            session, project, name, with_state=True
+        )
         if alert is None:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Alert {name} for project {project} not found"
             )
 
-        framework.utils.singletons.db.get_db().enrich_alert(session, alert)
+        framework.utils.singletons.db.get_db().enrich_alert(session, alert, state=state)
         return alert
 
     def get_alert(

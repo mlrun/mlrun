@@ -5901,11 +5901,26 @@ class SQLDB(DBInterface):
         self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
-        query = self._filter_query_by_resource_project(query, AlertConfig, project)
 
-        alerts = list(map(self._transform_alert_config_record_to_schema, query.all()))
-        for alert in alerts:
-            self.enrich_alert(session, alert)
+        # Construct the initial query for AlertConfig and join with AlertState to fetch associated states
+        query = query.outerjoin(
+            AlertState, AlertState.parent_id == AlertConfig.id
+        ).add_entity(AlertState)
+
+        query = self._filter_query_by_resource_project(query, AlertConfig, project)
+        results = query.all()
+
+        # Process each result, transforming and enriching the AlertConfig objects
+        alerts = []
+        for alert_config, alert_state in results:
+            alert = self._transform_alert_config_record_to_schema(alert_config)
+            # Enrich the alert with additional data using AlertState
+            self.enrich_alert(
+                session,
+                alert,
+                state=alert_state,
+            )
+            alerts.append(alert)
         return alerts
 
     def get_alert(

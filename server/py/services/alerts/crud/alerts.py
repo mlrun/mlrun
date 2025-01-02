@@ -48,8 +48,8 @@ class Alerts(
     ):
         project = project or mlrun.mlconf.default_project
 
-        existing_alert = framework.utils.singletons.db.get_db().get_alert(
-            session, project, name
+        existing_alert, existing_alert_state = (
+            framework.utils.singletons.db.get_db().get_alert(session, project, name, with_state=True)
         )
 
         self._validate_alert(alert_data, name, project)
@@ -94,8 +94,12 @@ class Alerts(
 
         self._validate_and_mask_notifications(alert_data)
 
-        new_alert = framework.utils.singletons.db.get_db().store_alert(
-            session, alert_data
+        new_alert = (
+            framework.utils.singletons.db.get_db().store_alert(session, alert_data)
+            if existing_alert
+            else framework.utils.singletons.db.get_db().create_alert(
+                session, alert_data
+            )
         )
 
         for event_kind in new_alert.trigger.events:

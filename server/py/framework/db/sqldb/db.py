@@ -5851,9 +5851,11 @@ class SQLDB(DBInterface):
     def store_alert(
         self, session, alert: mlrun.common.schemas.AlertConfig
     ) -> mlrun.common.schemas.AlertConfig:
-        alert_record = self._get_alert_record(session, alert.name, alert.project)
+        alert_record, alert_state = self._get_alert_record(
+            session, alert.name, alert.project, with_state=True
+        )
         if not alert_record:
-            return self._create_alert(session, alert)
+            return self.create_alert(session, alert)
         alert_record.full_object = alert.dict()
 
         self._delete_alert_notifications(session, alert.name, alert, alert.project)
@@ -5867,11 +5869,14 @@ class SQLDB(DBInterface):
 
         self._upsert(session, [alert_record])
         # in case if alert service was stopped when storing an alert
-        self.ensure_alert_state(session, alert_record.id)
-        return alert_record
+        if not alert_state:
+            self.create_alert_state(session, alert_record.id)
+        return self._transform_alert_config_record_to_schema(alert_record)
 
-    def _create_alert(
-        self, session, alert: mlrun.common.schemas.AlertConfig
+    def create_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
     ) -> mlrun.common.schemas.AlertConfig:
         alert_record = self._transform_alert_config_schema_to_record(alert)
         alert_id = self._upsert_object_and_flush_to_get_field(
@@ -5904,11 +5909,23 @@ class SQLDB(DBInterface):
         return alerts
 
     def get_alert(
-        self, session, project: str, name: str
-    ) -> mlrun.common.schemas.AlertConfig:
-        return self._transform_alert_config_record_to_schema(
-            self._get_alert_record(session, name, project)
-        )
+        self,
+        session,
+        project: str,
+        name: str,
+        with_state=False,
+    ) -> Optional[
+        Union[
+            mlrun.common.schemas.AlertConfig,
+            tuple[mlrun.common.schemas.AlertConfig, AlertState],
+        ]
+    ]:
+        if not with_state:
+            return self._transform_alert_config_record_to_schema(
+                self._get_alert_record(session, name, project, with_state)
+            )
+        alert, state = self._get_alert_record(session, name, project, with_state)
+        return self._transform_alert_config_record_to_schema(alert), state
 
     def get_alert_by_id(
         self, session, alert_id: int
@@ -6153,10 +6170,24 @@ class SQLDB(DBInterface):
     def _get_alert_template_record(self, session, name: str) -> AlertTemplate:
         return self._query(session, AlertTemplate, name=name).one_or_none()
 
-    def _get_alert_record(self, session, name: str, project: str) -> AlertConfig:
-        return self._query(
-            session, AlertConfig, name=name, project=project
-        ).one_or_none()
+    def _get_alert_record(
+        self, session, name: str, project: str, with_state: bool = False
+    ) -> Optional[Union[AlertConfig, tuple[AlertConfig, AlertState]]]:
+        query = session.query(AlertConfig)
+
+        if with_state:
+            query = query.outerjoin(
+                AlertState, AlertState.parent_id == AlertConfig.id
+            ).add_entity(AlertState)
+
+        query = query.filter(AlertConfig.name == name, AlertConfig.project == project)
+
+        result = query.one_or_none()
+
+        if result is None:
+            # Explicitly return None for both if needed
+            return None if not with_state else (None, None)
+        return result
 
     def _get_alert_record_by_id(self, session, alert_id: int) -> AlertConfig:
         return self._query(session, AlertConfig, id=alert_id).one_or_none()
@@ -6209,11 +6240,6 @@ class SQLDB(DBInterface):
     def create_alert_state(self, session, alert_id):
         state = AlertState(count=0, parent_id=alert_id)
         self._upsert(session, [state])
-
-    def ensure_alert_state(self, session, alert_id):
-        state = self.get_alert_state(session, alert_id)
-        if state is None:
-            self.create_alert_state(session, alert_id)
 
     def delete_alert_notifications(
         self,

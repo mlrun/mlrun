@@ -5866,7 +5866,9 @@ class SQLDB(DBInterface):
         )
 
         self._upsert(session, [alert_record])
-        return self.get_alert_by_id(session, alert_record.id)
+        # in case if alert service was stopped when storing an alert
+        self.ensure_alert_state(session, alert_record.id)
+        return alert_record
 
     def _create_alert(
         self, session, alert: mlrun.common.schemas.AlertConfig
@@ -6207,6 +6209,11 @@ class SQLDB(DBInterface):
     def create_alert_state(self, session, alert_id):
         state = AlertState(count=0, parent_id=alert_id)
         self._upsert(session, [state])
+
+    def ensure_alert_state(self, session, alert_id):
+        state = self.get_alert_state(session, alert_id)
+        if state is None:
+            self.create_alert_state(session, alert_id)
 
     def delete_alert_notifications(
         self,

@@ -227,6 +227,8 @@ class RunStates:
             mlrun_pipelines.common.models.RunStatuses.canceling: RunStates.aborting,
             mlrun_pipelines.common.models.RunStatuses.skipped: RunStates.skipped,
             mlrun_pipelines.common.models.RunStatuses.runtime_state_unspecified: RunStates.unknown,
+            mlrun_pipelines.common.models.RunStatuses.error: RunStates.error,
+            mlrun_pipelines.common.models.RunStatuses.paused: RunStates.unknown,
         }[pipeline_run_status]
 
 

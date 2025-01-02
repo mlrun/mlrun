@@ -2676,7 +2676,7 @@ class MlrunProject(ModelObj):
     def push_pipeline_notification_kfp_runner(
         self,
         pipeline_id: str,
-        current_run_state: "mlrun_pipelines.common.models.RunStatuse",
+        current_run_state: mlrun_pipelines.common.models.RunStatuses,
         message: str,
         notifications: Optional[list] = None,
     ):

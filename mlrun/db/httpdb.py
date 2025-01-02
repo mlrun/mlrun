@@ -800,6 +800,9 @@ class HTTPRunDB(RunDBInterface):
         :param notifications: List of notifications to push.
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
+        if notifications is None or type(notifications) is not list:
+            raise MLRunInvalidArgumentError("notifications must be a list")
+
         project = project or config.default_project
 
         response = self.api_call(
@@ -814,6 +817,9 @@ class HTTPRunDB(RunDBInterface):
             return self._wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
+        else:
+            logger.warning("Failed to push notifications", response=response.text)
+
         return None
 
     def read_run(

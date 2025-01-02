@@ -5844,7 +5844,7 @@ class SQLDB(DBInterface):
             session,
             AlertConfig,
             alert.get_raw_notifications(),
-            str(alert_record.id),
+            alert_record.id,
             alert.project,
         )
 
@@ -5855,20 +5855,18 @@ class SQLDB(DBInterface):
         self, session, alert: mlrun.common.schemas.AlertConfig
     ) -> mlrun.common.schemas.AlertConfig:
         alert_record = self._transform_alert_config_schema_to_record(alert)
-        self._upsert(session, [alert_record])
-
-        alert_record = self._get_alert_record(
-            session, alert_record.name, alert_record.project
+        alert_id = self._upsert_object_and_flush_to_get_field(
+            session, alert_record, "id"
         )
 
         self._store_notifications(
             session,
             AlertConfig,
             alert.get_raw_notifications(),
-            alert_record.id,
+            alert_id,
             alert.project,
         )
-        self.create_alert_state(session, alert_record)
+        self.create_alert_state(session, alert_id)
 
         return self._transform_alert_config_record_to_schema(alert_record)
 
@@ -6189,8 +6187,8 @@ class SQLDB(DBInterface):
         if state is not None:
             return state.to_dict()
 
-    def create_alert_state(self, session, alert_record):
-        state = AlertState(count=0, parent_id=alert_record.id)
+    def create_alert_state(self, session, alert_id):
+        state = AlertState(count=0, parent_id=alert_id)
         self._upsert(session, [state])
 
     def delete_alert_notifications(
@@ -6627,7 +6625,7 @@ class SQLDB(DBInterface):
         session,
         cls,
         notification_objects: list[mlrun.model.Notification],
-        parent_id: str,
+        parent_id: Union[str, int],
         project: str,
     ):
         db_notifications = {
@@ -6637,12 +6635,6 @@ class SQLDB(DBInterface):
             )
         }
         notifications = []
-        logger.debug(
-            "Storing notifications",
-            notifications_length=len(notification_objects),
-            parent_id=parent_id,
-            project=project,
-        )
         for notification_model in notification_objects:
             new_notification = False
             notification = db_notifications.get(notification_model.name, None)

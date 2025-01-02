@@ -98,9 +98,9 @@ class Alerts(
             session, alert_data
         )
 
-        for kind in new_alert.trigger.events:
+        for event_kind in new_alert.trigger.events:
             services.alerts.crud.Events().add_event_configuration(
-                project, kind, new_alert.id
+                project, event_kind, new_alert.id
             )
 
         # if the alert already exists we should check if it should be reset or not
@@ -174,6 +174,7 @@ class Alerts(
 
         framework.utils.singletons.db.get_db().delete_alert(session, project, name)
         self._clear_alert_states(alert)
+        self._clear_caches(alert.id)
 
     def process_event(
         self,
@@ -311,9 +312,9 @@ class Alerts(
     def _try_populate_caches(self, session: sqlalchemy.orm.Session):
         for alert in framework.utils.singletons.db.get_db().get_all_alerts(session):
             # Populate events cache
-            for event_name in alert.trigger.events:
+            for event_kind in alert.trigger.events:
                 services.alerts.crud.Events().add_event_configuration(
-                    alert.project, event_name, alert.id
+                    alert.project, event_kind, alert.id
                 )
             # Populate the alert and alert state caches
             self._get_alert_by_id_cached()(session, alert.id)
@@ -549,3 +550,7 @@ class Alerts(
     def _clear_alert_states(self, alert):
         if alert.id in self._states:
             self._states.pop(alert.id)
+
+    def _clear_caches(self, alert_id):
+        self._alert_cache.cache_remove(None, alert_id)
+        self._alert_state_cache.cache_remove(None, alert_id)

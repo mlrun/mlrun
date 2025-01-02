@@ -874,18 +874,22 @@ class ModelEndpoints:
                                               V3IO resources.
         """
         logger.debug(
-            "Deleting model monitoring endpoints resources",
-            project_name=project_name,
+            "Deleting model monitoring endpoints resources", project_name=project_name
         )
+        try:
+            stream_path = mlrun.model_monitoring.get_stream_path(
+                project=project_name,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=project_name
+                ),
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            # There is no MM infra in place for the project - no resources to delete
+            return
+
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
         # TODO : adjust for ce scenario
-        stream_path = mlrun.model_monitoring.get_stream_path(
-            project=project_name,
-            secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                project=project_name
-            ),
-        )
         if stream_path.startswith("v3io") and (
             not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api
         ):

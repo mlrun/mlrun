@@ -5002,17 +5002,23 @@ class SQLDB(DBInterface):
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects
                     )
-
-                    mlrun_error = mlrun.errors.MLRunRuntimeError(
-                        f"Failed committing changes to DB. classes={classes} objects={identifiers}"
-                    )
-
                     # check if the error is a conflict error
                     if any([message in str(sql_err) for message in conflict_messages]):
                         mlrun_error = mlrun.errors.MLRunConflictError(
                             f"Conflict - at least one of the objects already exists: {identifiers}"
                         )
-
+                    else:
+                        error = "Failed committing changes to DB"
+                        if "Out of range value for column" in str(sql_err):
+                            column = sql_err.orig.args[1].split("'")[1]
+                            mlrun_error = mlrun.errors.MLRunRuntimeError(
+                                f"{error}, column='{column}' exceeds the allowed range. "
+                                + f"classes={classes} objects={identifiers}"
+                            )
+                        else:
+                            mlrun_error = mlrun.errors.MLRunRuntimeError(
+                                f"{error}. classes={classes} objects={identifiers}"
+                            )
                     # we want to keep the exception stack trace, but we also want the retry mechanism to stop
                     # so, we raise a new indicative exception from the original sql exception (this keeps
                     # the stack trace intact), and then wrap it with a fatal error (which stops the retry mechanism).

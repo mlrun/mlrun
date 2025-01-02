@@ -180,9 +180,6 @@ async def push_notifications(
     ),
     notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,
 ):
-    if not notifications:
-        return
-
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
@@ -361,6 +358,8 @@ def _try_resolve_project_from_body(
 
 
 def _push_notifications(run_id, project, notifications):
+    if not notifications:
+        return
     unmasked_notifications = []
     for notification in notifications:
         try:

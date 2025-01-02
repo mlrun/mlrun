@@ -523,6 +523,9 @@ class _PipelineRunner(abc.ABC):
         text = _PipelineRunner._generate_workflow_finished_message(
             run.run_id, errors_counter, run._state
         )
+        notifiers = notifiers or project.notifiers
+        if notifiers:
+            notifiers.push(text, "info", runs)
 
         project.push_pipeline_notification_kfp_runner(run.run_id, run._state, text)
 

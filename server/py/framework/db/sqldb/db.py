@@ -1629,12 +1629,9 @@ class SQLDB(DBInterface):
                 base_filter = base_filter & (ArtifactV2.uid == uid)
             else:
                 iteration = iteration or 0
-                tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
-                base_filter = (
-                    base_filter
-                    & (ArtifactV2.Tag.name == tag)
-                    & (ArtifactV2.iteration == iteration)
-                )
+                base_filter = base_filter & (ArtifactV2.iteration == iteration)
+                if tag is not None:
+                    base_filter = base_filter & (ArtifactV2.Tag.name == tag)
             tuples_filter.append(base_filter)
 
         query = query.filter(or_(*tuples_filter))

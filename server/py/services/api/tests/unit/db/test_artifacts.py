@@ -2439,6 +2439,18 @@ class TestArtifacts(TestDatabaseBase):
         assert artifacts[0]["metadata"]["uid"] == artifact_1["metadata"]["uid"]
         assert artifacts[0]["metadata"]["tag"] is None
 
+        # Retrieve same artifact without tag (None) and without specific UID
+        artifact_identifiers = [(artifact_name, None, 0, None)]
+        artifacts = self._db.list_artifacts_for_producer_id(
+            self._db_session,
+            project=project,
+            producer_id=tree1,
+            artifact_identifiers=artifact_identifiers,
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["uid"] == artifact_1["metadata"]["uid"]
+        assert artifacts[0]["metadata"]["tag"] is None
+
         # Retrieve the second artifact with tag "latest" and no UID
         artifact_identifiers = [(artifact_name, None, 0, None)]
         artifacts = self._db.list_artifacts_for_producer_id(

@@ -26,6 +26,8 @@ import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
+import framework.db.sqldb.models
+
 
 class DBError(Exception):
     pass
@@ -914,7 +916,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+    def enrich_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+        state: Optional[framework.db.sqldb.models.AlertState] = None,
+    ):
         pass
 
     @staticmethod

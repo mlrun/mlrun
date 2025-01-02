@@ -5868,7 +5868,7 @@ class SQLDB(DBInterface):
         )
 
         self._upsert(session, [alert_record])
-        # in case if alert service was stopped when storing an alert
+        # in case alert service was stopped while storing an alert, ensure that it has a state
         if not alert_state:
             self.create_alert_state(session, alert_record.id)
         return self._transform_alert_config_record_to_schema(alert_record)
@@ -5934,8 +5934,14 @@ class SQLDB(DBInterface):
             self._get_alert_record_by_id(session, alert_id)
         )
 
-    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
-        state = self.get_alert_state(session, alert.id)
+    def enrich_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+        state: Optional[AlertState] = None,
+    ):
+        if not state:
+            state = self.get_alert_state(session, alert.id)
         alert.state = (
             mlrun.common.schemas.AlertActiveState.ACTIVE
             if state.active

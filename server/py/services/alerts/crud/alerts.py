@@ -123,7 +123,9 @@ class Alerts(
                     session, project, new_alert.name, alert_id=new_alert.id
                 )
 
-        framework.utils.singletons.db.get_db().enrich_alert(session, new_alert)
+        framework.utils.singletons.db.get_db().enrich_alert(
+            session, new_alert, state=existing_alert_state
+        )
 
         logger.debug("Stored alert", alert=new_alert)
 

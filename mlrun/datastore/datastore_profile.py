@@ -473,6 +473,43 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
+class TDEngineDatastoreProfile(DatastoreProfile):
+    """
+    A profile that holds the required parameters for a TDEngine database, with the websocket scheme.
+    https://docs.tdengine.com/developer-guide/connecting-to-tdengine/#websocket-connection
+    """
+
+    type: str = pydantic.v1.Field("taosws")
+    _private_attributes = ["password"]
+    user: str
+    # The password cannot be empty in real world scenarios. It's here just because of the profiles completion design.
+    password: typing.Optional[str]
+    host: str
+    port: int
+
+    def dsn(self) -> str:
+        """Get the Data Source Name of the configured TDEngine profile."""
+        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}"
+
+    @classmethod
+    def from_dsn(cls, dsn: str, profile_name: str) -> "TDEngineDatastoreProfile":
+        """
+        Construct a TDEngine profile from DSN (connection string) and a name for the profile.
+
+        :param dsn:          The DSN (Data Source Name) of the TDEngine database, e.g.: ``"taosws://root:taosdata@localhost:6041"``.
+        :param profile_name: The new profile's name.
+        :return:             The TDEngine profile.
+        """
+        parsed_url = urlparse(dsn)
+        return cls(
+            name=profile_name,
+            user=parsed_url.username,
+            password=parsed_url.password,
+            host=parsed_url.hostname,
+            port=parsed_url.port,
+        )
+
+
 class DatastoreProfile2Json(pydantic.v1.BaseModel):
     @staticmethod
     def _to_json(attributes):
@@ -534,6 +571,7 @@ class DatastoreProfile2Json(pydantic.v1.BaseModel):
             "gcs": DatastoreProfileGCS,
             "az": DatastoreProfileAzureBlob,
             "hdfs": DatastoreProfileHdfs,
+            "taosws": TDEngineDatastoreProfile,
             "config": ConfigProfile,
         }
         if datastore_type in ds_profile_factory:

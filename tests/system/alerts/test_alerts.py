@@ -46,8 +46,9 @@ class TestAlerts(TestMLRunSystem):
         """
         validate that an alert is sent in case a job fails
         """
+        function_name = "test-func-job-failure-alert"
         self.project.set_function(
-            name="test-func",
+            name=function_name,
             func=str(self.assets_path / "function.py"),
             handler="handler",
             image="mlrun/mlrun" if self.image is None else self.image,
@@ -62,7 +63,7 @@ class TestAlerts(TestMLRunSystem):
         # create an alert with webhook notification
         alert_name = "failure-webhook"
         alert_summary = "Job failed"
-        run_id = "test-func-handler"
+        run_id = f"{function_name}-handler"
         notifications = self._generate_failure_notifications(nuclio_function_url)
         self._create_custom_alert_config(
             name=alert_name,
@@ -74,11 +75,11 @@ class TestAlerts(TestMLRunSystem):
         )
 
         with pytest.raises(Exception):
-            self.project.run_function("test-func", watch=False)
-            self.project.run_function("test-func")
+            self.project.run_function(function_name, watch=False)
+            self.project.run_function(function_name)
 
         # in order to trigger the periodic monitor runs function, to detect the failed run and send an event on it
-        time.sleep(35)
+        time.sleep(60)
 
         # get project summary to validate the alert activations counters
         project_summary = mlrun.get_run_db().get_project_summary(
@@ -145,6 +146,8 @@ class TestAlerts(TestMLRunSystem):
         # ensure that paginated requests returned different values
         assert len(entities) == 0
         assert token is None
+
+        mlrun.get_run_db().delete_function(name=function_name, project=self.project.name)
 
     @staticmethod
     def _generate_typical_event(
@@ -386,9 +389,9 @@ class TestAlerts(TestMLRunSystem):
         another job failure to confirm that the alert does not trigger prematurely. Finally, a third failure
         within the adjusted window is used to confirm that the alert triggers as expected.
         """
-
+        function_name = "test-func-failure-alert-sliding-window"
         self.project.set_function(
-            name="test-func",
+            name=function_name,
             func=str(self.assets_path / "function.py"),
             handler="handler",
             image="mlrun/mlrun" if self.image is None else self.image,
@@ -404,7 +407,7 @@ class TestAlerts(TestMLRunSystem):
         alert_name = "failure-webhook"
         alert_summary = "Job failed"
         alert_criteria = alert_objects.AlertCriteria(period="2m", count=2)
-        run_id = "test-func-handler"
+        run_id = f"{function_name}-handler"
         notifications = self._generate_failure_notifications(nuclio_function_url)
 
         self._create_custom_alert_config(
@@ -419,14 +422,17 @@ class TestAlerts(TestMLRunSystem):
 
         # this is the first failure
         with pytest.raises(Exception):
-            self.project.run_function("test-func")
+            self.project.run_function(function_name)
 
         # Wait for more than two minutes to simulate a delay that is slightly longer than the alert period
         time.sleep(125)
 
         # this is the second failure
         with pytest.raises(Exception):
-            self.project.run_function("test-func")
+            self.project.run_function(function_name)
+
+        # wait since there is a might be a delay
+        time.sleep(20)
 
         # validate that no notifications were sent yet, as the two failures did not occur within the same period
         expected_notifications = []
@@ -437,13 +443,17 @@ class TestAlerts(TestMLRunSystem):
         # this failure should fall within the adjusted sliding window when combined with the second failure
         # should trigger the alert
         with pytest.raises(Exception):
-            self.project.run_function("test-func")
+            self.project.run_function(function_name)
+
+        # wait since there is a might be a delay
+        time.sleep(20)
 
         # validate that the alert was triggered and the notification was sent
         expected_notifications = ["notification failure"]
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )
+        mlrun.get_run_db().delete_function(name=function_name, project=self.project.name)
 
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):

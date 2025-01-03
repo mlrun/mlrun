@@ -147,7 +147,9 @@ class TestAlerts(TestMLRunSystem):
         assert len(entities) == 0
         assert token is None
 
-        mlrun.get_run_db().delete_function(name=function_name, project=self.project.name)
+        mlrun.get_run_db().delete_function(
+            name=function_name, project=self.project.name
+        )
 
     @staticmethod
     def _generate_typical_event(
@@ -453,7 +455,9 @@ class TestAlerts(TestMLRunSystem):
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )
-        mlrun.get_run_db().delete_function(name=function_name, project=self.project.name)
+        mlrun.get_run_db().delete_function(
+            name=function_name, project=self.project.name
+        )
 
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):

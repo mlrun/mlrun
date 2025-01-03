@@ -75,12 +75,8 @@ class Alerts(
 
             # Enrich the old alert with existing state
             existing_alert.state = mlrun.common.schemas.AlertActiveState.INACTIVE
-            if existing_alert_state:
-                existing_alert.state = (
-                    mlrun.common.schemas.AlertActiveState.ACTIVE
-                    if existing_alert_state.to_dict()["active"]
-                    else mlrun.common.schemas.AlertActiveState.INACTIVE
-                )
+            if existing_alert_state and existing_alert_state.to_dict()["active"]:
+                existing_alert.state = mlrun.common.schemas.AlertActiveState.ACTIVE
         else:
             num_alerts = (
                 framework.utils.singletons.db.get_db().get_num_configured_alerts(

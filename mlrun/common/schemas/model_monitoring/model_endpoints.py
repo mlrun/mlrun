@@ -160,6 +160,7 @@ class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
     state: Optional[str] = "unknown"  # will be updated according to the function state
     first_request: Optional[datetime] = None
     monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled
+    sampling_percentage: Optional[float] = 100
 
     # operative
     last_request: Optional[datetime] = None
@@ -177,6 +178,7 @@ class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
             "monitoring_mode",
             "first_request",
             "last_request",
+            "sampling_percentage",
         ]
 
 

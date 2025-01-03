@@ -234,6 +234,8 @@ class V3IOTSDBConnector(TSDBConnector):
             columns=[
                 mm_schemas.EventFieldType.LATENCY,
                 mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP,
+                mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT,
+                mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT,
             ],
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -741,7 +743,7 @@ class V3IOTSDBConnector(TSDBConnector):
             table=mm_schemas.FileTargetKind.PREDICTIONS,
             start=start,
             end=end,
-            columns=[mm_schemas.EventFieldType.LATENCY],
+            columns=[mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT],
             filter_query=f"endpoint_id=='{endpoint_id}'",
             agg_funcs=agg_funcs,
             sliding_window_step=aggregation_window,
@@ -755,10 +757,10 @@ class V3IOTSDBConnector(TSDBConnector):
                 type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
             )
 
-        latency_column = (
-            f"{agg_funcs[0]}({mm_schemas.EventFieldType.LATENCY})"
+        estimated_prediction_count = (
+            f"{agg_funcs[0]}({mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT})"
             if agg_funcs
-            else mm_schemas.EventFieldType.LATENCY
+            else mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT
         )
 
         return mm_schemas.ModelEndpointMonitoringMetricValues(
@@ -766,7 +768,7 @@ class V3IOTSDBConnector(TSDBConnector):
             values=list(
                 zip(
                     df.index,
-                    df[latency_column],
+                    df[estimated_prediction_count],
                 )
             ),  # pyright: ignore[reportArgumentType]
         )

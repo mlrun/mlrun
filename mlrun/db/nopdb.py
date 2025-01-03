@@ -84,6 +84,15 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        pass
+
     def list_runtime_resources(
         self,
         project: Optional[str] = None,

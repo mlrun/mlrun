@@ -17,7 +17,7 @@ import base64
 import json
 import typing
 import warnings
-from urllib.parse import ParseResult, urlparse, urlunparse
+from urllib.parse import ParseResult, urlparse
 
 import pydantic.v1
 from mergedeep import merge
@@ -312,7 +312,7 @@ class DatastoreProfileRedis(DatastoreProfile):
             query=parsed_url.query,
             fragment=parsed_url.fragment,
         )
-        return urlunparse(new_parsed_url)
+        return new_parsed_url.geturl()
 
     def secrets(self) -> dict:
         res = {}

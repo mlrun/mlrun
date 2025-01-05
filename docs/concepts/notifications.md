@@ -64,7 +64,7 @@ mail_notification = mlrun.model.Notification(
     },
 )
 ```
-We use the [aiosmtplib](https://aiosmtplib.readthedocs.io/en/stable/) library for sending the mail notifications.
+We use the [aiosmtplib](https://aiosmtplib.readthedocs.io/en/stable/) library for sending mail notifications.
 The `params` argument is a dictionary, that supports the following fields:
  - server_host (string): The SMTP server host.
  - server_port (int): The SMTP server port.
@@ -77,7 +77,7 @@ The `params` argument is a dictionary, that supports the following fields:
  - validate_certs (boolean): Whether to validate the certificates.
 
 You can read more about `start_tls` and `use_tls` on the  [aiosmtplib docs](https://aiosmtplib.readthedocs.io/en/stable/encryption.html).
-If one of the above params wasn't set, the default param from the `mlrun-smtp-config` (see below) secret will be used.
+Missing params are enriched with default values which can be configured in the `mlrun-smtp-config` kubernetes (see below).
 
 ### MLRun on Iguazio
 If MLRun is deployed on the Iguazio platform, an SMTP server already exists.

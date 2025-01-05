@@ -115,6 +115,9 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def refresh_smtp_configuration(self):
+        raise NotImplementedError()
+
     def push_pipeline_notifications(
         self,
         pipeline_id,

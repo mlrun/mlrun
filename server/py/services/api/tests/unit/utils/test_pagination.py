@@ -52,7 +52,7 @@ def mock_paginated_method(monkeypatch):
             return self._dict
 
     monkeypatch.setattr(
-        services.api.utils.pagination.PaginatedMethods,
+        framework.utils.pagination.PaginatedMethods,
         "_method_map",
         {
             paginated_method.__name__: {
@@ -135,7 +135,7 @@ async def test_paginate_request(
     page_size = 3
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting first page")
     response, pagination_info = await paginator.paginate_request(

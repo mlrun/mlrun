@@ -118,6 +118,9 @@ class WebhookNotification(NotificationBase):
 
         if isinstance(override_body, dict):
             for key, value in override_body.items():
+                if not isinstance(value, str):
+                    # If the value is not a string, we don't want to parse it
+                    continue
                 if re.search(r"{{\s*runs\s*}}", value):
                     str_parsed_runs = parse_runs()
                     override_body[key] = re.sub(

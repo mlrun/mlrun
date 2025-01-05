@@ -23,12 +23,12 @@ import mlrun.utils.helpers
 import mlrun_pipelines.common.ops
 from mlrun.config import config
 from mlrun.utils import get_in, logger
+from mlrun_pipelines.common.constants import PipelineRunType
 from mlrun_pipelines.common.helpers import (
     FUNCTION_ANNOTATION,
     PROJECT_ANNOTATION,
     RUN_ANNOTATION,
 )
-from mlrun_pipelines.common.ops import PipelineRunType
 from mlrun_pipelines.imports import dsl
 from mlrun_pipelines.imports import kubernetes as kfp_k8s
 

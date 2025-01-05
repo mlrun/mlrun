@@ -14,6 +14,7 @@
 #
 import asyncio
 import base64
+import gzip
 import shlex
 import typing
 
@@ -40,8 +41,8 @@ import services.api.crud.runtimes.nuclio.helpers
 import services.api.runtime_handlers
 import services.api.utils.builder
 
-# Configmap objects on Kubernetes have 1Mb size limit
-SERVING_SPEC_MAX_LENGTH = 1048576
+# Configmap objects on Kubernetes have 10Mb size limit
+SERVING_SPEC_MAX_LENGTH = 10485760
 
 
 def deploy_nuclio_function(
@@ -417,6 +418,12 @@ def _configure_serving_spec(
                     + "in the returned json, and check if the function runs successfully. "
                     + "Repeat as necessary to get the spec to an allowed size"
                 )
+            # Compress and encode the serving spec
+            compressed_serving_spec = gzip.compress(serving_spec.encode("utf-8"))
+            encoded_serving_spec = base64.b64encode(compressed_serving_spec).decode(
+                "utf-8"
+            )
+
             function_name = mlrun.runtimes.nuclio.function.get_fullname(
                 function.metadata.name, project, tag
             )
@@ -424,7 +431,9 @@ def _configure_serving_spec(
             confmap_name = k8s_helper.ensure_configmap(
                 mlrun.common.constants.MLRUN_SERVING_CONF,
                 function_name,
-                {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
+                {
+                    mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: encoded_serving_spec
+                },
                 labels={mlrun_constants.MLRunInternalLabels.created: "true"},
                 project=project,
             )

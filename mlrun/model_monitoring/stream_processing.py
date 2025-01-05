@@ -430,6 +430,10 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             if not isinstance(feature, list):
                 feature = [feature]
 
+            effective_sample_count, estimated_prediction_count = (
+                self._get_effective_and_estimated_counts(event=event)
+            )
+
             events.append(
                 {
                     EventFieldType.FUNCTION_URI: function_uri,
@@ -453,6 +457,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.ENTITIES: event.get("request", {}).get(
                         EventFieldType.ENTITIES, {}
                     ),
+                    EventFieldType.EFFECTIVE_SAMPLE_COUNT: effective_sample_count,
+                    EventFieldType.ESTIMATED_PREDICTION_COUNT: estimated_prediction_count,
                 }
             )
 
@@ -506,6 +512,20 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             return True
         self.error_count[endpoint_id] += 1
         return False
+
+    @staticmethod
+    def _get_effective_and_estimated_counts(event):
+        """
+        Calculate the `effective_sample_count` and the `estimated_prediction_count` based on the event's
+        sampling percentage. These values will be stored in the TSDB target.
+        Note that In non-batch serving, the `effective_sample_count` is always set to 1. In addition, when the sampling
+        percentage is 100%, the `estimated_prediction_count` is equal to the `effective_sample_count`.
+        """
+        effective_sample_count = event.get(EventFieldType.EFFECTIVE_SAMPLE_COUNT, 1)
+        estimated_prediction_count = effective_sample_count * (
+            100 / event.get(EventFieldType.SAMPLING_PERCENTAGE, 100)
+        )
+        return effective_sample_count, estimated_prediction_count
 
 
 def is_not_none(field: typing.Any, dict_path: list[str]):
@@ -672,6 +692,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                     )
                 )
             self.first_request[endpoint_id] = True
+
         if attributes_to_update:
             logger.info(
                 "Updating endpoint record",

@@ -60,7 +60,7 @@ class PackageTester:
             "[google-cloud-bigquery]": {
                 "import_test_command": f"{basic_import}; {google_cloud_bigquery_import}"
             },
-            "[google-cloud-storage]": {
+            "[google-cloud]": {
                 "import_test_command": f"{basic_import}; {google_cloud_storage_import}"
             },
             "[redis]": {"import_test_command": f"{basic_import}; {redis_import}"},

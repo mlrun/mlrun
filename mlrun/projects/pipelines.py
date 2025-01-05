@@ -523,10 +523,11 @@ class _PipelineRunner(abc.ABC):
         text = _PipelineRunner._generate_workflow_finished_message(
             run.run_id, errors_counter, run._state
         )
-
         notifiers = notifiers or project.notifiers
         if notifiers:
             notifiers.push(text, "info", runs)
+
+        project.push_pipeline_notification_kfp_runner(run.run_id, run._state, text)
 
         if raise_error:
             raise raise_error
@@ -620,6 +621,8 @@ class _KFPRunner(_PipelineRunner):
                 params.update(notification.secret_params)
                 project.notifiers.add_notification(notification.kind, params)
 
+            project.spec.notifications = notifications
+
         run_id = _run_pipeline(
             workflow_handler,
             project=project.metadata.name,
@@ -646,10 +649,24 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-            context.uid,
+
+        # Pushing only relevant notification for the client (ipython and console)
+        project.notifiers.push_pipeline_start_message_from_client(
+            project.metadata.name, pipeline_id=run_id
         )
+
+        if context:
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
+                context.uid,
+            )
+        else:
+            project.push_pipeline_notification_kfp_runner(
+                run_id,
+                mlrun_pipelines.common.models.RunStatuses.running,
+                f"Workflow {run_id} started in project {project.metadata.name}",
+                notifications,
+            )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
@@ -744,7 +761,8 @@ class _LocalRunner(_PipelineRunner):
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
 
-        project.notifiers.push_pipeline_start_message(
+        # TODO: we should create endpoint for sending custom notification from BE
+        project.notifiers.push_pipeline_start_message_from_client(
             project.metadata.name, pipeline_id=workflow_id
         )
         err = None

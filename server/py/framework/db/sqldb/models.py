@@ -242,6 +242,7 @@ with warnings.catch_warnings():
                 "kind",
             ),
             Index("idx_artifacts_name_uid_project", "key", "uid", "project"),
+            Index("idx_project_kind_key", "project", "kind", "key"),
         )
 
         Label = make_label(__tablename__)
@@ -756,13 +757,13 @@ with warnings.catch_warnings():
 
     class AlertState(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_states"
-        __table_args__ = (UniqueConstraint("id", "parent_id", name="alert_states_uc"),)
+        __table_args__ = (UniqueConstraint("parent_id", name="_alert_state_parent_uc"),)
 
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
-            default=datetime.now(timezone.utc),
+            default=datetime.utcnow,
         )
         last_updated = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921

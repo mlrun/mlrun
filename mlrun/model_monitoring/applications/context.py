@@ -190,18 +190,13 @@ class MonitoringApplicationContext:
         )
 
     def _get_default_labels(self) -> dict[str, str]:
-        labels = {
+        return {
             mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
             mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-app",
             mlrun_constants.MLRunInternalLabels.app_name: self.application_name,
+            mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
+            mlrun_constants.MLRunInternalLabels.endpoint_name: self.endpoint_name,
         }
-        for key, value in [
-            (mlrun_constants.MLRunInternalLabels.endpoint_id, self.endpoint_id),
-            (mlrun_constants.MLRunInternalLabels.endpoint_name, self.endpoint_name),
-        ]:
-            if value:
-                labels[key] = value
-        return labels
 
     def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
         """Add the default labels to logged artifacts labels"""

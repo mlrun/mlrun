@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import time
+import traceback
 import typing
 import uuid
 from http import HTTPStatus
@@ -29,6 +31,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.controller
@@ -48,6 +51,7 @@ import framework.utils.singletons.k8s
 import services.api.api.endpoints.nuclio
 import services.api.crud.model_monitoring.helpers
 import services.api.utils.functions
+from framework.db.sqldb.db import unversioned_tagged_object_uid_prefix
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -64,9 +68,9 @@ class MonitoringDeployment:
     def __init__(
         self,
         project: str,
-        auth_info: mlrun.common.schemas.AuthInfo,
-        db_session: sqlalchemy.orm.Session,
-        model_monitoring_access_key: typing.Optional[str],
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+        db_session: typing.Optional[sqlalchemy.orm.Session] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
         parquet_batching_max_events: int = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
         max_parquet_save_interval: int = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
     ) -> None:
@@ -92,6 +96,9 @@ class MonitoringDeployment:
         self.model_monitoring_access_key = model_monitoring_access_key
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
+        self._secret_provider = services.api.crud.secrets.get_project_secret_provider(
+            project=project
+        )
 
     def deploy_monitoring_functions(
         self,
@@ -288,46 +295,26 @@ class MonitoringDeployment:
         """
 
         # Get the stream path from the configuration
-        stream_path = services.api.crud.model_monitoring.get_stream_path(
-            project=self.project, function_name=function_name
+        stream_path = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            function_name=function_name,
+            secret_provider=self._secret_provider,
         )
         if stream_path.startswith("kafka://"):
-            topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-            # Generate Kafka stream source
-            stream_source = mlrun.datastore.sources.KafkaSource(
-                brokers=brokers,
-                topics=[topic],
-                attributes={"max_workers": stream_args.kafka.num_workers},
+            self._apply_and_create_kafka_source(
+                stream_path=stream_path,
+                function=function,
+                function_name=function_name,
+                stream_args=stream_args,
             )
-            stream_source.create_topics(
-                num_partitions=stream_args.kafka.partition_count,
-                replication_factor=stream_args.kafka.replication_factor,
-            )
-            function = stream_source.add_nuclio_trigger(function)
-            function.spec.min_replicas = stream_args.kafka.min_replicas
-            function.spec.max_replicas = stream_args.kafka.max_replicas
+
         elif stream_path.startswith("v3io://"):
-            access_key = self.model_monitoring_access_key
-            kwargs = {"access_key": self.model_monitoring_access_key}
-            if mlrun.mlconf.is_explicit_ack_enabled():
-                kwargs["explicit_ack_mode"] = "explicitOnly"
-                kwargs["worker_allocation_mode"] = "static"
-            kwargs["max_workers"] = stream_args.v3io.num_workers
-            services.api.api.endpoints.nuclio.create_model_monitoring_stream(
-                project=self.project,
+            self._apply_and_create_v3io_source(
                 stream_path=stream_path,
-                shard_count=stream_args.v3io.shard_count,
-                retention_period_hours=stream_args.v3io.retention_period_hours,
-                access_key=access_key,
+                function=function,
+                function_name=function_name,
+                stream_args=stream_args,
             )
-            # Generate V3IO stream trigger
-            function.add_v3io_stream_trigger(
-                stream_path=stream_path,
-                name=f"monitoring_{function_name}_trigger",
-                **kwargs,
-            )
-            function.spec.min_replicas = stream_args.v3io.min_replicas
-            function.spec.max_replicas = stream_args.v3io.max_replicas
         else:
             framework.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
@@ -342,6 +329,71 @@ class MonitoringDeployment:
         function.spec.disable_default_http_trigger = True
 
         return function
+
+    def _apply_and_create_kafka_source(
+        self,
+        stream_path: str,
+        function: mlrun.runtimes.ServingRuntime,
+        function_name: str,
+        stream_args: mlrun.config.Config,
+    ):
+        import kafka.errors
+
+        topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+        # Generate Kafka stream source
+        stream_source = mlrun.datastore.sources.KafkaSource(
+            brokers=brokers,
+            topics=[topic],
+            attributes={"max_workers": stream_args.kafka.num_workers},
+        )
+        try:
+            stream_source.create_topics(
+                num_partitions=stream_args.kafka.partition_count,
+                replication_factor=stream_args.kafka.replication_factor,
+            )
+        except kafka.errors.TopicAlreadyExistsError as exc:
+            if function_name == mm_constants.MonitoringFunctionNames.STREAM:
+                logger.info(
+                    "Kafka topic of model monitoring stream already exists. "
+                    "Skipping topic creation and using `earliest` offsett.",
+                    project=self.project,
+                    stream_path=stream_path,
+                )
+            else:
+                raise exc
+
+        function = stream_source.add_nuclio_trigger(function)
+        function.spec.min_replicas = stream_args.kafka.min_replicas
+        function.spec.max_replicas = stream_args.kafka.max_replicas
+
+    def _apply_and_create_v3io_source(
+        self,
+        stream_path: str,
+        function: mlrun.runtimes.ServingRuntime,
+        function_name: str,
+        stream_args: mlrun.config.Config,
+    ):
+        access_key = self.model_monitoring_access_key
+        kwargs = {"access_key": self.model_monitoring_access_key}
+        if mlrun.mlconf.is_explicit_ack_enabled():
+            kwargs["explicit_ack_mode"] = "explicitOnly"
+            kwargs["worker_allocation_mode"] = "static"
+        kwargs["max_workers"] = stream_args.v3io.num_workers
+        services.api.api.endpoints.nuclio.create_model_monitoring_stream(
+            project=self.project,
+            stream_path=stream_path,
+            shard_count=stream_args.v3io.shard_count,
+            retention_period_hours=stream_args.v3io.retention_period_hours,
+            access_key=access_key,
+        )
+        # Generate V3IO stream trigger
+        function.add_v3io_stream_trigger(
+            stream_path=stream_path,
+            name=f"monitoring_{function_name}_trigger",
+            **kwargs,
+        )
+        function.spec.min_replicas = stream_args.v3io.min_replicas
+        function.spec.max_replicas = stream_args.v3io.max_replicas
 
     def _initial_model_monitoring_stream_processing_function(
         self,
@@ -386,12 +438,8 @@ class MonitoringDeployment:
             framework.api.utils.get_run_db_instance(self.db_session)
         )
 
-        secret_provider = services.api.crud.secrets.get_project_secret_provider(
-            project=self.project
-        )
-
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project, secret_provider=secret_provider
+            project=self.project, secret_provider=self._secret_provider
         )
 
         # Create monitoring serving graph
@@ -518,10 +566,7 @@ class MonitoringDeployment:
         graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
         graph.to(
             ModelMonitoringWriter(
-                project=self.project,
-                secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                    project=self.project
-                ),
+                project=self.project, secret_provider=self._secret_provider
             )
         )  # writer
 
@@ -825,8 +870,9 @@ class MonitoringDeployment:
         )
         if delete_app_stream_resources:
             try:
-                MonitoringDeployment._delete_model_monitoring_stream_resources(
-                    project=project,
+                MonitoringDeployment(
+                    project=project
+                )._delete_model_monitoring_stream_resources(
                     function_names=[function_name],
                     access_key=access_key,
                 )
@@ -838,29 +884,24 @@ class MonitoringDeployment:
                     error=mlrun.errors.err_to_str(e),
                 )
 
-    @staticmethod
     def _delete_model_monitoring_stream_resources(
-        project: str,
-        function_names: list[str],
-        access_key: typing.Optional[str] = None,
+        self, function_names: list[str], access_key: typing.Optional[str] = None
     ) -> None:
         """
-        :param project:        The name of the project.
         :param function_names: A list of functions that their resources should be deleted.
         :param access_key:     If the stream is V3IO, the access key is required.
-
         """
         logger.debug(
             "Deleting model monitoring stream resources deployment",
-            project_name=project,
+            project_name=self.project,
         )
         stream_paths = []
         for function_name in function_names:
-            qualified_function_name = f"{project}-{function_name}"
+            qualified_function_name = f"{self.project}-{function_name}"
             if len(qualified_function_name) > 63:
                 logger.info(
                     "k8s 63 characters limit exceeded, skipping deletion of stream resources",
-                    project_name=project,
+                    project_name=self.project,
                     function_label_name=qualified_function_name,
                 )
                 continue
@@ -881,7 +922,7 @@ class MonitoringDeployment:
                 if not function_pod:
                     logger.debug(
                         "No function pod found for project, deleting stream",
-                        project_name=project,
+                        project_name=self.project,
                         function=function_name,
                     )
                     break
@@ -890,8 +931,10 @@ class MonitoringDeployment:
                     time.sleep(5)
 
             stream_paths.append(
-                services.api.crud.model_monitoring.get_stream_path(
-                    project=project, function_name=function_name
+                mlrun.model_monitoring.get_stream_path(
+                    project=self.project,
+                    function_name=function_name,
+                    secret_provider=self._secret_provider,
                 )
             )
 
@@ -916,7 +959,9 @@ class MonitoringDeployment:
                 try:
                     # if the stream path is in the users directory, we need to use pipelines access key to delete it
                     logger.debug(
-                        "Deleting v3io stream", project=project, stream_path=stream_path
+                        "Deleting v3io stream",
+                        project=self.project,
+                        stream_path=stream_path,
                     )
                     v3io_client.stream.delete(
                         container,
@@ -926,7 +971,9 @@ class MonitoringDeployment:
                         else access_key,
                     )
                     logger.debug(
-                        "Deleted v3io stream", project=project, stream_path=stream_path
+                        "Deleted v3io stream",
+                        project=self.project,
+                        stream_path=stream_path,
                     )
                 except Exception as exc:
                     # Raise an error that will be caught by the caller and skip the deletion of the stream
@@ -950,7 +997,7 @@ class MonitoringDeployment:
             try:
                 kafka_client = kafka.KafkaAdminClient(
                     bootstrap_servers=brokers,
-                    client_id=project,
+                    client_id=self.project,
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
@@ -966,7 +1013,7 @@ class MonitoringDeployment:
             )
         logger.debug(
             "Successfully deleted model monitoring stream resources deployment",
-            project_name=project,
+            project_name=self.project,
         )
 
     def _get_monitoring_mandatory_project_secrets(self) -> dict[str, str]:
@@ -1006,6 +1053,8 @@ class MonitoringDeployment:
         access_key: typing.Optional[str] = None,
         stream_path: typing.Optional[str] = None,
         tsdb_connection: typing.Optional[str] = None,
+        tsdb_profile_name: typing.Optional[str] = None,
+        stream_profile_name: typing.Optional[str] = None,
         replace_creds: bool = False,
         _default_secrets_v3io: typing.Optional[str] = None,
     ) -> None:
@@ -1027,6 +1076,9 @@ class MonitoringDeployment:
                                              pass `v3io` and the system will generate the exact path.
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
+        :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
+        :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
+                                          framework.
         :param replace_creds:             If True, the credentials will be set even if they are already set.
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
@@ -1069,6 +1121,12 @@ class MonitoringDeployment:
                 or mlrun.mlconf.model_endpoint_monitoring.stream_connection
                 or _default_secrets_v3io
             )
+
+        if stream_profile_name:
+            # TODO: Add checks.
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
+            ] = stream_profile_name
         if stream_path:
             if (
                 stream_path == mm_constants.V3IO_MODEL_MONITORING_DB
@@ -1091,7 +1149,7 @@ class MonitoringDeployment:
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path
-        else:
+        elif stream_profile_name is None:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "You must provide a valid stream path connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
@@ -1105,6 +1163,12 @@ class MonitoringDeployment:
                 or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
                 or _default_secrets_v3io
             )
+
+        if tsdb_profile_name:
+            # TODO: Add checks.
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_PROFILE_NAME
+            ] = tsdb_profile_name
         if tsdb_connection:
             if (
                 tsdb_connection != mm_constants.V3IO_MODEL_MONITORING_DB
@@ -1124,7 +1188,7 @@ class MonitoringDeployment:
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
             ] = tsdb_connection
-        else:
+        elif tsdb_profile_name is None:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "You must provide a valid tsdb connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
@@ -1165,8 +1229,10 @@ class MonitoringDeployment:
     def _verify_v3io_access(self, stream_path: str):
         import v3io.dataplane
 
-        stream_path = services.api.crud.model_monitoring.get_stream_path(
-            project=self.project, stream_uri=stream_path
+        stream_path = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            stream_uri=stream_path,
+            secret_provider=self._secret_provider,
         )
         v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
         container, path = split_path(stream_path)
@@ -1206,6 +1272,281 @@ class MonitoringDeployment:
             )
             return False
         return True
+
+    async def create_model_endpoints(self, function: dict, function_name: str):
+        """
+        Create model endpoints for the given function.
+        1. Create model endpoint instructions list from the function graph.
+        The list is tuple which created from the model endpoint object, creation strategy and model path.
+        2. Create the Node/Leaf model endpoints according to the instructions list.
+        3. Update the router model endpoint instructions with the children uids.
+        4. Create the Router model endpoints according to the instructions list.
+
+        :param function:        The function object.
+        :param function_name:   The name of the function.
+        """
+        try:
+            function = mlrun.new_function(
+                runtime=function,
+                project=self.project,
+                name=function_name,
+            )
+        except Exception as err:
+            logger.error(traceback.format_exc())
+            framework.api.utils.log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
+            )
+        tasks: list[asyncio.Task] = []
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+                str,
+            ]
+        ] = self._extract_model_endpoints_from_function_graph(
+            function_name=function.metadata.name,
+            function_tag=function.metadata.tag,
+            track_models=function.spec.track_models,
+            graph=function.spec.graph,
+            sampling_percentage=function.spec.parameters.get(
+                mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
+            ),
+        )  # model endpoint, creation strategy, model path
+        router_model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+                str,
+            ]
+        ] = []
+        for (
+            model_endpoint,
+            creation_strategy,
+            model_path,
+        ) in model_endpoints_instructions:
+            if (
+                model_endpoint.metadata.endpoint_type
+                != mm_constants.EndpointType.ROUTER
+            ):
+                tasks.append(
+                    asyncio.create_task(
+                        framework.db.session.run_async_function_with_new_db_session(
+                            func=services.api.crud.ModelEndpoints().create_model_endpoint,
+                            model_endpoint=model_endpoint,
+                            creation_strategy=creation_strategy,
+                            model_path=model_path,
+                        )
+                    )
+                )
+            else:
+                router_model_endpoints_instructions.append(
+                    (model_endpoint, creation_strategy, model_path)
+                )
+
+        created_model_endpoint = await asyncio.gather(*tasks)
+        router_tasks: list[asyncio.Task] = []
+        for (
+            model_endpoint,
+            creation_strategy,
+            model_path,
+        ) in router_model_endpoints_instructions:
+            for mep in created_model_endpoint:
+                if mep.metadata.name in model_endpoint.spec.children:
+                    model_endpoint.spec.children_uids.append(mep.metadata.uid)
+            router_tasks.append(
+                asyncio.create_task(
+                    framework.db.session.run_async_function_with_new_db_session(
+                        func=services.api.crud.ModelEndpoints().create_model_endpoint,
+                        model_endpoint=model_endpoint,
+                        creation_strategy=creation_strategy,
+                        model_path=model_path,
+                    )
+                )
+            )
+        created_model_endpoint.extend(await asyncio.gather(*router_tasks))
+
+        return created_model_endpoint
+
+    def _extract_model_endpoints_from_function_graph(
+        self,
+        function_name: str,
+        function_tag: str,
+        track_models: bool,
+        graph: typing.Union[
+            mlrun.serving.states.RouterStep, mlrun.serving.states.RootFlowStep
+        ],
+        sampling_percentage: float,
+    ) -> list[
+        tuple[
+            mlrun.common.schemas.ModelEndpoint,
+            mm_constants.ModelEndpointCreationStrategy,
+            str,
+        ]
+    ]:
+        model_endpoints_instructions = []
+        if isinstance(graph, mlrun.serving.states.RouterStep):
+            model_endpoints_instructions.extend(
+                self._extract_meps_from_router_step(
+                    function_name=function_name,
+                    function_tag=function_tag,
+                    track_models=track_models,
+                    router_step=graph,
+                    sampling_percentage=sampling_percentage,
+                )
+            )
+        elif isinstance(graph, mlrun.serving.states.RootFlowStep):
+            model_endpoints_instructions.extend(
+                self._extract_meps_from_root_flow_step(
+                    function_name=function_name,
+                    function_tag=function_tag,
+                    track_models=track_models,
+                    root_flow_step=graph,
+                    sampling_percentage=sampling_percentage,
+                )
+            )
+        return model_endpoints_instructions
+
+    def _extract_meps_from_router_step(
+        self,
+        function_name: str,
+        function_tag: str,
+        track_models: bool,
+        router_step: mlrun.serving.states.RouterStep,
+        sampling_percentage: float,
+    ) -> list[
+        tuple[
+            mlrun.common.schemas.ModelEndpoint,
+            mm_constants.ModelEndpointCreationStrategy,
+            str,
+        ]
+    ]:
+        model_endpoints_instructions = []
+        routes_names = []
+
+        for route in router_step.routes.values():
+            if (
+                route.model_endpoint_creation_strategy
+                != mm_constants.ModelEndpointCreationStrategy.SKIP
+            ):
+                model_endpoints_instructions.append(
+                    (
+                        self._model_endpoint_draft(
+                            name=route.name,
+                            endpoint_type=route.endpoint_type,
+                            model_class=route.class_name,
+                            function_name=function_name,
+                            function_tag=function_tag,
+                            track_models=track_models,
+                            sampling_percentage=sampling_percentage,
+                        ),
+                        route.model_endpoint_creation_strategy,
+                        route.class_args.get("model_path", ""),
+                    )
+                )
+                routes_names.append(route.name)
+        if (
+            router_step.model_endpoint_creation_strategy
+            != mm_constants.ModelEndpointCreationStrategy.SKIP
+        ):
+            model_endpoints_instructions.append(
+                (
+                    self._model_endpoint_draft(
+                        name=router_step.name,
+                        endpoint_type=router_step.endpoint_type,
+                        model_class=router_step.class_name,
+                        function_name=function_name,
+                        function_tag=function_tag,
+                        track_models=track_models,
+                        children_names=routes_names,
+                        sampling_percentage=sampling_percentage,
+                    ),
+                    router_step.model_endpoint_creation_strategy,
+                    "",
+                )
+            )
+
+        return model_endpoints_instructions
+
+    def _extract_meps_from_root_flow_step(
+        self,
+        function_name: str,
+        function_tag: str,
+        track_models: bool,
+        root_flow_step: mlrun.serving.states.RootFlowStep,
+        sampling_percentage: float,
+    ) -> list[
+        tuple[
+            mlrun.common.schemas.ModelEndpoint,
+            mm_constants.ModelEndpointCreationStrategy,
+            str,
+        ]
+    ]:
+        model_endpoints_instructions = []
+        for step in root_flow_step.steps.values():
+            if isinstance(step, mlrun.serving.states.RouterStep):
+                model_endpoints_instructions.extend(
+                    self._extract_meps_from_router_step(
+                        function_name=function_name,
+                        function_tag=function_tag,
+                        track_models=track_models,
+                        router_step=step,
+                        sampling_percentage=sampling_percentage,
+                    )
+                )
+            else:
+                if (
+                    step.model_endpoint_creation_strategy
+                    != mm_constants.ModelEndpointCreationStrategy.SKIP
+                ):
+                    model_endpoints_instructions.append(
+                        (
+                            self._model_endpoint_draft(
+                                name=step.name,
+                                endpoint_type=step.endpoint_type,
+                                model_class=step.class_name,
+                                function_name=function_name,
+                                function_tag=function_tag,
+                                track_models=track_models,
+                            ),
+                            step.model_endpoint_creation_strategy,
+                            step.class_args.get("model_path", ""),
+                        )
+                    )
+        return model_endpoints_instructions
+
+    def _model_endpoint_draft(
+        self,
+        name: str,
+        endpoint_type: mm_constants.EndpointType,
+        model_class: str,
+        function_name: str,
+        function_tag: str,
+        track_models: bool,
+        children_names: typing.Optional[list[str]] = None,
+        sampling_percentage: typing.Optional[float] = None,
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        function_tag = function_tag or "latest"
+        return mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                project=self.project,
+                name=name,
+                endpoint_type=endpoint_type,
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(
+                function_name=function_name,
+                function_tag=function_tag,
+                function_uid=f"{unversioned_tagged_object_uid_prefix}{function_tag}",  # TODO: remove after ML-8596
+                model_class=model_class,
+                children=children_names,
+            ),
+            status=mlrun.common.schemas.ModelEndpointStatus(
+                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+                if track_models
+                else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
+                sampling_percentage=sampling_percentage,
+            ),
+        )
 
 
 def get_endpoint_features(

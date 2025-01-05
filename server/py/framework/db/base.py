@@ -26,6 +26,8 @@ import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
+import framework.db.sqldb.models
+
 
 class DBError(Exception):
     pass
@@ -899,7 +901,11 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_alert(
-        self, session, project: str, name: str
+        self,
+        session,
+        project: str,
+        name: str,
+        with_state=False,
     ) -> mlrun.common.schemas.AlertConfig:
         pass
 
@@ -910,7 +916,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+    def enrich_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+        state: Optional[framework.db.sqldb.models.AlertState] = None,
+    ):
         pass
 
     @staticmethod
@@ -944,6 +955,14 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def create_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+    ) -> mlrun.common.schemas.AlertConfig:
+        pass
+
+    @abstractmethod
     def delete_alert(self, session, project: str, name: str):
         pass
 
@@ -953,7 +972,7 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        last_updated: datetime.datetime,
+        last_updated: typing.Optional[datetime.datetime],
         count: typing.Optional[int] = None,
         active: bool = False,
         obj: typing.Optional[dict] = None,
@@ -1252,6 +1271,7 @@ class DBInterface(ABC):
         latest_only: bool = False,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
+        order_by: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints by project and optional filters.
@@ -1271,6 +1291,7 @@ class DBInterface(ABC):
         :param latest_only:     Whether to return only the latest model endpoint for each name.
         :param offset:          SQL query offset.
         :param limit:           SQL query limit.
+        :param order_by:        Name of column to order by it (in ascending order).
         :return:                A list of model endpoints.
         """
         pass

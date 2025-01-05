@@ -33,6 +33,8 @@ _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 _CONTAINER = "users"
 
+V3IO_MEPS_LIMIT = 200
+
 
 def _is_no_schema_error(exc: v3io_frames.Error) -> bool:
     """
@@ -58,6 +60,7 @@ class V3IOTSDBConnector(TSDBConnector):
         project: str,
         container: str = _CONTAINER,
         v3io_framesd: Optional[str] = None,
+        v3io_access_key: str = "",
         create_table: bool = False,
     ) -> None:
         super().__init__(project=project)
@@ -65,6 +68,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self.container = container
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
+        self._v3io_access_key = v3io_access_key
         self._frames_client: Optional[v3io_frames.client.ClientBase] = None
         self._init_tables_path()
         self._create_table = create_table
@@ -72,7 +76,9 @@ class V3IOTSDBConnector(TSDBConnector):
     @property
     def frames_client(self) -> v3io_frames.client.ClientBase:
         if not self._frames_client:
-            self._frames_client = self._get_v3io_frames_client(self.container)
+            self._frames_client = self._get_v3io_frames_client(
+                self.container, v3io_access_key=self._v3io_access_key
+            )
             if self._create_table:
                 self.create_tables()
         return self._frames_client
@@ -228,6 +234,8 @@ class V3IOTSDBConnector(TSDBConnector):
             columns=[
                 mm_schemas.EventFieldType.LATENCY,
                 mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP,
+                mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT,
+                mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT,
             ],
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -564,11 +572,33 @@ class V3IOTSDBConnector(TSDBConnector):
         return source_directory
 
     @staticmethod
-    def _get_v3io_frames_client(v3io_container: str) -> v3io_frames.client.ClientBase:
+    def _get_v3io_frames_client(
+        v3io_container: str, v3io_access_key: str = ""
+    ) -> v3io_frames.client.ClientBase:
         return mlrun.utils.v3io_clients.get_frames_client(
             address=mlrun.mlconf.v3io_framesd,
             container=v3io_container,
+            token=v3io_access_key,
         )
+
+    @staticmethod
+    def _get_endpoint_filter(endpoint_id: Union[str, list[str]]) -> Optional[str]:
+        if isinstance(endpoint_id, str):
+            return f"endpoint_id=='{endpoint_id}'"
+        elif isinstance(endpoint_id, list):
+            if len(endpoint_id) > V3IO_MEPS_LIMIT:
+                logger.info(
+                    "The number of endpoint ids exceeds the v3io-engine filter-expression limit, "
+                    "retrieving all the model endpoints from the db.",
+                    limit=V3IO_MEPS_LIMIT,
+                    amount=len(endpoint_id),
+                )
+                return None
+            return f"endpoint_id IN({str(endpoint_id)[1:-1]}) "
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid 'endpoint_id' filter: must be a string or a list, endpoint_id: {endpoint_id}"
+            )
 
     def read_metrics_data(
         self,
@@ -713,7 +743,7 @@ class V3IOTSDBConnector(TSDBConnector):
             table=mm_schemas.FileTargetKind.PREDICTIONS,
             start=start,
             end=end,
-            columns=[mm_schemas.EventFieldType.LATENCY],
+            columns=[mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT],
             filter_query=f"endpoint_id=='{endpoint_id}'",
             agg_funcs=agg_funcs,
             sliding_window_step=aggregation_window,
@@ -727,10 +757,10 @@ class V3IOTSDBConnector(TSDBConnector):
                 type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
             )
 
-        latency_column = (
-            f"{agg_funcs[0]}({mm_schemas.EventFieldType.LATENCY})"
+        estimated_prediction_count = (
+            f"{agg_funcs[0]}({mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT})"
             if agg_funcs
-            else mm_schemas.EventFieldType.LATENCY
+            else mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT
         )
 
         return mm_schemas.ModelEndpointMonitoringMetricValues(
@@ -738,7 +768,7 @@ class V3IOTSDBConnector(TSDBConnector):
             values=list(
                 zip(
                     df.index,
-                    df[latency_column],
+                    df[estimated_prediction_count],
                 )
             ),  # pyright: ignore[reportArgumentType]
         )
@@ -749,15 +779,13 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.FileTargetKind.PREDICTIONS,
             start=start,
             end=end,
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            filter_query=filter_query,
             agg_funcs=["last"],
         )
         if not df.empty:
@@ -784,9 +812,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -794,7 +820,7 @@ class V3IOTSDBConnector(TSDBConnector):
             start=start,
             end=end,
             columns=[mm_schemas.ResultData.RESULT_STATUS],
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            filter_query=filter_query,
             agg_funcs=["max"],
             group_by="endpoint_id",
         )
@@ -806,17 +832,18 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def get_metrics_metadata(
         self,
-        endpoint_id: str,
+        endpoint_id: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_id)
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.METRICS,
             start=start,
             end=end,
             columns=[mm_schemas.MetricData.METRIC_VALUE],
-            filter_query=f"endpoint_id=='{endpoint_id}'",
+            filter_query=filter_query,
             agg_funcs=["last"],
         )
         if not df.empty:
@@ -827,11 +854,12 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def get_results_metadata(
         self,
-        endpoint_id: str,
+        endpoint_id: Union[str, list[str]],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
         start, end = self._get_start_end(start, end)
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_id)
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
@@ -839,7 +867,7 @@ class V3IOTSDBConnector(TSDBConnector):
             columns=[
                 mm_schemas.ResultData.RESULT_KIND,
             ],
-            filter_query=f"endpoint_id=='{endpoint_id}'",
+            filter_query=filter_query,
             agg_funcs=["last"],
         )
         if not df.empty:
@@ -857,17 +885,18 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
+        if filter_query:
+            filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}'"
+        else:
+            filter_query = f"{mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}' z"
         start, end = self._get_start_end(start, end)
         df = self._get_records(
             table=mm_schemas.FileTargetKind.ERRORS,
             start=start,
             end=end,
             columns=[mm_schemas.EventFieldType.ERROR_COUNT],
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]}) "
-            f"AND {mm_schemas.EventFieldType.ERROR_TYPE} == '{mm_schemas.EventFieldType.INFER_ERROR}'",
+            filter_query=filter_query,
             agg_funcs=["count"],
         )
         if not df.empty:
@@ -886,9 +915,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> pd.DataFrame:
-        endpoint_ids = (
-            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
-        )
+        filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
         df = self._get_records(
@@ -896,7 +923,7 @@ class V3IOTSDBConnector(TSDBConnector):
             start=start,
             end=end,
             columns=[mm_schemas.EventFieldType.LATENCY],
-            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            filter_query=filter_query,
             agg_funcs=["avg"],
         )
         if not df.empty:

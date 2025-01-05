@@ -265,7 +265,7 @@ def test_push_notifications(db: Session, client: TestClient) -> None:
     run_uid = "run-uid-notifications"
     services.api.crud.Runs().store_run(db, run, run_uid, project=project)
     response = client.post(
-        f"projects/{project}/runs/{run_uid}/push_notifications",
+        f"projects/{project}/runs/{run_uid}/push-notifications",
     )
 
     assert response.status_code == HTTPStatus.OK.value

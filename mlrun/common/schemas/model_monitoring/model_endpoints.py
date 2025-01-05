@@ -160,6 +160,7 @@ class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
     state: Optional[str] = "unknown"  # will be updated according to the function state
     first_request: Optional[datetime] = None
     monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled
+    sampling_percentage: Optional[float] = 100
 
     # operative
     last_request: Optional[datetime] = None
@@ -177,6 +178,7 @@ class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
             "monitoring_mode",
             "first_request",
             "last_request",
+            "sampling_percentage",
         ]
 
 
@@ -259,12 +261,12 @@ class ModelEndpointMonitoringMetric(BaseModel):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.full_name = _compose_full_name(
+        self.full_name = compose_full_name(
             project=self.project, app=self.app, name=self.name, type=self.type
         )
 
 
-def _compose_full_name(
+def compose_full_name(
     *,
     project: str,
     app: str,

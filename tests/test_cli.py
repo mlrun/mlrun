@@ -28,10 +28,6 @@ def test_add_notification_to_cli_from_file():
     load_notification(notifications, project)
 
     assert (
-        project._notifiers._async_notifications["slack"].params.get("webhook")
-        == "123456"
-    )
-    assert (
         project._notifiers._sync_notifications["ipython"].params.get("webhook")
         == "1234"
     )
@@ -43,11 +39,6 @@ def test_add_notification_to_cli_from_dict():
         metadata=mlrun.projects.ProjectMetadata(name="test")
     )
     load_notification(notifications, project)
-
-    assert (
-        project._notifiers._async_notifications["slack"].params.get("webhook")
-        == "123456"
-    )
     assert (
         project._notifiers._sync_notifications["ipython"].params.get("webhook")
         == "1234"

@@ -13,36 +13,36 @@
 # limitations under the License.
 
 import datetime
+import functools
 import os
-import typing
+from fnmatch import fnmatchcase
+from typing import TYPE_CHECKING, Callable, Optional, TypedDict, cast
 
 import numpy as np
 import pandas as pd
-
-if typing.TYPE_CHECKING:
-    from mlrun.datastore import DataItem
-    from mlrun.db.base import RunDBInterface
-    from mlrun.projects import MlrunProject
-
-from fnmatch import fnmatchcase
-from typing import Optional
 
 import mlrun
 import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
+import mlrun.datastore.datastore_profile
 import mlrun.model_monitoring
 import mlrun.utils.helpers
 from mlrun.common.schemas import ModelEndpoint
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
-    _compose_full_name,
+    compose_full_name,
 )
 from mlrun.utils import logger
 
+if TYPE_CHECKING:
+    from mlrun.datastore import DataItem
+    from mlrun.db.base import RunDBInterface
+    from mlrun.projects import MlrunProject
 
-class _BatchDict(typing.TypedDict):
+
+class _BatchDict(TypedDict):
     minutes: int
     hours: int
     days: int
@@ -115,20 +115,30 @@ def filter_results_by_regex(
 def get_stream_path(
     project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-    stream_uri: typing.Optional[str] = None,
+    stream_uri: Optional[str] = None,
+    secret_provider: Optional[Callable[[str], str]] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
     :param function_name:       Application name. Default is model_monitoring_stream.
-    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project secret.
-
+    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project's secret.
+    :param secret_provider:     Optional secret provider to get the connection string secret.
+                                If not set, the env vars are used.
     :return:                    Monitoring stream path to the relevant application.
     """
 
+    try:
+        profile = _get_stream_profile(project=project, secret_provider=secret_provider)
+    except mlrun.errors.MLRunNotFoundError:
+        profile = None
+
+    if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
+        stream_uri = "v3io"
+
     stream_uri = stream_uri or mlrun.get_secret_or_env(
-        mm_constants.ProjectSecretKeys.STREAM_PATH
+        key=mm_constants.ProjectSecretKeys.STREAM_PATH, secret_provider=secret_provider
     )
 
     if not stream_uri or stream_uri == "v3io":
@@ -230,7 +240,7 @@ def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataI
 
 
 def get_tsdb_connection_string(
-    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+    secret_provider: Optional[Callable[[str], str]] = None,
 ) -> str:
     """Get TSDB connection string from the project secret. If wasn't set, take it from the system
     configurations.
@@ -242,6 +252,40 @@ def get_tsdb_connection_string(
         key=mm_constants.ProjectSecretKeys.TSDB_CONNECTION,
         secret_provider=secret_provider,
     )
+
+
+def _get_profile(
+    project: str,
+    secret_provider: Optional[Callable[[str], str]],
+    profile_name_key: str,
+) -> mlrun.datastore.datastore_profile.DatastoreProfile:
+    """
+    Get the datastore profile from the project name and secret provider, where the profile's name
+    is saved as a secret named `profile_name_key`.
+
+    :param project:          The project name.
+    :param secret_provider:  Secret provider to get the secrets from, or `None` for env vars.
+    :param profile_name_key: The profile name key in the secret store.
+    :return:                 Datastore profile.
+    """
+    profile_name = mlrun.get_secret_or_env(
+        key=profile_name_key, secret_provider=secret_provider
+    )
+    if not profile_name:
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Not found `{profile_name_key}` profile name"
+        )
+    return mlrun.datastore.datastore_profile.datastore_profile_read(
+        url=f"ds://{profile_name}", project_name=project, secrets=secret_provider
+    )
+
+
+_get_tsdb_profile = functools.partial(
+    _get_profile, profile_name_key=mm_constants.ProjectSecretKeys.TSDB_PROFILE_NAME
+)
+_get_stream_profile = functools.partial(
+    _get_profile, profile_name_key=mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME
+)
 
 
 def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:
@@ -406,7 +450,7 @@ def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
 
 
 def get_invocations_fqn(project: str) -> str:
-    return _compose_full_name(
+    return compose_full_name(
         project=project,
         app=mm_constants.SpecialApps.MLRUN_INFRA,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
@@ -431,7 +475,7 @@ def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
 
 
 def _get_monitoring_schedules_folder_path(project: str) -> str:
-    return typing.cast(
+    return cast(
         str,
         mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES

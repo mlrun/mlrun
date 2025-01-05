@@ -53,6 +53,7 @@ from tests.system.base import TestMLRunSystem
 
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
+    CountApp,
     DemoMonitoringApp,
     ErrApp,
     NoCheckDemoMonitoringApp,
@@ -1473,3 +1474,297 @@ class TestAppJob(TestMLRunSystem):
             artifact_key = f"{run_result.metadata.name}_{artifact_name}"
             artifact = self.project.get_artifact(artifact_key)
             artifact.to_dataitem().get()
+
+
+@pytest.mark.model_monitoring
+class TestAppJobModelEndpointData(TestMLRunSystem):
+    """
+    Test getting the model endpoint data in a simple count application.
+    This is performed via the ``evaluate`` method of the application, with ``base_period``.
+    """
+
+    project_name = "mm-job-mep-data"
+    image: typing.Optional[str] = None
+    _serving_function_name = "model-server"
+    _model_name = "classifier-0"
+
+    def _set_credentials(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
+
+    def _set_infra(self) -> None:
+        self.project.enable_model_monitoring(
+            **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
+            deploy_histogram_data_drift_app=False,
+        )
+
+    def _log_model(self) -> str:
+        return self.project.log_model(
+            "classifier",
+            model_dir=str((Path(__file__).parent / "assets").absolute()),
+            model_file="model.pkl",
+        ).uri
+
+    def _deploy_model_serving(self) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        model_uri = self._log_model()
+        serving_fn = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            self.project.set_function(
+                "hub://v2_model_server", name=self._serving_function_name
+            ),
+        )
+        serving_fn.add_model(self._model_name, model_path=model_uri)
+        serving_fn.set_tracking()
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
+
+        serving_fn.deploy()
+        return serving_fn
+
+    def _setup_resources(self) -> None:
+        self._set_credentials()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.submit(self._deploy_model_serving)
+            executor.submit(self._set_infra)
+
+    def test_histogram_app(self) -> None:
+        # Set up the serving function with a model endpoint, and the necessary infrastructure
+        self._setup_resources()
+
+        # Invoke the serving function with some data
+        serving_fn = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            self.project.get_function(self._serving_function_name),
+        )
+        serving_fn.invoke(
+            f"v2/models/{self._model_name}/infer",
+            body=json.dumps({"inputs": [[0, 0, 0, 0]] * 14}),
+        )
+
+        time.sleep(65)
+
+        # second window
+        serving_fn.invoke(
+            f"v2/models/{self._model_name}/infer",
+            body=json.dumps({"inputs": [[0, 1, 0, 0]] * 3}),
+        )
+        serving_fn.invoke(
+            f"v2/models/{self._model_name}/infer",
+            body=json.dumps({"inputs": [[0, 1, 0, 4.4]]}),
+        )
+
+        # Let the stream pod process the data and write the parquets
+        time.sleep(80)
+
+        # Get the model endpoint
+        model_endpoint = mlrun.get_run_db().get_model_endpoint(
+            name=self._model_name,
+            project=self.project_name,
+            function_name=self._serving_function_name,
+            function_tag="latest",
+        )
+
+        # Call `.evaluate(...)` with a base period of 1 minute
+
+        # To include the first request, make a small offset
+        start = model_endpoint.status.first_request - timedelta(microseconds=1)
+
+        run_result = CountApp.evaluate(
+            func_path=str(Path(__file__).parent / "assets/application.py"),
+            endpoints=[(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
+            start=start,
+            end=model_endpoint.status.last_request,
+            run_local=True,  # `False` does not work, see ML-8817
+            image=self.image,
+            base_period=1,
+        )
+
+        # Test the state
+        assert (
+            run_result.state() == "completed"
+        ), "The job did not complete successfully"
+
+        # Test the passed base period
+        assert (
+            run_result.spec.parameters["base_period"] == 1
+        ), "The base period is different than the passed one"
+
+        # Test the results
+        outputs = run_result.outputs
+        assert outputs, "No returned results"
+        assert (
+            len(outputs) == 2
+        ), "The number of outputs is different than the number of windows"
+        assert set(outputs.values()) == {
+            (
+                "ModelMonitoringApplicationResult(name='count', value=14.0, "
+                "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
+            ),
+            (
+                "ModelMonitoringApplicationResult(name='count', value=4.0, "
+                "kind=<ResultKindApp.model_performance: 2>, status=<ResultStatusApp.no_detection: 0>, extra_data={})"
+            ),
+        }, "The outputs are different than expected"
+
+
+@pytest.mark.model_monitoring
+class TestBatchServingWithSampling(TestMLRunSystem):
+    """
+    Test that the model monitoring infrastructure can handle batch serving with sampling percentage.
+    In this test, two serving functions are deployed, one with a pre-defined sampling percentage and one without.
+    After invoking the serving functions, the predictions table is checked for both the effective sample count and the
+    estimated prediction count.
+    """
+
+    project_name = "mm-sampling"
+    image: typing.Optional[str] = None
+    _serving_function_name_with_sample = "model-server-v1"
+    _serving_function_name_without_sample = "model-server-v2"
+    _model_name = "classifier-0"
+
+    def _set_credentials(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
+
+    def _set_infra(self) -> None:
+        self.project.enable_model_monitoring(
+            **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
+            deploy_histogram_data_drift_app=False,
+        )
+
+    def _log_model(self) -> str:
+        return self.project.log_model(
+            "classifier",
+            model_dir=str((Path(__file__).parent / "assets").absolute()),
+            model_file="model.pkl",
+        ).uri
+
+    def _deploy_model_serving(
+        self, model_uri: str, sampling_percentage: typing.Optional[float] = None
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        serving_fn = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            self.project.set_function(
+                "hub://v2_model_server",
+                name=self._serving_function_name_with_sample
+                if sampling_percentage
+                else self._serving_function_name_without_sample,
+            ),
+        )
+        serving_fn.add_model(self._model_name, model_path=model_uri)
+        if sampling_percentage:
+            serving_fn.set_tracking(sampling_percentage=sampling_percentage)
+        else:
+            serving_fn.set_tracking()
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
+
+        serving_fn.deploy()
+        return serving_fn
+
+    def _setup_resources(self) -> None:
+        self._set_credentials()
+        model_uri = self._log_model()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.submit(
+                self._deploy_model_serving, model_uri, 15.5
+            )  # with sampling
+            executor.submit(self._deploy_model_serving, model_uri)  # without sampling
+            executor.submit(self._set_infra)
+        self._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name,
+            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
+
+    def test_serving(self) -> None:
+        # Set up the serving function with a model endpoint, and the necessary infrastructure
+        self._setup_resources()
+
+        # Send 10 requests to the serving functions, with each request containing 100 data points
+        serving_fn_v1 = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            self.project.get_function(self._serving_function_name_with_sample),
+        )
+
+        serving_fn_v2 = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            self.project.get_function(self._serving_function_name_without_sample),
+        )
+
+        for i in range(10):
+            serving_fn_v1.invoke(
+                f"v2/models/{self._model_name}/infer",
+                body=json.dumps({"inputs": [[0, 0, 0, 0]] * 100}),
+            )
+            serving_fn_v2.invoke(
+                f"v2/models/{self._model_name}/infer",
+                body=json.dumps({"inputs": [[0, 0, 0, 0]] * 100}),
+            )
+
+        time.sleep(30)
+
+        # Get the model endpoints
+        model_endpoint_with_sample = mlrun.get_run_db().get_model_endpoint(
+            name=self._model_name,
+            project=self.project_name,
+            function_name=self._serving_function_name_with_sample,
+            function_tag="latest",
+        )
+
+        model_endpoint_without_sample = mlrun.get_run_db().get_model_endpoint(
+            name=self._model_name,
+            project=self.project_name,
+            function_name=self._serving_function_name_without_sample,
+            function_tag="latest",
+        )
+
+        # Validate the sampling percentage
+        assert model_endpoint_with_sample.status.sampling_percentage == 15.5
+        assert model_endpoint_without_sample.status.sampling_percentage == 100
+
+        self._test_predictions_table(
+            ep_id_with_sample=model_endpoint_with_sample.metadata.uid,
+            ep_id_without_sample=model_endpoint_without_sample.metadata.uid,
+        )
+
+    def _test_predictions_table(
+        self, ep_id_with_sample: str, ep_id_without_sample: str
+    ) -> None:
+        if self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
+                table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
+            )
+
+        else:
+            # TDEngine
+            predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
+                table=self._tsdb_storage.tables[
+                    mm_constants.TDEngineSuperTables.PREDICTIONS
+                ].super_table,
+                start=datetime.min,
+                end=datetime.now().astimezone(),
+            )
+
+        assert "effective_sample_count" in predictions_df.columns
+        assert "estimated_prediction_count" in predictions_df.columns
+        assert predictions_df.shape[0] == 20
+
+        predictions_df_with_sample = predictions_df[
+            predictions_df["endpoint_id"] == ep_id_with_sample
+        ]
+        predictions_df_without_sample = predictions_df[
+            predictions_df["endpoint_id"] == ep_id_without_sample
+        ]
+
+        # Validate that the model endpoint without sampling includes all the data points
+        assert predictions_df_without_sample["effective_sample_count"].sum() == 1000
+        assert predictions_df_without_sample["estimated_prediction_count"].sum() == 1000
+        # As for the model endpoint with sampling, the effective sample count should be around 155
+        # corresponding to the 15.5% sampling. We will validate that it is not equal to 1000.
+        assert predictions_df_with_sample["effective_sample_count"].sum() != 1000

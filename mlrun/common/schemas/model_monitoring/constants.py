@@ -61,6 +61,7 @@ class ModelEndpointSchema(MonitoringStrEnum):
     STATE = "state"
     MONITORING_MODE = "monitoring_mode"
     FIRST_REQUEST = "first_request"
+    SAMPLING_PERCENTAGE = "sampling_percentage"
 
     # status - operative
     LAST_REQUEST = "last_request"
@@ -75,6 +76,7 @@ class ModelEndpointCreationStrategy(MonitoringStrEnum):
     INPLACE = "inplace"
     ARCHIVE = "archive"
     OVERWRITE = "overwrite"
+    SKIP = "skip"
 
 
 class EventFieldType:
@@ -136,6 +138,10 @@ class EventFieldType:
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
     TIME = "time"
     TABLE_COLUMN = "table_column"
+    SAMPLING_PERCENTAGE = "sampling_percentage"
+    SAMPLING_RATE = "sampling_rate"
+    ESTIMATED_PREDICTION_COUNT = "estimated_prediction_count"
+    EFFECTIVE_SAMPLE_COUNT = "effective_sample_count"
 
 
 class FeatureSetFeatures(MonitoringStrEnum):
@@ -236,6 +242,8 @@ class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
+    TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
+    STREAM_PROFILE_NAME = "STREAM_PROFILE_NAME"
 
     @classmethod
     def mandatory_secrets(cls):
@@ -243,6 +251,12 @@ class ProjectSecretKeys:
             cls.STREAM_PATH,
             cls.TSDB_CONNECTION,
         ]
+
+
+class GetEventsFormat(MonitoringStrEnum):
+    SINGLE = "single"
+    SEPARATION = "separation"
+    INTERSECTION = "intersection"
 
 
 class ModelEndpointTargetSchemas(MonitoringStrEnum):
@@ -445,3 +459,8 @@ FQN_REGEX = re.compile(FQN_PATTERN)
 PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
 
 MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"
+
+INTERSECT_DICT_KEYS = {
+    ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",
+    ModelEndpointMonitoringMetricType.RESULT: "intersect_results",
+}

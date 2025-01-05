@@ -234,14 +234,14 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_metrics_metadata(
         self,
-        endpoint_id: str,
+        endpoint_id: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
-        Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoint.
+        Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoints.
 
-        :param endpoint_id:        The model endpoint identifier.
+        :param endpoint_id:        The model endpoint identifier. Can be a single id or a list of ids.
         :param start:              The start time of the query.
         :param end:                The end time of the query.
 
@@ -252,14 +252,14 @@ class TSDBConnector(ABC):
     @abstractmethod
     def get_results_metadata(
         self,
-        endpoint_id: str,
+        endpoint_id: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
     ) -> pd.DataFrame:
         """
-        Fetches distinct results metadata from the app-results TSDB table for a specified model endpoint.
+        Fetches distinct results metadata from the app-results TSDB table for a specified model endpoints.
 
-        :param endpoint_id:        The model endpoint identifier.
+        :param endpoint_id:        The model endpoint identifier. Can be a single id or a list of ids.
         :param start:              The start time of the query.
         :param end:                The end time of the query.
 
@@ -341,7 +341,7 @@ class TSDBConnector(ABC):
             logger.debug("No metrics", missing_metrics=metrics_without_data.keys())
             grouped = []
         for (app_name, name), sub_df in grouped:
-            full_name = mlrun.model_monitoring.helpers._compose_full_name(
+            full_name = mm_schemas.model_endpoints.compose_full_name(
                 project=project,
                 app=app_name,
                 name=name,
@@ -410,7 +410,7 @@ class TSDBConnector(ABC):
             result_kind = mlrun.model_monitoring.db.tsdb.helpers._get_result_kind(
                 sub_df
             )
-            full_name = mlrun.model_monitoring.helpers._compose_full_name(
+            full_name = mm_schemas.model_endpoints.compose_full_name(
                 project=project, app=app_name, name=name
             )
             try:
@@ -467,6 +467,7 @@ class TSDBConnector(ABC):
 
         :return:        A list of mm metrics objects.
         """
+
         return list(
             map(
                 lambda record: mm_schemas.ModelEndpointMonitoringMetric(
@@ -480,6 +481,113 @@ class TSDBConnector(ABC):
                 df.to_dict("records"),
             )
         )
+
+    @staticmethod
+    def df_to_metrics_grouped_dict(
+        *,
+        df: pd.DataFrame,
+        project: str,
+        type: str,
+    ) -> dict[str, list[mm_schemas.ModelEndpointMonitoringMetric]]:
+        """
+        Parse a DataFrame of metrics from the TSDB into a grouped mm metrics objects by endpoint_id.
+
+        :param df:      The DataFrame to parse.
+        :param project: The project name.
+        :param type:    The type of the metrics (either "result" or "metric").
+
+        :return:        A grouped dict of mm metrics/results, using model_endpoints_ids as keys.
+        """
+
+        if df.empty:
+            return {}
+
+        grouped_by_fields = [mm_schemas.WriterEvent.APPLICATION_NAME]
+        if type == "result":
+            name_column = mm_schemas.ResultData.RESULT_NAME
+            grouped_by_fields.append(mm_schemas.ResultData.RESULT_KIND)
+        else:
+            name_column = mm_schemas.MetricData.METRIC_NAME
+
+        grouped_by_fields.append(name_column)
+        # groupby has different behavior for category columns
+        df["endpoint_id"] = df["endpoint_id"].astype(str)
+        grouped_by_df = df.groupby("endpoint_id")
+        grouped_dict = grouped_by_df.apply(
+            lambda group: list(
+                map(
+                    lambda record: mm_schemas.ModelEndpointMonitoringMetric(
+                        project=project,
+                        type=type,
+                        app=record.get(mm_schemas.WriterEvent.APPLICATION_NAME),
+                        name=record.get(name_column),
+                        **{"kind": record.get(mm_schemas.ResultData.RESULT_KIND)}
+                        if type == "result"
+                        else {},
+                    ),
+                    group[grouped_by_fields].to_dict(orient="records"),
+                )
+            )
+        ).to_dict()
+        return grouped_dict
+
+    @staticmethod
+    def df_to_events_intersection_dict(
+        *,
+        df: pd.DataFrame,
+        project: str,
+        type: typing.Union[str, mm_schemas.ModelEndpointMonitoringMetricType],
+    ) -> dict[str, list[mm_schemas.ModelEndpointMonitoringMetric]]:
+        """
+        Parse a DataFrame of metrics from the TSDB into a dict of intersection metrics/results by name and application
+         (and kind in results).
+
+        :param df:      The DataFrame to parse.
+        :param project: The project name.
+        :param type:    The type of the metrics (either "result" or "metric").
+
+        :return:        A dictionary where the key is event type (as defined by `INTERSECT_DICT_KEYS`),
+                        and the value is a list containing the intersect metrics or results across all endpoint IDs.
+
+                        For example:
+                        {
+                            "intersect_metrics": [...]
+                        }
+        """
+        dict_key = mm_schemas.INTERSECT_DICT_KEYS[type]
+        metrics = []
+        if df.empty:
+            return {dict_key: []}
+
+        columns_to_zip = [mm_schemas.WriterEvent.APPLICATION_NAME]
+
+        if type == "result":
+            name_column = mm_schemas.ResultData.RESULT_NAME
+            columns_to_zip.append(mm_schemas.ResultData.RESULT_KIND)
+        else:
+            name_column = mm_schemas.MetricData.METRIC_NAME
+        columns_to_zip.insert(1, name_column)
+
+        # groupby has different behavior for category columns
+        df["endpoint_id"] = df["endpoint_id"].astype(str)
+        df["event_values"] = list(zip(*[df[col] for col in columns_to_zip]))
+        grouped_by_event_values = df.groupby("endpoint_id")["event_values"].apply(set)
+        common_event_values_combinations = set.intersection(*grouped_by_event_values)
+        result_kind = None
+        for data in common_event_values_combinations:
+            application_name, event_name = data[0], data[1]
+            if len(data) > 2:  # in result case
+                result_kind = data[2]
+            metrics.append(
+                mm_schemas.ModelEndpointMonitoringMetric(
+                    project=project,
+                    type=type,
+                    app=application_name,
+                    name=event_name,
+                    kind=result_kind,
+                )
+            )
+        return {dict_key: metrics}
 
     @staticmethod
     def _get_start_end(

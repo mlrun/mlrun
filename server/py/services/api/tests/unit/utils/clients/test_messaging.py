@@ -79,7 +79,7 @@ async def test_messaging_client_forward_request_with_body(
         )
 
     aioresponses_mock.post(
-        "http://test/success-service/v1/success",
+        "http://test/success-service/v1/success?x=1&x=2",
         callback=_f,
     )
     fastapi_app = unittest.mock.Mock()
@@ -102,8 +102,8 @@ async def test_messaging_client_forward_request_with_body(
                 (b"content-length", b"1"),
                 (b"authorization", b"Bearer test"),
             ],
+            "query_string": b"x=1&x=2",
             # Below are mandatory fields, although they are irrelevant for the test
-            "query_string": "",
             "state": {"request_id": "test"},
             "app": fastapi_app,
         },

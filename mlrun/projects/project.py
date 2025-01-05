@@ -44,6 +44,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
@@ -82,6 +83,7 @@ from ..artifacts import (
     ModelArtifact,
 )
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
+from ..common.runtimes.constants import RunStates
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
@@ -850,6 +852,7 @@ class ProjectSpec(ModelObj):
         build=None,
         custom_packagers: Optional[list[tuple[str, bool]]] = None,
         default_function_node_selector=None,
+        notifications=None,
     ):
         self.repo = None
 
@@ -890,6 +893,7 @@ class ProjectSpec(ModelObj):
         # whether it is mandatory for a run (raise exception on collection error) or not.
         self.custom_packagers = custom_packagers or []
         self._default_function_node_selector = default_function_node_selector or None
+        self.notifications = notifications or []
 
     @property
     def source(self) -> str:
@@ -1171,7 +1175,6 @@ class MlrunProject(ModelObj):
         self._artifact_manager = None
         self._notifiers = CustomNotificationPusher(
             [
-                NotificationTypes.slack,
                 NotificationTypes.console,
                 NotificationTypes.ipython,
             ]
@@ -1961,6 +1964,11 @@ class MlrunProject(ModelObj):
             ... )
 
         """
+        if not document_loader_spec.download_object and upload:
+            raise ValueError(
+                "This document loader expects direct links/URLs and does not support file uploads. "
+                "Either set download_object=True or set upload=False"
+            )
         doc_artifact = DocumentArtifact(
             key=key,
             original_source=local_path or target_path,
@@ -2131,18 +2139,23 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         matching_results = []
         alerts = []
-        # TODO: Refactor to use a single request to improve performance at scale, ML-8473
-        for endpoint in endpoints.endpoints:
-            results_by_endpoint = db.get_model_endpoint_monitoring_metrics(
-                project=self.name, endpoint_id=endpoint.metadata.uid, type="results"
-            )
+        endpoint_ids = [endpoint.metadata.uid for endpoint in endpoints.endpoints]
+        # using separation to group by endpoint IDs:
+        # {"mep_id1": [...], "mep_id2": [...]}
+        results_by_endpoint = db.get_metrics_by_multiple_endpoints(
+            project=self.name,
+            endpoint_ids=endpoint_ids,
+            type="results",
+            events_format=mm_constants.GetEventsFormat.SEPARATION,
+        )
+        for endpoint_uid, results in results_by_endpoint.items():
             results_fqn_by_endpoint = [
                 get_result_instance_fqn(
-                    model_endpoint_id=endpoint.metadata.uid,
+                    model_endpoint_id=endpoint_uid,
                     app_name=result.app,
                     result_name=result.name,
                 )
-                for result in results_by_endpoint
+                for result in results
             ]
             matching_results += filter_results_by_regex(
                 existing_result_names=results_fqn_by_endpoint,
@@ -2657,6 +2670,36 @@ class MlrunProject(ModelObj):
             project=self.name,
             uid=uid,
             timeout=timeout,
+        )
+
+    def push_pipeline_notification_kfp_runner(
+        self,
+        pipeline_id: str,
+        current_run_state: mlrun_pipelines.common.models.RunStatuses,
+        message: str,
+        notifications: Optional[list] = None,
+    ):
+        """
+        Push notifications for a pipeline run(KFP).
+
+        :param pipeline_id:         Unique ID of the pipeline run.
+        :param current_run_state:   Current run state of the pipeline.
+        :param message:             Message to send in the notification.
+        :param notifications:       List of notifications to send.
+        """
+        current_run_state = RunStates.pipeline_run_status_to_run_state(
+            current_run_state
+        )
+        db = mlrun.get_run_db()
+        notifications = notifications or self.spec.notifications
+        notifications_to_send = []
+        for notification in notifications:
+            if current_run_state in notification.when:
+                notification_copy = notification.copy()
+                notification_copy.message = message
+                notifications_to_send.append(notification_copy)
+        db.push_pipeline_notifications(
+            pipeline_id, self.metadata.name, notifications_to_send
         )
 
     def _instantiate_function(
@@ -3579,8 +3622,6 @@ class MlrunProject(ModelObj):
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
                                             exact path.
-                                          * MySQL/SQLite - for SQL endpoint store, provide the full connection string,
-                                            for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
         :param stream_path:               Path to the model monitoring stream. By default, None. Options:
 
                                           * None - will be set from the system configuration.
@@ -3603,12 +3644,30 @@ class MlrunProject(ModelObj):
                                           & tracked model server.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
+        if tsdb_connection == "v3io":
+            tsdb_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+                name="mm-infra-tsdb"
+            )
+            self.register_datastore_profile(tsdb_profile)
+            tsdb_profile_name = tsdb_profile.name
+        else:
+            tsdb_profile_name = None
+        if stream_path == "v3io":
+            stream_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+                name="mm-infra-stream"
+            )
+            self.register_datastore_profile(stream_profile)
+            stream_profile_name = stream_profile.name
+        else:
+            stream_profile_name = None
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
                 "access_key": access_key,
                 "stream_path": stream_path,
                 "tsdb_connection": tsdb_connection,
+                "tsdb_profile_name": tsdb_profile_name,
+                "stream_profile_name": stream_profile_name,
             },
             replace_creds=replace_creds,
         )
@@ -4519,7 +4578,9 @@ class MlrunProject(ModelObj):
         last_update_time_to: Optional[datetime.datetime] = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
-        """Retrieve a list of runs, filtered by various options.
+        """Retrieve a list of runs.
+        The default returns the runs from the last week, partitioned by name.
+        To override the default, specify any filter.
 
         The returned result is a `` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
         `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to

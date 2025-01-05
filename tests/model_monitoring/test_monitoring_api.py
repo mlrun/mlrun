@@ -19,6 +19,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
 from mlrun.common.schemas import alert as alert_constants
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -87,8 +88,9 @@ def test_record_result_updates_last_request() -> None:
 
 def _get_metrics(
     project: str,
-    endpoint_id: str,
+    endpoint_ids: list,
     type: Literal["results", "metrics", "all"] = "all",
+    events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
 ):
     results = {
         "mep_id1": [
@@ -132,12 +134,12 @@ def _get_metrics(
             ),
         ],
     }
-    return results[endpoint_id]
+    return results
 
 
 def test_project_create_model_monitoring_alert_configs() -> None:
     db_mock = Mock(spec=RunDBInterface)
-    db_mock.get_model_endpoint_monitoring_metrics.side_effect = _get_metrics
+    db_mock.get_metrics_by_multiple_endpoints.side_effect = _get_metrics
     project = mlrun.get_or_create_project("mm-project")
 
     notification = Notification(

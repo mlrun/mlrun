@@ -880,10 +880,11 @@ class MLClientCtx:
         tag: str = "",
         local_path: str = "",
         artifact_path: Optional[str] = None,
-        document_loader: DocumentLoaderSpec = DocumentLoaderSpec(),
+        document_loader_spec: DocumentLoaderSpec = DocumentLoaderSpec(),
         upload: Optional[bool] = False,
         labels: Optional[dict[str, str]] = None,
         target_path: Optional[str] = None,
+        db_key: Optional[str] = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
@@ -891,22 +892,50 @@ class MLClientCtx:
 
         :param key: Artifact key
         :param tag: Version tag
-        :param local_path:    path to the local file we upload, will also be use
-                              as the destination subpath (under "artifact_path")
-        :param artifact_path:   Target artifact path (when not using the default)
-                                to define a subpath under the default location use:
-                                `artifact_path=context.artifact_subpath('data')`
-        :param document_loader: Spec to use to load the artifact as langchain document
+        :param local_path: path to the local file we upload, will also be use
+                        as the destination subpath (under "artifact_path")
+        :param artifact_path: Target artifact path (when not using the default)
+                            to define a subpath under the default location use:
+                            `artifact_path=context.artifact_subpath('data')`
+        :param document_loader_spec: Spec to use to load the artifact as langchain document.
+
+            By default, uses DocumentLoaderSpec() which initializes with:
+
+            * loader_class_name="langchain_community.document_loaders.TextLoader"
+            * src_name="file_path"
+            * kwargs=None
+
+            Can be customized for different document types, e.g.::
+
+                DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.PDFLoader",
+                    src_name="file_path",
+                    kwargs={"extract_images": True}
+                )
         :param upload: Whether to upload the artifact
         :param labels: Key-value labels
         :param target_path: Path to the local file
+        :param db_key: The key to use in the artifact DB table, by default its run name + '_' + key
+                       db_key=False will not register it in the artifacts table
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
+
+        Example:
+            >>> # Log a PDF document with custom loader
+            >>> project.log_document(
+            ...     key="my_doc",
+            ...     local_path="path/to/doc.pdf",
+            ...     document_loader_spec=DocumentLoaderSpec(
+            ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
+            ...         src_name="file_path",
+            ...         kwargs={"extract_images": True},
+            ...     ),
+            ... )
         """
         doc_artifact = DocumentArtifact(
             key=key,
             original_source=local_path or target_path,
-            document_loader=document_loader,
+            document_loader_spec=document_loader_spec,
             **kwargs,
         )
 
@@ -917,6 +946,9 @@ class MLClientCtx:
             tag=tag,
             upload=upload,
             labels=labels,
+            local_path=local_path,
+            target_path=target_path,
+            db_key=db_key,
         )
         self._update_run()
         return item
@@ -929,9 +961,15 @@ class MLClientCtx:
         )
         return self.get_artifact(key)
 
-    def get_artifact(self, key: str) -> Artifact:
-        artifact_uri = self._artifacts_manager.artifact_uris[key]
-        return self.get_store_resource(artifact_uri)
+    def get_artifact(
+        self, key, tag=None, iter=None, tree=None, uid=None
+    ) -> Optional[Artifact]:
+        if tag or iter or tree or uid:
+            project = self.get_project_object()
+            return project.get_artifact(key=key, tag=tag, iter=iter, tree=tree, uid=uid)
+        else:
+            artifact_uri = self._artifacts_manager.artifact_uris[key]
+            return self.get_store_resource(artifact_uri)
 
     def update_artifact(self, artifact_object: Artifact):
         """Update an artifact object in the DB and the cached uri"""

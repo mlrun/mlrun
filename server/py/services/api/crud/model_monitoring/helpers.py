@@ -17,13 +17,10 @@ import typing
 
 import sqlalchemy.orm
 
-import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
-import mlrun.model_monitoring
 
-import services.api.crud.secrets
+import services.api.crud.projects
 
 
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:
@@ -77,38 +74,3 @@ def get_monitoring_parquet_path(
         artifact_path=artifact_path,
     )
     return parquet_path
-
-
-def get_stream_path(
-    project: str,
-    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-    stream_uri: typing.Optional[str] = None,
-) -> str:
-    """
-    Get stream path from the project secret. If wasn't set, take it from the system configurations.
-
-    :param project:       Project name.
-    :param function_name: Application name. Default is model_monitoring_stream.
-    :param stream_uri:    Stream URI. If not provided, it will be taken from the project secret.
-
-    :return:              Monitoring stream path to the relevant application.
-    """
-
-    stream_uri = stream_uri or services.api.crud.secrets.Secrets().get_project_secret(
-        project=project,
-        provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
-        allow_secrets_from_k8s=True,
-        secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH,
-    )
-
-    if not stream_uri or stream_uri == "v3io":
-        stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
-            project=project,
-            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
-            target="online",
-            function_name=function_name,
-        )
-
-    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project, function_name=function_name
-    )

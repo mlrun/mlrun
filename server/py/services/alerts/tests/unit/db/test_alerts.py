@@ -33,7 +33,7 @@ class TestAlerts(TestDatabaseBase):
         alert_summary = "testing 1 2 3"
         event_kind = alert_objects.EventKind.DATA_DRIFT_DETECTED
 
-        new_alert = services.alerts.tests.unit.crud.utils.generate_alert_data(
+        alert1 = services.alerts.tests.unit.crud.utils.generate_alert_data(
             project=project,
             name=alert_name,
             entity=alert_entity,
@@ -41,10 +41,27 @@ class TestAlerts(TestDatabaseBase):
             event_kind=event_kind,
         )
 
-        self._db.store_alert(self._db_session, new_alert)
+        self._db.store_alert(self._db_session, alert1)
         alerts = self._db.list_alerts(self._db_session, project)
         assert len(alerts) == 1
 
         assert alerts[0].created.replace(tzinfo=timezone.utc) < datetime.now(
             tz=timezone.utc
         )
+
+        alert2_name = "test_alert2"
+        alert2 = services.alerts.tests.unit.crud.utils.generate_alert_data(
+            project=project,
+            name=alert2_name,
+            entity=alert_entity,
+            summary=alert_summary,
+            event_kind=event_kind,
+        )
+
+        self._db.store_alert(self._db_session, alert2)
+        alerts = self._db.list_alerts(self._db_session, project)
+        assert len(alerts) == 2
+        alert1_created_time = alerts[0].created
+        alert2_created_time = alerts[1].created
+
+        assert alert1_created_time < alert2_created_time

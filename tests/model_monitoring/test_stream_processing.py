@@ -15,6 +15,7 @@
 import pytest
 
 import mlrun
+import mlrun.model_monitoring
 from mlrun.model_monitoring.stream_processing import EventStreamProcessor
 
 
@@ -36,8 +37,7 @@ def test_plot_monitoring_serving_graph(tsdb_connector):
     )
 
     tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-        project=project_name,
-        tsdb_connection_string=tsdb_connector,
+        project=project_name, tsdb_connection_string=tsdb_connector
     )
 
     processor.apply_monitoring_serving_graph(fn, tsdb_connector)

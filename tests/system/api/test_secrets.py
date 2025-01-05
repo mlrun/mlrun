@@ -304,13 +304,19 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             )
 
     def test_k8s_project_secrets_with_runtime(self):
+        # This test validates both retrieval flows:
+        # 1. Secrets accessed via get_secret_or_env, handling upper-case conversion and prefix completion.
+        # 2. Secrets accessed directly from os.environ when use_prefix=False.
+        # Project secrets are mounted as upper-case environment variables, affecting their accessibility.
+
         secrets = {"secret1": "JustMySecret", "secret2": "!@#$$%^^&&"}
+        no_prefix_secrets = {"SECRET3": "ShhItsASecret"}
 
         # Setup k8s secrets
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
         self._run_db.create_project_secrets(self.project_name, "kubernetes", secrets)
 
-        # Run a function using k8s secrets
+        # Function setup
         filename = str(pathlib.Path(__file__).parent / "assets" / "function.py")
         function = mlrun.code_to_function(
             name="test-func",
@@ -321,29 +327,52 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             image="mlrun/mlrun",
         )
 
-        # Try running without using with_secrets at all, using the auto-add feature
-        task = mlrun.new_task()
-        run = function.run(task, params={"secrets": list(secrets.keys())})
-        for key, value in secrets.items():
-            assert run.outputs[key] == value
+        test_cases = [
+            {
+                # Run without explicitly passing any secrets. Validate the auto-add feature
+                "task": mlrun.new_task(),
+                "params": list(secrets.keys()),
+                "expected": secrets,
+            },
+            {
+                # Run with an empty list of secrets. Validate that all secrets are still auto-added
+                "task": mlrun.new_task().with_secrets("kubernetes", []),
+                "params": list(secrets.keys()),
+                "expected": secrets,
+            },
+            {
+                # Run with all secret keys explicitly passed. Validate that the correct values are retrieved
+                "task": mlrun.new_task().with_secrets(
+                    "kubernetes", list(secrets.keys())
+                ),
+                "params": list(secrets.keys()),
+                "expected": secrets,
+            },
+            {
+                # Run with only a partial list of secret keys. Validate that only specified secrets are accessible
+                "task": mlrun.new_task().with_secrets("kubernetes", ["secret1"]),
+                "params": list(secrets.keys()),
+                "expected": {"secret1": secrets["secret1"], "secret2": "None"},
+            },
+        ]
 
-        # Test running with an empty list of secrets
-        task = mlrun.new_task().with_secrets("kubernetes", [])
-        run = function.run(task, params={"secrets": list(secrets.keys())})
-        for key, value in secrets.items():
-            assert run.outputs[key] == value
+        for case in test_cases:
+            run = function.run(
+                case["task"],
+                params={"secrets": case["params"]},
+            )
+            for key, value in case["expected"].items():
+                assert run.outputs[key] == value
 
-        # And with actual secret keys
-        task = mlrun.new_task().with_secrets("kubernetes", list(secrets.keys()))
-        run = function.run(task, params={"secrets": list(secrets.keys())})
-        for key, value in secrets.items():
-            assert run.outputs[key] == value
-
-        # Verify that when running with a partial list of secrets, only these secrets are available
-        task = mlrun.new_task().with_secrets("kubernetes", ["secret1"])
-        run = function.run(task, params={"secrets": list(secrets.keys())})
-        expected = {"secret1": secrets["secret1"], "secret2": "None"}
-        for key, value in expected.items():
+        # Validate that the correct values are retrieved directly from environment variables
+        self._run_db.create_project_secrets(
+            self.project_name, "kubernetes", no_prefix_secrets
+        )
+        run = function.run(
+            mlrun.new_task().with_secrets("kubernetes", ["SECRET3"]),
+            params={"secrets": list(no_prefix_secrets.keys()), "use_prefix": False},
+        )
+        for key, value in no_prefix_secrets.items():
             assert run.outputs[key] == value
 
         # Cleanup secrets

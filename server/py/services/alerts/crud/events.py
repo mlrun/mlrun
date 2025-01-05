@@ -28,7 +28,8 @@ class Events(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     # we cache alert names based on project and event name as key
-    _cache: dict[(str, str), list[str]] = {}
+    # (project, name) -> set[alert_id]
+    _cache: dict[(str, str), set[int]] = {}
     cache_initialized = False
 
     @staticmethod
@@ -41,19 +42,20 @@ class Events(
 
         return bool(event_data.is_valid())
 
-    def add_event_configuration(self, project, name, alert_id):
-        self._cache.setdefault((project, name), []).append(alert_id)
+    def add_event_configuration(self, project, event_kind, alert_id):
+        self._cache.setdefault((project, event_kind), set()).add(alert_id)
 
-    def remove_event_configuration(self, project, name, alert_id):
-        alerts = self._cache[(project, name)]
-        alerts.remove(alert_id)
-        if len(alerts) == 0:
-            self._cache.pop((project, name))
+    def remove_event_configuration(self, project, event_kind, alert_id):
+        alerts = self._cache.get((project, event_kind), set())
+        if alert_id in alerts:
+            alerts.remove(alert_id)
+            if len(alerts) == 0:
+                self._cache.pop((project, event_kind))
 
     def delete_project_alert_events(self, project):
-        to_delete = [name for proj, name in self._cache if proj == project]
-        for name in to_delete:
-            self._cache.pop((project, name))
+        to_delete = [event_kind for proj, event_kind in self._cache if proj == project]
+        for event_kind in to_delete:
+            self._cache.pop((project, event_kind))
 
     def process_event(
         self,
@@ -79,7 +81,7 @@ class Events(
             return
 
         try:
-            for alert_id in self._cache[(project, event_name)]:
+            for alert_id in self._cache.get((project, event_name), set()):
                 services.alerts.crud.Alerts().process_event(
                     session, alert_id, event_data
                 )

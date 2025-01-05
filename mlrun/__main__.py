@@ -32,6 +32,7 @@ from tabulate import tabulate
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.utils.helpers
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.runtimes.mounts import auto_mount as auto_mount_modifier
 
@@ -304,6 +305,7 @@ def run(
                 update_in(runtime, "spec.build.code_origin", url_file)
     elif runtime:
         runtime = py_eval(runtime)
+        runtime = mlrun.utils.helpers.as_dict(runtime)
         if not isinstance(runtime, dict):
             print(f"Runtime parameter must be a dict, not {type(runtime)}")
             exit(1)
@@ -515,6 +517,7 @@ def build(
 
     if runtime:
         runtime = py_eval(runtime)
+        runtime = mlrun.utils.helpers.as_dict(runtime)
         if not isinstance(runtime, dict):
             print(f"Runtime parameter must be a dict, not {type(runtime)}")
             exit(1)
@@ -662,6 +665,8 @@ def deploy(
         runtime = py_eval(spec)
     else:
         runtime = {}
+
+    runtime = mlrun.utils.helpers.as_dict(runtime)
     if not isinstance(runtime, dict):
         print(f"Runtime parameter must be a dict, not {type(runtime)}")
         exit(1)

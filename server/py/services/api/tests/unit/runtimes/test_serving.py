@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
+import gzip
 import json
 import os
 import unittest
@@ -202,7 +204,9 @@ class TestServingRuntime(TestNuclioRuntime):
             serving_spec = None
             if use_config_map:
                 body = self._mock_get_config_map_body()
-                serving_spec = json.loads(body.data["serving_spec.json"])
+                decoded_data = base64.b64decode(body.data["serving_spec.json"])
+                decompressed_data = gzip.decompress(decoded_data)
+                serving_spec = json.loads(decompressed_data.decode("utf-8"))
             else:
                 for env_variable in deploy_spec["env"]:
                     if env_variable["name"] == "SERVING_SPEC_ENV":

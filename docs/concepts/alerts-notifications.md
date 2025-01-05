@@ -11,5 +11,6 @@
 :maxdepth: 1
 
 alerts
+alert_activations
 notifications
 ```

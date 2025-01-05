@@ -917,7 +917,7 @@ class DBInterface(ABC):
     def create_partitions(
         session,
         table_name: str,
-        partitioning_information_list: list[tuple[str, str, str]],
+        partitioning_information_list: list[tuple[str, str]],
     ):
         pass
 
@@ -953,7 +953,7 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        last_updated: datetime.datetime,
+        last_updated: typing.Optional[datetime.datetime],
         count: typing.Optional[int] = None,
         active: bool = False,
         obj: typing.Optional[dict] = None,
@@ -984,7 +984,6 @@ class DBInterface(ABC):
         session,
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
-        notifications_states: list[mlrun.common.schemas.NotificationState],
     ):
         pass
 
@@ -994,7 +993,11 @@ class DBInterface(ABC):
         session,
         activation_id: int,
         activation_time: datetime.datetime,
-        number_of_events: Optional[int],
+        number_of_events: Optional[int] = None,
+        notifications_states: Optional[
+            list[mlrun.common.schemas.NotificationState]
+        ] = None,
+        update_reset_time: bool = False,
     ):
         pass
 
@@ -1240,6 +1243,7 @@ class DBInterface(ABC):
         function_name: typing.Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
+        model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime.datetime] = None,
@@ -1248,6 +1252,7 @@ class DBInterface(ABC):
         latest_only: bool = False,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
+        order_by: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints by project and optional filters.
@@ -1258,6 +1263,7 @@ class DBInterface(ABC):
         :param function_name:   The function name.
         :param function_tag:    The function tag.
         :param model_name:      The model name.
+        :param model_tag:       The model tag.
         :param top_level:       Whether to return only top level model endpoints (1,2,4).
         :param labels:          The labels to filter by.
         :param start:           The start time to filter by.
@@ -1266,6 +1272,7 @@ class DBInterface(ABC):
         :param latest_only:     Whether to return only the latest model endpoint for each name.
         :param offset:          SQL query offset.
         :param limit:           SQL query limit.
+        :param order_by:        Name of column to order by it (in ascending order).
         :return:                A list of model endpoints.
         """
         pass
@@ -1296,6 +1303,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
+        uids: typing.Optional[list[str]] = None,
     ) -> None:
         """
         Delete model endpoints across projects and names.

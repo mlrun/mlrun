@@ -22,7 +22,7 @@ import nuclio
 from nuclio import KafkaTrigger
 
 import mlrun
-import mlrun.common.schemas
+import mlrun.common.schemas as schemas
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -309,7 +309,7 @@ class ServingRuntime(RemoteRuntime):
         self,
         stream_path: Optional[str] = None,
         batch: Optional[int] = None,
-        sample: Optional[int] = None,
+        sampling_percentage: float = 100,
         stream_args: Optional[dict] = None,
         tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
         enable_tracking: bool = True,
@@ -317,13 +317,13 @@ class ServingRuntime(RemoteRuntime):
         """Apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
         and analyze performance.
 
-        :param stream_path:         Path/url of the tracking stream e.g. v3io:///users/mike/mystream
-                                    you can use the "dummy://" path for test/simulation.
-        :param batch:               Micro batch size (send micro batches of N records at a time).
-        :param sample:              Sample size (send only one of N records).
-        :param stream_args:         Stream initialization parameters, e.g. shards, retention_in_hours, ..
-        :param enable_tracking:     Enabled/Disable model-monitoring tracking.
-                                    Default True (tracking enabled).
+        :param stream_path:                Path/url of the tracking stream e.g. v3io:///users/mike/mystream
+                                           you can use the "dummy://" path for test/simulation.
+        :param batch:                      Deprecated. Micro batch size (send micro batches of N records at a time).
+        :param sampling_percentage:        Down sampling events that will be pushed to the monitoring stream based on
+                                           a specified percentage. e.g. 50 for 50%. By default, all events are pushed.
+        :param stream_args:                Stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param enable_tracking:            Enabled/Disable model-monitoring tracking. Default True (tracking enabled).
 
         Example::
 
@@ -336,12 +336,21 @@ class ServingRuntime(RemoteRuntime):
         # Applying model monitoring configurations
         self.spec.track_models = enable_tracking
 
+        if not 0 < sampling_percentage <= 100:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`sampling_percentage` must be greater than 0 and less or equal to 100."
+            )
+        self.spec.parameters["sampling_percentage"] = sampling_percentage
+
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:
-            self.spec.parameters["log_stream_batch"] = batch
-        if sample:
-            self.spec.parameters["log_stream_sample"] = sample
+            warnings.warn(
+                "The `batch` size parameter was deprecated in version 1.8.0 and is no longer used. "
+                "It will be removed in 1.10.",
+                # TODO: Remove this in 1.10
+                FutureWarning,
+            )
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
         if tracking_policy is not None:
@@ -362,6 +371,9 @@ class ServingRuntime(RemoteRuntime):
         handler: Optional[str] = None,
         router_step: Optional[str] = None,
         child_function: Optional[str] = None,
+        creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
         **class_args,
     ):
         """add ml model and/or route to the function.
@@ -384,6 +396,16 @@ class ServingRuntime(RemoteRuntime):
         :param router_step: router step name (to determine which router we add the model to in graphs
                             with multiple router steps)
         :param child_function: child function name, when the model runs in a child function
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
         :param class_args:  extra kwargs to pass to the model serving class __init__
                             (can be read in the model using .get_param(key) method)
         """
@@ -419,7 +441,12 @@ class ServingRuntime(RemoteRuntime):
         if class_name and hasattr(class_name, "to_dict"):
             if model_path:
                 class_name.model_path = model_path
-            key, state = params_to_step(class_name, key)
+            key, state = params_to_step(
+                class_name,
+                key,
+                model_endpoint_creation_strategy=creation_strategy,
+                endpoint_type=schemas.EndpointType.LEAF_EP,
+            )
         else:
             class_name = class_name or self.spec.default_class
             if class_name and not isinstance(class_name, str):
@@ -432,12 +459,22 @@ class ServingRuntime(RemoteRuntime):
                 model_path = str(model_path)
 
             if model_url:
-                state = new_remote_endpoint(model_url, **class_args)
+                state = new_remote_endpoint(
+                    model_url,
+                    creation_strategy=creation_strategy,
+                    endpoint_type=schemas.EndpointType.LEAF_EP,
+                    **class_args,
+                )
             else:
                 class_args = deepcopy(class_args)
                 class_args["model_path"] = model_path
                 state = TaskStep(
-                    class_name, class_args, handler=handler, function=child_function
+                    class_name,
+                    class_args,
+                    handler=handler,
+                    function=child_function,
+                    model_endpoint_creation_strategy=creation_strategy,
+                    endpoint_type=schemas.EndpointType.LEAF_EP,
                 )
 
         return graph.add_route(key, state)
@@ -581,7 +618,7 @@ class ServingRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: mlrun.common.schemas.AuthInfo = None,
+        auth_info: schemas.AuthInfo = None,
         builder_env: Optional[dict] = None,
         force_build: bool = False,
     ):

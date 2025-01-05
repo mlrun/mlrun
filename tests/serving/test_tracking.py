@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 import mlrun
-from mlrun.common.schemas import ModelMonitoringMode
+from mlrun.common.schemas import ModelEndpointCreationStrategy
 from tests.serving.test_serving import _log_model
 
 testdata = '{"inputs": [[5, 6]]}'
@@ -103,22 +103,20 @@ def test_tracked_function(rundb_mock, enable_tracking):
         project = mlrun.new_project("test-pro", save=False)
         fn = mlrun.new_function("test-fn", kind="serving", project=project.name)
         model_uri = _log_model(project)
-        fn.add_model("m1", model_uri, "ModelTestingClass", multiplier=5)
+        fn.add_model(
+            "m1",
+            model_uri,
+            "ModelTestingClass",
+            multiplier=5,
+            creation_strategy=ModelEndpointCreationStrategy.ARCHIVE,
+        )
         fn.set_tracking("dummy://", enable_tracking=enable_tracking)
         server = fn.to_mock_server(track_models=True)
         server.test("/v2/models/m1/infer", testdata)
-
+        if enable_tracking:
+            rundb_mock.get_model_endpoint.assert_called_once()
         dummy_stream = server.context.stream.output_stream
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-
-    rundb_mock.patch_model_endpoint.assert_called_once()
-    if enable_tracking:
-        assert (
-            rundb_mock.patch_model_endpoint.call_args.kwargs["attributes"][
-                "monitoring_mode"
-            ]
-            == ModelMonitoringMode.enabled
-        ), "model_uri attribute of the model endpoint was not updated as expected"
 
 
 def rec_to_data(rec):

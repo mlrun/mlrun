@@ -36,6 +36,7 @@ import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.singletons.project_member
 import services.api.crud
+import services.api.utils.helpers
 from framework.api.utils import log_and_raise
 
 router = fastapi.APIRouter()
@@ -172,9 +173,9 @@ async def submit_workflow(
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
-        image=workflow_spec.image
-        or project.spec.default_image
-        or mlrun.mlconf.default_base_image,
+        image=services.api.utils.helpers.resolve_client_default_kfp_image(
+            project, workflow_spec, client_version
+        ),
     )
 
     logger.debug(

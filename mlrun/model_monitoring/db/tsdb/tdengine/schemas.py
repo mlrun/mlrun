@@ -108,27 +108,6 @@ class TDEngineSchema:
             )
         return f"CREATE TABLE if NOT EXISTS {self.database}.{subtable} USING {self.super_table} TAGS ({tags});"
 
-    @staticmethod
-    def _insert_subtable_stmt(
-        statement: taosws.TaosStmt,
-        columns: dict[str, _TDEngineColumn],
-        subtable: str,
-        values: dict[str, Union[str, int, float, datetime.datetime]],
-    ) -> taosws.TaosStmt:
-        question_marks = ", ".join("?" * len(columns))
-        statement.prepare(f"INSERT INTO ? VALUES ({question_marks});")
-        statement.set_tbname(subtable)
-
-        bind_params = []
-
-        for col_name, col_type in columns.items():
-            val = values[col_name]
-            bind_params.append(values_to_column([val], col_type))
-
-        statement.bind_param(bind_params)
-        statement.add_batch()
-        return statement
-
     def _delete_subtable_query(
         self,
         subtable: str,
@@ -319,6 +298,8 @@ class Predictions(TDEngineSchema):
             mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,
             mm_schemas.EventFieldType.LATENCY: _TDEngineColumn.FLOAT,
             mm_schemas.EventKeyMetrics.CUSTOM_METRICS: _TDEngineColumn.BINARY_1000,
+            mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT: _TDEngineColumn.FLOAT,
+            mm_schemas.EventFieldType.EFFECTIVE_SAMPLE_COUNT: _TDEngineColumn.INT,
         }
         tags = {
             mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,

@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import asyncio
+import collections
 import datetime
+import traceback
 import typing
 
 from kubernetes.client import ApiException
@@ -24,10 +26,11 @@ import mlrun.model
 import mlrun.utils.helpers
 import mlrun.utils.notifications.notification as notification_module
 import mlrun.utils.notifications.notification.base as base
-from mlrun.utils import logger
+from mlrun.utils import Workflow, logger
 from mlrun.utils.notifications.notification_pusher import (
     NotificationPusher,
     _NotificationPusherBase,
+    sanitize_notification,
 )
 
 import framework.api.utils
@@ -113,6 +116,8 @@ class AlertNotificationPusher(_NotificationPusherBase):
         self,
         alert: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
+        activation_id: typing.Optional[int] = None,
+        activation_time: typing.Optional[datetime.datetime] = None,
     ):
         """
         Asynchronously push notification.
@@ -162,8 +167,38 @@ class AlertNotificationPusher(_NotificationPusherBase):
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
                     )
+            if activation_id and activation_time:
+                # after notifications are sent, update the alert activation state
+                # because only then the alert object had all the necessary data
+                try:
+                    self._update_alert_activation_notification_state(
+                        activation_id=activation_id,
+                        activation_time=activation_time,
+                        alert=alert,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to update alert activation state", error=str(e)
+                    )
 
         self._push(sync_push, async_push)
+
+    def _update_alert_activation_notification_state(
+        self,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        alert: mlrun.common.schemas.AlertConfig,
+    ):
+        normalized_activation_time = mlrun.utils.helpers.datetime_to_mysql_ts(
+            activation_time
+        )
+        notification_states = self._prepare_notification_states(alert.notifications)
+        db = mlrun.get_run_db()
+        db.update_alert_activation(
+            activation_id=activation_id,
+            activation_time=normalized_activation_time,
+            notifications_states=notification_states,
+        )
 
     async def _push_notification_async(
         self,
@@ -227,6 +262,74 @@ class AlertNotificationPusher(_NotificationPusherBase):
         return message, severity
 
     @staticmethod
+    def _prepare_notification_states(
+        notifications: list[mlrun.common.schemas.AlertNotification],
+    ) -> list[mlrun.common.schemas.NotificationState]:
+        """
+        Processes a list of alert notifications to construct a list of NotificationState objects.
+
+        Each NotificationState represents a unique type of notification (e.g., "slack", "email") and its status.
+        For each notification type, this method aggregates error messages if any notifications of that type have failed.
+        The resulting NotificationState has:
+        - An empty 'err' if all notifications of that type succeeded.
+        - An 'err' with all unique errors if all notifications of that type failed.
+        - An 'err' with unique errors if some, but not all, notifications of that type failed.
+        """
+
+        notification_errors = collections.defaultdict(
+            lambda: {
+                "errors": set(),
+                "success_count": 0,
+                "failed_count": 0,
+            },
+        )
+
+        # process each notification and gather errors by type
+        for alert_notification in notifications:
+            kind = alert_notification.notification.kind
+            reason = alert_notification.notification.reason
+
+            # count successes, failures and collect unique errors for failures
+            if reason:
+                notification_errors[kind]["errors"].add(reason)
+                notification_errors[kind]["failed_count"] += 1
+            else:
+                notification_errors[kind]["success_count"] += 1
+
+        # construct NotificationState objects based on the aggregated error data
+        notification_states = []
+        for kind, status_info in notification_errors.items():
+            errors = list(status_info["errors"])
+            success_count = status_info.get("success_count", 0)
+            failed_count = status_info.get("failed_count", 0)
+
+            if errors:
+                if success_count == 0:
+                    error_message = (
+                        f"All {kind} notifications failed. Errors: {', '.join(errors)}"
+                    )
+                else:
+                    error_message = (
+                        f"Some {kind} notifications failed. Errors: {', '.join(errors)}"
+                    )
+            else:
+                # indicates success if there are no errors
+                error_message = ""
+
+            notification_states.append(
+                mlrun.common.schemas.NotificationState(
+                    kind=kind,
+                    err=error_message,
+                    summary=mlrun.common.schemas.NotificationSummary(
+                        failed=failed_count,
+                        succeeded=success_count,
+                    ),
+                )
+            )
+
+        return notification_states
+
+    @staticmethod
     def _update_notification_status(
         alert_id: int,
         project: str,
@@ -256,3 +359,159 @@ class AlertNotificationPusher(_NotificationPusherBase):
             project,
             mask_params=False,
         )
+
+
+class KFPNotificationPusher(NotificationPusher):
+    def __init__(
+        self,
+        project: str,
+        workflow_id: str,
+        notifications: list[mlrun.common.schemas.Notification],
+        default_params: typing.Optional[dict] = None,
+    ):
+        self._project = project
+        self._default_params = default_params or {}
+        self._workflow_id = workflow_id
+        self._notifications = notifications
+        self._sync_notifications: list[
+            tuple[base.NotificationBase, mlrun.model.Notification]
+        ] = []
+        self._async_notifications: list[
+            tuple[base.NotificationBase, mlrun.model.Notification]
+        ] = []
+
+        for notification_object in self._notifications:
+            try:
+                notification = self._load_notification(notification_object)
+                if notification.is_async:
+                    self._async_notifications.append(
+                        (notification, notification_object)
+                    )
+                else:
+                    self._sync_notifications.append((notification, notification_object))
+            except Exception as exc:
+                logger.warning(
+                    "Failed to process notification",
+                    notification=notification_object.name,
+                    error=mlrun.errors.err_to_str(exc),
+                )
+
+    def push(self, sync_push_callback=None, async_push_callback=None):
+        def sync_push():
+            for notification_data in self._sync_notifications:
+                try:
+                    self._push_workflow_notification_sync(
+                        notification_data[0],
+                        notification_data[1],
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to push notification sync",
+                        error=mlrun.errors.err_to_str(exc),
+                    )
+
+        async def async_push():
+            tasks = []
+            for notification_data in self._async_notifications:
+                tasks.append(
+                    self._push_workflow_notification_async(
+                        notification_data[0],
+                        notification_data[1],
+                    )
+                )
+
+            # return exceptions to "best-effort" fire all notifications
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.warning(
+                        "Failed to push notification async",
+                        error=mlrun.errors.err_to_str(result),
+                        traceback=traceback.format_exception(
+                            etype=type(result),
+                            value=result,
+                            tb=result.__traceback__,
+                        ),
+                    )
+
+        super().push(sync_push, async_push)
+
+    def _push_workflow_notification_sync(
+        self,
+        notification: base.NotificationBase,
+        notification_object: mlrun.common.schemas.Notification,
+    ):
+        message, severity, runs = self._prepare_workflow_notification_args(
+            notification_object
+        )
+
+        logger.debug(
+            "Pushing sync notification",
+            notification=sanitize_notification(notification_object.dict()),
+            workflow_id=self._workflow_id,
+        )
+        try:
+            notification.push(message, severity, runs)
+            logger.debug(
+                "Notification sent successfully",
+                notification=sanitize_notification(notification_object.dict()),
+                workflow_id=self._workflow_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to send or update notification",
+                notification=sanitize_notification(notification_object.dict()),
+                workflow_id=self._workflow_id,
+                exc=mlrun.errors.err_to_str(exc),
+                traceback=traceback.format_exc(),
+            )
+            raise exc
+
+    async def _push_workflow_notification_async(
+        self,
+        notification: base.NotificationBase,
+        notification_object: mlrun.common.schemas.Notification,
+    ):
+        message, severity, runs = self._prepare_workflow_notification_args(
+            notification_object
+        )
+
+        logger.debug(
+            "Pushing async notification",
+            notification=sanitize_notification(notification_object.dict()),
+            workflow_id=self._workflow_id,
+        )
+        try:
+            await notification.push(message, severity, runs)
+            logger.debug(
+                "Notification sent successfully",
+                notification=sanitize_notification(notification_object.dict()),
+                workflow_id=self._workflow_id,
+            )
+
+        except Exception as exc:
+            logger.warning(
+                "Failed to send or update async notification",
+                notification=sanitize_notification(notification_object.dict()),
+                workflow_id=self._workflow_id,
+                exc=mlrun.errors.err_to_str(exc),
+                traceback=traceback.format_exc(),
+            )
+
+            raise exc
+
+    def _prepare_workflow_notification_args(
+        self, notification_object: mlrun.common.schemas.Notification
+    ):
+        custom_message = (
+            f": {notification_object.message}" if notification_object.message else ""
+        )
+
+        message = f" (workflow: {self._workflow_id}){custom_message}"
+        runs = Workflow.get_workflow_steps(self._workflow_id, self._project)
+
+        severity = (
+            notification_object.severity
+            or mlrun.common.schemas.NotificationSeverity.INFO
+        )
+        return message, severity, runs

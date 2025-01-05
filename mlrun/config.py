@@ -83,8 +83,8 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*,python:3.9",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
-    "kfp_image": "mlrun/mlrun",  # image to use for KFP runner (defaults to mlrun/mlrun)
-    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
+    "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
+    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -169,6 +169,7 @@ default_config = {
             "max_chunk_size": 1024 * 1024 * 1,  # 1MB
             "max_preview_size": 1024 * 1024 * 10,  # 10MB
             "max_download_size": 1024 * 1024 * 100,  # 100MB
+            "max_deletions": 200,
         },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
@@ -603,10 +604,6 @@ default_config = {
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
         "offline_storage_path": "model-endpoints/{kind}",
-        # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
-        # when the user is working in CE environment and has not provided any stream path.
-        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
-        "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
@@ -645,7 +642,7 @@ default_config = {
             "auto_add_project_secrets": True,
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
-            "env_variable_prefix": "MLRUN_K8S_SECRET__",
+            "env_variable_prefix": "",
             "global_function_env_secret_name": None,
         },
     },
@@ -825,6 +822,7 @@ default_config = {
             "refresh_interval": "30",
         }
     },
+    "system_id": "",
 }
 _is_running_as_api = None
 

@@ -25,11 +25,12 @@ import pathlib
 import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import storey.utils
 
 import mlrun
+import mlrun.common.schemas as schemas
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -81,22 +82,28 @@ _task_step_fields = [
     "responder",
     "input_path",
     "result_path",
+    "model_endpoint_creation_strategy",
+    "endpoint_type",
 ]
 
 
 MAX_ALLOWED_STEPS = 4500
 
 
-def new_model_endpoint(class_name, model_path, handler=None, **class_args):
-    class_args = deepcopy(class_args)
-    class_args["model_path"] = model_path
-    return TaskStep(class_name, class_args, handler=handler)
-
-
-def new_remote_endpoint(url, **class_args):
+def new_remote_endpoint(
+    url: str,
+    creation_strategy: schemas.ModelEndpointCreationStrategy,
+    endpoint_type: schemas.EndpointType,
+    **class_args,
+):
     class_args = deepcopy(class_args)
     class_args["url"] = url
-    return TaskStep("$remote", class_args)
+    return TaskStep(
+        "$remote",
+        class_args=class_args,
+        model_endpoint_creation_strategy=creation_strategy,
+        endpoint_type=endpoint_type,
+    )
 
 
 class BaseStep(ModelObj):
@@ -119,6 +126,9 @@ class BaseStep(ModelObj):
         self.shape = shape
         self.on_error = None
         self._on_error_handler = None
+        self.model_endpoint_creation_strategy = (
+            schemas.ModelEndpointCreationStrategy.SKIP
+        )
 
     def get_shape(self):
         """graphviz shape"""
@@ -419,6 +429,10 @@ class TaskStep(BaseStep):
         responder: Optional[bool] = None,
         input_path: Optional[str] = None,
         result_path: Optional[str] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.SKIP,
+        endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
     ):
         super().__init__(name, after)
         self.class_name = class_name
@@ -438,6 +452,8 @@ class TaskStep(BaseStep):
         self.on_error = None
         self._inject_context = False
         self._call_with_event = False
+        self.model_endpoint_creation_strategy = model_endpoint_creation_strategy
+        self.endpoint_type = endpoint_type
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
         self.context = context
@@ -554,7 +570,11 @@ class TaskStep(BaseStep):
 
     def _post_init(self, mode="sync"):
         if self._object and hasattr(self._object, "post_init"):
-            self._object.post_init(mode)
+            self._object.post_init(
+                mode,
+                creation_strategy=self.model_endpoint_creation_strategy,
+                endpoint_type=self.endpoint_type,
+            )
             if hasattr(self._object, "model_endpoint_uid"):
                 self.endpoint_uid = self._object.model_endpoint_uid
             if hasattr(self._object, "name"):
@@ -680,7 +700,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes"]
+    _dict_fields = _task_step_fields + ["routes", "name"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
@@ -698,13 +718,19 @@ class RouterStep(TaskStep):
             class_name,
             class_args,
             handler,
-            name=name,
+            name=get_name(name, class_name or RouterStep.kind),
             function=function,
             input_path=input_path,
             result_path=result_path,
         )
         self._routes: ObjectDict = None
         self.routes = routes
+        self.endpoint_type = schemas.EndpointType.ROUTER
+        self.model_endpoint_creation_strategy = (
+            schemas.ModelEndpointCreationStrategy.INPLACE
+            if class_name and "serving.VotingEnsemble" in class_name
+            else schemas.ModelEndpointCreationStrategy.SKIP
+        )
 
     def get_children(self):
         """get child steps (routes)"""
@@ -726,6 +752,7 @@ class RouterStep(TaskStep):
         class_name=None,
         handler=None,
         function=None,
+        creation_strategy: schemas.ModelEndpointCreationStrategy = schemas.ModelEndpointCreationStrategy.INPLACE,
         **class_args,
     ):
         """add child route step or class to the router
@@ -736,12 +763,31 @@ class RouterStep(TaskStep):
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
         :param function:   function this step should run in
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+
         """
 
         if not route and not class_name and not handler:
             raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
-            route = TaskStep(class_name, class_args, handler=handler)
+            route = TaskStep(
+                class_name,
+                class_args,
+                handler=handler,
+                model_endpoint_creation_strategy=creation_strategy,
+                endpoint_type=schemas.EndpointType.LEAF_EP
+                if self.class_name and "serving.VotingEnsemble" in self.class_name
+                else schemas.EndpointType.NODE_EP,
+            )
         route.function = function or route.function
 
         if len(self._routes) >= MAX_ALLOWED_STEPS:
@@ -802,6 +848,106 @@ class RouterStep(TaskStep):
         """
         return _generate_graphviz(
             self, _add_graphviz_router, filename, format, source=source, **kw
+        )
+
+
+class Model(storey.ParallelExecutionRunnable):
+    def load(self) -> None:
+        """Override to load model if needed."""
+        pass
+
+    def init(self):
+        self.load()
+
+    def predict(self, body: Any) -> Any:
+        """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
+        return body
+
+    async def predict_async(self, body: Any) -> Any:
+        """Override to implement prediction logic if the logic requires asyncio."""
+        return body
+
+    def run(self, body: Any, path: str) -> Any:
+        return self.predict(body)
+
+    async def run_async(self, body: Any, path: str) -> Any:
+        return self.predict(body)
+
+
+class ModelSelector:
+    """Used to select which models to run on each event."""
+
+    def select(
+        self, event, available_models: list[Model]
+    ) -> Union[list[str], list[Model]]:
+        """
+        Given an event, returns a list of model names or a list of model objects to run on the event.
+        If None is returned, all models will be run.
+
+        :param event: The full event
+        :param available_models: List of available models
+        """
+        pass
+
+
+class ModelRunner(storey.ParallelExecution):
+    """
+    Runs multiple Models on each event. See ModelRunnerStep.
+
+    :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
+      event. Optional. If not passed, all models will be run.
+    """
+
+    def __init__(self, *args, model_selector: Optional[ModelSelector] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.model_selector = model_selector or ModelSelector()
+
+    def select_runnables(self, event):
+        models = cast(list[Model], self.runnables)
+        return self.model_selector.select(event, models)
+
+
+class ModelRunnerStep(TaskStep):
+    """
+    Runs multiple Models on each event.
+
+    example::
+
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+        model_runner_step.add_model(MyModel(name="my_model"))
+        graph.to(model_runner_step)
+
+    :param model_selector: ModelSelector instance whose select() method will be used to select models to run on each
+      event. Optional. If not passed, all models will be run.
+    """
+
+    kind = "model_runner"
+
+    def __init__(
+        self,
+        *args,
+        model_selector: Optional[Union[str, ModelSelector]] = None,
+        **kwargs,
+    ):
+        self._models = []
+        super().__init__(
+            *args,
+            class_name="mlrun.serving.ModelRunner",
+            class_args=dict(runnables=self._models, model_selector=model_selector),
+            **kwargs,
+        )
+
+    def add_model(self, model: Model) -> None:
+        """Add a Model to this ModelRunner."""
+        self._models.append(model)
+
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        model_selector = self.class_args.get("model_selector")
+        if isinstance(model_selector, str):
+            model_selector = get_class(model_selector, namespace)()
+        self._async_object = ModelRunner(
+            self.class_args.get("runnables"),
+            model_selector=model_selector,
         )
 
 
@@ -1434,6 +1580,7 @@ classes_map = {
     "queue": QueueStep,
     "error_step": ErrorStep,
     "monitoring_application": MonitoringApplicationStep,
+    "model_runner": ModelRunnerStep,
 }
 
 
@@ -1560,7 +1707,7 @@ def get_name(name, class_name):
         raise MLRunInvalidArgumentError("name or class_name must be provided")
     if isinstance(class_name, type):
         return class_name.__name__
-    return class_name
+    return class_name.split(".")[-1]
 
 
 def params_to_step(
@@ -1573,6 +1720,10 @@ def params_to_step(
     input_path: Optional[str] = None,
     result_path: Optional[str] = None,
     class_args=None,
+    model_endpoint_creation_strategy: Optional[
+        schemas.ModelEndpointCreationStrategy
+    ] = None,
+    endpoint_type: Optional[schemas.EndpointType] = None,
 ):
     """return step object from provided params or classes/objects"""
 
@@ -1588,6 +1739,9 @@ def params_to_step(
         step.full_event = full_event or step.full_event
         step.input_path = input_path or step.input_path
         step.result_path = result_path or step.result_path
+        if kind == StepKinds.task:
+            step.model_endpoint_creation_strategy = model_endpoint_creation_strategy
+            step.endpoint_type = endpoint_type
 
     elif class_name and class_name in queue_class_names:
         if "path" not in class_args:
@@ -1628,6 +1782,8 @@ def params_to_step(
             full_event=full_event,
             input_path=input_path,
             result_path=result_path,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
+            endpoint_type=endpoint_type,
         )
     else:
         raise MLRunInvalidArgumentError("class_name or handler must be provided")

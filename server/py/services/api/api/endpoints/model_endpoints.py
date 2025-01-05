@@ -53,6 +53,7 @@ EndpointIDAnnotation = Annotated[
 async def create_model_endpoint(
     model_endpoint: schemas.ModelEndpoint,
     project: ProjectAnnotation,
+    creation_strategy: mm_constants.ModelEndpointCreationStrategy,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> schemas.ModelEndpoint:
@@ -60,15 +61,21 @@ async def create_model_endpoint(
     Create a new model endpoint record in the DB.
     :param model_endpoint:  The model endpoint object.
     :param project:         The name of the project.
+    :param creation_strategy: Strategy for creating or updating the model endpoint:
+        * **overwrite**:
+        1. If model endpoints with the same name exist, delete the `latest` one.
+        2. Create a new model endpoint entry and set it as `latest`.
+        * **inplace** (default):
+        1. If model endpoints with the same name exist, update the `latest` entry.
+        2. Otherwise, create a new entry.
+        * **archive**:
+        1. If model endpoints with the same name exist, preserve them.
+        2. Create a new model endpoint with the same name and set it to `latest`.
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
 
     :return: A Model endpoint object without operative data.
     """
-    logger.info(
-        "Creating Model Endpoint record",
-        model_endpoint_metadata=model_endpoint.metadata,
-    )
     if project != model_endpoint.metadata.project:
         raise MLRunInvalidArgumentError(
             f"Project name in the URL '{project}' does not match the project name in the model endpoint metadata "
@@ -87,10 +94,10 @@ async def create_model_endpoint(
     if not model_endpoint.metadata.project or not model_endpoint.metadata.name:
         raise MLRunInvalidArgumentError("Model endpoint must have project and name")
 
-    return await run_in_threadpool(
-        services.api.crud.ModelEndpoints().create_model_endpoint,
+    return await services.api.crud.ModelEndpoints().create_model_endpoint(
         db_session=db_session,
         model_endpoint=model_endpoint,
+        creation_strategy=creation_strategy,
     )
 
 
@@ -204,6 +211,7 @@ async def list_model_endpoints(
     project: ProjectAnnotation,
     name: Optional[str] = None,
     model_name: Optional[str] = None,
+    model_tag: Optional[str] = None,
     function_name: Optional[str] = None,
     function_tag: Optional[str] = None,
     labels: list[str] = Query([], alias="label"),
@@ -235,7 +243,6 @@ async def list_model_endpoints(
     :param db_session:      A session that manages the current dialog with the database.
     :return:                A list of model endpoints.
     """
-
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=schemas.AuthorizationAction.read,
@@ -247,6 +254,7 @@ async def list_model_endpoints(
         project=project,
         name=name,
         model_name=model_name,
+        model_tag=model_tag,
         function_name=function_name,
         function_tag=function_tag,
         labels=labels,
@@ -285,6 +293,147 @@ async def _verify_model_endpoint_read_permission(
             auth_info=auth_info,
         )
     )
+
+
+async def _collect_get_metrics_tasks_results(
+    endpoint_ids: Union[list[EndpointIDAnnotation], EndpointIDAnnotation],
+    project: str,
+    application_result_types: str,
+    metrics_format=mm_constants.GetEventsFormat.SINGLE,
+) -> list:
+    tasks: list[asyncio.Task] = []
+    if application_result_types == "results" or application_result_types == "all":
+        tasks.append(
+            asyncio.create_task(
+                run_in_threadpool(
+                    services.api.crud.ModelEndpoints.get_model_endpoints_metrics,
+                    endpoint_id=endpoint_ids,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
+                    project=project,
+                    metrics_format=metrics_format,
+                )
+            )
+        )
+    if application_result_types == "metrics" or application_result_types == "all":
+        tasks.append(
+            asyncio.create_task(
+                run_in_threadpool(
+                    services.api.crud.ModelEndpoints.get_model_endpoints_metrics,
+                    endpoint_id=endpoint_ids,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
+                    project=project,
+                    metrics_format=metrics_format,
+                )
+            )
+        )
+    return await asyncio.gather(*tasks)
+
+
+@router.get(
+    "/{endpoint_id}/metrics",
+    response_model=list[mm_endpoints.ModelEndpointMonitoringMetric],
+)
+async def get_model_endpoint_monitoring_metrics(
+    project: ProjectAnnotation,
+    endpoint_id: EndpointIDAnnotation,
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
+    type: Literal["results", "metrics", "all"] = "all",
+) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+    """
+    :param project:     The name of the project.
+    :param endpoint_id: The unique id of the model endpoint.
+    :param auth_info:   The auth info of the request.
+    :param type:        The type of the metrics to return. "all" means "results"
+                        and "metrics".
+
+    :returns:           A list of the application metrics or/and results for this model endpoint.
+    """
+    await _verify_model_endpoint_read_permission(
+        project=project, name_or_uid=endpoint_id, auth_info=auth_info
+    )
+    metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
+
+    task_results = await _collect_get_metrics_tasks_results(
+        endpoint_ids=endpoint_id, project=project, application_result_types=type
+    )
+    for task_result in task_results:
+        metrics.extend(task_result)
+    if type == "metrics" or type == "all":
+        metrics.append(mlrun.model_monitoring.helpers.get_invocations_metric(project))
+    return metrics
+
+
+@router.get(
+    "/metrics",
+    response_model=dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
+)
+async def get_metrics_by_multiple_endpoints(
+    project: ProjectAnnotation,
+    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
+    type: Literal["results", "metrics", "all"] = "all",
+    endpoint_ids: list[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
+    events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
+) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
+    """
+    :param project:       The name of the project.
+    :param auth_info:     The auth info of the request.
+    :param type:          The type of the metrics to return. "all" means "results"
+                          and "metrics".
+    :param endpoint_ids:  The unique id of the model endpoint. Can be a single id or a list of ids.
+    :param events_format: response format:
+
+                          separation: {"mep_id1":[...], "mep_id2":[...]}
+                          intersection {"intersect_metrics":[], "intersect_results":[]}
+    :returns:             A dictionary of application metrics and/or results for the model endpoints,
+                          formatted by events_format.
+    """
+    events = {}
+    permissions_tasks = []
+    is_metrics_supported = type == "metrics" or type == "all"
+    if isinstance(endpoint_ids, str):
+        endpoint_ids = [endpoint_ids]
+
+    for endpoint_id in endpoint_ids:
+        permissions_tasks.append(
+            _verify_model_endpoint_read_permission(
+                project=project, name_or_uid=endpoint_id, auth_info=auth_info
+            )
+        )
+
+    await asyncio.gather(*permissions_tasks)
+
+    task_results = await _collect_get_metrics_tasks_results(
+        endpoint_ids=endpoint_ids,
+        project=project,
+        application_result_types=type,
+        metrics_format=events_format,
+    )
+    if events_format == mm_constants.GetEventsFormat.SEPARATION:
+        for endpoint_id in endpoint_ids:
+            events[endpoint_id] = []
+            for task_result in task_results:
+                events[endpoint_id].extend(task_result.get(endpoint_id, []))
+            if is_metrics_supported:
+                events[endpoint_id].append(
+                    mlrun.model_monitoring.helpers.get_invocations_metric(project)
+                )
+
+    elif events_format == mm_constants.GetEventsFormat.INTERSECTION:
+        for task_result in task_results:
+            events.update(task_result)
+        if is_metrics_supported:
+            metrics_key = mm_constants.INTERSECT_DICT_KEYS[
+                mm_constants.ModelEndpointMonitoringMetricType.METRIC
+            ]
+            events[metrics_key].append(
+                mlrun.model_monitoring.helpers.get_invocations_metric(project)
+            )
+    elif events_format == mm_constants.GetEventsFormat.SINGLE:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "GetEventsFormat.SINGLE is not supported in "
+            "get_metrics_by_multiple_endpoints"
+        )
+    return events
 
 
 @router.get(
@@ -332,59 +481,6 @@ async def get_model_endpoint(
         tsdb_metrics=tsdb_metrics,
         db_session=db_session,
     )
-
-
-@router.get(
-    "/{endpoint_id}/metrics",
-    response_model=list[mm_endpoints.ModelEndpointMonitoringMetric],
-)
-async def get_model_endpoint_monitoring_metrics(
-    project: ProjectAnnotation,
-    endpoint_id: EndpointIDAnnotation,
-    auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
-    type: Literal["results", "metrics", "all"] = "all",
-) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
-    """
-    :param project:     The name of the project.
-    :param endpoint_id: The unique id of the model endpoint.
-    :param auth_info:   The auth info of the request.
-    :param type:        The type of the metrics to return. "all" means "results"
-                        and "metrics".
-
-    :returns:           A list of the application metrics or/and results for this model endpoint.
-    """
-    await _verify_model_endpoint_read_permission(
-        project=project, name_or_uid=endpoint_id, auth_info=auth_info
-    )
-    metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
-    tasks: list[asyncio.Task] = []
-    if type == "results" or type == "all":
-        tasks.append(
-            asyncio.create_task(
-                run_in_threadpool(
-                    services.api.crud.ModelEndpoints.get_model_endpoints_metrics,
-                    endpoint_id=endpoint_id,
-                    type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
-                    project=project,
-                )
-            )
-        )
-    if type == "metrics" or type == "all":
-        tasks.append(
-            asyncio.create_task(
-                run_in_threadpool(
-                    services.api.crud.ModelEndpoints.get_model_endpoints_metrics,
-                    endpoint_id=endpoint_id,
-                    type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
-                    project=project,
-                )
-            )
-        )
-        metrics.append(mlrun.model_monitoring.helpers.get_invocations_metric(project))
-    await asyncio.wait(tasks)
-    for task in tasks:
-        metrics.extend(task.result())
-    return metrics
 
 
 @dataclass
@@ -528,7 +624,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                             start=params.start,
                             end=params.end,
                             aggregation_window=mm_constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY,
-                            agg_funcs=["count"],
+                            agg_funcs=["sum"],
                         )
                     )
                 )

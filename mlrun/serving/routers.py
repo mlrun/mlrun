@@ -30,8 +30,6 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
 from mlrun.utils import logger, now_date
 
-from ..common.schemas.model_monitoring import ModelEndpointSchema
-from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
@@ -110,7 +108,7 @@ class BaseModelRouter(RouterToDict):
 
         return parsed_event
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         self.context.logger.info(f"Loaded {list(self.routes.keys())}")
 
     def get_metadata(self):
@@ -608,19 +606,24 @@ class VotingEnsemble(ParallelRun):
         self.prediction_col_name = prediction_col_name or "prediction"
         self.format_response_with_col_name_flag = format_response_with_col_name_flag
         self.model_endpoint_uid = None
+        self.model_endpoint = None
         self.shard_by_endpoint = shard_by_endpoint
 
-    def post_init(self, mode="sync"):
-        server = getattr(self.context, "_server", None) or getattr(
-            self.context, "server", None
-        )
+    def post_init(self, mode="sync", **kwargs):
+        server: mlrun.serving.GraphServer = getattr(
+            self.context, "_server", None
+        ) or getattr(self.context, "server", None)
         if not server:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
-
         if not self.context.is_mock or self.context.monitoring_mock:
-            self.model_endpoint_uid = _init_endpoint_record(server, self)
-
+            self.model_endpoint = mlrun.get_run_db().get_model_endpoint(
+                project=server.project,
+                name=self.name,
+                function_name=server.function_name,
+                function_tag=server.function_tag or "latest",
+            )
+            self.model_endpoint_uid = self.model_endpoint.metadata.uid
         self._update_weights(self.weights)
 
     def _resolve_route(self, body, urlpath):
@@ -1000,136 +1003,6 @@ class VotingEnsemble(ParallelRun):
                 self._weights[model] = 0
 
 
-def _init_endpoint_record(
-    graph_server: GraphServer, voting_ensemble: VotingEnsemble
-) -> Union[str, None]:
-    """
-    Initialize model endpoint record and write it into the DB. In general, this method retrieve the unique model
-    endpoint ID which is generated according to the function uri and the model version. If the model endpoint is
-    already exist in the DB, we skip the creation process. Otherwise, it writes the new model endpoint record to the DB.
-
-    :param graph_server:    A GraphServer object which will be used for getting the function uri.
-    :param voting_ensemble: Voting ensemble serving class. It contains important details for the model endpoint record
-                            such as model name, model path, model version, and the ids of the children model endpoints.
-
-    :return: Model endpoint unique ID.
-    """
-
-    logger.info("Initializing endpoint records")
-    try:
-        model_endpoint = mlrun.get_run_db().get_model_endpoint(
-            project=graph_server.project,
-            name=voting_ensemble.name,
-            function_name=graph_server.function_name,
-            function_tag=graph_server.function_tag or "latest",
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        model_endpoint = None
-    except mlrun.errors.MLRunBadRequestError as err:
-        logger.info(
-            "Cannot get the model endpoints store", err=mlrun.errors.err_to_str(err)
-        )
-        return
-
-    function = mlrun.get_run_db().get_function(
-        name=graph_server.function_name,
-        project=graph_server.project,
-        tag=graph_server.function_tag or "latest",
-    )
-    function_uid = function.get("metadata", {}).get("uid")
-    # Get the children model endpoints ids
-    children_uids = []
-    children_names = []
-    for _, c in voting_ensemble.routes.items():
-        if hasattr(c, "endpoint_uid"):
-            children_uids.append(c.endpoint_uid)
-            children_names.append(c.name)
-    if not model_endpoint and voting_ensemble.context.server.track_models:
-        logger.info(
-            "Creating a new model endpoint record",
-            name=voting_ensemble.name,
-            project=graph_server.project,
-            function_name=graph_server.function_name,
-            function_tag=graph_server.function_tag or "latest",
-            function_uid=function_uid,
-            model_class=voting_ensemble.__class__.__name__,
-        )
-        model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=graph_server.project,
-                name=voting_ensemble.name,
-                endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.ROUTER,
-            ),
-            spec=mlrun.common.schemas.ModelEndpointSpec(
-                function_name=graph_server.function_name,
-                function_uid=function_uid,
-                function_tag=graph_server.function_tag or "latest",
-                model_class=voting_ensemble.__class__.__name__,
-                children_uids=list(voting_ensemble.routes.keys()),
-            ),
-            status=mlrun.common.schemas.ModelEndpointStatus(
-                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-                if voting_ensemble.context.server.track_models
-                else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
-            ),
-        )
-        db = mlrun.get_run_db()
-        db.create_model_endpoint(model_endpoint=model_endpoint)
-
-    elif model_endpoint:
-        attributes = {}
-        if function_uid != model_endpoint.spec.function_uid:
-            attributes[ModelEndpointSchema.FUNCTION_UID] = function_uid
-        if children_uids != model_endpoint.spec.children_uids:
-            attributes[ModelEndpointSchema.CHILDREN_UIDS] = children_uids
-        if (
-            model_endpoint.status.monitoring_mode
-            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-        ) != voting_ensemble.context.server.track_models:
-            attributes[ModelEndpointSchema.MONITORING_MODE] = (
-                mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-                if voting_ensemble.context.server.track_models
-                else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
-            )
-        if attributes:
-            db = mlrun.get_run_db()
-            logger.info(
-                "Updating model endpoint attributes",
-                attributes=attributes,
-                project=model_endpoint.metadata.project,
-                name=model_endpoint.metadata.name,
-                function_name=model_endpoint.spec.function_name,
-            )
-            model_endpoint = db.patch_model_endpoint(
-                project=model_endpoint.metadata.project,
-                name=model_endpoint.metadata.name,
-                endpoint_id=model_endpoint.metadata.uid,
-                attributes=attributes,
-            )
-    else:
-        logger.info(
-            "Did not create a new model endpoint record, monitoring is disabled"
-        )
-        return None
-
-    # Update model endpoint children type
-    logger.info(
-        "Updating children model endpoint type",
-        children_uids=children_uids,
-        children_names=children_names,
-    )
-    for uid, name in zip(children_uids, children_names):
-        mlrun.get_run_db().patch_model_endpoint(
-            name=name,
-            project=graph_server.project,
-            endpoint_id=uid,
-            attributes={
-                ModelEndpointSchema.ENDPOINT_TYPE: mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
-            },
-        )
-    return model_endpoint.metadata.uid
-
-
 class EnrichmentModelRouter(ModelRouter):
     """
     Model router with feature enrichment and imputing
@@ -1192,7 +1065,7 @@ class EnrichmentModelRouter(ModelRouter):
 
         self._feature_service = None
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         from ..feature_store import get_feature_vector
 
         super().post_init(mode)
@@ -1342,7 +1215,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
 
         self._feature_service = None
 
-    def post_init(self, mode="sync"):
+    def post_init(self, mode="sync", **kwargs):
         from ..feature_store import get_feature_vector
 
         super().post_init(mode)

@@ -35,6 +35,7 @@ from sqlalchemy import (
     case,
     delete,
     distinct,
+    exists,
     func,
     or_,
     select,
@@ -43,6 +44,7 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm.attributes import flag_modified
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -78,6 +80,7 @@ from mlrun.utils import (
     validate_tag_name,
 )
 
+import framework.constants
 import framework.db.session
 import framework.utils.helpers
 from framework.db.base import DBInterface
@@ -115,6 +118,7 @@ from framework.db.sqldb.models import (
     ProjectSummary,
     Run,
     Schedule,
+    SystemMetadata,
     TimeWindowTracker,
     _labeled,
     _tagged,
@@ -853,6 +857,7 @@ class SQLDB(DBInterface):
         uid: typing.Optional[str] = None,
         raise_on_not_found: bool = True,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        as_record: bool = False,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
         enrich_tag = False
@@ -916,6 +921,8 @@ class SQLDB(DBInterface):
         if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, tag)
 
+        if as_record:
+            return db_artifact
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
@@ -954,44 +961,45 @@ class SQLDB(DBInterface):
             producer_id=producer_id,
             with_entities=[ArtifactV2.key, ArtifactV2.uid],
         )
+        total_artifacts = len(distinct_keys_and_uids)
+        max_deletions = config.artifacts.limits.max_deletions
 
-        artifact_column_identifiers = {}
-        for key, uid in distinct_keys_and_uids:
-            artifact_column_identifier, column_value = self._delete_tagged_object(
-                session,
-                ArtifactV2,
-                project=project,
-                uid=uid,
-                key=key,
-                commit=False,
-                producer_id=producer_id,
+        if total_artifacts > max_deletions:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Cannot delete {total_artifacts} artifacts. The maximum allowed artifacts deletions "
+                f"is {max_deletions}. Refine the filter and try again with a smaller batch."
             )
-            if artifact_column_identifier is None:
-                # record was not found
-                continue
 
-            artifact_column_identifiers.setdefault(
-                artifact_column_identifier, []
-            ).append(column_value)
+        logger.info("Deleting artifacts", total_artifacts=total_artifacts)
 
         failed_deletions_count = 0
-        for (
-            artifact_column_identifier,
-            column_values,
-        ) in artifact_column_identifiers.items():
-            deletions_count = self._delete_multi_objects(
-                session=session,
-                main_table=ArtifactV2,
-                project=project,
-                main_table_identifier=getattr(ArtifactV2, artifact_column_identifier),
-                main_table_identifier_values=column_values,
-            )
-            failed_deletions_count += len(column_values) - deletions_count
+
+        for key, uid in distinct_keys_and_uids:
+            try:
+                self._delete_tagged_object(
+                    session,
+                    ArtifactV2,
+                    project=project,
+                    uid=uid,
+                    key=key,
+                    producer_id=producer_id,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to delete artifact",
+                    project=project,
+                    key=key,
+                    uid=uid,
+                    err=err_to_str(exc),
+                )
+                failed_deletions_count += 1
+                continue
 
         if failed_deletions_count:
             raise mlrun.errors.MLRunInternalServerError(
                 f"Failed to delete {failed_deletions_count} artifacts"
             )
+        logger.info("Successfully deleted artifacts", total_artifacts=total_artifacts)
 
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
@@ -1612,20 +1620,21 @@ class SQLDB(DBInterface):
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
 
-        query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+        # To get all artifacts, even if they don't have tags
+        query = query.outerjoin(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
 
         tuples_filter = []
         for key, tag, iteration, uid in artifact_identifiers:
-            iteration = iteration or 0
-            tag = tag or mlrun.common.constants.RESERVED_TAG_NAME_LATEST
-            base_filter = (
-                (ArtifactV2.key == key)
-                & (ArtifactV2.Tag.name == tag)
-                & (ArtifactV2.iteration == iteration)
-            )
-            # Add UID filter only if UID is not None
+            base_filter = ArtifactV2.key == key
+
+            # Prioritize filtering by UID if provided
             if uid is not None:
                 base_filter = base_filter & (ArtifactV2.uid == uid)
+            else:
+                iteration = iteration or 0
+                base_filter = base_filter & (ArtifactV2.iteration == iteration)
+                if tag is not None:
+                    base_filter = base_filter & (ArtifactV2.Tag.name == tag)
             tuples_filter.append(base_filter)
 
         query = query.filter(or_(*tuples_filter))
@@ -1877,6 +1886,105 @@ class SQLDB(DBInterface):
         # body and tag parameter provided.
         artifact.pop("tag", None)
         return updated, key, labels
+
+    def _update_artifact_latest_tag_on_deletion(self, session, object_record):
+        """Update the 'latest' tag for an ArtifactV2 object, moving it to the most recent artifact if necessary."""
+
+        # Step 1: Find the "latest" tag
+        latest_tag = self._find_artifact_latest_tag(session, object_record)
+
+        if not latest_tag:
+            logger.debug(
+                "No 'latest' tag found for artifact",
+                artifact_uid=object_record.uid,
+            )
+            return
+
+        # Check if we should check for other 'latest' tags (only when iteration != 0) for hyperparameters
+        if object_record.iteration != 0:
+            # Step 2: Check if there are other "latest" tags in the other iterations
+            other_latest = self._has_latest_tag_in_different_iterations(
+                session, object_record
+            )
+
+            if other_latest:
+                logger.debug(
+                    "'latest' tag exists in other iterations for the same producer_id. "
+                    "Not moving the 'latest' tag",
+                    artifact_uid=object_record.uid,
+                    producer_id=object_record.producer_id,
+                )
+                return
+
+        # Step 3: Move the "latest" tag to the most recently updated artifact with the same key
+        most_recent_artifact_id = self._find_previous_most_recent_artifact_id(
+            session, object_record
+        )
+
+        if most_recent_artifact_id:
+            logger.debug(
+                "Moving 'latest' tag to the most recent artifact",
+                artifact_id=most_recent_artifact_id,
+            )
+            latest_tag.obj_id = most_recent_artifact_id
+            session.add(latest_tag)
+        else:
+            logger.warning(
+                "No recent artifact found to move 'latest' tag",
+                artifact_uid=object_record.uid,
+            )
+
+    @staticmethod
+    def _find_artifact_latest_tag(session, object_record):
+        """Find the 'latest' tag for an artifact object."""
+        return (
+            session.query(ArtifactV2.Tag)
+            .filter(
+                ArtifactV2.Tag.obj_id == object_record.id,
+                ArtifactV2.Tag.name == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                ArtifactV2.Tag.project == object_record.project,
+            )
+            .one_or_none()
+        )
+
+    @staticmethod
+    def _has_latest_tag_in_different_iterations(session, object_record):
+        """Check if other iterations for the same producer_id have the 'latest' tag."""
+        return (
+            session.query(
+                exists().where(
+                    ArtifactV2.Tag.obj_id != object_record.id,
+                    ArtifactV2.Tag.name
+                    == mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                    ArtifactV2.Tag.project == object_record.project,
+                    ArtifactV2.Tag.obj_name == object_record.key,
+                    ArtifactV2.Tag.obj_id.in_(
+                        session.query(ArtifactV2.id).filter(
+                            ArtifactV2.producer_id == object_record.producer_id,
+                            ArtifactV2.iteration != object_record.iteration,
+                            ArtifactV2.project == object_record.project,
+                            ArtifactV2.key == object_record.key,
+                        )
+                    ),
+                )
+            ).scalar()  # Returns True if exists, False otherwise
+        )
+
+    @staticmethod
+    def _find_previous_most_recent_artifact_id(session, object_record):
+        """Find the most recent artifact id based on the update timestamp, excluding the current artifact."""
+        query = session.query(ArtifactV2.id).filter(
+            ArtifactV2.id != object_record.id,
+            ArtifactV2.project == object_record.project,
+            ArtifactV2.key == object_record.key,
+            ArtifactV2.best_iteration,
+        )
+
+        # Return the ID of the most recent artifact based on the update timestamp.
+        # Since `.first()` returns a tuple when selecting specific columns (e.g., artifact ID),
+        # we access the first element of the tuple to retrieve the ID.
+        result = query.order_by(ArtifactV2.updated.desc()).first()
+        return result[0] if result else None
 
     # ---- Functions ----
     @retry_on_conflict
@@ -2983,7 +3091,7 @@ class SQLDB(DBInterface):
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
-                self._calculate_files_counters,
+                self._calculate_artifact_counters_by_category,
             ),
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
@@ -2992,10 +3100,6 @@ class SQLDB(DBInterface):
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
                 self._calculate_feature_sets_counters,
-            ),
-            fastapi.concurrency.run_in_threadpool(
-                framework.db.session.run_function_with_new_db_session,
-                self._calculate_models_counters,
             ),
             fastapi.concurrency.run_in_threadpool(
                 framework.db.session.run_function_with_new_db_session,
@@ -3008,14 +3112,13 @@ class SQLDB(DBInterface):
             ),
         )
         (
-            project_to_files_count,
+            category_to_project_artifact_count,
             (
                 project_to_schedule_count,
                 project_to_schedule_pending_jobs_count,
                 project_to_schedule_pending_workflows_count,
             ),
             project_to_feature_set_count,
-            project_to_models_count,
             (
                 project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
@@ -3027,13 +3130,21 @@ class SQLDB(DBInterface):
                 project_to_other_alerts_count,
             ),
         ) = results
+        # TODO: counters by artifact categories should be expanded to include all categories (currently only models
+        #       and other)
         return (
-            project_to_files_count,
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.other,
+                collections.defaultdict(lambda: 0),
+            ),
             project_to_schedule_count,
             project_to_schedule_pending_jobs_count,
             project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
-            project_to_models_count,
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.model,
+                collections.defaultdict(lambda: 0),
+            ),
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
@@ -3134,33 +3245,22 @@ class SQLDB(DBInterface):
         }
         return project_to_feature_set_count
 
-    def _calculate_models_counters(self, session) -> dict[str, int]:
-        # We're using the "most_recent" which gives us only one version of each artifact key, which is what we want to
-        # count (artifact count, not artifact versions count)
-        model_artifacts = self._find_artifacts(
-            session,
-            None,
-            kind=mlrun.common.schemas.ArtifactCategories.model,
-            most_recent=True,
-        )
-        project_to_models_count = collections.defaultdict(int)
-        for model_artifact in model_artifacts:
-            project_to_models_count[model_artifact.project] += 1
-        return project_to_models_count
+    @staticmethod
+    def _calculate_artifact_counters_by_category(
+        session: Session,
+    ) -> dict[str, dict[str, int]]:
+        query = session.query(
+            ArtifactV2.project, ArtifactV2.kind, func.count(distinct(ArtifactV2.key))
+        ).group_by(ArtifactV2.project, ArtifactV2.kind)
 
-    def _calculate_files_counters(self, session) -> dict[str, int]:
-        # We're using the "most_recent" flag which gives us only one version of each artifact key, which is what we
-        # want to count (artifact count, not artifact versions count)
-        file_artifacts = self._find_artifacts(
-            session,
-            None,
-            category=mlrun.common.schemas.ArtifactCategories.other,
-            most_recent=True,
-        )
-        project_to_files_count = collections.defaultdict(int)
-        for file_artifact in file_artifacts:
-            project_to_files_count[file_artifact.project] += 1
-        return project_to_files_count
+        category_to_project_artifact_count = {}
+        for project, kind, count in query.all():
+            category = mlrun.common.schemas.ArtifactCategories.from_kind(kind)
+            category_to_project_artifact_count.setdefault(category, {})
+            category_to_project_artifact_count[category].setdefault(project, 0)
+            category_to_project_artifact_count[category][project] += count
+
+        return category_to_project_artifact_count
 
     @staticmethod
     def _calculate_runs_counters(
@@ -4690,7 +4790,6 @@ class SQLDB(DBInterface):
         uid=None,
         name=None,
         key=None,
-        commit=True,
         **kwargs,
     ):
         # TODO: Tag is now cascaded in the DB level so this should not be needed anymore
@@ -4739,21 +4838,14 @@ class SQLDB(DBInterface):
             # get the object id from the object record
             object_id = object_record.id
 
+            if cls == ArtifactV2:
+                self._update_artifact_latest_tag_on_deletion(session, object_record)
+
         if object_id:
-            if not commit:
-                return "id", object_id
-            # deleting tags, because in sqlite the relationships aren't necessarily cascading
-            self._delete(session, cls.Tag, obj_id=object_id)
             self._delete(session, cls, id=object_id)
         else:
-            if not commit:
-                if name:
-                    return "name", obj_name
-                return "key", obj_name
             # If we got here, neither tag nor uid were provided - delete all references by name.
-            # deleting tags, because in sqlite the relationships aren't necessarily cascading
             identifier = {"name": obj_name} if name else {"key": obj_name}
-            self._delete(session, cls.Tag, project=project, obj_name=obj_name)
             self._delete(session, cls, project=project, **identifier)
 
     def _resolve_class_tag_uid(self, session, cls, project, obj_name, tag_name):
@@ -4914,17 +5006,23 @@ class SQLDB(DBInterface):
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects
                     )
-
-                    mlrun_error = mlrun.errors.MLRunRuntimeError(
-                        f"Failed committing changes to DB. classes={classes} objects={identifiers}"
-                    )
-
                     # check if the error is a conflict error
                     if any([message in str(sql_err) for message in conflict_messages]):
                         mlrun_error = mlrun.errors.MLRunConflictError(
                             f"Conflict - at least one of the objects already exists: {identifiers}"
                         )
-
+                    else:
+                        error = "Failed committing changes to DB"
+                        if "Out of range value for column" in str(sql_err):
+                            column = sql_err.orig.args[1].split("'")[1]
+                            mlrun_error = mlrun.errors.MLRunRuntimeError(
+                                f"{error}, column='{column}' exceeds the allowed range. "
+                                + f"classes={classes} objects={identifiers}"
+                            )
+                        else:
+                            mlrun_error = mlrun.errors.MLRunRuntimeError(
+                                f"{error}. classes={classes} objects={identifiers}"
+                            )
                     # we want to keep the exception stack trace, but we also want the retry mechanism to stop
                     # so, we raise a new indicative exception from the original sql exception (this keeps
                     # the stack trace intact), and then wrap it with a fatal error (which stops the retry mechanism).
@@ -5060,6 +5158,7 @@ class SQLDB(DBInterface):
         function_name: str,
         function_tag: str,
         model_name: str,
+        model_tag: str,
         top_level: bool,
         labels: list[str],
         start: datetime,
@@ -5068,6 +5167,7 @@ class SQLDB(DBInterface):
         latest_only: bool,
         offset: int,
         limit: int,
+        order_by: str,
     ) -> sqlalchemy.orm.query.Query:
         """
         Query model_endpoints from the DB by the given filters.
@@ -5141,6 +5241,15 @@ class SQLDB(DBInterface):
                 combined=False,
             )
 
+        if model_tag:
+            query = self._filter_values(
+                query=query,
+                cls=model_endpoints_table,
+                key_filter=ModelEndpointSchema.MODEL_TAG,
+                filtered_values=[model_tag],
+                combined=False,
+            )
+
         if start or end:
             query = generate_time_range_query(
                 query=query, field=ModelEndpoint.created, since=start, until=end
@@ -5158,6 +5267,12 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, ModelEndpoint, labels)
         query = self._paginate_query(query, offset, limit)
+        try:
+            if order_by:
+                query = query.order_by(getattr(ModelEndpoint, order_by).asc())
+        except AttributeError as err:
+            logger.warning("Skipping order by", error=mlrun.errors.err_to_str(err))
+
         return query
 
     @staticmethod
@@ -5381,9 +5496,6 @@ class SQLDB(DBInterface):
         model_endpoint_record: ModelEndpoint, model_endpoint_full_dict: dict
     ) -> dict:
         if model_endpoint_record.model:
-            model_endpoint_full_dict[ModelEndpointSchema.MODEL_NAME] = (
-                model_endpoint_record.model.key
-            )
             model_artifact_uri = mlrun.datastore.get_store_uri(
                 kind=mlrun.utils.helpers.StorePrefix.Model,
                 uri=generate_artifact_uri(
@@ -5743,7 +5855,6 @@ class SQLDB(DBInterface):
         if not alert_record:
             return self._create_alert(session, alert)
         alert_record.full_object = alert.dict()
-        alert_state = self.get_alert_state(session, alert_record.id)
 
         self._delete_alert_notifications(session, alert.name, alert, alert.project)
         self._store_notifications(
@@ -5754,27 +5865,25 @@ class SQLDB(DBInterface):
             alert.project,
         )
 
-        self._upsert(session, [alert_record, alert_state])
+        self._upsert(session, [alert_record])
         return self.get_alert_by_id(session, alert_record.id)
 
     def _create_alert(
         self, session, alert: mlrun.common.schemas.AlertConfig
     ) -> mlrun.common.schemas.AlertConfig:
         alert_record = self._transform_alert_config_schema_to_record(alert)
-        self._upsert(session, [alert_record])
-
-        alert_record = self._get_alert_record(
-            session, alert_record.name, alert_record.project
+        alert_id = self._upsert_object_and_flush_to_get_field(
+            session, alert_record, "id"
         )
 
         self._store_notifications(
             session,
             AlertConfig,
             alert.get_raw_notifications(),
-            alert_record.id,
+            alert_id,
             alert.project,
         )
-        self.create_alert_state(session, alert_record)
+        self.create_alert_state(session, alert_id)
 
         return self._transform_alert_config_record_to_schema(alert_record)
 
@@ -5884,6 +5993,12 @@ class SQLDB(DBInterface):
 
         if not new_partitions:
             return
+
+        logger.info(
+            "Creating new partitions for table",
+            table_name=table_name,
+            new_partitions=new_partitions,
+        )
 
         alter_table_template = f"""
             ALTER TABLE {table_name}
@@ -6013,7 +6128,7 @@ class SQLDB(DBInterface):
     @staticmethod
     def _transform_alert_config_record_to_schema(
         alert_config_record: AlertConfig,
-    ) -> mlrun.common.schemas.AlertConfig:
+    ) -> typing.Optional[mlrun.common.schemas.AlertConfig]:
         if alert_config_record is None:
             return None
 
@@ -6054,8 +6169,20 @@ class SQLDB(DBInterface):
         active: bool = False,
         obj: typing.Optional[dict] = None,
     ):
-        alert = self.get_alert(session, project, name)
-        state = self.get_alert_state(session, alert.id)
+        query = (
+            self._query(session, AlertState)
+            .join(AlertConfig, AlertConfig.id == AlertState.parent_id)
+            .filter(
+                AlertConfig.name == name,
+                AlertConfig.project == project,
+            )
+        )
+        state = query.one_or_none()
+        if state is None:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert state not found for alert name: {name}, project: {project}"
+            )
+
         if count is not None:
             state.count = count
         state.last_updated = last_updated
@@ -6065,15 +6192,20 @@ class SQLDB(DBInterface):
         self._upsert(session, [state])
 
     def get_alert_state(self, session, alert_id: int) -> AlertState:
-        return self._query(session, AlertState, parent_id=alert_id).one()
+        state = self._query(session, AlertState, parent_id=alert_id).one_or_none()
+        if state is None:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert state not found for alert id: {alert_id}"
+            )
+        return state
 
     def get_alert_state_dict(self, session, alert_id: int) -> dict:
         state = self.get_alert_state(session, alert_id)
         if state is not None:
             return state.to_dict()
 
-    def create_alert_state(self, session, alert_record):
-        state = AlertState(count=0, parent_id=alert_record.id)
+    def create_alert_state(self, session, alert_id):
+        state = AlertState(count=0, parent_id=alert_id)
         self._upsert(session, [state])
 
     def delete_alert_notifications(
@@ -6107,13 +6239,9 @@ class SQLDB(DBInterface):
         session,
         alert_data: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
-        notifications_states: list[mlrun.common.schemas.NotificationState],
-    ) -> Optional[str]:
+    ) -> int:
         extra_data = {
-            "notifications": [
-                notification.dict() for notification in notifications_states
-            ],
-            "criteria": alert_data.criteria.dict() if alert_data.criteria else None,
+            "criteria": alert_data.criteria.dict(),
         }
 
         # For JOB entities, construct entity_id as "name.uid" format
@@ -6136,17 +6264,18 @@ class SQLDB(DBInterface):
             data=extra_data,
         )
 
-        # if reset_policy is MANUAL, we need to keep id to be able to update number_of_events
-        # when the alert is reset
-        if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
-            return self._upsert_object_and_flush_to_get_field(
-                session, alert_activation_record, "id"
-            )
-        else:
-            # for auto reset policy reset_time is the same as the activation time
-            # for manual reset policy, we keep it empty until the alert is reset
+        # for auto reset policy reset_time is the same as the activation time
+        # for manual reset policy, we keep it empty until the alert is reset
+        if alert_data.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO:
             alert_activation_record.reset_time = alert_activation_record.activation_time
-            self._upsert(session, [alert_activation_record])
+
+        # we need to keep id to be able to update number_of_events for manual reset policy
+        # and to update notification state when notification is sent
+        # NOTE: activation time is truncated to milliseconds when being saved to the database as we use mysql.DATETIME
+        # example: 2024-12-18T16:06:09.083606+00:00 will be saved as 2024-12-18T16:06:09.084000+00:00
+        return self._upsert_object_and_flush_to_get_field(
+            session, alert_activation_record, "id"
+        )
 
     def update_alert_activation(
         self,
@@ -6154,18 +6283,37 @@ class SQLDB(DBInterface):
         activation_id: int,
         activation_time: datetime,
         number_of_events: Optional[int] = None,
+        notifications_states: Optional[
+            list[mlrun.common.schemas.NotificationState]
+        ] = None,
+        update_reset_time: bool = False,
     ):
         query = self._query(
             session, AlertActivation, id=activation_id, activation_time=activation_time
         )
         activation = query.one_or_none()
         if not activation:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Alert activation not found for id: {activation_id}"
-            )
+            # if the activation is not found, we try to find it again by id only
+            # (in case something happened with activation time)
+            # usually it won't really happen, but just stay in safe side
+            query = self._query(session, AlertActivation, id=activation_id)
+            activation = query.one_or_none()
+            if not activation:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Alert activation not found for id: {activation_id}"
+                )
         if number_of_events:
             activation.number_of_events = number_of_events
-        activation.reset_time = mlrun.utils.now_date()
+        if update_reset_time:
+            activation.reset_time = mlrun.utils.now_date()
+        if notifications_states:
+            data = activation.data or {}
+            data["notifications"] = [
+                notification.dict() for notification in notifications_states
+            ]
+            activation.data = data
+            # is needed for proper update of JSON field
+            flag_modified(activation, "data")
         self._upsert(session, [activation])
 
     def list_alert_activations(
@@ -6494,7 +6642,7 @@ class SQLDB(DBInterface):
         session,
         cls,
         notification_objects: list[mlrun.model.Notification],
-        parent_id: str,
+        parent_id: Union[str, int],
         project: str,
     ):
         db_notifications = {
@@ -6504,12 +6652,6 @@ class SQLDB(DBInterface):
             )
         }
         notifications = []
-        logger.debug(
-            "Storing notifications",
-            notifications_length=len(notification_objects),
-            parent_id=parent_id,
-            project=project,
-        )
         for notification_model in notification_objects:
             new_notification = False
             notification = db_notifications.get(notification_model.name, None)
@@ -6979,6 +7121,7 @@ class SQLDB(DBInterface):
         function_name: typing.Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         model_name: typing.Optional[str] = None,
+        model_tag: typing.Optional[str] = None,
         top_level: typing.Optional[bool] = None,
         labels: typing.Optional[list[str]] = None,
         start: typing.Optional[datetime] = None,
@@ -6987,6 +7130,7 @@ class SQLDB(DBInterface):
         latest_only: bool = False,
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
+        order_by: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         model_endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
         for mep_record in self._find_model_endpoints(
@@ -6997,6 +7141,7 @@ class SQLDB(DBInterface):
             function_name=function_name,
             function_tag=function_tag,
             model_name=model_name,
+            model_tag=model_tag,
             top_level=top_level,
             start=start,
             end=end,
@@ -7004,6 +7149,7 @@ class SQLDB(DBInterface):
             latest_only=latest_only,
             offset=offset,
             limit=limit,
+            order_by=order_by,
         ):
             model_endpoints.append(
                 self._transform_model_endpoint_model_to_schema(mep_record)
@@ -7046,6 +7192,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         project: str,
+        uids: typing.Optional[list[str]] = None,
     ) -> None:
         logger.debug("Removing model endpoints from db", project=project)
 
@@ -7054,7 +7201,25 @@ class SQLDB(DBInterface):
             main_table=ModelEndpoint,
             related_tables=[ModelEndpoint.Tag, ModelEndpoint.Label],
             project=project,
+            main_table_identifier=ModelEndpoint.uid if uids else None,
+            main_table_identifier_values=uids,
         )
+
+    def get_system_id(self, session: Session) -> typing.Optional[str]:
+        system_id_record = (
+            self._query(session, SystemMetadata)
+            .filter(SystemMetadata.key == framework.constants.SYSTEM_ID_KEY)
+            .one_or_none()
+        )
+        return system_id_record.value if system_id_record else None
+
+    def store_system_id(self, session: Session, system_id: str):
+        logger.debug("Storing a new system id in DB", system_id=system_id)
+
+        system_id_record = SystemMetadata(
+            key=framework.constants.SYSTEM_ID_KEY, value=system_id
+        )
+        self._upsert(session, [system_id_record])
 
     # ---- Utils ----
     def delete_table_records(

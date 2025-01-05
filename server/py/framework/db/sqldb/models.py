@@ -242,6 +242,7 @@ with warnings.catch_warnings():
                 "kind",
             ),
             Index("idx_artifacts_name_uid_project", "key", "uid", "project"),
+            Index("idx_project_kind_key", "project", "kind", "key"),
         )
 
         Label = make_label(__tablename__)
@@ -762,7 +763,7 @@ with warnings.catch_warnings():
         count = Column(Integer)
         created = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
-            default=datetime.now(timezone.utc),
+            default=datetime.utcnow,
         )
         last_updated = Column(
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
@@ -967,6 +968,18 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}_{self.name}_{self.created}"
+
+    class SystemMetadata(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "system_metadata"
+        __table_args__ = (UniqueConstraint("key", name="_system_metadata_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        key = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        # This column stores a string value, when extracting or manipulating it, ensure to handle it appropriately
+        value = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.key}"
 
 
 def get_partitioned_table_names():

@@ -39,4 +39,6 @@ def test_create_with_empty_feature_stats(
     db: sqlalchemy.orm.Session,
     model_endpoint: mlrun.common.schemas.ModelEndpoint,
 ) -> None:
-    ModelEndpoints.create_model_endpoint(db_session=db, model_endpoint=model_endpoint)
+    ModelEndpoints().create_model_endpoint(
+        db_session=db, model_endpoint=model_endpoint, creation_strategy="inplace"
+    )

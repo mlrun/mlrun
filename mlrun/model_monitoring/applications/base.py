@@ -14,7 +14,8 @@
 
 import socket
 from abc import ABC, abstractmethod
-from datetime import datetime
+from collections.abc import Iterator
+from datetime import datetime, timedelta
 from typing import Any, Optional, Union, cast
 
 import pandas as pd
@@ -93,9 +94,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         context: "mlrun.MLClientCtx",
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
-        endpoint_names: Optional[list[str]] = None,
+        endpoints: Optional[list[tuple[str, str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
+        base_period: Optional[int] = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -112,41 +114,68 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         def call_do_tracking(event: Optional[dict] = None):
             if event is None:
                 event = {}
-            monitoring_context = mm_context.MonitoringApplicationContext(
+            monitoring_context = mm_context.MonitoringApplicationContext._from_ml_ctx(
                 event=event,
                 application_name=self.__class__.__name__,
-                logger=context.logger,
-                artifacts_logger=context,
+                context=context,
                 sample_df=sample_data,
                 feature_stats=feature_stats,
             )
             return self.do_tracking(monitoring_context)
 
-        if endpoint_names is not None:
-            start, end = self._validate_times(start, end)
-            for endpoint_name in endpoint_names:
-                result = call_do_tracking(
-                    event={
-                        mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
-                        mm_constants.ApplicationEvent.START_INFER_TIME: start,
-                        mm_constants.ApplicationEvent.END_INFER_TIME: end,
-                    }
-                )
-                context.log_result(
-                    f"{endpoint_name}_{start.isoformat()}_{end.isoformat()}", result
-                )
+        if endpoints is not None:
+            start, end = self._validate_times(start, end, base_period)
+            for window_start, window_end in self._window_generator(
+                start, end, base_period
+            ):
+                for endpoint_name, endpoint_id in endpoints:
+                    result = call_do_tracking(
+                        event={
+                            mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
+                            mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
+                            mm_constants.ApplicationEvent.START_INFER_TIME: window_start,
+                            mm_constants.ApplicationEvent.END_INFER_TIME: window_end,
+                        }
+                    )
+                    context.log_result(
+                        f"{endpoint_name}_{window_start.isoformat()}_{window_end.isoformat()}",
+                        result,
+                    )
         else:
             return call_do_tracking()
 
     @staticmethod
     def _validate_times(
-        start: Optional[datetime], end: Optional[datetime]
+        start: Optional[datetime],
+        end: Optional[datetime],
+        base_period: Optional[int],
     ) -> tuple[datetime, datetime]:
         if (start is None) or (end is None):
             raise mlrun.errors.MLRunValueError(
                 "When `endpoint_names` is provided, you must also pass the start and end times"
             )
+        if (base_period is not None) and not (
+            isinstance(base_period, int) and base_period > 0
+        ):
+            raise mlrun.errors.MLRunValueError(
+                "`base_period` must be a nonnegative integer - the number of minutes in a monitoring window"
+            )
         return start, end
+
+    @staticmethod
+    def _window_generator(
+        start: datetime, end: datetime, base_period: Optional[int]
+    ) -> Iterator[tuple[datetime, datetime]]:
+        if base_period is None:
+            yield start, end
+            return
+
+        window_length = timedelta(minutes=base_period)
+        current_start_time = start
+        while current_start_time < end:
+            current_end_time = min(current_start_time + window_length, end)
+            yield current_start_time, current_end_time
+            current_start_time = current_end_time
 
     @classmethod
     def deploy(
@@ -200,31 +229,39 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         with_repo: Optional[bool] = False,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
-        endpoint_names: Optional[list[str]] = None,
+        endpoints: Optional[list[tuple[str, str]]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
+        base_period: Optional[int] = None,
     ) -> "mlrun.RunObject":
         """
         Call this function to run the application's
         :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
         model monitoring logic as a :py:class:`~mlrun.runtimes.KubejobRuntime`, which is an MLRun function.
 
-        :param func_path: The path to the function. If not passed, the current notebook is used.
-        :param func_name: The name of the function. If not passed, the class name is used.
-        :param tag:       An optional tag for the function.
-        :param run_local: Whether to run the function locally or remotely.
-        :param sample_data:       Optional - pandas data-frame as the current dataset.
+        This method has default values for all of its arguments. You should be change them when you want to pass
+        data to the application.
+
+        :param func_path:         The path to the function. If ``None``, the current notebook is used.
+        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param tag:               Tag for the function.
+        :param run_local:         Whether to run the function locally or remotely.
+        :param sample_data:       Pandas data-frame as the current dataset.
                                   When set, it replaces the data read from the model endpoint's offline source.
-        :param reference_data:    Optional - pandas data-frame of the reference dataset.
+        :param reference_data:    Pandas data-frame of the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
         :param image:             Docker image to run the job on.
         :param with_repo:         Whether to clone the current repo to the build source.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
-        :param endpoint_names:    The model endpoint names to get the data from. When the names are passed,
-                                  you have to provide also the start and end times of the data to analyze.
+        :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from.
+                                  If provided, you have to provide also the start and end times of the data to analyze.
         :param start:             The start time of the sample data.
         :param end:               The end time of the sample data.
+        :param base_period:       The window length in minutes. If ``None``, the whole window from ``start`` to ``end``
+                                  is taken. If an integer is specified, the application is run from ``start`` to ``end``
+                                  in ``base_period`` length windows, except for the last window that ends at ``end`` and
+                                  therefore may be shorter.
 
         :returns: The output of the
                   :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
@@ -250,12 +287,17 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             ),
         )
 
-        params: dict[str, Union[list[str], datetime]] = {}
-        if endpoint_names:
-            start, end = cls._validate_times(start, end)
-            params["endpoint_names"] = endpoint_names
+        params: dict[str, Union[list[tuple[str, str]], datetime, int, None]] = {}
+        if endpoints:
+            start, end = cls._validate_times(start, end, base_period)
+            params["endpoints"] = endpoints
             params["start"] = start
             params["end"] = end
+            params["base_period"] = base_period
+        elif start or end or base_period:
+            raise mlrun.errors.MLRunValueError(
+                "Custom start and end times or base_period are supported only with endpoints data"
+            )
 
         inputs: dict[str, str] = {}
         for data, identifier in [

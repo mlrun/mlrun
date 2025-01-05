@@ -11,8 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 from unittest import mock
+
+import pytest
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.config
@@ -68,20 +71,13 @@ def test_get_file_target_path():
     )
 
 
-def test_get_stream_path():
+def test_get_stream_path(monkeypatch: pytest.MonkeyPatch):
     # default stream path
     stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
     assert stream_path == f"v3io:///projects/{TEST_PROJECT}/model-endpoints/stream"
 
-    mlrun.mlconf.ce.mode = "full"
-    stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
-    assert (
-        stream_path
-        == f"http://nuclio-{TEST_PROJECT}-model-monitoring-stream.{mlrun.mlconf.namespace}.svc.cluster.local:8080"
-    )
-
     # kafka stream path from env
-    os.environ["STREAM_PATH"] = "kafka://some_kafka_broker:8080"
+    monkeypatch.setenv("STREAM_PATH", "kafka://some_kafka_broker:8080")
     stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
     assert (
         stream_path

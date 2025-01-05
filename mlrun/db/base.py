@@ -23,6 +23,7 @@ import mlrun.common
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.model_monitoring
 
@@ -56,6 +57,24 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
+        pass
+
+    @abstractmethod
+    def push_run_notifications(
+        self,
+        uid,
+        project="",
+        timeout=45,
+    ):
+        pass
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
         pass
 
     @abstractmethod
@@ -325,6 +344,15 @@ class RunDBInterface(ABC):
         endpoint_id: str,
         type: Literal["results", "metrics", "all"] = "all",
     ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        pass
+
+    def get_metrics_by_multiple_endpoints(
+        self,
+        project: str,
+        endpoint_ids: Union[str, list[str]],
+        type: Literal["results", "metrics", "all"] = "all",
+        events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
+    ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
         pass
 
     @abstractmethod
@@ -666,6 +694,9 @@ class RunDBInterface(ABC):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        creation_strategy: Optional[
+            mm_constants.ModelEndpointCreationStrategy
+        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
@@ -688,6 +719,7 @@ class RunDBInterface(ABC):
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         model_name: Optional[str] = None,
+        model_tag: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: Optional[datetime.datetime] = None,
         end: Optional[datetime.datetime] = None,
@@ -894,6 +926,14 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def update_alert_activation(
+        self,
+        activation_id: int,
+        activation_time: datetime.datetime,
+        notifications_states,
+    ):
+        pass
+
     @abstractmethod
     def get_builder_status(
         self,
@@ -1057,7 +1097,7 @@ class RunDBInterface(ABC):
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, str],
+        credentials: dict[str, Optional[str]],
         replace_creds: bool,
     ) -> None:
         pass

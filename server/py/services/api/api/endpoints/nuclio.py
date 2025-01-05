@@ -259,25 +259,6 @@ async def deploy_function(
         )
     )
 
-    # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
-    # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
-    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get(
-        "spec", {}
-    ).get("track_models", False):
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
-            logger.info(
-                "Requesting to deploy serving function with track models, re-routing to chief",
-                name=name,
-                project=project,
-                function=function,
-            )
-            chief_client = framework.utils.clients.chief.Client()
-            return await chief_client.build_function(request=request, json=data)
-
     fn = await run_in_threadpool(
         _deploy_function,
         db_session,
@@ -289,9 +270,20 @@ async def deploy_function(
         client_version,
         client_python_version,
     )
+    endpoints: list[mlrun.common.schemas.ModelEndpoint] = []
 
+    if fn.kind == mlrun.runtimes.RuntimeKinds.serving:
+        monitoring_deployment = (
+            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=project
+            )
+        )
+        endpoints = await monitoring_deployment.create_model_endpoints(
+            function=fn, function_name=name
+        )
     return {
         "data": fn.to_dict(),
+        "endpoints_list": mlrun.common.schemas.ModelEndpointList(endpoints=endpoints),
     }
 
 
@@ -521,6 +513,7 @@ def _deploy_nuclio_runtime(
     serving_to_monitor = (
         fn.kind == mlrun.runtimes.RuntimeKinds.serving and fn.spec.track_models
     )
+
     if monitoring_application or serving_to_monitor:
         if not mlrun.mlconf.is_ce_mode():
             model_monitoring_access_key = process_model_monitoring_secret(

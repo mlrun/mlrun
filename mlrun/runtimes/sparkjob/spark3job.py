@@ -769,7 +769,7 @@ class Spark3Runtime(KubejobRuntime):
             self.spec.spark_conf["spark.eventLog.dir"] = (
                 "file://" + config.spark_history_server_path
             )
-        if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
+        if self.spec.monitoring.get("enabled"):
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
             )

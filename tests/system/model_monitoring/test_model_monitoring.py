@@ -111,7 +111,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
             tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
         self.project.set_model_monitoring_credentials(
-            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
         db = mlrun.get_run_db()

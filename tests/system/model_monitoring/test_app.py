@@ -1633,7 +1633,7 @@ class TestBatchServingWithSampling(TestMLRunSystem):
 
     def _set_credentials(self) -> None:
         self.project.set_model_monitoring_credentials(
-            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
 

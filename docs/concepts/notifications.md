@@ -49,14 +49,20 @@ See {py:class}`~mlrun.common.schemas.notification.NotificationKind`.
 ## Mail notifications
 To send mail notifications, you need to use existing SMTP server.
 ```python
-mail_notification = mlrun.model.Notification(kind="mail",
-                                             when=["completed", "error", "running"],
-                                             name="mail-notification",
-                                             message="",
-                                             condition="",
-                                             severity="verbose",
-                                             params={"start_tls": True, "use_tls": False, "validate_certs": False,
-                                              "email_addresses": ["hegeg56369@inikale.com"]})
+mail_notification = mlrun.model.Notification(
+    kind="mail",
+    when=["completed", "error", "running"],
+    name="mail-notification",
+    message="",
+    condition="",
+    severity="verbose",
+    params={
+        "start_tls": True,
+        "use_tls": False,
+        "validate_certs": False,
+        "email_addresses": ["hegeg56369@inikale.com"],
+    },
+)
 ```
 We use the [aiosmtplib](https://aiosmtplib.readthedocs.io/en/stable/) library to send the mail notifications.
 The `params` field should contain the following fields:
@@ -78,6 +84,7 @@ If your mlrun deployment is on Iguazio system, you already have a SMTP server.
 For using it you should do the following (with privileged user):
 ```python
 import mlrun
+
 mlrun.get_run_db().refresh_smtp_configuration()
 ```
 The `refresh_smtp_configuration` method will get the smtp configuration from the Iguazio platform and set it

@@ -47,7 +47,7 @@ It's essential to utilize `secret_params` exclusively for handling sensitive inf
 See {py:class}`~mlrun.common.schemas.notification.NotificationKind`.
 
 ## Mail notifications
-To send mail notifications, you need to use existing SMTP server.
+To send mail notifications, you need an existing SMTP server.
 ```python
 mail_notification = mlrun.model.Notification(
     kind="mail",
@@ -60,28 +60,28 @@ mail_notification = mlrun.model.Notification(
         "start_tls": True,
         "use_tls": False,
         "validate_certs": False,
-        "email_addresses": ["hegeg56369@inikale.com"],
+        "email_addresses": ["user.name@domain.com"],
     },
 )
 ```
-We use the [aiosmtplib](https://aiosmtplib.readthedocs.io/en/stable/) library to send the mail notifications.
-The `params` field should contain the following fields:
- - server_host: The SMTP server host.
- - server_port: The SMTP server port.
- - sender_address: The sender email address.
- - username: The username for the SMTP server.
- - password: The password for the SMTP server.
- - email_addresses: The list of email addresses to send the mail to.
- - start_tls: Whether to start the TLS connection.
- - use_tls: Whether to use TLS.
- - validate_certs: Whether to validate the certificates.
+We use the [aiosmtplib](https://aiosmtplib.readthedocs.io/en/stable/) library for sending the mail notifications.
+The `params` argument is a dictionary, that supports the following fields:
+ - server_host (string): The SMTP server host.
+ - server_port (int): The SMTP server port.
+ - sender_address (string): The sender email address.
+ - username (string): The username for the SMTP server.
+ - password (string): The password for the SMTP server.
+ - email_addresses (list of strings): The list of email addresses to send the mail to.
+ - start_tls (boolean): Whether to start the TLS connection.
+ - use_tls (boolean): Whether to use TLS.
+ - validate_certs (boolean): Whether to validate the certificates.
 
-About start_tls and use_tls you can read more on [aiosmtplib doc](https://aiosmtplib.readthedocs.io/en/stable/encryption.html).
-If one of the above params wasn't set, the default param from the `mlrun-smtp-config` secret will be used.
+You can read more about `start_tls` and `use_tls` on the  [aiosmtplib docs](https://aiosmtplib.readthedocs.io/en/stable/encryption.html).
+If one of the above params wasn't set, the default param from the `mlrun-smtp-config` (see below) secret will be used.
 
 ### MLRun on Iguazio
-If your mlrun deployment is on Iguazio system, you already have a SMTP server.
-For using it you should do the following (with privileged user):
+If MLRun is deployed on the Iguazio platform, an SMTP server already exists.
+To use it, run the following (with privileged user - `IT Admin`):
 ```python
 import mlrun
 
@@ -92,10 +92,10 @@ as the default smtp configuration (create a `mlrun-smtp-config` with the smtp co
 If you edit the configuration on the Iguazio platform, you should run the `refresh_smtp_configuration` method again.
 
 ### MLRun CE
-For MLRun CE, you should use your own SMTP server.
-For configuring it you should manually set the `mlrun-smtp-config` secret with the default
-params for the SMTP server (server_host, server_port, username, password, etc..).
-If you edit the secret and want to refresh it in the mlrun, you should run the `refresh_smtp_configuration` method.
+In the community edition, you can use your own SMTP server.
+To configure it, manually create the `mlrun-smtp-config` kubernetes secret with the default
+params for the SMTP server (`server_host`, `server_port`, `username`, `password`, etc..).
+After creating or editing the secret, refresh the mlrun SMTP configuration by running the `refresh_smtp_configuration` method.
 
 ## Configuring notifications for runs
 

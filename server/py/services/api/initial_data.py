@@ -886,6 +886,7 @@ def _perform_version_9_data_migrations(
 ):
     _ensure_function_kind(db, db_session)
     _add_producer_uri_to_artifact(db, db_session)
+    _ensure_latest_tag_for_artifacts(db_session)
 
 
 def _ensure_function_kind(
@@ -981,6 +982,102 @@ def _migrate_data(
         if not records:
             logger.info("No more records to migrate", model=model.__name__)
             break
+
+
+def _ensure_latest_tag_for_artifacts(
+    db_session: sqlalchemy.orm.Session, chunk_size: typing.Optional[int] = None
+):
+    chunk_size = chunk_size or config.artifacts.artifact_migration_v9_batch_size
+
+    # Step 1: Get the latest artifact row for each combination of project, key, and iteration
+    subquery = db_session.query(
+        framework.db.sqldb.models.ArtifactV2.id,
+        framework.db.sqldb.models.ArtifactV2.key,
+        framework.db.sqldb.models.ArtifactV2.project,
+        sqlalchemy.func.row_number()
+        .over(
+            partition_by=[
+                framework.db.sqldb.models.ArtifactV2.project,
+                framework.db.sqldb.models.ArtifactV2.key,
+                framework.db.sqldb.models.ArtifactV2.iteration,
+            ],
+            order_by=framework.db.sqldb.models.ArtifactV2.updated.desc(),
+        )
+        .label("row_number"),
+    ).subquery()
+
+    # Step 2: Get only the latest row for each combination of project, key, and iteration
+    subquery_filtered = (
+        db_session.query(
+            subquery.c.id,
+            subquery.c.key,
+            subquery.c.project,
+        )
+        .filter(subquery.c.row_number == 1)  # Get only the latest for each combination
+        .subquery()
+    )
+
+    # Step 3: Query to join with Tag table
+    query = db_session.query(
+        subquery_filtered.c.id,
+        subquery_filtered.c.key,
+        subquery_filtered.c.project,
+    ).outerjoin(
+        framework.db.sqldb.models.ArtifactV2.Tag,
+        framework.db.sqldb.models.ArtifactV2.Tag.obj_id == subquery_filtered.c.id,
+    )
+
+    # Create an alias for the Tag table for the NOT EXISTS condition
+    tag_alias = sqlalchemy.orm.aliased(framework.db.sqldb.models.ArtifactV2.Tag)
+
+    # Step 4: Filter out artifacts that already have the "latest" tag
+    query = query.filter(
+        ~sqlalchemy.exists().where(
+            sqlalchemy.and_(
+                tag_alias.obj_id == subquery_filtered.c.id, tag_alias.name == "latest"
+            )
+        )
+    ).distinct()
+
+    artifacts_to_tag = query.limit(chunk_size).all()
+
+    if not artifacts_to_tag:
+        logger.info(
+            "No artifacts without 'latest' were found",
+            model=framework.db.sqldb.models.ArtifactV2.Tag,
+        )
+        return
+
+    logger.info(
+        "Starting artifacts without 'latest' tag migration",
+        model=framework.db.sqldb.models.ArtifactV2.Tag,
+        count=len(artifacts_to_tag),
+    )
+
+    while artifacts_to_tag:
+        new_tags = [
+            framework.db.sqldb.models.ArtifactV2.Tag(
+                project=project,
+                name="latest",
+                obj_id=artifact_id,
+                obj_name=key,
+            )
+            for artifact_id, project, key in artifacts_to_tag
+        ]
+
+        logger.info(
+            "Committing migrated records",
+            model=framework.db.sqldb.models.ArtifactV2.Tag,
+            count=len(new_tags),
+        )
+        db_session.add_all(new_tags)
+        db_session.commit()
+
+        artifacts_to_tag = query.limit(chunk_size).all()
+
+    logger.info(
+        "No more artifacts to migrate",
+    )
 
 
 def _create_project_summaries(db, db_session):

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
 import threading
 import time
 import traceback
@@ -283,7 +284,6 @@ class V2ModelServer(StepToDict):
             }
             if self.version:
                 response["model_version"] = self.version
-
         elif op == "ready" and event.method == "GET":
             # get model health operation
             setattr(event, "terminated", True)
@@ -468,13 +468,9 @@ class _ModelLogPusher:
         self.hostname = context.stream.hostname
         self.function_uri = context.stream.function_uri
         self.stream_path = context.stream.stream_uri
-        self.stream_batch = int(context.get_param("log_stream_batch", 1))
-        self.stream_sample = int(context.get_param("log_stream_sample", 1))
+        self.sampling_percentage = float(context.get_param("sampling_percentage", 100))
         self.output_stream = output_stream or context.stream.output_stream
         self._worker = context.worker_id
-        self._sample_iter = 0
-        self._batch_iter = 0
-        self._batch = []
 
     def base_data(self):
         base_data = {
@@ -485,6 +481,7 @@ class _ModelLogPusher:
             "host": self.hostname,
             "function_uri": self.function_uri,
             "endpoint_id": self.model.model_endpoint_uid,
+            "sampling_percentage": self.sampling_percentage,
         }
         if getattr(self.model, "labels", None):
             base_data["labels"] = self.model.labels
@@ -504,37 +501,55 @@ class _ModelLogPusher:
             self.output_stream.push([data], partition_key=partition_key)
             return
 
-        self._sample_iter = (self._sample_iter + 1) % self.stream_sample
-        if self.output_stream and self._sample_iter == 0:
+        if self.output_stream:
+            # Ensure that the inputs are a list of lists
+            request["inputs"] = (
+                request["inputs"]
+                if not any(not isinstance(req, list) for req in request["inputs"])
+                else [request["inputs"]]
+            )
             microsec = (now_date() - start).microseconds
 
-            if self.stream_batch > 1:
-                if self._batch_iter == 0:
-                    self._batch = []
-                self._batch.append(
-                    [request, op, resp, str(start), microsec, self.model.metrics]
+            if self.sampling_percentage != 100:
+                # Randomly select a subset of the requests based on the percentage
+                num_of_inputs = len(request["inputs"])
+                sampled_requests_indices = self._pick_random_requests(
+                    num_of_inputs, self.sampling_percentage
                 )
-                self._batch_iter = (self._batch_iter + 1) % self.stream_batch
+                if not sampled_requests_indices:
+                    # No events were selected for sampling
+                    return
 
-                if self._batch_iter == 0:
-                    data = self.base_data()
-                    data["headers"] = [
-                        "request",
-                        "op",
-                        "resp",
-                        "when",
-                        "microsec",
-                        "metrics",
+                request["inputs"] = [
+                    request["inputs"][i] for i in sampled_requests_indices
+                ]
+
+                if resp and "outputs" in resp and isinstance(resp["outputs"], list):
+                    resp["outputs"] = [
+                        resp["outputs"][i] for i in sampled_requests_indices
                     ]
-                    data["values"] = self._batch
-                    self.output_stream.push([data], partition_key=partition_key)
-            else:
-                data = self.base_data()
-                data["request"] = request
-                data["op"] = op
-                data["resp"] = resp
-                data["when"] = start_str
-                data["microsec"] = microsec
-                if getattr(self.model, "metrics", None):
-                    data["metrics"] = self.model.metrics
-                self.output_stream.push([data], partition_key=partition_key)
+
+            data = self.base_data()
+            data["request"] = request
+            data["op"] = op
+            data["resp"] = resp
+            data["when"] = start_str
+            data["microsec"] = microsec
+            if getattr(self.model, "metrics", None):
+                data["metrics"] = self.model.metrics
+            data["effective_sample_count"] = len(request["inputs"])
+            self.output_stream.push([data], partition_key=partition_key)
+
+    @staticmethod
+    def _pick_random_requests(num_of_reqs: int, percentage: float) -> list[int]:
+        """
+        Randomly selects indices of requests to sample based on the given percentage
+
+        :param num_of_reqs: Number of requests to select from
+        :param percentage: Sample percentage for each request
+        :return: A list containing the indices of the selected requests
+        """
+
+        return [
+            req for req in range(num_of_reqs) if random.random() < (percentage / 100)
+        ]

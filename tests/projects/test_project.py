@@ -655,6 +655,60 @@ def test_set_function_requirements(rundb_mock):
     ]
 
 
+@pytest.mark.parametrize(
+    "current_run_state, expected_notifications_count",
+    [
+        (RunStatuses.running, 1),
+        (RunStatuses.succeeded, 2),
+        (RunStatuses.failed, 1),
+    ],
+)
+def test_push_pipeline_notification_kfp_runner(
+    current_run_state, expected_notifications_count
+):
+    notifications = [
+        mlrun.model.Notification(
+            name="slack",
+            kind=mlrun.common.schemas.notification.NotificationKind.slack,
+            when=["completed", "error"],
+        ),
+        mlrun.model.Notification(
+            name="mail",
+            kind=mlrun.common.schemas.notification.NotificationKind.mail,
+            when=["completed"],
+        ),
+        mlrun.model.Notification(
+            name="running-mail-notification",
+            kind=mlrun.common.schemas.notification.NotificationKind.mail,
+            when=["running"],
+        ),
+    ]
+    project = mlrun.projects.project.MlrunProject.from_dict(
+        {
+            "metadata": {
+                "name": "newproj",
+            },
+            "spec": {
+                "default_requirements": ["pandas>1, <3"],
+                "notifications": notifications,
+            },
+        }
+    )
+    with unittest.mock.patch(
+        "mlrun.db.nopdb.NopDB.push_pipeline_notifications"
+    ) as push_pipeline_notifications_mock:
+        pipeline_id = "pipeline-id"
+        message = "message"
+        project.push_pipeline_notification_kfp_runner(
+            pipeline_id=pipeline_id,
+            message=message,
+            current_run_state=current_run_state,
+        )
+        push_pipeline_notifications_mock.assert_called()
+        notifications = push_pipeline_notifications_mock.call_args.args[2]
+        assert len(notifications) == expected_notifications_count
+
+
 def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
         mlrun.ProjectMetadata("project"),

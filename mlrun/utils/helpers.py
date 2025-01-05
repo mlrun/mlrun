@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import asyncio
+import base64
 import enum
 import functools
+import gzip
 import hashlib
 import inspect
 import itertools
@@ -1709,7 +1711,14 @@ def get_serving_spec():
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Failed to find serving spec in env var or config file"
             )
-    spec = json.loads(data)
+    # Attempt to decode and decompress, or use as-is for backward compatibility
+    try:
+        decoded_data = base64.b64decode(data)
+        decompressed_data = gzip.decompress(decoded_data)
+        spec = json.loads(decompressed_data.decode("utf-8"))
+    except (OSError, gzip.BadGzipFile, base64.binascii.Error, json.JSONDecodeError):
+        spec = json.loads(data)
+
     return spec
 
 
@@ -1981,7 +1990,20 @@ class Workflow:
         if not workflow_id:
             return steps
 
-        workflow_manifest = Workflow._get_workflow_manifest(workflow_id)
+        try:
+            workflow_manifest = Workflow._get_workflow_manifest(workflow_id)
+        except Exception:
+            logger.warning(
+                "Failed to extract workflow steps from workflow manifest, "
+                "returning all runs with the workflow id label",
+                workflow_id=workflow_id,
+                traceback=traceback.format_exc(),
+            )
+            return db.list_runs(
+                project=project,
+                labels=f"workflow={workflow_id}",
+            )
+
         if not workflow_manifest:
             return steps
 

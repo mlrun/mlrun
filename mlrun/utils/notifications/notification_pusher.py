@@ -502,6 +502,14 @@ class CustomNotificationPusher(_NotificationPusherBase):
         notification_type: str,
         params: typing.Optional[dict[str, str]] = None,
     ):
+        if notification_type not in [
+            notification_module.NotificationTypes.console,
+            notification_module.NotificationTypes.ipython,
+        ]:
+            # We want that only the console and ipython notifications will be notified by the client.
+            # The rest of the notifications will be notified by the BE.
+            return
+
         if notification_type in self._async_notifications:
             self._async_notifications[notification_type].load_notification(params)
         elif notification_type in self._sync_notifications:
@@ -571,25 +579,9 @@ class CustomNotificationPusher(_NotificationPusherBase):
         pipeline_id: typing.Optional[str] = None,
         has_workflow_url: bool = False,
     ):
-        message = f"Workflow started in project {project}"
-        if pipeline_id:
-            message += f" id={pipeline_id}"
-        commit_id = (
-            commit_id or os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA")
+        html, message = self.generate_start_message(
+            commit_id, has_workflow_url, pipeline_id, project
         )
-        if commit_id:
-            message += f", commit={commit_id}"
-        if has_workflow_url:
-            url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
-        else:
-            url = mlrun.utils.helpers.get_ui_url(project)
-        html = ""
-        if url:
-            html = (
-                message
-                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
-            )
-            message = message + f", check progress in {url}"
         self.push(message, "info", custom_html=html)
 
     def push_pipeline_run_results(
@@ -621,6 +613,30 @@ class CustomNotificationPusher(_NotificationPusherBase):
         if state:
             text += f", state={state}"
         self.push(text, "info", runs=runs_list)
+
+    def generate_start_message(
+        self, commit_id=None, has_workflow_url=None, pipeline_id=None, project=None
+    ):
+        message = f"Workflow started in project {project}"
+        if pipeline_id:
+            message += f" id={pipeline_id}"
+        commit_id = (
+            commit_id or os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA")
+        )
+        if commit_id:
+            message += f", commit={commit_id}"
+        if has_workflow_url:
+            url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
+        else:
+            url = mlrun.utils.helpers.get_ui_url(project)
+        html = ""
+        if url:
+            html = (
+                message
+                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
+            )
+            message = message + f", check progress in {url}"
+        return html, message
 
 
 def sanitize_notification(notification_dict: dict):

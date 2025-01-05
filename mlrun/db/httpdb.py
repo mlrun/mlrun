@@ -780,9 +780,84 @@ class HTTPRunDB(RunDBInterface):
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info(
+                    "Notifications for the run have been pushed",
+                    project=project,
+                    run_id=uid,
+                )
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.error(
+                    "Failed to push run notifications",
+                    project=project,
+                    run_id=uid,
+                    error=background_task.status.error,
+                )
+        return None
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        """
+        Push notifications for a pipeline.
+
+        :param pipeline_id: Unique ID of the pipeline(KFP).
+        :param project: Project that the run belongs to.
+        :param notifications: List of notifications to push.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        if notifications is None or type(notifications) is not list:
+            raise MLRunInvalidArgumentError(
+                "The 'notifications' parameter must be a list."
+            )
+
+        project = project or config.default_project
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/pipelines/{pipeline_id}/push-notifications",
+            error="Failed push notifications",
+            body=_as_json([notification.to_dict() for notification in notifications]),
+            timeout=timeout,
+        )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info(
+                    "Pipeline notifications have been pushed",
+                    project=project,
+                    pipeline_id=pipeline_id,
+                )
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.error(
+                    "Failed to push pipeline notifications",
+                    project=project,
+                    pipeline_id=pipeline_id,
+                    error=background_task.status.error,
+                )
+
         return None
 
     def read_run(

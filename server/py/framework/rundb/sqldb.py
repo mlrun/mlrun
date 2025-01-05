@@ -115,6 +115,15 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        raise NotImplementedError()
+
     def read_run(
         self,
         uid: str,

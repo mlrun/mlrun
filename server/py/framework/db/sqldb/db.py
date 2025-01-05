@@ -128,6 +128,10 @@ from framework.db.sqldb.models import (
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
+# Max values for 32-bit and 64-bit signed integers
+MAX_INT_32 = 2_147_483_647  # For Integer (4-byte)
+MAX_INT_64 = 9_223_372_036_854_775_807  # For BigInteger (8-byte)
+
 conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
     "(pymysql.err.IntegrityError) (1062",
@@ -5851,9 +5855,11 @@ class SQLDB(DBInterface):
     def store_alert(
         self, session, alert: mlrun.common.schemas.AlertConfig
     ) -> mlrun.common.schemas.AlertConfig:
-        alert_record = self._get_alert_record(session, alert.name, alert.project)
+        alert_record, alert_state = self._get_alert_record(
+            session, alert.name, alert.project, with_state=True
+        )
         if not alert_record:
-            return self._create_alert(session, alert)
+            return self.create_alert(session, alert)
         alert_record.full_object = alert.dict()
 
         self._delete_alert_notifications(session, alert.name, alert, alert.project)
@@ -5866,10 +5872,15 @@ class SQLDB(DBInterface):
         )
 
         self._upsert(session, [alert_record])
-        return self.get_alert_by_id(session, alert_record.id)
+        # in case alert service was stopped while storing an alert, ensure that it has a state
+        if not alert_state:
+            self.create_alert_state(session, alert_record.id)
+        return self._transform_alert_config_record_to_schema(alert_record)
 
-    def _create_alert(
-        self, session, alert: mlrun.common.schemas.AlertConfig
+    def create_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
     ) -> mlrun.common.schemas.AlertConfig:
         alert_record = self._transform_alert_config_schema_to_record(alert)
         alert_id = self._upsert_object_and_flush_to_get_field(
@@ -5894,19 +5905,46 @@ class SQLDB(DBInterface):
         self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
-        query = self._filter_query_by_resource_project(query, AlertConfig, project)
 
-        alerts = list(map(self._transform_alert_config_record_to_schema, query.all()))
-        for alert in alerts:
-            self.enrich_alert(session, alert)
+        # Construct the initial query for AlertConfig and join with AlertState to fetch associated states
+        query = query.outerjoin(
+            AlertState, AlertState.parent_id == AlertConfig.id
+        ).add_entity(AlertState)
+
+        query = self._filter_query_by_resource_project(query, AlertConfig, project)
+        results = query.all()
+
+        # Process each result, transforming and enriching the AlertConfig objects
+        alerts = []
+        for alert_config, alert_state in results:
+            alert = self._transform_alert_config_record_to_schema(alert_config)
+            # Enrich the alert with additional data using AlertState
+            self.enrich_alert(
+                session,
+                alert,
+                state=alert_state,
+            )
+            alerts.append(alert)
         return alerts
 
     def get_alert(
-        self, session, project: str, name: str
-    ) -> mlrun.common.schemas.AlertConfig:
-        return self._transform_alert_config_record_to_schema(
-            self._get_alert_record(session, name, project)
-        )
+        self,
+        session,
+        project: str,
+        name: str,
+        with_state=False,
+    ) -> Optional[
+        Union[
+            mlrun.common.schemas.AlertConfig,
+            tuple[mlrun.common.schemas.AlertConfig, AlertState],
+        ]
+    ]:
+        if not with_state:
+            return self._transform_alert_config_record_to_schema(
+                self._get_alert_record(session, name, project, with_state)
+            )
+        alert, state = self._get_alert_record(session, name, project, with_state)
+        return self._transform_alert_config_record_to_schema(alert), state
 
     def get_alert_by_id(
         self, session, alert_id: int
@@ -5915,8 +5953,14 @@ class SQLDB(DBInterface):
             self._get_alert_record_by_id(session, alert_id)
         )
 
-    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
-        state = self.get_alert_state(session, alert.id)
+    def enrich_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+        state: Optional[AlertState] = None,
+    ):
+        if not state:
+            state = self.get_alert_state(session, alert.id)
         alert.state = (
             mlrun.common.schemas.AlertActiveState.ACTIVE
             if state.active
@@ -6151,10 +6195,24 @@ class SQLDB(DBInterface):
     def _get_alert_template_record(self, session, name: str) -> AlertTemplate:
         return self._query(session, AlertTemplate, name=name).one_or_none()
 
-    def _get_alert_record(self, session, name: str, project: str) -> AlertConfig:
-        return self._query(
-            session, AlertConfig, name=name, project=project
-        ).one_or_none()
+    def _get_alert_record(
+        self, session, name: str, project: str, with_state: bool = False
+    ) -> Optional[Union[AlertConfig, tuple[AlertConfig, AlertState]]]:
+        query = session.query(AlertConfig)
+
+        if with_state:
+            query = query.outerjoin(
+                AlertState, AlertState.parent_id == AlertConfig.id
+            ).add_entity(AlertState)
+
+        query = query.filter(AlertConfig.name == name, AlertConfig.project == project)
+
+        result = query.one_or_none()
+
+        if result is None:
+            # Explicitly return None for both if needed
+            return None if not with_state else (None, None)
+        return result
 
     def _get_alert_record_by_id(self, session, alert_id: int) -> AlertConfig:
         return self._query(session, AlertConfig, id=alert_id).one_or_none()
@@ -6902,6 +6960,13 @@ class SQLDB(DBInterface):
         page_size: int,
         kwargs: dict,
     ):
+        self._validate_integer_max_value(
+            PaginationCache.__table__.c.current_page, current_page
+        )
+        self._validate_integer_max_value(
+            PaginationCache.__table__.c.page_size, page_size
+        )
+
         # generate key hash from user, function, current_page and kwargs
         key = hashlib.sha256(
             f"{user}/{function}/{page_size}/{kwargs}".encode()
@@ -7296,3 +7361,31 @@ class SQLDB(DBInterface):
             query = query.limit(limit)
 
         return query
+
+    @staticmethod
+    def _validate_integer_max_value(column: Column, value: int):
+        """
+        Validate that the value of a column does not exceed the max allowed integer value for that column's type.
+
+        :param column: The SQLAlchemy column to check (e.g., PaginationCache.__table__.c.current_page).
+        :param value: The value to validate.
+        :raises: MLRunInvalidArgumentError if value exceeds the max allowed integer value for the column's type.
+        """
+        if isinstance(column.type, sqlalchemy.Integer):
+            # Validate against 32-bit max
+            if value > MAX_INT_32:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The '{column.name}' field value must be less than or equal to {MAX_INT_32}."
+                )
+
+        elif isinstance(column.type, sqlalchemy.BigInteger):
+            # Validate against 64-bit max
+            if value > MAX_INT_64:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The '{column.name}' field value must be less than or equal to {MAX_INT_64}."
+                )
+
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported column type '{column.type}' for validation."
+            )

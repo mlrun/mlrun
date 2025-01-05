@@ -1309,9 +1309,9 @@ class MonitoringDeployment:
             function_tag=function.metadata.tag,
             track_models=function.spec.track_models,
             graph=function.spec.graph,
-            sampling_percentage=function.spec.parameters[
-                mm_constants.EventFieldType.SAMPLING_PERCENTAGE
-            ],
+            sampling_percentage=function.spec.parameters.get(
+                mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
+            ),
         )  # model endpoint, creation strategy, model path
         router_model_endpoints_instructions: list[
             tuple[

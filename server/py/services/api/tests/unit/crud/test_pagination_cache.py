@@ -15,12 +15,15 @@
 
 import time
 
+import pytest
 import sqlalchemy.orm
 
+import mlrun.errors
 from mlrun import mlconf
 from mlrun.utils import logger
 
 import services.api.crud
+from framework.db.sqldb.db import MAX_INT_32
 
 
 def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
@@ -155,3 +158,22 @@ def test_pagination_cleanup(db: sqlalchemy.orm.Session):
     assert (
         len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
     )
+
+
+@pytest.mark.parametrize(
+    "page, page_size",
+    [
+        (MAX_INT_32 + 1, 100),  # page exceeds max allowed value
+        (200, MAX_INT_32 + 1),  # page_size exceeds max allowed value
+    ],
+)
+def test_store_paginated_query_cache_record_out_of_range(
+    db: sqlalchemy.orm.Session, page: int, page_size: int
+):
+    method = services.api.crud.Projects().list_projects
+    kwargs = {}
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        services.api.crud.PaginationCache().store_pagination_cache_record(
+            db, "user_name", method, page, page_size, kwargs
+        )

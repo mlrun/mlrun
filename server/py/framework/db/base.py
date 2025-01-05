@@ -26,6 +26,8 @@ import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
+import framework.db.sqldb.models
+
 
 class DBError(Exception):
     pass
@@ -899,7 +901,11 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_alert(
-        self, session, project: str, name: str
+        self,
+        session,
+        project: str,
+        name: str,
+        with_state=False,
     ) -> mlrun.common.schemas.AlertConfig:
         pass
 
@@ -910,7 +916,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+    def enrich_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+        state: Optional[framework.db.sqldb.models.AlertState] = None,
+    ):
         pass
 
     @staticmethod
@@ -941,6 +952,14 @@ class DBInterface(ABC):
         session,
         table_name: str,
     ) -> bool:
+        pass
+
+    @abstractmethod
+    def create_alert(
+        self,
+        session,
+        alert: mlrun.common.schemas.AlertConfig,
+    ) -> mlrun.common.schemas.AlertConfig:
         pass
 
     @abstractmethod

@@ -537,6 +537,8 @@ default_config = {
         },
         "pagination": {
             "default_page_size": 200,
+            "page_limit": 1000000,
+            "page_size_limit": 1000000,
             "pagination_cache": {
                 "interval": 60,
                 "ttl": 3600,

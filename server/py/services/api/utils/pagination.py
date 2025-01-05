@@ -167,6 +167,19 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 method, session, **method_kwargs
             ), None
 
+        if page is not None and page > mlconf.httpdb.pagination.page_limit:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"'page' must be less than or equal to {mlconf.httpdb.pagination.page_limit}"
+            )
+
+        if (
+            page_size is not None
+            and page_size > mlconf.httpdb.pagination.page_size_limit
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"'page_size' must be less than or equal to {mlconf.httpdb.pagination.page_size_limit}"
+            )
+
         page_size = page_size or mlconf.httpdb.pagination.default_page_size
 
         (

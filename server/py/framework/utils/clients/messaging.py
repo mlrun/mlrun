@@ -254,7 +254,8 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
                         "Failed to read request body, expected json body"
                     ) from exc
             request_kwargs.update({"headers": dict(request.headers)})
-            request_kwargs.update({"params": dict(request.query_params)})
+            # Preserve duplicate query params as a list of (key, value) tuples
+            request_kwargs.update({"params": list(request.query_params.multi_items())})
             request_kwargs.update({"cookies": request.cookies})
             request_kwargs["headers"].setdefault(
                 "x-request-id", request.state.request_id

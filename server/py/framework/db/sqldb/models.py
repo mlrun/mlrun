@@ -757,7 +757,7 @@ with warnings.catch_warnings():
 
     class AlertState(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_states"
-        __table_args__ = (UniqueConstraint("id", "parent_id", name="alert_states_uc"),)
+        __table_args__ = (UniqueConstraint("parent_id", name="_alert_state_parent_uc"),)
 
         id = Column(Integer, primary_key=True)
         count = Column(Integer)

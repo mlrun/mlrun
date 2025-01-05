@@ -48,8 +48,8 @@ class Alerts(
     ):
         project = project or mlrun.mlconf.default_project
 
-        existing_alert = framework.utils.singletons.db.get_db().get_alert(
-            session, project, name
+        existing_alert, existing_alert_state = (
+            framework.utils.singletons.db.get_db().get_alert(session, project, name, with_state=True)
         )
 
         self._validate_alert(alert_data, name, project)
@@ -73,14 +73,10 @@ class Alerts(
             # set the updated field to reflect the latest modification time of the alert
             alert_data.updated = mlrun.utils.now_date()
 
-            old_state = framework.utils.singletons.db.get_db().get_alert_state_dict(
-                session, existing_alert.id
-            )
-            existing_alert.state = (
-                mlrun.common.schemas.AlertActiveState.ACTIVE
-                if old_state["active"]
-                else mlrun.common.schemas.AlertActiveState.INACTIVE
-            )
+            # Enrich the old alert with existing state
+            existing_alert.state = mlrun.common.schemas.AlertActiveState.INACTIVE
+            if existing_alert_state and existing_alert_state.to_dict()["active"]:
+                existing_alert.state = mlrun.common.schemas.AlertActiveState.ACTIVE
         else:
             num_alerts = (
                 framework.utils.singletons.db.get_db().get_num_configured_alerts(
@@ -94,8 +90,12 @@ class Alerts(
 
         self._validate_and_mask_notifications(alert_data)
 
-        new_alert = framework.utils.singletons.db.get_db().store_alert(
-            session, alert_data
+        new_alert = (
+            framework.utils.singletons.db.get_db().store_alert(session, alert_data)
+            if existing_alert
+            else framework.utils.singletons.db.get_db().create_alert(
+                session, alert_data
+            )
         )
 
         for event_kind in new_alert.trigger.events:
@@ -119,7 +119,9 @@ class Alerts(
                     session, project, new_alert.name, alert_id=new_alert.id
                 )
 
-        framework.utils.singletons.db.get_db().enrich_alert(session, new_alert)
+        framework.utils.singletons.db.get_db().enrich_alert(
+            session, new_alert, state=existing_alert_state
+        )
 
         logger.debug("Stored alert", alert=new_alert)
 
@@ -136,13 +138,15 @@ class Alerts(
     def get_enriched_alert(
         self, session: sqlalchemy.orm.Session, project: str, name: str
     ):
-        alert = framework.utils.singletons.db.get_db().get_alert(session, project, name)
+        alert, state = framework.utils.singletons.db.get_db().get_alert(
+            session, project, name, with_state=True
+        )
         if alert is None:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Alert {name} for project {project} not found"
             )
 
-        framework.utils.singletons.db.get_db().enrich_alert(session, alert)
+        framework.utils.singletons.db.get_db().enrich_alert(session, alert, state=state)
         return alert
 
     def get_alert(

@@ -259,7 +259,6 @@ class DefaultProfileName(StrEnum):
 
 class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    TSDB_CONNECTION = "TSDB_CONNECTION"
     TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
     STREAM_PROFILE_NAME = "STREAM_PROFILE_NAME"
 
@@ -267,7 +266,7 @@ class ProjectSecretKeys:
     def mandatory_secrets(cls):
         return [
             cls.STREAM_PROFILE_NAME,
-            cls.TSDB_CONNECTION,
+            cls.TSDB_PROFILE_NAME,
         ]
 
 

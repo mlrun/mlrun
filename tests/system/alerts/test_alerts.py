@@ -25,6 +25,7 @@ import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
 import tests.system.common.helpers.notifications as notification_helpers
+from mlrun import mlconf
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpoint,
     ModelEndpointList,
@@ -278,7 +279,7 @@ class TestAlerts(TestMLRunSystem):
             self.project.run_function(function_name)
 
         # wait since there is a might be a delay
-        time.sleep(20)
+        time.sleep(mlconf.alerts.events_generation_interval)
 
         # validate that no notifications were sent yet, as the two failures did not occur within the same period
         expected_notifications = []

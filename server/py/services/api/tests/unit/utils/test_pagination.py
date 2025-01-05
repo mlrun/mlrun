@@ -23,8 +23,8 @@ from mlrun import mlconf
 from mlrun.utils import logger
 
 import framework.db.sqldb.models
+import framework.utils.pagination
 import services.api.crud
-import services.api.utils.pagination
 
 
 def paginated_method(
@@ -57,7 +57,7 @@ def mock_paginated_method(monkeypatch):
         {
             paginated_method.__name__: {
                 "method": paginated_method,
-                "schema": services.api.utils.pagination._generate_pydantic_schema_from_method_signature(
+                "schema": framework.utils.pagination._generate_pydantic_schema_from_method_signature(
                     paginated_method
                 ),
             }
@@ -80,7 +80,7 @@ def test_paginated_method():
     total_amount = 10
     page_size = 3
     since = datetime.datetime.now()
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     offset, limit = paginator._calculate_offset_and_limit(1, page_size)
     items = paginated_method(None, total_amount, since, offset, limit - 1)
@@ -198,7 +198,7 @@ async def test_paginate_other_users_token(
     page_size = 3
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting first page with user1")
     response, pagination_info = await paginator.paginate_request(
@@ -251,7 +251,7 @@ async def test_paginate_no_auth(
     page_size = 3
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting first page")
     response, pagination_info = await paginator.paginate_request(
@@ -333,7 +333,7 @@ async def test_no_pagination(
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting all items")
     response, pagination_info = await paginator.paginate_request(
@@ -367,7 +367,7 @@ async def test_pagination_not_supported(
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting a method that is not supported for pagination")
     with pytest.raises(NotImplementedError):
@@ -397,7 +397,7 @@ async def test_pagination_cache_cleanup(
     page_size = 3
     token = None
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Creating paginated cache records")
     for i in range(3):
@@ -518,7 +518,7 @@ async def test_paginate_permission_filtered_request(
     last_page = total // page_size
     method_kwargs = {"total_amount": total, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     response, pagination_info = await paginator.paginate_permission_filtered_request(
         db,
@@ -557,7 +557,7 @@ async def test_paginate_permission_filtered_no_pagination(
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def filter_(items):
         return items
@@ -612,7 +612,7 @@ async def test_paginate_permission_filtered_with_token(
     page_size = 4
     method_kwargs = {"total_amount": 20, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     response, pagination_info = await paginator.paginate_permission_filtered_request(
         db,
@@ -687,7 +687,7 @@ async def test_paginate_request_invalid_page_or_page_size(
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         await paginator.paginate_request(

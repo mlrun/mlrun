@@ -29,10 +29,10 @@ from mlrun.utils import logger
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.notifications
+import framework.utils.pagination
 import framework.utils.singletons.db as db_singleton
 import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.pagination
 from framework.api import deps
 from framework.api.utils import log_and_raise
 
@@ -242,7 +242,7 @@ async def list_runs(
         )
     )
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def _filter_runs(_runs):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

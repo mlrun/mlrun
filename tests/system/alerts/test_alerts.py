@@ -302,7 +302,7 @@ class TestAlerts(TestMLRunSystem):
             True,
             self._validate_notifications_on_nuclio,
             nuclio_function_url,
-            expected_notifications
+            expected_notifications,
         )
         mlrun.get_run_db().delete_function(
             name=function_name, project=self.project.name

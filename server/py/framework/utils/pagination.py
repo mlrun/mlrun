@@ -26,8 +26,7 @@ from mlrun import mlconf
 from mlrun.utils import logger
 
 import framework.utils.asyncio
-import services.alerts.crud
-import services.api.crud
+import framework.utils.pagination_cache
 
 
 def _generate_pydantic_schema_from_method_signature(
@@ -59,21 +58,17 @@ def _generate_pydantic_schema_from_method_signature(
     )
 
 
-class PaginatedMethods:
-    _methods: list[typing.Callable] = [
-        # TODO: add methods when they implement pagination
-        services.api.crud.Runs().list_runs,
-        services.api.crud.Functions().list_functions,
-        services.api.crud.Artifacts().list_artifacts,
-        services.alerts.crud.AlertActivation().list_alert_activations,
-    ]
-    _method_map = {
-        method.__name__: {
+class PaginatedMethods(metaclass=mlrun.utils.singleton.Singleton):
+    _methods: list[typing.Callable] = []
+    _method_map = {}
+
+    @classmethod
+    def add_method(cls, method: typing.Callable):
+        cls._methods.append(method)
+        cls._method_map[method.__name__] = {
             "method": method,
             "schema": _generate_pydantic_schema_from_method_signature(method),
         }
-        for method in _methods
-    }
 
     @classmethod
     def method_is_supported(cls, method: typing.Union[str, typing.Callable]) -> bool:
@@ -92,7 +87,7 @@ class PaginatedMethods:
 class Paginator(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
         self._logger = logger.get_child("paginator")
-        self._pagination_cache = services.api.crud.PaginationCache()
+        self._pagination_cache = framework.utils.pagination_cache.PaginationCache()
 
     async def paginate_permission_filtered_request(
         self,

@@ -24,7 +24,7 @@ from mlrun.utils import logger
 
 import framework.db.sqldb.models
 import framework.utils.pagination
-import services.api.crud
+import framework.utils.pagination_cache
 
 
 def paginated_method(
@@ -69,7 +69,7 @@ def mock_paginated_method(monkeypatch):
 @pytest.fixture()
 def cleanup_pagination_cache_on_teardown(db: sqlalchemy.orm.Session):
     yield
-    services.api.crud.PaginationCache().cleanup_pagination_cache(db)
+    framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(db)
 
 
 def test_paginated_method():
@@ -151,8 +151,10 @@ async def test_paginate_request(
     )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
     )
     _assert_cache_record(
         cache_record, auth_info.user_id, paginated_method, 1, page_size
@@ -173,8 +175,10 @@ async def test_paginate_request(
     )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
     )
     _assert_cache_record(
         cache_record, auth_info.user_id, paginated_method, 2, page_size
@@ -214,8 +218,10 @@ async def test_paginate_other_users_token(
     )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
     )
     _assert_cache_record(
         cache_record, auth_info_1.user_id, paginated_method, 1, page_size
@@ -267,8 +273,10 @@ async def test_paginate_no_auth(
     )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
     )
     _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
 
@@ -290,8 +298,10 @@ async def test_paginate_no_auth(
     )
 
     logger.info("Checking old db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, old_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, old_token
+        )
     )
     # The request with AuthInfo creates a new cache record, therefore the old one
     # should still be on page 1 and without a user.
@@ -314,8 +324,10 @@ async def test_paginate_no_auth(
     )
 
     logger.info("Checking old db cache record again")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, old_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, old_token
+        )
     )
     _assert_cache_record(cache_record, None, paginated_method, 2, page_size)
 
@@ -350,7 +362,12 @@ async def test_no_pagination(
 
     logger.info("Checking that no cache record was created")
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 0
     )
 
 
@@ -415,7 +432,12 @@ async def test_pagination_cache_cleanup(
             token = pagination_info.page_token
 
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 3
     )
 
     logger.info("Cleaning up pagination cache")
@@ -424,7 +446,12 @@ async def test_pagination_cache_cleanup(
 
     logger.info("Checking that all records were removed")
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 0
     )
 
     logger.info("Try to get page with token")

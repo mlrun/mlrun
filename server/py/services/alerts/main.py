@@ -58,6 +58,12 @@ from framework.utils.singletons.project_member import (
 
 
 class Service(framework.service.Service):
+    def __init__(self):
+        super().__init__()
+        self._paginated_methods = [
+            (services.alerts.crud.AlertActivation, "list_alert_activations"),
+        ]
+
     async def store_alert(
         self,
         request: fastapi.Request,

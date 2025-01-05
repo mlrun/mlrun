@@ -22,6 +22,7 @@ import mlrun.errors
 from mlrun import mlconf
 from mlrun.utils import logger
 
+import framework.utils.pagination_cache
 import services.api.crud
 from framework.db.sqldb.db import MAX_INT_32
 
@@ -41,12 +42,17 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
 
     logger.debug("Creating paginated cache records")
     for i in range(3):
-        services.api.crud.PaginationCache().store_pagination_cache_record(
+        framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
             db, f"user{i}", method, page, page_size, kwargs
         )
 
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 3
     )
 
     logger.debug(
@@ -55,19 +61,26 @@ def test_pagination_cache_monitor_ttl(db: sqlalchemy.orm.Session):
     time.sleep(ttl + 2)
 
     logger.debug("Creating new paginated cache record that won't be expired")
-    new_key = services.api.crud.PaginationCache().store_pagination_cache_record(
+    new_key = framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
         db, "user3", method, page, page_size, kwargs
     )
 
     logger.debug("Monitoring pagination cache")
-    services.api.crud.PaginationCache().monitor_pagination_cache(db)
+    framework.utils.pagination_cache.PaginationCache().monitor_pagination_cache(db)
 
     logger.debug("Checking that old records were removed and new record still exists")
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 1
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 1
     )
     assert (
-        services.api.crud.PaginationCache().get_pagination_cache_record(db, new_key)
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, new_key
+        )
         is not None
     )
 
@@ -86,7 +99,7 @@ def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
     kwargs = {}
 
     logger.debug("Creating old paginated cache record")
-    old_key = services.api.crud.PaginationCache().store_pagination_cache_record(
+    old_key = framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
         db, "user0", method, page, page_size, kwargs
     )
 
@@ -97,36 +110,48 @@ def test_pagination_cache_monitor_max_table_size(db: sqlalchemy.orm.Session):
         "Creating paginated cache records up to max size (including the old record)"
     )
     for i in range(1, max_size):
-        services.api.crud.PaginationCache().store_pagination_cache_record(
+        framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
             db, f"user{i}", method, page, page_size, kwargs
         )
 
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db))
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
         == max_size
     )
 
     logger.debug("Creating new paginated cache record to replace the old one")
-    new_key = services.api.crud.PaginationCache().store_pagination_cache_record(
+    new_key = framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
         db, "user3", method, page, page_size, kwargs
     )
 
     logger.debug("Monitoring pagination cache")
-    services.api.crud.PaginationCache().monitor_pagination_cache(db)
+    framework.utils.pagination_cache.PaginationCache().monitor_pagination_cache(db)
 
     logger.debug(
         "Checking that old record was removed and all other records still exist"
     )
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db))
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
         == max_size
     )
     assert (
-        services.api.crud.PaginationCache().get_pagination_cache_record(db, new_key)
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, new_key
+        )
         is not None
     )
     assert (
-        services.api.crud.PaginationCache().get_pagination_cache_record(db, old_key)
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, old_key
+        )
         is None
     )
 
@@ -142,21 +167,31 @@ def test_pagination_cleanup(db: sqlalchemy.orm.Session):
 
     logger.debug("Creating paginated cache records")
     for i in range(3):
-        services.api.crud.PaginationCache().store_pagination_cache_record(
+        framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
             db, f"user{i}", method, page, page_size, kwargs
         )
 
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 3
     )
 
     logger.debug("Cleaning up pagination cache")
-    services.api.crud.PaginationCache().cleanup_pagination_cache(db)
+    framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(db)
     db.commit()
 
     logger.debug("Checking that all records were removed")
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 0
     )
 
 
@@ -174,6 +209,6 @@ def test_store_paginated_query_cache_record_out_of_range(
     kwargs = {}
 
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        services.api.crud.PaginationCache().store_pagination_cache_record(
+        framework.utils.pagination_cache.PaginationCache().store_pagination_cache_record(
             db, "user_name", method, page, page_size, kwargs
         )

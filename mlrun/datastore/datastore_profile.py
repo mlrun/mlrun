@@ -510,6 +510,22 @@ class TDEngineDatastoreProfile(DatastoreProfile):
         )
 
 
+_DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
+    "v3io": DatastoreProfileV3io,
+    "s3": DatastoreProfileS3,
+    "redis": DatastoreProfileRedis,
+    "basic": DatastoreProfileBasic,
+    "kafka_target": DatastoreProfileKafkaTarget,
+    "kafka_source": DatastoreProfileKafkaSource,
+    "dbfs": DatastoreProfileDBFS,
+    "gcs": DatastoreProfileGCS,
+    "az": DatastoreProfileAzureBlob,
+    "hdfs": DatastoreProfileHdfs,
+    "taosws": TDEngineDatastoreProfile,
+    "config": ConfigProfile,
+}
+
+
 class DatastoreProfile2Json(pydantic.v1.BaseModel):
     @staticmethod
     def _to_json(attributes):
@@ -560,20 +576,7 @@ class DatastoreProfile2Json(pydantic.v1.BaseModel):
 
         decoded_dict = {k: safe_literal_eval(v) for k, v in decoded_dict.items()}
         datastore_type = decoded_dict.get("type")
-        ds_profile_factory = {
-            "v3io": DatastoreProfileV3io,
-            "s3": DatastoreProfileS3,
-            "redis": DatastoreProfileRedis,
-            "basic": DatastoreProfileBasic,
-            "kafka_target": DatastoreProfileKafkaTarget,
-            "kafka_source": DatastoreProfileKafkaSource,
-            "dbfs": DatastoreProfileDBFS,
-            "gcs": DatastoreProfileGCS,
-            "az": DatastoreProfileAzureBlob,
-            "hdfs": DatastoreProfileHdfs,
-            "taosws": TDEngineDatastoreProfile,
-            "config": ConfigProfile,
-        }
+        ds_profile_factory = _DATASTORE_TYPE_TO_PROFILE_CLASS
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)
         else:

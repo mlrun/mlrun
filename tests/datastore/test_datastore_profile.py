@@ -21,6 +21,8 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 from mlrun.datastore.datastore_profile import (
+    _DATASTORE_TYPE_TO_PROFILE_CLASS,
+    DatastoreProfile,
     DatastoreProfile2Json,
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
@@ -142,3 +144,13 @@ class TestTDEngineProfile:
 
         assert profile_read.type == "taosws", "Wrong profile type"
         assert profile_read.password == "1234", "Wrong password"
+
+
+def test_datastore_type_map() -> None:
+    assert set(_DATASTORE_TYPE_TO_PROFILE_CLASS.values()) == set(
+        DatastoreProfile.__subclasses__()
+    ), "Missing profiles in the map"
+    for type_, profile_class in _DATASTORE_TYPE_TO_PROFILE_CLASS.items():
+        assert type_ == profile_class.schema().get("properties", {}).get("type").get(
+            "default"
+        ), "Type key and profile class type do not match"

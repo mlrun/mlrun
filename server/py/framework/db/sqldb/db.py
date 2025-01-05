@@ -6960,8 +6960,12 @@ class SQLDB(DBInterface):
         page_size: int,
         kwargs: dict,
     ):
-        self._validate_max_value(PaginationCache.__table__.c.current_page, current_page)
-        self._validate_max_value(PaginationCache.__table__.c.page_size, page_size)
+        self._validate_integer_max_value(
+            PaginationCache.__table__.c.current_page, current_page
+        )
+        self._validate_integer_max_value(
+            PaginationCache.__table__.c.page_size, page_size
+        )
 
         # generate key hash from user, function, current_page and kwargs
         key = hashlib.sha256(
@@ -7359,7 +7363,7 @@ class SQLDB(DBInterface):
         return query
 
     @staticmethod
-    def _validate_max_value(column: Column, value: int):
+    def _validate_integer_max_value(column: Column, value: int):
         """
         Validate that the value of a column does not exceed the max allowed integer value for that column's type.
 

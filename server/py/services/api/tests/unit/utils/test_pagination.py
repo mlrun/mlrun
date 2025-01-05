@@ -19,6 +19,7 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+from mlrun import mlconf
 from mlrun.utils import logger
 
 import framework.db.sqldb.models
@@ -663,6 +664,35 @@ async def test_paginate_permission_filtered_with_token(
         method_kwargs["since"],
         last_page=True,
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "page, page_size",
+    [
+        (mlconf.httpdb.pagination.page_limit + 1, 1),  # page exceeds max allowed value
+        (
+            1,
+            mlconf.httpdb.pagination.page_size_limit + 1,
+        ),  # page_size exceeds max allowed value
+    ],
+)
+async def test_paginate_request_invalid_page_or_page_size(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+    page,
+    page_size,
+):
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
+
+    paginator = services.api.utils.pagination.Paginator()
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        await paginator.paginate_request(
+            db, paginated_method, auth_info, None, page, page_size, **method_kwargs
+        )
 
 
 def _assert_paginated_response(

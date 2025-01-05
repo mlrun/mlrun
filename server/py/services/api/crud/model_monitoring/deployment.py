@@ -1221,7 +1221,6 @@ class MonitoringDeployment:
                 old_secrets_dict.get(
                     mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
                 )
-                or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
                 or _default_secrets_v3io
             )
 

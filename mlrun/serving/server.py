@@ -77,8 +77,9 @@ class _StreamContext:
             stream_args = parameters.get("stream_args", {})
 
             if log_stream == DUMMY_STREAM:
+                # Dummy stream used for testing, see tests/serving/test_serving.py
                 self.stream_uri = DUMMY_STREAM
-            elif not stream_args.get("mock"):
+            elif not stream_args.get("mock"):  # if not a mock: `context.is_mock = True`
                 self.stream_uri = mlrun.model_monitoring.get_stream_path(
                     project=project
                 )

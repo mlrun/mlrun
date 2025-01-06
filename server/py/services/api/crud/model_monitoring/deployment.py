@@ -1081,6 +1081,28 @@ class MonitoringDeployment:
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "Custom Kafka topics are not supported"
             )
+        self._verify_kafka_access(kafka_profile)
+
+    @staticmethod
+    def _verify_kafka_access(
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+    ) -> None:
+        import kafka
+        import kafka.errors
+
+        kafka_brokers = kafka_profile.brokers
+        try:
+            # The following constructor attempts to establish a connection
+            consumer = kafka.KafkaConsumer(brokers=kafka_brokers)
+        except kafka.errors.NoBrokersAvailable as err:
+            logger.warn(
+                "No Kafka brokers available for the given kafka source profile in model monitoring",
+                kafka_brokers=kafka_brokers,
+                err=mlrun.errors.err_to_str(err),
+            )
+            raise
+        else:
+            consumer.close()
 
     def _validate_v3io_stream(
         self,

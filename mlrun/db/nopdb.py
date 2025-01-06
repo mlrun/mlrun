@@ -84,6 +84,9 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def refresh_smtp_configuration(self):
+        pass
+
     def push_pipeline_notifications(
         self,
         pipeline_id,

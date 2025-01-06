@@ -15,6 +15,7 @@
 import re
 
 import fastapi.testclient
+import pytest
 
 from mlrun import mlconf
 
@@ -66,13 +67,17 @@ def test_star_notation_translation():
     assert route_regex in service_instance.method_routes["get"]
 
 
-def test_find_service():
-    method, path = "get", "projects/test/alerts"
+@pytest.mark.parametrize(
+    "method, path", [("get", "projects/test/alerts"), ("get", "projects/*/alerts")]
+)
+def test_find_service(method, path):
+    # requests goes to api
     mlconf.services.hydra.services = "*"
     discovery = framework.utils.clients.discovery.Client()
     service_instance = discovery.resolve_service_by_request(method, path)
     assert service_instance is None
 
+    # request goes to api > alerts
     mlconf.services.hydra.services = ""
     discovery.initialize()
     service_instance = discovery.resolve_service_by_request(method, path)

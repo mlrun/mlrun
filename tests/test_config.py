@@ -587,7 +587,12 @@ def test_set_environment_cred():
 def test_env_from_file():
     env_path = str(assets_path / "envfile")
     env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
-    assert env_dict == {"ENV_ARG1": "123", "ENV_ARG2": "abc", "MLRUN_KFP_TTL": "12345"}
+    assert env_dict == {
+        "ENV_ARG1": "123",
+        "ENV_ARG2": "abc",
+        "MLRUN_HTTPDB__HTTP__VERIFY": "false",
+        "MLRUN_KFP_TTL": "12345",
+    }
     assert mlrun.mlconf.kfp_ttl == 12345
     for key, value in env_dict.items():
         assert os.environ[key] == value

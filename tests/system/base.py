@@ -224,10 +224,7 @@ class TestMLRunSystem:
         cls._logger.debug("Setting up test environment")
         cls._test_env.update(env)
 
-        # Define the keys to process first
-        ordered_keys = [
-            "MLRUN_HTTPDB__HTTP__VERIFY"  # Ensure this key is processed first for proper connection setup
-        ]
+        ordered_keys = mlconf.get_ordered_keys()
 
         # Process ordered keys
         for key in ordered_keys & env.keys():

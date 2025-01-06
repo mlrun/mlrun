@@ -1092,7 +1092,7 @@ class KafkaSource(OnlineSource):
             sasl["enable"] = True
             sasl["user"] = sasl_user
             sasl["password"] = sasl_pass
-            sasl["mechanism"] = sasl.get("mechanism", "PLAIN")
+            sasl["mechanism"] = "PLAIN"
         if sasl:
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)

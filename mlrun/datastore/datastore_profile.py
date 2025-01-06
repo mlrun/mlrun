@@ -211,9 +211,10 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
             attributes["partitions"] = self.partitions
         sasl = attributes.pop("sasl", {})
         if self.sasl_user and self.sasl_pass:
-            sasl["enabled"] = True
+            sasl["enable"] = True
             sasl["user"] = self.sasl_user
             sasl["password"] = self.sasl_pass
+            sasl["mechanism"] = "PLAIN"
         if sasl:
             attributes["sasl"] = sasl
         return attributes

@@ -139,7 +139,7 @@ class Pipelines(
                 delete_run_exception = future.exception()
                 if delete_run_exception is not None:
                     # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
-                    # so it wonkubectl -n default-tenant exec -ti deployment/mlrun-db -- mysql --socket=/run/mysqld/mysql.sock --user root -D mlrun 't fail the delete project operation. we will log the error and continue
+                    # so it won't fail the delete project operation. we will log the error and continue
                     mlrun.utils.logger.warning(
                         "Failed to delete pipeline run",
                         project_name=project_name,

@@ -279,7 +279,7 @@ class TestAlerts(TestMLRunSystem):
             self.project.run_function(function_name)
 
         # wait since there is a might be a delay
-        time.sleep(mlconf.alerts.events_generation_interval)
+        time.sleep(int(mlconf.alerts.events_generation_interval))
 
         # validate that no notifications were sent yet, as the two failures did not occur within the same period
         expected_notifications = []

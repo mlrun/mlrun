@@ -37,7 +37,6 @@ __all__ = [
 import fsspec
 
 import mlrun.datastore.wasbfs
-import mlrun.serving.server
 from mlrun.platforms.iguazio import (
     HTTPOutputStream,
     KafkaOutputStream,
@@ -120,7 +119,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
         endpoint, stream_path = parse_path(stream_path)
         endpoint = kwargs.pop("endpoint", None) or endpoint
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
-    elif stream_path.startswith(mlrun.serving.server.DUMMY_STREAM):
+    elif stream_path.startswith("dummy://"):
         return _DummyStream(**kwargs)
     else:
         raise ValueError(f"unsupported stream path {stream_path}")

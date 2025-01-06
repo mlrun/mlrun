@@ -160,7 +160,7 @@ class TestAlerts(TestMLRunSystem):
         """
         # enable model monitoring - deploy writer function
         self.project.set_model_monitoring_credentials(
-            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
         self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
@@ -183,6 +183,7 @@ class TestAlerts(TestMLRunSystem):
         stream_uri = get_stream_path(
             project=self.project.metadata.name,
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            profile=DatastoreProfileV3io(name="tmp"),
         )
         output_stream = get_stream_pusher(
             stream_uri,

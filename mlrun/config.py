@@ -743,6 +743,7 @@ default_config = {
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
+        "concurrent_delete_worker_count": 20,
         # Default timeout seconds for retrieving workflow id after execution
         # Remote workflow timeout is the maximum between remote and the inner engine timeout
         "timeouts": {"local": 120, "kfp": 60, "remote": 60 * 5},

@@ -130,7 +130,7 @@ class Pipelines(
                 # delete pipeline run also terminates it if it is in progress
                 delete_run_futures.append(
                     executor.submit(
-                        fn=kfp_client._run_api.delete_run, id=pipeline_run.id
+                        kfp_client._run_api.delete_run, pipeline_run.id
                     )
                 )
                 if pipeline_run.experiment_id:
@@ -172,8 +172,8 @@ class Pipelines(
                 )
                 delete_experiment_futures.append(
                     executor.submit(
-                        fn=kfp_client._experiment_api.delete_experiment,
-                        id=experiment_id,
+                        kfp_client._experiment_api.delete_experiment,
+                        experiment_id,
                     )
                 )
             for future in concurrent.futures.as_completed(delete_run_futures):

@@ -16,12 +16,23 @@ import pytest
 
 import mlrun
 import mlrun.model_monitoring
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfile,
+    DatastoreProfileV3io,
+    TDEngineDatastoreProfile,
+)
 from mlrun.model_monitoring.stream_processing import EventStreamProcessor
 
 
-@pytest.mark.parametrize("tsdb_connector", ["v3io", "taosws"])
+@pytest.mark.parametrize(
+    "tsdb_profile",
+    [
+        DatastoreProfileV3io(name="test"),
+        TDEngineDatastoreProfile(name="test", user="root", host="localhost", port=6041),
+    ],
+)
 @pytest.mark.parametrize("stream_path", ["v3io", "kafka://192.168.226.176:9092/topic"])
-def test_plot_monitoring_serving_graph(tsdb_connector, stream_path):
+def test_plot_monitoring_serving_graph(tsdb_profile: DatastoreProfile) -> None:
     project_name = "test-stream-processing"
     project = mlrun.get_or_create_project(project_name)
 
@@ -38,7 +49,7 @@ def test_plot_monitoring_serving_graph(tsdb_connector, stream_path):
     )
 
     tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-        project=project_name, tsdb_connection_string=tsdb_connector
+        project=project_name, profile=tsdb_profile
     )
 
     processor.apply_monitoring_serving_graph(fn, tsdb_connector, stream_path)

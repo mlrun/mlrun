@@ -691,18 +691,15 @@ class MonitoringDeployment:
     def _create_tsdb_tables(
         self, tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile
     ) -> None:
-        """Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
+        """
+        Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
-        - predictions: latency of each prediction."""
-
-        tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
-            mlrun.model_monitoring.get_tsdb_connector(
-                project=self.project, profile=tsdb_profile
-            )
-        )
-
-        tsdb_connector.create_tables()
+        - predictions: latency of each prediction.
+        """
+        mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, profile=tsdb_profile
+        ).create_tables()
 
     def list_model_monitoring_functions(self) -> list:
         """Retrieve a list of all the model monitoring functions."""
@@ -1257,8 +1254,8 @@ class MonitoringDeployment:
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     f"You must provide a valid {key} connection while using set_model_monitoring_credentials."
                 )
-        # Create tsdb & sql tables that will be used for storing the model monitoring data
-        # Create the stream output
+
+        # Create TSDB tables that will be used for storing the model monitoring data
         self._create_tsdb_tables(tsdb_profile)
 
         services.api.crud.Secrets().store_project_secrets(

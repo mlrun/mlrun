@@ -47,6 +47,8 @@ from mlrun.utils import generate_artifact_uri
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
+from . import get_tsdb_datastore_profile_from_env
+
 _MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_monitoring"
 
 
@@ -109,10 +111,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
     def test_get_model_endpoint_metrics(self):
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project_name,
-            tsdb_connection_string=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
+            project=self.project_name, profile=get_tsdb_datastore_profile_from_env()
         )
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
@@ -1503,10 +1502,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
-            project=cls.project_name,
-            tsdb_connection_string=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
+            project=cls.project_name, profile=get_tsdb_datastore_profile_from_env()
         )
 
         df: pd.DataFrame = tsdb_client._get_records(

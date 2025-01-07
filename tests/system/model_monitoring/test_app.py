@@ -53,6 +53,7 @@ from mlrun.model_monitoring.applications.histogram_data_drift import (
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
+from . import get_tsdb_datastore_profile_from_env
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -119,10 +120,7 @@ class _V3IORecordsChecker:
         )
 
         cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=project_name,
-            tsdb_connection_string=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
+            project=project_name, profile=get_tsdb_datastore_profile_from_env()
         )
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
@@ -1691,10 +1689,7 @@ class TestBatchServingWithSampling(TestMLRunSystem):
             executor.submit(self._deploy_model_serving, model_uri)  # without sampling
             executor.submit(self._set_infra)
         self._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project_name,
-            tsdb_connection_string=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
+            project=self.project_name, profile=get_tsdb_datastore_profile_from_env()
         )
 
     def test_serving(self) -> None:

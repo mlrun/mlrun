@@ -17,7 +17,7 @@ import base64
 import json
 import typing
 import warnings
-from urllib.parse import ParseResult, urlparse, urlunparse
+from urllib.parse import ParseResult, urlparse
 
 import pydantic.v1
 from mergedeep import merge
@@ -211,9 +211,10 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
             attributes["partitions"] = self.partitions
         sasl = attributes.pop("sasl", {})
         if self.sasl_user and self.sasl_pass:
-            sasl["enabled"] = True
+            sasl["enable"] = True
             sasl["user"] = self.sasl_user
             sasl["password"] = self.sasl_pass
+            sasl["mechanism"] = "PLAIN"
         if sasl:
             attributes["sasl"] = sasl
         return attributes
@@ -312,7 +313,7 @@ class DatastoreProfileRedis(DatastoreProfile):
             query=parsed_url.query,
             fragment=parsed_url.fragment,
         )
-        return urlunparse(new_parsed_url)
+        return new_parsed_url.geturl()
 
     def secrets(self) -> dict:
         res = {}
@@ -473,6 +474,59 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
+class TDEngineDatastoreProfile(DatastoreProfile):
+    """
+    A profile that holds the required parameters for a TDEngine database, with the websocket scheme.
+    https://docs.tdengine.com/developer-guide/connecting-to-tdengine/#websocket-connection
+    """
+
+    type: str = pydantic.v1.Field("taosws")
+    _private_attributes = ["password"]
+    user: str
+    # The password cannot be empty in real world scenarios. It's here just because of the profiles completion design.
+    password: typing.Optional[str]
+    host: str
+    port: int
+
+    def dsn(self) -> str:
+        """Get the Data Source Name of the configured TDEngine profile."""
+        return f"{self.type}://{self.user}:{self.password}@{self.host}:{self.port}"
+
+    @classmethod
+    def from_dsn(cls, dsn: str, profile_name: str) -> "TDEngineDatastoreProfile":
+        """
+        Construct a TDEngine profile from DSN (connection string) and a name for the profile.
+
+        :param dsn:          The DSN (Data Source Name) of the TDEngine database, e.g.: ``"taosws://root:taosdata@localhost:6041"``.
+        :param profile_name: The new profile's name.
+        :return:             The TDEngine profile.
+        """
+        parsed_url = urlparse(dsn)
+        return cls(
+            name=profile_name,
+            user=parsed_url.username,
+            password=parsed_url.password,
+            host=parsed_url.hostname,
+            port=parsed_url.port,
+        )
+
+
+_DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
+    "v3io": DatastoreProfileV3io,
+    "s3": DatastoreProfileS3,
+    "redis": DatastoreProfileRedis,
+    "basic": DatastoreProfileBasic,
+    "kafka_target": DatastoreProfileKafkaTarget,
+    "kafka_source": DatastoreProfileKafkaSource,
+    "dbfs": DatastoreProfileDBFS,
+    "gcs": DatastoreProfileGCS,
+    "az": DatastoreProfileAzureBlob,
+    "hdfs": DatastoreProfileHdfs,
+    "taosws": TDEngineDatastoreProfile,
+    "config": ConfigProfile,
+}
+
+
 class DatastoreProfile2Json(pydantic.v1.BaseModel):
     @staticmethod
     def _to_json(attributes):
@@ -523,19 +577,7 @@ class DatastoreProfile2Json(pydantic.v1.BaseModel):
 
         decoded_dict = {k: safe_literal_eval(v) for k, v in decoded_dict.items()}
         datastore_type = decoded_dict.get("type")
-        ds_profile_factory = {
-            "v3io": DatastoreProfileV3io,
-            "s3": DatastoreProfileS3,
-            "redis": DatastoreProfileRedis,
-            "basic": DatastoreProfileBasic,
-            "kafka_target": DatastoreProfileKafkaTarget,
-            "kafka_source": DatastoreProfileKafkaSource,
-            "dbfs": DatastoreProfileDBFS,
-            "gcs": DatastoreProfileGCS,
-            "az": DatastoreProfileAzureBlob,
-            "hdfs": DatastoreProfileHdfs,
-            "config": ConfigProfile,
-        }
+        ds_profile_factory = _DATASTORE_TYPE_TO_PROFILE_CLASS
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)
         else:

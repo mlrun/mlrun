@@ -48,13 +48,13 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.helpers
+import framework.utils.pagination
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.runtimes.nuclio.function
 import services.api.launcher
 import services.api.utils.functions
-import services.api.utils.pagination
 from framework.api import deps
 from services.api.api.endpoints.nuclio import (
     _get_api_gateways_urls_for_function,
@@ -232,7 +232,7 @@ async def list_functions(
         )
     )
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def _filter_functions_by_permissions(_functions):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

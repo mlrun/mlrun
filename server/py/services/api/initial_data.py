@@ -43,7 +43,7 @@ import framework.constants
 import framework.db.sqldb.db
 import framework.db.sqldb.models
 import framework.utils.db.mysql
-import services.api.crud.pagination_cache
+import framework.utils.pagination_cache
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
 import services.api.utils.scheduler
@@ -133,7 +133,7 @@ def init_data(
     if not from_scratch:
         # Cleanup pagination cache on api startup
         session = create_session()
-        services.api.crud.pagination_cache.PaginationCache().cleanup_pagination_cache(
+        framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(
             session
         )
         session.commit()

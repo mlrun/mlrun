@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from collections.abc import Iterator
 from unittest import mock
 
 import pytest
@@ -20,6 +21,12 @@ import pytest
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.config
 import mlrun.model_monitoring
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    DatastoreProfileV3io,
+    register_temporary_client_datastore_profile,
+    remove_temporary_client_datastore_profile,
+)
 
 TEST_PROJECT = "test-model-endpoints"
 
@@ -71,14 +78,29 @@ def test_get_file_target_path():
     )
 
 
-def test_get_stream_path(monkeypatch: pytest.MonkeyPatch):
-    # default stream path
-    stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
+def test_get_v3io_stream_path() -> None:
+    stream_path = mlrun.model_monitoring.get_stream_path(
+        project=TEST_PROJECT, profile=DatastoreProfileV3io(name="tmp")
+    )
     assert stream_path == f"v3io:///projects/{TEST_PROJECT}/model-endpoints/stream"
 
-    # kafka stream path from env
-    monkeypatch.setenv("STREAM_PATH", "kafka://some_kafka_broker:8080")
-    stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
+
+@pytest.fixture
+def kafka_profile_name() -> Iterator[str]:
+    profile_name = "kafka-prof"
+    profile = DatastoreProfileKafkaSource(
+        name=profile_name, brokers=["some_kafka_broker:8080"], topics=[]
+    )
+    register_temporary_client_datastore_profile(profile)
+    yield profile_name
+    remove_temporary_client_datastore_profile(profile_name)
+
+
+def test_get_kafka_profile_stream_path(kafka_profile_name: str) -> None:
+    # kafka stream path from datastore profile
+    stream_path = mlrun.model_monitoring.get_stream_path(
+        project=TEST_PROJECT, secret_provider=lambda _: kafka_profile_name
+    )
     assert (
         stream_path
         == f"kafka://some_kafka_broker:8080?topic=monitoring_stream_{TEST_PROJECT}"

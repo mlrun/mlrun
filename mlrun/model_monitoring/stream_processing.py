@@ -29,11 +29,14 @@ import mlrun.model_monitoring.db
 import mlrun.serving.states
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
+    ControllerEvent,
+    ControllerEventKind,
     EndpointType,
     EventFieldType,
     FileTargetKind,
     ProjectSecretKeys,
 )
+from mlrun.datastore import parse_kafka_url
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.utils import logger
 
@@ -88,7 +91,9 @@ class EventStreamProcessor:
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
-        self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
+        self.v3io_access_key = v3io_access_key or mlrun.get_secret_or_env(
+            "V3IO_ACCESS_KEY"
+        )
         self.model_monitoring_access_key = (
             model_monitoring_access_key
             or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
@@ -118,6 +123,7 @@ class EventStreamProcessor:
         self,
         fn: mlrun.runtimes.ServingRuntime,
         tsdb_connector: TSDBConnector,
+        controller_stream_uri: str,
     ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
@@ -146,6 +152,8 @@ class EventStreamProcessor:
 
         :param fn: A serving function.
         :param tsdb_connector: Time series database connector.
+        :param controller_stream_uri: The controller stream URI. Runs on server api pod so needed to be provided as
+        input
         """
 
         graph = typing.cast(
@@ -209,6 +217,20 @@ class EventStreamProcessor:
             )
 
         apply_map_feature_names()
+        # split the graph between event with error vs valid event
+        graph.add_step(
+            "storey.Filter",
+            "FilterNOP",
+            after="MapFeatureNames",
+            _fn="(event.get('kind', " ") != 'nop_event')",
+        )
+        graph.add_step(
+            "storey.Filter",
+            "ForwardNOP",
+            after="MapFeatureNames",
+            _fn="(event.get('kind', " ") == 'nop_event')",
+        )
+
         tsdb_connector.apply_monitoring_stream_steps(
             graph=graph,
             aggregate_windows=self.aggregate_windows,
@@ -221,7 +243,7 @@ class EventStreamProcessor:
             graph.add_step(
                 "ProcessBeforeParquet",
                 name="ProcessBeforeParquet",
-                after="MapFeatureNames",
+                after="FilterNOP",
                 _fn="(event)",
             )
 
@@ -247,6 +269,44 @@ class EventStreamProcessor:
             )
 
         apply_parquet_target()
+
+        # controller branch
+        def apply_push_controller_stream(stream_uri: str):
+            if stream_uri.startswith("v3io://"):
+                graph.add_step(
+                    ">>",
+                    "controller_stream_v3io",
+                    path=stream_uri,
+                    sharding_func=ControllerEvent.ENDPOINT_ID,
+                    access_key=self.v3io_access_key,
+                    after="ForwardNOP",
+                )
+            elif stream_uri.startswith("kafka://"):
+                topic, brokers = parse_kafka_url(stream_uri)
+                logger.info(
+                    "Controller stream uri for kafka",
+                    stream_uri=stream_uri,
+                    topic=topic,
+                    brokers=brokers,
+                )
+                if isinstance(brokers, list):
+                    path = f"kafka://{brokers[0]}/{topic}"
+                elif isinstance(brokers, str):
+                    path = f"kafka://{brokers}/{topic}"
+                else:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Brokers must be a list or str check controller stream uri"
+                    )
+                graph.add_step(
+                    ">>",
+                    "controller_stream_kafka",
+                    path=path,
+                    kafka_brokers=brokers,
+                    _sharding_func="kafka_sharding_func",  # TODO: remove this when storey handle str key
+                    after="ForwardNOP",
+                )
+
+        apply_push_controller_stream(controller_stream_uri)
 
 
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
@@ -321,6 +381,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
     def do(self, full_event):
         event = full_event.body
+        if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
+            logger.info("Skipped nop event inside of ProcessEndpointEvent", event=event)
+            return storey.Event(body=[event])
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
@@ -589,6 +652,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         return None
 
     def do(self, event: dict):
+        if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
+            logger.info("Skipped nop event inside of MapFeatureNames", event=event)
+            return event
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
         feature_values = event[EventFieldType.FEATURES]
@@ -827,3 +893,7 @@ def update_monitoring_feature_set(
         )
 
     monitoring_feature_set.save()
+
+
+def kafka_sharding_func(event):
+    return event.body[ControllerEvent.ENDPOINT_ID].encode("UTF-8")

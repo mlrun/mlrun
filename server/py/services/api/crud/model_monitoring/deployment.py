@@ -1144,7 +1144,7 @@ class MonitoringDeployment:
         kafka_brokers = kafka_profile.brokers
         try:
             # The following constructor attempts to establish a connection
-            consumer = kafka.KafkaConsumer(brokers=kafka_brokers)
+            consumer = kafka.KafkaConsumer(bootstrap_servers=kafka_brokers)
         except kafka.errors.NoBrokersAvailable as err:
             logger.warn(
                 "No Kafka brokers available for the given kafka source profile in model monitoring",

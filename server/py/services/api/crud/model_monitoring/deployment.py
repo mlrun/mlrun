@@ -31,6 +31,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore.datastore_profile
 import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 import mlrun.model_monitoring.applications
@@ -38,6 +39,7 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
+import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
@@ -1018,12 +1020,7 @@ class MonitoringDeployment:
 
     def _get_monitoring_mandatory_project_secrets(self) -> dict[str, str]:
         credentials_dict = {
-            key: services.api.crud.Secrets().get_project_secret(
-                project=self.project,
-                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                secret_key=key,
-                allow_secrets_from_k8s=True,
-            )
+            key: mlrun.get_secret_or_env(key, secret_provider=self._secret_provider)
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
 
@@ -1048,10 +1045,94 @@ class MonitoringDeployment:
             "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
         )
 
+    def _validate_stream_profile(self, stream_profile_name: str) -> None:
+        try:
+            stream_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
+                url=f"ds://{stream_profile_name}",
+                project_name=self.project,
+                secrets=self._secret_provider,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"The given model monitoring stream profile name '{stream_profile_name}' "
+                "was not found. Please make sure to register it properly in the project with "
+                "`project.register_datastore_profile(stream_profile)`."
+            )
+        if isinstance(
+            stream_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+        ):
+            self._validate_kafka_stream(stream_profile)
+        elif isinstance(
+            stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            self._validate_v3io_stream(stream_profile)
+        else:
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                f"The model monitoring stream profile is of an unexpected type: '{type(stream_profile)}'\n"
+                "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+            )
+
+    def _validate_kafka_stream(
+        self,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+    ) -> None:
+        if kafka_profile.topics:
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                "Custom Kafka topics are not supported"
+            )
+        self._verify_kafka_access(kafka_profile)
+
+    @staticmethod
+    def _verify_kafka_access(
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+    ) -> None:
+        import kafka
+        import kafka.errors
+
+        kafka_brokers = kafka_profile.brokers
+        try:
+            # The following constructor attempts to establish a connection
+            consumer = kafka.KafkaConsumer(brokers=kafka_brokers)
+        except kafka.errors.NoBrokersAvailable as err:
+            logger.warn(
+                "No Kafka brokers available for the given kafka source profile in model monitoring",
+                kafka_brokers=kafka_brokers,
+                err=mlrun.errors.err_to_str(err),
+            )
+            raise
+        else:
+            consumer.close()
+
+    def _validate_v3io_stream(
+        self,
+        v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
+    ) -> None:
+        if mlrun.mlconf.is_ce_mode():
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                "MLRun CE supports only Kafka streams, received a V3IO profile for the stream"
+            )
+        self._verify_v3io_access(v3io_profile)
+
+    def _verify_v3io_access(
+        self, v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io
+    ) -> None:
+        stream_path = mlrun.model_monitoring.get_stream_path(
+            project=self.project, profile=v3io_profile
+        )
+        container, path = split_path(stream_path)
+
+        v3io_client = mlrun.utils.v3io_clients.get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api, access_key=v3io_profile.v3io_access_key
+        )
+        # We don't expect the stream to exist. The purpose is to make sure we have access.
+        v3io_client.stream.describe(
+            container, path, raise_for_status=[HTTPStatus.OK, HTTPStatus.NOT_FOUND]
+        )
+
     def set_credentials(
         self,
         access_key: typing.Optional[str] = None,
-        stream_path: typing.Optional[str] = None,
         tsdb_connection: typing.Optional[str] = None,
         tsdb_profile_name: typing.Optional[str] = None,
         stream_profile_name: typing.Optional[str] = None,
@@ -1062,13 +1143,6 @@ class MonitoringDeployment:
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
         :param access_key:                Model Monitoring access key for managing user permissions.
-        :param stream_path:               Path to the model monitoring stream. By default, None.
-                                          Options:
-                                          1. None, will be set from the system configuration.
-                                          2. v3io - for v3io stream,
-                                             pass `v3io` and the system will generate the exact path.
-                                          3. Kafka - for Kafka stream, please provide full connection string without
-                                             custom topic, for example kafka://<some_kafka_broker>:<port>.
         :param tsdb_connection:           Connection string to the time series database. By default, None.
                                           Options:
                                           1. None, will be set from the system configuration.
@@ -1078,7 +1152,7 @@ class MonitoringDeployment:
                                              for example taosws://<username>:<password>@<host>:<port>.
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
-                                          framework.
+                                          framework. Either V3IO or KafkaSource profile.
         :param replace_creds:             If True, the credentials will be set even if they are already set.
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
@@ -1086,10 +1160,11 @@ class MonitoringDeployment:
                                           provided different creds.
         :raise MLRunInvalidMMStoreTypeError: If the user provided invalid credentials.
         """
+
         if not replace_creds:
             try:
                 self.check_if_credentials_are_set()
-                if self._is_the_same_cred(stream_path, tsdb_connection):
+                if self._is_the_same_cred(stream_profile_name, tsdb_connection):
                     logger.debug(
                         "The same credentials are already set for the project - aborting with no error",
                         project=self.project,
@@ -1112,48 +1187,14 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
             )
 
-        # stream_path
-        if not stream_path:
-            stream_path = (
-                old_secrets_dict.get(
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-                )
-                or mlrun.mlconf.model_endpoint_monitoring.stream_connection
-                or _default_secrets_v3io
-            )
-
+        stream_profile_name = stream_profile_name or old_secrets_dict.get(
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
+        )
         if stream_profile_name:
-            # TODO: Add checks.
+            self._validate_stream_profile(stream_profile_name)
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
             ] = stream_profile_name
-        if stream_path:
-            if (
-                stream_path == mm_constants.V3IO_MODEL_MONITORING_DB
-                and mlrun.mlconf.is_ce_mode()
-            ):
-                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "In CE mode, only kafka stream are supported for stream path"
-                )
-            elif stream_path.startswith("kafka://") and "?topic" in stream_path:
-                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "Custom kafka topic is not allowed"
-                )
-            elif not stream_path.startswith("kafka://") and (
-                stream_path != mm_constants.V3IO_MODEL_MONITORING_DB
-            ):
-                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "Currently only Kafka connection is supported for non-v3io stream,"
-                    "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            ] = stream_path
-        elif stream_profile_name is None:
-            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                "You must provide a valid stream path connection while using set_model_monitoring_credentials "
-                "API/SDK or in the system config"
-            )
 
         if not tsdb_connection:
             tsdb_connection = (
@@ -1198,9 +1239,7 @@ class MonitoringDeployment:
         for key in (
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         ):
-            try:
-                secrets_dict[key]
-            except KeyError:
+            if key not in secrets_dict:
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     f"You must provide a valid {key} connection while using set_model_monitoring_credentials."
                 )
@@ -1212,12 +1251,6 @@ class MonitoringDeployment:
             )
         )
 
-        if not mlrun.mlconf.is_ce_mode():
-            stream_path = secrets_dict.get(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            )
-            self._verify_v3io_access(stream_path)
-
         services.api.crud.Secrets().store_project_secrets(
             project=self.project,
             secrets=mlrun.common.schemas.SecretsData(
@@ -1226,41 +1259,22 @@ class MonitoringDeployment:
             ),
         )
 
-    def _verify_v3io_access(self, stream_path: str):
-        import v3io.dataplane
-
-        stream_path = mlrun.model_monitoring.get_stream_path(
-            project=self.project,
-            stream_uri=stream_path,
-            secret_provider=self._secret_provider,
-        )
-        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
-        container, path = split_path(stream_path)
-        # We don't expect the stream to exist. The purpose is to make sure we have access.
-        v3io_client.stream.describe(
-            container,
-            path,
-            access_key=self.model_monitoring_access_key,
-            raise_for_status=[200, 404],
-        )
-
-    def _is_the_same_cred(self, stream_path: str, tsdb_connection: str) -> bool:
+    def _is_the_same_cred(
+        self,
+        stream_profile_name: typing.Optional[str],
+        tsdb_connection: typing.Optional[str],
+    ) -> bool:
         credentials_dict = {
-            key: services.api.crud.Secrets().get_project_secret(
-                project=self.project,
-                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                secret_key=key,
-                allow_secrets_from_k8s=True,
-            )
+            key: mlrun.get_secret_or_env(key, self._secret_provider)
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
 
-        old_stream = credentials_dict[
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+        old_stream_profile_name = credentials_dict[
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
         ]
-        if stream_path and old_stream != stream_path:
+        if stream_profile_name and old_stream_profile_name != stream_profile_name:
             logger.debug(
-                "User provided different stream path",
+                "User provided different stream profile name",
             )
             return False
         old_tsdb = credentials_dict[

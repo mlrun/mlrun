@@ -228,19 +228,18 @@ class ModelEndpointTarget(MonitoringStrEnum):
     SQL = "sql"
 
 
-class StreamKind(MonitoringStrEnum):
-    V3IO_STREAM = "v3io_stream"
-    KAFKA = "kafka"
-
-
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
 
 
+class DefaultProfileName(StrEnum):
+    STREAM = "mm-infra-stream"
+    TSDB = "mm-infra-tsdb"
+
+
 class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
     TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
     STREAM_PROFILE_NAME = "STREAM_PROFILE_NAME"
@@ -248,7 +247,7 @@ class ProjectSecretKeys:
     @classmethod
     def mandatory_secrets(cls):
         return [
-            cls.STREAM_PATH,
+            cls.STREAM_PROFILE_NAME,
             cls.TSDB_CONNECTION,
         ]
 

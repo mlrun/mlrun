@@ -1089,9 +1089,10 @@ class KafkaSource(OnlineSource):
             attributes["partitions"] = partitions
         sasl = attributes.pop("sasl", {})
         if sasl_user and sasl_pass:
-            sasl["enabled"] = True
+            sasl["enable"] = True
             sasl["user"] = sasl_user
             sasl["password"] = sasl_pass
+            sasl["mechanism"] = "PLAIN"
         if sasl:
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)

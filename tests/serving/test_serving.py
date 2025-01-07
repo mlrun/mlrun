@@ -17,6 +17,7 @@ import os
 import pathlib
 import random
 import time
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -811,10 +812,33 @@ def test_mock_invoke():
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
 
 
-def test_add_route_exceeds_max_steps():
-    """Test adding a route when the maximum number of steps is exceeded."""
-    host = create_graph_server(graph=RouterStep())
-    max_steps = mlrun.serving.states.MAX_ALLOWED_STEPS
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        for key in range(max_steps + 1):
-            host.graph.add_route(f"test_key_{key}", class_name=ModelTestingClass)
+def test_updating_model():
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+    server = fn.to_mock_server()
+    resp = server.test("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    with patch("mlrun.utils.logger.info") as mock_warning:
+        # update the model
+        fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=200))
+        mock_warning.assert_called_with("Model my already exists, updating it.")
+        server = fn.to_mock_server()
+        resp = server.test("/v2/models/my/infer", testdata)
+        assert resp["outputs"] == 5 * 200, f"wrong data response {resp}"
+
+
+def test_add_route_exceeds_max_models():
+    """Test adding a route when the maximum number of models is exceeded."""
+    server = create_graph_server(graph=RouterStep())
+    max_models = mlrun.serving.states.MAX_MODELS_PER_ROUTER
+    with pytest.raises(mlrun.errors.MLRunModelLimitExceededError):
+        for key in range(max_models + 1):
+            server.graph.add_route(f"test_key_{key}", class_name=ModelTestingClass)
+
+    # edit existing model
+    server.graph.add_route(f"test_key_{key-1}", class_name=ModelTestingClass)
+
+    assert (
+        len(server.graph.routes) == max_models
+    ), f"expected to have {max_models} models"

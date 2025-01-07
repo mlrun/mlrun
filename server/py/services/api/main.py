@@ -42,6 +42,7 @@ import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
 import framework.utils.notifications.notification_pusher
+import framework.utils.pagination_cache
 import framework.utils.time_window_tracker
 import services.api.crud
 import services.api.initial_data
@@ -73,6 +74,14 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
+    def __init__(self):
+        super().__init__()
+        self._paginated_methods = [
+            (services.api.crud.Runs, "list_runs"),
+            (services.api.crud.Functions, "list_functions"),
+            (services.api.crud.Artifacts, "list_artifacts"),
+        ]
+
     async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
         # on workers - it allows to us to list/get scheduler(s)
@@ -545,10 +554,10 @@ class Service(framework.service.Service):
             )
             run_function_periodically(
                 interval,
-                services.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
+                framework.utils.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
                 False,
                 framework.db.session.run_function_with_new_db_session,
-                services.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
+                framework.utils.pagination_cache.PaginationCache().monitor_pagination_cache,
             )
 
     def _start_periodic_project_summaries_calculation(self):

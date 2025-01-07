@@ -31,6 +31,7 @@ import storey.utils
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun.utils import logger
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -48,6 +49,8 @@ callable_prefix = "_"
 path_splitter = "/"
 previous_step = "$prev"
 queue_class_names = [">>", "$queue"]
+
+MAX_MODELS_PER_ROUTER = 5000
 
 
 class GraphError(Exception):
@@ -85,9 +88,6 @@ _task_step_fields = [
     "model_endpoint_creation_strategy",
     "endpoint_type",
 ]
-
-
-MAX_ALLOWED_STEPS = 4500
 
 
 def new_remote_endpoint(
@@ -755,7 +755,7 @@ class RouterStep(TaskStep):
         creation_strategy: schemas.ModelEndpointCreationStrategy = schemas.ModelEndpointCreationStrategy.INPLACE,
         **class_args,
     ):
-        """add child route step or class to the router
+        """add child route step or class to the router, if key exists it will be updated
 
         :param key:        unique name (and route path) for the child step
         :param route:      child step object (Task, ..)
@@ -775,7 +775,13 @@ class RouterStep(TaskStep):
             2. Create a new model endpoint with the same name and set it to `latest`.
 
         """
-
+        if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
+            raise mlrun.errors.MLRunModelLimitExceededError(
+                f"Router cannot support more than {MAX_MODELS_PER_ROUTER} model endpoints. "
+                f"To add a new route, edit an existing one by passing the same key."
+            )
+        if key in self.routes:
+            logger.info(f"Model {key} already exists, updating it.")
         if not route and not class_name and not handler:
             raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
@@ -790,10 +796,6 @@ class RouterStep(TaskStep):
             )
         route.function = function or route.function
 
-        if len(self._routes) >= MAX_ALLOWED_STEPS:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Cannot create the serving graph: the maximum number of steps is {MAX_ALLOWED_STEPS}"
-            )
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
@@ -806,6 +808,10 @@ class RouterStep(TaskStep):
             del self._routes[key]
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        if not self.routes:
+            raise mlrun.errors.MLRunRuntimeError(
+                "You have to add models to the router step before initializing it"
+            )
         if not self._is_local_function(context):
             return
 

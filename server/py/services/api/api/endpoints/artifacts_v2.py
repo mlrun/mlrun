@@ -25,9 +25,9 @@ from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.utils import logger
 
 import framework.utils.auth.verifier
+import framework.utils.pagination
 import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.pagination
 from framework.api import deps
 from framework.api.utils import artifact_project_and_resource_name_extractor
 
@@ -197,7 +197,7 @@ async def list_artifacts(
             "'page/page_size' and 'limit' are conflicting, only one can be specified."
         )
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def _filter_artifacts(_artifacts):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

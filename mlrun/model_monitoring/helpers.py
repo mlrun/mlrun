@@ -117,6 +117,7 @@ def get_stream_path(
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
     stream_uri: Optional[str] = None,
     secret_provider: Optional[Callable[[str], str]] = None,
+    profile: Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
@@ -126,20 +127,25 @@ def get_stream_path(
     :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project's secret.
     :param secret_provider:     Optional secret provider to get the connection string secret.
                                 If not set, the env vars are used.
+    :param profile:             Optional datastore profile of the stream (V3IO/KafkaSource profile).
     :return:                    Monitoring stream path to the relevant application.
     """
 
-    try:
-        profile = _get_stream_profile(project=project, secret_provider=secret_provider)
-    except mlrun.errors.MLRunNotFoundError:
-        profile = None
+    profile = profile or _get_stream_profile(
+        project=project, secret_provider=secret_provider
+    )
 
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
         stream_uri = "v3io"
-
-    stream_uri = stream_uri or mlrun.get_secret_or_env(
-        key=mm_constants.ProjectSecretKeys.STREAM_PATH, secret_provider=secret_provider
-    )
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+    ):
+        stream_uri = f"kafka://{profile.brokers[0]}"
+    else:
+        raise mlrun.errors.MLRunValueError(
+            f"Received an unexpected stream profile type: {type(profile)}\n"
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+        )
 
     if not stream_uri or stream_uri == "v3io":
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -273,7 +279,7 @@ def _get_profile(
     )
     if not profile_name:
         raise mlrun.errors.MLRunNotFoundError(
-            f"Not found `{profile_name_key}` profile name"
+            f"Not found `{profile_name_key}` profile name for project '{project}'"
         )
     return mlrun.datastore.datastore_profile.datastore_profile_read(
         url=f"ds://{profile_name}", project_name=project, secrets=secret_provider

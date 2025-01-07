@@ -128,6 +128,10 @@ from framework.db.sqldb.models import (
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
+# Max values for 32-bit and 64-bit signed integers
+MAX_INT_32 = 2_147_483_647  # For Integer (4-byte)
+MAX_INT_64 = 9_223_372_036_854_775_807  # For BigInteger (8-byte)
+
 conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
     "(pymysql.err.IntegrityError) (1062",
@@ -6956,6 +6960,13 @@ class SQLDB(DBInterface):
         page_size: int,
         kwargs: dict,
     ):
+        self._validate_integer_max_value(
+            PaginationCache.__table__.c.current_page, current_page
+        )
+        self._validate_integer_max_value(
+            PaginationCache.__table__.c.page_size, page_size
+        )
+
         # generate key hash from user, function, current_page and kwargs
         key = hashlib.sha256(
             f"{user}/{function}/{page_size}/{kwargs}".encode()
@@ -7350,3 +7361,31 @@ class SQLDB(DBInterface):
             query = query.limit(limit)
 
         return query
+
+    @staticmethod
+    def _validate_integer_max_value(column: Column, value: int):
+        """
+        Validate that the value of a column does not exceed the max allowed integer value for that column's type.
+
+        :param column: The SQLAlchemy column to check (e.g., PaginationCache.__table__.c.current_page).
+        :param value: The value to validate.
+        :raises: MLRunInvalidArgumentError if value exceeds the max allowed integer value for the column's type.
+        """
+        if isinstance(column.type, sqlalchemy.Integer):
+            # Validate against 32-bit max
+            if value > MAX_INT_32:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The '{column.name}' field value must be less than or equal to {MAX_INT_32}."
+                )
+
+        elif isinstance(column.type, sqlalchemy.BigInteger):
+            # Validate against 64-bit max
+            if value > MAX_INT_64:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The '{column.name}' field value must be less than or equal to {MAX_INT_64}."
+                )
+
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported column type '{column.type}' for validation."
+            )

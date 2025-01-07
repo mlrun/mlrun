@@ -22,9 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 
-import framework.utils.auth.verifier
-import framework.utils.clients.chief
-import framework.utils.singletons.project_member
+import framework.service
 from framework.api import deps
 
 router = APIRouter()

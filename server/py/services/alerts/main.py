@@ -34,6 +34,7 @@ import framework.db.sqldb.db
 import framework.service
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
+import framework.utils.pagination
 import framework.utils.periodic
 import framework.utils.singletons.db
 import framework.utils.singletons.project_member
@@ -41,7 +42,6 @@ import framework.utils.time_window_tracker
 import services.alerts.crud
 import services.alerts.initial_data
 import services.api.crud
-import services.api.utils.pagination
 from framework.db.session import close_session, create_session
 from framework.routers import (
     alert_activations,
@@ -58,6 +58,12 @@ from framework.utils.singletons.project_member import (
 
 
 class Service(framework.service.Service):
+    def __init__(self):
+        super().__init__()
+        self._paginated_methods = [
+            (services.alerts.crud.AlertActivation, "list_alert_activations"),
+        ]
+
     async def store_alert(
         self,
         request: fastapi.Request,
@@ -409,7 +415,7 @@ class Service(framework.service.Service):
                 project=project,
             )
         )
-        paginator = services.api.utils.pagination.Paginator()
+        paginator = framework.utils.pagination.Paginator()
 
         async def _filter_alert_activations_by_permissions(_alert_activations):
             return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

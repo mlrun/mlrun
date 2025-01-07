@@ -81,9 +81,10 @@ def test_kafka_source_with_attributes():
     assert attributes["topics"] == ["mytopic"]
     assert attributes["consumerGroup"] == "mygroup"
     assert attributes["sasl"] == {
-        "enabled": True,
+        "enable": True,
         "user": "myuser",
         "password": "mypassword",
+        "mechanism": "PLAIN",
         "handshake": True,
     }
 
@@ -116,9 +117,10 @@ def test_kafka_source_with_attributes_as_ds_profile():
     assert attributes["topics"] == ["mytopic"]
     assert attributes["consumerGroup"] == "mygroup"
     assert attributes["sasl"] == {
-        "enabled": True,
+        "enable": True,
         "user": "myuser",
         "password": "mypassword",
+        "mechanism": "PLAIN",
         "handshake": True,
     }
 
@@ -173,9 +175,10 @@ def test_kafka_source_without_attributes():
     assert attributes["topics"] == ["mytopic"]
     assert attributes["consumerGroup"] == "mygroup"
     assert attributes["sasl"] == {
-        "enabled": True,
+        "enable": True,
         "user": "myuser",
         "password": "mypassword",
+        "mechanism": "PLAIN",
     }
 
 

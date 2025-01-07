@@ -13,15 +13,20 @@
 # limitations under the License.
 
 from collections.abc import Iterator
+from unittest.mock import patch
 
 import pytest
 
+import mlrun
 import mlrun.common.schemas
 import mlrun.errors
 from mlrun.datastore.datastore_profile import (
+    _DATASTORE_TYPE_TO_PROFILE_CLASS,
+    DatastoreProfile,
     DatastoreProfile2Json,
     DatastoreProfileKafkaTarget,
     DatastoreProfileV3io,
+    TDEngineDatastoreProfile,
     datastore_profile_read,
     register_temporary_client_datastore_profile,
     remove_temporary_client_datastore_profile,
@@ -98,3 +103,54 @@ def test_from_public_json() -> None:
     )
     profile = DatastoreProfile2Json.create_from_json(public_profile_schema.object)
     assert isinstance(profile, DatastoreProfileV3io), "Not the right profile"
+
+
+class TestTDEngineProfile:
+    @staticmethod
+    def test_from_dsn() -> None:
+        dsn = "taosws://root:taosdata@localhost:6041"
+        profile_name = "test-taosws"
+        profile = TDEngineDatastoreProfile.from_dsn(dsn=dsn, profile_name=profile_name)
+        assert profile.type == "taosws"
+        assert profile.user == "root"
+        assert profile.password == "taosdata"
+        assert profile.host == "localhost"
+        assert profile.port == 6041
+        assert (
+            profile.dsn() == dsn
+        ), "Converting the profile back to DSN did not work as expected"
+
+    @staticmethod
+    def test_datastore_profile_read_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+        profile_name = "test-profile"
+        project_name = "test-project"
+
+        public_profile = mlrun.common.schemas.DatastoreProfile(
+            name=profile_name,
+            type="taosws",
+            object='{"type":"dGFvc3dz","name":"dGRlbmdpbmUx","user":"cm9vdA==","host":"MC4wLjAuMA==","port":"NjA0MQ=="}',
+            private=None,
+            project=project_name,
+        )
+
+        with patch(
+            "mlrun.db.nopdb.NopDB.get_datastore_profile", return_value=public_profile
+        ):
+            monkeypatch.setenv(
+                f"datastore-profiles.{project_name}.{profile_name}",
+                '{"password": "MTIzNA=="}',
+            )
+            profile_read = datastore_profile_read(f"ds://{profile_name}", project_name)
+
+        assert profile_read.type == "taosws", "Wrong profile type"
+        assert profile_read.password == "1234", "Wrong password"
+
+
+def test_datastore_type_map() -> None:
+    assert set(_DATASTORE_TYPE_TO_PROFILE_CLASS.values()) == set(
+        DatastoreProfile.__subclasses__()
+    ), "Missing profiles in the map"
+    for type_, profile_class in _DATASTORE_TYPE_TO_PROFILE_CLASS.items():
+        assert type_ == profile_class.schema().get("properties", {}).get("type").get(
+            "default"
+        ), "Type key and profile class type do not match"

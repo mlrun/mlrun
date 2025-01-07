@@ -35,6 +35,7 @@ import framework.api.utils
 import framework.middlewares
 import framework.utils.clients.chief
 import framework.utils.clients.messaging
+import framework.utils.pagination
 import framework.utils.periodic
 from framework.utils.singletons.db import initialize_db
 
@@ -45,10 +46,11 @@ class Service(ABC):
         self.service_prefix = f"/{self.service_name}"
         self.base_versioned_service_prefix = f"{self.service_prefix}/v1"
         self.v2_service_prefix = f"{self.service_prefix}/v2"
-        self.app: fastapi.FastAPI = None
+        self.app: typing.Optional[fastapi.FastAPI] = None
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
         self._messaging_client = framework.utils.clients.messaging.Client()
+        self._paginated_methods: list[tuple[typing.Callable, str]] = []
 
     def initialize(self, mounts: typing.Optional[list] = None):
         self._logger.info("Initializing service", service_name=self.service_name)
@@ -57,6 +59,7 @@ class Service(ABC):
         self._mount_services(mounts)
         self._add_middlewares()
         self._add_exception_handlers()
+        self._ensure_paginated_methods()
 
     async def move_service_to_online(self):
         self._logger.info("Moving service to online", service_name=self.service_name)
@@ -94,6 +97,21 @@ class Service(ABC):
             *args,
             **kwargs,
         )
+
+    def is_forwarded_request(self, request: fastapi.Request) -> bool:
+        """
+        Determines whether the incoming request should be forwarded to another service.
+
+        :param request: The incoming FastAPI request.
+        :return: `True` if the request should be forwarded to another service, otherwise `False`.
+        """
+
+        # let non-api requests pass through
+        if request.url.path.startswith(
+            self.service_prefix
+        ) and not request.url.path.startswith("/api/"):
+            return False
+        return self._messaging_client.is_forwarded_request(request)
 
     @abstractmethod
     async def _move_service_to_online(self):
@@ -367,14 +385,20 @@ class Service(ABC):
             self._synchronize_with_chief_clusterization_spec.__name__
         )
 
-    def is_forwarded_request(self, request: fastapi.Request) -> bool:
-        """
-        Determines whether the incoming request should be forwarded to another service.
+    def _ensure_paginated_methods(self):
+        for cls, method in self._resolve_paginated_methods():
+            framework.utils.pagination.PaginatedMethods.add_method(
+                getattr(cls(), method)
+            )
 
-        :param request: The incoming FastAPI request.
-        :return: `True` if the request should be forwarded to another service, otherwise `False`.
-        """
-        return self._messaging_client.is_forwarded_request(request)
+    def _resolve_paginated_methods(
+        self,
+    ) -> typing.Generator[tuple[typing.Callable, str], None, None]:
+        for cls, method in self._paginated_methods:
+            yield cls, method
+        for mounted_service in self._mounted_services:
+            for cls, method in mounted_service._paginated_methods:
+                yield cls, method
 
 
 class Daemon(ABC):

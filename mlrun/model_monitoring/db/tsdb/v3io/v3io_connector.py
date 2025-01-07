@@ -204,7 +204,7 @@ class V3IOTSDBConnector(TSDBConnector):
                     }
                 ],
                 name=EventFieldType.LATENCY,
-                after="MapFeatureNames",
+                after="FilterNOP",
                 step_name="Aggregates",
                 table=".",
                 key_field=EventFieldType.ENDPOINT_ID,
@@ -225,7 +225,7 @@ class V3IOTSDBConnector(TSDBConnector):
         graph.add_step(
             "storey.TSDBTarget",
             name="tsdb_predictions",
-            after="MapFeatureNames",
+            after="FilterNOP",
             path=f"{self.container}/{self.tables[mm_schemas.FileTargetKind.PREDICTIONS]}",
             rate="1/s",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,

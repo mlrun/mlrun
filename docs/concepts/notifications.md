@@ -8,6 +8,7 @@ MLRun supports configuring notifications on jobs and scheduled jobs. This sectio
 - [Local vs. remote](#local-vs-remote)
 - [Notification parameters and secrets](#notification-parameters-and-secrets)
 - [Notification kinds](#notification-kinds)
+- [Mail notifications](#mail-notifications)
 - [Configuring notifications for runs](#configuring-notifications-for-runs)
 - [Configuring notifications for pipelines](#configuring-notifications-for-pipelines)
 - [Setting notifications on live runs](#setting-notifications-on-live-runs)
@@ -24,7 +25,7 @@ Notifications can be sent either locally from the SDK, or remotely from the MLRu
 Usually, a local run sends locally, and a remote run sends remotely.
 However, there are several special cases where the notification is sent locally either way.
 These cases are:
-- Local or KFP Engine Pipelines: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
+- Local: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
   notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently. See [Configuring Notifications For Pipelines](#configuring-notifications-for-pipelines) for more details.
 - Dask: Dask runs are always local (against a remote Dask cluster), so the notifications are sent locally as well.
 
@@ -44,6 +45,57 @@ It's essential to utilize `secret_params` exclusively for handling sensitive inf
 ## Notification kinds
 
 See {py:class}`~mlrun.common.schemas.notification.NotificationKind`.
+
+## Mail notifications
+To send mail notifications, you need an existing SMTP server.
+```python
+mail_notification = mlrun.model.Notification(
+    kind="mail",
+    when=["completed", "error", "running"],
+    name="mail-notification",
+    message="",
+    condition="",
+    severity="verbose",
+    params={
+        "start_tls": True,
+        "use_tls": False,
+        "validate_certs": False,
+        "email_addresses": ["user.name@domain.com"],
+    },
+)
+```
+We use the [aiosmtplib](https://aiosmtplib.readthedocs.io/en/stable/) library for sending mail notifications.
+The `params` argument is a dictionary, that supports the following fields:
+ - server_host (string): The SMTP server host.
+ - server_port (int): The SMTP server port.
+ - sender_address (string): The sender email address.
+ - username (string): The username for the SMTP server.
+ - password (string): The password for the SMTP server.
+ - email_addresses (list of strings): The list of email addresses to send the mail to.
+ - start_tls (boolean): Whether to start the TLS connection.
+ - use_tls (boolean): Whether to use TLS.
+ - validate_certs (boolean): Whether to validate the certificates.
+
+You can read more about `start_tls` and `use_tls` on the  [aiosmtplib docs](https://aiosmtplib.readthedocs.io/en/stable/encryption.html).
+Missing params are enriched with default values which can be configured in the `mlrun-smtp-config` kubernetes (see below).
+
+### MLRun on Iguazio
+If MLRun is deployed on the Iguazio platform, an SMTP server already exists.
+To use it, run the following (with privileged user - `IT Admin`):
+```python
+import mlrun
+
+mlrun.get_run_db().refresh_smtp_configuration()
+```
+The `refresh_smtp_configuration` method will get the smtp configuration from the Iguazio platform and set it
+as the default smtp configuration (create a `mlrun-smtp-config` with the smtp configuration).
+If you edit the configuration on the Iguazio platform, you should run the `refresh_smtp_configuration` method again.
+
+### MLRun CE
+In the community edition, you can use your own SMTP server.
+To configure it, manually create the `mlrun-smtp-config` kubernetes secret with the default
+params for the SMTP server (`server_host`, `server_port`, `username`, `password`, etc..).
+After creating or editing the secret, refresh the mlrun SMTP configuration by running the `refresh_smtp_configuration` method.
 
 ## Configuring notifications for runs
 

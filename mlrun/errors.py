@@ -174,6 +174,10 @@ class MLRunInvalidArgumentError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
+class MLRunModelLimitExceededError(MLRunHTTPStatusError, ValueError):
+    error_status_code = HTTPStatus.BAD_REQUEST.value
+
+
 class MLRunInvalidArgumentTypeError(MLRunHTTPStatusError, TypeError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 

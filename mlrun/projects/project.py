@@ -3739,7 +3739,7 @@ class MlrunProject(ModelObj):
                 "Model monitoring credentials were set successfully. "
                 "Please keep in mind that if you already had model monitoring functions "
                 "/ model monitoring infra / tracked model server "
-                "deployed on your project, you will need to redeploy them."
+                "deployed on your project, you will need to redeploy them. "
                 "For redeploying the model monitoring infra, please use `enable_model_monitoring` API "
                 "and set `rebuild_images=True`"
             )

@@ -122,7 +122,7 @@ class Pipelines(
         experiment_ids = set()
         delete_run_futures = []
         with concurrent.futures.ThreadPoolExecutor(
-            max_workers=mlrun.config.Config.workflows.concurrent_delete_worker_count,
+            max_workers=mlrun.mlconf.workflows.concurrent_delete_worker_count,
             thread_name_prefix="delete_workflow_experiment_",
         ) as executor:
             for pipeline_run in project_pipeline_runs:
@@ -161,7 +161,7 @@ class Pipelines(
         experiments_failed = 0
         delete_experiment_futures = []
         with concurrent.futures.ThreadPoolExecutor(
-            max_workers=mlrun.config.Config.workflows.concurrent_delete_worker_count,
+            max_workers=mlrun.mlconf.workflows.concurrent_delete_worker_count,
             thread_name_prefix="delete_workflow_experiment_",
         ) as executor:
             for experiment_id in experiment_ids:

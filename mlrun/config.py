@@ -800,7 +800,7 @@ default_config = {
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
         # interval for periodic events generation job
-        "events_generation_interval": "30",
+        "events_generation_interval": 30,  # seconds
     },
     "auth_with_client_id": {
         "enabled": False,

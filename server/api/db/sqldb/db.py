@@ -2876,7 +2876,7 @@ class SQLDB(DBInterface):
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
-                self._calculate_files_counters,
+                self._calculate_artifact_counters_by_category,
             ),
             fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
@@ -2888,35 +2888,38 @@ class SQLDB(DBInterface):
             ),
             fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
-                self._calculate_models_counters,
-            ),
-            fastapi.concurrency.run_in_threadpool(
-                server.api.db.session.run_function_with_new_db_session,
                 self._calculate_runs_counters,
             ),
         )
         (
-            project_to_files_count,
+            category_to_project_artifact_count,
             (
                 project_to_schedule_count,
                 project_to_schedule_pending_jobs_count,
                 project_to_schedule_pending_workflows_count,
             ),
             project_to_feature_set_count,
-            project_to_models_count,
             (
                 project_to_recent_completed_runs_count,
                 project_to_recent_failed_runs_count,
                 project_to_running_runs_count,
             ),
         ) = results
+        # TODO: counters by artifact categories should be expanded to include all categories (currently only models
+        #       and other)
         return (
-            project_to_files_count,
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.other,
+                collections.defaultdict(lambda: 0),
+            ),
             project_to_schedule_count,
             project_to_schedule_pending_jobs_count,
             project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
-            project_to_models_count,
+            category_to_project_artifact_count.get(
+                mlrun.common.schemas.ArtifactCategories.model,
+                collections.defaultdict(lambda: 0),
+            ),
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
@@ -3006,42 +3009,22 @@ class SQLDB(DBInterface):
         }
         return project_to_feature_set_count
 
-    def _calculate_models_counters(self, session) -> dict[str, int]:
-        if mlrun.mlconf.monitoring.projects.summaries.feature_gates.models != "enabled":
-            return collections.defaultdict(lambda: 0)
+    @staticmethod
+    def _calculate_artifact_counters_by_category(
+        session: Session,
+    ) -> dict[str, dict[str, int]]:
+        query = session.query(
+            ArtifactV2.project, ArtifactV2.kind, func.count(distinct(ArtifactV2.key))
+        ).group_by(ArtifactV2.project, ArtifactV2.kind)
 
-        # We're using the "most_recent" which gives us only one version of each artifact key, which is what we want to
-        # count (artifact count, not artifact versions count)
-        model_artifacts = self._find_artifacts(
-            session,
-            None,
-            kind=mlrun.common.schemas.ArtifactCategories.model,
-            most_recent=True,
-        )
-        project_to_models_count = collections.defaultdict(int)
-        for model_artifact in model_artifacts:
-            project_to_models_count[model_artifact.project] += 1
-        return project_to_models_count
+        category_to_project_artifact_count = {}
+        for project, kind, count in query.all():
+            category = mlrun.common.schemas.ArtifactCategories.from_kind(kind)
+            category_to_project_artifact_count.setdefault(category, {})
+            category_to_project_artifact_count[category].setdefault(project, 0)
+            category_to_project_artifact_count[category][project] += count
 
-    def _calculate_files_counters(self, session) -> dict[str, int]:
-        if (
-            mlrun.mlconf.monitoring.projects.summaries.feature_gates.artifacts
-            != "enabled"
-        ):
-            return collections.defaultdict(lambda: 0)
-
-        # We're using the "most_recent" flag which gives us only one version of each artifact key, which is what we
-        # want to count (artifact count, not artifact versions count)
-        file_artifacts = self._find_artifacts(
-            session,
-            None,
-            category=mlrun.common.schemas.ArtifactCategories.other,
-            most_recent=True,
-        )
-        project_to_files_count = collections.defaultdict(int)
-        for file_artifact in file_artifacts:
-            project_to_files_count[file_artifact.project] += 1
-        return project_to_files_count
+        return category_to_project_artifact_count
 
     @staticmethod
     def _calculate_runs_counters(

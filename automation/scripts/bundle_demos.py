@@ -58,7 +58,12 @@ for repo_info in repos:
 
     # Clone the repository
     try:
-        repo = Repo.clone_from(repo_url, os.path.join(temp_dir, repo_name))
+        if repo_name == "demo-fraud":
+            repo = Repo.clone_from(
+                repo_url, os.path.join(temp_dir, repo_name), branch="1.7.x"
+            )
+        else:
+            repo = Repo.clone_from(repo_url, os.path.join(temp_dir, repo_name))
     except Exception as e:
         print(f"could not clone repo {repo_url}")
         print(e)

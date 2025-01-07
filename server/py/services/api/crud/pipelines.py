@@ -129,9 +129,7 @@ class Pipelines(
                 pipeline_run = mlrun_pipelines.models.PipelineRun(pipeline_run)
                 # delete pipeline run also terminates it if it is in progress
                 delete_run_futures.append(
-                    executor.submit(
-                        kfp_client._run_api.delete_run, pipeline_run.id
-                    )
+                    executor.submit(kfp_client._run_api.delete_run, pipeline_run.id)
                 )
                 if pipeline_run.experiment_id:
                     experiment_ids.add(pipeline_run.experiment_id)

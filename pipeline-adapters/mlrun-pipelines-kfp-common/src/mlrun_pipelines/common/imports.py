@@ -68,11 +68,14 @@ class DummyCompiler:
 
         def compile(self, pipeline_func: Callable[..., Any], package_path: str) -> None:
             self._warn_once_about_kfp()
-            logger.debug(f"[NoOp] Compiling pipeline for func '{pipeline_func}' -> '{package_path}'")
+            logger.debug(
+                f"[NoOp] Compiling pipeline for func '{pipeline_func}' -> '{package_path}'"
+            )
 
         def _create_workflow(self, *args: Any, **kwargs: Any) -> None:
             self._warn_once_about_kfp()
             logger.debug("[NoOp] _create_workflow called.")
+
 
 class DummyRunPipelineResult:
     def get_output_file(self, op_name: str, output: Optional[str] = None) -> str:

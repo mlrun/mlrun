@@ -53,6 +53,7 @@ from mlrun.model_monitoring.applications.histogram_data_drift import (
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
+from . import get_tsdb_datastore_profile_from_env
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     CountApp,
@@ -113,12 +114,13 @@ class _V3IORecordsChecker:
         )
         project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
 
         cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=project_name,
-            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            project=project_name, profile=get_tsdb_datastore_profile_from_env()
         )
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
@@ -870,7 +872,9 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             )
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
@@ -1256,7 +1260,9 @@ class TestMonitoredServings(TestMLRunSystem):
         self.function_name = "serving-router"
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
@@ -1301,7 +1307,9 @@ class TestMonitoredServings(TestMLRunSystem):
         self.function_name = "serving-1"
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
@@ -1321,7 +1329,12 @@ class TestMonitoredServings(TestMLRunSystem):
             project=self.project_name
         )
         endpoints = endpoints_list.endpoints
-        assert len(endpoints) == 0
+        assert len(endpoints) == 1
+        endpoint = endpoints[0]
+        assert (
+            endpoint.status.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
+        )
 
         for model_name, model_dict in self.test_models_tracking.items():
             self._deploy_model_serving(**model_dict, enable_tracking=True)
@@ -1333,16 +1346,14 @@ class TestMonitoredServings(TestMLRunSystem):
         assert len(endpoints) == 1
         endpoint = endpoints[0]
         assert (
-            endpoint["monitoring_mode"]
+            endpoint.status.monitoring_mode
             == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
         )
 
         res_dict = self._test_endpoint(
-            model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
-            feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
-            model_dict=self.test_models_tracking[
-                endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
-            ],
+            model_name=endpoint.metadata.name,
+            feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
+            model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
         assert res_dict[
             "is_schema_saved"
@@ -1362,16 +1373,14 @@ class TestMonitoredServings(TestMLRunSystem):
         assert len(endpoints) == 1
         endpoint = endpoints[0]
         assert (
-            endpoint["monitoring_mode"]
+            endpoint.status.monitoring_mode
             == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
         )
 
         res_dict = self._test_endpoint(
-            model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
-            feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
-            model_dict=self.test_models_tracking[
-                endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
-            ],
+            model_name=endpoint.metadata.name,
+            feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
+            model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
 
         assert res_dict[
@@ -1382,7 +1391,9 @@ class TestMonitoredServings(TestMLRunSystem):
         self.function_name = "test-function"
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
 
         with pytest.raises(
@@ -1488,7 +1499,9 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
     def _set_credentials(self) -> None:
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
 
     def _set_infra(self) -> None:
@@ -1625,7 +1638,9 @@ class TestBatchServingWithSampling(TestMLRunSystem):
     def _set_credentials(self) -> None:
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
 
     def _set_infra(self) -> None:
@@ -1675,8 +1690,7 @@ class TestBatchServingWithSampling(TestMLRunSystem):
             executor.submit(self._deploy_model_serving, model_uri)  # without sampling
             executor.submit(self._set_infra)
         self._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project_name,
-            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            project=self.project_name, profile=get_tsdb_datastore_profile_from_env()
         )
 
     def test_serving(self) -> None:

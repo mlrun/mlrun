@@ -7157,9 +7157,9 @@ class SQLDB(DBInterface):
             for key, val in schema_attr.items():
                 setattr(mep_record, key, val)
                 update_in(struct, key, val)
-            if labels and isinstance(labels, dict):
+            if labels is not None and isinstance(labels, dict):
                 update_labels(mep_record, labels)
-            update_in(struct, "labels", labels)
+                update_in(struct, "labels", labels)
             mep_record.struct = struct
             mep_record.updated = updated
             self._upsert(session, [mep_record])
@@ -7170,7 +7170,11 @@ class SQLDB(DBInterface):
             )
 
     def _split_mep_update_attr(self, attributes: dict):
-        labels = attributes.pop("labels", {})
+        if "labels" in attributes:
+            # labels can be None, so if labels key exists, return {} and override existing labels.
+            labels = attributes.pop("labels") or {}
+        else:
+            labels = None
         schema_attr = {}
         for key in list(attributes.keys()):
             if hasattr(ModelEndpoint, key):

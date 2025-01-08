@@ -98,7 +98,6 @@ class TestAppDeployment:
             "services.api.crud.Functions.get_function",
             side_effect=mlrun.errors.MLRunNotFoundError,
         ):
-            mlrun.mlconf.model_endpoint_monitoring.tsdb_connection = "v3io"
             with pytest.raises(mlrun.errors.MLRunBadRequestError):
                 monitoring_deployment.check_if_credentials_are_set()
 

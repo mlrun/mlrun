@@ -48,6 +48,14 @@ def _extract_collection_name(vectorstore: "VectorStore") -> str:  # noqa: F821
         else:
             return getattr(obj, pattern, None)
 
+    if type(vectorstore).__name__ == "PineconeVectorStore":
+        try:
+            url = vectorstore._index._config.host
+            index_name = url.split("//")[1].split("-")[0]
+            return index_name
+        except Exception:
+            pass
+
     for pattern in patterns:
         try:
             value = resolve_attribute(vectorstore, pattern)
@@ -254,7 +262,11 @@ class VectorStoreCollection:
             elif store_class == "chroma":
                 where = {DocumentArtifact.METADATA_SOURCE_KEY: artifact.get_source()}
                 self._collection_impl.delete(where=where)
-
+            elif store_class == "pineconevectorstore":
+                filter = {
+                    DocumentArtifact.METADATA_SOURCE_KEY: {"$eq": artifact.get_source()}
+                }
+                self._collection_impl.delete(filter=filter)
             elif (
                 hasattr(self._collection_impl, "delete")
                 and "filter"

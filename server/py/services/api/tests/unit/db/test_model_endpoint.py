@@ -570,7 +570,11 @@ class TestModelEndpoint(TestDatabaseBase):
 
     def test_insert_without_function(self) -> None:
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
-            metadata={"name": "model-endpoint-1", "project": "project-1"},
+            metadata={
+                "name": "model-endpoint-1",
+                "project": "project-1",
+                "labels": {"K": 57, "V": 44, "f": 43, "v": 4},
+            },
             spec={
                 "function_name": "some-non-mlrun-function",
                 "function_uid": None,
@@ -587,12 +591,17 @@ class TestModelEndpoint(TestDatabaseBase):
             project=model_endpoint.metadata.project,
             uid=mep.metadata.uid,
         )
-        print("model_endpoint_from_db", model_endpoint_from_db.spec.function_name)
         assert model_endpoint_from_db.metadata.name == "model-endpoint-1"
         assert model_endpoint_from_db.metadata.project == "project-1"
         assert model_endpoint_from_db.metadata.uid == mep.metadata.uid
         assert model_endpoint_from_db.spec.model_name == ""
         assert model_endpoint_from_db.spec.function_name == "some-non-mlrun-function"
+        assert model_endpoint_from_db.metadata.labels == {
+            "K": 57,
+            "V": 44,
+            "f": 43,
+            "v": 4,
+        }
 
     def test_2_functions(self) -> None:
         for i in range(2):

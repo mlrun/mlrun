@@ -688,20 +688,18 @@ class MonitoringDeployment:
                 app_ready=ready,
             )
 
-    def _create_tsdb_tables(self, connection_string: str):
-        """Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
+    def _create_tsdb_tables(
+        self, tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile
+    ) -> None:
+        """
+        Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
-        - predictions: latency of each prediction."""
-
-        tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
-            mlrun.model_monitoring.get_tsdb_connector(
-                project=self.project,
-                tsdb_connection_string=connection_string,
-            )
-        )
-
-        tsdb_connector.create_tables()
+        - predictions: latency of each prediction.
+        """
+        mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, profile=tsdb_profile
+        ).create_tables()
 
     def list_model_monitoring_functions(self) -> list:
         """Retrieve a list of all the model monitoring functions."""
@@ -1065,6 +1063,39 @@ class MonitoringDeployment:
             "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
         )
 
+    def _validate_and_get_tsdb_profile(
+        self, tsdb_profile_name: str
+    ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
+        try:
+            tsdb_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
+                url=f"ds://{tsdb_profile_name}",
+                project_name=self.project,
+                secrets=self._secret_provider,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"The given model monitoring TSDB profile name '{tsdb_profile_name}' "
+                "was not found. Please make sure to register it properly in the project with "
+                "`project.register_datastore_profile(tsdb_profile)`."
+            )
+
+        if isinstance(
+            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            if mlrun.mlconf.is_ce_mode():
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                    "MLRun CE supports only TDEngine TSDB, received a V3IO profile for the TSDB"
+                )
+        elif not isinstance(
+            tsdb_profile, mlrun.datastore.datastore_profile.TDEngineDatastoreProfile
+        ):
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
+                "Expects `DatastoreProfileV3io` or `TDEngineDatastoreProfile`."
+            )
+
+        return tsdb_profile
+
     def _validate_stream_profile(self, stream_profile_name: str) -> None:
         try:
             stream_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
@@ -1113,7 +1144,7 @@ class MonitoringDeployment:
         kafka_brokers = kafka_profile.brokers
         try:
             # The following constructor attempts to establish a connection
-            consumer = kafka.KafkaConsumer(brokers=kafka_brokers)
+            consumer = kafka.KafkaConsumer(bootstrap_servers=kafka_brokers)
         except kafka.errors.NoBrokersAvailable as err:
             logger.warn(
                 "No Kafka brokers available for the given kafka source profile in model monitoring",
@@ -1153,29 +1184,19 @@ class MonitoringDeployment:
     def set_credentials(
         self,
         access_key: typing.Optional[str] = None,
-        tsdb_connection: typing.Optional[str] = None,
         tsdb_profile_name: typing.Optional[str] = None,
         stream_profile_name: typing.Optional[str] = None,
         replace_creds: bool = False,
-        _default_secrets_v3io: typing.Optional[str] = None,
     ) -> None:
         """
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
         :param access_key:                Model Monitoring access key for managing user permissions.
-        :param tsdb_connection:           Connection string to the time series database. By default, None.
-                                          Options:
-                                          1. None, will be set from the system configuration.
-                                          2. v3io - for v3io stream,
-                                             pass `v3io` and the system will generate the exact path.
-                                          3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
-                                             for example taosws://<username>:<password>@<host>:<port>.
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
+                                          Either V3IO or TDEngine profile.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
                                           framework. Either V3IO or KafkaSource profile.
         :param replace_creds:             If True, the credentials will be set even if they are already set.
-        :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
-                                          key is set.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
                                           provided different creds.
         :raise MLRunInvalidMMStoreTypeError: If the user provided invalid credentials.
@@ -1184,7 +1205,7 @@ class MonitoringDeployment:
         if not replace_creds:
             try:
                 self.check_if_credentials_are_set()
-                if self._is_the_same_cred(stream_profile_name, tsdb_connection):
+                if self._is_the_same_cred(stream_profile_name, tsdb_profile_name):
                     logger.debug(
                         "The same credentials are already set for the project - aborting with no error",
                         project=self.project,
@@ -1216,44 +1237,14 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
             ] = stream_profile_name
 
-        if not tsdb_connection:
-            tsdb_connection = (
-                old_secrets_dict.get(
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-                )
-                or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
-                or _default_secrets_v3io
-            )
-
+        tsdb_profile_name = tsdb_profile_name or old_secrets_dict.get(
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_PROFILE_NAME
+        )
         if tsdb_profile_name:
-            # TODO: Add checks.
+            tsdb_profile = self._validate_and_get_tsdb_profile(tsdb_profile_name)
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_PROFILE_NAME
             ] = tsdb_profile_name
-        if tsdb_connection:
-            if (
-                tsdb_connection != mm_constants.V3IO_MODEL_MONITORING_DB
-                and not tsdb_connection.startswith("taosws://")
-            ):
-                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
-                    "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"
-                )
-            elif (
-                tsdb_connection == mm_constants.V3IO_MODEL_MONITORING_DB
-                and mlrun.mlconf.is_ce_mode()
-            ):
-                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "In CE mode, only TDEngine websocket connection is supported for TSDB"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-            ] = tsdb_connection
-        elif tsdb_profile_name is None:
-            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                "You must provide a valid tsdb connection while using set_model_monitoring_credentials "
-                "API/SDK or in the system config"
-            )
 
         # Check the cred are valid
         for key in (
@@ -1263,13 +1254,9 @@ class MonitoringDeployment:
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     f"You must provide a valid {key} connection while using set_model_monitoring_credentials."
                 )
-        # Create tsdb & sql tables that will be used for storing the model monitoring data
-        # Create the stream output
-        self._create_tsdb_tables(
-            connection_string=secrets_dict.get(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-            )
-        )
+
+        # Create TSDB tables that will be used for storing the model monitoring data
+        self._create_tsdb_tables(tsdb_profile)
 
         services.api.crud.Secrets().store_project_secrets(
             project=self.project,
@@ -1282,7 +1269,7 @@ class MonitoringDeployment:
     def _is_the_same_cred(
         self,
         stream_profile_name: typing.Optional[str],
-        tsdb_connection: typing.Optional[str],
+        tsdb_profile_name: typing.Optional[str],
     ) -> bool:
         credentials_dict = {
             key: mlrun.get_secret_or_env(key, self._secret_provider)
@@ -1297,12 +1284,12 @@ class MonitoringDeployment:
                 "User provided different stream profile name",
             )
             return False
-        old_tsdb = credentials_dict[
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+        old_tsdb_profile_name = credentials_dict[
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_PROFILE_NAME
         ]
-        if tsdb_connection and old_tsdb != tsdb_connection:
+        if tsdb_profile_name and old_tsdb_profile_name != tsdb_profile_name:
             logger.debug(
-                "User provided different tsdb connection",
+                "User provided different TSDB profile name",
             )
             return False
         return True

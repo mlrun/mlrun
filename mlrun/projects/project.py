@@ -1965,6 +1965,7 @@ class MlrunProject(ModelObj):
             ... )
 
         """
+        document_loader_spec = document_loader_spec or DocumentLoaderSpec()
         if not document_loader_spec.download_object and upload:
             raise ValueError(
                 "This document loader expects direct links/URLs and does not support file uploads. "
@@ -1973,9 +1974,8 @@ class MlrunProject(ModelObj):
         doc_artifact = DocumentArtifact(
             key=key,
             original_source=local_path or target_path,
-            document_loader_spec=document_loader_spec
-            if document_loader_spec
-            else DocumentLoaderSpec(),
+            document_loader_spec=document_loader_spec,
+            collections=kwargs.pop("collections", None),
             **kwargs,
         )
         return self.log_artifact(
@@ -3610,10 +3610,11 @@ class MlrunProject(ModelObj):
         self,
         access_key: Optional[str] = None,
         stream_path: Optional[str] = None,  # Deprecated
-        tsdb_connection: Optional[str] = None,
+        tsdb_connection: Optional[str] = None,  # Deprecated
         replace_creds: bool = False,
         *,
         stream_profile_name: Optional[str] = None,
+        tsdb_profile_name: Optional[str] = None,
     ):
         """
         Set the credentials that will be used by the project's model monitoring
@@ -3632,14 +3633,13 @@ class MlrunProject(ModelObj):
                                             the exact path.
                                           * Kafka - for Kafka stream, provide the full connection string without acustom
                                             topic, for example ``"kafka://<some_kafka_broker>:<port>"``.
-        :param tsdb_connection:           Connection string to the time series database. By default, None.
+        :param tsdb_connection:           (Deprecated) Connection string to the time series database. By default, None.
                                           Options:
 
-                                          * None - will be set from the system configuration.
-                                          * v3io - for v3io stream, pass `v3io` and the system will generate the exact
-                                            path.
+                                          * v3io - for v3io stream, pass ``"v3io"`` and the system will generate the
+                                            exact path.
                                           * TDEngine - for TDEngine tsdb, provide the full websocket connection URL,
-                                            for example taosws://<username>:<password>@<host>:<port>.
+                                            for example ``"taosws://<username>:<password>@<host>:<port>"``.
         :param replace_creds:             If True, will override the existing credentials.
                                           Please keep in mind that if you already enabled model monitoring on
                                           your project this action can cause data loose and will require redeploying
@@ -3652,20 +3652,52 @@ class MlrunProject(ModelObj):
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
 
                                           You need to register one of them, and pass the profile's name.
+        :param tsdb_profile_name:         The datastore profile name of the time-series database to be used in model
+                                          monitoring. The supported profiles are:
+
+                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
+                                          * :py:class:`~mlrun.datastore.datastore_profile.TDEngineDatastoreProfile`
+
+                                          You need to register one of them, and pass the profile's name.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        if tsdb_connection == "v3io":
-            tsdb_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
-                name=mm_constants.DefaultProfileName.TSDB
+
+        if tsdb_connection:
+            warnings.warn(
+                "The `tsdb_connection` argument is deprecated and will be removed in MLRun version 1.8.0. "
+                "Use `tsdb_profile_name` instead.",
+                FutureWarning,
             )
+            if tsdb_profile_name:
+                raise mlrun.errors.MLRunValueError(
+                    "If you set `tsdb_profile_name`, you must not pass `tsdb_connection`."
+                )
+            if tsdb_connection == "v3io":
+                tsdb_profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+                    name=mm_constants.DefaultProfileName.TSDB
+                )
+            else:
+                parsed_url = urlparse(tsdb_connection)
+                if parsed_url.scheme != "taosws":
+                    raise mlrun.errors.MLRunValueError(
+                        f"Unsupported `tsdb_connection`: '{tsdb_connection}'."
+                    )
+                tsdb_profile = (
+                    mlrun.datastore.datastore_profile.TDEngineDatastoreProfile(
+                        name=mm_constants.DefaultProfileName.TSDB,
+                        user=parsed_url.username,
+                        password=parsed_url.password,
+                        host=parsed_url.hostname,
+                        port=parsed_url.port,
+                    )
+                )
+
             self.register_datastore_profile(tsdb_profile)
             tsdb_profile_name = tsdb_profile.name
-        else:
-            tsdb_profile_name = None
 
         if stream_path:
             warnings.warn(
-                "The `stream_path` argument is deprecated and will be removed in MLRun version 1.10.0. "
+                "The `stream_path` argument is deprecated and will be removed in MLRun version 1.8.0. "
                 "Use `stream_profile_name` instead.",
                 FutureWarning,
             )
@@ -3697,7 +3729,6 @@ class MlrunProject(ModelObj):
             project=self.name,
             credentials={
                 "access_key": access_key,
-                "tsdb_connection": tsdb_connection,
                 "tsdb_profile_name": tsdb_profile_name,
                 "stream_profile_name": stream_profile_name,
             },
@@ -3708,7 +3739,7 @@ class MlrunProject(ModelObj):
                 "Model monitoring credentials were set successfully. "
                 "Please keep in mind that if you already had model monitoring functions "
                 "/ model monitoring infra / tracked model server "
-                "deployed on your project, you will need to redeploy them."
+                "deployed on your project, you will need to redeploy them. "
                 "For redeploying the model monitoring infra, please use `enable_model_monitoring` API "
                 "and set `rebuild_images=True`"
             )

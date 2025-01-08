@@ -559,10 +559,6 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("external_platform_tracking")
                 or config.external_platform_tracking
             )
-            config.model_endpoint_monitoring.tsdb_connection = (
-                server_cfg.get("model_monitoring_tsdb_connection")
-                or config.model_endpoint_monitoring.tsdb_connection
-            )
             config.packagers = server_cfg.get("packagers") or config.packagers
             server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
             for prefix in ["default", "nosql", "redisnosql"]:

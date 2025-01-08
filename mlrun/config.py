@@ -624,8 +624,6 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
-        "tsdb_connection": "",
         "tdengine": {
             "timeout": 10,
             "retries": 1,
@@ -743,6 +741,7 @@ default_config = {
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
+        "concurrent_delete_worker_count": 20,
         # Default timeout seconds for retrieving workflow id after execution
         # Remote workflow timeout is the maximum between remote and the inner engine timeout
         "timeouts": {"local": 120, "kfp": 60, "remote": 60 * 5},

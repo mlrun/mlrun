@@ -94,12 +94,16 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
                     temp_file.write(pipeline_spec.workflow_manifest)
                     workflow_manifest_path = temp_file.name
 
+            pipeline_parameters = pipeline_spec.parameters
+            if isinstance(pipeline_parameters, list):
+                pipeline_parameters = pipeline_parameters[0]
+
             try:
                 new_run = self.run_pipeline(
                     experiment_id=experiment_id,
                     job_name=f"Retry of {run_details.name}",
                     pipeline_id=pipeline_spec.pipeline_id,
-                    params=pipeline_spec.parameters,
+                    params=pipeline_parameters,
                     pipeline_package_path=workflow_manifest_path,
                 )
                 return new_run.id

@@ -92,7 +92,7 @@ def run_migrations_online():
             )
         ).fetchall()
         for connection_id in connection_ids:
-            connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))
+            connection.execute(sqlalchemy.sql.text(f"KILL {connection_id[0]};"))
 
         context.configure(connection=connection, target_metadata=target_metadata)
 

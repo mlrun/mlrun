@@ -1023,8 +1023,7 @@ class MonitoringDeployment:
 
             try:
                 kafka_client = kafka.KafkaAdminClient(
-                    bootstrap_servers=brokers,
-                    client_id=self.project,
+                    bootstrap_servers=brokers, client_id=self.project
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)

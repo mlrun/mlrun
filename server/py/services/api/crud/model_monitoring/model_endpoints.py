@@ -857,8 +857,9 @@ class ModelEndpoints:
 
         return endpoint_list
 
-    def delete_model_endpoints_resources(
-        self,
+    @classmethod
+    def delete_model_endpoint_monitoring_resources(
+        cls,
         project_name: str,
         db_session: sqlalchemy.orm.Session,
         model_monitoring_applications: typing.Optional[list[str]] = None,
@@ -939,7 +940,7 @@ class ModelEndpoints:
                 tsdb_connector = None
         if tsdb_connector:
             tsdb_connector.delete_tsdb_resources()
-        self._delete_model_monitoring_stream_resources(
+        cls._delete_model_monitoring_stream_resources(
             project_name=project_name,
             model_monitoring_applications=model_monitoring_applications,
             model_monitoring_access_key=model_monitoring_access_key,

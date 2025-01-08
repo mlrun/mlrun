@@ -1268,3 +1268,52 @@ class ModelEndpoints:
 
         model_endpoint_object.spec.feature_stats = feature_stats
         return model_endpoint_object, model_obj
+
+
+class ModelMonitoringResourcesDeleter:
+    def __init__(
+        self,
+        *,
+        project: str,
+        db_session: typing.Optional[sqlalchemy.orm.Session],
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo],
+        model_monitoring_access_key: typing.Optional[str],
+    ) -> None:
+        self._project = project
+        self._db_session = db_session
+        self._auth_info = auth_info
+        self._model_monitoring_access_key = model_monitoring_access_key
+
+        # get model monitoring application names, important for deleting model monitoring resources
+        logger.debug("Getting monitoring applications to delete", project_name=project)
+        self._model_monitoring_applications = (
+            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=project,
+                db_session=db_session,
+                auth_info=auth_info,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
+        )._get_monitoring_application_to_delete(delete_user_applications=True)
+
+        self._secret_provider = services.api.crud.secrets.get_project_secret_provider(
+            project=project
+        )
+
+    def delete(self) -> None:
+        try:
+            # delete model monitoring resources
+            logger.debug(
+                "Deleting model endpoints resources", project_name=self._project
+            )
+            ModelEndpoints.delete_model_endpoint_monitoring_resources(
+                project_name=self._project,
+                db_session=self._db_session,
+                model_monitoring_applications=self._model_monitoring_applications,
+                model_monitoring_access_key=self._model_monitoring_access_key,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete model monitoring resources",
+                project_name=self._project,
+            )
+            raise exc

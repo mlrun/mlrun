@@ -21,7 +21,7 @@ from .files import Files
 from .functions import Functions
 from .hub import Hub
 from .logs import Logs
-from .model_monitoring import ModelEndpoints
+from .model_monitoring import ModelEndpoints, ModelMonitoringResourcesDeleter
 from .notifications import Notifications
 from .pipelines import Pipelines
 from .projects import Projects

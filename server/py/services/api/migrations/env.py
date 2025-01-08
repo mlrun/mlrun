@@ -86,16 +86,11 @@ def run_migrations_online():
 
     with connectable.connect() as connection:
         # Kill all processes connected to the 'mlrun' database except the current connection
-        current_connnection_id = connection.execute(
-            sqlalchemy.sql.text("SELECT CONNECTION_ID();")
-        ).scalar()
-        processes = connection.execute(
-            sqlalchemy.sql.text("SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST where db='mlrun';")
+        connection_ids = connection.execute(
+            sqlalchemy.sql.text("SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST where DB='mlrun' AND ID != CONNECTION_ID();")
         ).fetchall()
-        for process in processes:
-            connnection_id = process[0]
-            if connnection_id != current_connnection_id:
-                connection.execute(sqlalchemy.sql.text(f"KILL {current_connnection_id};"))
+        for connection_id in connection_ids:
+            connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))
 
         context.configure(connection=connection, target_metadata=target_metadata)
 

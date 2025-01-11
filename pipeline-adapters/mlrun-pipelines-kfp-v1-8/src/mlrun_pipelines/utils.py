@@ -94,12 +94,19 @@ class ExtendedKfpClient(mlrun_pipelines.imports.Client):
                     temp_file.write(pipeline_spec.workflow_manifest)
                     workflow_manifest_path = temp_file.name
 
+            # When retrying a KFP pipeline, we fetch the pipeline parameters from the previous run.
+            # Due to an issue with the KFP server API, the pipeline parameters are returned as a list
+            # containing a dictionary instead of a dictionary. We need to extract the dictionary from the list.
+            pipeline_parameters = pipeline_spec.parameters
+            if isinstance(pipeline_parameters, list):
+                pipeline_parameters = pipeline_parameters[0]
+
             try:
                 new_run = self.run_pipeline(
                     experiment_id=experiment_id,
                     job_name=f"Retry of {run_details.name}",
                     pipeline_id=pipeline_spec.pipeline_id,
-                    params=pipeline_spec.parameters,
+                    params=pipeline_parameters,
                     pipeline_package_path=workflow_manifest_path,
                 )
                 return new_run.id

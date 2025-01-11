@@ -161,7 +161,9 @@ class TestAlerts(TestMLRunSystem):
         # enable model monitoring - deploy writer function
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
         self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
         # deploy nuclio func for storing notifications, to validate an alert notifications were sent on drift detection

@@ -47,6 +47,8 @@ from mlrun.utils import generate_artifact_uri
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
+from . import get_tsdb_datastore_profile_from_env
+
 _MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_monitoring"
 
 
@@ -68,7 +70,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
             return
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
 
     def _generate_event(
@@ -107,12 +111,13 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
     def test_get_model_endpoint_metrics(self):
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project_name,
-            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            project=self.project_name, profile=get_tsdb_datastore_profile_from_env()
         )
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
         db = mlrun.get_run_db()
         model_endpoint = self._mock_random_endpoint("testing")
@@ -364,6 +369,28 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         endpoints_intersect = in_endpoint_names.intersection(out_endpoint_names)
         assert len(endpoints_intersect) == number_of_endpoints
 
+    def test_labels(self):
+        db = mlrun.get_run_db()
+        endpoint_name = "testing-endpoint"
+        endpoint = self._mock_random_endpoint(endpoint_name)
+        in_endpoint = db.create_model_endpoint(endpoint)
+        endpoint_id = in_endpoint.metadata.uid
+        out_endpoint = self._run_db.get_model_endpoint(
+            name=endpoint_name, project=self.project_name, endpoint_id=endpoint_id
+        )
+        assert out_endpoint.metadata.labels
+
+        # testing inplace creation strategy:
+        endpoint = self._mock_random_endpoint(endpoint_name, add_labels=False)
+        db.create_model_endpoint(
+            endpoint,
+            creation_strategy=mm_constants.ModelEndpointCreationStrategy.INPLACE,
+        )
+        out_endpoint = self._run_db.get_model_endpoint(
+            name=endpoint_name, project=self.project_name, endpoint_id=endpoint_id
+        )
+        assert not out_endpoint.metadata.labels
+
     def test_max_archive_list_endpoints(self):
         # Validates the process of listing model endpoints with max archive limitation. In this test
         # we create 5 model endpoints and then create another one. The oldest one should be deleted
@@ -486,6 +513,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         function_tag: Optional[str] = "v1",
         model_name: Optional[str] = None,
         model_uid: Optional[str] = None,
+        add_labels=True,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         def random_labels():
             return {
@@ -496,7 +524,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
             metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
                 name=name,
                 project=self.project_name,
-                labels=random_labels(),
+                labels=random_labels() if add_labels else {},
             ),
             spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
                 function_name=function_name,
@@ -536,7 +564,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
             replace_creds=True,  # remove once ML-7501 is resolved
         )
 
@@ -610,7 +640,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         self._assert_model_endpoint_tags_and_labels(
             endpoint=endpoint,
             model_name=model_name,
-            tag=["some-tag", "latest"],
+            tag="some-tag",
             labels=labels,
         )
         self._assert_model_uri(model_obj=model_obj, endpoint=endpoint)
@@ -646,7 +676,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         self,
         endpoint: mlrun.common.schemas.ModelEndpoint,
         model_name: str,
-        tag: list[str],
+        tag: str,
         labels: dict[str, str],
     ) -> None:
         assert endpoint.metadata.labels == labels
@@ -1143,7 +1173,9 @@ class TestBatchDrift(TestMLRunSystem):
         # Deploy model monitoring infra
         project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
         project.enable_model_monitoring(
             base_period=1,
@@ -1282,7 +1314,9 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
         project.set_model_monitoring_credentials(
             stream_path=f"kafka://{self.brokers}",
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
 
         # enable model monitoring
@@ -1373,7 +1407,9 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         # Set the model monitoring credentials
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
 
     @classmethod
@@ -1489,8 +1525,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
-            project=cls.project_name,
-            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            project=cls.project_name, profile=get_tsdb_datastore_profile_from_env()
         )
 
         df: pd.DataFrame = tsdb_client._get_records(
@@ -1514,7 +1549,9 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
     def test_record(self) -> None:
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
         self.project.enable_model_monitoring(
             base_period=1,
@@ -1552,7 +1589,9 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystem):
 
         project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
         )
 
         # Generate a model with 500 features

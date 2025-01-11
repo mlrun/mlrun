@@ -67,43 +67,31 @@ class ObjectTSDBFactory(enum.Enum):
 def get_tsdb_connector(
     project: str,
     secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
-    tsdb_connection_string: typing.Optional[str] = None,
-    **kwargs,
+    profile: typing.Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
 ) -> TSDBConnector:
     """
     Get TSDB connector object.
     :param project:                 The name of the project.
     :param secret_provider:         An optional secret provider to get the connection string secret.
-    :param tsdb_connection_string:  An optional explicit connection string to the TSDB.
+    :param profile:                 An optional profile to initialize the TSDB connector from.
 
     :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
              TSDB connector such as updating drift metrics or write application record result.
     :raise: `MLRunInvalidMMStoreTypeError` if the user didn't provide TSDB connection
             or the provided TSDB connection is invalid.
     """
-
-    try:
-        profile = mlrun.model_monitoring.helpers._get_tsdb_profile(
-            project=project, secret_provider=secret_provider
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        profile = None
-
-    tsdb_connection_string = (
-        tsdb_connection_string
-        or mlrun.model_monitoring.helpers.get_tsdb_connection_string(
-            secret_provider=secret_provider
-        )
+    profile = profile or mlrun.model_monitoring.helpers._get_tsdb_profile(
+        project=project, secret_provider=secret_provider
     )
-
-    if tsdb_connection_string and tsdb_connection_string.startswith("taosws"):
-        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
-        kwargs["connection_string"] = tsdb_connection_string
-    elif tsdb_connection_string and tsdb_connection_string == "v3io":
-        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
-    elif isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
+    kwargs = {}
+    if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
         kwargs["v3io_access_key"] = profile.v3io_access_key
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.TDEngineDatastoreProfile
+    ):
+        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
+        kwargs["connection_string"] = profile.dsn()
     else:
         raise mlrun.errors.MLRunInvalidMMStoreTypeError(
             "You must provide a valid tsdb store connection by using "

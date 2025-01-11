@@ -89,6 +89,11 @@ _task_step_fields = [
     "endpoint_type",
 ]
 
+_default_fields_to_strip_from_step = [
+    "model_endpoint_creation_strategy",
+    "endpoint_type",
+]
+
 
 def new_remote_endpoint(
     url: str,
@@ -110,6 +115,7 @@ class BaseStep(ModelObj):
     kind = "BaseStep"
     default_shape = "ellipse"
     _dict_fields = ["kind", "comment", "after", "on_error"]
+    _default_fields_to_strip = _default_fields_to_strip_from_step
 
     def __init__(
         self,
@@ -624,6 +630,19 @@ class TaskStep(BaseStep):
             else:
                 raise exc
         return event
+
+    def to_dict(
+        self,
+        fields: Optional[list] = None,
+        exclude: Optional[list] = None,
+        strip: bool = False,
+    ) -> dict:
+        self.endpoint_type = (
+            self.endpoint_type.value
+            if isinstance(self.endpoint_type, schemas.EndpointType)
+            else self.endpoint_type
+        )
+        return super().to_dict(fields, exclude, strip)
 
 
 class MonitoringApplicationStep(TaskStep):

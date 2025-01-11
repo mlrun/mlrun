@@ -16,21 +16,40 @@ import pytest
 
 import mlrun
 import mlrun.model_monitoring
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfile,
+    DatastoreProfileKafkaSource,
+    DatastoreProfileV3io,
+    TDEngineDatastoreProfile,
+)
 from mlrun.model_monitoring.stream_processing import EventStreamProcessor
 
 
-@pytest.mark.parametrize("tsdb_connector", ["v3io", "taosws"])
-@pytest.mark.parametrize("stream_path", ["v3io", "kafka://192.168.226.176:9092/topic"])
-def test_plot_monitoring_serving_graph(tsdb_connector, stream_path):
+@pytest.mark.parametrize(
+    "tsdb_profile",
+    [
+        DatastoreProfileV3io(name="v3io-tsdb-test"),
+        TDEngineDatastoreProfile(
+            name="tdengine-test", user="root", host="localhost", port=6041
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "stream_profile",
+    [
+        DatastoreProfileV3io(name="v3io-stream-test"),
+        DatastoreProfileKafkaSource(
+            name="kafka-test", brokers=["localhost:9092"], topics=[]
+        ),
+    ],
+)
+def test_plot_monitoring_serving_graph(
+    tsdb_profile: DatastoreProfile, stream_profile: DatastoreProfile
+) -> None:
     project_name = "test-stream-processing"
     project = mlrun.get_or_create_project(project_name)
 
-    processor = EventStreamProcessor(
-        project_name,
-        1000,
-        10,
-        "mytarget",
-    )
+    processor = EventStreamProcessor(project_name, 1000, 10, "mytarget")
 
     fn = project.set_function(
         kind="serving",
@@ -38,7 +57,10 @@ def test_plot_monitoring_serving_graph(tsdb_connector, stream_path):
     )
 
     tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-        project=project_name, tsdb_connection_string=tsdb_connector
+        project=project_name, profile=tsdb_profile
+    )
+    stream_path = mlrun.model_monitoring.get_stream_path(
+        project=project_name, profile=stream_profile
     )
 
     processor.apply_monitoring_serving_graph(fn, tsdb_connector, stream_path)

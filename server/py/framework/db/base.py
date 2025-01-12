@@ -895,7 +895,10 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_alerts(
-        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
+        self,
+        session,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 

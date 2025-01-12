@@ -91,7 +91,7 @@ class TestAlerts(TestAlertsBase):
             event,
         )
 
-        alert = services.alerts.crud.Alerts().get_enriched_alert(
+        alert = services.alerts.crud.Alerts().get_alert(
             session=db,
             project=project,
             name=alert_name,
@@ -314,7 +314,7 @@ class TestAlerts(TestAlertsBase):
             event.kind,
             event,
         )
-        alert = services.alerts.crud.Alerts().get_enriched_alert(
+        alert = services.alerts.crud.Alerts().get_alert(
             session=db,
             project=project,
             name=alert_name,
@@ -338,7 +338,7 @@ class TestAlerts(TestAlertsBase):
         )
 
         # fetch the updated alert
-        alert = services.alerts.crud.Alerts().get_enriched_alert(
+        alert = services.alerts.crud.Alerts().get_alert(
             session=db,
             project=project,
             name=alert_name,
@@ -393,7 +393,7 @@ class TestAlerts(TestAlertsBase):
             alert_data=alert_data,
         )
 
-        alert = services.alerts.crud.Alerts().get_enriched_alert(
+        alert = services.alerts.crud.Alerts().get_alert(
             session=db,
             project=project,
             name=alert_name,
@@ -410,10 +410,65 @@ class TestAlerts(TestAlertsBase):
             alert_data=alert_data,
         )
 
-        alert = services.alerts.crud.Alerts().get_enriched_alert(
+        alert = services.alerts.crud.Alerts().get_alert(
             session=db,
             project=project,
             name=alert_name,
         )
         assert alert.updated is not None
         assert alert.updated > alert.created.replace(tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    @unittest.mock.patch.object(
+        framework.utils.singletons.db.SQLDB, "update_alert_activation"
+    )
+    @unittest.mock.patch.object(
+        services.alerts.crud.AlertActivation, "store_alert_activation"
+    )
+    async def test_get_alerts_exclude_updated(
+        self,
+        mocked_update_alert_activation,
+        mocked_store_alert_activation,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock: K8sSecretsMock,
+    ):
+        mocked_update_alert_activation.return_value = None
+        mocked_store_alert_activation.return_value = None
+        project = "project-name"
+        alert_name = "my-alert"
+
+        alert_data = services.alerts.tests.unit.crud.utils.generate_alert_data(
+            project=project,
+            name=alert_name,
+            entity=services.alerts.tests.unit.crud.utils.generate_alert_entity(
+                project=project
+            ),
+        )
+
+        services.alerts.crud.Alerts().store_alert(
+            session=db,
+            project=project,
+            name=alert_name,
+            alert_data=alert_data,
+        )
+
+        # retrieve alerts without excluding the `updated` field (default behavior)
+        alerts = services.alerts.crud.Alerts().list_alerts(
+            session=db,
+            project=project,
+        )
+        assert alerts[0].updated is not None
+
+        # retrieve alerts with excluding the `updated` field
+        alerts = services.alerts.crud.Alerts().list_alerts(
+            session=db,
+            project=project,
+            exclude_updated=True,
+        )
+        assert alerts[0].updated is None
+
+        # retrieve a specific alert with excluding the `updated` field
+        alert = services.alerts.crud.Alerts().get_alert(
+            session=db, project=project, name=alert_name, exclude_updated=True
+        )
+        assert alert.updated is None

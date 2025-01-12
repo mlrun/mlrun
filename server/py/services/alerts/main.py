@@ -114,6 +114,7 @@ class Service(framework.service.Service):
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
+        exclude_updated: bool = False,
     ) -> mlrun.common.schemas.AlertConfig:
         # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
         #  not access it directly (ML-8565)
@@ -133,7 +134,11 @@ class Service(framework.service.Service):
         )
 
         return await run_in_threadpool(
-            services.alerts.crud.Alerts().get_enriched_alert, db_session, project, name
+            services.alerts.crud.Alerts().get_alert,
+            db_session,
+            project,
+            name,
+            exclude_updated=exclude_updated,
         )
 
     async def list_alerts(
@@ -142,6 +147,7 @@ class Service(framework.service.Service):
         project: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
+        exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         if project != "*":
             # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
@@ -162,6 +168,7 @@ class Service(framework.service.Service):
             services.alerts.crud.Alerts().list_alerts,
             db_session,
             project=allowed_project_names,
+            exclude_updated=exclude_updated,
         )
 
         alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

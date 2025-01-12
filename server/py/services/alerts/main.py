@@ -118,10 +118,6 @@ class Service(framework.service.Service):
     ) -> mlrun.common.schemas.AlertConfig:
         # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
         #  not access it directly (ML-8565)
-        exclude_updated = self._should_exclude_updated(
-            request.headers.get("x-mlrun-client-version")
-        )
-
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -137,6 +133,9 @@ class Service(framework.service.Service):
             auth_info,
         )
 
+        exclude_updated = self._should_exclude_updated(
+            request.headers.get("x-mlrun-client-version")
+        )
         return await run_in_threadpool(
             services.alerts.crud.Alerts().get_alert,
             db_session,
@@ -152,10 +151,6 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
-        exclude_updated = self._should_exclude_updated(
-            request.headers.get("x-mlrun-client-version")
-        )
-
         if project != "*":
             # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
             #  not access it directly (ML-8565)
@@ -171,6 +166,9 @@ class Service(framework.service.Service):
             )
         )
 
+        exclude_updated = self._should_exclude_updated(
+            request.headers.get("x-mlrun-client-version")
+        )
         alerts = await run_in_threadpool(
             services.alerts.crud.Alerts().list_alerts,
             db_session,
@@ -476,8 +474,11 @@ class Service(framework.service.Service):
 
     @staticmethod
     def _should_exclude_updated(client_version: str):
-        # Determine whether the `updated` field should be excluded based on the client version.
-        return not framework.utils.helpers.validate_client_version(
+        # The 'updated' field was added in 1.8.0, and earlier versions don't support it, so we exclude it
+        # for compatibility.
+        return bool(
+            client_version
+        ) and not framework.utils.helpers.validate_client_version(
             client_version, "1.8.0"
         )
 

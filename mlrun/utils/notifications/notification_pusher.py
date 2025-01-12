@@ -412,7 +412,7 @@ class NotificationPusher(_NotificationPusherBase):
         sent_time: typing.Optional[datetime.datetime] = None,
         reason: typing.Optional[str] = None,
     ):
-        # Skip update notification state if the following conditions are met:
+        # Skip update the notification state if the following conditions are met:
         # 1. the run is not in a terminal state
         # 2. the notification is not only for running state
         # Skip updating because currently each notification has only one row in the db, even if it has multiple when.
@@ -421,7 +421,7 @@ class NotificationPusher(_NotificationPusherBase):
         # TODO: Change this behavior after implementing ML-8723
         if (
             run_state not in runtimes_constants.RunStates.terminal_states()
-            and notification.when != ["running"]
+            and notification.when != [runtimes_constants.RunStates.running]
         ):
             logger.debug(
                 "Skip updating notification status - run not in terminal state",

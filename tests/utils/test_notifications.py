@@ -380,17 +380,23 @@ def test_notification_reason(notification_kind):
     "when, run_state, store_count",
     [
         (
-            ["running"],
+            [runtimes_constants.RunStates.running],
             runtimes_constants.RunStates.running,
             1,
         ),
         (
-            ["running", "completed"],
+            [
+                runtimes_constants.RunStates.running,
+                runtimes_constants.RunStates.completed,
+            ],
             runtimes_constants.RunStates.running,
             0,
         ),
         (
-            ["running", "completed"],
+            [
+                runtimes_constants.RunStates.running,
+                runtimes_constants.RunStates.completed,
+            ],
             runtimes_constants.RunStates.completed,
             1,
         ),

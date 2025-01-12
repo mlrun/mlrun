@@ -70,9 +70,6 @@ async def get_alert(
         Provide[framework.service.ServiceContainer.service]
     ),
 ) -> mlrun.common.schemas.AlertConfig:
-    client_version = request.headers.get("x-mlrun-client-version")
-    exclude_updated = client_version < "1.8.0" if client_version else False
-
     return await service.handle_request(
         "get_alert",
         request,
@@ -80,7 +77,6 @@ async def get_alert(
         name,
         auth_info,
         db_session,
-        exclude_updated=exclude_updated,
     )
 
 
@@ -99,16 +95,12 @@ async def list_alerts(
         Provide[framework.service.ServiceContainer.service]
     ),
 ) -> list[mlrun.common.schemas.AlertConfig]:
-    client_version = request.headers.get("x-mlrun-client-version")
-    exclude_updated = client_version < "1.8.0" if client_version else False
-
     return await service.handle_request(
         "list_alerts",
         request,
         project,
         auth_info,
         db_session,
-        exclude_updated=exclude_updated,
     )
 
 

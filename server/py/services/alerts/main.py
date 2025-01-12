@@ -34,6 +34,7 @@ import framework.db.sqldb.db
 import framework.service
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
+import framework.utils.helpers
 import framework.utils.pagination
 import framework.utils.periodic
 import framework.utils.singletons.db
@@ -114,10 +115,13 @@ class Service(framework.service.Service):
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
-        exclude_updated: bool = False,
     ) -> mlrun.common.schemas.AlertConfig:
         # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
         #  not access it directly (ML-8565)
+        exclude_updated = self._should_exclude_updated(
+            request.headers.get("x-mlrun-client-version")
+        )
+
         await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().ensure_project,
             db_session,
@@ -147,8 +151,11 @@ class Service(framework.service.Service):
         project: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
-        exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
+        exclude_updated = self._should_exclude_updated(
+            request.headers.get("x-mlrun-client-version")
+        )
+
         if project != "*":
             # TODO: When alerts is a different service and not in Hydra mode, we need to send the request to the API and
             #  not access it directly (ML-8565)
@@ -466,6 +473,13 @@ class Service(framework.service.Service):
         if self._is_chief_or_standalone():
             services.alerts.initial_data.update_default_configuration_data(self._logger)
             await self._start_periodic_functions()
+
+    @staticmethod
+    def _should_exclude_updated(client_version: str):
+        # Determine whether the `updated` field should be excluded based on the client version.
+        return not framework.utils.helpers.validate_client_version(
+            client_version, "1.8.0"
+        )
 
     def _register_routes(self):
         # TODO: Resolve these dynamically from configuration

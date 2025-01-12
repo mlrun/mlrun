@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import unittest
+import unittest.mock
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from datetime import timezone
@@ -41,10 +42,14 @@ def reset_alert_caches():
 class TestAlerts(TestAlertsBase):
     @pytest.mark.asyncio
     @unittest.mock.patch.object(
-        framework.utils.singletons.db.SQLDB, "update_alert_activation"
+        framework.utils.singletons.db.SQLDB,
+        "update_alert_activation",
+        return_value=None,
     )
     @unittest.mock.patch.object(
-        services.alerts.crud.AlertActivation, "store_alert_activation"
+        services.alerts.crud.AlertActivation,
+        "store_alert_activation",
+        return_value=None,
     )
     async def test_process_event_no_cache(
         self,
@@ -53,8 +58,6 @@ class TestAlerts(TestAlertsBase):
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock: K8sSecretsMock,
     ):
-        mocked_update_alert_activation.return_value = None
-        mocked_store_alert_activation.return_value = None
         project = "project-name"
         alert_name = "my-alert"
         alert_summary = "testing 1 2 3"
@@ -113,10 +116,14 @@ class TestAlerts(TestAlertsBase):
         ],
     )
     @unittest.mock.patch.object(
-        framework.utils.singletons.db.SQLDB, "update_alert_activation"
+        framework.utils.singletons.db.SQLDB,
+        "update_alert_activation",
+        return_value=None,
     )
     @unittest.mock.patch.object(
-        services.alerts.crud.AlertActivation, "store_alert_activation"
+        services.alerts.crud.AlertActivation,
+        "store_alert_activation",
+        return_value=None,
     )
     async def test_validate_alert_name(
         self,
@@ -127,8 +134,6 @@ class TestAlerts(TestAlertsBase):
         alert_name: str,
         expectation: AbstractContextManager,
     ):
-        mocked_update_alert_activation.return_value = None
-        mocked_store_alert_activation.return_value = None
         project = "project-name"
         alert_summary = "The job has failed"
         alert_entity = alert_objects.EventEntities(
@@ -259,10 +264,14 @@ class TestAlerts(TestAlertsBase):
         [False, True],
     )
     @unittest.mock.patch.object(
-        framework.utils.singletons.db.SQLDB, "update_alert_activation"
+        framework.utils.singletons.db.SQLDB,
+        "update_alert_activation",
+        return_value=None,
     )
     @unittest.mock.patch.object(
-        services.alerts.crud.AlertActivation, "store_alert_activation"
+        services.alerts.crud.AlertActivation,
+        "store_alert_activation",
+        return_value=None,
     )
     async def test_alert_reset_with_fields_updates(
         self,
@@ -276,8 +285,6 @@ class TestAlerts(TestAlertsBase):
         k8s_secrets_mock: K8sSecretsMock,
         reset_alert_caches,
     ):
-        mocked_update_alert_activation.return_value = None
-        mocked_store_alert_activation.return_value = None
         project = "project-name"
         alert_name = "failed-alert"
         alert_summary = "The job has failed"
@@ -354,10 +361,14 @@ class TestAlerts(TestAlertsBase):
 
     @pytest.mark.asyncio
     @unittest.mock.patch.object(
-        framework.utils.singletons.db.SQLDB, "update_alert_activation"
+        framework.utils.singletons.db.SQLDB,
+        "update_alert_activation",
+        return_value=None,
     )
     @unittest.mock.patch.object(
-        services.alerts.crud.AlertActivation, "store_alert_activation"
+        services.alerts.crud.AlertActivation,
+        "store_alert_activation",
+        return_value=None,
     )
     async def test_store_alert_update_time(
         self,
@@ -366,8 +377,6 @@ class TestAlerts(TestAlertsBase):
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock: K8sSecretsMock,
     ):
-        mocked_update_alert_activation.return_value = None
-        mocked_store_alert_activation.return_value = None
         project = "project-name"
         alert_name = "my-alert"
         alert_summary = "testing 1 2 3"
@@ -420,10 +429,14 @@ class TestAlerts(TestAlertsBase):
 
     @pytest.mark.asyncio
     @unittest.mock.patch.object(
-        framework.utils.singletons.db.SQLDB, "update_alert_activation"
+        framework.utils.singletons.db.SQLDB,
+        "update_alert_activation",
+        return_value=None,
     )
     @unittest.mock.patch.object(
-        services.alerts.crud.AlertActivation, "store_alert_activation"
+        services.alerts.crud.AlertActivation,
+        "store_alert_activation",
+        return_value=None,
     )
     async def test_get_alerts_exclude_updated(
         self,
@@ -432,8 +445,6 @@ class TestAlerts(TestAlertsBase):
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock: K8sSecretsMock,
     ):
-        mocked_update_alert_activation.return_value = None
-        mocked_store_alert_activation.return_value = None
         project = "project-name"
         alert_name = "my-alert"
 

@@ -1,16 +1,31 @@
 (change-log)=
 # Change log
-- [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
-- [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
-- [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
-- [v1.4.1](#v141-8-august-2023) | [v1.4.0](#v140-23-july-2023)
-- [v1.3.4](#v134-23-august-2023) | [v1.3.3](#v133-7-jun-2023) | [v1.3.2](#v132-4-jun-2023) | [v1.3.1](#v131-18-may-2023) | [v1.3.0](#v130-22-march-2023) 
-- [v1.2.3](#v123-15-may-2023) | [v1.2.2](#v122-8-may-2023) | [v1.2.1](#v121-8-january-2023) | [v1.2.0](#v120-1-december-2022)
-- [v1.1.3](#v113-28-december-2022) | [v1.1.2](#v112-20-november-2022) | [v1.1.1](#v111-18-october-2022) | [v1.1.0](#v110-6-september-2022)
-- [v1.0.6](#v106-16-august-2022) | [v1.0.5](#v105-11-august-2022) | [v1.0.4](#v104-13-june-2022) | [v1.0.3](#v103-7-june-2022) | [v1.0.2](#v102-19-may-2022) | [v1.0.0](#v100-22-april-2022)
+- [v1.7.2](#v1-7-2-13-january-2025) | [v1.7.1](#v1-7-1-2-december-2024) | [v1.7.0](#v1-7-0-1-november-2024)
+- [v1.6.4](#v1-6-4-2-july-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
+- [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
+- [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
+- [v1.2.3](#v1-2-3-15-may-2023) | [v1.2.2](#v1-2-2-8-may-2023) | [v1.2.1](#v1-2-1-8-january-2023) | [v1.2.0](#v1-2-0-1-december-2022)
+- [v1.1.3](#v1-1-3-28-december-2022) | [v1.1.2](#v1-1-2-20-november-2022) | [v1.1.1](#v1-1-1-18-october-2022) | [v1.1.0](#v1-1-0-6-september-2022)
+- [v1.0.6](#v1-0-6-16-august-2022) | [v1.0.5](#v1-0-5-11-august-2022) | [v1.0.4](#v1-0-4-13-june-2022) | [v1.0.3](#v1-0-3-7-june-2022) | [v1.0.2](#v1-0-2-19-may-2022) | [v1.0.0](#v1-0-0-22-april-2022)
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
+
+## v1.7.2 (13 January 2025)
+
+### Infrastructure
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9750|Support for Spark 3.5.|
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-8841 |Application runtimes no longer duplicate the configured resources for the running pod.|
+|ML-8842 |Failed pipelines now send notifications when using webhook.|
+|ML-8892 |UI: Artifact counters now display correctly.|
+|ML-8974 |UI: Artifacts stored as S3 now display in the UI.|
 
 ## v1.7.1 (2 December 2024)
 
@@ -1106,7 +1121,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 |ML-8754|The default spot-labels node-selector are removed when configuring the `allow` preemption mode with one of the node selectors defined in `mlconf.get_preemptible_node_selector()`.|Use a non-default label.|v1.7.1|
 |ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
-
+|ML-8949|Error `MultipleResultsFound` when reading DataItem because of duplicate artifacts tagged as `latest`.s|NA| v1.7.0| 
 ## Limitations
 
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

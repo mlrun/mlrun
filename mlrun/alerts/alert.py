@@ -123,7 +123,6 @@ class AlertConfig(ModelObj):
         :param count:          Internal counter of the alert (user should not supply it)
         :param updated:        The last update time of the alert (user should not supply it)
         """
-        super().__init__(**kwargs)
         self.project = project
         self.name = name
         self.description = description

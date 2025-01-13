@@ -1,9 +1,10 @@
 (aws-install)=
 # Install MLRun CE on AWS
 
-```{admonition} Note
-These instructions install the community edition (CE). 
-```
+
+These instructions install the community edition (CE). No pre-installation or pre-configuration is required. This procedure 
+installs an EKS cluster, an EBS volume, an S3 bucket, load balancing, etc. When you complete this procedure, you'll have 
+the Community Edition of MLRun running on your EKS cluster.
 
 **In this section**
 - [Prerequisites](#prerequisites)
@@ -16,14 +17,12 @@ These instructions install the community edition (CE).
 
 - A registered domain name allowing wildcards with a dummy CNAME record (will be filled later with the AWS Load Balancer CNAME)
 - AWS CLI is installed and configured. See [Installing or updating to the latest version of the AWS CLI - AWS Command Line Interface](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
-- eksctl is installed and configured. See [What is Amazon EMR on EKS? - Amazon EMR](https://docs.aws.amazon.com/emr/latest/EMR-on-EKS-DevelopmentGuide/emr-eks.html),  [Installation - eksctl](https://eksctl.io/installation/) 
+- eksctl is installed and configured. See [Installation - eksctl](https://eksctl.io/installation/) 
 - kubectl is installed. See [Set up kubectl and eksctl - Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html)
 - Helm is installed. See [Deploy applications with Helm on Amazon EKS - Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/helm.html)
 - A bash shell to run the commands        
 
-```{admonition} Important
-Restart your computer after following the prerequisites steps to effect the changes.
-```
+
 ## IAM requirements
 Verify that your AWS account has the following IAM policies.
 

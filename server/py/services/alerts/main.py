@@ -133,9 +133,7 @@ class Service(framework.service.Service):
             auth_info,
         )
 
-        exclude_updated = self._should_exclude_updated(
-            request.headers.get("x-mlrun-client-version")
-        )
+        exclude_updated = self._should_exclude_updated(request)
         return await run_in_threadpool(
             services.alerts.crud.Alerts().get_alert,
             db_session,
@@ -166,9 +164,7 @@ class Service(framework.service.Service):
             )
         )
 
-        exclude_updated = self._should_exclude_updated(
-            request.headers.get("x-mlrun-client-version")
-        )
+        exclude_updated = self._should_exclude_updated(request)
         alerts = await run_in_threadpool(
             services.alerts.crud.Alerts().list_alerts,
             db_session,
@@ -473,9 +469,10 @@ class Service(framework.service.Service):
             await self._start_periodic_functions()
 
     @staticmethod
-    def _should_exclude_updated(client_version: str):
+    def _should_exclude_updated(request: fastapi.Request):
         # The 'updated' field was added in 1.8.0, and earlier versions don't support it, so we exclude it
         # for compatibility.
+        client_version = request.headers.get("x-mlrun-client-version")
         return bool(
             client_version
         ) and not framework.utils.helpers.validate_client_version(

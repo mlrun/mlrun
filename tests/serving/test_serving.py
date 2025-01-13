@@ -15,7 +15,9 @@
 import json
 import os
 import pathlib
+import random
 import time
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -135,6 +137,9 @@ testdata_iris_dict_error = (
     '"petal width (cm)": 0.2, "petal length (cm)": 1.4}}'
 )
 testdata_2 = '{"inputs": [5, 5]}'
+testdata_20 = (
+    '{"inputs": [5, 5, 10, 2, 3, 5, 5, 10, 2, 3, 5, 5, 10, 2, 3, 5, 5, 10, 2, 3]}'
+)
 
 
 def _log_model(project):
@@ -253,6 +258,10 @@ def test_ensemble_get_models():
     # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"],
     #           "weights": None}
     assert len(resp["models"]) == 5, f"wrong get models response {resp}"
+
+    assert fn.spec.graph.name == "VotingEnsemble"
+    fn_dict = fn.to_dict()
+    assert fn_dict.get("spec", {}).get("graph", {}).get("name", "") == "VotingEnsemble"
 
 
 def test_ensemble_get_metadata_of_models():
@@ -640,6 +649,55 @@ def test_function():
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
 
 
+def test_sampling_percentage():
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.set_topology("router")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+    random.seed(0)
+    random_sample_percentage = 50
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+        fn.set_tracking(stream_path="dummy://", sampling_percentage=101)
+        assert (
+            str(err.value)
+            == "`sampling_percentage` must be greater than 0 and less or equal to 100."
+        )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+        fn.set_tracking(stream_path="dummy://", sampling_percentage=0)
+        assert (
+            str(err.value)
+            == "`sampling_percentage` must be greater than 0 and less or equal to 100."
+        )
+
+    fn.set_tracking(
+        stream_path="dummy://", sampling_percentage=random_sample_percentage
+    )
+    server = fn.to_mock_server()
+    for i in range(500):
+        server.test("/v2/models/my/infer", testdata)
+    assert (
+        (len(server.context.stream.output_stream.event_list)) == 241
+    ), (
+        "expected stream to get 241 messages"
+    )  # On seed 0, 241 is the expected value for 50% sample rate on 500 events
+
+    # Let's test it again, this time using inputs that include 20 features
+    for i in range(500):
+        server.test("/v2/models/my/infer", testdata_20)
+    assert (
+        (len(server.context.stream.output_stream.event_list)) == 508
+    ), (
+        "expected stream to get 508 messages"
+    )  # On seed 0, 508 is the expected value for 50% sample rate on 1,000 events
+
+    # Validate that the effective_sample_count is set correctly
+    assert (
+        server.context.stream.output_stream.event_list[-1]["effective_sample_count"]
+        == 1
+    )
+
+
 def test_serving_no_router():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
@@ -754,10 +812,33 @@ def test_mock_invoke():
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
 
 
-def test_add_route_exceeds_max_steps():
-    """Test adding a route when the maximum number of steps is exceeded."""
-    host = create_graph_server(graph=RouterStep())
-    max_steps = mlrun.serving.states.MAX_ALLOWED_STEPS
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        for key in range(max_steps + 1):
-            host.graph.add_route(f"test_key_{key}", class_name=ModelTestingClass)
+def test_updating_model():
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+    server = fn.to_mock_server()
+    resp = server.test("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    with patch("mlrun.utils.logger.info") as mock_warning:
+        # update the model
+        fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=200))
+        mock_warning.assert_called_with("Model my already exists, updating it.")
+        server = fn.to_mock_server()
+        resp = server.test("/v2/models/my/infer", testdata)
+        assert resp["outputs"] == 5 * 200, f"wrong data response {resp}"
+
+
+def test_add_route_exceeds_max_models():
+    """Test adding a route when the maximum number of models is exceeded."""
+    server = create_graph_server(graph=RouterStep())
+    max_models = mlrun.serving.states.MAX_MODELS_PER_ROUTER
+    with pytest.raises(mlrun.errors.MLRunModelLimitExceededError):
+        for key in range(max_models + 1):
+            server.graph.add_route(f"test_key_{key}", class_name=ModelTestingClass)
+
+    # edit existing model
+    server.graph.add_route(f"test_key_{key-1}", class_name=ModelTestingClass)
+
+    assert (
+        len(server.graph.routes) == max_models
+    ), f"expected to have {max_models} models"

@@ -36,11 +36,13 @@ from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 import framework.api.utils
 import framework.constants
 import framework.db.base
+import framework.db.sqldb.db
 import framework.service
 import framework.utils.clients.chief
 import framework.utils.clients.log_collector
 import framework.utils.clients.messaging
 import framework.utils.notifications.notification_pusher
+import framework.utils.pagination_cache
 import framework.utils.time_window_tracker
 import services.api.crud
 import services.api.initial_data
@@ -72,6 +74,14 @@ _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 class Service(framework.service.Service):
+    def __init__(self):
+        super().__init__()
+        self._paginated_methods = [
+            (services.api.crud.Runs, "list_runs"),
+            (services.api.crud.Functions, "list_functions"),
+            (services.api.crud.Artifacts, "list_artifacts"),
+        ]
+
     async def _move_service_to_online(self):
         # scheduler is needed on both workers and chief
         # on workers - it allows to us to list/get scheduler(s)
@@ -98,7 +108,30 @@ class Service(framework.service.Service):
             services.api.initial_data.update_default_configuration_data()
             await self._start_periodic_functions()
 
+        # For the worker, fetch and sync the system metadata from the database to ensure that the config values are
+        # correctly set.
+        else:
+            self._sync_system_metadata()
         await self._move_mounted_services_to_online()
+
+    def _sync_system_metadata(self):
+        """
+        Sync system metadata values from the database to the config.
+        Currently, it synchronizes only the system ID but can be extended for other new metadata values in the future.
+        """
+
+        db_session = create_session()
+        try:
+            db = framework.db.sqldb.db.SQLDB()
+
+            system_id = db.get_system_id(db_session)
+            if system_id is not None:
+                self._logger.debug(
+                    "Existing system ID found in the database", system_id=system_id
+                )
+                mlrun.mlconf.system_id = system_id
+        finally:
+            close_session(db_session)
 
     async def _base_handler(
         self,
@@ -521,10 +554,10 @@ class Service(framework.service.Service):
             )
             run_function_periodically(
                 interval,
-                services.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
+                framework.utils.pagination_cache.PaginationCache().monitor_pagination_cache.__name__,
                 False,
                 framework.db.session.run_function_with_new_db_session,
-                services.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
+                framework.utils.pagination_cache.PaginationCache().monitor_pagination_cache,
             )
 
     def _start_periodic_project_summaries_calculation(self):

@@ -84,6 +84,18 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def refresh_smtp_configuration(self):
+        pass
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        pass
+
     def list_runtime_resources(
         self,
         project: Optional[str] = None,
@@ -872,7 +884,7 @@ class NopDB(RunDBInterface):
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, str],
+        credentials: dict[str, Optional[str]],
         replace_creds: bool,
     ) -> None:
         pass

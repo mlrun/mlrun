@@ -31,7 +31,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     WriterEvent,
     WriterEventKind,
 )
-from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.model_monitoring.db._stats import (
     ModelMonitoringCurrentStatsFile,
     ModelMonitoringDriftMeasuresFile,
@@ -39,7 +38,6 @@ from mlrun.model_monitoring.db._stats import (
 from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
-from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
 
 _RawEvent = dict[str, Any]
 _AppResultEvent = NewType("_AppResultEvent", _RawEvent)
@@ -57,50 +55,6 @@ class _WriterEventTypeError(_WriterEventError, TypeError):
     pass
 
 
-class _Notifier:
-    def __init__(
-        self,
-        event: _AppResultEvent,
-        notification_pusher: CustomNotificationPusher,
-        severity: NotificationSeverity = NotificationSeverity.WARNING,
-    ) -> None:
-        """
-        Event notifier - send push notification when appropriate to the notifiers in
-        `notification pusher`.
-        Note that if you use a Slack App webhook, you need to define it as an MLRun secret
-        `SLACK_WEBHOOK`.
-        """
-        self._event = event
-        self._custom_notifier = notification_pusher
-        self._severity = severity
-
-    def _should_send_event(self) -> bool:
-        return self._event[ResultData.RESULT_STATUS] >= ResultStatusApp.detected.value
-
-    def _generate_message(self) -> str:
-        return f"""\
-The monitoring app `{self._event[WriterEvent.APPLICATION_NAME]}` \
-of kind `{self._event[ResultData.RESULT_KIND]}` \
-detected a problem in model endpoint ID `{self._event[WriterEvent.ENDPOINT_ID]}` \
-at time `{self._event[WriterEvent.START_INFER_TIME]}`.
-
-Result data:
-Name: `{self._event[ResultData.RESULT_NAME]}`
-Value: `{self._event[ResultData.RESULT_VALUE]}`
-Status: `{self._event[ResultData.RESULT_STATUS]}`
-Extra data: `{self._event[ResultData.RESULT_EXTRA_DATA]}`\
-"""
-
-    def notify(self) -> None:
-        """Send notification if appropriate"""
-        if not self._should_send_event():
-            logger.debug("Not sending a notification")
-            return
-        message = self._generate_message()
-        self._custom_notifier.push(message=message, severity=self._severity)
-        logger.debug("A notification should have been sent")
-
-
 class ModelMonitoringWriter(StepToDict):
     """
     Write monitoring application results to the target databases
@@ -115,10 +69,6 @@ class ModelMonitoringWriter(StepToDict):
     ) -> None:
         self.project = project
         self.name = project  # required for the deployment process
-
-        self._custom_notifier = CustomNotificationPusher(
-            notification_types=[NotificationKind.slack]
-        )
 
         self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project, secret_provider=secret_provider
@@ -249,9 +199,6 @@ class ModelMonitoringWriter(StepToDict):
         self._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
 
         logger.info("Completed event DB writes")
-
-        if kind == WriterEventKind.RESULT:
-            _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
 
         if (
             mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled

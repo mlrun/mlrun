@@ -115,6 +115,18 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
+    def refresh_smtp_configuration(self):
+        raise NotImplementedError()
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        raise NotImplementedError()
+
     def read_run(
         self,
         uid: str,
@@ -1255,7 +1267,7 @@ class SQLRunDB(RunDBInterface):
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, str],
+        credentials: dict[str, Optional[str]],
         replace_creds: bool = False,
     ) -> None:
         raise NotImplementedError

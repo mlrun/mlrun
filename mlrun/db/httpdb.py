@@ -559,14 +559,6 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("external_platform_tracking")
                 or config.external_platform_tracking
             )
-            config.model_endpoint_monitoring.tsdb_connection = (
-                server_cfg.get("model_monitoring_tsdb_connection")
-                or config.model_endpoint_monitoring.tsdb_connection
-            )
-            config.model_endpoint_monitoring.stream_connection = (
-                server_cfg.get("stream_connection")
-                or config.model_endpoint_monitoring.stream_connection
-            )
             config.packagers = server_cfg.get("packagers") or config.packagers
             server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
             for prefix in ["default", "nosql", "redisnosql"]:
@@ -580,6 +572,7 @@ class HTTPRunDB(RunDBInterface):
                 or config.feature_store.default_targets
             )
             config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
+            config.system_id = server_cfg.get("system_id") or config.system_id
 
         except Exception as exc:
             logger.warning(
@@ -773,15 +766,90 @@ class HTTPRunDB(RunDBInterface):
 
         response = self.api_call(
             "POST",
-            path=f"projects/{project}/runs/{uid}/push_notifications",
+            path=f"projects/{project}/runs/{uid}/push-notifications",
             error="Failed push notifications",
             timeout=timeout,
         )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
-            return self._wait_for_background_task_to_reach_terminal_state(
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
                 background_task.metadata.name, project=project
             )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info(
+                    "Notifications for the run have been pushed",
+                    project=project,
+                    run_id=uid,
+                )
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.error(
+                    "Failed to push run notifications",
+                    project=project,
+                    run_id=uid,
+                    error=background_task.status.error,
+                )
+        return None
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        """
+        Push notifications for a pipeline.
+
+        :param pipeline_id: Unique ID of the pipeline(KFP).
+        :param project: Project that the run belongs to.
+        :param notifications: List of notifications to push.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
+        """
+        if notifications is None or type(notifications) is not list:
+            raise MLRunInvalidArgumentError(
+                "The 'notifications' parameter must be a list."
+            )
+
+        project = project or config.default_project
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/pipelines/{pipeline_id}/push-notifications",
+            error="Failed push notifications",
+            body=_as_json([notification.to_dict() for notification in notifications]),
+            timeout=timeout,
+        )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            background_task = self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+            if (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.succeeded
+            ):
+                logger.info(
+                    "Pipeline notifications have been pushed",
+                    project=project,
+                    pipeline_id=pipeline_id,
+                )
+            elif (
+                background_task.status.state
+                == mlrun.common.schemas.BackgroundTaskState.failed
+            ):
+                logger.error(
+                    "Failed to push pipeline notifications",
+                    project=project,
+                    pipeline_id=pipeline_id,
+                    error=background_task.status.error,
+                )
+
         return None
 
     def read_run(
@@ -3523,6 +3591,48 @@ class HTTPRunDB(RunDBInterface):
             list[mm_endpoints.ModelEndpointMonitoringMetric], monitoring_metrics
         )
 
+    def get_metrics_by_multiple_endpoints(
+        self,
+        project: str,
+        endpoint_ids: Union[str, list[str]],
+        type: Literal["results", "metrics", "all"] = "all",
+        events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
+    ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
+        """Get application metrics/results by endpoint id and project.
+
+        :param project:         The name of the project.
+        :param endpoint_ids:    The unique id of the model endpoint. Can be a single id or a list of ids.
+        :param type:            The type of the metrics to return. "all" means "results" and "metrics".
+        :param events_format:   response format:
+
+                                separation: {"mep_id1":[...], "mep_id2":[...]}
+                                intersection {"intersect_metrics":[], "intersect_results":[]}
+        :return: A dictionary of application metrics and/or results for the model endpoints formatted by events_format.
+        """
+        path = f"projects/{project}/model-endpoints/metrics"
+        params = {
+            "type": type,
+            "endpoint-id": endpoint_ids,
+            "events_format": events_format,
+        }
+        error_message = (
+            f"Failed to get model monitoring metrics,"
+            f" endpoint_ids: {endpoint_ids}, project: {project}"
+        )
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.GET,
+            path,
+            error_message,
+            params=params,
+        )
+        monitoring_metrics_by_endpoint = response.json()
+        parsed_metrics_by_endpoint = {}
+        for endpoint, metrics in monitoring_metrics_by_endpoint.items():
+            parsed_metrics_by_endpoint[endpoint] = parse_obj_as(
+                list[mm_endpoints.ModelEndpointMonitoringMetric], metrics
+            )
+        return parsed_metrics_by_endpoint
+
     def create_user_secrets(
         self,
         user: str,
@@ -4017,7 +4127,7 @@ class HTTPRunDB(RunDBInterface):
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, str],
+        credentials: dict[str, Optional[str]],
         replace_creds: bool,
     ) -> None:
         """

@@ -145,9 +145,6 @@ try:
         ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
 except ImportError:
-    logger.warning(
-        "Kubeflow Pipelines (KFP) is not installed. Using noop implementations."
-    )
     from mlrun_pipelines.common.imports import (
         Client,
         Compiler,

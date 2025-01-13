@@ -20,10 +20,12 @@ from importlib import import_module
 from typing import Optional, Union
 
 import mlrun
+import mlrun.artifacts
 from mlrun.artifacts import Artifact, ArtifactSpec
 from mlrun.model import ModelObj
 
 from ..utils import generate_artifact_uri
+from .base import ArtifactStatus
 
 
 class DocumentLoaderSpec(ModelObj):
@@ -47,6 +49,7 @@ class DocumentLoaderSpec(ModelObj):
         self,
         loader_class_name: str = "langchain_community.document_loaders.TextLoader",
         src_name: str = "file_path",
+        download_object: bool = True,
         kwargs: Optional[dict] = None,
     ):
         """
@@ -56,7 +59,9 @@ class DocumentLoaderSpec(ModelObj):
             loader_class_name (str): The name of the loader class to use.
             src_name (str): The source name for the document.
             kwargs (Optional[dict]): Additional keyword arguments to pass to the loader class.
-
+            download_object (bool, optional): If True, the file will be downloaded before launching
+                the loader. If False, the loader accepts a link that should not be downloaded.
+                Defaults to False.
         Example:
             >>> # Create a loader specification for PDF documents
             >>> loader_spec = DocumentLoaderSpec(
@@ -72,6 +77,7 @@ class DocumentLoaderSpec(ModelObj):
         """
         self.loader_class_name = loader_class_name
         self.src_name = src_name
+        self.download_object = download_object
         self.kwargs = kwargs
 
     def make_loader(self, src_path):
@@ -187,6 +193,14 @@ class MLRunLoader:
                     self.producer = mlrun.get_or_create_project(self.producer)
 
             def lazy_load(self) -> Iterator["Document"]:  # noqa: F821
+                collections = None
+                try:
+                    artifact = self.producer.get_artifact(self.artifact_key, self.tag)
+                    collections = (
+                        artifact.status.collections if artifact else collections
+                    )
+                except mlrun.MLRunNotFoundError:
+                    pass
                 artifact = self.producer.log_document(
                     key=self.artifact_key,
                     document_loader_spec=self.loader_spec,
@@ -194,6 +208,7 @@ class MLRunLoader:
                     upload=self.upload,
                     labels=self.labels,
                     tag=self.tag,
+                    collections=collections,
                 )
                 res = artifact.to_langchain_documents()
                 return res
@@ -248,7 +263,6 @@ class DocumentArtifact(Artifact):
     class DocumentArtifactSpec(ArtifactSpec):
         _dict_fields = ArtifactSpec._dict_fields + [
             "document_loader",
-            "collections",
             "original_source",
         ]
 
@@ -256,21 +270,30 @@ class DocumentArtifact(Artifact):
             self,
             *args,
             document_loader: Optional[DocumentLoaderSpec] = None,
-            collections: Optional[dict] = None,
             original_source: Optional[str] = None,
             **kwargs,
         ):
             super().__init__(*args, **kwargs)
             self.document_loader = document_loader
-            self.collections = collections if collections is not None else {}
             self.original_source = original_source
+
+    class DocumentArtifactStatus(ArtifactStatus):
+        _dict_fields = ArtifactStatus._dict_fields + ["collections"]
+
+        def __init__(
+            self,
+            *args,
+            collections: Optional[dict] = None,
+            **kwargs,
+        ):
+            super().__init__(*args, **kwargs)
+            self.collections = collections if collections is not None else {}
 
     kind = "document"
 
     METADATA_SOURCE_KEY = "source"
     METADATA_ORIGINAL_SOURCE_KEY = "original_source"
     METADATA_CHUNK_KEY = "mlrun_chunk"
-    METADATA_ARTIFACT_URI_KEY = "mlrun_object_uri"
     METADATA_ARTIFACT_TARGET_PATH_KEY = "mlrun_target_path"
     METADATA_ARTIFACT_TAG = "mlrun_tag"
     METADATA_ARTIFACT_KEY = "mlrun_key"
@@ -280,6 +303,7 @@ class DocumentArtifact(Artifact):
         self,
         original_source: Optional[str] = None,
         document_loader_spec: Optional[DocumentLoaderSpec] = None,
+        collections: Optional[dict] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -289,6 +313,17 @@ class DocumentArtifact(Artifact):
             else self.spec.document_loader
         )
         self.spec.original_source = original_source or self.spec.original_source
+        self.status = DocumentArtifact.DocumentArtifactStatus(collections=collections)
+
+    @property
+    def status(self) -> DocumentArtifactStatus:
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = self._verify_dict(
+            status, "status", DocumentArtifact.DocumentArtifactStatus
+        )
 
     @property
     def spec(self) -> DocumentArtifactSpec:
@@ -321,7 +356,7 @@ class DocumentArtifact(Artifact):
         """
 
         loader_spec = DocumentLoaderSpec.from_dict(self.spec.document_loader)
-        if self.get_target_path():
+        if loader_spec.download_object and self.get_target_path():
             with tempfile.NamedTemporaryFile() as tmp_file:
                 mlrun.datastore.store_manager.object(
                     url=self.get_target_path()
@@ -348,7 +383,6 @@ class DocumentArtifact(Artifact):
 
             metadata[self.METADATA_ORIGINAL_SOURCE_KEY] = self.spec.original_source
             metadata[self.METADATA_SOURCE_KEY] = self.get_source()
-            metadata[self.METADATA_ARTIFACT_URI_KEY] = self.uri
             metadata[self.METADATA_ARTIFACT_TAG] = self.tag or "latest"
             metadata[self.METADATA_ARTIFACT_KEY] = self.key
             metadata[self.METADATA_ARTIFACT_PROJECT] = self.metadata.project
@@ -381,8 +415,8 @@ class DocumentArtifact(Artifact):
         Args:
             collection_id (str): The ID of the collection to add
         """
-        if collection_id not in self.spec.collections:
-            self.spec.collections[collection_id] = "1"
+        if collection_id not in self.status.collections:
+            self.status.collections[collection_id] = "1"
             return True
         return False
 
@@ -398,7 +432,7 @@ class DocumentArtifact(Artifact):
         Args:
             collection_id (str): The ID of the collection to remove
         """
-        if collection_id in self.spec.collections:
-            self.spec.collections.pop(collection_id)
+        if collection_id in self.status.collections:
+            self.status.collections.pop(collection_id)
             return True
         return False

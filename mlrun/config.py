@@ -83,8 +83,8 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*,python:3.9",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
-    "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner (defaults to mlrun/mlrun-kfp)
-    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner (defaults to mlrun/ml-base)
+    "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
+    "dask_kfp_image": "mlrun/ml-base",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
     "iguazio_api_url": "",  # the url to iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
@@ -169,6 +169,7 @@ default_config = {
             "max_chunk_size": 1024 * 1024 * 1,  # 1MB
             "max_preview_size": 1024 * 1024 * 10,  # 10MB
             "max_download_size": 1024 * 1024 * 100,  # 100MB
+            "max_deletions": 200,
         },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
@@ -536,6 +537,8 @@ default_config = {
         },
         "pagination": {
             "default_page_size": 200,
+            "page_limit": 1000000,
+            "page_size_limit": 1000000,
             "pagination_cache": {
                 "interval": 60,
                 "ttl": 3600,
@@ -593,6 +596,22 @@ default_config = {
                 "max_replicas": 1,
             },
         },
+        "controller_stream_args": {
+            "v3io": {
+                "shard_count": 10,
+                "retention_period_hours": 24,
+                "num_workers": 10,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 10,
+                "replication_factor": 1,
+                "num_workers": 10,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -603,16 +622,8 @@ default_config = {
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
         "offline_storage_path": "model-endpoints/{kind}",
-        # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
-        # when the user is working in CE environment and has not provided any stream path.
-        "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.{namespace}.svc.cluster.local:8080",
-        "default_http_sink_app": "http://nuclio-{project}-{application_name}.{namespace}.svc.cluster.local:8080",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
-        "tsdb_connection": "",
-        # See mlrun.common.schemas.model_monitoring.constants.StreamKind for available options
-        "stream_connection": "",
         "tdengine": {
             "timeout": 10,
             "retries": 1,
@@ -730,6 +741,7 @@ default_config = {
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
+        "concurrent_delete_worker_count": 20,
         # Default timeout seconds for retrieving workflow id after execution
         # Remote workflow timeout is the maximum between remote and the inner engine timeout
         "timeouts": {"local": 120, "kfp": 60, "remote": 60 * 5},
@@ -802,7 +814,7 @@ default_config = {
         # maximum allowed value for count in criteria field inside AlertConfig
         "max_criteria_count": 100,
         # interval for periodic events generation job
-        "events_generation_interval": "30",
+        "events_generation_interval": 30,  # seconds
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -1285,6 +1297,8 @@ class Config:
                 function_name
                 and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+                and function_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
@@ -1292,12 +1306,21 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            elif kind == "stream":
+            elif (
+                kind == "stream"
+                and function_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind,
                 )
             else:
+                if (
+                    function_name
+                    == mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+                ):
+                    kind = function_name
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                     project=project,
                     kind=kind,
@@ -1365,6 +1388,13 @@ class Config:
             or semver.VersionInfo.parse(self.nuclio_version)
             >= semver.VersionInfo.parse("1.12.10")
         )
+
+    @staticmethod
+    def get_ordered_keys():
+        # Define the keys to process first
+        return [
+            "MLRUN_HTTPDB__HTTP__VERIFY"  # Ensure this key is processed first for proper connection setup
+        ]
 
 
 # Global configuration

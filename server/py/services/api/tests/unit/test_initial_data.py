@@ -418,6 +418,119 @@ def test_init_system_id(
     assert system_id_after_second_init == system_id
 
 
+def test_ensure_latest_tag_for_artifacts():
+    # This test verifies that the migration to ensure the "latest" tag is assigned correctly to artifacts works as
+    # expected. The test creates a set of artifacts with different iteration numbers and tags:
+    # - project1 + key1 + iteration 0 -> 3 tags (v1, v2, latest)
+    # - project1 + key1 + iteration 1 -> 1 tag (latest)
+    # - project1 + key1 + iteration 2 -> 2 tags (v1, latest)
+    # - project2 + key1 + iteration 0 -> 1 tag (latest)
+    # - project2 + key2 + iteration 0 -> 1 tag (latest)
+    # The test then deletes the "latest" tags from the first two artifacts and verifies that only one artifact has the
+    # "latest" tag left. After performing the migration, the test verifies that the correct artifacts are tagged as
+    # "latest".
+
+    db, db_session = _initialize_db_without_migrations()
+    key1 = "key1"
+    project1 = "project1"
+    key2 = "key2"
+    project2 = "project2"
+
+    artifact = {
+        "kind": "artifact",
+    }
+
+    # Step 1: Create artifacts with different iteration numbers and tags
+    # project1 + key1 + iteration 0 -> 3 tags (v1, v2, latest)
+    artifact_1_uid = db.store_artifact(
+        db_session, key=key1, project=project1, iter=0, artifact=artifact, tag="v1"
+    )
+    db.store_artifact(
+        db_session, key=key1, project=project1, iter=0, artifact=artifact, tag="v2"
+    )
+
+    # project1 + key1 + iteration 1 -> 1 tag (latest)
+    artifact_2_uid = db.store_artifact(
+        db_session, key=key1, project=project1, iter=1, artifact=artifact
+    )
+
+    # project1 + key1 + iteration 2 -> 2 tags (v1, latest)
+    artifact_3_uid = db.store_artifact(
+        db_session, key=key1, project=project1, iter=2, artifact=artifact, tag="v1"
+    )
+
+    # project2 + key1 + iteration 0 -> 1 tag (latest)
+    db.store_artifact(
+        db_session,
+        key=key1,
+        project=project2,
+        iter=0,
+        artifact=artifact,
+    )
+
+    # project2 + key2 + iteration 0 -> 1 tag (latest)
+    db.store_artifact(
+        db_session,
+        key=key2,
+        project=project2,
+        iter=0,
+        artifact=artifact,
+    )
+
+    # Step 2: List the artifacts for project1, key1, and the "latest" tag
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, tag="latest", as_records=True
+    )
+    assert len(artifacts) == 3
+
+    # Read the artifacts that were stored to get their IDs
+    artifact1 = db.read_artifact(
+        db_session, key=key1, project=project1, uid=artifact_1_uid, as_record=True
+    )
+    artifact2 = db.read_artifact(
+        db_session, key=key1, project=project1, uid=artifact_2_uid, as_record=True
+    )
+    artifact3 = db.read_artifact(
+        db_session, key=key1, project=project1, uid=artifact_3_uid, as_record=True
+    )
+    artifact_1_id = artifact1.id
+    artifact_2_id = artifact2.id
+    artifact_3_id = artifact3.id
+
+    # Step 3: Delete the "latest" tags manually from the first two artifacts (artifact_1_id, artifact_2_id)
+    db._delete(
+        db_session,
+        framework.db.sqldb.db.ArtifactV2.Tag,
+        obj_id=artifact_1_id,
+        name="latest",
+    )
+    db._delete(
+        db_session,
+        framework.db.sqldb.db.ArtifactV2.Tag,
+        obj_id=artifact_2_id,
+        name="latest",
+    )
+    db_session.flush()
+
+    # Step 4: Assert that only one artifact has the "latest" tag left (artifact_3)
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, tag="latest", as_records=True
+    )
+    assert len(artifacts) == 1
+    assert artifacts[0].id == artifact_3_id
+
+    # Step 5: Perform migration to ensure the "latest" tag is reassigned correctly
+    services.api.initial_data._ensure_latest_tag_for_artifacts(db_session, chunk_size=1)
+
+    # Step 6: Verify that after migration, the correct artifacts are tagged as "latest"
+    artifacts = db.list_artifacts(
+        db_session, project=project1, name=key1, tag="latest", as_records=True
+    )
+    assert (
+        len(artifacts) == 3
+    ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+
+
 def _initialize_db_without_migrations() -> (
     tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
 ):

@@ -19,11 +19,12 @@ import pytest
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+from mlrun import mlconf
 from mlrun.utils import logger
 
 import framework.db.sqldb.models
-import services.api.crud
-import services.api.utils.pagination
+import framework.utils.pagination
+import framework.utils.pagination_cache
 
 
 def paginated_method(
@@ -51,12 +52,12 @@ def mock_paginated_method(monkeypatch):
             return self._dict
 
     monkeypatch.setattr(
-        services.api.utils.pagination.PaginatedMethods,
+        framework.utils.pagination.PaginatedMethods,
         "_method_map",
         {
             paginated_method.__name__: {
                 "method": paginated_method,
-                "schema": services.api.utils.pagination._generate_pydantic_schema_from_method_signature(
+                "schema": framework.utils.pagination._generate_pydantic_schema_from_method_signature(
                     paginated_method
                 ),
             }
@@ -68,7 +69,7 @@ def mock_paginated_method(monkeypatch):
 @pytest.fixture()
 def cleanup_pagination_cache_on_teardown(db: sqlalchemy.orm.Session):
     yield
-    services.api.crud.PaginationCache().cleanup_pagination_cache(db)
+    framework.utils.pagination_cache.PaginationCache().cleanup_pagination_cache(db)
 
 
 def test_paginated_method():
@@ -79,7 +80,7 @@ def test_paginated_method():
     total_amount = 10
     page_size = 3
     since = datetime.datetime.now()
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     offset, limit = paginator._calculate_offset_and_limit(1, page_size)
     items = paginated_method(None, total_amount, since, offset, limit - 1)
@@ -134,7 +135,7 @@ async def test_paginate_request(
     page_size = 3
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting first page")
     response, pagination_info = await paginator.paginate_request(
@@ -150,8 +151,10 @@ async def test_paginate_request(
     )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
     )
     _assert_cache_record(
         cache_record, auth_info.user_id, paginated_method, 1, page_size
@@ -172,8 +175,10 @@ async def test_paginate_request(
     )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
     )
     _assert_cache_record(
         cache_record, auth_info.user_id, paginated_method, 2, page_size
@@ -197,7 +202,7 @@ async def test_paginate_other_users_token(
     page_size = 3
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting first page with user1")
     response, pagination_info = await paginator.paginate_request(
@@ -213,8 +218,10 @@ async def test_paginate_other_users_token(
     )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
     )
     _assert_cache_record(
         cache_record, auth_info_1.user_id, paginated_method, 1, page_size
@@ -250,7 +257,7 @@ async def test_paginate_no_auth(
     page_size = 3
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting first page")
     response, pagination_info = await paginator.paginate_request(
@@ -266,8 +273,10 @@ async def test_paginate_no_auth(
     )
 
     logger.info("Checking db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info.page_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, pagination_info.page_token
+        )
     )
     _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
 
@@ -289,8 +298,10 @@ async def test_paginate_no_auth(
     )
 
     logger.info("Checking old db cache record")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, old_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, old_token
+        )
     )
     # The request with AuthInfo creates a new cache record, therefore the old one
     # should still be on page 1 and without a user.
@@ -313,8 +324,10 @@ async def test_paginate_no_auth(
     )
 
     logger.info("Checking old db cache record again")
-    cache_record = services.api.crud.PaginationCache().get_pagination_cache_record(
-        db, old_token
+    cache_record = (
+        framework.utils.pagination_cache.PaginationCache().get_pagination_cache_record(
+            db, old_token
+        )
     )
     _assert_cache_record(cache_record, None, paginated_method, 2, page_size)
 
@@ -332,7 +345,7 @@ async def test_no_pagination(
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting all items")
     response, pagination_info = await paginator.paginate_request(
@@ -349,7 +362,12 @@ async def test_no_pagination(
 
     logger.info("Checking that no cache record was created")
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 0
     )
 
 
@@ -366,7 +384,7 @@ async def test_pagination_not_supported(
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Requesting a method that is not supported for pagination")
     with pytest.raises(NotImplementedError):
@@ -396,7 +414,7 @@ async def test_pagination_cache_cleanup(
     page_size = 3
     token = None
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     logger.info("Creating paginated cache records")
     for i in range(3):
@@ -414,7 +432,12 @@ async def test_pagination_cache_cleanup(
             token = pagination_info.page_token
 
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 3
     )
 
     logger.info("Cleaning up pagination cache")
@@ -423,7 +446,12 @@ async def test_pagination_cache_cleanup(
 
     logger.info("Checking that all records were removed")
     assert (
-        len(services.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
+        len(
+            framework.utils.pagination_cache.PaginationCache().list_pagination_cache_records(
+                db
+            )
+        )
+        == 0
     )
 
     logger.info("Try to get page with token")
@@ -517,7 +545,7 @@ async def test_paginate_permission_filtered_request(
     last_page = total // page_size
     method_kwargs = {"total_amount": total, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     response, pagination_info = await paginator.paginate_permission_filtered_request(
         db,
@@ -556,7 +584,7 @@ async def test_paginate_permission_filtered_no_pagination(
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def filter_(items):
         return items
@@ -611,7 +639,7 @@ async def test_paginate_permission_filtered_with_token(
     page_size = 4
     method_kwargs = {"total_amount": 20, "since": datetime.datetime.now()}
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     response, pagination_info = await paginator.paginate_permission_filtered_request(
         db,
@@ -663,6 +691,35 @@ async def test_paginate_permission_filtered_with_token(
         method_kwargs["since"],
         last_page=True,
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "page, page_size",
+    [
+        (mlconf.httpdb.pagination.page_limit + 1, 1),  # page exceeds max allowed value
+        (
+            1,
+            mlconf.httpdb.pagination.page_size_limit + 1,
+        ),  # page_size exceeds max allowed value
+    ],
+)
+async def test_paginate_request_invalid_page_or_page_size(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+    page,
+    page_size,
+):
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    method_kwargs = {"total_amount": 5, "since": datetime.datetime.now()}
+
+    paginator = framework.utils.pagination.Paginator()
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        await paginator.paginate_request(
+            db, paginated_method, auth_info, None, page, page_size, **method_kwargs
+        )
 
 
 def _assert_paginated_response(

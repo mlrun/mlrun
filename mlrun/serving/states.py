@@ -31,6 +31,7 @@ import storey.utils
 
 import mlrun
 import mlrun.common.schemas as schemas
+from mlrun.utils import logger
 
 from ..config import config
 from ..datastore import get_stream_pusher
@@ -48,6 +49,8 @@ callable_prefix = "_"
 path_splitter = "/"
 previous_step = "$prev"
 queue_class_names = [">>", "$queue"]
+
+MAX_MODELS_PER_ROUTER = 5000
 
 
 class GraphError(Exception):
@@ -86,8 +89,10 @@ _task_step_fields = [
     "endpoint_type",
 ]
 
-
-MAX_ALLOWED_STEPS = 4500
+_default_fields_to_strip_from_step = [
+    "model_endpoint_creation_strategy",
+    "endpoint_type",
+]
 
 
 def new_remote_endpoint(
@@ -110,6 +115,7 @@ class BaseStep(ModelObj):
     kind = "BaseStep"
     default_shape = "ellipse"
     _dict_fields = ["kind", "comment", "after", "on_error"]
+    _default_fields_to_strip = _default_fields_to_strip_from_step
 
     def __init__(
         self,
@@ -126,6 +132,9 @@ class BaseStep(ModelObj):
         self.shape = shape
         self.on_error = None
         self._on_error_handler = None
+        self.model_endpoint_creation_strategy = (
+            schemas.ModelEndpointCreationStrategy.SKIP
+        )
 
     def get_shape(self):
         """graphviz shape"""
@@ -428,7 +437,7 @@ class TaskStep(BaseStep):
         result_path: Optional[str] = None,
         model_endpoint_creation_strategy: Optional[
             schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        ] = schemas.ModelEndpointCreationStrategy.SKIP,
         endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
     ):
         super().__init__(name, after)
@@ -622,6 +631,19 @@ class TaskStep(BaseStep):
                 raise exc
         return event
 
+    def to_dict(
+        self,
+        fields: Optional[list] = None,
+        exclude: Optional[list] = None,
+        strip: bool = False,
+    ) -> dict:
+        self.endpoint_type = (
+            self.endpoint_type.value
+            if isinstance(self.endpoint_type, schemas.EndpointType)
+            else self.endpoint_type
+        )
+        return super().to_dict(fields, exclude, strip)
+
 
 class MonitoringApplicationStep(TaskStep):
     """monitoring application execution step, runs users class code"""
@@ -697,7 +719,7 @@ class RouterStep(TaskStep):
 
     kind = "router"
     default_shape = "doubleoctagon"
-    _dict_fields = _task_step_fields + ["routes"]
+    _dict_fields = _task_step_fields + ["routes", "name"]
     _default_class = "mlrun.serving.ModelRouter"
 
     def __init__(
@@ -715,7 +737,7 @@ class RouterStep(TaskStep):
             class_name,
             class_args,
             handler,
-            name=name,
+            name=get_name(name, class_name or RouterStep.kind),
             function=function,
             input_path=input_path,
             result_path=result_path,
@@ -723,6 +745,11 @@ class RouterStep(TaskStep):
         self._routes: ObjectDict = None
         self.routes = routes
         self.endpoint_type = schemas.EndpointType.ROUTER
+        self.model_endpoint_creation_strategy = (
+            schemas.ModelEndpointCreationStrategy.INPLACE
+            if class_name and "serving.VotingEnsemble" in class_name
+            else schemas.ModelEndpointCreationStrategy.SKIP
+        )
 
     def get_children(self):
         """get child steps (routes)"""
@@ -747,7 +774,7 @@ class RouterStep(TaskStep):
         creation_strategy: schemas.ModelEndpointCreationStrategy = schemas.ModelEndpointCreationStrategy.INPLACE,
         **class_args,
     ):
-        """add child route step or class to the router
+        """add child route step or class to the router, if key exists it will be updated
 
         :param key:        unique name (and route path) for the child step
         :param route:      child step object (Task, ..)
@@ -767,7 +794,13 @@ class RouterStep(TaskStep):
             2. Create a new model endpoint with the same name and set it to `latest`.
 
         """
-
+        if len(self.routes.keys()) >= MAX_MODELS_PER_ROUTER and key not in self.routes:
+            raise mlrun.errors.MLRunModelLimitExceededError(
+                f"Router cannot support more than {MAX_MODELS_PER_ROUTER} model endpoints. "
+                f"To add a new route, edit an existing one by passing the same key."
+            )
+        if key in self.routes:
+            logger.info(f"Model {key} already exists, updating it.")
         if not route and not class_name and not handler:
             raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
@@ -782,10 +815,6 @@ class RouterStep(TaskStep):
             )
         route.function = function or route.function
 
-        if len(self._routes) >= MAX_ALLOWED_STEPS:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Cannot create the serving graph: the maximum number of steps is {MAX_ALLOWED_STEPS}"
-            )
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
@@ -798,6 +827,10 @@ class RouterStep(TaskStep):
             del self._routes[key]
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        if not self.routes:
+            raise mlrun.errors.MLRunRuntimeError(
+                "You have to add models to the router step before initializing it"
+            )
         if not self._is_local_function(context):
             return
 
@@ -1699,7 +1732,7 @@ def get_name(name, class_name):
         raise MLRunInvalidArgumentError("name or class_name must be provided")
     if isinstance(class_name, type):
         return class_name.__name__
-    return class_name
+    return class_name.split(".")[-1]
 
 
 def params_to_step(

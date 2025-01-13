@@ -39,10 +39,10 @@ kafka-python~=2.0
 avro~=1.11
 redis~=4.3
 graphviz~=0.20.0
-mlflow~=2.8
+mlflow~=2.16
 # any newer version then 0.13 should be tested with adlfs,gcsfs and s3fs installation.
 # we experience a different in google-auth package in databricks-sdk>0.13
-databricks-sdk~=0.13.0
+databricks-sdk~=0.20.0
 # sqlalchemy version should be aligned with mlrun-api due to common use with the model monitoring database
 sqlalchemy~=1.4
 dask~=2023.12.1

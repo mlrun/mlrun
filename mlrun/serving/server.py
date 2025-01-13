@@ -44,6 +44,8 @@ from ..utils import get_caller_globals
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 from .utils import event_id_key, event_path_key
 
+DUMMY_STREAM = "dummy://"
+
 
 class _StreamContext:
     """Handles the stream context for the events stream process. Includes the configuration for the output stream
@@ -72,13 +74,19 @@ class _StreamContext:
                 function_uri, config.default_project
             )
 
-            self.stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
+            stream_args = parameters.get("stream_args", {})
+
+            if log_stream == DUMMY_STREAM:
+                # Dummy stream used for testing, see tests/serving/test_serving.py
+                self.stream_uri = DUMMY_STREAM
+            elif not stream_args.get("mock"):  # if not a mock: `context.is_mock = True`
+                self.stream_uri = mlrun.model_monitoring.get_stream_path(
+                    project=project
+                )
 
             if log_stream:
                 # Update the stream path to the log stream value
                 self.stream_uri = log_stream.format(project=project)
-
-            stream_args = parameters.get("stream_args", {})
 
             self.output_stream = get_stream_pusher(self.stream_uri, **stream_args)
 

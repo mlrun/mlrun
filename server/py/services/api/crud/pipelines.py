@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import ast
+import concurrent.futures
 import http
 import tempfile
 import traceback
@@ -113,62 +114,85 @@ class Pipelines(
             mlrun.utils.logger.debug(
                 "Detected pipeline runs for project, deleting them",
                 project_name=project_name,
-                pipeline_run_ids=[run["id"] for run in project_pipeline_runs],
+                pipeline_run_count=len(project_pipeline_runs),
             )
 
-        succeeded = 0
-        failed = 0
+        runs_succeeded = 0
+        runs_failed = 0
         experiment_ids = set()
-        for pipeline_run in project_pipeline_runs:
-            try:
+        delete_run_futures = []
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=mlrun.mlconf.workflows.concurrent_delete_worker_count,
+            thread_name_prefix="delete_workflow_experiment_",
+        ) as executor:
+            for pipeline_run in project_pipeline_runs:
                 pipeline_run = mlrun_pipelines.models.PipelineRun(pipeline_run)
                 # delete pipeline run also terminates it if it is in progress
-                kfp_client._run_api.delete_run(pipeline_run.id)
+                delete_run_futures.append(
+                    executor.submit(kfp_client._run_api.delete_run, pipeline_run.id)
+                )
                 if pipeline_run.experiment_id:
                     experiment_ids.add(pipeline_run.experiment_id)
-                succeeded += 1
-            except Exception as exc:
-                # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
-                # so it won't fail the delete project operation. we will log the error and continue
-                mlrun.utils.logger.warning(
-                    "Failed to delete pipeline run",
+            for future in concurrent.futures.as_completed(delete_run_futures):
+                delete_run_exception = future.exception()
+                if delete_run_exception is not None:
+                    # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
+                    # so it won't fail the delete project operation. we will log the error and continue
+                    mlrun.utils.logger.warning(
+                        "Failed to delete pipeline run",
+                        project_name=project_name,
+                        pipeline_run_id=pipeline_run.id,
+                        exc_info=delete_run_exception,
+                    )
+                    runs_failed += 1
+                else:
+                    runs_succeeded += 1
+            else:
+                mlrun.utils.logger.debug(
+                    "Finished deleting pipeline runs",
                     project_name=project_name,
-                    pipeline_run_id=pipeline_run.id,
-                    exc_info=exc,
+                    succeeded=runs_succeeded,
+                    failed=runs_failed,
                 )
-                failed += 1
-        mlrun.utils.logger.debug(
-            "Finished deleting pipeline runs",
-            project_name=project_name,
-            succeeded=succeeded,
-            failed=failed,
-        )
 
-        succeeded = 0
-        failed = 0
-        for experiment_id in experiment_ids:
-            try:
+        experiments_succeeded = 0
+        experiments_failed = 0
+        delete_experiment_futures = []
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=mlrun.mlconf.workflows.concurrent_delete_worker_count,
+            thread_name_prefix="delete_workflow_experiment_",
+        ) as executor:
+            for experiment_id in experiment_ids:
                 mlrun.utils.logger.debug(
                     f"Detected experiment for project {project_name} and deleting it",
                     project_name=project_name,
                     experiment_id=experiment_id,
                 )
-                kfp_client._experiment_api.delete_experiment(id=experiment_id)
-                succeeded += 1
-            except Exception as exc:
-                failed += 1
-                mlrun.utils.logger.warning(
-                    "Failed to delete an experiment",
-                    project_name=project_name,
-                    experiment_id=experiment_id,
-                    exc_info=mlrun.errors.err_to_str(exc),
+                delete_experiment_futures.append(
+                    executor.submit(
+                        kfp_client._experiment_api.delete_experiment,
+                        experiment_id,
+                    )
                 )
-        mlrun.utils.logger.debug(
-            "Finished deleting project experiments",
-            project_name=project_name,
-            succeeded=succeeded,
-            failed=failed,
-        )
+            for future in concurrent.futures.as_completed(delete_run_futures):
+                delete_experiment_exception = future.exception()
+                if delete_experiment_exception is not None:
+                    experiments_failed += 1
+                    mlrun.utils.logger.warning(
+                        "Failed to delete an experiment",
+                        project_name=project_name,
+                        experiment_id=experiment_id,
+                        exc_info=mlrun.errors.err_to_str(delete_experiment_exception),
+                    )
+                else:
+                    experiments_succeeded += 1
+            else:
+                mlrun.utils.logger.debug(
+                    "Finished deleting project experiments",
+                    project_name=project_name,
+                    succeeded=experiments_succeeded,
+                    failed=experiments_failed,
+                )
 
     def get_pipeline(
         self,

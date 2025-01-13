@@ -1089,9 +1089,10 @@ class KafkaSource(OnlineSource):
             attributes["partitions"] = partitions
         sasl = attributes.pop("sasl", {})
         if sasl_user and sasl_pass:
-            sasl["enabled"] = True
+            sasl["enable"] = True
             sasl["user"] = sasl_user
             sasl["password"] = sasl_pass
+            sasl["mechanism"] = "PLAIN"
         if sasl:
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)
@@ -1127,8 +1128,13 @@ class KafkaSource(OnlineSource):
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
                 "worker_allocation_mode", "static"
             )
+        else:
+            extra_attributes["workerAllocationMode"] = extra_attributes.get(
+                "worker_allocation_mode", "pool"
+            )
 
         trigger_kwargs = {}
+
         if "max_workers" in extra_attributes:
             trigger_kwargs = {"max_workers": extra_attributes.pop("max_workers")}
 

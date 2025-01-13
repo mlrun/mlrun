@@ -23,7 +23,7 @@ from framework.db.session import close_session, create_session
 def update_default_configuration_data(logger):
     logger.debug("Updating default configuration data")
     framework.db.session.run_function_with_new_db_session(
-        services.alerts.crud.Alerts().populate_event_cache
+        services.alerts.crud.Alerts().populate_caches
     )
     db_session = create_session()
     try:

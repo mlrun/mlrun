@@ -68,6 +68,18 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def refresh_smtp_configuration(self):
+        pass
+
+    def push_pipeline_notifications(
+        self,
+        pipeline_id,
+        project="",
+        notifications=None,
+        timeout=45,
+    ):
+        pass
+
     @abstractmethod
     def read_run(
         self,
@@ -335,6 +347,15 @@ class RunDBInterface(ABC):
         endpoint_id: str,
         type: Literal["results", "metrics", "all"] = "all",
     ) -> list[mm_endpoints.ModelEndpointMonitoringMetric]:
+        pass
+
+    def get_metrics_by_multiple_endpoints(
+        self,
+        project: str,
+        endpoint_ids: Union[str, list[str]],
+        type: Literal["results", "metrics", "all"] = "all",
+        events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
+    ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
         pass
 
     @abstractmethod
@@ -1079,7 +1100,7 @@ class RunDBInterface(ABC):
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, str],
+        credentials: dict[str, Optional[str]],
         replace_creds: bool,
     ) -> None:
         pass

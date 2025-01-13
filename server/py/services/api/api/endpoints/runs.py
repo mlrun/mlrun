@@ -29,10 +29,10 @@ from mlrun.utils import logger
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.notifications
+import framework.utils.pagination
 import framework.utils.singletons.db as db_singleton
 import framework.utils.singletons.project_member
 import services.api.crud
-import services.api.utils.pagination
 from framework.api import deps
 from framework.api.utils import log_and_raise
 
@@ -242,7 +242,7 @@ async def list_runs(
         )
     )
 
-    paginator = services.api.utils.pagination.Paginator()
+    paginator = framework.utils.pagination.Paginator()
 
     async def _filter_runs(_runs):
         return await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -523,7 +523,7 @@ async def abort_run(
 
 
 @router.post(
-    "/projects/{project}/runs/{uid}/push_notifications",
+    "/projects/{project}/runs/{uid}/push-notifications",
     response_model=mlrun.common.schemas.BackgroundTask,
 )
 async def push_notifications(
@@ -569,7 +569,7 @@ async def push_notifications(
 
 def _push_notifications(db_session, run):
     db = db_singleton.get_db()
-    framework.utils.notifications.unmask_notification_params_secret_on_task(
+    run = framework.utils.notifications.unmask_notification_params_secret_on_task(
         db, db_session, run
     )
     run_notification_pusher_class = (

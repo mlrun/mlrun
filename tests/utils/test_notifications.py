@@ -47,14 +47,16 @@ from mlrun.utils.notifications.notification.webhook import WebhookNotification
         ),
     ],
 )
-def test_load_notification(notification_kind, params, default_params, expected_params):
+def test_process_notification(
+    notification_kind, params, default_params, expected_params
+):
     run_uid = "test-run-uid"
     notification_name = "test-notification-name"
     when_state = runtimes_constants.RunStates.completed
     notification = mlrun.model.Notification.from_dict(
         {
             "kind": notification_kind,
-            "when": when_state,
+            "when": [when_state],
             "status": "pending",
             "name": notification_name,
             "params": params,
@@ -76,7 +78,6 @@ def test_load_notification(notification_kind, params, default_params, expected_p
             [run], default_params
         )
     )
-    notification_pusher._load_notification(run, notification)
     loaded_notifications = (
         notification_pusher._sync_notifications
         + notification_pusher._async_notifications
@@ -376,6 +377,73 @@ def test_notification_reason(notification_kind):
 
 
 @pytest.mark.parametrize(
+    "when, run_state, store_count",
+    [
+        (
+            [runtimes_constants.RunStates.running],
+            runtimes_constants.RunStates.running,
+            1,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.running,
+                runtimes_constants.RunStates.completed,
+            ],
+            runtimes_constants.RunStates.running,
+            0,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.running,
+                runtimes_constants.RunStates.completed,
+            ],
+            runtimes_constants.RunStates.completed,
+            1,
+        ),
+    ],
+)
+def test_notification_update_notification_status(when, run_state, store_count):
+    notification_kind = mlrun.common.schemas.notification.NotificationKind.mail
+    run = mlrun.model.RunObject.from_dict({"status": {"state": run_state}})
+    run.spec.notifications = [
+        mlrun.model.Notification.from_dict(
+            {
+                "kind": notification_kind,
+                "status": "pending",
+                "message": "test-abc",
+                "when": when,
+            }
+        ),
+    ]
+
+    db = mlrun.get_run_db()
+    db.store_run_notifications = unittest.mock.MagicMock()
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+
+    # mock the push method to raise an exception
+    notification_kind_type = getattr(
+        mlrun.utils.notifications.NotificationTypes, notification_kind
+    ).get_notification()
+    if asyncio.iscoroutinefunction(notification_kind_type.push):
+        concrete_notification = notification_pusher._async_notifications[0][0]
+    else:
+        concrete_notification = notification_pusher._sync_notifications[0][0]
+
+    concrete_notification.push = unittest.mock.MagicMock()
+
+    # send notifications
+    notification_pusher.push()
+
+    # asserts
+    concrete_notification.push.assert_called_once()
+
+    assert db.store_run_notifications.call_count == store_count
+
+
+@pytest.mark.parametrize(
     "notification_kind",
     [
         mlrun.common.schemas.notification.NotificationKind.console,
@@ -497,22 +565,38 @@ async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
 
 
 @pytest.mark.parametrize(
-    "run,expected_override_body",
+    "run,input_override_body,expected_override_body",
     [
         (
             {
                 "metadata": {"name": "x", "project": "y"},
                 "status": {"state": runtimes_constants.RunStates.completed},
             },
+            {"message": "{{runs}}"},
             {
                 "message": "[{'project': 'y', 'name': 'x', 'status': {'state': 'completed'}}]"
             },
-        )
+        ),
+        (
+            {
+                "metadata": {"name": "x", "project": "y"},
+                "status": {"state": runtimes_constants.RunStates.completed},
+            },
+            {"message": "{{runs}}", "ignore_non_str_values": ["{{runs}}"]},
+            {
+                "message": "[{'project': 'y', 'name': 'x', 'status': {'state': 'completed'}}]",
+                "ignore_non_str_values": ["{{runs}}"],
+            },
+        ),
     ],
 )
-async def test_serialize_runs_in_request_body(run, expected_override_body):
-    override_body = mlrun.utils.notifications.notification.webhook.WebhookNotification._serialize_runs_in_request_body(
-        override_body={"message": "{{runs}}"},
+async def test_serialize_runs_in_request_body(
+    run, input_override_body, expected_override_body
+):
+    # just to make line shorter
+    webhook_cls = mlrun.utils.notifications.notification.webhook.WebhookNotification
+    override_body = webhook_cls._serialize_runs_in_request_body(
+        override_body=input_override_body,
         runs=[run],
     )
     assert override_body == expected_override_body

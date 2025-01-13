@@ -57,7 +57,6 @@ class ClientSpec(pydantic.v1.BaseModel):
     redis_url: typing.Optional[str]
     redis_type: typing.Optional[str]
     sql_url: typing.Optional[str]
-    model_monitoring_tsdb_connection: typing.Optional[str]
     ce: typing.Optional[dict]
     # not passing them as one object as it possible client user would like to override only one of the params
     calculate_artifact_hash: typing.Optional[str]
@@ -66,3 +65,4 @@ class ClientSpec(pydantic.v1.BaseModel):
     packagers: typing.Optional[dict]
     external_platform_tracking: typing.Optional[dict]
     alerts_mode: typing.Optional[str]
+    system_id: typing.Optional[str]

@@ -15,7 +15,7 @@
 """add alert activation
 
 Revision ID: 650f0ce2da6f
-Revises: fcf2ea01f99a
+Revises: 63a7eec6d034
 Create Date: 2024-10-30 16:38:07.592754
 
 """
@@ -32,7 +32,7 @@ import mlrun.common.schemas.partition
 
 # revision identifiers, used by Alembic.
 revision = "650f0ce2da6f"
-down_revision = "dd6049a25a81"
+down_revision = "63a7eec6d034"
 branch_labels = None
 depends_on = None
 

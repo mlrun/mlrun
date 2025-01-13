@@ -5512,9 +5512,9 @@ class SQLDB(DBInterface):
                     tree=model_endpoint_record.model.full_object.get(
                         "metadata", {}
                     ).get("tree"),
-                    uid=model_endpoint_record.model.full_object.get(
-                        "metadata", {}
-                    ).get("uid"),
+                    uid=model_endpoint_record.model.full_object.get("metadata", {}).get(
+                        "uid"
+                    ),
                 ),
             )
 

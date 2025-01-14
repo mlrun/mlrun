@@ -73,8 +73,12 @@ def extra_requirements() -> dict[str, list[str]]:
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=1.4"],
         "dask": [
-            "dask~=2023.12.1",
-            "distributed~=2023.12.1",
+            # dask 2023 does not work on python 3.11
+            # dask 2024 requires dependencies that current mlrun with 3.9 cannot support
+            'dask~=2024.12.1; python_version >= "3.11"',
+            'distributed~=2024.12.1; python_version >= "3.11"',
+            'dask~=2023.12.1; python_version < "3.11"',
+            'distributed~=2023.12.1; python_version < "3.11"',
         ],
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
         "tdengine": ["taos-ws-py==0.3.2", "taoswswrap~=0.3.0"],

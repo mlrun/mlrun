@@ -134,12 +134,9 @@ def test_requirement_specifiers_convention():
         },
         "databricks-sdk": {"~=0.20.0"},
         "docstring_parser": {"~=0.16"},
-        "distributed": {"~=2023.12.1"},
-        "dask": {"~=2023.12.1"},
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
-        "v3io-frames": {'>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"'},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # due to a bug in 3.11
         "aiohttp": {"~=3.10.0"},
@@ -151,7 +148,19 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.5.1"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},
-        "mlrun_pipelines_kfp_v2": {">=0.2.5 ; python_version >= '3.11'"},
+        "dask": {
+            '~=2024.12.1; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+        },
+        "distributed": {
+            '~=2024.12.1; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+        },
+        "dask-ml": {
+            '~=1.4,<1.9.0; python_version < "3.11"',
+            '~=2024.4.4; python_version >= "3.11"',
+        },
+        "v3io-frames": {'>=0.13.0; python_version >= "3.11"'},
     }
 
     for (
@@ -183,14 +192,27 @@ def test_requirement_specifiers_inconsistencies():
             inconsistent_specifiers_map[requirement_name] = requirement_specifiers
 
     ignored_inconsistencies_map = {
-        "v3io-frames": {
-            '>=0.10.14, !=0.11.*, !=0.12.*; python_version >= "3.11"',
-            '~=0.10.14; python_version < "3.11"',
-        },
         # mlrun api must have v1 due to fastapi https://github.com/fastapi/fastapi/issues/10360
         # and the fact out pydantic currently requires v1
         # on the other hand, mlrun client can have both and thus the inconsistency
         "pydantic": {">=1,<2", ">=1.10.15"},
+        # packages that require specific versions per python version
+        "v3io-frames": {
+            '>=0.13.0; python_version >= "3.11"',
+            '~=0.10.14; python_version < "3.11"',
+        },
+        "dask-ml": {
+            '~=2024.4.4; python_version >= "3.11"',
+            '~=1.4,<1.9.0; python_version < "3.11"',
+        },
+        "dask": {
+            '~=2024.12.1; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+        },
+        "distributed": {
+            '~=2024.12.1; python_version >= "3.11"',
+            '~=2023.12.1; python_version < "3.11"',
+        },
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

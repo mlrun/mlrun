@@ -310,10 +310,6 @@ blinker==1.9.0 \
     --hash=sha256:b4ce2265a7abece45e7cc896e98dbebe6cead56bcf805a3d23136d145f5445bf \
     --hash=sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc
     # via flask
-bokeh==2.4.3 \
-    --hash=sha256:104d2f0a4ca7774ee4b11e545aa34ff76bf3e2ad6de0d33944361981b65da420 \
-    --hash=sha256:ef33801161af379665ab7a34684f2209861e3aefd5c803a21fbbb99d94874b03
-    # via -r extras-requirements.txt
 boto3==1.35.36 \
     --hash=sha256:33735b9449cd2ef176531ba2cb2265c904a91244440b0e161a17da9d24a1e6d1 \
     --hash=sha256:586524b623e4fbbebe28b604c6205eb12f263cc4746bccb011562d07e217a4cb
@@ -728,9 +724,16 @@ cycler==0.12.1 \
     --hash=sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30 \
     --hash=sha256:88bb128f02ba341da8ef447245a9e138fae777f6a23943da4540077d3601eb1c
     # via matplotlib
-dask==2023.12.1 \
+dask==2023.12.1 ; python_full_version < '3.11' \
     --hash=sha256:0ac3acd5bdbfacb5ad6401ac7663a1135955b3fa051a118e1b8a88e87b6b44a2 \
     --hash=sha256:55f316f32da9e68fe995e2c0dc460cb8888cd4a1af32096753788e8af45a8d10
+    # via
+    #   -r extras-requirements.txt
+    #   dask-kubernetes
+    #   distributed
+dask==2024.12.1 ; python_full_version >= '3.11' \
+    --hash=sha256:1f32acddf1a6994e3af6734756f0a92467c47050bc29f3555bb9b140420e8e19 \
+    --hash=sha256:bac809af21c2dd7eb06827bccbfc612504f3ee6435580e548af912828f823195
     # via
     #   -r extras-requirements.txt
     #   dask-kubernetes
@@ -884,9 +887,15 @@ deprecated==1.2.15 \
     #   kfp
     #   opentelemetry-api
     #   opentelemetry-semantic-conventions
-distributed==2023.12.1 \
+distributed==2023.12.1 ; python_full_version < '3.11' \
     --hash=sha256:56e69d90c6099e066751907956144cf94d0bc7050bd69ef2ec8003e890c2540c \
     --hash=sha256:f0c5e50c26b6cf5106b2d4116bf168dfccebe42e9670ddf58cfe3618b8b94ed8
+    # via
+    #   -r extras-requirements.txt
+    #   dask-kubernetes
+distributed==2024.12.1 ; python_full_version >= '3.11' \
+    --hash=sha256:438aa3ae48bfac9c2bb2ad03f9d47899286f9cb3db8a627b3b8c0de9e26f53dd \
+    --hash=sha256:87e31abaa0ee3dc517b44fec4993d4b5d92257f926a8d2a12d52c005227154e7
     # via
     #   -r extras-requirements.txt
     #   dask-kubernetes
@@ -1614,9 +1623,9 @@ humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
     # via -r dockerfiles/mlrun-api/requirements.txt
-hypothesis==6.123.15 \
-    --hash=sha256:b9c55b8fa778ed115434c718d74d73e36ee0f4fca38839195ac8c61f0f9b0f2c \
-    --hash=sha256:de538edbb43ac908042f08e3078b9fd6b1eacb3ca1529fa36cc38fb48db94981
+hypothesis==6.123.16 \
+    --hash=sha256:2af13b9795d2c4b9c66865569a944f2d8c3812b087989bc0f408e825bb10c8e6 \
+    --hash=sha256:ab898adf001823868ff21a20355944c2eb5ce776f20e9983c7d79b535675e6c3
     # via -r dev-requirements.txt
 idna==3.10 \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
@@ -1726,7 +1735,6 @@ jinja2==3.1.5 \
     --hash=sha256:aba0f4dc9ed8013c424088f68a5c226f7d6097ed89b246d7749c2ec4175c6adb
     # via
     #   -r requirements.txt
-    #   bokeh
     #   distributed
     #   flask
     #   jupyter-server
@@ -2580,7 +2588,6 @@ numpy==1.26.4 \
     --hash=sha256:ffa75af20b44f8dba823498024771d5ac50620e6915abac414251bd971b4529f
     # via
     #   -r requirements.txt
-    #   bokeh
     #   contourpy
     #   db-dtypes
     #   hypothesis
@@ -2721,7 +2728,6 @@ packaging==24.2 \
     # via
     #   aioresponses
     #   black
-    #   bokeh
     #   build
     #   dask
     #   db-dtypes
@@ -2862,9 +2868,7 @@ pillow==11.1.0 \
     --hash=sha256:f7955ecf5609dee9442cbface754f2c6e541d9e6eda87fad7f7a989b0bdb9d71 \
     --hash=sha256:f86d3a7a9af5d826744fabf4afd15b9dfef44fe69a98541f666f66fbb8d3fef9 \
     --hash=sha256:fbd43429d0d7ed6533b25fc993861b8fd512c42d04514a0dd6337fb3ccf22761
-    # via
-    #   bokeh
-    #   matplotlib
+    # via matplotlib
 pkginfo==1.10.0 \
     --hash=sha256:5df73835398d10db79f8eecd5cd86b1f6d29317589ea70796994d49399af6297 \
     --hash=sha256:889a6da2ed7ffc58ab5b900d888ddce90bce912f2d2de1dc1c26f4cb9fe65097
@@ -3418,7 +3422,6 @@ pyyaml==6.0.2 \
     --hash=sha256:ff3824dc5261f50c9b0dfb3be22b4567a6f938ccce4587b38952d85fd9e9afe4
     # via
     #   -r requirements.txt
-    #   bokeh
     #   dask
     #   distributed
     #   jupyter-events
@@ -4147,7 +4150,6 @@ tornado==6.4.2 \
     --hash=sha256:c82c46813ba483a385ab2a99caeaedf92585a1f90defb5693351fa7e4ea0bf73 \
     --hash=sha256:e828cce1123e9e44ae2a50a9de3055497ab1d0aeb440c5ac23064d9e44880da1
     # via
-    #   bokeh
     #   distributed
     #   ipykernel
     #   jupyter-client
@@ -4192,7 +4194,6 @@ typing-extensions==4.12.2 \
     #   azure-keyvault-secrets
     #   azure-storage-blob
     #   black
-    #   bokeh
     #   fastapi
     #   graphene
     #   graphql-core
@@ -4278,9 +4279,9 @@ v3iofs==0.1.18 \
     # via
     #   -r requirements.txt
     #   storey
-vale==3.9.2.0 \
-    --hash=sha256:00851689f5ed509c49b5ff52c17e9a8d85cb9426fedef8817c7fea18b0425019 \
-    --hash=sha256:6b7c7d711d3ba5a2137f6ba70e35faafa78f500a6032ef91355f4705d810f3e5
+vale==3.9.3.0 \
+    --hash=sha256:5e96efd709f821ffaf00dde3724675d831175687d202a007065b5e0aebb557c5 \
+    --hash=sha256:90c15fc9eeee4982b9d33c9402a1a8595de087fc29c9a303cef0f56f51a34765
     # via -r dev-requirements.txt
 waitress==3.0.2 ; sys_platform == 'win32' \
     --hash=sha256:682aaaf2af0c44ada4abfb70ded36393f0e307f4ab9456a215ce0020baefc31f \

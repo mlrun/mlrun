@@ -428,7 +428,7 @@ class KFPNotificationPusher(NotificationPusher):
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
                         traceback=traceback.format_exception(
-                            etype=type(result),
+                            result,
                             value=result,
                             tb=result.__traceback__,
                         ),

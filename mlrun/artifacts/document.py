@@ -49,7 +49,7 @@ class DocumentLoaderSpec(ModelObj):
         self,
         loader_class_name: str = "langchain_community.document_loaders.TextLoader",
         src_name: str = "file_path",
-        download_object: bool = False,
+        download_object: bool = True,
         kwargs: Optional[dict] = None,
     ):
         """

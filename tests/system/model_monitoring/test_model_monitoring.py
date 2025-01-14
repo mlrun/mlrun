@@ -63,10 +63,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
     def setup_method(self, method):
         super().setup_method(method)
-        if method.__name__ in [
-            "test_list_endpoints_without_creds",
-            "test_get_model_endpoint_metrics",
-        ]:
+        if method.__name__ == "test_list_endpoints_without_creds":
             return
         self.project.set_model_monitoring_credentials(
             stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
@@ -112,12 +109,6 @@ class TestModelEndpointsOperations(TestMLRunSystem):
     def test_get_model_endpoint_metrics(self):
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project_name, profile=get_tsdb_datastore_profile_from_env()
-        )
-        self.project.set_model_monitoring_credentials(
-            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
-            tsdb_connection=os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
-            ),
         )
         db = mlrun.get_run_db()
         model_endpoint = self._mock_random_endpoint("testing")

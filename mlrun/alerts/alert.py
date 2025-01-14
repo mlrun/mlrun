@@ -57,6 +57,7 @@ class AlertConfig(ModelObj):
         created: Optional[str] = None,
         count: Optional[int] = None,
         updated: Optional[str] = None,
+        **kwargs,
     ):
         """Alert config object
 

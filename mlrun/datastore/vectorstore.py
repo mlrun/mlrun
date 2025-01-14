@@ -50,7 +50,11 @@ def _extract_collection_name(vectorstore: "VectorStore") -> str:  # noqa: F821
 
     if type(vectorstore).__name__ == "PineconeVectorStore":
         try:
-            url = vectorstore._index._config.host
+            url = (
+                vectorstore._index.config.host
+                if hasattr(vectorstore._index, "config")
+                else vectorstore._index._config.host
+            )
             index_name = url.split("//")[1].split("-")[0]
             return index_name
         except Exception:

@@ -34,6 +34,7 @@ import framework.db.sqldb.db
 import framework.service
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
+import framework.utils.helpers
 import framework.utils.pagination
 import framework.utils.periodic
 import framework.utils.singletons.db
@@ -132,8 +133,13 @@ class Service(framework.service.Service):
             auth_info,
         )
 
+        exclude_updated = self._should_exclude_updated(request)
         return await run_in_threadpool(
-            services.alerts.crud.Alerts().get_enriched_alert, db_session, project, name
+            services.alerts.crud.Alerts().get_alert,
+            db_session,
+            project,
+            name,
+            exclude_updated=exclude_updated,
         )
 
     async def list_alerts(
@@ -158,10 +164,12 @@ class Service(framework.service.Service):
             )
         )
 
+        exclude_updated = self._should_exclude_updated(request)
         alerts = await run_in_threadpool(
             services.alerts.crud.Alerts().list_alerts,
             db_session,
             project=allowed_project_names,
+            exclude_updated=exclude_updated,
         )
 
         alerts = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -459,6 +467,17 @@ class Service(framework.service.Service):
         if self._is_chief_or_standalone():
             services.alerts.initial_data.update_default_configuration_data(self._logger)
             await self._start_periodic_functions()
+
+    @staticmethod
+    def _should_exclude_updated(request: fastapi.Request):
+        # The 'updated' field was added in 1.8.0, and earlier versions don't support it, so we exclude it
+        # for compatibility.
+        client_version = request.headers.get("x-mlrun-client-version")
+        return bool(
+            client_version
+        ) and not framework.utils.helpers.validate_client_version(
+            client_version, "1.8.0"
+        )
 
     def _register_routes(self):
         # TODO: Resolve these dynamically from configuration

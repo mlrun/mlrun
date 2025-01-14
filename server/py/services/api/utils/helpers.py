@@ -42,9 +42,9 @@ def resolve_client_default_kfp_image(
             # client version is not semver, pass
             pass
 
-    # client is olden than (<) 1.8, must use mlrun image for kfp
-    if must_use_mlrun_image:
-        return mlrun.mlconf.default_base_image
+    # client is older than (<) 1.8 and using kfp or remote engine, must use mlrun-kfp image for kfp
+    if must_use_mlrun_image and workflow_spec.engine in (mlrun.common.schemas.workflow.EngineType.REMOTE, mlrun.common.schemas.workflow.EngineType.KFP):
+        return mlrun.mlconf.kfp_image
 
     # "kfp" or "remote:kfp"
     kfp_engine = (

@@ -90,12 +90,12 @@ def test_submit_run_sync(db: Session, client: TestClient):
         db, project, submit_job_body["task"]["metadata"]["name"]
     )
     assert (
-        updated_schedule.cron_trigger.to_crontab() == "0 1 * * *"
+            updated_schedule.cron_trigger.to_crontab() == "0 1 * * *"
     ), "schedule was not updated"
 
 
 def test_submit_run_sync_schedule_with_function_overrides(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     auth_info = mlrun.common.schemas.AuthInfo()
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
@@ -137,7 +137,7 @@ def test_submit_run_sync_schedule_with_function_overrides(
 
 
 def test_generate_function_and_task_from_submit_run_body_body_override_values(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     task_name = "task_name"
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
@@ -298,32 +298,32 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     assert parsed_function_object.metadata.project == project
     assert parsed_function_object.metadata.tag == function_tag
     assert (
-        DeepDiff(
-            parsed_function_object.metadata.credentials.to_dict(),
-            submit_job_body["function"]["metadata"]["credentials"],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                parsed_function_object.metadata.credentials.to_dict(),
+                submit_job_body["function"]["metadata"]["credentials"],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            parsed_function_object.spec.resources,
-            submit_job_body["function"]["spec"]["resources"],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                parsed_function_object.spec.resources,
+                submit_job_body["function"]["spec"]["resources"],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        parsed_function_object.spec.image
-        == submit_job_body["function"]["spec"]["image"]
+            parsed_function_object.spec.image
+            == submit_job_body["function"]["spec"]["image"]
     )
     assert (
-        parsed_function_object.spec.image_pull_policy
-        == submit_job_body["function"]["spec"]["image_pull_policy"]
+            parsed_function_object.spec.image_pull_policy
+            == submit_job_body["function"]["spec"]["image_pull_policy"]
     )
     assert (
-        parsed_function_object.spec.replicas
-        == submit_job_body["function"]["spec"]["replicas"]
+            parsed_function_object.spec.replicas
+            == submit_job_body["function"]["spec"]["replicas"]
     )
 
     _assert_volumes_and_volume_mounts(
@@ -331,45 +331,45 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     )
     _assert_env_vars(parsed_function_object, submit_job_body, original_function)
     assert (
-        parsed_function_object.spec.node_name
-        == submit_job_body["function"]["spec"]["node_name"]
+            parsed_function_object.spec.node_name
+            == submit_job_body["function"]["spec"]["node_name"]
     )
     assert (
-        DeepDiff(
-            parsed_function_object.spec.node_selector,
-            submit_job_body["function"]["spec"]["node_selector"],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                parsed_function_object.spec.node_selector,
+                submit_job_body["function"]["spec"]["node_selector"],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            mlrun.runtimes.pod.get_sanitized_attribute(
-                parsed_function_object.spec, "affinity"
-            ),
-            submit_job_body["function"]["spec"]["affinity"],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                mlrun.runtimes.pod.get_sanitized_attribute(
+                    parsed_function_object.spec, "affinity"
+                ),
+                submit_job_body["function"]["spec"]["affinity"],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            mlrun.runtimes.pod.get_sanitized_attribute(
-                parsed_function_object.spec, "tolerations"
-            ),
-            submit_job_body["function"]["spec"]["tolerations"],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                mlrun.runtimes.pod.get_sanitized_attribute(
+                    parsed_function_object.spec, "tolerations"
+                ),
+                submit_job_body["function"]["spec"]["tolerations"],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        parsed_function_object.spec.preemption_mode
-        == submit_job_body["function"]["spec"]["preemption_mode"]
+            parsed_function_object.spec.preemption_mode
+            == submit_job_body["function"]["spec"]["preemption_mode"]
     )
 
 
 def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_tolerations(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     k8s_api = kubernetes.client.ApiClient()
     task_name = "task_name"
@@ -400,8 +400,8 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         db, submit_job_body
     )
     assert (
-        parsed_function_object.spec.preemption_mode
-        == submit_job_body["function"]["spec"]["preemption_mode"]
+            parsed_function_object.spec.preemption_mode
+            == submit_job_body["function"]["spec"]["preemption_mode"]
     )
     assert parsed_function_object.spec.affinity == expected_anti_affinity
     assert parsed_function_object.spec.tolerations is None
@@ -437,15 +437,15 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
     )
 
     assert (
-        parsed_function_object.spec.preemption_mode
-        == submit_job_body["function"]["spec"]["preemption_mode"]
+            parsed_function_object.spec.preemption_mode
+            == submit_job_body["function"]["spec"]["preemption_mode"]
     )
     assert parsed_function_object.spec.affinity == expected_affinity
     assert parsed_function_object.spec.tolerations == preemptible_tolerations
 
 
 def test_generate_function_and_task_from_submit_run_body_keep_resources(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     task_name = "task_name"
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
@@ -467,25 +467,25 @@ def test_generate_function_and_task_from_submit_run_body_keep_resources(
     assert parsed_function_object.metadata.project == PROJECT
     assert parsed_function_object.metadata.tag == function_tag
     assert (
-        DeepDiff(
-            parsed_function_object.spec.resources,
-            submit_job_body["function"]["spec"]["resources"],
-            ignore_order=True,
-        )
-        != {}
+            DeepDiff(
+                parsed_function_object.spec.resources,
+                submit_job_body["function"]["spec"]["resources"],
+                ignore_order=True,
+            )
+            != {}
     )
     assert (
-        DeepDiff(
-            parsed_function_object.spec.resources,
-            original_function["spec"]["resources"],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                parsed_function_object.spec.resources,
+                original_function["spec"]["resources"],
+                ignore_order=True,
+            )
+            == {}
     )
 
 
 def test_generate_function_and_task_from_submit_run_body_keep_credentials(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     task_name = "task_name"
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
@@ -511,9 +511,9 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
 
 
 def test_ensure_function_has_auth_set(
-    db: Session,
-    client: TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+        db: Session,
+        client: TestClient,
+        k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
 
@@ -529,12 +529,12 @@ def test_ensure_function_has_auth_set(
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_has_auth_set(function, mlrun.common.schemas.AuthInfo())
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     logger.info("Generate keyword, secret should be created, env should reference it")
@@ -553,22 +553,22 @@ def test_ensure_function_has_auth_set(
         function, mlrun.common.schemas.AuthInfo(username=username)
     )
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            # ignore order with exclude path of specific list index ends up with errors
-            ignore_order_func=lambda level: "env" not in level.path(),
-            exclude_paths=[
-                "root['metadata']['credentials']['access_key']",
-                f"root['spec']['env'][{len(function.spec.env)-1}]",
-            ],
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                # ignore order with exclude path of specific list index ends up with errors
+                ignore_order_func=lambda level: "env" not in level.path(),
+                exclude_paths=[
+                    "root['metadata']['credentials']['access_key']",
+                    f"root['spec']['env'][{len(function.spec.env) - 1}]",
+                ],
+            )
+            == {}
     )
     secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     assert (
-        function.metadata.credentials.access_key
-        == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+            function.metadata.credentials.access_key
+            == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
     )
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     _assert_env_var_from_secret(
@@ -584,8 +584,8 @@ def test_ensure_function_has_auth_set(
     )
     function = mlrun.new_function(runtime=original_function_dict)
     with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match=r"(.*)Function access key must be set(.*)",
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"(.*)Function access key must be set(.*)",
     ):
         ensure_function_has_auth_set(function, mlrun.common.schemas.AuthInfo())
 
@@ -595,7 +595,7 @@ def test_ensure_function_has_auth_set(
     )
     function = mlrun.new_function(runtime=original_function_dict)
     with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError, match=r"(.*)Username is missing(.*)"
+            mlrun.errors.MLRunInvalidArgumentError, match=r"(.*)Username is missing(.*)"
     ):
         ensure_function_has_auth_set(function, mlrun.common.schemas.AuthInfo())
 
@@ -610,14 +610,14 @@ def test_ensure_function_has_auth_set(
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_has_auth_set(function, mlrun.common.schemas.AuthInfo())
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            # ignore order with exclude path of specific list index ends up with errors
-            ignore_order_func=lambda level: "env" not in level.path(),
-            exclude_paths=[f"root['spec']['env'][{len(function.spec.env)-1}]"],
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                # ignore order with exclude path of specific list index ends up with errors
+                ignore_order_func=lambda level: "env" not in level.path(),
+                exclude_paths=[f"root['spec']['env'][{len(function.spec.env) - 1}]"],
+            )
+            == {}
     )
     _assert_env_var_from_secret(
         function,
@@ -643,22 +643,22 @@ def test_ensure_function_has_auth_set(
     secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-            # ignore order with exclude path of specific list index ends up with errors
-            ignore_order_func=lambda level: "env" not in level.path(),
-            exclude_paths=[
-                "root['metadata']['credentials']['access_key']",
-                f"root['spec']['env'][{len(function.spec.env)-1}]",
-            ],
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+                # ignore order with exclude path of specific list index ends up with errors
+                ignore_order_func=lambda level: "env" not in level.path(),
+                exclude_paths=[
+                    "root['metadata']['credentials']['access_key']",
+                    f"root['spec']['env'][{len(function.spec.env) - 1}]",
+                ],
+            )
+            == {}
     )
     assert (
-        function.metadata.credentials.access_key
-        == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+            function.metadata.credentials.access_key
+            == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
     )
     _assert_env_var_from_secret(
         function,
@@ -669,9 +669,9 @@ def test_ensure_function_has_auth_set(
 
 
 def test_mask_v3io_access_key_env_var(
-    db: Session,
-    client: TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+        db: Session,
+        client: TestClient,
+        k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
 ):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
 
@@ -681,12 +681,12 @@ def test_mask_v3io_access_key_env_var(
     function = mlrun.new_function(runtime=original_function_dict)
     _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     logger.info(
@@ -701,8 +701,8 @@ def test_mask_v3io_access_key_env_var(
     )
     function = mlrun.new_function(runtime=original_function_dict)
     with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match=r"(.*)Username is missing(.*)",
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"(.*)Username is missing(.*)",
     ):
         _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
 
@@ -719,12 +719,12 @@ def test_mask_v3io_access_key_env_var(
     function = mlrun.new_function(runtime=original_function_dict)
     _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     logger.info(
@@ -741,14 +741,14 @@ def test_mask_v3io_access_key_env_var(
     )
     _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            # ignore order with exclude path of specific list index ends up with errors
-            ignore_order_func=lambda level: "env" not in level.path(),
-            exclude_paths=[f"root['spec']['env'][{len(function.spec.env)-1}]"],
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                # ignore order with exclude path of specific list index ends up with errors
+                ignore_order_func=lambda level: "env" not in level.path(),
+                exclude_paths=[f"root['spec']['env'][{len(function.spec.env) - 1}]"],
+            )
+            == {}
     )
     secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, v3io_access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, v3io_access_key)
@@ -766,11 +766,11 @@ def test_mask_v3io_access_key_env_var(
     _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
     services.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+            )
+            == {}
     )
     # assert we're not trying to store unneeded-ly
     assert services.api.crud.Secrets().store_auth_secret.call_count == 0
@@ -786,11 +786,11 @@ def test_mask_v3io_access_key_env_var(
     )
     services.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+            )
+            == {}
     )
     # assert we're not trying to store unneeded-ly
     assert services.api.crud.Secrets().store_auth_secret.call_count == 0
@@ -798,10 +798,10 @@ def test_mask_v3io_access_key_env_var(
 
 @pytest.mark.parametrize("use_structs", [True, False])
 def test_mask_v3io_volume_credentials(
-    db: Session,
-    client: TestClient,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
-    use_structs: bool,
+        db: Session,
+        client: TestClient,
+        k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+        use_structs: bool,
 ):
     username = "volume-username"
     access_key = "volume-access-key"
@@ -884,12 +884,12 @@ def test_mask_v3io_volume_credentials(
     function = mlrun.new_function(runtime=original_function_dict)
     _mask_v3io_volume_credentials(function)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     logger.info("Mask several edge cases, nothing should be changed")
@@ -910,12 +910,12 @@ def test_mask_v3io_volume_credentials(
     function = mlrun.new_function(runtime=original_function_dict)
     _mask_v3io_volume_credentials(function)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     logger.info(
@@ -929,13 +929,13 @@ def test_mask_v3io_volume_credentials(
     function = mlrun.new_function(runtime=original_function_dict)
     _mask_v3io_volume_credentials(function)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-            exclude_paths=["root['spec']['volumes'][0]['flexVolume']"],
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+                exclude_paths=["root['spec']['volumes'][0]['flexVolume']"],
+            )
+            == {}
     )
     secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
@@ -954,13 +954,13 @@ def test_mask_v3io_volume_credentials(
     function = mlrun.new_function(runtime=original_function_dict)
     _mask_v3io_volume_credentials(function)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-            exclude_paths=["root['spec']['volumes'][0]['flexVolume']"],
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+                exclude_paths=["root['spec']['volumes'][0]['flexVolume']"],
+            )
+            == {}
     )
     secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
@@ -978,12 +978,12 @@ def test_mask_v3io_volume_credentials(
     _mask_v3io_volume_credentials(function)
     assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     # mask while passing auth info with a username, verify masking happens
@@ -996,7 +996,7 @@ def test_mask_v3io_volume_credentials(
 
 
 def test_ensure_function_security_context_no_enrichment(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
@@ -1013,12 +1013,12 @@ def test_ensure_function_security_context_no_enrichment(
     function = mlrun.new_function(runtime=original_function_dict_job_kind)
     ensure_function_security_context(function, auth_info)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     logger.info("Local function, nothing should be changed")
@@ -1032,12 +1032,12 @@ def test_ensure_function_security_context_no_enrichment(
     function = mlrun.new_function(runtime=original_function_dict_local_kind)
     ensure_function_security_context(function, auth_info)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     logger.info("Not running on iguazio, nothing should be changed")
@@ -1052,17 +1052,17 @@ def test_ensure_function_security_context_no_enrichment(
     function = mlrun.new_function(runtime=original_function_dict_job_kind)
     ensure_function_security_context(function, mlrun.common.schemas.AuthInfo())
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
 
 def test_ensure_function_security_context_override_enrichment_mode(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     mlrun.mlconf.igz_version = "3.6"
@@ -1086,12 +1086,12 @@ def test_ensure_function_security_context_override_enrichment_mode(
 
     # assert function was changed
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        != {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            != {}
     )
 
     # the enrichment that should be done
@@ -1102,17 +1102,17 @@ def test_ensure_function_security_context_override_enrichment_mode(
         ),
     )
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
 
 def test_ensure_function_security_context_enrichment_group_id(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     mlrun.mlconf.igz_version = "3.6"
@@ -1136,12 +1136,12 @@ def test_ensure_function_security_context_enrichment_group_id(
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
     logger.info("Enrichment group id is -1, user unix id should be used as group id")
@@ -1155,17 +1155,17 @@ def test_ensure_function_security_context_enrichment_group_id(
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
 
 def test_ensure_function_security_context_unknown_enrichment_mode(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     mlrun.mlconf.igz_version = "3.6"
@@ -1180,13 +1180,13 @@ def test_ensure_function_security_context_unknown_enrichment_mode(
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
         ensure_function_security_context(function, auth_info)
     assert (
-        f"Invalid security context enrichment mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
-        in str(exc.value)
+            f"Invalid security context enrichment mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
+            in str(exc.value)
     )
 
 
 def test_ensure_function_security_context_missing_control_plane_session_tag(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     mlrun.mlconf.igz_version = "3.6"
@@ -1227,7 +1227,7 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
 
 
 def test_ensure_function_security_context_get_user_unix_id(
-    db: Session, client: TestClient
+        db: Session, client: TestClient
 ):
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     mlrun.mlconf.igz_version = "3.6"
@@ -1258,17 +1258,17 @@ def test_ensure_function_security_context_get_user_unix_id(
     ensure_function_security_context(function, auth_info)
     framework.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
     assert (
-        DeepDiff(
-            original_function.to_dict(),
-            function.to_dict(),
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function.to_dict(),
+                function.to_dict(),
+                ignore_order=True,
+            )
+            == {}
     )
 
 
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(
-    db: Session, client: TestClient, monkeypatch
+        db: Session, client: TestClient, monkeypatch
 ):
     task_name = "task_name"
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
@@ -1379,7 +1379,7 @@ def test_get_obj_path(db: Session, client: TestClient):
             mlrun.mlconf.httpdb.allowed_file_paths = case["allowed_paths"]
         if case.get("expect_error"):
             with pytest.raises(
-                mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
+                    mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
             ):
                 framework.api.utils.get_obj_path(
                     case.get("schema"), case.get("path"), case.get("user")
@@ -1415,7 +1415,7 @@ def _mock_import_function(monkeypatch):
 
 
 def _mock_original_function(
-    client, access_key=None, kind=mlrun.runtimes.RuntimeKinds.job
+        client, access_key=None, kind=mlrun.runtimes.RuntimeKinds.job
 ):
     (
         project,
@@ -1433,12 +1433,12 @@ def _mock_original_function(
 
 
 def _generate_original_function(
-    access_key=None,
-    kind=mlrun.runtimes.RuntimeKinds.job,
-    v3io_username=None,
-    v3io_access_key=None,
-    volumes=None,
-    volume_mounts=None,
+        access_key=None,
+        kind=mlrun.runtimes.RuntimeKinds.job,
+        v3io_username=None,
+        v3io_access_key=None,
+        volumes=None,
+        volume_mounts=None,
 ):
     function_name = "function-name"
     project = "some-project"
@@ -1519,7 +1519,7 @@ def _generate_original_function(
 
 
 def _assert_volumes_and_volume_mounts(
-    parsed_function_object, submit_job_body, original_function
+        parsed_function_object, submit_job_body, original_function
 ):
     """
     expected volumes and volume mounts:
@@ -1528,76 +1528,76 @@ def _assert_volumes_and_volume_mounts(
     2: new volume from the body (the second in the body)
     """
     assert (
-        DeepDiff(
-            original_function["spec"]["volumes"][0],
-            parsed_function_object.spec.volumes[0],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function["spec"]["volumes"][0],
+                parsed_function_object.spec.volumes[0],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            original_function["spec"]["volumes"][1],
-            parsed_function_object.spec.volumes[1],
-            ignore_order=True,
-        )
-        != {}
+            DeepDiff(
+                original_function["spec"]["volumes"][1],
+                parsed_function_object.spec.volumes[1],
+                ignore_order=True,
+            )
+            != {}
     )
     assert (
-        DeepDiff(
-            submit_job_body["function"]["spec"]["volumes"][0],
-            parsed_function_object.spec.volumes[1],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                submit_job_body["function"]["spec"]["volumes"][0],
+                parsed_function_object.spec.volumes[1],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            submit_job_body["function"]["spec"]["volumes"][1],
-            parsed_function_object.spec.volumes[2],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                submit_job_body["function"]["spec"]["volumes"][1],
+                parsed_function_object.spec.volumes[2],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            original_function["spec"]["volume_mounts"][0],
-            parsed_function_object.spec.volume_mounts[0],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                original_function["spec"]["volume_mounts"][0],
+                parsed_function_object.spec.volume_mounts[0],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            original_function["spec"]["volume_mounts"][1],
-            parsed_function_object.spec.volume_mounts[1],
-            ignore_order=True,
-        )
-        != {}
+            DeepDiff(
+                original_function["spec"]["volume_mounts"][1],
+                parsed_function_object.spec.volume_mounts[1],
+                ignore_order=True,
+            )
+            != {}
     )
     assert (
-        DeepDiff(
-            submit_job_body["function"]["spec"]["volume_mounts"][0],
-            parsed_function_object.spec.volume_mounts[0],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                submit_job_body["function"]["spec"]["volume_mounts"][0],
+                parsed_function_object.spec.volume_mounts[0],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            submit_job_body["function"]["spec"]["volume_mounts"][1],
-            parsed_function_object.spec.volume_mounts[1],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                submit_job_body["function"]["spec"]["volume_mounts"][1],
+                parsed_function_object.spec.volume_mounts[1],
+                ignore_order=True,
+            )
+            == {}
     )
     assert (
-        DeepDiff(
-            submit_job_body["function"]["spec"]["volume_mounts"][2],
-            parsed_function_object.spec.volume_mounts[2],
-            ignore_order=True,
-        )
-        == {}
+            DeepDiff(
+                submit_job_body["function"]["spec"]["volume_mounts"][2],
+                parsed_function_object.spec.volume_mounts[2],
+                ignore_order=True,
+            )
+            == {}
     )
 
 
@@ -1610,55 +1610,55 @@ def _assert_env_vars(parsed_function_object, submit_job_body, original_function)
     3: new env var (with valueFrom) from the body (the third in the body)
     """
     assert (
-        original_function["spec"]["env"][0]["name"]
-        == parsed_function_object.spec.env[0]["name"]
+            original_function["spec"]["env"][0]["name"]
+            == parsed_function_object.spec.env[0]["name"]
     )
     assert (
-        original_function["spec"]["env"][0]["value"]
-        == parsed_function_object.spec.env[0]["value"]
-    )
-
-    assert (
-        original_function["spec"]["env"][1]["name"]
-        == parsed_function_object.spec.env[1].name
-    )
-    assert (
-        submit_job_body["function"]["spec"]["env"][0]["name"]
-        == parsed_function_object.spec.env[1].name
-    )
-    assert (
-        original_function["spec"]["env"][1]["value"]
-        != parsed_function_object.spec.env[1].value
-    )
-    assert (
-        submit_job_body["function"]["spec"]["env"][0]["value"]
-        == parsed_function_object.spec.env[1].value
+            original_function["spec"]["env"][0]["value"]
+            == parsed_function_object.spec.env[0]["value"]
     )
 
     assert (
-        submit_job_body["function"]["spec"]["env"][1]["name"]
-        == parsed_function_object.spec.env[2].name
+            original_function["spec"]["env"][1]["name"]
+            == parsed_function_object.spec.env[1].name
     )
     assert (
-        submit_job_body["function"]["spec"]["env"][1]["value"]
-        == parsed_function_object.spec.env[2].value
+            submit_job_body["function"]["spec"]["env"][0]["name"]
+            == parsed_function_object.spec.env[1].name
+    )
+    assert (
+            original_function["spec"]["env"][1]["value"]
+            != parsed_function_object.spec.env[1].value
+    )
+    assert (
+            submit_job_body["function"]["spec"]["env"][0]["value"]
+            == parsed_function_object.spec.env[1].value
     )
 
     assert (
-        submit_job_body["function"]["spec"]["env"][2]["name"]
-        == parsed_function_object.spec.env[3].name
+            submit_job_body["function"]["spec"]["env"][1]["name"]
+            == parsed_function_object.spec.env[2].name
     )
     assert (
-        submit_job_body["function"]["spec"]["env"][2]["valueFrom"]
-        == parsed_function_object.spec.env[3].value_from
+            submit_job_body["function"]["spec"]["env"][1]["value"]
+            == parsed_function_object.spec.env[2].value
+    )
+
+    assert (
+            submit_job_body["function"]["spec"]["env"][2]["name"]
+            == parsed_function_object.spec.env[3].name
+    )
+    assert (
+            submit_job_body["function"]["spec"]["env"][2]["valueFrom"]
+            == parsed_function_object.spec.env[3].value_from
     )
 
 
 def _assert_env_var_from_secret(
-    function: mlrun.runtimes.pod.KubeResource,
-    name: str,
-    secret_name: str,
-    secret_key: str,
+        function: mlrun.runtimes.pod.KubeResource,
+        name: str,
+        secret_name: str,
+        secret_key: str,
 ):
     env_var_value = function.get_env(name)
     if env_var_value is None:
@@ -1731,101 +1731,110 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
     "project_image,workflow_image,workflow_engine,client_version,expected_image",
     [
         (
-            "x",
-            "",
-            mlrun.common.schemas.workflow.EngineType.KFP,
-            "1.8.0",
-            "x",
+                "x",
+                "",
+                mlrun.common.schemas.workflow.EngineType.KFP,
+                "1.8.0",
+                "x",
         ),
         (
-            "x",
-            "y",
-            mlrun.common.schemas.workflow.EngineType.KFP,
-            "1.8.0",
-            "y",
+                "x",
+                "y",
+                mlrun.common.schemas.workflow.EngineType.KFP,
+                "1.8.0",
+                "y",
         ),
         (
-            "",
-            "y",
-            mlrun.common.schemas.workflow.EngineType.KFP,
-            "1.8.0",
-            "y",
+                "",
+                "y",
+                mlrun.common.schemas.workflow.EngineType.KFP,
+                "1.8.0",
+                "y",
         ),
         (
-            "",
-            "",
-            mlrun.common.schemas.workflow.EngineType.KFP,
-            "1.8.0",
-            "mlrun/mlrun-kfp",
+                "",
+                "",
+                mlrun.common.schemas.workflow.EngineType.KFP,
+                "1.8.0",
+                "mlrun/mlrun-kfp",
         ),
         (
-            "",
-            "",
-            mlrun.common.schemas.workflow.EngineType.REMOTE,
-            "1.8.0",
-            "mlrun/mlrun",
+                "",
+                "",
+                mlrun.common.schemas.workflow.EngineType.REMOTE,
+                "1.8.0",
+                "mlrun/mlrun",
         ),
         (
-            "",
-            "",
-            mlrun.common.schemas.workflow.EngineType.LOCAL,
-            "1.8.0",
-            "mlrun/mlrun",
+                "",
+                "",
+                mlrun.common.schemas.workflow.EngineType.LOCAL,
+                "1.8.0",
+                "mlrun/mlrun",
         ),
         (
-            "",
-            "",
-            f"{mlrun.common.schemas.workflow.EngineType.REMOTE}:{mlrun.common.schemas.workflow.EngineType.KFP}",
-            "1.8.0",
-            "mlrun/mlrun-kfp",
+                "",
+                "",
+                f"{mlrun.common.schemas.workflow.EngineType.REMOTE}:{mlrun.common.schemas.workflow.EngineType.KFP}",
+                "1.8.0",
+                "mlrun/mlrun-kfp",
         ),
         (
-            "",
-            "",
-            "",
-            "1.8.0",
-            "mlrun/mlrun",
+                "",
+                "",
+                "",
+                "1.8.0",
+                "mlrun/mlrun",
         ),
         (
-            "",
-            "",
-            "",
-            "",
-            "mlrun/mlrun",
+                "",
+                "",
+                "",
+                "",
+                "mlrun/mlrun",
         ),
         (
-            "",
-            "",
-            None,
-            "1.8.0",
-            "mlrun/mlrun",
+                "",
+                "",
+                None,
+                "1.8.0",
+                "mlrun/mlrun",
         ),
         (
-            "",
-            "",
-            mlrun.common.schemas.workflow.EngineType.KFP,
-            "1.8.0-rc1",
-            "mlrun/mlrun-kfp",
+                "",
+                "",
+                mlrun.common.schemas.workflow.EngineType.KFP,
+                "1.8.0-rc1",
+                "mlrun/mlrun-kfp",
         ),
-        ("", "", mlrun.common.schemas.workflow.EngineType.KFP, "1.7.0", "mlrun/mlrun"),
+        ("", "", mlrun.common.schemas.workflow.EngineType.LOCAL, "1.6.4", "mlrun/mlrun"),
+        ("", "", mlrun.common.schemas.workflow.EngineType.REMOTE, "1.6.4", "mlrun/mlrun-kfp"),
+        ("", "", mlrun.common.schemas.workflow.EngineType.KFP, "1.6.4", "mlrun/mlrun-kfp"),
         (
-            "",
-            "",
-            mlrun.common.schemas.workflow.EngineType.KFP,
-            "1.7.0-rc1",
-            "mlrun/mlrun",
+                "",
+                "",
+                mlrun.common.schemas.workflow.EngineType.KFP,
+                "1.7.0-rc1",
+                "mlrun/mlrun-kfp",
         ),
         (
-            "",
-            "",
-            None,
-            "1.7.1",
-            "mlrun/mlrun",
+                "",
+                "",
+                mlrun.common.schemas.workflow.EngineType.LOCAL,
+                "1.7.0-rc1",
+                "mlrun/mlrun",
+        ),
+        (
+                "",
+                "",
+                None,
+                "1.7.1",
+                "mlrun/mlrun",
         ),
     ],
 )
 def test_resolve_client_default_kfp_image(
-    project_image, workflow_image, workflow_engine, client_version, expected_image
+        project_image, workflow_image, workflow_engine, client_version, expected_image
 ):
     project = mlrun.common.schemas.ProjectOut(
         spec=mlrun.common.schemas.ProjectSpecOut(default_image=project_image),

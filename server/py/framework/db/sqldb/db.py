@@ -5512,6 +5512,9 @@ class SQLDB(DBInterface):
                     tree=model_endpoint_record.model.full_object.get(
                         "metadata", {}
                     ).get("tree"),
+                    uid=model_endpoint_record.model.full_object.get("metadata", {}).get(
+                        "uid"
+                    ),
                 ),
             )
 
@@ -5903,7 +5906,10 @@ class SQLDB(DBInterface):
         self._delete(session, AlertConfig, project=project, name=name)
 
     def list_alerts(
-        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
+        self,
+        session,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
@@ -5925,6 +5931,8 @@ class SQLDB(DBInterface):
                 alert,
                 state=alert_state,
             )
+            if exclude_updated:
+                alert.updated = None
             alerts.append(alert)
         return alerts
 

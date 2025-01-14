@@ -23,6 +23,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.model_monitoring
 from mlrun.utils import logger, now_date
+from tests.system.projects.assets.kflow import project
 
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
@@ -149,13 +150,17 @@ class V2ModelServer(StepToDict):
         if not self.context.is_mock and not self.model_spec:
             self.get_model()
         if not self.context.is_mock or self.context.monitoring_mock:
-            self.model_endpoint = mlrun.get_run_db().get_model_endpoint(
-                project=server.project,
-                name=self.name,
-                function_name=server.function_name,
-                function_tag=server.function_tag or "latest",
-            )
-            self.model_endpoint_uid = self.model_endpoint.metadata.uid
+            try:
+                self.model_endpoint = mlrun.get_run_db().get_model_endpoint(
+                    project=server.project,
+                    name=self.name,
+                    function_name=server.function_name,
+                    function_tag=server.function_tag or "latest",
+                )
+                self.model_endpoint_uid = self.model_endpoint.metadata.uid
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info("Model Endpoint not found for this step we will not monitor this model", function_name=server.function_name, name=self.name)
+                self.model_endpoint, self.model_endpoint_uid = None, None
         self._model_logger = (
             _ModelLogPusher(self, self.context)
             if self.context and self.context.stream.enabled

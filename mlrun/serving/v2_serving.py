@@ -23,7 +23,6 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.model_monitoring
 from mlrun.utils import logger, now_date
-from tests.system.projects.assets.kflow import project
 
 from .utils import StepToDict, _extract_input_data, _update_result_body
 

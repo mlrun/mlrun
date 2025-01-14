@@ -25,7 +25,6 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
-import mlrun_pipelines.utils
 
 import framework.utils.background_tasks
 import framework.utils.projects.follower
@@ -447,7 +446,6 @@ async def test_list_project_summaries(
 
 @pytest.mark.asyncio
 async def test_list_project_summaries_fails_to_list_pipeline_runs(
-    kfp_client_mock: mlrun_pipelines.utils.ExtendedKfpClient,
     db: sqlalchemy.orm.Session,
     projects_follower: framework.utils.projects.follower.Member,
     nop_leader: framework.utils.projects.remotes.leader.Member,

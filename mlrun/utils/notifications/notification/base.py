@@ -39,7 +39,7 @@ class NotificationBase:
         self.params = self.enrich_default_params(self.params, default_params)
 
     @classmethod
-    def validate_params(cls, params):
+    def validate_params(cls, params, skip_empty_check=False):
         pass
 
     @property

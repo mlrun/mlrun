@@ -760,7 +760,21 @@ class Notification(ModelObj):
                 "Notification params size exceeds max size of 1 MB"
             )
 
-    def validate_notification_params(self, default_notification_params=None):
+        self.validate_notification_params(skip_empty_check=True)
+
+    def validate_notification_params(self, default_notification_params=None, skip_empty_check=False):
+        """
+        Validates the notification parameters for the current notification instance.
+
+        Args:
+            default_notification_params (dict, optional): A dictionary of default notification
+                                                          parameters that can be used to enrich
+                                                          the existing params. Defaults to None.
+            skip_empty_check (bool, optional): A flag indicating whether to skip validation for
+                                                required fields that are empty. Defaults to False.
+                                                Set to True only on init of the object on the client side.
+        """
+
         default_notification_params = default_notification_params or {}
         notification_type = mlrun.utils.notifications.NotificationTypes(self.kind)
         notification_class = notification_type.get_notification()
@@ -777,12 +791,12 @@ class Notification(ModelObj):
                 )
             return
 
-        if not secret_params and not params:
+        if not secret_params and not params and not skip_empty_check:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
             )
 
-        notification_class.validate_params(secret_params | params)
+        notification_class.validate_params(secret_params | params, skip_empty_check=skip_empty_check)
 
     def enrich_unmasked_secret_params_from_project_secret(self):
         """

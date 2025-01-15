@@ -44,7 +44,10 @@ class MailNotification(base.NotificationBase):
     ] + boolean_params
 
     @classmethod
-    def validate_params(cls, params):
+    def validate_params(cls, params, skip_empty_check=False):
+        cls._validate_emails(params)
+        if skip_empty_check:
+            return
         for required_param in cls.required_params:
             if required_param not in params:
                 raise ValueError(
@@ -56,8 +59,6 @@ class MailNotification(base.NotificationBase):
                 raise ValueError(
                     f"Parameter '{boolean_param}' must be a boolean for MailNotification"
                 )
-
-        cls._validate_emails(params)
 
     async def push(
         self,
@@ -120,18 +121,20 @@ class MailNotification(base.NotificationBase):
 
     @classmethod
     def _validate_emails(cls, params):
-        cls._validate_email_address(params["sender_address"])
+        sender_address = params.get("sender_address")
+        if sender_address:
+            cls._validate_email_address(sender_address)
 
-        if not isinstance(params["email_addresses"], (str, list)):
-            raise ValueError(
-                "Parameter 'email_addresses' must be a string or a list of strings"
-            )
-
-        email_addresses = params["email_addresses"]
-        if isinstance(email_addresses, str):
-            email_addresses = email_addresses.split(",")
-        for email_address in email_addresses:
-            cls._validate_email_address(email_address)
+        email_addresses = params.get("email_addresses")
+        if email_addresses:
+            if not isinstance(email_addresses, (str, list)):
+                raise ValueError(
+                    "Parameter 'email_addresses' must be a string or a list of strings"
+                )
+            if isinstance(email_addresses, str):
+                email_addresses = email_addresses.split(",")
+            for email_address in email_addresses:
+                cls._validate_email_address(email_address)
 
     @classmethod
     def _validate_email_address(cls, email_address):

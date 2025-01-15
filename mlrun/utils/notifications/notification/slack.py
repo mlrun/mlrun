@@ -36,7 +36,9 @@ class SlackNotification(NotificationBase):
     }
 
     @classmethod
-    def validate_params(cls, params):
+    def validate_params(cls, params, skip_empty_check=False):
+        if skip_empty_check:
+            return
         webhook = params.get("webhook", None) or mlrun.get_secret_or_env(
             "SLACK_WEBHOOK"
         )

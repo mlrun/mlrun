@@ -31,7 +31,7 @@ class GitNotification(NotificationBase):
     """
 
     @classmethod
-    def validate_params(cls, params):
+    def validate_params(cls, params, skip_empty_check=False):
         git_repo = params.get("repo", None)
         git_issue = params.get("issue", None)
         git_merge_request = params.get("merge_request", None)
@@ -40,6 +40,9 @@ class GitNotification(NotificationBase):
             or params.get("GIT_TOKEN", None)
             or params.get("GITHUB_TOKEN", None)
         )
+        if skip_empty_check:
+            return
+
         if not git_repo:
             raise ValueError("Parameter 'repo' is required for GitNotification")
 

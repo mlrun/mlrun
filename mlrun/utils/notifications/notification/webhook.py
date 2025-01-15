@@ -30,7 +30,9 @@ class WebhookNotification(NotificationBase):
     """
 
     @classmethod
-    def validate_params(cls, params):
+    def validate_params(cls, params, skip_empty_check=False):
+        if skip_empty_check:
+            return
         url = params.get("url", None)
         if not url:
             raise ValueError("Parameter 'url' is required for WebhookNotification")

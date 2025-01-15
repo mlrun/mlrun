@@ -136,7 +136,7 @@ class NotificationBase:
             uid = event_data.value_dict.get("uid")
             name = event_data.entity.ids[0]
             url = mlrun.utils.helpers.get_run_url(
-                alerts.progect,
+                alert.project,
                 uid=uid,
                 name=name,
             )

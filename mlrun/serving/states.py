@@ -355,7 +355,7 @@ class BaseStep(ModelObj):
                             this require that the event body will behave like a dict, example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
-         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
+        :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
             * **overwrite**:
             1. If model endpoints with the same name exist, delete the `latest` one.
             2. Create a new model endpoint entry and set it as `latest`.

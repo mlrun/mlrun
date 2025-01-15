@@ -1214,13 +1214,20 @@ def test_validate_notification_params(monkeypatch, notification_kwargs, expectat
 def test_validate_notification_params_client_side():
     email_address = "wrong@email"
     with pytest.raises(ValueError, match=f"Invalid email address '{email_address}'"):
-        mlrun.model.Notification(
-            name="mail",
-            kind=mlrun.common.schemas.notification.NotificationKind.mail,
-            when=["completed"],
-            params={'email_addresses': email_address, 'subject': 'email_notification_subject',
-                    'use_tls': False, 'start_tls': True, 'validate_certs': False}
-        ),
+        (
+            mlrun.model.Notification(
+                name="mail",
+                kind=mlrun.common.schemas.notification.NotificationKind.mail,
+                when=["completed"],
+                params={
+                    "email_addresses": email_address,
+                    "subject": "email_notification_subject",
+                    "use_tls": False,
+                    "start_tls": True,
+                    "validate_certs": False,
+                },
+            ),
+        )
 
 
 @pytest.mark.parametrize(

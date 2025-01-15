@@ -762,7 +762,9 @@ class Notification(ModelObj):
 
         self.validate_notification_params(skip_empty_check=True)
 
-    def validate_notification_params(self, default_notification_params=None, skip_empty_check=False):
+    def validate_notification_params(
+        self, default_notification_params=None, skip_empty_check=False
+    ):
         """
         Validates the notification parameters for the current notification instance.
 
@@ -796,7 +798,9 @@ class Notification(ModelObj):
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
             )
 
-        notification_class.validate_params(secret_params | params, skip_empty_check=skip_empty_check)
+        notification_class.validate_params(
+            secret_params | params, skip_empty_check=skip_empty_check
+        )
 
     def enrich_unmasked_secret_params_from_project_secret(self):
         """

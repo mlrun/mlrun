@@ -1049,7 +1049,9 @@ class QueueStep(BaseStep):
         full_event: Optional[bool] = None,
         input_path: Optional[str] = None,
         result_path: Optional[str] = None,
-        model_endpoint_creation_strategy: Optional[schemas.ModelEndpointCreationStrategy] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = None,
         **class_args,
     ):
         if not function:

@@ -158,7 +158,11 @@ class V2ModelServer(StepToDict):
                 )
                 self.model_endpoint_uid = self.model_endpoint.metadata.uid
             except mlrun.errors.MLRunNotFoundError:
-                logger.info("Model Endpoint not found for this step we will not monitor this model", function_name=server.function_name, name=self.name)
+                logger.info(
+                    "Model Endpoint not found for this step we will not monitor this model",
+                    function_name=server.function_name,
+                    name=self.name,
+                )
                 self.model_endpoint, self.model_endpoint_uid = None, None
         self._model_logger = (
             _ModelLogPusher(self, self.context)

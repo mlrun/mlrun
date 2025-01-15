@@ -1044,26 +1044,35 @@ def get_project_url(project: str) -> str:
     """
     Generate the base URL for a given project.
 
-    Args:
-        project (str): The project name.
-
-    Returns:
-        str: The base URL for the project, or an empty string if the base URL is not resolved.
+    :param project: The project name.
+    :return: The base URL for the project, or an empty string if the base URL is not resolved.
     """
     if mlrun.mlconf.resolve_ui_url():
         return f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}"
     return ""
 
 
+def get_run_url(project: str, uid: str, name: str) -> str:
+    """
+    Generate the URL for a specific run.
+
+    :param project: The project name.
+    :param uid: The run UID.
+    :param name: The run name.
+    :return: The URL for the run, or an empty string if the base URL is not resolved.
+    """
+    runs_url = get_runs_url(project)
+    if not runs_url:
+        return ""
+    return f"{runs_url}/monitor-jobs/{name}/{uid}/overview"
+
+
 def get_runs_url(project: str) -> str:
     """
     Generate the URL for the runs of a given project.
 
-    Args:
-        project (str): The project name.
-
-    Returns:
-        str: The URL for the runs, or an empty string if the base URL is not resolved.
+    :param project: The project name.
+    :return: The URL for the runs, or an empty string if the base URL is not resolved.
     """
     base_url = get_project_url(project)
     if not base_url:
@@ -1072,38 +1081,37 @@ def get_runs_url(project: str) -> str:
 
 
 def get_model_endpoint_url(
-    project: str, model_name: Optional[str], model_endpoint_id: str
+    project: str,
+    model_name: Optional[str] = None,
+    model_endpoint_id: Optional[str] = None,
 ) -> str:
     """
     Generate the URL for a specific model endpoint.
 
-    Args:
-        project (str): The project name.
-        model_name (Optional[str]): The model name.
-        model_endpoint_id (str): The model endpoint ID.
-
-    Returns:
-        str: The URL for the model endpoint, or an empty string if the base URL is not resolved.
+    :param project: The project name.
+    :param model_name: The model name.
+    :param model_endpoint_id: The model endpoint ID.
+    :return: The URL for the model endpoint, or an empty string if the base URL is not resolved.
     """
     base_url = get_project_url(project)
     if not base_url:
         return ""
     url = f"{base_url}/models"
-    if model_name:
+    if model_name and model_endpoint_id:
         url += f"/model-endpoints/{model_name}/{model_endpoint_id}/overview"
     return url
 
 
-def get_workflow_url(project: str, id: Optional[str] = None) -> str:
+def get_workflow_url(
+    project: str,
+    id: Optional[str] = None,
+) -> str:
     """
     Generate the URL for a specific workflow.
 
-    Args:
-        project (str): The project name.
-        id (Optional[str], optional): The workflow ID. Defaults to None.
-
-    Returns:
-        str: The URL for the workflow, or an empty string if the base URL is not resolved.
+    :param project: The project name.
+    :param id: The workflow ID.
+    :return: The URL for the workflow, or an empty string if the base URL is not resolved.
     """
     base_url = get_project_url(project)
     if not base_url:
@@ -1112,24 +1120,6 @@ def get_workflow_url(project: str, id: Optional[str] = None) -> str:
     if id:
         url += f"/{id}"
     return url
-
-
-def get_run_url(project: str, uid: str, name: str) -> str:
-    """
-    Generate the URL for a specific run.
-
-    Args:
-        project (str): The project name.
-        uid (str): The run UID.
-        name (str): The run name.
-
-    Returns:
-        str: The URL for the run, or an empty string if the base URL is not resolved.
-    """
-    runs_url = get_runs_url(project)
-    if not runs_url:
-        return ""
-    return f"{runs_url}/monitor-jobs/{name}/{uid}/overview"
 
 
 def get_kfp_project_filter(project_name: str) -> str:

@@ -1454,7 +1454,7 @@ class TestMailNotification:
                     "sender_address": "sender@example.com",
                     "username": "user",
                     "password": "pass",
-                    "email_addresses": ["a@example.com", "aaa"],
+                    "email_addresses": ["a@example.com"],
                     "use_tls": "True",
                     "validate_certs": True,
                     "start_tls": False,

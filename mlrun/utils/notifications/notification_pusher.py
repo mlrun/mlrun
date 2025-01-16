@@ -637,7 +637,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
         if has_workflow_url:
             url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
         else:
-            url = mlrun.utils.helpers.get_ui_url(project)
+            url = mlrun.utils.helpers.get_runs_url(project)
         html = ""
         if url:
             html = (

@@ -1045,6 +1045,14 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def get_alert_activation(
+        self,
+        session,
+        activation_id: int,
+    ) -> mlrun.common.schemas.AlertActivation:
+        pass
+
+    @abstractmethod
     def store_run_notifications(
         self,
         session,

@@ -305,12 +305,11 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
     def test_k8s_project_secrets_with_runtime(self):
         # This test validates both retrieval flows:
-        # 1. Secrets accessed via get_secret_or_env, handling upper-case conversion and prefix completion.
+        # 1. Secrets accessed via get_secret_or_env
         # 2. Secrets accessed directly from os.environ when use_prefix=False.
-        # Project secrets are mounted as upper-case environment variables, affecting their accessibility.
 
-        secrets = {"secret1": "JustMySecret", "secret2": "!@#$$%^^&&"}
-        no_prefix_secrets = {"SECRET3": "ShhItsASecret"}
+        secrets = {"secret1": "JustMySecret", "SECRET2": "!@#$$%^^&&"}
+        no_prefix_secrets = {"secret3": "ShhItsASecret", "SECRET4": "AnotherSecret"}
 
         # Setup k8s secrets
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
@@ -324,7 +323,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             filename=filename,
             handler="secret_test_function",
             kind="job",
-            image="mlrun/mlrun",
+            image="artifactory.iguazeng.com:10557/yaelg/mlrun/mlrun:1.8.0-rc21",
         )
 
         test_cases = [
@@ -352,7 +351,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
                 # Run with only a partial list of secret keys. Validate that only specified secrets are accessible
                 "task": mlrun.new_task().with_secrets("kubernetes", ["secret1"]),
                 "params": list(secrets.keys()),
-                "expected": {"secret1": secrets["secret1"], "secret2": "None"},
+                "expected": {"secret1": secrets["secret1"], "SECRET2": "None"},
             },
         ]
 
@@ -369,7 +368,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             self.project_name, "kubernetes", no_prefix_secrets
         )
         run = function.run(
-            mlrun.new_task().with_secrets("kubernetes", ["SECRET3"]),
+            mlrun.new_task().with_secrets("kubernetes", list(no_prefix_secrets.keys())),
             params={"secrets": list(no_prefix_secrets.keys()), "use_prefix": False},
         )
         for key, value in no_prefix_secrets.items():

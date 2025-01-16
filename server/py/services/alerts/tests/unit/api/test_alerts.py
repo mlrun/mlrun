@@ -142,6 +142,50 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
             result_from_global_endpoint.json() == result_from_alert_name_endpoint.json()
         )
 
+    @unittest.mock.patch.object(
+        services.alerts.crud.AlertActivation, "get_alert_activation"
+    )
+    def test_get_alert_activations(
+        self, patched_get_alert_activation, db: Session, client: TestClient
+    ):
+        alert_name = "alert-name"
+        project_name = "project-name"
+
+        self._create_project(db, project_name)
+        patched_get_alert_activation.return_value = (
+            mlrun.common.schemas.AlertActivation(
+                id=1,
+                name=alert_name,
+                project=project_name,
+                severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+                activation_time=datetime.datetime.utcnow(),
+                entity_id="1234",
+                entity_kind=mlrun.common.schemas.alert.EventEntityKind.JOB,
+                event_kind=mlrun.common.schemas.alert.EventKind.DATA_DRIFT_SUSPECTED,
+                number_of_events=1,
+                notifications=[],
+                criteria=mlrun.common.schemas.alert.AlertCriteria(count=1),
+            )
+        )
+
+        result_from_global_endpoint = client.get(
+            f"projects/{project_name}/alert-activations/1"
+        )
+        assert result_from_global_endpoint.status_code == 200
+
+        result_from_alert_name_endpoint = client.get(
+            f"projects/{project_name}/alerts/{alert_name}/activations/1"
+        )
+        assert result_from_alert_name_endpoint.status_code == 200
+
+        assert (
+            result_from_global_endpoint.json() == result_from_alert_name_endpoint.json()
+        )
+
+        # send request with wrong alert name
+        result = client.get(f"projects/{project_name}/alerts/wrong-name/activations/1")
+        assert result.status_code == 404
+
     # TODO: Move to test utils framework
     @staticmethod
     def _create_project(session: Session, project_name: str):

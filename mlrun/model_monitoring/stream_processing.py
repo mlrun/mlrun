@@ -302,7 +302,7 @@ class EventStreamProcessor:
                     "controller_stream_kafka",
                     path=path,
                     kafka_brokers=brokers,
-                    _sharding_func="kafka_sharding_func",  # TODO: remove this when storey handle str key
+                    _sharding_func=ControllerEvent.ENDPOINT_ID,
                     after="ForwardNOP",
                 )
 
@@ -893,7 +893,3 @@ def update_monitoring_feature_set(
         )
 
     monitoring_feature_set.save()
-
-
-def kafka_sharding_func(event):
-    return event.body[ControllerEvent.ENDPOINT_ID].encode("UTF-8")

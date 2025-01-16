@@ -202,7 +202,7 @@ def test_client_spec_response_based_on_client_version(
         )
         assert response.status_code == http.HTTPStatus.OK.value
         response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun:1.2.0"
+        assert response_body["kfp_image"] == "mlrun/mlrun-kfp:1.2.0"
         assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.2.0"
 
         # test clients from 1.3.0+ and return based also on the client python version
@@ -215,7 +215,7 @@ def test_client_spec_response_based_on_client_version(
         )
         assert response.status_code == http.HTTPStatus.OK.value
         response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun:1.3.0-rc20-py37"
+        assert response_body["kfp_image"] == "mlrun/mlrun-kfp:1.3.0-rc20-py37"
         assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc20-py37"
 
         response = client.get(
@@ -227,7 +227,7 @@ def test_client_spec_response_based_on_client_version(
         )
         assert response.status_code == http.HTTPStatus.OK.value
         response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun:1.3.0-rc20"
+        assert response_body["kfp_image"] == "mlrun/mlrun-kfp:1.3.0-rc20"
         assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc20"
 
         # verify that we are falling back to resolve only by server

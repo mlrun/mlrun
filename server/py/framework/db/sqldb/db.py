@@ -6442,6 +6442,24 @@ class SQLDB(DBInterface):
             for record in query.all()
         ]
 
+    def get_alert_activation(
+        self,
+        session,
+        activation_id: int,
+    ) -> mlrun.common.schemas.AlertActivation:
+        alert_activation_record = (
+            self._query(session, AlertActivation)
+            .filter(AlertActivation.id == activation_id)
+            .one_or_none()
+        )
+        if not alert_activation_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found: activation_id={activation_id}"
+            )
+        return self._transform_alert_activation_record_to_scheme(
+            alert_activation_record
+        )
+
     @staticmethod
     def _transform_alert_activation_record_to_scheme(
         alert_activation_record: typing.Optional[AlertActivation],

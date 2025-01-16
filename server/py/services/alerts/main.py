@@ -459,6 +459,35 @@ class Service(framework.service.Service):
             pagination=page_info,
         )
 
+    async def get_alert_activation(
+        self,
+        request: fastapi.Request,
+        project: str,
+        name: Optional[str],
+        activation_id: int,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        db_session: sqlalchemy.orm.Session = None,
+    ) -> mlrun.common.schemas.AlertActivation:
+        alert_activation = await run_in_threadpool(
+            services.alerts.crud.AlertActivation().get_alert_activation,
+            db_session,
+            activation_id,
+        )
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
+            project,
+            alert_activation.name,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
+        if name and alert_activation.name != name:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found. "
+                f"activation_id={activation_id}, "
+                f"name={name}"
+            )
+        return alert_activation
+
     async def _move_service_to_online(self):
         if not get_project_member():
             await fastapi.concurrency.run_in_threadpool(initialize_project_member)

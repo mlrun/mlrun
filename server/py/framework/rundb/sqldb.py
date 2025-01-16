@@ -1356,6 +1356,13 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError
 
+    def get_alert_activation(
+        self,
+        project,
+        activation_id,
+    ):
+        raise NotImplementedError
+
     def get_project_summary(self, project: str):
         raise NotImplementedError
 

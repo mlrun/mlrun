@@ -10,9 +10,8 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 - [Set up a Python 3.9 client environment](#set-up-a-python-39-client-environment)
 - [Configure remote environment](#configure-remote-environment)
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
-   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-config-set-command-in-mlrun-cli)
-   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
-- [Setting up a dark site](#setting-up-a-dark-site)
+   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
+   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -265,15 +264,3 @@ If you created a new configuration in the previous step, your `launch.json` woul
     ]
 }
 ```
-
-## Setting up a dark site
-Use this procedure for the MLRun package, and any other packages you want to install on a dark site.
-
-To install a package in a dark (air-gapped) site:
-1. Download the packages: conda==23.1.0, pip.
-2. Pack the conda package file and upload it to your dark system.
-2. Install the tar.gz by running:
-
-   ```
-   conda install -y <package-filename>.tar.gz 
-   ```

@@ -948,5 +948,12 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def get_alert_activation(
+        self,
+        project,
+        activation_id,
+    ) -> mlrun.common.schemas.AlertActivation:
+        pass
+
     def get_project_summary(self, project: str):
         pass

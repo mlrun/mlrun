@@ -1464,7 +1464,8 @@ class TestAppJob(TestMLRunSystem):
         assert returned_results, "No returned results"
         assert {
             "ModelMonitoringApplicationMetric(name='hellinger_mean', value=1.0)",
-            "ModelMonitoringApplicationMetric(name='kld_mean', value=8.517193191416238)",
+            # Ignore KLD due to varying numerical accuracy on different systems
+            # "ModelMonitoringApplicationMetric(name='kld_mean', value=8.517193191416238)",
             "ModelMonitoringApplicationMetric(name='tvd_mean', value=0.5)",
             (
                 "ModelMonitoringApplicationResult(name='general_drift', value=0.75, "
@@ -1540,7 +1541,7 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
             executor.submit(self._deploy_model_serving)
             executor.submit(self._set_infra)
 
-    def test_histogram_app(self) -> None:
+    def test_count_app(self) -> None:
         # Set up the serving function with a model endpoint, and the necessary infrastructure
         self._setup_resources()
 
@@ -1582,11 +1583,14 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
         # To include the first request, make a small offset
         start = model_endpoint.status.first_request - timedelta(microseconds=1)
 
+        # Adjust the end time - ML-9067
+        end = model_endpoint.status.last_request + timedelta(milliseconds=3)
+
         run_result = CountApp.evaluate(
             func_path=str(Path(__file__).parent / "assets/application.py"),
             endpoints=[(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
             start=start,
-            end=model_endpoint.status.last_request,
+            end=end,
             run_local=True,  # `False` does not work, see ML-8817
             image=self.image,
             base_period=1,

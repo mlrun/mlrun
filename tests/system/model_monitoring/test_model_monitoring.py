@@ -16,6 +16,7 @@ import json
 import os
 import pickle
 import string
+import typing
 from datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
@@ -40,8 +41,10 @@ import mlrun.runtimes.mounts
 import mlrun.runtimes.utils
 import mlrun.serving.routers
 import mlrun.utils
+from mlrun.datastore import get_stream_pusher
+from mlrun.datastore.datastore_profile import DatastoreProfileV3io
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring.helpers import get_result_instance_fqn
+from mlrun.model_monitoring.helpers import get_result_instance_fqn, get_stream_path
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils import generate_artifact_uri
 from mlrun.utils.v3io_clients import get_frames_client
@@ -50,6 +53,40 @@ from tests.system.base import TestMLRunSystem
 from . import get_tsdb_datastore_profile_from_env
 
 _MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_monitoring"
+
+
+def mock_random_endpoint(
+    project_name: str,
+    name: str,
+    function_name: Optional[str] = "function-1",
+    function_uid: Optional[str] = None,
+    function_tag: Optional[str] = "v1",
+    model_name: Optional[str] = None,
+    model_uid: Optional[str] = None,
+    add_labels=True,
+) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
+    def random_labels():
+        return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
+
+    return mlrun.common.schemas.model_monitoring.ModelEndpoint(
+        metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+            name=name,
+            project=project_name,
+            labels=random_labels() if add_labels else {},
+        ),
+        spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
+            function_name=function_name,
+            function_tag=function_tag,
+            function_uid=function_uid,
+            model_name=model_name,
+            model_uid=model_uid,
+            model_class="modelcc",
+            model_tag="latest",
+        ),
+        status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
+            monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
+        ),
+    )
 
 
 # Marked as enterprise because of v3io mount and pipelines
@@ -72,164 +109,11 @@ class TestModelEndpointsOperations(TestMLRunSystem):
             ),
         )
 
-    def _generate_event(
-        self,
-        endpoint_id,
-        event_name,
-        event_kind="result",
-        app_name="my_app",
-    ):
-        start_infer_time = datetime.isoformat(datetime(2024, 1, 1, tzinfo=timezone.utc))
-        end_infer_time = datetime.isoformat(
-            datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)
-        )
-        event_value = 123
-        event_name_key = f"{event_kind}_name"
-        event_value_key = f"{event_kind}_value"
-        if event_kind == "result":
-            extra_kwargs = {
-                "result_kind": 0,
-                "result_status": 0,
-                "result_extra_data": """{}""",
-            }
-        else:
-            extra_kwargs = {}
-        data = {
-            "endpoint_id": endpoint_id,
-            "application_name": app_name,
-            event_name_key: event_name,
-            "event_kind": event_kind,
-            "start_infer_time": start_infer_time,
-            "end_infer_time": end_infer_time,
-            event_value_key: event_value,
-            **extra_kwargs,
-        }
-        return data
-
-    def test_get_model_endpoint_metrics(self):
-        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project_name, profile=get_tsdb_datastore_profile_from_env()
-        )
-        db = mlrun.get_run_db()
-        model_endpoint = self._mock_random_endpoint("testing")
-        model_endpoint = db.create_model_endpoint(model_endpoint)
-
-        model_endpoint2 = self._mock_random_endpoint("testing2")
-        model_endpoint2 = db.create_model_endpoint(model_endpoint2)
-
-        mep_uid = model_endpoint.metadata.uid
-        mep2_uid = model_endpoint2.metadata.uid
-
-        try:
-            tsdb_client.create_tables()
-            tsdb_client.write_application_event(
-                self._generate_event(endpoint_id=mep_uid, event_name="result1")
-            )
-            tsdb_client.write_application_event(
-                self._generate_event(endpoint_id=mep_uid, event_name="result2")
-            )
-            tsdb_client.write_application_event(
-                self._generate_event(endpoint_id=mep_uid, event_name="result3")
-            )
-            tsdb_client.write_application_event(
-                self._generate_event(
-                    endpoint_id=mep_uid, event_name="metric1", event_kind="metric"
-                ),
-                kind=mm_constants.WriterEventKind.METRIC,
-            )
-            tsdb_client.write_application_event(
-                self._generate_event(endpoint_id=mep2_uid, event_name="result3")
-            )
-            tsdb_client.write_application_event(
-                self._generate_event(endpoint_id=mep2_uid, event_name="result4")
-            )
-            tsdb_client.write_application_event(
-                self._generate_event(
-                    endpoint_id=mep2_uid, event_name="metric1", event_kind="metric"
-                ),
-                kind=mm_constants.WriterEventKind.METRIC,
-            )
-            expected_for_mep1 = [
-                "invocations",
-                "metric1",
-                "result1",
-                "result2",
-                "result3",
-            ]
-            expected_for_mep2 = ["invocations", "metric1", "result3", "result4"]
-
-            income_events_mep1 = self._run_db.get_model_endpoint_monitoring_metrics(
-                project=self.project.name, endpoint_id=mep_uid
-            )
-            assert expected_for_mep1 == sorted(
-                [event.name for event in income_events_mep1]
-            )
-
-            # separation:
-            income_events_by_endpoint = self._run_db.get_metrics_by_multiple_endpoints(
-                project=self.project.name, endpoint_ids=[mep_uid, mep2_uid]
-            )
-
-            result_for_mep1 = [
-                event.name for event in income_events_by_endpoint[mep_uid]
-            ]
-            assert expected_for_mep1 == sorted(result_for_mep1)
-
-            result_for_mep2 = [
-                event.name for event in income_events_by_endpoint[mep2_uid]
-            ]
-            assert expected_for_mep2 == sorted(result_for_mep2)
-
-            # intersection:
-            intersection_events_by_type = (
-                self._run_db.get_metrics_by_multiple_endpoints(
-                    project=self.project.name,
-                    endpoint_ids=[mep_uid, mep2_uid],
-                    events_format=mm_constants.GetEventsFormat.INTERSECTION,
-                )
-            )
-            metrics_key = mm_constants.INTERSECT_DICT_KEYS[
-                mm_constants.ModelEndpointMonitoringMetricType.METRIC
-            ]
-            results_key = mm_constants.INTERSECT_DICT_KEYS[
-                mm_constants.ModelEndpointMonitoringMetricType.RESULT
-            ]
-            assert ["invocations", "metric1"] == sorted(
-                [metric.name for metric in intersection_events_by_type[metrics_key]]
-            )
-            assert ["result3"] == sorted(
-                [result.name for result in intersection_events_by_type[results_key]]
-            )
-
-            # get nonexistent MEP IDs:
-            result_for_non_exist = self._run_db.get_model_endpoint_monitoring_metrics(
-                project=self.project.name, endpoint_id="not_exist", type="results"
-            )
-            assert result_for_non_exist == []
-
-            result_for_non_exist = self._run_db.get_metrics_by_multiple_endpoints(
-                project=self.project.name, endpoint_ids=["not_exist"], type="results"
-            )
-            assert result_for_non_exist == {"not_exist": []}
-
-            intersection_results_for_non_exist = (
-                self._run_db.get_metrics_by_multiple_endpoints(
-                    project=self.project.name,
-                    endpoint_ids=["not_exist", "not_exist2"],
-                    events_format=mm_constants.GetEventsFormat.INTERSECTION,
-                    type="results",
-                )
-            )
-            assert intersection_results_for_non_exist[results_key] == []
-
-        finally:
-            tsdb_client.delete_tsdb_resources()
-
     @pytest.mark.parametrize("by_uid", [True, False])
     def test_clear_endpoint(self, by_uid):
         """Validates the process of create and delete a basic model endpoint"""
         db = mlrun.get_run_db()
-        model_endpoint = self._mock_random_endpoint("testing")
+        model_endpoint = mock_random_endpoint(self.project_name, "testing")
         db.create_model_endpoint(model_endpoint)
         endpoint_response = db.get_model_endpoint(
             name=model_endpoint.metadata.name,
@@ -265,7 +149,8 @@ class TestModelEndpointsOperations(TestMLRunSystem):
     def test_store_endpoint_update_existing(self):
         """Validates the process of create and update a basic model endpoint"""
 
-        model_endpoint = self._mock_random_endpoint(
+        model_endpoint = mock_random_endpoint(
+            self.project_name,
             "testing",
             function_name="function1",
             function_tag=None,  # latest is the default
@@ -333,7 +218,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         # add endpoint
         db = mlrun.get_run_db()
-        model_endpoint = self._mock_random_endpoint("testing")
+        model_endpoint = mock_random_endpoint(self.project_name, "testing")
         db.create_model_endpoint(model_endpoint)
 
         # list endpoints without credentials
@@ -345,7 +230,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         number_of_endpoints = 5
         endpoints_in = [
-            self._mock_random_endpoint(f"testing-{i}")
+            mock_random_endpoint(self.project_name, f"testing-{i}")
             for i in range(number_of_endpoints)
         ]
 
@@ -363,7 +248,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
     def test_labels(self):
         db = mlrun.get_run_db()
         endpoint_name = "testing-endpoint"
-        endpoint = self._mock_random_endpoint(endpoint_name)
+        endpoint = mock_random_endpoint(self.project_name, endpoint_name)
         in_endpoint = db.create_model_endpoint(endpoint)
         endpoint_id = in_endpoint.metadata.uid
         out_endpoint = self._run_db.get_model_endpoint(
@@ -372,7 +257,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         assert out_endpoint.metadata.labels
 
         # testing inplace creation strategy:
-        endpoint = self._mock_random_endpoint(endpoint_name, add_labels=False)
+        endpoint = mock_random_endpoint(
+            self.project_name, endpoint_name, add_labels=False
+        )
         db.create_model_endpoint(
             endpoint,
             creation_strategy=mm_constants.ModelEndpointCreationStrategy.INPLACE,
@@ -389,7 +276,8 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         number_of_endpoints = 5
         endpoints_in = [
-            self._mock_random_endpoint("testing") for _ in range(number_of_endpoints)
+            mock_random_endpoint(self.project_name, "testing")
+            for _ in range(number_of_endpoints)
         ]
 
         for endpoint in endpoints_in:
@@ -405,7 +293,8 @@ class TestModelEndpointsOperations(TestMLRunSystem):
                 uid = mep.metadata.uid
 
         db.create_model_endpoint(
-            self._mock_random_endpoint("testing"), creation_strategy="archive"
+            mock_random_endpoint(self.project_name, "testing"),
+            creation_strategy="archive",
         )
         endpoints_out = self.project.list_model_endpoints(latest_only=False).endpoints
         assert uid not in [mep.metadata.uid for mep in endpoints_out]
@@ -416,8 +305,8 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         db = mlrun.get_run_db()
 
         for i in range(number_of_endpoints):
-            endpoint = self._mock_random_endpoint(
-                name=f"testing-{i}", function_tag=None
+            endpoint = mock_random_endpoint(
+                self.project_name, name=f"testing-{i}", function_tag=None
             )
 
             if i < 1:
@@ -471,9 +360,13 @@ class TestModelEndpointsOperations(TestMLRunSystem):
     @pytest.mark.parametrize("creation_strategy", ["archive", "inplace", "overwrite"])
     def test_creation_strategy(self, creation_strategy):
         db = mlrun.get_run_db()
-        model_endpoint = self._mock_random_endpoint("testing", model_name="model-1")
+        model_endpoint = mock_random_endpoint(
+            self.project_name, "testing", model_name="model-1"
+        )
         db.create_model_endpoint(model_endpoint, creation_strategy)
-        model_endpoint = self._mock_random_endpoint("testing", model_name="model-2")
+        model_endpoint = mock_random_endpoint(
+            self.project_name, "testing", model_name="model-2"
+        )
         db.create_model_endpoint(model_endpoint, creation_strategy)
 
         endpoints_out = self.project.list_model_endpoints().endpoints
@@ -495,41 +388,6 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         assert mep.status.drift_measures_timestamp is not None
         assert mep.status.current_stats_timestamp is not None
-
-    def _mock_random_endpoint(
-        self,
-        name: str,
-        function_name: Optional[str] = "function-1",
-        function_uid: Optional[str] = None,
-        function_tag: Optional[str] = "v1",
-        model_name: Optional[str] = None,
-        model_uid: Optional[str] = None,
-        add_labels=True,
-    ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
-        def random_labels():
-            return {
-                f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
-            }
-
-        return mlrun.common.schemas.model_monitoring.ModelEndpoint(
-            metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
-                name=name,
-                project=self.project_name,
-                labels=random_labels() if add_labels else {},
-            ),
-            spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
-                function_name=function_name,
-                function_tag=function_tag,
-                function_uid=function_uid,
-                model_name=model_name,
-                model_uid=model_uid,
-                model_class="modelcc",
-                model_tag="latest",
-            ),
-            status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
-                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
-            ),
-        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -1613,3 +1471,192 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystem):
         )
 
         assert len(model_endpoint.spec.feature_stats) == 501
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+@pytest.mark.model_monitoring
+class TestModelEndpointGetMetrics(TestMLRunSystem):
+    """Test get_model_endpoint_monitoring_metrics functionality."""
+
+    project_name = "model-endpoint-get-metrics"
+    image: typing.Optional[str] = None
+
+    @staticmethod
+    def _generate_event(
+        endpoint_id,
+        endpoint_name,
+        event_name,
+        event_kind="result",
+        app_name="my_app",
+    ):
+        start_infer_time = datetime.isoformat(datetime(2024, 1, 1, tzinfo=timezone.utc))
+        end_infer_time = datetime.isoformat(
+            datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)
+        )
+        event_value = 123
+        event_name_key = f"{event_kind}_name"
+        event_value_key = f"{event_kind}_value"
+        if event_kind == "result":
+            extra_kwargs = {
+                "result_kind": 0,
+                "result_status": 0,
+                "result_extra_data": """{}""",
+            }
+        else:
+            extra_kwargs = {}
+        data = {
+            "endpoint_id": endpoint_id,
+            "endpoint_name": endpoint_name,
+            "application_name": app_name,
+            event_name_key: event_name,
+            "event_kind": event_kind,
+            "start_infer_time": start_infer_time,
+            "end_infer_time": end_infer_time,
+            event_value_key: event_value,
+            **extra_kwargs,
+        }
+        return data
+
+    def test_get_model_endpoint_metrics(self):
+        self.project.set_model_monitoring_credentials(
+            stream_path=os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"),
+            tsdb_connection=os.getenv(
+                "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
+            ),
+        )
+
+        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+        db = mlrun.get_run_db()
+        model_endpoint = mock_random_endpoint(self.project_name, "testing")
+        model_endpoint = db.create_model_endpoint(model_endpoint)
+
+        model_endpoint2 = mock_random_endpoint(self.project_name, "testing2")
+        model_endpoint2 = db.create_model_endpoint(model_endpoint2)
+
+        mep_uid = model_endpoint.metadata.uid
+        mep2_uid = model_endpoint2.metadata.uid
+        mep_name = model_endpoint.metadata.name
+        mep2_name = model_endpoint2.metadata.name
+
+        writer = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.WRITER
+        )
+        writer._wait_for_function_deployment(db=writer._get_db())
+
+        stream_uri = get_stream_path(
+            project=self.project.metadata.name,
+            function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            profile=DatastoreProfileV3io(name="tmp"),
+        )
+        output_stream = get_stream_pusher(
+            stream_uri,
+        )
+
+        output_stream.push(
+            self._generate_event(
+                endpoint_id=mep_uid, endpoint_name=mep_name, event_name="result1"
+            )
+        )
+        output_stream.push(
+            self._generate_event(
+                endpoint_id=mep_uid, endpoint_name=mep_name, event_name="result2"
+            )
+        )
+        output_stream.push(
+            self._generate_event(
+                endpoint_id=mep_uid, endpoint_name=mep_name, event_name="result3"
+            )
+        )
+        output_stream.push(
+            self._generate_event(
+                endpoint_id=mep_uid,
+                endpoint_name=mep_name,
+                event_name="metric1",
+                event_kind="metric",
+            ),
+        )
+        output_stream.push(
+            self._generate_event(
+                endpoint_id=mep2_uid, endpoint_name=mep2_name, event_name="result3"
+            )
+        )
+        output_stream.push(
+            self._generate_event(
+                endpoint_id=mep2_uid, endpoint_name=mep2_name, event_name="result4"
+            )
+        )
+        output_stream.push(
+            self._generate_event(
+                endpoint_id=mep2_uid,
+                endpoint_name=mep2_name,
+                event_name="metric1",
+                event_kind="metric",
+            ),
+        )
+        # wait for the nuclio function to check for the stream inputs
+        sleep(15)
+        expected_for_mep1 = [
+            "invocations",
+            "metric1",
+            "result1",
+            "result2",
+            "result3",
+        ]
+        expected_for_mep2 = ["invocations", "metric1", "result3", "result4"]
+
+        income_events_mep1 = self._run_db.get_model_endpoint_monitoring_metrics(
+            project=self.project.name, endpoint_id=mep_uid
+        )
+        assert expected_for_mep1 == sorted([event.name for event in income_events_mep1])
+
+        # separation:
+        income_events_by_endpoint = self._run_db.get_metrics_by_multiple_endpoints(
+            project=self.project.name, endpoint_ids=[mep_uid, mep2_uid]
+        )
+
+        result_for_mep1 = [event.name for event in income_events_by_endpoint[mep_uid]]
+        assert expected_for_mep1 == sorted(result_for_mep1)
+
+        result_for_mep2 = [event.name for event in income_events_by_endpoint[mep2_uid]]
+        assert expected_for_mep2 == sorted(result_for_mep2)
+
+        # intersection:
+        intersection_events_by_type = self._run_db.get_metrics_by_multiple_endpoints(
+            project=self.project.name,
+            endpoint_ids=[mep_uid, mep2_uid],
+            events_format=mm_constants.GetEventsFormat.INTERSECTION,
+        )
+        metrics_key = mm_constants.INTERSECT_DICT_KEYS[
+            mm_constants.ModelEndpointMonitoringMetricType.METRIC
+        ]
+        results_key = mm_constants.INTERSECT_DICT_KEYS[
+            mm_constants.ModelEndpointMonitoringMetricType.RESULT
+        ]
+        assert ["invocations", "metric1"] == sorted(
+            [metric.name for metric in intersection_events_by_type[metrics_key]]
+        )
+        assert ["result3"] == sorted(
+            [result.name for result in intersection_events_by_type[results_key]]
+        )
+
+        # get nonexistent MEP IDs:
+        result_for_non_exist = self._run_db.get_model_endpoint_monitoring_metrics(
+            project=self.project.name, endpoint_id="not_exist", type="results"
+        )
+        assert result_for_non_exist == []
+
+        result_for_non_exist = self._run_db.get_metrics_by_multiple_endpoints(
+            project=self.project.name, endpoint_ids=["not_exist"], type="results"
+        )
+        assert result_for_non_exist == {"not_exist": []}
+
+        intersection_results_for_non_exist = (
+            self._run_db.get_metrics_by_multiple_endpoints(
+                project=self.project.name,
+                endpoint_ids=["not_exist", "not_exist2"],
+                events_format=mm_constants.GetEventsFormat.INTERSECTION,
+                type="results",
+            )
+        )
+        assert intersection_results_for_non_exist[results_key] == []

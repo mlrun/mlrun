@@ -93,14 +93,19 @@ class StorePrefix:
     Artifact = "artifacts"
     Model = "models"
     Dataset = "datasets"
+    Document = "documents"
 
     @classmethod
     def is_artifact(cls, prefix):
-        return prefix in [cls.Artifact, cls.Model, cls.Dataset]
+        return prefix in [cls.Artifact, cls.Model, cls.Dataset, cls.Document]
 
     @classmethod
     def kind_to_prefix(cls, kind):
-        kind_map = {"model": cls.Model, "dataset": cls.Dataset}
+        kind_map = {
+            "model": cls.Model,
+            "dataset": cls.Dataset,
+            "document": cls.Document,
+        }
         return kind_map.get(kind, cls.Artifact)
 
     @classmethod
@@ -111,6 +116,7 @@ class StorePrefix:
             cls.Dataset,
             cls.FeatureSet,
             cls.FeatureVector,
+            cls.Document,
         ]
 
 

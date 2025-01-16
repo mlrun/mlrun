@@ -22,6 +22,7 @@ import pytest
 import yaml
 
 from mlrun.artifacts import DocumentLoaderSpec, MLRunLoader
+from mlrun.datastore import get_store_resource
 from mlrun.datastore.datastore_profile import (
     ConfigProfile,
     register_temporary_client_datastore_profile,
@@ -64,6 +65,14 @@ class TestDatastoreProfile(TestMLRunSystem):
             artifact = self.project.log_document(
                 artifact_key, local_path=temp_file.name, upload=False
             )
+
+            get_store_resource(
+                f"store://documents/{self.project.name}/{artifact_key}#0:latest"
+            )
+            get_store_resource(
+                f"store://artifacts/{self.project.name}/{artifact_key}#0:latest"
+            )
+
             langchain_documents = artifact.to_langchain_documents()
 
             assert len(langchain_documents) == 1

@@ -182,6 +182,10 @@ class TestAlerts(services.alerts.tests.unit.conftest.TestAlertsBase):
             result_from_global_endpoint.json() == result_from_alert_name_endpoint.json()
         )
 
+        # send request with wrong alert name
+        result = client.get(f"projects/{project_name}/alerts/wrong-name/activations/1")
+        assert result.status_code == 404
+
     # TODO: Move to test utils framework
     @staticmethod
     def _create_project(session: Session, project_name: str):

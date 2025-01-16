@@ -21,6 +21,7 @@
 |ML-8842 |Failed pipelines now send notifications when using webhook.|
 |ML-8892 |UI: Artifact counters now display correctly.|
 |ML-8974 |UI: Artifacts stored as S3 now display in the UI.|
+|ML-9053 |Fixed the race condition when updating artifacts with the same key.|
 
 ## v1.7.1 (2 December 2024)
 

@@ -267,9 +267,7 @@ def test_new_function_args_with_default_image_pull_secret():
     function.spec.image_pull_secret = "my_secret"
 
     expected_runtime = runtime
-    expected_runtime["spec"]["image_pull_secret"] = (
-        function.spec.image_pull_secret
-    )
+    expected_runtime["spec"]["image_pull_secret"] = function.spec.image_pull_secret
     expected_runtime["spec"]["preemption_mode"] = (
         mlrun.mlconf.function_defaults.preemption_mode
     )

@@ -1948,7 +1948,8 @@ class MlrunProject(ModelObj):
                     kwargs={"extract_images": True}
                 )
         :param upload: Whether to upload the artifact
-        :param labels: Key-value labels
+        :param labels:  Key-value labels. A 'source' label is automatically added using either
+                        local_path or target_path to facilitate easier document searching.
         :param target_path: Target file path
         :param kwargs: Additional keyword arguments
         :return: DocumentArtifact object
@@ -1978,13 +1979,24 @@ class MlrunProject(ModelObj):
                 "The document loader is configured to not support downloads but the upload flag is set to True."
                 "Either set loader.download_object=True or set upload=False"
             )
+        original_source = local_path or target_path
         doc_artifact = DocumentArtifact(
             key=key,
-            original_source=local_path or target_path,
+            original_source=original_source,
             document_loader_spec=document_loader_spec,
             collections=kwargs.pop("collections", None),
             **kwargs,
         )
+
+        # limit label to a max of 255 characters (for db reasons)
+        max_length = 255
+        labels = labels or {}
+        labels["source"] = (
+            original_source[: max_length - 3] + "..."
+            if len(original_source) > max_length
+            else original_source
+        )
+
         return self.log_artifact(
             item=doc_artifact,
             tag=tag,

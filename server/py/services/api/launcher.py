@@ -246,7 +246,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         This ensures the image pull secret is correctly set on the run
         while maintaining the runtime's integrity from system-specific project settings.
         """
-        run.spec.image_pull_secret = mlrun.config.config.function.spec.image_pull_secret
+        run.spec.image_pull_secret = run.spec.image_pull_secret or mlrun.config.config.function.spec.image_pull_secret
         return run
 
     def enrich_runtime(

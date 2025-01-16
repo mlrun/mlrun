@@ -87,3 +87,13 @@ class AlertActivation(
             offset=offset,
             limit=limit,
         )
+
+    def get_alert_activation(
+        self,
+        session: sqlalchemy.orm.Session,
+        activation_id: int,
+    ) -> mlrun.common.schemas.AlertActivation:
+        return framework.utils.singletons.db.get_db().get_alert_activation(
+            session=session,
+            activation_id=activation_id,
+        )

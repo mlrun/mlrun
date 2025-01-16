@@ -166,7 +166,7 @@ class V2ModelServer(StepToDict):
                 self.model_endpoint, self.model_endpoint_uid = None, None
         self._model_logger = (
             _ModelLogPusher(self, self.context)
-            if self.context and self.context.stream.enabled
+            if self.context and self.context.stream.enabled and self.model_endpoint_uid
             else None
         )
 

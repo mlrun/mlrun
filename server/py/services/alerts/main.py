@@ -460,37 +460,24 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> mlrun.common.schemas.AlertActivation:
-        # if alert name is given, permission check can be done now,
-        # if not, it will be done after getting activation
-        if name:
-            await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-                mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
-                project,
-                name,
-                mlrun.common.schemas.AuthorizationAction.store,
-                auth_info,
-            )
-
         alert_activation = await run_in_threadpool(
             services.alerts.crud.AlertActivation().get_alert_activation,
             db_session,
             activation_id,
         )
-        if not name:
-            await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-                mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
-                project,
-                alert_activation.name,
-                mlrun.common.schemas.AuthorizationAction.store,
-                auth_info,
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
+            project,
+            alert_activation.name,
+            mlrun.common.schemas.AuthorizationAction.store,
+            auth_info,
+        )
+        if name and alert_activation.name != name:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found. "
+                f"activation_id={activation_id}, "
+                f"name={name}"
             )
-        else:
-            if alert_activation.name != name:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Alert activation not found. "
-                    f"activation_id={activation_id}, "
-                    f"name={name}"
-                )
         return alert_activation
 
     async def _move_service_to_online(self):

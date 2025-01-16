@@ -39,6 +39,9 @@ class AlembicUtil:
 
     def is_schema_migration_needed(self):
         current_revision = self._get_current_revision()
+        logger.debug(
+            f"Current Alembic revision is '{current_revision}, latest revision is '{self._latest_revision}'"
+        )
         return current_revision != self._latest_revision
 
     def is_migration_from_scratch(self):

@@ -43,7 +43,7 @@ class DocumentLoaderSpec(ModelObj):
 
     """
 
-    _dict_fields = ["loader_class_name", "src_name", "kwargs"]
+    _dict_fields = ["loader_class_name", "src_name", "download_object", "kwargs"]
 
     def __init__(
         self,

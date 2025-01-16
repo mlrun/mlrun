@@ -965,12 +965,12 @@ class MLClientCtx:
     def get_artifact(
         self, key, tag=None, iter=None, tree=None, uid=None
     ) -> Optional[Artifact]:
-        if tag or iter or tree or uid:
+        cached_artifact_uri = self._artifacts_manager.artifact_uris.get(key, None)
+        if tag or iter or tree or uid or (not cached_artifact_uri):
             project = self.get_project_object()
             return project.get_artifact(key=key, tag=tag, iter=iter, tree=tree, uid=uid)
         else:
-            artifact_uri = self._artifacts_manager.artifact_uris[key]
-            return self.get_store_resource(artifact_uri)
+            return self.get_store_resource(cached_artifact_uri)
 
     def update_artifact(self, artifact_object: Artifact):
         """Update an artifact object in the DB and the cached uri"""

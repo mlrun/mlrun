@@ -219,6 +219,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             state_thresholds=state_thresholds,
         )
 
+        run = self._pre_run_image_pull_secret_enrichment(runtime, run)
         return self._pre_run_node_selector_enrichement(runtime, run)
 
     def _pre_run_node_selector_enrichement(self, runtime, run):
@@ -237,6 +238,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
             # Validate node selectors before enrichment
             mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
             run.spec.node_selector = resolved_node_selectors
+        return run
+
+    def _pre_run_image_pull_secret_enrichment(self, runtime, run):
+        """
+        Enrich the run object with the project's image pull secret.
+        This ensures the image pull secret is correctly set on the run
+        while maintaining the runtime's integrity from system-specific project settings.
+        """
+        run.spec.image_pull_secret = mlrun.config.config.function.spec.image_pull_secret
         return run
 
     def enrich_runtime(

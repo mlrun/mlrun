@@ -963,8 +963,18 @@ with warnings.catch_warnings():
         Label = make_label(__tablename__)
         Tag = make_tag_v2(__tablename__)  # for versioning (latest and empty tags only)
 
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        labels = relationship(
+            Label,
+            cascade="all, delete-orphan",
+            back_populates="parent_rel",
+            passive_deletes=True,
+        )
+        tags = relationship(
+            Tag,
+            cascade="all, delete-orphan",
+            back_populates="parent_rel",
+            passive_deletes=True,
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}_{self.name}_{self.created}"

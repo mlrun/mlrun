@@ -160,6 +160,9 @@ class AlertConfig(pydantic.v1.BaseModel):
     count: Optional[int] = 0
     updated: datetime = None
 
+    class Config:
+        extra = pydantic.v1.Extra.allow
+
     def get_raw_notifications(self) -> list[notification_objects.Notification]:
         return [
             alert_notification.notification for alert_notification in self.notifications

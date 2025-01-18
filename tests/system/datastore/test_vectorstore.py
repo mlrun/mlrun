@@ -22,6 +22,7 @@ import pytest
 import yaml
 
 from mlrun.artifacts import DocumentLoaderSpec, MLRunLoader
+from mlrun.datastore import get_store_resource
 from mlrun.datastore.datastore_profile import (
     ConfigProfile,
     register_temporary_client_datastore_profile,
@@ -64,6 +65,14 @@ class TestDatastoreProfile(TestMLRunSystem):
             artifact = self.project.log_document(
                 artifact_key, local_path=temp_file.name, upload=False
             )
+
+            get_store_resource(
+                f"store://documents/{self.project.name}/{artifact_key}#0:latest"
+            )
+            get_store_resource(
+                f"store://artifacts/{self.project.name}/{artifact_key}#0:latest"
+            )
+
             langchain_documents = artifact.to_langchain_documents()
 
             assert len(langchain_documents) == 1
@@ -73,12 +82,25 @@ class TestDatastoreProfile(TestMLRunSystem):
                 == f"{self.project.name}/{artifact_key}"
             )
             assert langchain_documents[0].metadata["original_source"] == temp_file.name
-            assert langchain_documents[0].metadata["mlrun_object_uri"] == artifact.uri
-            assert langchain_documents[0].metadata["mlrun_chunk"] == "0"
+            assert langchain_documents[0].metadata["mlrun_tag"] == "latest"
+            assert (
+                langchain_documents[0].metadata["mlrun_key"] == "test_document_artifact"
+            )
+            assert (
+                langchain_documents[0].metadata["mlrun_project"]
+                == "system-test-project"
+            )
 
             # Test logging a document localy
             artifact = self.project.log_document(
-                artifact_key, local_path=temp_file.name, upload=True
+                artifact_key,
+                local_path=temp_file.name,
+                document_loader_spec=DocumentLoaderSpec(
+                    loader_class_name="langchain_community.document_loaders.TextLoader",
+                    src_name="file_path",
+                    download_object=True,
+                ),
+                upload=True,
             )
 
             stored_artifcat = self.project.get_artifact(artifact_key)
@@ -101,12 +123,21 @@ class TestDatastoreProfile(TestMLRunSystem):
                 == stored_langchain_documents[0].metadata["mlrun_chunk"]
             )
             assert (
-                stored_langchain_documents[0].metadata["mlrun_object_uri"]
-                == stored_artifcat.uri
-            )
-            assert (
                 stored_langchain_documents[0].metadata["mlrun_target_path"]
                 == stored_artifcat.get_target_path()
+            )
+
+            assert (
+                langchain_documents[0].metadata["mlrun_tag"]
+                == stored_langchain_documents[0].metadata["mlrun_tag"]
+            )
+            assert (
+                langchain_documents[0].metadata["mlrun_key"]
+                == stored_langchain_documents[0].metadata["mlrun_key"]
+            )
+            assert (
+                langchain_documents[0].metadata["mlrun_project"]
+                == stored_langchain_documents[0].metadata["mlrun_project"]
             )
 
     def test_vectorstore_loader(self):

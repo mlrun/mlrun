@@ -594,15 +594,9 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         for volume in pod_spec.volumes
         if volume.secret
     ]
-    aws_mount = {
-        "mount_path": "/tmp/aws",
-        "mount_propagation": None,
-        "name": "aws-secret",
-        "read_only": None,
-        "sub_path": None,
-        "sub_path_expr": None,
-    }
-    assert aws_mount in [
+    aws_mount = client.V1VolumeMount(name="aws-secret", mount_path="/tmp/aws")
+    assert len(pod_spec.containers[0].volume_mounts) > 0
+    assert aws_mount.to_dict() in [
         volume_mount.to_dict() for volume_mount in pod_spec.containers[0].volume_mounts
     ]
 
@@ -616,7 +610,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
     ]
     for init_container in pod_spec.init_containers:
         if init_container.name == "create-repos":
-            assert aws_mount in [
+            assert aws_mount.to_dict() in [
                 volume_mount.to_dict() for volume_mount in init_container.volume_mounts
             ]
             assert aws_creds_location_env in [

@@ -145,8 +145,11 @@ class TDEngineConnector(TSDBConnector):
 
         create_table_sql = table._create_subtable_sql(subtable=table_name, values=event)
 
+        # we need the string values to be sent to the connection, not the enum
+        columns = {str(key): str(val) for key, val in table.columns.items()}
+
         insert_statement = Statement(
-            columns=table.columns,
+            columns=columns,
             subtable=table_name,
             values=event,
         )
@@ -188,7 +191,7 @@ class TDEngineConnector(TSDBConnector):
             graph.add_step(
                 "mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps.ProcessBeforeTDEngine",
                 name="ProcessBeforeTDEngine",
-                after="MapFeatureNames",
+                after="FilterNOP",
             )
 
         def apply_tdengine_target(name, after):

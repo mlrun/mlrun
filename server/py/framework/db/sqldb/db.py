@@ -1095,26 +1095,76 @@ class SQLDB(DBInterface):
 
     def tag_artifacts(
         self,
-        session,
+        session: sqlalchemy.orm.Session,
         tag_name: str,
-        artifacts,
+        artifacts: list[ArtifactV2],
         project: str,
     ):
+        def delete_previous_tags_and_get_existing(_session, _artifact):
+            # we want to get the artifacts that we need to remove its previous latest (or its specific) tag
+            # when we have different producers trying to create the same exact tag.
+            # we want the latest one, to remove the tag from previous artifacts with the same key
+            query = (
+                self._query(
+                    _session,
+                    _artifact.Tag,
+                    name=tag_name,
+                    project=project,
+                    obj_name=_artifact.key,
+                )
+                .join(
+                    ArtifactV2,
+                )
+                .filter(
+                    ArtifactV2.producer_id != _artifact.producer_id,
+                )
+            )
+
+            # delete the tags
+            for old_tag in query:
+                logger.debug(
+                    "Deleting old tag",
+                    old_tag=old_tag,
+                    **log_kwargs,
+                )
+                _session.delete(old_tag)
+            _session.commit()
+
+            # search for an existing tag with the same name, and points to artifacts with the same key, producer id,
+            # and iteration. this means that the same producer created this artifact,
+            # and we can update the existing tag
+            tag_query = (
+                self._query(
+                    _session,
+                    _artifact.Tag,
+                    name=tag_name,
+                    project=project,
+                    obj_name=_artifact.key,
+                )
+                .join(
+                    ArtifactV2,
+                )
+                .filter(
+                    ArtifactV2.producer_id == _artifact.producer_id,
+                    ArtifactV2.iteration == _artifact.iteration,
+                )
+            )
+            return tag_query.one_or_none()
+
+        log_kwargs = {"project": project, "session": session.hash_key, "tag": tag_name}
         artifacts_keys = [artifact.key for artifact in artifacts]
         if not artifacts_keys:
             logger.debug(
                 "No artifacts to tag",
-                project=project,
-                tag=tag_name,
                 artifacts=artifacts,
+                **log_kwargs,
             )
             return
 
         logger.debug(
             "Locking artifacts in db before tagging artifacts",
-            project=project,
-            tag=tag_name,
             artifacts_keys=artifacts_keys,
+            **log_kwargs,
         )
 
         # to avoid multiple runs trying to tag the same artifacts simultaneously,
@@ -1129,63 +1179,18 @@ class SQLDB(DBInterface):
 
         logger.debug(
             "Acquired artifacts db lock",
-            project=project,
-            tag=tag_name,
             artifacts_keys=artifacts_keys,
+            **log_kwargs,
         )
 
         objects = []
         for artifact in artifacts:
-            # remove the tags of the same name that point to artifacts with the same key
-            # and a different producer id
-            query = (
-                self._query(
-                    session,
-                    artifact.Tag,
-                    name=tag_name,
-                    project=project,
-                    obj_name=artifact.key,
-                )
-                .join(
-                    ArtifactV2,
-                )
-                .filter(
-                    ArtifactV2.producer_id != artifact.producer_id,
-                )
-            )
-
-            # delete the tags
-            for old_tag in query:
-                objects.append(old_tag)
-                session.delete(old_tag)
-
-            def _get_tag(_session):
-                # search for an existing tag with the same name, and points to artifacts with the same key, producer id,
-                # and iteration. this means that the same producer created this artifact,
-                # and we can update the existing tag
-                tag_query = (
-                    self._query(
-                        _session,
-                        artifact.Tag,
-                        name=tag_name,
-                        project=project,
-                        obj_name=artifact.key,
-                    )
-                    .join(
-                        ArtifactV2,
-                    )
-                    .filter(
-                        ArtifactV2.producer_id == artifact.producer_id,
-                        ArtifactV2.iteration == artifact.iteration,
-                    )
-                )
-
-                return tag_query.one_or_none()
-
             # to make sure we can list tags that were created during this session in parallel by different processes,
             # we need to use a new session. if there is an existing tag, we'll definitely get it, so we can update it
             # instead of creating a new tag.
-            tag = framework.db.session.run_function_with_new_db_session(_get_tag)
+            tag = framework.db.session.run_function_with_new_db_session(
+                delete_previous_tags_and_get_existing, artifact
+            )
             if not tag:
                 # create the new tag
                 tag = artifact.Tag(
@@ -1194,19 +1199,15 @@ class SQLDB(DBInterface):
                     obj_name=artifact.key,
                 )
             tag.obj_id = artifact.id
-
             objects.append(tag)
             session.add(tag)
 
-        # commit the changes, including the deletion of the old tags and the creation of the new tags
-        # this will also release the locks on the artifacts' rows
+        # commit the changes, unlocking the flow for other processes
         self._commit(session, objects)
-
         logger.debug(
             "Released artifacts db lock after tagging artifacts",
-            project=project,
-            tag=tag_name,
             artifacts_keys=artifacts_keys,
+            **log_kwargs,
         )
 
     def _delete_project_artifacts(self, session: Session, project: str):
@@ -3014,7 +3015,10 @@ class SQLDB(DBInterface):
         project_summaries = query.all()
         project_summaries_results = []
         for project_summary in project_summaries:
-            project_summary.summary["updated"] = project_summary.updated
+            # project_summary.updated is timezone naive, make it utc
+            project_summary.summary["updated"] = project_summary.updated.replace(
+                tzinfo=timezone.utc
+            )
             project_summaries_results.append(
                 mlrun.common.schemas.ProjectSummary(**project_summary.summary)
             )
@@ -5511,6 +5515,9 @@ class SQLDB(DBInterface):
                     tree=model_endpoint_record.model.full_object.get(
                         "metadata", {}
                     ).get("tree"),
+                    uid=model_endpoint_record.model.full_object.get("metadata", {}).get(
+                        "uid"
+                    ),
                 ),
             )
 
@@ -5902,7 +5909,10 @@ class SQLDB(DBInterface):
         self._delete(session, AlertConfig, project=project, name=name)
 
     def list_alerts(
-        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
+        self,
+        session,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
@@ -5924,6 +5934,8 @@ class SQLDB(DBInterface):
                 alert,
                 state=alert_state,
             )
+            if exclude_updated:
+                alert.updated = None
             alerts.append(alert)
         return alerts
 
@@ -6432,6 +6444,24 @@ class SQLDB(DBInterface):
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()
         ]
+
+    def get_alert_activation(
+        self,
+        session,
+        activation_id: int,
+    ) -> mlrun.common.schemas.AlertActivation:
+        alert_activation_record = (
+            self._query(session, AlertActivation)
+            .filter(AlertActivation.id == activation_id)
+            .one_or_none()
+        )
+        if not alert_activation_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found: activation_id={activation_id}"
+            )
+        return self._transform_alert_activation_record_to_scheme(
+            alert_activation_record
+        )
 
     @staticmethod
     def _transform_alert_activation_record_to_scheme(
@@ -7157,9 +7187,9 @@ class SQLDB(DBInterface):
             for key, val in schema_attr.items():
                 setattr(mep_record, key, val)
                 update_in(struct, key, val)
-            if labels and isinstance(labels, dict):
+            if labels is not None and isinstance(labels, dict):
                 update_labels(mep_record, labels)
-            update_in(struct, "labels", labels)
+                update_in(struct, "labels", labels)
             mep_record.struct = struct
             mep_record.updated = updated
             self._upsert(session, [mep_record])
@@ -7170,7 +7200,11 @@ class SQLDB(DBInterface):
             )
 
     def _split_mep_update_attr(self, attributes: dict):
-        labels = attributes.pop("labels", {})
+        if "labels" in attributes:
+            # labels can be None, so if labels key exists, return {} and override existing labels.
+            labels = attributes.pop("labels") or {}
+        else:
+            labels = None
         schema_attr = {}
         for key in list(attributes.keys()):
             if hasattr(ModelEndpoint, key):

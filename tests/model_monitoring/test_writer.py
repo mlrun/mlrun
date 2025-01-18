@@ -148,7 +148,7 @@ class TestHistogramGeneralDriftResultEvent:
 
     @staticmethod
     @pytest.fixture(autouse=True)
-    def writer(mock_v3io_client: V3IOClient) -> Iterator[None]:
+    def writer(mock_v3io_client: V3IOClient) -> Iterator[ModelMonitoringWriter]:
         with patch(
             "mlrun.utils.v3io_clients.get_v3io_client",
             Mock(return_value=mock_v3io_client),

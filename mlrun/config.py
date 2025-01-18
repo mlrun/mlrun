@@ -596,6 +596,22 @@ default_config = {
                 "max_replicas": 1,
             },
         },
+        "controller_stream_args": {
+            "v3io": {
+                "shard_count": 10,
+                "retention_period_hours": 24,
+                "num_workers": 10,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 10,
+                "replication_factor": 1,
+                "num_workers": 10,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -608,8 +624,6 @@ default_config = {
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
-        # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
-        "tsdb_connection": "",
         "tdengine": {
             "timeout": 10,
             "retries": 1,
@@ -727,6 +741,7 @@ default_config = {
     },
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
+        "concurrent_delete_worker_count": 20,
         # Default timeout seconds for retrieving workflow id after execution
         # Remote workflow timeout is the maximum between remote and the inner engine timeout
         "timeouts": {"local": 120, "kfp": 60, "remote": 60 * 5},
@@ -1282,6 +1297,8 @@ class Config:
                 function_name
                 and function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+                and function_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
@@ -1289,12 +1306,21 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            elif kind == "stream":
+            elif (
+                kind == "stream"
+                and function_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind,
                 )
             else:
+                if (
+                    function_name
+                    == mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+                ):
+                    kind = function_name
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                     project=project,
                     kind=kind,

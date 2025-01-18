@@ -2460,7 +2460,7 @@ class TestModelMonitoring:
     @staticmethod
     def test_enable_wait_for_deployment(project: mlrun.projects.MlrunProject) -> None:
         with unittest.mock.patch.object(
-            project, "_wait_for_functions_deployment", autospec=True
+            project, "_wait_for_functions_deployment"
         ) as mock:
             mlrun.projects.MlrunProject.enable_model_monitoring(
                 project, deploy_histogram_data_drift_app=False, wait_for_deployment=True

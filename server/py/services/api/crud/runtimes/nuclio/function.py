@@ -418,11 +418,33 @@ def _configure_serving_spec(
                     + "in the returned json, and check if the function runs successfully. "
                     + "Repeat as necessary to get the spec to an allowed size"
                 )
-            # Compress and encode the serving spec
-            compressed_serving_spec = gzip.compress(serving_spec.encode("utf-8"))
-            encoded_serving_spec = base64.b64encode(compressed_serving_spec).decode(
-                "utf-8"
-            )
+            if (
+                not client_version
+                or semver.Version.parse(client_version)
+                >= semver.Version.parse("1.8.0-rc20")
+                or "unstable" in client_version
+            ):
+                # Compress and encode the serving spec
+                compressed_serving_spec = gzip.compress(serving_spec.encode("utf-8"))
+                encoded_serving_spec = base64.b64encode(compressed_serving_spec).decode(
+                    "utf-8"
+                )
+            else:
+                # TODO: remove in 1.10.0.
+                if (
+                    serving_spec_len >= SERVING_SPEC_MAX_LENGTH / 10
+                ):  # 1MB limitation as it were before the zip
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}. "
+                        + "Run `mlrun.runtimes.nuclio.serving.ServingRuntime._get_serving_spec`, delete a large field "
+                        + "in the returned json, and check if the function runs successfully. "
+                        + "Repeat as necessary to get the spec to an allowed size"
+                    )
+                logger.info(
+                    "Client version does not support passing serving spec as zip via ConfigMap",
+                    FutureWarning,
+                )
+                encoded_serving_spec = serving_spec
 
             function_name = mlrun.runtimes.nuclio.function.get_fullname(
                 function.metadata.name, project, tag

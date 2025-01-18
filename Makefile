@@ -510,22 +510,36 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-t \
 		--rm \
 		--network='host' \
+		-e MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
 .PHONY: test
 test: clean ## Run mlrun tests
+	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
+	set -e ;\
+	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
+		--ignore=tests/integration \
+		--ignore=tests/system \
+		--ignore=tests/rundb/test_httpdb.py \
+		--ignore=server/py/services/api/migrations \
+	");\
+	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
+		--ignore=server/py/services/api/tests/unit/api/test_pipelines.py \
+		--ignore=tests/projects/test_kfp.py \
+		--ignore=server/py/services/api/tests/unit/crud/test_pipelines.py \
+		--ignore=tests/serving/test_remote.py \
+		--ignore=tests/projects/test_remote_pipeline.py \
+		"),);\
 	python \
 		-X faulthandler \
 		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--ignore=tests/integration \
-		--ignore=tests/system \
-		--ignore=tests/rundb/test_httpdb.py \
-		--ignore=server/py/services/api/migrations \
+		$$COMMON_IGNORE_TEST_FLAGS \
+		$$PER_PYTHON_VERSION_IGNORE_TEST_FLAGS \
 		--forked \
 		-rf
 
@@ -667,7 +681,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		--rm \
 		-v $(shell pwd)/docs/_build:/mlrun/docs/_build \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
-		make html-docs
+		bash -c 'python -m pip install -r docs/requirements.txt && make html-docs'
 
 .PHONY: fmt
 fmt: ## Format the code using Ruff and blacken-docs
@@ -887,8 +901,8 @@ upgrade-mlrun-test-deps-lock: verify-uv-version ## Upgrade mlrun test locked req
 		extras-requirements.txt \
 		dockerfiles/mlrun-api/requirements.txt \
 		dockerfiles/mlrun-kfp/requirements.txt \
+		dockerfiles/test/requirements.txt \
 		dev-requirements.txt \
-		docs/requirements.txt \
 		$(MLRUN_UV_UPGRADE_FLAG) \
 		--output-file dockerfiles/test/locked-requirements.txt
 

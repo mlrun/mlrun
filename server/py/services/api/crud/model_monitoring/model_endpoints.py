@@ -26,6 +26,7 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.datastore
+import mlrun.datastore.datastore_profile
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
@@ -930,7 +931,9 @@ class ModelEndpoints:
             if not mlrun.mlconf.is_ce_mode():
                 tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                     project=project_name,
-                    tsdb_connection_string=mlrun.common.schemas.model_monitoring.V3IO_MODEL_MONITORING_DB,
+                    profile=mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+                        name="tmp"
+                    ),
                 )
             else:
                 tsdb_connector = None

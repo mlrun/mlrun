@@ -168,7 +168,11 @@ class SlackNotification(NotificationBase):
 
     def _get_run_line(self, run: dict) -> dict:
         meta = run["metadata"]
-        url = mlrun.utils.helpers.get_ui_url(meta.get("project"), meta.get("uid"))
+        url = mlrun.utils.helpers.get_run_url(
+            meta.get("project"),
+            uid=meta.get("uid"),
+            name=meta.get("name"),
+        )
 
         # Only show the URL if the run is not a function (serving or mlrun function)
         kind = run.get("step_kind")

@@ -688,7 +688,7 @@ class ServingRuntime(RemoteRuntime):
             "project": self.metadata.project,
             "version": "v2",
             "parameters": self.spec.parameters,
-            "graph": self.spec.graph.to_dict() if self.spec.graph else {},
+            "graph": self.spec.graph.to_dict(strip=True) if self.spec.graph else {},
             "load_mode": self.spec.load_mode,
             "functions": function_name_uri_map,
             "graph_initializer": self.spec.graph_initializer,

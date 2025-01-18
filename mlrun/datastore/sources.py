@@ -1128,8 +1128,13 @@ class KafkaSource(OnlineSource):
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
                 "worker_allocation_mode", "static"
             )
+        else:
+            extra_attributes["workerAllocationMode"] = extra_attributes.get(
+                "worker_allocation_mode", "pool"
+            )
 
         trigger_kwargs = {}
+
         if "max_workers" in extra_attributes:
             trigger_kwargs = {"max_workers": extra_attributes.pop("max_workers")}
 

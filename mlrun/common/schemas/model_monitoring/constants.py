@@ -183,6 +183,25 @@ class WriterEventKind(MonitoringStrEnum):
     STATS = "stats"
 
 
+class ControllerEvent(MonitoringStrEnum):
+    KIND = "kind"
+    ENDPOINT_ID = "endpoint_id"
+    ENDPOINT_NAME = "endpoint_name"
+    PROJECT = "project"
+    TIMESTAMP = "timestamp"
+    FIRST_REQUEST = "first_request"
+    FEATURE_SET_URI = "feature_set_uri"
+    ENDPOINT_TYPE = "endpoint_type"
+    ENDPOINT_POLICY = "endpoint_policy"
+    # Note: currently under endpoint policy we will have a dictionary including the keys: "application_names"
+    # and "base_period"
+
+
+class ControllerEventKind(MonitoringStrEnum):
+    NOP_EVENT = "nop_event"
+    REGULAR_EVENT = "regular_event"
+
+
 class MetricData(MonitoringStrEnum):
     METRIC_NAME = "metric_name"
     METRIC_VALUE = "metric_value"
@@ -240,7 +259,6 @@ class DefaultProfileName(StrEnum):
 
 class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    TSDB_CONNECTION = "TSDB_CONNECTION"
     TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"
     STREAM_PROFILE_NAME = "STREAM_PROFILE_NAME"
 
@@ -248,7 +266,7 @@ class ProjectSecretKeys:
     def mandatory_secrets(cls):
         return [
             cls.STREAM_PROFILE_NAME,
-            cls.TSDB_CONNECTION,
+            cls.TSDB_PROFILE_NAME,
         ]
 
 

@@ -377,6 +377,73 @@ def test_notification_reason(notification_kind):
 
 
 @pytest.mark.parametrize(
+    "when, run_state, store_count",
+    [
+        (
+            [runtimes_constants.RunStates.running],
+            runtimes_constants.RunStates.running,
+            1,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.running,
+                runtimes_constants.RunStates.completed,
+            ],
+            runtimes_constants.RunStates.running,
+            0,
+        ),
+        (
+            [
+                runtimes_constants.RunStates.running,
+                runtimes_constants.RunStates.completed,
+            ],
+            runtimes_constants.RunStates.completed,
+            1,
+        ),
+    ],
+)
+def test_notification_update_notification_status(when, run_state, store_count):
+    notification_kind = mlrun.common.schemas.notification.NotificationKind.mail
+    run = mlrun.model.RunObject.from_dict({"status": {"state": run_state}})
+    run.spec.notifications = [
+        mlrun.model.Notification.from_dict(
+            {
+                "kind": notification_kind,
+                "status": "pending",
+                "message": "test-abc",
+                "when": when,
+            }
+        ),
+    ]
+
+    db = mlrun.get_run_db()
+    db.store_run_notifications = unittest.mock.MagicMock()
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+
+    # mock the push method to raise an exception
+    notification_kind_type = getattr(
+        mlrun.utils.notifications.NotificationTypes, notification_kind
+    ).get_notification()
+    if asyncio.iscoroutinefunction(notification_kind_type.push):
+        concrete_notification = notification_pusher._async_notifications[0][0]
+    else:
+        concrete_notification = notification_pusher._sync_notifications[0][0]
+
+    concrete_notification.push = unittest.mock.MagicMock()
+
+    # send notifications
+    notification_pusher.push()
+
+    # asserts
+    concrete_notification.push.assert_called_once()
+
+    assert db.store_run_notifications.call_count == store_count
+
+
+@pytest.mark.parametrize(
     "notification_kind",
     [
         mlrun.common.schemas.notification.NotificationKind.console,

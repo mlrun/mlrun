@@ -29,8 +29,7 @@ def resolve_client_default_kfp_image(
 ) -> str:
     if workflow_spec and workflow_spec.image:
         return workflow_spec.image
-
-    if project and project.spec.default_image:
+    elif project and project.spec.default_image:
         return project.spec.default_image
 
     pre_kfp_image_mlrun_version = False
@@ -48,16 +47,16 @@ def resolve_client_default_kfp_image(
         else mlrun.common.schemas.workflow.EngineType.LOCAL
     )
 
-    if engine in (
-        mlrun.common.schemas.workflow.EngineType.REMOTE,
-        mlrun.common.schemas.workflow.EngineType.KFP,
-        mlrun.common.schemas.workflow.EngineType.REMOTE_KFP,
-    ):
-        return mlrun.mlconf.kfp_image
-
     if (
         pre_kfp_image_mlrun_version
-        and engine != mlrun.common.schemas.workflow.EngineType.LOCAL
+        and engine == mlrun.common.schemas.workflow.EngineType.KFP
+    ):
+        return mlrun.mlconf.default_base_image
+
+    if engine in (
+        mlrun.common.schemas.workflow.EngineType.REMOTE,
+        mlrun.common.schemas.workflow.EngineType.REMOTE_KFP,
+        mlrun.common.schemas.workflow.EngineType.KFP,
     ):
         return mlrun.mlconf.kfp_image
 

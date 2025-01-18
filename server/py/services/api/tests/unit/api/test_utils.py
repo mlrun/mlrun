@@ -1805,7 +1805,7 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
             "",
             mlrun.common.schemas.workflow.EngineType.KFP,
             "1.8.0-rc1",
-            "mlrun/mlrun-kfp",
+            "mlrun/mlrun",
         ),
         (
             "",
@@ -1826,14 +1826,14 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
             "",
             mlrun.common.schemas.workflow.EngineType.KFP,
             "1.6.4",
-            "mlrun/mlrun-kfp",
+            "mlrun/mlrun",
         ),
         (
             "",
             "",
             mlrun.common.schemas.workflow.EngineType.KFP,
             "1.7.0-rc1",
-            "mlrun/mlrun-kfp",
+            "mlrun/mlrun",
         ),
         (
             "",

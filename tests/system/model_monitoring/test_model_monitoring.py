@@ -46,7 +46,6 @@ from mlrun.datastore.datastore_profile import DatastoreProfileV3io
 from mlrun.model import BaseMetadata
 from mlrun.model_monitoring.helpers import get_result_instance_fqn, get_stream_path
 from mlrun.runtimes import BaseRuntime
-from mlrun.utils import generate_artifact_uri
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
@@ -492,7 +491,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             tag="some-tag",
             labels=labels,
         )
-        self._assert_model_uri(model_obj=model_obj, endpoint=endpoint)
+        _validate_model_uri(model_obj=model_obj, model_endpoint=endpoint)
 
         metrics = mlrun.get_run_db().get_model_endpoint_monitoring_metrics(
             self.project_name, endpoint.metadata.uid
@@ -505,21 +504,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             result_name=metrics[0].name,
         )
         assert metric_fqn == expected_metric_fqn
-
-    def _assert_model_uri(
-        self,
-        model_obj: mlrun.artifacts.ModelArtifact,
-        endpoint: mlrun.common.schemas.ModelEndpoint,
-    ) -> None:
-        assert endpoint.spec.model_uri == mlrun.datastore.get_store_uri(
-            kind=mlrun.utils.helpers.StorePrefix.Model,
-            uri=generate_artifact_uri(
-                project=model_obj.project,
-                key=model_obj.key,
-                iter=model_obj.iter,
-                tree=model_obj.tree,
-            ),
-        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,
@@ -1070,7 +1054,7 @@ class TestBatchDrift(TestMLRunSystem):
             function_name="batch-drift-function",
         )
         # Validate that model_uri is based on models prefix
-        self._validate_model_uri(model_obj=model, model_endpoint=model_endpoint)
+        _validate_model_uri(model_obj=model, model_endpoint=model_endpoint)
 
         # Validate that the artifacts were logged in the project
         artifacts = project.list_artifacts(
@@ -1085,22 +1069,6 @@ class TestBatchDrift(TestMLRunSystem):
             "drift_table_plot",
             "features_drift_results",
         }
-
-    def _validate_model_uri(self, model_obj, model_endpoint):
-        model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
-            project=model_endpoint.metadata.project,
-            key=model_obj.key,
-            iter=model_obj.iter,
-            tree=model_obj.tree,
-            uid=model_obj.metadata.uid,
-        )
-
-        # Enrich the uri schema with the store prefix
-        model_artifact_uri = mlrun.datastore.get_store_uri(
-            kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
-        )
-
-        assert model_endpoint.spec.model_uri == model_artifact_uri
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -1660,3 +1628,20 @@ class TestModelEndpointGetMetrics(TestMLRunSystem):
             )
         )
         assert intersection_results_for_non_exist[results_key] == []
+
+
+def _validate_model_uri(model_obj, model_endpoint):
+    model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
+        project=model_endpoint.metadata.project,
+        key=model_obj.key,
+        iter=model_obj.iter,
+        tree=model_obj.tree,
+        uid=model_obj.metadata.uid,
+    )
+
+    # Enrich the uri schema with the store prefix
+    model_artifact_uri = mlrun.datastore.get_store_uri(
+        kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+    )
+
+    assert model_endpoint.spec.model_uri == model_artifact_uri

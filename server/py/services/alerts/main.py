@@ -468,17 +468,18 @@ class Service(framework.service.Service):
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> mlrun.common.schemas.AlertActivation:
+        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
+            project,
+            # TODO: add name emptiness check when we have fine-grained permissions
+            name,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
         alert_activation = await run_in_threadpool(
             services.alerts.crud.AlertActivation().get_alert_activation,
             db_session,
             activation_id,
-        )
-        await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
-            project,
-            alert_activation.name,
-            mlrun.common.schemas.AuthorizationAction.store,
-            auth_info,
         )
         if name and alert_activation.name != name:
             raise mlrun.errors.MLRunNotFoundError(

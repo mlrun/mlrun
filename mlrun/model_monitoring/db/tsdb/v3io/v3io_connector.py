@@ -135,7 +135,7 @@ class V3IOTSDBConnector(TSDBConnector):
         monitoring_predictions_full_path = (
             mlrun.mlconf.get_model_monitoring_file_target_path(
                 project=self.project,
-                kind=mm_schemas.FileTargetKind.PREDICTIONS,
+                kind=mm_schemas.V3IOTSDBTables.PREDICTIONS,
             )
         )
         (
@@ -145,7 +145,7 @@ class V3IOTSDBConnector(TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             monitoring_predictions_full_path
         )
-        self.tables[mm_schemas.FileTargetKind.PREDICTIONS] = monitoring_predictions_path
+        self.tables[mm_schemas.V3IOTSDBTables.PREDICTIONS] = monitoring_predictions_path
 
     def create_tables(self) -> None:
         """
@@ -226,7 +226,7 @@ class V3IOTSDBConnector(TSDBConnector):
             "storey.TSDBTarget",
             name="tsdb_predictions",
             after="FilterNOP",
-            path=f"{self.container}/{self.tables[mm_schemas.FileTargetKind.PREDICTIONS]}",
+            path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.PREDICTIONS]}",
             rate="1/s",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
@@ -740,7 +740,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 "both or neither of `aggregation_window` and `agg_funcs` must be provided"
             )
         df = self._get_records(
-            table=mm_schemas.FileTargetKind.PREDICTIONS,
+            table=mm_schemas.V3IOTSDBTables.PREDICTIONS,
             start=start,
             end=end,
             columns=[mm_schemas.EventFieldType.ESTIMATED_PREDICTION_COUNT],
@@ -782,7 +782,7 @@ class V3IOTSDBConnector(TSDBConnector):
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
         df = self._get_records(
-            table=mm_schemas.FileTargetKind.PREDICTIONS,
+            table=mm_schemas.V3IOTSDBTables.PREDICTIONS,
             start=start,
             end=end,
             filter_query=filter_query,
@@ -919,7 +919,7 @@ class V3IOTSDBConnector(TSDBConnector):
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
         start, end = self._get_start_end(start, end)
         df = self._get_records(
-            table=mm_schemas.FileTargetKind.PREDICTIONS,
+            table=mm_schemas.V3IOTSDBTables.PREDICTIONS,
             start=start,
             end=end,
             columns=[mm_schemas.EventFieldType.LATENCY],

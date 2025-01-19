@@ -756,7 +756,7 @@ class ServingRuntime(RemoteRuntime):
             namespace=namespace,
             logger=logger,
             is_mock=True,
-            monitoring_mock=track_models,
+            monitoring_mock=self.spec.track_models,
         )
 
         if workdir:

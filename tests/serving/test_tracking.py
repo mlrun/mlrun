@@ -42,7 +42,7 @@ class ModelTestingCustomTrack(ModelTestingClass):
         return [[1]], [self.get_param("multiplier", 1)]
 
 
-def test_tracking():
+def test_tracking(rundb_mock):
     # test that predict() was tracked properly in the stream
     fn = mlrun.new_function("tests", kind="serving")
     fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=2))
@@ -56,7 +56,7 @@ def test_tracking():
     assert rec_to_data(fake_stream[0]) == ("my", "ModelTestingClass", [[5, 6]], [10])
 
 
-def test_custom_tracking():
+def test_custom_tracking(rundb_mock):
     # test custom values tracking (using the logged_results() hook)
     fn = mlrun.new_function("tests", kind="serving")
     fn.add_model("my", ".", class_name=ModelTestingCustomTrack(multiplier=2))
@@ -70,7 +70,7 @@ def test_custom_tracking():
     assert rec_to_data(fake_stream[0]) == ("my", "ModelTestingCustomTrack", [[1]], [2])
 
 
-def test_ensemble_tracking():
+def test_ensemble_tracking(rundb_mock):
     # test proper tracking of an ensemble (router + models are logged)
     fn = mlrun.new_function("tests", kind="serving")
     fn.set_topology("router", mlrun.serving.VotingEnsemble(vote_type="regression"))
@@ -111,12 +111,16 @@ def test_tracked_function(rundb_mock, enable_tracking):
             creation_strategy=ModelEndpointCreationStrategy.ARCHIVE,
         )
         fn.set_tracking("dummy://", enable_tracking=enable_tracking)
-        server = fn.to_mock_server(track_models=True)
+        server = fn.to_mock_server()
         server.test("/v2/models/m1/infer", testdata)
+        dummy_stream = server.context.stream.output_stream
         if enable_tracking:
             rundb_mock.get_model_endpoint.assert_called_once()
-        dummy_stream = server.context.stream.output_stream
-        assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+            assert (
+                len(dummy_stream.event_list) == 1
+            ), "expected stream to get one message"
+        else:
+            assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
 
 def rec_to_data(rec):

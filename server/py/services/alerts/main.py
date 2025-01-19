@@ -477,7 +477,7 @@ class Service(framework.service.Service):
             mlrun.common.schemas.AuthorizationResourceTypes.alert_activations,
             project,
             alert_activation.name,
-            mlrun.common.schemas.AuthorizationAction.store,
+            mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
         if name and alert_activation.name != name:

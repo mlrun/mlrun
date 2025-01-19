@@ -328,6 +328,7 @@ class V3IOTSDBTables(MonitoringStrEnum):
     METRICS = "metrics"
     EVENTS = "events"
     ERRORS = "errors"
+    PREDICTIONS = "predictions"
 
 
 class TDEngineSuperTables(MonitoringStrEnum):

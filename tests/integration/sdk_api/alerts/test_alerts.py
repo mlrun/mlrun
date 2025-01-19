@@ -105,6 +105,21 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alerts_activations[0], project_name, alert1["name"], number_of_events=1
         )
 
+        # check get alert activation by id
+        alert_activation_by_id = mlrun.get_run_db().get_alert_activation(
+            project_name, alerts_activations[0].id
+        )
+        self._validate_alert_activation(
+            alert_activation_by_id, project_name, alert1["name"]
+        )
+
+        # negative test for get alert activation by id
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            mlrun.get_run_db().get_alert_activation(
+                project_name,
+                100000,
+            )
+
         # post event for alert 2
         for _ in range(alert2["criteria"].count):
             self._post_event(

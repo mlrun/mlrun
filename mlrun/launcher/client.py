@@ -134,7 +134,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         if mlrun.utils.is_jupyter and mlrun.mlconf.ipython_widget:
             results_tbl.show()
             print()
-            ui_url = mlrun.utils.get_ui_url(project, uid)
+            ui_url = mlrun.utils.get_run_url(project, uid=uid, name=run.metadata.name)
             if ui_url:
                 ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
             IPython.display.display(
@@ -150,6 +150,6 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             mlrun.utils.logger.info(
                 "To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd
             )
-            ui_url = mlrun.utils.get_ui_url(project, uid)
+            ui_url = mlrun.utils.get_run_url(project, uid=uid, name=run.metadata.name)
             if ui_url:
                 mlrun.utils.logger.info("Or click for UI", ui_url=ui_url)

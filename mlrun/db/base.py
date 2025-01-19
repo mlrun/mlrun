@@ -929,6 +929,14 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
+    def get_alert_activation(
+        self,
+        project,
+        activation_id,
+    ) -> mlrun.common.schemas.AlertActivation:
+        pass
+
     def update_alert_activation(
         self,
         activation_id: int,

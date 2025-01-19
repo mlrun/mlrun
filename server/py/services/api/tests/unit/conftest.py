@@ -136,7 +136,7 @@ def api_config_test(service_config_test):
 
 
 @pytest.fixture
-def kfp_client_mock(monkeypatch) -> mlrun_pipelines.utils.ExtendedKfpClient:
+def kfp_client_mock(monkeypatch):
     framework.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = mock.Mock(
         return_value=True
     )

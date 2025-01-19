@@ -3015,7 +3015,10 @@ class SQLDB(DBInterface):
         project_summaries = query.all()
         project_summaries_results = []
         for project_summary in project_summaries:
-            project_summary.summary["updated"] = project_summary.updated
+            # project_summary.updated is timezone naive, make it utc
+            project_summary.summary["updated"] = project_summary.updated.replace(
+                tzinfo=timezone.utc
+            )
             project_summaries_results.append(
                 mlrun.common.schemas.ProjectSummary(**project_summary.summary)
             )

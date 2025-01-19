@@ -53,13 +53,17 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 WORKDIR /mlrun
 
 ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy
+ARG MLRUN_PYTHON_VERSION=3.9
+# explicitly set the python version to ensure uv installs the correct version
+# as per the python version or we will handle situtations where python 3.11 tries to install
+# kfp 1.8 *even though it is explicitly set on locked file that kfp 1.8 is for python < 3.11*
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=dockerfiles/test/locked-requirements.txt,target=locked-requirements.txt \
-    uv pip sync --require-hashes locked-requirements.txt
+    uv pip sync --require-hashes locked-requirements.txt --python-version ${MLRUN_PYTHON_VERSION}
 
 COPY . .
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install .[complete]
+    uv pip install .[complete] --python-version ${MLRUN_PYTHON_VERSION}

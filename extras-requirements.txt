@@ -27,7 +27,6 @@ azure-keyvault-secrets~=4.2
 # cryptography>=39, which is required by azure, needs this, or else we get
 # AttributeError: module 'lib' has no attribute 'OpenSSL_add_all_algorithms' (ML-3471)
 pyopenssl>=23
-bokeh~=2.4, >=2.4.2
 plotly~=5.23
 # To support python 3.11, google-cloud-bigquery requires grpcio>=1.49.1 (protobuf 4), which is incompatible with the
 # grpcio and protobuf versions required by frames<0.13 and kfp<2
@@ -45,8 +44,12 @@ mlflow~=2.16
 databricks-sdk~=0.20.0
 # sqlalchemy version should be aligned with mlrun-api due to common use with the model monitoring database
 sqlalchemy~=1.4
-dask~=2023.12.1
-distributed~=2023.12.1
+# retaining old dask for compatibility with kfp 1.8
+dask~=2023.12.1; python_version < "3.11"
+distributed~=2023.12.1; python_version < "3.11"
+# new dask requires newer cloudpickle which is not compatible with kfp 1.8
+dask~=2024.12.1; python_version >= "3.11"
+distributed~=2024.12.1; python_version >= "3.11"
 taos-ws-py==0.3.2
 taoswswrap~=0.3.0
 snowflake-connector-python~=3.7

@@ -166,7 +166,9 @@ class _ApplicationErrorHandler(StepToDict):
             "Endpoint ID": event.body.endpoint_id,
             "Application Class": event.body.application_name,
             "Error": "".join(
-                traceback.format_exception(None, event.error, event.error.__traceback__)
+                traceback.format_exception(
+                    None, value=event.error, tb=event.error.__traceback__
+                )
             ),
             "Timestamp": event.timestamp,
         }

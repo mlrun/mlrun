@@ -289,7 +289,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
         # this is mainly for tests with nop db
         # in normal use cases if no project is found we will get an error
         if project:
-            project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
             # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
             mlrun.projects.pipelines.enrich_function_object(
                 project, runtime, copy_function=False, try_auto_mount=False

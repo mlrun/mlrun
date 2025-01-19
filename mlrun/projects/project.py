@@ -1968,8 +1968,8 @@ class MlrunProject(ModelObj):
         document_loader_spec = document_loader_spec or DocumentLoaderSpec()
         if not document_loader_spec.download_object and upload:
             raise ValueError(
-                "This document loader expects direct links/URLs and does not support file uploads. "
-                "Either set download_object=True or set upload=False"
+                "The document loader is configured to not support downloads but the upload flag is set to True."
+                "Either set loader.download_object=True or set upload=False"
             )
         doc_artifact = DocumentArtifact(
             key=key,

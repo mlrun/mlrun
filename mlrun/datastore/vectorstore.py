@@ -50,7 +50,11 @@ def _extract_collection_name(vectorstore: "VectorStore") -> str:  # noqa: F821
 
     if type(vectorstore).__name__ == "PineconeVectorStore":
         try:
-            url = vectorstore._index._config.host
+            url = (
+                vectorstore._index.config.host
+                if hasattr(vectorstore._index, "config")
+                else vectorstore._index._config.host
+            )
             index_name = url.split("//")[1].split("-")[0]
             return index_name
         except Exception:
@@ -267,6 +271,9 @@ class VectorStoreCollection:
                     DocumentArtifact.METADATA_SOURCE_KEY: {"$eq": artifact.get_source()}
                 }
                 self._collection_impl.delete(filter=filter)
+            elif store_class == "mongodbatlasvectorsearch":
+                filter = {DocumentArtifact.METADATA_SOURCE_KEY: artifact.get_source()}
+                self._collection_impl.collection.delete_many(filter=filter)
             elif (
                 hasattr(self._collection_impl, "delete")
                 and "filter"

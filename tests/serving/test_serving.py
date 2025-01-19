@@ -819,7 +819,7 @@ def test_updating_model():
     resp = server.test("/v2/models/my/infer", testdata)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
-    with patch("mlrun.utils.logger.info") as mock_warning:
+    with patch("mlrun.utils.helpers.logger.info") as mock_warning:
         # update the model
         fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=200))
         mock_warning.assert_called_with("Model my already exists, updating it.")

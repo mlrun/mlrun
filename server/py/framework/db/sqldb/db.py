@@ -3015,7 +3015,10 @@ class SQLDB(DBInterface):
         project_summaries = query.all()
         project_summaries_results = []
         for project_summary in project_summaries:
-            project_summary.summary["updated"] = project_summary.updated
+            # project_summary.updated is timezone naive, make it utc
+            project_summary.summary["updated"] = project_summary.updated.replace(
+                tzinfo=timezone.utc
+            )
             project_summaries_results.append(
                 mlrun.common.schemas.ProjectSummary(**project_summary.summary)
             )
@@ -5512,6 +5515,9 @@ class SQLDB(DBInterface):
                     tree=model_endpoint_record.model.full_object.get(
                         "metadata", {}
                     ).get("tree"),
+                    uid=model_endpoint_record.model.full_object.get("metadata", {}).get(
+                        "uid"
+                    ),
                 ),
             )
 
@@ -5903,7 +5909,10 @@ class SQLDB(DBInterface):
         self._delete(session, AlertConfig, project=project, name=name)
 
     def list_alerts(
-        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
+        self,
+        session,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         query = self._query(session, AlertConfig)
 
@@ -5925,6 +5934,8 @@ class SQLDB(DBInterface):
                 alert,
                 state=alert_state,
             )
+            if exclude_updated:
+                alert.updated = None
             alerts.append(alert)
         return alerts
 
@@ -6433,6 +6444,24 @@ class SQLDB(DBInterface):
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()
         ]
+
+    def get_alert_activation(
+        self,
+        session,
+        activation_id: int,
+    ) -> mlrun.common.schemas.AlertActivation:
+        alert_activation_record = (
+            self._query(session, AlertActivation)
+            .filter(AlertActivation.id == activation_id)
+            .one_or_none()
+        )
+        if not alert_activation_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found: activation_id={activation_id}"
+            )
+        return self._transform_alert_activation_record_to_scheme(
+            alert_activation_record
+        )
 
     @staticmethod
     def _transform_alert_activation_record_to_scheme(

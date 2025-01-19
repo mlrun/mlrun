@@ -43,13 +43,13 @@ class DocumentLoaderSpec(ModelObj):
 
     """
 
-    _dict_fields = ["loader_class_name", "src_name", "kwargs"]
+    _dict_fields = ["loader_class_name", "src_name", "download_object", "kwargs"]
 
     def __init__(
         self,
         loader_class_name: str = "langchain_community.document_loaders.TextLoader",
         src_name: str = "file_path",
-        download_object: bool = False,
+        download_object: bool = True,
         kwargs: Optional[dict] = None,
     ):
         """

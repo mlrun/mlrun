@@ -57,6 +57,7 @@ async def store_alert(
 @router.get(
     "/{name}",
     response_model=mlrun.common.schemas.AlertConfig,
+    response_model_exclude_none=True,
 )
 @inject
 async def get_alert(
@@ -79,7 +80,11 @@ async def get_alert(
     )
 
 
-@router.get("", response_model=list[mlrun.common.schemas.AlertConfig])
+@router.get(
+    "",
+    response_model=list[mlrun.common.schemas.AlertConfig],
+    response_model_exclude_none=True,
+)
 @inject
 async def list_alerts(
     request: Request,

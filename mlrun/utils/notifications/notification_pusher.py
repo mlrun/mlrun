@@ -200,7 +200,7 @@ class NotificationPusher(_NotificationPusherBase):
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
                         traceback=traceback.format_exception(
-                            etype=type(result),
+                            result,
                             value=result,
                             tb=result.__traceback__,
                         ),
@@ -412,8 +412,17 @@ class NotificationPusher(_NotificationPusherBase):
         sent_time: typing.Optional[datetime.datetime] = None,
         reason: typing.Optional[str] = None,
     ):
-        if run_state not in runtimes_constants.RunStates.terminal_states():
-            # we want to update the notification status only if the run is in a terminal state for BC
+        # Skip update the notification state if the following conditions are met:
+        # 1. the run is not in a terminal state
+        # 2. the when contains only one state (which is the current state)
+        # Skip updating because currently each notification has only one row in the db, even if it has multiple when.
+        # This means that if the notification is updated to sent for running state for example, it will not send for
+        # The terminal state
+        # TODO: Change this behavior after implementing ML-8723
+        if (
+            run_state not in runtimes_constants.RunStates.terminal_states()
+            and len(notification.when) > 1
+        ):
             logger.debug(
                 "Skip updating notification status - run not in terminal state",
                 run_uid=run_uid,
@@ -628,7 +637,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
         if has_workflow_url:
             url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
         else:
-            url = mlrun.utils.helpers.get_ui_url(project)
+            url = mlrun.utils.helpers.get_runs_url(project)
         html = ""
         if url:
             html = (

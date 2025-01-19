@@ -763,7 +763,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
         project = project or config.default_project
-
+        logger.info("Yaellll in httpdb")
         response = self.api_call(
             "POST",
             path=f"projects/{project}/runs/{uid}/push-notifications",

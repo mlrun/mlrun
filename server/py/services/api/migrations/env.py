@@ -18,6 +18,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from mlrun import mlconf
+from mlrun.utils import logger
 
 from framework.db.sqldb import models
 
@@ -88,11 +89,18 @@ def run_migrations_online():
         # Kill all processes connected to the 'mlrun' database except the current connection
         connection_ids = connection.execute(
             sqlalchemy.sql.text(
-                "SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST where DB='mlrun' AND ID != CONNECTION_ID();"
+                "SELECT ID, USER, HOST FROM INFORMATION_SCHEMA.PROCESSLIST where DB='mlrun' AND ID != CONNECTION_ID();"
             )
         ).fetchall()
-        for connection_id in connection_ids:
-            connection.execute(sqlalchemy.sql.text(f"KILL {connection_id[0]};"))
+        for connection_id, user, host in connection_ids:
+            logger.warning(
+                "Killing DB connection.",
+                connection_id=connection_id,
+                user=user,
+                host=host,
+                db="mlrun",
+            )
+            connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))
 
         context.configure(connection=connection, target_metadata=target_metadata)
 

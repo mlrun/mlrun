@@ -32,6 +32,19 @@ def resolve_client_default_kfp_image(
     elif project and project.spec.default_image:
         return project.spec.default_image
 
+    # Determines the default KFP image based on the engine type and client version:
+    # - For engine=KFP or REMOTE_KFP:
+    #     - By default, use mlrun.mlconf.kfp_image (e.g. "mlrun/mlrun-kfp").
+    #     - But for clients <1.8.0 (unless "unstable"), revert to mlrun.mlconf.default_base_image
+    #     (e.g. "mlrun/mlrun") for backward compatibility.
+    # - For engine=LOCAL or REMOTE: use mlrun.mlconf.default_base_image.
+    #
+    # This function is used in:
+    # 1) get_client_spec(...) => The engine is KFP, older clients still get "mlrun/mlrun",
+    #       and newer ones get "mlrun/mlrun-kfp".
+    # 2) submit_workflow(...) => Chooses the correct runner image for workflows.
+    #       (server side also uses "mlrun/mlrun-kfp").
+
     pre_kfp_image_mlrun_version = False
     if client_version and "unstable" not in client_version.lower():
         try:

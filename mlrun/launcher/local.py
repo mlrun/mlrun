@@ -281,5 +281,5 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         # once the run is completed, and we can just push the notifications.
         # Only push from jupyter, not from the CLI.
         # "handler" and "dask" kinds are special cases of local runs which don't set local=True
-        if self._is_run_local or runtime.kind in ["handler", "dask"]:
+        if self._is_run_local or runtime.kind in ["handler"]:
             mlrun.utils.notifications.NotificationPusher([runobj]).push()

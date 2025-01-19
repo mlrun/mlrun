@@ -80,6 +80,15 @@ class Runs(
             iter=iter,
         )
 
+        run_notifications = data.get("spec", {}).get("notifications", [])
+        if run_notifications:
+            services.api.crud.Notifications().store_run_notifications(
+                db_session,
+                run_notifications,
+                uid,
+                project,
+            )
+
     def update_run(
         self,
         db_session: sqlalchemy.orm.Session,

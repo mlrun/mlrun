@@ -344,6 +344,7 @@ class BaseLauncher(abc.ABC):
         for notification in notifications:
             notification.validate_notification()
 
+        logger.info("Yaelllll!!!", notifications=notifications)
         run.spec.notifications = notifications
 
         state_thresholds = (

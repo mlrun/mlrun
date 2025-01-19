@@ -47,6 +47,7 @@ class RunNotificationPusher(NotificationPusher):
         #       we should move all the notifications classes from the client to the server and also
         #       create new function on the NotificationBase class for resolving the default params.
         #       After that we can remove this function.
+        logger.info("Yaellllll In resolve_notifications_default_params")
         return {
             notification_module.NotificationTypes.console: {},
             notification_module.NotificationTypes.git: {},
@@ -58,16 +59,19 @@ class RunNotificationPusher(NotificationPusher):
 
     @staticmethod
     def get_mail_notification_default_params(refresh=False):
-        if (
-            not refresh
-            and RunNotificationPusher.mail_notification_default_params is not None
-        ):
+        logger.info("Yaellllll In get_mail_notification_default_params")
+        if not refresh and not RunNotificationPusher.mail_notification_default_params:
+            logger.info("Yaelllll in if")
             return RunNotificationPusher.mail_notification_default_params
+        logger.info("Yaellll after if")
 
         mail_notification_default_params = (
             RunNotificationPusher._get_mail_notifications_default_params_from_secret()
         )
-
+        logger.info(
+            "Yaellll mail notifications params!!",
+            mail_notification_default_params=mail_notification_default_params,
+        )
         RunNotificationPusher.mail_notification_default_params = (
             mail_notification_default_params
         )

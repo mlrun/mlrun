@@ -6685,7 +6685,11 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunNotFoundError(
                 f"Run not found: uid={run_uid}, project={project}"
             )
-
+        self.delete_run_notifications(
+            session,
+            run_uid=run.uid,
+            project=project,
+        )
         self._store_notifications(session, Run, notification_objects, run.id, project)
 
     def store_alert_notifications(

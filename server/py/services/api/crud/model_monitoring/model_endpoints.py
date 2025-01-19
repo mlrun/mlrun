@@ -1362,7 +1362,7 @@ class ModelMonitoringResourcesDeleter:
     def delete(self) -> None:
         if not self._stream_profile or not self._tsdb_profile:
             logger.debug(
-                "No model monitoring for the project",
+                "No model monitoring resources were found in this project",
                 project_name=self._project,
             )
             return

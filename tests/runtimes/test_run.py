@@ -261,7 +261,6 @@ def test_with_limits():
     )
 
 
-
 def test_new_function_override_default_image_pull_secret():
     mlrun.mlconf.function.spec.image_pull_secret.default = "my_secret"
     runtime = _get_runtime()

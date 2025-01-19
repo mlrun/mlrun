@@ -188,7 +188,7 @@ class _V3IORecordsChecker:
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
+                table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
         else:
             # TDEngine
@@ -1753,7 +1753,7 @@ class TestBatchServingWithSampling(TestMLRunSystem):
     ) -> None:
         if self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
-                table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
+                table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
 
         else:

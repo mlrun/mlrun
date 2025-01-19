@@ -2292,13 +2292,13 @@ mlflow-skinny==2.19.0 \
     --hash=sha256:55a464082ecd48961f73f9a0a58b8d44bf2e77bd32632998f1dffd43ef48623c \
     --hash=sha256:72c652545460db09dc5716241d2fcd9a211b7875444632fbe2d0b62a1f057694
     # via mlflow
-mlrun-pipelines-kfp-common==0.3.5 \
-    --hash=sha256:695fc65394a986864bc89c05ce0c7ad45eeef94044a05b0bc5e3d4be360ac312 \
-    --hash=sha256:8bfaec8692445585f320271bf906cf0556927a820aa42e6f06b8cb682c5e1c20
+mlrun-pipelines-kfp-common==0.3.6 \
+    --hash=sha256:6967c9b40df43176412bd5334aff5b9dc1d32d56821a3605c55ceabde5f5deb1 \
+    --hash=sha256:f80d4ae8ffd2faa5a457ba3cd23b91cb10ebec0fa15d50319092498f9aa806c4
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.3.5 ; python_full_version < '3.11' \
-    --hash=sha256:1fce92076ecebb3fad93442fc39eef1fccfb38d7dae6973476fdb82b9f105ecc \
-    --hash=sha256:318ce848e6678e0649dab8e56608fb4093e5752a0835d189ce3d835ebae89379
+mlrun-pipelines-kfp-v1-8==0.3.6 ; python_full_version < '3.11' \
+    --hash=sha256:7912aa00b9acc4de5fef6273d2be5b5bf5b2589bbc01c04b5397ebafef29021c \
+    --hash=sha256:b5bd94d27be5a0f15ee55040b6e917bdecf028bfd2d6cdcbc309e74f2a1de9b7
     # via
     #   -r dockerfiles/mlrun-api/requirements.txt
     #   -r dockerfiles/mlrun-kfp/requirements.txt
@@ -4272,9 +4272,9 @@ v3io-frames==0.10.14 ; python_full_version < '3.11' \
     # via
     #   -r requirements.txt
     #   storey
-v3io-frames==0.13.2 ; python_full_version >= '3.11' \
-    --hash=sha256:6a9a449d4d3cdfe509922ed6f76fdbb7ffb5f84c87d4a26319faa73ae33ba6c2 \
-    --hash=sha256:e7c6dbd273ae6757a5879436f05f975e310d0ac7016d339034f7ff549e8a2ff5
+v3io-frames==0.13.3 ; python_full_version >= '3.11' \
+    --hash=sha256:b453923cd0e3c3bba9e99d84a8196cc953ae92563a0896dad5b2a49f525ed2e6 \
+    --hash=sha256:e27a02a49af504b87fc3deb563335b863a649d477ee7378888088392cfea9277
     # via
     #   -r requirements.txt
     #   storey

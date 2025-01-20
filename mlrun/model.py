@@ -768,15 +768,12 @@ class Notification(ModelObj):
         """
         Validates the notification parameters for the current notification instance.
 
-        Args:
-            default_notification_params (dict, optional): A dictionary of default notification
-                                                          parameters that can be used to enrich
-                                                          the existing params. Defaults to None.
-            skip_empty_check (bool, optional): A flag indicating whether to skip validation for
-                                                required fields that are empty. Defaults to False.
-                                                Set to True only on init of the object on the client side.
+        :param default_notification_params: A dictionary of default notification
+            parameters that can be used to enrich the existing params. Defaults to None.
+        :param skip_empty_check: A flag indicating whether to skip validation for
+            required fields that are empty. Defaults to False.
+            Set to True only on init of the object on the client side.
         """
-
         default_notification_params = default_notification_params or {}
         notification_type = mlrun.utils.notifications.NotificationTypes(self.kind)
         notification_class = notification_type.get_notification()

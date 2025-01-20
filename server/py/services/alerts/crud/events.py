@@ -88,7 +88,11 @@ class Events(
                 project=project,
                 event_name=event_name,
                 entity=event_data.entity.ids[0],
-                num_of_alerts=len(self._cache.get((project, event_name, event_data.entity.ids[0]), set())),
+                num_of_alerts=len(
+                    self._cache.get(
+                        (project, event_name, event_data.entity.ids[0]), set()
+                    )
+                ),
             )
             for alert_id in self._cache.get(
                 (project, event_name, event_data.entity.ids[0]), set()

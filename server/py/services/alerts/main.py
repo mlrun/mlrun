@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import http
 from typing import Optional, Union
 
 import fastapi
@@ -256,7 +257,7 @@ class Service(framework.service.Service):
             services.alerts.crud.Alerts().reset_alert, db_session, project, name
         )
 
-    async def post_event(
+    async def process_event(
         self,
         request: fastapi.Request,
         project: str,
@@ -299,6 +300,9 @@ class Service(framework.service.Service):
         self._logger.debug(
             "Got event", project=project, name=name, id=event_data.entity.ids[0]
         )
+
+        if not services.alerts.crud.Events().is_valid_event(project, event_data):
+            raise fastapi.HTTPException(status_code=http.HTTPStatus.BAD_REQUEST.value)
 
         await run_in_threadpool(
             services.alerts.crud.Events().process_event,

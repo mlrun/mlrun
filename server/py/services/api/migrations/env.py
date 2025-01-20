@@ -86,18 +86,39 @@ def run_migrations_online():
         )
 
     with connectable.connect() as connection:
-        # Kill all processes connected to the 'mlrun' database except the current connection
+        # Kill all processes connected to the 'mlrun' that have an acquired lock.
         connection_ids = connection.execute(
             sqlalchemy.sql.text(
-                "SELECT ID, USER, HOST FROM INFORMATION_SCHEMA.PROCESSLIST where DB='mlrun' AND ID != CONNECTION_ID();"
+                """SELECT
+                t.PROCESSLIST_ID,
+                t.PROCESSLIST_USER,
+                t.PROCESSLIST_HOST,
+                GROUP_CONCAT(DISTINCT ml.OBJECT_NAME ORDER BY ml.OBJECT_NAME SEPARATOR ', ') AS locked_objects
+            FROM
+                performance_schema.metadata_locks AS ml
+            INNER JOIN
+                performance_schema.threads AS t
+                ON ml.OWNER_THREAD_ID = t.THREAD_ID
+            WHERE
+                t.PROCESSLIST_ID <> CONNECTION_ID()
+                AND ml.OBJECT_SCHEMA = 'mlrun'
+                AND ml.LOCK_STATUS = 'GRANTED'
+            GROUP BY
+                t.PROCESSLIST_ID,
+                t.PROCESSLIST_USER,
+                t.PROCESSLIST_HOST
+            ORDER BY
+                t.PROCESSLIST_ID;
+            """
             )
         ).fetchall()
-        for connection_id, user, host in connection_ids:
+        for connection_id, user, host, locked_objects in connection_ids:
             logger.warning(
-                "Killing DB connection.",
+                "Killing DB connection with acquired lock.",
                 connection_id=connection_id,
                 user=user,
                 host=host,
+                locked_objects=locked_objects,
                 db="mlrun",
             )
             connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))

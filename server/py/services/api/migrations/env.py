@@ -102,6 +102,7 @@ def run_migrations_online():
             WHERE
                 t.PROCESSLIST_ID <> CONNECTION_ID()
                 AND ml.OBJECT_SCHEMA = 'mlrun'
+                AND ml.OBJECT_NAME != 'alembic_version'
                 AND ml.LOCK_STATUS = 'GRANTED'
             GROUP BY
                 t.PROCESSLIST_ID,

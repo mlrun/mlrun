@@ -21,6 +21,7 @@ import aiosmtplib
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.utils.helpers
+import mlrun.utils.logger
 import mlrun.utils.notifications.notification.base as base
 import mlrun.utils.regex
 
@@ -47,6 +48,7 @@ class MailNotification(base.NotificationBase):
     def validate_params(cls, params, skip_empty_check=False):
         cls._validate_emails(params)
         if skip_empty_check:
+            mlrun.utils.logger.debug("Skipping emptiness check for notification params")
             return
         for required_param in cls.required_params:
             if required_param not in params:

@@ -21,6 +21,7 @@ import aiohttp
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.lists
+import mlrun.utils.logger
 
 from .base import NotificationBase
 
@@ -41,6 +42,7 @@ class GitNotification(NotificationBase):
             or params.get("GITHUB_TOKEN", None)
         )
         if skip_empty_check:
+            mlrun.utils.logger.debug("Skipping emptiness check for notification params")
             return
 
         if not git_repo:

@@ -20,6 +20,7 @@ import aiohttp
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.utils.helpers
+import mlrun.utils.logger
 
 from .base import NotificationBase
 
@@ -32,6 +33,7 @@ class WebhookNotification(NotificationBase):
     @classmethod
     def validate_params(cls, params, skip_empty_check=False):
         if skip_empty_check:
+            mlrun.utils.logger.debug("Skipping emptiness check for notification params")
             return
         url = params.get("url", None)
         if not url:

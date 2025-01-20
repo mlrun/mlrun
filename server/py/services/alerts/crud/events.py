@@ -28,8 +28,9 @@ class Events(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     # we cache alert names based on project and event name as key
-    # (project, name) -> set[alert_id]
-    _cache: dict[(str, str), set[int]] = {}
+    # (project, name, entity_id) -> set[alert_id]
+    # TODO: Rethink the cache structure once a single alert supports more than a single id
+    _cache: dict[(str, str, str), set[int]] = {}
     cache_initialized = False
 
     @staticmethod
@@ -42,8 +43,8 @@ class Events(
 
         return bool(event_data.is_valid())
 
-    def add_event_configuration(self, project, event_kind, alert_id):
-        self._cache.setdefault((project, event_kind), set()).add(alert_id)
+    def add_event_configuration(self, project, event_kind, alert_id, entity_id):
+        self._cache.setdefault((project, event_kind, entity_id), set()).add(alert_id)
 
     def remove_event_configuration(self, project, event_kind, alert_id):
         alerts = self._cache.get((project, event_kind), set())
@@ -81,7 +82,7 @@ class Events(
             return
 
         try:
-            for alert_id in self._cache.get((project, event_name), set()):
+            for alert_id in self._cache.get((project, event_name, event_data.entity.ids[0]), set()):
                 services.alerts.crud.Alerts().process_event(
                     session, alert_id, event_data
                 )

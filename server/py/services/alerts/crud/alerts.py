@@ -100,7 +100,7 @@ class Alerts(
 
         for event_kind in new_alert.trigger.events:
             services.alerts.crud.Events().add_event_configuration(
-                project, event_kind, new_alert.id
+                project, event_kind, new_alert.id, new_alert.entities.ids[0]
             )
 
         # if the alert already exists we should check if it should be reset or not
@@ -289,6 +289,7 @@ class Alerts(
             last_updated=event_data.timestamp,
             obj=state_obj,
             active=active,
+            alert_id=alert.id,
         )
         return keep_cache
 
@@ -297,7 +298,7 @@ class Alerts(
         if not cls._alert_cache:
             cls._alert_cache = framework.utils.lru_cache.LRUCache(
                 framework.utils.singletons.db.get_db().get_alert_by_id,
-                maxsize=1000,
+                maxsize=10000,
                 ignore_args_for_hash=[0],
             )
 
@@ -308,7 +309,7 @@ class Alerts(
         if not cls._alert_state_cache:
             cls._alert_state_cache = framework.utils.lru_cache.LRUCache(
                 framework.utils.singletons.db.get_db().get_alert_state_dict,
-                maxsize=1000,
+                maxsize=10000,
                 ignore_args_for_hash=[0],
             )
         return cls._alert_state_cache
@@ -318,7 +319,7 @@ class Alerts(
             # Populate events cache
             for event_kind in alert.trigger.events:
                 services.alerts.crud.Events().add_event_configuration(
-                    alert.project, event_kind, alert.id
+                    alert.project, event_kind, alert.id, alert.entities.ids[0]
                 )
             # Populate the alert and alert state caches
             self._get_alert_by_id_cached()(session, alert.id)
@@ -450,7 +451,7 @@ class Alerts(
                 alert=alert,
             )
         framework.utils.singletons.db.get_db().store_alert_state(
-            session, project, name, last_updated=None
+            session, project, name, last_updated=None, alert_id=alert.id
         )
         self._get_alert_state_cached().cache_remove(session, alert.id)
         self._clear_alert_states(alert)

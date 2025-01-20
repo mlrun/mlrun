@@ -29,6 +29,7 @@ list_header = [
     "uid",
     "iter",
     "start",
+    "end",
     "state",
     "kind",
     "name",
@@ -58,6 +59,7 @@ class RunList(list):
                 get_in(run, "metadata.uid", ""),
                 get_in(run, "metadata.iteration", ""),
                 get_in(run, "status.start_time", ""),
+                get_in(run, "status.end_time", ""),
                 get_in(run, "status.state", ""),
                 get_in(run, "step_kind", get_in(run, "kind", "")),
                 get_in(run, "metadata.name", ""),
@@ -103,7 +105,8 @@ class RunList(list):
             return self._df
         rows = self.to_rows(extend_iterations=extend_iterations)
         df = pd.DataFrame(rows[1:], columns=rows[0])  # .set_index('iter')
-        df["start"] = pd.to_datetime(df["start"])
+        for time_column in ["start", "end"]:
+            df[time_column] = pd.to_datetime(df[time_column])
 
         if flat:
             df = flatten(df, "labels")

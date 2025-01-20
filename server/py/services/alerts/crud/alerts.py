@@ -63,7 +63,7 @@ class Alerts(
 
             for kind in existing_alert.trigger.events:
                 services.alerts.crud.Events().remove_event_configuration(
-                    project, kind, existing_alert.id
+                    project, kind, existing_alert.id, existing_alert.entities.ids[0]
                 )
 
             # preserve the original creation time and id of the alert so that modifying the alert does not change them
@@ -173,7 +173,7 @@ class Alerts(
 
         for kind in alert.trigger.events:
             services.alerts.crud.Events().remove_event_configuration(
-                project, kind, alert.id
+                project, kind, alert.id, alert.entities.ids[0]
             )
 
         framework.utils.singletons.db.get_db().delete_alert(session, project, name)

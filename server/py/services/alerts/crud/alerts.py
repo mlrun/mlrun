@@ -131,12 +131,19 @@ class Alerts(
         self,
         session: sqlalchemy.orm.Session,
         project: typing.Optional[typing.Union[str, list[str]]] = None,
+        exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         project = project or mlrun.mlconf.default_project
-        return framework.utils.singletons.db.get_db().list_alerts(session, project)
+        return framework.utils.singletons.db.get_db().list_alerts(
+            session, project, exclude_updated
+        )
 
-    def get_enriched_alert(
-        self, session: sqlalchemy.orm.Session, project: str, name: str
+    def get_alert(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        exclude_updated: bool = False,
     ):
         alert, state = framework.utils.singletons.db.get_db().get_alert(
             session, project, name, with_state=True
@@ -147,16 +154,9 @@ class Alerts(
             )
 
         framework.utils.singletons.db.get_db().enrich_alert(session, alert, state=state)
+        if exclude_updated:
+            alert.updated = None
         return alert
-
-    def get_alert(
-        self,
-        session: sqlalchemy.orm.Session,
-        project: str,
-        name: str,
-    ) -> mlrun.common.schemas.AlertConfig:
-        project = project or mlrun.mlconf.default_project
-        return framework.utils.singletons.db.get_db().get_alert(session, project, name)
 
     def delete_alert(
         self,

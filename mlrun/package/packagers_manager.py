@@ -667,16 +667,9 @@ class PackagersManager:
                         data_item=data_item,
                         instructions={},
                     )
-                except Exception as exception:
+                except Exception:
                     # Could not unpack as the reduced type hint, collect the exception and go to the next one:
-                    exception_string = "".join(
-                        traceback.format_exception(
-                            etype=type(exception),
-                            value=exception,
-                            tb=exception.__traceback__,
-                        )
-                    )
-                    found_packagers.append((packager, exception_string))
+                    found_packagers.append((packager, traceback.format_exc()))
             # Reduce the type hint list and continue:
             possible_type_hints = TypeHintUtils.reduce_type_hint(
                 type_hint=possible_type_hints
@@ -692,15 +685,8 @@ class PackagersManager:
                 artifact_type=None,
                 instructions={},
             )
-        except Exception as exception:
-            exception_string = "".join(
-                traceback.format_exception(
-                    etype=type(exception),
-                    value=exception,
-                    tb=exception.__traceback__,
-                )
-            )
-            found_packagers.append((self._default_packager, exception_string))
+        except Exception:
+            found_packagers.append((self._default_packager, traceback.format_exc()))
 
         # The method did not return until this point, raise an error:
         raise MLRunPackageUnpackingError(

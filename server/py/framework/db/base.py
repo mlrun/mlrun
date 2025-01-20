@@ -895,7 +895,10 @@ class DBInterface(ABC):
 
     @abstractmethod
     def list_alerts(
-        self, session, project: typing.Optional[typing.Union[str, list[str]]] = None
+        self,
+        session,
+        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        exclude_updated: bool = False,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 
@@ -1040,6 +1043,14 @@ class DBInterface(ABC):
         offset: typing.Optional[int] = None,
         limit: typing.Optional[int] = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
+        pass
+
+    @abstractmethod
+    def get_alert_activation(
+        self,
+        session,
+        activation_id: int,
+    ) -> mlrun.common.schemas.AlertActivation:
         pass
 
     @abstractmethod

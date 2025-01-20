@@ -5022,6 +5022,27 @@ class HTTPRunDB(RunDBInterface):
             **kwargs,
         )
 
+    def get_alert_activation(
+        self,
+        project,
+        activation_id,
+    ) -> mlrun.common.schemas.AlertActivation:
+        """
+        Retrieve the alert activation by id
+
+        :param project: Project name for which the summary belongs.
+        :param activation_id: alert activation id.
+        :returns: alert activation object.
+        """
+        project = project or config.default_project
+
+        error = "get alert activation"
+        path = f"projects/{project}/alert-activations/{activation_id}"
+
+        response = self.api_call("GET", path, error)
+
+        return mlrun.common.schemas.AlertActivation(**response.json())
+
     def get_project_summary(
         self, project: Optional[str] = None
     ) -> mlrun.common.schemas.ProjectSummary:

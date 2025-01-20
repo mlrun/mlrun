@@ -1968,8 +1968,8 @@ class MlrunProject(ModelObj):
         document_loader_spec = document_loader_spec or DocumentLoaderSpec()
         if not document_loader_spec.download_object and upload:
             raise ValueError(
-                "This document loader expects direct links/URLs and does not support file uploads. "
-                "Either set download_object=True or set upload=False"
+                "The document loader is configured to not support downloads but the upload flag is set to True."
+                "Either set loader.download_object=True or set upload=False"
             )
         doc_artifact = DocumentArtifact(
             key=key,
@@ -2119,8 +2119,9 @@ class MlrunProject(ModelObj):
         """
         :param name:                   AlertConfig name.
         :param summary:                Summary of the alert, will be sent in the generated notifications
-        :param endpoints:              The endpoints from which to retrieve the metrics that the
-                                       alerts will be based on.
+        :param endpoints:              The endpoints from which metrics will be retrieved to configure the alerts.
+                                       This `ModelEndpointList` object obtained via the `list_model_endpoints`
+                                       method or created manually using `ModelEndpoint` objects.
         :param events:                 AlertTrigger event types (EventKind).
         :param notifications:          List of notifications to invoke once the alert is triggered
         :param result_names:           Optional. Filters the result names used to create the alert configuration,
@@ -2129,6 +2130,8 @@ class MlrunProject(ModelObj):
                                        For example:
                                        [`app1.result-*`, `*.result1`]
                                        will match "mep1.app1.result.result-1" and "mep1.app2.result.result1".
+                                       A specific result_name (not a wildcard) will always create a new alert
+                                       config, regardless of whether the result name exists.
         :param severity:               Severity of the alert.
         :param criteria:               When the alert will be triggered based on the
                                        specified number of events within the defined time period.
@@ -2139,6 +2142,11 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         matching_results = []
+        specific_result_names = [
+            result_name
+            for result_name in result_names
+            if result_name.count(".") == 3 and "*" not in result_name
+        ]
         alerts = []
         endpoint_ids = [endpoint.metadata.uid for endpoint in endpoints.endpoints]
         # using separation to group by endpoint IDs:
@@ -2162,7 +2170,14 @@ class MlrunProject(ModelObj):
                 existing_result_names=results_fqn_by_endpoint,
                 result_name_filters=result_names,
             )
-        for result_fqn in matching_results:
+        for specific_result_name in specific_result_names:
+            if specific_result_name not in matching_results:
+                logger.warning(
+                    f"The specific result name '{specific_result_name}' was"
+                    f" not found in the existing endpoint results. Adding alert configuration anyway."
+                )
+        alert_result_names = list(set(specific_result_names + matching_results))
+        for result_fqn in alert_result_names:
             alerts.append(
                 mlrun.alerts.alert.AlertConfig(
                     project=self.name,

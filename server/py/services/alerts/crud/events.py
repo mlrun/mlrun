@@ -82,6 +82,14 @@ class Events(
             return
 
         try:
+            # TODO: Remove log once the flow is stable
+            logger.debug(
+                "Processing alerts for event",
+                project=project,
+                event_name=event_name,
+                entity=event_data.entity.ids[0],
+                num_of_alerts=len(self._cache.get((project, event_name, event_data.entity.ids[0]), set())),
+            )
             for alert_id in self._cache.get(
                 (project, event_name, event_data.entity.ids[0]), set()
             ):

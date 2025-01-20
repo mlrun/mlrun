@@ -58,19 +58,19 @@ class RunNotificationPusher(NotificationPusher):
 
     @staticmethod
     def get_mail_notification_default_params(refresh=False):
-        logger.info("Yaellll in get_mail_notification_default_params")
+        # Check if the `refresh` flag is not set and the default mail notification parameters are already set.
+        # Ensure `mail_notification_default_params` is not None or empty,
+        # as an empty dictionary might indicate configuration changes we would like to reload.
+        # This avoids unnecessary re-fetching unless a refresh is explicitly requested.
         if (
             not refresh
             and RunNotificationPusher.mail_notification_default_params
         ):
-            logger.info("Yaellll in if")
             return RunNotificationPusher.mail_notification_default_params
 
-        logger.info("Yaellll after if")
         mail_notification_default_params = (
             RunNotificationPusher._get_mail_notifications_default_params_from_secret()
         )
-        logger.info("Yaellll default params", default=mail_notification_default_params)
 
         RunNotificationPusher.mail_notification_default_params = (
             mail_notification_default_params

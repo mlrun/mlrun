@@ -62,10 +62,7 @@ class RunNotificationPusher(NotificationPusher):
         # Ensure `mail_notification_default_params` is not None or empty,
         # as an empty dictionary might indicate configuration changes we would like to reload.
         # This avoids unnecessary re-fetching unless a refresh is explicitly requested.
-        if (
-            not refresh
-            and RunNotificationPusher.mail_notification_default_params
-        ):
+        if not refresh and RunNotificationPusher.mail_notification_default_params:
             return RunNotificationPusher.mail_notification_default_params
 
         mail_notification_default_params = (

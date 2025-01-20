@@ -1730,8 +1730,9 @@ class HTTPRunDB(RunDBInterface):
         self, project: str, schedule: mlrun.common.schemas.ScheduleInput
     ):
         """The create_schedule functionality has been deprecated."""
-        raise mlrun.errors.MLRunBadRequestError("The create_schedule functionality has been deprecated.")
-
+        raise mlrun.errors.MLRunBadRequestError(
+            "The create_schedule functionality has been deprecated."
+        )
 
     def update_schedule(
         self, project: str, name: str, schedule: mlrun.common.schemas.ScheduleUpdate

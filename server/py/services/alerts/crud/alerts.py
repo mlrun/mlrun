@@ -193,6 +193,7 @@ class Alerts(
         if not self._event_entity_matches(alert.entities, event_data.entity):
             return
 
+        # TODO: Remove the logs in this function once the flow is stable
         log_kwargs = {
             "alert_id": alert_id,
             "alert_name": alert.name,
@@ -281,6 +282,7 @@ class Alerts(
         active = False
         state["count"] += 1
 
+        # TODO: Remove the logs in this function once the flow is stable
         log_kwargs = {
             "alert_id": alert.id,
             "alert_name": alert.name,

@@ -789,7 +789,7 @@ class Spark3Runtime(KubejobRuntime):
         Spark itself uses the spec.[executor|driver].cores parameter to set the parallelism of tasks and cores
         assigned to each task within the pod. This function sets the .cores parameters for the job executed.
 
-        See https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/issues/581 for a discussion about those
+        See https://github.com/kubeflow/spark-operator/issues/581 for a discussion about those
         parameters and their meaning in Spark operator.
 
         :param executor_cores: Number of cores to use for executor (spark.executor.cores)

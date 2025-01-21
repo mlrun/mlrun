@@ -193,6 +193,19 @@ class Alerts(
         if not self._event_entity_matches(alert.entities, event_data.entity):
             return
 
+        # TODO: Remove the logs in this function once the flow is stable
+        log_kwargs = {
+            "alert_id": alert_id,
+            "alert_name": alert.name,
+            "event_kind": event_data.kind,
+            "entity": event_data.entity.ids[0],
+            "project": event_data.entity.project,
+            "session": session.hash_key,
+        }
+        logger.debug(
+            "Processing event",
+            **log_kwargs,
+        )
         state_obj = self._states.get(alert.id, {"event_timestamps": []})
         state_obj["event_timestamps"].append(event_data.timestamp)
 
@@ -204,8 +217,16 @@ class Alerts(
         send_notification = self._should_send_notification(alert, state_obj)
         update_state_cache = True
         if send_notification:
+            logger.debug(
+                "Handling notification for alert",
+                **log_kwargs,
+            )
             update_state_cache = self._handle_notification(
                 session, alert, state, state_obj, event_data
+            )
+            logger.debug(
+                "After handling notification for alert",
+                **log_kwargs,
             )
 
         if update_state_cache:
@@ -261,9 +282,21 @@ class Alerts(
         active = False
         state["count"] += 1
 
+        # TODO: Remove the logs in this function once the flow is stable
+        log_kwargs = {
+            "alert_id": alert.id,
+            "alert_name": alert.name,
+            "event_kind": event_data.kind,
+            "entity": event_data.entity.ids[0],
+            "project": event_data.entity.project,
+            "session": session.hash_key,
+        }
+
         if alert.reset_policy == "auto":
+            logger.debug("Resetting alert before sending notification", **log_kwargs)
             self.reset_alert(session, alert.project, alert.name, alert_id=alert.id)
             keep_cache = False
+        logger.debug("Storing alert activation", **log_kwargs)
         activation_id = services.alerts.crud.AlertActivation().store_alert_activation(
             session, alert, event_data
         )
@@ -273,7 +306,7 @@ class Alerts(
             state["active"] = True
             state_obj["last_activation_id"] = activation_id
 
-        logger.debug("Sending notifications for alert", name=alert.name)
+        logger.debug("Sending notifications for alert", **log_kwargs)
         notification_pusher.AlertNotificationPusher().push(
             alert,
             event_data,
@@ -281,6 +314,7 @@ class Alerts(
             activation_time=event_data.timestamp,
         )
 
+        logger.debug("Storing alert state after sending notification", **log_kwargs)
         framework.utils.singletons.db.get_db().store_alert_state(
             session,
             alert.project,

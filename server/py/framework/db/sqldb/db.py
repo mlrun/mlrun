@@ -6238,15 +6238,23 @@ class SQLDB(DBInterface):
         count: typing.Optional[int] = None,
         active: bool = False,
         obj: typing.Optional[dict] = None,
+        alert_id: typing.Optional[int] = None,
     ):
-        query = (
-            self._query(session, AlertState)
-            .join(AlertConfig, AlertConfig.id == AlertState.parent_id)
-            .filter(
-                AlertConfig.name == name,
-                AlertConfig.project == project,
+        if alert_id is not None:
+            query = self._query(session, AlertState).filter(
+                AlertState.parent_id == alert_id
             )
-        )
+        else:
+            # Get the alert id using the alert name and project
+            query = (
+                self._query(session, AlertState)
+                .join(AlertConfig, AlertConfig.id == AlertState.parent_id)
+                .filter(
+                    AlertConfig.name == name,
+                    AlertConfig.project == project,
+                )
+            )
+
         state = query.one_or_none()
         if state is None:
             raise mlrun.errors.MLRunNotFoundError(

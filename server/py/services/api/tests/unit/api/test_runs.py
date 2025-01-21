@@ -286,8 +286,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
 
     run_1_update_time = datetime.now(timezone.utc)
 
-    time.sleep(0.1)
-    run_1_end_time = datetime.now(timezone.utc)
+    run_1_end_time = run_1_update_time + timedelta(milliseconds=100)
 
     run_1_name = "run_1_name"
     run_1_uid = "run_1_uid"
@@ -316,9 +315,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
 
     run_2_update_time = datetime.now(timezone.utc)
 
-    time.sleep(0.1)
-
-    run_2_end_time = datetime.now(timezone.utc)
+    run_2_end_time = run_2_update_time + timedelta(milliseconds=100)
 
     run_2_uid = "run_2_uid"
     run_2_name = "run_2_name"

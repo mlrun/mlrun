@@ -86,7 +86,8 @@ def run_migrations_online():
         )
 
     with connectable.connect() as connection:
-        # This query retrieves information about database connections that have acquired locks on objects in the 'mlrun' schema,
+        # This query retrieves information about database connections that have acquired
+        # locks on objects in the 'mlrun' schema,
         # excluding the current connection and the 'alembic_version' table.
         # This is order to find and kill connections that might be blocking the migration.
         connection_ids = connection.execute(

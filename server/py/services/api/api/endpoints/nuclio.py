@@ -697,7 +697,7 @@ async def _get_api_gateways_urls_for_function(
         # TODO: optimise the way we request api gateways by filtering on Nuclio side
         return (
             [
-                api_gateway.spec.host
+                api_gateway.get_invoke_url()
                 for api_gateway in api_gateways.values()
                 if function_uri in api_gateway.get_function_names()
             ]

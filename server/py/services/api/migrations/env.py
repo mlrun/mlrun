@@ -86,7 +86,7 @@ def run_migrations_online():
         )
 
     with connectable.connect() as connection:
-        # Kill all processes connected to the 'mlrun' that have an acquired lock.
+        # Kill all processes connected to the 'mlrun' database that have an acquired lock.
         connection_ids = connection.execute(
             sqlalchemy.sql.text(
                 """SELECT

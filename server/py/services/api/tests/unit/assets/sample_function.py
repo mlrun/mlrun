@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import mlrun
-
-mlrun.mlconf.feature_store.flush_interval = None
-
 
 def test_func(context, p1):
     return p1 + 1

@@ -30,6 +30,7 @@ from ..utils import StorePrefix, is_relative_path
 from .base import Artifact, ArtifactSpec, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
+MODEL_OPTIONAL_SUFFIXES = [".tar.gz", ".pkl", ".bin", ".pickle"]
 
 
 class ModelArtifactSpec(ArtifactSpec):
@@ -426,7 +427,17 @@ def get_model(model_dir, suffix=""):
     model_file = ""
     model_spec = None
     extra_dataitems = {}
-    suffix = suffix or ".pkl"
+    default_suffix = ".pkl"
+
+    alternative_suffix = next(
+        (
+            optional_suffix
+            for optional_suffix in MODEL_OPTIONAL_SUFFIXES
+            if model_dir.lower().endswith(optional_suffix)
+        ),
+        None,
+    )
+
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
 
@@ -440,15 +451,19 @@ def get_model(model_dir, suffix=""):
             target, model_spec.model_target_file or model_spec.model_file
         )
         extra_dataitems = _get_extra(target, model_spec.extra_data)
-
+        suffix = suffix or default_suffix
     elif model_dir.lower().endswith(".yaml"):
         model_spec = _load_model_spec(model_dir)
         model_file = _get_file_path(model_dir, model_spec.model_file)
         extra_dataitems = _get_extra(model_dir, model_spec.extra_data)
-
-    elif model_dir.endswith(suffix):
+        suffix = suffix or default_suffix
+    elif suffix and model_dir.endswith(suffix):
+        model_file = model_dir
+    elif not suffix and alternative_suffix:
+        suffix = alternative_suffix
         model_file = model_dir
     else:
+        suffix = suffix or default_suffix
         dirobj = mlrun.datastore.store_manager.object(url=model_dir)
         model_dir_list = dirobj.listdir()
         if model_spec_filename in model_dir_list:

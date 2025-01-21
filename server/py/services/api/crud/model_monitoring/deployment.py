@@ -905,10 +905,16 @@ class MonitoringDeployment:
                 )
 
     def _delete_model_monitoring_stream_resources(
-        self, function_names: list[str], access_key: typing.Optional[str] = None
+        self,
+        function_names: list[str],
+        stream_profile: typing.Optional[
+            mlrun.datastore.datastore_profile.DatastoreProfile
+        ] = None,
+        access_key: typing.Optional[str] = None,
     ) -> None:
         """
         :param function_names: A list of functions that their resources should be deleted.
+        :param stream_profile: An optional datastore profile for the stream.
         :param access_key:     If the stream is V3IO, the access key is required.
         """
         logger.debug(
@@ -955,6 +961,7 @@ class MonitoringDeployment:
                     project=self.project,
                     function_name=function_name,
                     secret_provider=self._secret_provider,
+                    profile=stream_profile,
                 )
             )
 
@@ -1016,8 +1023,7 @@ class MonitoringDeployment:
 
             try:
                 kafka_client = kafka.KafkaAdminClient(
-                    bootstrap_servers=brokers,
-                    client_id=self.project,
+                    bootstrap_servers=brokers, client_id=self.project
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)

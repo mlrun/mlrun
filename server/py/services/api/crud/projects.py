@@ -36,7 +36,7 @@ import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
 import services.alerts.crud
 import services.api.crud
-import services.api.crud.model_monitoring.deployment
+import services.api.crud.model_monitoring
 import services.api.crud.runtimes.nuclio
 import services.api.utils.events.events_factory as events_factory
 import services.api.utils.singletons.scheduler
@@ -212,9 +212,9 @@ class Projects(
         # by Chief only.
         services.alerts.crud.Events().delete_project_alert_events(name)
 
-        # get model monitoring application names, important for deleting model monitoring resources
-        model_monitoring_deployment = (
-            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
+        # Initialize the MM deleter with data from the DB, before the relevant DB data is deleted
+        model_monitoring_deleter = (
+            services.api.crud.model_monitoring.ModelMonitoringResourcesDeleter(
                 project=name,
                 db_session=session,
                 auth_info=auth_info,
@@ -222,21 +222,8 @@ class Projects(
             )
         )
 
-        logger.debug(
-            "Getting monitoring applications to delete",
-            project_name=name,
-        )
-        model_monitoring_applications = (
-            model_monitoring_deployment._get_monitoring_application_to_delete(
-                delete_user_applications=True
-            )
-        )
-
         # delete db resources
-        logger.debug(
-            "Deleting project related resources",
-            project_name=name,
-        )
+        logger.debug("Deleting project related resources", project_name=name)
         framework.utils.singletons.db.get_db().delete_project_related_resources(
             session, name
         )
@@ -248,23 +235,8 @@ class Projects(
         )
         self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
-        try:
-            # delete model monitoring resources
-            logger.debug(
-                "Deleting model endpoints resources",
-                project_name=name,
-            )
-            services.api.crud.ModelEndpoints().delete_model_endpoints_resources(
-                project_name=name,
-                db_session=session,
-                model_monitoring_applications=model_monitoring_applications,
-                model_monitoring_access_key=model_monitoring_access_key,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to delete model monitoring resources", project_name=name
-            )
-            raise exc
+        # Delete MM resources
+        model_monitoring_deleter.delete()
 
         if mlrun.mlconf.is_api_running_on_k8s():
             logger.debug(

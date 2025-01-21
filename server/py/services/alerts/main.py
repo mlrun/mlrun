@@ -257,7 +257,7 @@ class Service(framework.service.Service):
             services.alerts.crud.Alerts().reset_alert, db_session, project, name
         )
 
-    async def post_event(
+    async def process_event(
         self,
         request: fastapi.Request,
         project: str,

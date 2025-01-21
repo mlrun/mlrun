@@ -19,6 +19,7 @@ import unittest.mock
 
 import fastapi.testclient
 import kubernetes
+import pytest
 import sqlalchemy.orm
 
 import mlrun
@@ -150,98 +151,81 @@ def test_client_spec(
     assert response_body["system_id"] == "12345"
 
 
+@pytest.mark.parametrize(
+    "server_version, client_version, python_version, expected_kfp, expected_dask_kfp",
+    [
+        # Server is "unstable"
+        (
+            "0.0.0+unstable",
+            None,
+            None,
+            "mlrun/mlrun-kfp:unstable",
+            "mlrun/ml-base:unstable",
+        ),
+        (
+            "0.0.0+unstable",
+            "",
+            "",
+            "mlrun/mlrun-kfp:unstable",
+            "mlrun/ml-base:unstable",
+        ),
+        # Server is "1.8.0"
+        ("1.8.0", "", "", "mlrun/mlrun-kfp:1.8.0", "mlrun/ml-base:1.8.0"),
+        ("1.8.0", "1.2.0", None, "mlrun/mlrun:1.2.0", "mlrun/ml-base:1.2.0"),
+        (
+            "1.8.0",
+            "1.3.0-rc20",
+            "3.7.13",
+            "mlrun/mlrun:1.3.0-rc20-py37",
+            "mlrun/ml-base:1.3.0-rc20-py37",
+        ),
+        (
+            "1.8.0",
+            "1.3.0-rc20",
+            "3.9.13",
+            "mlrun/mlrun:1.3.0-rc20",
+            "mlrun/ml-base:1.3.0-rc20",
+        ),
+        (
+            "1.8.0",
+            "test-integration",
+            "3.9.13",
+            "mlrun/mlrun-kfp:1.8.0",
+            "mlrun/ml-base:1.8.0",
+        ),
+    ],
+)
 def test_client_spec_response_based_on_client_version(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-) -> None:
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    server_version,
+    client_version,
+    python_version,
+    expected_kfp,
+    expected_dask_kfp,
+):
+    # Clear any cached spec to ensure fresh resolution each time
     services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    # Patch server version
     with unittest.mock.patch.object(
-        mlrun.utils.version.Version, "get", return_value={"version": "0.0.0+unstable"}
+        mlrun.utils.version.Version, "get", return_value={"version": server_version}
     ):
-        response = client.get("client-spec")
-        assert response.status_code == http.HTTPStatus.OK.value
-        response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun-kfp:unstable"
-        assert response_body["dask_kfp_image"] == "mlrun/ml-base:unstable"
+        # Build headers only if client_version / python_version are not None
+        headers = {}
+        if client_version is not None:
+            headers[mlrun.common.schemas.HeaderNames.client_version] = client_version
+        if python_version is not None:
+            headers[mlrun.common.schemas.HeaderNames.python_version] = python_version
 
-        response = client.get(
-            "client-spec",
-            headers={
-                mlrun.common.schemas.HeaderNames.client_version: "",
-                mlrun.common.schemas.HeaderNames.python_version: "",
-            },
-        )
+        # Send request
+        response = client.get("client-spec", headers=headers)
         assert response.status_code == http.HTTPStatus.OK.value
-        response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun-kfp:unstable"
-        assert response_body["dask_kfp_image"] == "mlrun/ml-base:unstable"
 
-    # clear cache for next scenario
-    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
-    # test response when the server has a version
-    with unittest.mock.patch.object(
-        mlrun.utils.version.Version, "get", return_value={"version": "1.8.0"}
-    ):
-        response = client.get(
-            "client-spec",
-            headers={
-                mlrun.common.schemas.HeaderNames.client_version: "",
-                mlrun.common.schemas.HeaderNames.python_version: "",
-            },
-        )
-        assert response.status_code == http.HTTPStatus.OK.value
+        # Validate response
         response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun-kfp:1.8.0"
-        assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.8.0"
-
-        # test clients older than 1.3.0, when client only provided client version
-        response = client.get(
-            "client-spec",
-            headers={
-                mlrun.common.schemas.HeaderNames.client_version: "1.2.0",
-            },
-        )
-        assert response.status_code == http.HTTPStatus.OK.value
-        response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun:1.2.0"
-        assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.2.0"
-
-        # test clients from 1.3.0+ and return based also on the client python version
-        response = client.get(
-            "client-spec",
-            headers={
-                mlrun.common.schemas.HeaderNames.client_version: "1.3.0-rc20",
-                mlrun.common.schemas.HeaderNames.python_version: "3.7.13",
-            },
-        )
-        assert response.status_code == http.HTTPStatus.OK.value
-        response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun:1.3.0-rc20-py37"
-        assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc20-py37"
-
-        response = client.get(
-            "client-spec",
-            headers={
-                mlrun.common.schemas.HeaderNames.client_version: "1.3.0-rc20",
-                mlrun.common.schemas.HeaderNames.python_version: "3.9.13",
-            },
-        )
-        assert response.status_code == http.HTTPStatus.OK.value
-        response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun:1.3.0-rc20"
-        assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.3.0-rc20"
-
-        # verify that we are falling back to resolve only by server
-        response = client.get(
-            "client-spec",
-            headers={
-                mlrun.common.schemas.HeaderNames.client_version: "test-integration",
-                mlrun.common.schemas.HeaderNames.python_version: "3.9.13",
-            },
-        )
-        assert response.status_code == http.HTTPStatus.OK.value
-        response_body = response.json()
-        assert response_body["kfp_image"] == "mlrun/mlrun-kfp:1.8.0"
-        assert response_body["dask_kfp_image"] == "mlrun/ml-base:1.8.0"
+        assert response_body["kfp_image"] == expected_kfp
+        assert response_body["dask_kfp_image"] == expected_dask_kfp
 
 
 def test_get_client_spec_cached(

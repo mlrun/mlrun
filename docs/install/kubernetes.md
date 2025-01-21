@@ -146,7 +146,7 @@ MySQL database fails to start. The workaround for now is to opt out of pipelines
 
 ## Configuring the online feature store
 The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
-To deploy a Redis service, refer to the [Redis documentation](https://redis.io/docs/getting-started/).
+To deploy a Redis service, refer to the [Redis documentation](https://redis.io/learn/howtos/quick-start).
 
 When you have a Redis service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
 ```bash

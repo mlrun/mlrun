@@ -1284,6 +1284,7 @@ class RunStatus(ModelObj):
         results=None,
         artifacts=None,
         start_time=None,
+        end_time=None,
         last_update=None,
         iterations=None,
         ui_url=None,
@@ -1299,6 +1300,7 @@ class RunStatus(ModelObj):
         self.results = results
         self._artifacts = artifacts
         self.start_time = start_time
+        self.end_time = end_time
         self.last_update = last_update
         self.iterations = iterations
         self.ui_url = ui_url

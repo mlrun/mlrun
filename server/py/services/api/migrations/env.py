@@ -103,8 +103,17 @@ def run_migrations_online():
             )
             try:
                 connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))
-            except sqlalchemy.exc.DBAPIError:
-                pass
+            except sqlalchemy.exc.OperationalError as exc:
+                if "Unknown thread id" in str(exc):
+                    logger.warning(
+                        "DB connection already closed.",
+                        connection_id=connection_id,
+                        user=user,
+                        host=host,
+                        db="mlrun",
+                    )
+                else:
+                    raise exc
 
         context.configure(connection=connection, target_metadata=target_metadata)
 

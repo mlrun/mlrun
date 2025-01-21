@@ -485,6 +485,21 @@ class TestRuns(TestDatabaseBase):
         )
         assert len(runs) == 4
 
+    def test_store_run_with_end_time(self):
+        project, name, run_uid, iteration, run = self._create_new_run()
+
+        # add the end_time to the run's status
+        end_time = datetime.now(timezone.utc).isoformat()
+        run["status"]["end_time"] = end_time
+        self._db.store_run(self._db_session, run, run_uid, project, iter=iteration)
+
+        runs = self._db.list_runs(self._db_session, project=project)
+        assert len(runs) == 1
+        stored_run = runs[0]
+        assert stored_run["metadata"]["uid"] == run_uid
+        assert stored_run["status"]["end_time"] == end_time
+        assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
+
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):
         run_dict = run.struct

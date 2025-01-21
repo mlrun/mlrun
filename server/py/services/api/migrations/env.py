@@ -14,6 +14,7 @@
 from logging.config import fileConfig
 
 import sqlalchemy
+import sqlalchemy.exc
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
@@ -100,7 +101,10 @@ def run_migrations_online():
                 host=host,
                 db="mlrun",
             )
-            connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))
+            try:
+                connection.execute(sqlalchemy.sql.text(f"KILL {connection_id};"))
+            except sqlalchemy.exc.DBAPIError:
+                pass
 
         context.configure(connection=connection, target_metadata=target_metadata)
 

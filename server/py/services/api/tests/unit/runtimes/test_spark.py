@@ -804,7 +804,6 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             expected_executor_volume_mounts=expected_executor_mounts,
         )
 
-
     def test_get_offline_features(
         self,
         db: sqlalchemy.orm.Session,

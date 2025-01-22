@@ -560,7 +560,7 @@ def test_ensure_function_has_auth_set(
             ignore_order_func=lambda level: "env" not in level.path(),
             exclude_paths=[
                 "root['metadata']['credentials']['access_key']",
-                f"root['spec']['env'][{len(function.spec.env)-1}]",
+                f"root['spec']['env'][{len(function.spec.env) - 1}]",
             ],
         )
         == {}
@@ -615,7 +615,7 @@ def test_ensure_function_has_auth_set(
             function.to_dict(),
             # ignore order with exclude path of specific list index ends up with errors
             ignore_order_func=lambda level: "env" not in level.path(),
-            exclude_paths=[f"root['spec']['env'][{len(function.spec.env)-1}]"],
+            exclude_paths=[f"root['spec']['env'][{len(function.spec.env) - 1}]"],
         )
         == {}
     )
@@ -651,7 +651,7 @@ def test_ensure_function_has_auth_set(
             ignore_order_func=lambda level: "env" not in level.path(),
             exclude_paths=[
                 "root['metadata']['credentials']['access_key']",
-                f"root['spec']['env'][{len(function.spec.env)-1}]",
+                f"root['spec']['env'][{len(function.spec.env) - 1}]",
             ],
         )
         == {}
@@ -746,7 +746,7 @@ def test_mask_v3io_access_key_env_var(
             function.to_dict(),
             # ignore order with exclude path of specific list index ends up with errors
             ignore_order_func=lambda level: "env" not in level.path(),
-            exclude_paths=[f"root['spec']['env'][{len(function.spec.env)-1}]"],
+            exclude_paths=[f"root['spec']['env'][{len(function.spec.env) - 1}]"],
         )
         == {}
     )
@@ -1763,7 +1763,7 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
             "",
             mlrun.common.schemas.workflow.EngineType.REMOTE,
             "1.8.0",
-            "mlrun/mlrun",
+            "mlrun/mlrun-kfp",
         ),
         (
             "",
@@ -1805,13 +1805,40 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
             "",
             mlrun.common.schemas.workflow.EngineType.KFP,
             "1.8.0-rc1",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.LOCAL,
+            "1.6.4",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.REMOTE,
+            "1.6.4",
             "mlrun/mlrun-kfp",
         ),
-        ("", "", mlrun.common.schemas.workflow.EngineType.KFP, "1.7.0", "mlrun/mlrun"),
         (
             "",
             "",
             mlrun.common.schemas.workflow.EngineType.KFP,
+            "1.6.4",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.KFP,
+            "1.7.0-rc1",
+            "mlrun/mlrun",
+        ),
+        (
+            "",
+            "",
+            mlrun.common.schemas.workflow.EngineType.LOCAL,
             "1.7.0-rc1",
             "mlrun/mlrun",
         ),

@@ -979,6 +979,7 @@ class DBInterface(ABC):
         count: typing.Optional[int] = None,
         active: bool = False,
         obj: typing.Optional[dict] = None,
+        alert_id: typing.Optional[int] = None,
     ):
         pass
 

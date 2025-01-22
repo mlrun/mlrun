@@ -1266,6 +1266,11 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             + mm_constants.FeatureSetFeatures.list()
         ]
 
+        df = pd.read_parquet(
+            f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet"
+        )
+        assert all(feature in df.columns for feature in feature_names)
+
     def test_inference_feature_set(self) -> None:
         self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
             self.model_name,

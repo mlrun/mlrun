@@ -146,7 +146,6 @@ class EventFieldType:
 
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
-    ERROR_COUNT = EventFieldType.ERROR_COUNT
     METRICS = EventFieldType.METRICS
 
     @classmethod

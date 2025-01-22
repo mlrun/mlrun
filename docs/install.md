@@ -5,8 +5,8 @@ This guide outlines the steps for installing and running MLRun.
 
 MLRun has two main components, the service and the client (SDK and UI):
 
-- MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
-- MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
+- The MLRun service can orchestrate and integrate with other open source frameworks, as shown in the following diagram. 
+- The MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
 
 This release of MLRun supports only Python 3.9 for both the server and the client. 
 
@@ -20,9 +20,12 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 ## Deployment options
 
 The deployment options are:
+- {ref}`Kubernetes<install-on-kubernetes>`: Deploys the MLRun CE server over Kubernetes. 
 - {ref}`AWS cluster<aws-install>`: Deploys the MLRun CE server on an AWS cluster.
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
+
+You can also be deploy the MLRun Service using local Docker for demo and test purposes.
 
 ## Set up your client
 
@@ -60,6 +63,7 @@ which is implemented by Iguazio during installation, and applied system-wide:
 :hidden:
 :maxdepth: 1
 
+install/kubernetes
 install/aws-install
 install/remote
 ```

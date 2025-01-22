@@ -2822,6 +2822,7 @@ class MlrunProject(ModelObj):
 
         :param name:    name of the function (under the project)
         """
+        mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):

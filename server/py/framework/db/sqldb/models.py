@@ -349,6 +349,7 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(SQLTypesUtil.blob())
         start_time = Column(SQLTypesUtil.timestamp())
+        end_time = Column(SQLTypesUtil.datetime())
         updated = Column(SQLTypesUtil.timestamp(), default=datetime.utcnow)
         # requested logs column indicates whether logs were requested for this run
         # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them

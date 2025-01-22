@@ -125,6 +125,8 @@ class DBInterface(ABC):
         start_time_to: Optional[datetime.datetime] = None,
         last_update_time_from: Optional[datetime.datetime] = None,
         last_update_time_to: Optional[datetime.datetime] = None,
+        end_time_from: Optional[datetime.datetime] = None,
+        end_time_to: Optional[datetime.datetime] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,

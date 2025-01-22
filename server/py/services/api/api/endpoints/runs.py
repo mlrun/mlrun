@@ -218,6 +218,8 @@ async def list_runs(
     start_time_to: Optional[str] = None,
     last_update_time_from: Optional[str] = None,
     last_update_time_to: Optional[str] = None,
+    end_time_from: Optional[str] = None,
+    end_time_to: Optional[str] = None,
     partition_by: mlrun.common.schemas.RunPartitionByField = Query(
         None, alias="partition-by"
     ),
@@ -275,6 +277,8 @@ async def list_runs(
         start_time_to=start_time_to,
         last_update_time_from=last_update_time_from,
         last_update_time_to=last_update_time_to,
+        end_time_from=end_time_from,
+        end_time_to=end_time_to,
         partition_by=partition_by,
         rows_per_partition=rows_per_partition,
         partition_sort_by=partition_sort_by,

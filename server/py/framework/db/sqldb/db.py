@@ -419,6 +419,8 @@ class SQLDB(DBInterface):
         start_time_to: typing.Optional[datetime] = None,
         last_update_time_from: typing.Optional[datetime] = None,
         last_update_time_to: typing.Optional[datetime] = None,
+        end_time_from: typing.Optional[datetime] = None,
+        end_time_to: typing.Optional[datetime] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -444,6 +446,10 @@ class SQLDB(DBInterface):
             query = query.filter(Run.updated >= last_update_time_from)
         if last_update_time_to is not None:
             query = query.filter(Run.updated <= last_update_time_to)
+        if end_time_from is not None:
+            query = query.filter(Run.end_time >= end_time_from)
+        if end_time_to is not None:
+            query = query.filter(Run.end_time <= end_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:

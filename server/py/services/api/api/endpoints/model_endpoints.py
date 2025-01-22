@@ -598,10 +598,10 @@ async def get_model_endpoint_monitoring_metrics_values(
                 project=params.project
             ),
         )
-    except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+    except mlrun.errors.MLRunNotFoundError as e:
         logger.debug(
-            "Failed to retrieve model endpoint metrics-values because tsdb connection is not defined."
-            " Returning an empty list of metric-values",
+            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
+            "Returning an empty list of metric-values",
             error=mlrun.errors.err_to_str(e),
         )
         return []

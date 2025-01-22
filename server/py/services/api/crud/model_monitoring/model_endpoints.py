@@ -1096,10 +1096,10 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-        except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+        except mlrun.errors.MLRunNotFoundError as e:
             logger.debug(
-                f"Failed to list model endpoint {type}s because tsdb connection is not defined."
-                " Returning an empty list of metrics",
+                f"Failed to list model endpoint {type}s because TSDB profile was not found. "
+                "Returning an empty list of metrics",
                 error=mlrun.errors.err_to_str(e),
             )
             return []
@@ -1242,7 +1242,7 @@ class ModelEndpoints:
                     project=model_endpoint_object.metadata.project
                 ),
             )
-        except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+        except mlrun.errors.MLRunNotFoundError as e:
             logger.debug(
                 "Failed to add real time metrics because tsdb connection is not defined."
                 " Returning without adding real time metrics.",
@@ -1321,10 +1321,10 @@ class ModelEndpoints:
                     project=project
                 ),
             )
-        except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+        except mlrun.errors.MLRunNotFoundError as e:
             logger.debug(
-                "Failed to add basic metrics because tsdb connection is not defined."
-                " Returning without adding basic metrics.",
+                "Failed to add basic metrics because the TSDB profile was not found. "
+                "Returning without adding the basic metrics.",
                 error=mlrun.errors.err_to_str(e),
             )
             return model_endpoint_objects

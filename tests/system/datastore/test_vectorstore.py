@@ -59,15 +59,16 @@ class TestDatastoreProfile(TestMLRunSystem):
         assert key == "data_file-name_v1__txt"
 
         sample_content = generate_random_text(1000)
-        artifact_key = "test_document_artifact"
         # Create a temporary text file with a simple context
         with tempfile.NamedTemporaryFile(mode="w") as temp_file:
             temp_file.write(sample_content)
             temp_file.flush()
             # Test logging a document localy
             artifact = self.project.log_document(
-                artifact_key, local_path=temp_file.name, upload=False
+                local_path=temp_file.name, upload=False
             )
+            artifact_key = artifact.key
+            assert artifact_key == DocumentArtifact.key_from_source(temp_file.name)
 
             get_store_resource(
                 f"store://documents/{self.project.name}/{artifact_key}#0:latest"

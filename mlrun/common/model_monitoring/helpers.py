@@ -47,9 +47,9 @@ def parse_monitoring_stream_path(
             function_name is None
             or function_name == mm_constants.MonitoringFunctionNames.STREAM
         ):
-            stream_uri += f"?topic=monitoring_stream_{project}"
+            stream_uri += f"?topic=monitoring_stream_{project}_v1"
         else:
-            stream_uri += f"?topic=monitoring_stream_{project}_{function_name}"
+            stream_uri += f"?topic=monitoring_stream_{project}_{function_name}_v1"
 
     return stream_uri
 

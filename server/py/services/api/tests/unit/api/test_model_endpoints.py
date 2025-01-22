@@ -14,8 +14,10 @@
 
 import os
 import string
+from collections.abc import Iterator
 from random import choice, randint
 from typing import Optional
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -23,6 +25,7 @@ import mlrun.common.schemas
 import mlrun.model_monitoring
 from mlrun.errors import MLRunBadRequestError
 
+import services.api.api.endpoints.model_endpoints
 import services.api.crud.model_monitoring.deployment
 import services.api.crud.model_monitoring.helpers
 
@@ -245,3 +248,24 @@ def _mock_random_endpoint(
         ),
         status=mlrun.common.schemas.ModelEndpointStatus(state=state),
     )
+
+
+@pytest.fixture
+def get_project_secret_mock() -> Iterator[Mock]:
+    with patch(
+        "services.api.crud.secrets.Secrets.get_project_secret", Mock(return_value=None)
+    ) as mock:
+        yield mock
+
+
+async def test_get_metrics_values_no_tsdb(get_project_secret_mock: Mock) -> None:
+    """Test getting model endpoint metrics values when the TSDB datastore profile is not set"""
+    metrics_values = await services.api.api.endpoints.model_endpoints.get_model_endpoint_monitoring_metrics_values(
+        await services.api.api.endpoints.model_endpoints._get_metrics_values_params(
+            project=TEST_PROJECT,
+            endpoint_id="123",
+            name=[f"{TEST_PROJECT}.app2.result.res1"],
+        )
+    )
+    assert metrics_values == []
+    assert get_project_secret_mock.call_count == 1

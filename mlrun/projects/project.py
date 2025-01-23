@@ -31,6 +31,7 @@ from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 from urllib.parse import urlparse
 
+import deprecated
 import dotenv
 import git
 import git.exc
@@ -2817,17 +2818,18 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
+    # TODO: Remove this in 1.10.0
+    @deprecated.deprecated(
+        version="1.10.0",
+        reason="'remove_function' is deprecated and will be removed in 1.10.0. "
+        "Please use `delete_function` instead.",
+        category=FutureWarning,
+    )
     def remove_function(self, name):
         """remove the specified function from the project
 
         :param name:    name of the function (under the project)
         """
-        # TODO: Remove this in 1.10.0
-        warnings.warn(
-            "'remove_function' is deprecated and will be removed in 1.10.0. "
-            "Please use `delete_function` instead.",
-            FutureWarning,
-        )
         self.spec.remove_function(name)
 
     def delete_function(self, name, from_cache_only=False):

@@ -2822,7 +2822,23 @@ class MlrunProject(ModelObj):
 
         :param name:    name of the function (under the project)
         """
-        mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)
+        # TODO: Remove this in 1.9.0
+        warnings.warn(
+            "'remove_function' is deprecated and will be removed in 1.9.0. "
+            "Please use `delete_function` instead.",
+            FutureWarning,
+        )
+        self.spec.remove_function(name)
+
+    def delete_function(self, name, from_cache_only=False):
+        """deletes the specified function from the project
+
+        :param name:    name of the function (under the project)
+        :param from_cache_only: if set, do not delete the function from the DB.
+            Function will be deleted from project's cache only
+        """
+        if not from_cache_only:
+            mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):

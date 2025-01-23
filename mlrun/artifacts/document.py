@@ -61,7 +61,7 @@ class DocumentLoaderSpec(ModelObj):
             kwargs (Optional[dict]): Additional keyword arguments to pass to the loader class.
             download_object (bool, optional): If True, the file will be downloaded before launching
                 the loader. If False, the loader accepts a link that should not be downloaded.
-                Defaults to False.
+                Defaults to True.
         Example:
             >>> # Create a loader specification for PDF documents
             >>> loader_spec = DocumentLoaderSpec(

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextvars
 import datetime
 import logging
 import os
@@ -249,6 +250,8 @@ class HumanReadableExtendedFormatter(HumanReadableFormatter):
         if os.environ.get("CLICOLOR_FORCE"):
             return True
         return stdout.isatty()
+
+request_id_var = contextvars.ContextVar("request_id", default=None)
 
 
 class Logger:

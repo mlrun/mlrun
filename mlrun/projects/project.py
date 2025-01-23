@@ -2822,7 +2822,7 @@ class MlrunProject(ModelObj):
 
         :param name:    name of the function (under the project)
         """
-        # TODO: Remove this in 1.9.0
+        # TODO: Remove this in 1.10.0
         warnings.warn(
             "'remove_function' is deprecated and will be removed in 1.9.0. "
             "Please use `delete_function` instead.",

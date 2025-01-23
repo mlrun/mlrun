@@ -176,7 +176,7 @@ class TestDatastoreProfile(TestMLRunSystem):
         sample_content1 = generate_random_text(1000)
         sample_content2 = generate_random_text(1000)
 
-        artifact_key = "doc%%"
+        artifact_key = "%%"
         artifact_key1 = MLRunLoader.artifact_key_instance(
             artifact_key, f"{temp_dir}/sample1.txt"
         )

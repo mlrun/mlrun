@@ -97,7 +97,7 @@ class MLRunLoader:
     Args:
         artifact_key (str, optional): The key for the artifact to be logged. Special characters and symbols
             not valid in artifact names will be encoded as their hexadecimal representation. The '%%' pattern
-            in the key will be replaced by the hex-encoded version of the source path. Defaults to "doc%%".
+            in the key will be replaced by the hex-encoded version of the source path. Defaults to "%%".
         local_path (str): The source path of the document to be loaded.
         loader_spec (DocumentLoaderSpec): Specification for the document loader.
         producer (Optional[Union[MlrunProject, str, MLClientCtx]], optional): The producer of the document.
@@ -129,7 +129,7 @@ class MLRunLoader:
         >>> loader = MLRunLoader(
         ...     source_path="/path/to/document.txt",
         ...     loader_spec=loader_spec,
-        ...     artifact_key="doc%%",  # %% will be replaced with encoded path
+        ...     artifact_key="%%",  # %% will be replaced with encoded path
         ...     producer=project,
         ... )
         >>> documents = loader.load()
@@ -141,7 +141,7 @@ class MLRunLoader:
         ...     loader_cls=MLRunLoader,
         ...     loader_kwargs={
         ...         "loader_spec": loader_spec,
-        ...         "artifact_key": "doc%%",
+        ...         "artifact_key": "%%",
         ...         "producer": project,
         ...         "upload": True,
         ...     },
@@ -154,7 +154,7 @@ class MLRunLoader:
         cls,
         source_path: str,
         loader_spec: "DocumentLoaderSpec",
-        artifact_key="doc%%",
+        artifact_key="%%",
         producer: Optional[Union["MlrunProject", str, "MLClientCtx"]] = None,  # noqa: F821
         upload: bool = False,
         tag: str = "",

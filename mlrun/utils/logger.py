@@ -30,7 +30,6 @@ import pydantic.v1
 from mlrun import errors
 from mlrun.config import config
 
-from framework.middlewares.request_logger import request_id_var
 
 
 class _BaseFormatter(logging.Formatter):
@@ -250,6 +249,7 @@ class HumanReadableExtendedFormatter(HumanReadableFormatter):
         if os.environ.get("CLICOLOR_FORCE"):
             return True
         return stdout.isatty()
+
 
 request_id_var = contextvars.ContextVar("request_id", default=None)
 

@@ -145,6 +145,7 @@ The `set` command can work with the following parameters:
 - `--artifact-path` or `-p` to set the [artifact path](https://docs.mlrun.org/en/latest/store/artifacts.html?highlight=artifact_path#artifact-path)
 - `--env-vars` or `-e` to set additional environment variables, e.g. -e `ENV_NAME=<value>`
 
+(using-mlrun-set-environment-command-in-mlrun-sdk)=
 ### Using `mlrun.set_environment` command in MLRun SDK
 
 You can set the environment using `mlrun.set_environment` command in MLRun SDK and either use the `env_file` parameter that saves the 
@@ -159,6 +160,7 @@ mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 
 For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/latest/api/mlrun.html?highlight=set_env_from_file()#mlrun.set_environment).
 
+(using-your-ide-e-g-pycharm-or-vscode)=
 ### Using your IDE (e.g. PyCharm or VSCode)
 
 Use these procedures to access MLRun remotely from your IDE. These instructions are for PyCharm and VSCode.

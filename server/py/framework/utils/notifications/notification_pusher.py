@@ -58,10 +58,11 @@ class RunNotificationPusher(NotificationPusher):
 
     @staticmethod
     def get_mail_notification_default_params(refresh=False):
-        if (
-            not refresh
-            and RunNotificationPusher.mail_notification_default_params is not None
-        ):
+        # Check if the `refresh` flag is not set and the default mail notification parameters are already set.
+        # Ensure `mail_notification_default_params` is not None or empty,
+        # as an empty dictionary might indicate configuration changes we would like to reload.
+        # This avoids unnecessary re-fetching unless a refresh is explicitly requested.
+        if not refresh and RunNotificationPusher.mail_notification_default_params:
             return RunNotificationPusher.mail_notification_default_params
 
         mail_notification_default_params = (
@@ -428,7 +429,7 @@ class KFPNotificationPusher(NotificationPusher):
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
                         traceback=traceback.format_exception(
-                            etype=type(result),
+                            result,
                             value=result,
                             tb=result.__traceback__,
                         ),

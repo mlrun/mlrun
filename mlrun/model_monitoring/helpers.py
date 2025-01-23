@@ -109,7 +109,7 @@ def filter_results_by_regex(
             result_name_filters=validated_filters,
         ):
             filtered_metrics_names.append(existing_result_name)
-    return filtered_metrics_names
+    return list(set(filtered_metrics_names))
 
 
 def get_stream_path(

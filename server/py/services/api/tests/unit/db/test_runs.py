@@ -421,6 +421,21 @@ class TestRuns(TestDatabaseBase):
         run = self._db.read_run(self._db_session, uid, project, iteration)
         assert run["metadata"]["labels"] == {"a": "b"}
 
+        run["metadata"]["labels"] = {"a": "b" * 256}
+        # too long value
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Value of `a` label is too long. "
+            "Maximum allowed length is 255 characters.",
+        ):
+            self._db.update_run(
+                self._db_session,
+                run,
+                uid,
+                project,
+                iteration,
+            )
+
     def test_store_and_update_run_update_name_failure(self):
         project, name, uid, iteration, run = self._create_new_run()
 
@@ -484,6 +499,21 @@ class TestRuns(TestDatabaseBase):
             partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
         )
         assert len(runs) == 4
+
+    def test_store_run_with_end_time(self):
+        project, name, run_uid, iteration, run = self._create_new_run()
+
+        # add the end_time to the run's status
+        end_time = datetime.now(timezone.utc).isoformat()
+        run["status"]["end_time"] = end_time
+        self._db.store_run(self._db_session, run, run_uid, project, iter=iteration)
+
+        runs = self._db.list_runs(self._db_session, project=project)
+        assert len(runs) == 1
+        stored_run = runs[0]
+        assert stored_run["metadata"]["uid"] == run_uid
+        assert stored_run["status"]["end_time"] == end_time
+        assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
 
     @staticmethod
     def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

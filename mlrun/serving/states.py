@@ -325,6 +325,9 @@ class BaseStep(ModelObj):
         full_event: Optional[bool] = None,
         input_path: Optional[str] = None,
         result_path: Optional[str] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = None,
         **class_args,
     ):
         """add a step right after this step and return the new step
@@ -352,6 +355,16 @@ class BaseStep(ModelObj):
                             this require that the event body will behave like a dict, example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
+        :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
         :param class_args:  class init arguments
         """
         if hasattr(self, "steps"):
@@ -373,6 +386,7 @@ class BaseStep(ModelObj):
             input_path=input_path,
             result_path=result_path,
             class_args=class_args,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
         )
         step = parent._steps.update(name, step)
         step.set_parent(parent)
@@ -1035,6 +1049,9 @@ class QueueStep(BaseStep):
         full_event: Optional[bool] = None,
         input_path: Optional[str] = None,
         result_path: Optional[str] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = None,
         **class_args,
     ):
         if not function:
@@ -1051,6 +1068,7 @@ class QueueStep(BaseStep):
             full_event,
             input_path,
             result_path,
+            model_endpoint_creation_strategy,
             **class_args,
         )
 
@@ -1129,6 +1147,9 @@ class FlowStep(BaseStep):
         full_event: Optional[bool] = None,
         input_path: Optional[str] = None,
         result_path: Optional[str] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = None,
         **class_args,
     ):
         """add task, queue or router step/class to the flow
@@ -1160,6 +1181,16 @@ class FlowStep(BaseStep):
                             this require that the event body will behave like a dict, example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
+        :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
         :param class_args:  class init arguments
         """
 
@@ -1172,6 +1203,7 @@ class FlowStep(BaseStep):
             full_event=full_event,
             input_path=input_path,
             result_path=result_path,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
             class_args=class_args,
         )
 

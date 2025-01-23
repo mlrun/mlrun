@@ -419,6 +419,8 @@ class SQLDB(DBInterface):
         start_time_to: typing.Optional[datetime] = None,
         last_update_time_from: typing.Optional[datetime] = None,
         last_update_time_to: typing.Optional[datetime] = None,
+        end_time_from: typing.Optional[datetime] = None,
+        end_time_to: typing.Optional[datetime] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -444,6 +446,10 @@ class SQLDB(DBInterface):
             query = query.filter(Run.updated >= last_update_time_from)
         if last_update_time_to is not None:
             query = query.filter(Run.updated <= last_update_time_to)
+        if end_time_from is not None:
+            query = query.filter(Run.end_time >= end_time_from)
+        if end_time_to is not None:
+            query = query.filter(Run.end_time <= end_time_to)
         if sort:
             query = query.order_by(Run.start_time.desc())
         if last:
@@ -3015,7 +3021,10 @@ class SQLDB(DBInterface):
         project_summaries = query.all()
         project_summaries_results = []
         for project_summary in project_summaries:
-            project_summary.summary["updated"] = project_summary.updated
+            # project_summary.updated is timezone naive, make it utc
+            project_summary.summary["updated"] = project_summary.updated.replace(
+                tzinfo=timezone.utc
+            )
             project_summaries_results.append(
                 mlrun.common.schemas.ProjectSummary(**project_summary.summary)
             )
@@ -6235,15 +6244,23 @@ class SQLDB(DBInterface):
         count: typing.Optional[int] = None,
         active: bool = False,
         obj: typing.Optional[dict] = None,
+        alert_id: typing.Optional[int] = None,
     ):
-        query = (
-            self._query(session, AlertState)
-            .join(AlertConfig, AlertConfig.id == AlertState.parent_id)
-            .filter(
-                AlertConfig.name == name,
-                AlertConfig.project == project,
+        if alert_id is not None:
+            query = self._query(session, AlertState).filter(
+                AlertState.parent_id == alert_id
             )
-        )
+        else:
+            # Get the alert id using the alert name and project
+            query = (
+                self._query(session, AlertState)
+                .join(AlertConfig, AlertConfig.id == AlertState.parent_id)
+                .filter(
+                    AlertConfig.name == name,
+                    AlertConfig.project == project,
+                )
+            )
+
         state = query.one_or_none()
         if state is None:
             raise mlrun.errors.MLRunNotFoundError(
@@ -6441,6 +6458,24 @@ class SQLDB(DBInterface):
             self._transform_alert_activation_record_to_scheme(record)
             for record in query.all()
         ]
+
+    def get_alert_activation(
+        self,
+        session,
+        activation_id: int,
+    ) -> mlrun.common.schemas.AlertActivation:
+        alert_activation_record = (
+            self._query(session, AlertActivation)
+            .filter(AlertActivation.id == activation_id)
+            .one_or_none()
+        )
+        if not alert_activation_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found: activation_id={activation_id}"
+            )
+        return self._transform_alert_activation_record_to_scheme(
+            alert_activation_record
+        )
 
     @staticmethod
     def _transform_alert_activation_record_to_scheme(

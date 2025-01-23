@@ -163,6 +163,8 @@ class Runs(
         last_update_time_to: typing.Optional[
             typing.Union[str, datetime.datetime]
         ] = None,
+        end_time_from: typing.Optional[typing.Union[str, datetime.datetime]] = None,
+        end_time_to: typing.Optional[typing.Union[str, datetime.datetime]] = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -186,6 +188,8 @@ class Runs(
             and not start_time_to
             and not last_update_time_from
             and not last_update_time_to
+            and not end_time_from
+            and not end_time_to
             and not partition_by
             and not partition_sort_by
             and not iter
@@ -209,6 +213,10 @@ class Runs(
             last_update_time_to = mlrun.utils.helpers.datetime_from_iso(
                 last_update_time_to
             )
+        if isinstance(end_time_from, str):
+            end_time_from = mlrun.utils.helpers.datetime_from_iso(end_time_from)
+        if isinstance(end_time_to, str):
+            end_time_to = mlrun.utils.helpers.datetime_from_iso(end_time_to)
 
         return framework.utils.singletons.db.get_db().list_runs(
             session=db_session,
@@ -226,6 +234,8 @@ class Runs(
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            end_time_from=end_time_from,
+            end_time_to=end_time_to,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,

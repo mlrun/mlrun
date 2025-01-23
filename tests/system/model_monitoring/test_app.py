@@ -188,7 +188,7 @@ class _V3IORecordsChecker:
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
+                table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
         else:
             # TDEngine
@@ -392,10 +392,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
         ]
 
-        func_to_validate = [
-            "model-monitoring-writer",
-            "histogram-data-drift",
-            "evidently-app-test-v2",
+        func_to_validate = [mm_constants.MonitoringFunctionNames.WRITER] + [
+            app_data.class_.NAME for app_data in self.apps_data
         ]
 
         if stream_path.startswith("v3io:///"):
@@ -419,6 +417,13 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     path=f"{self.project_name}/model-endpoints/stream/serving-state.json",
                 )
 
+            # validate that the controller stream was deleted
+            with pytest.raises(HttpResponseError):
+                client.object.get(
+                    container="users",
+                    path=f"pipelines/{self.project_name}/model-endpoints/{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER}/serving-state.json",
+                )
+
         elif stream_path.startswith("kafka://"):
             import kafka
 
@@ -429,7 +434,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             topics = consumer.topics()
 
             project_topics_list = [f"monitoring_stream_{self.project_name}"]
-            for func in func_to_validate:
+            for func in func_to_validate + [
+                mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            ]:
                 project_topics_list.append(
                     f"monitoring_stream_{self.project_name}_{func}"
                 )
@@ -1753,7 +1760,7 @@ class TestBatchServingWithSampling(TestMLRunSystem):
     ) -> None:
         if self._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
-                table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
+                table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
 
         else:

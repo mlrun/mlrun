@@ -28,8 +28,9 @@ class Events(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
     # we cache alert names based on project and event name as key
-    # (project, name) -> set[alert_id]
-    _cache: dict[(str, str), set[int]] = {}
+    # (project, name, entity_id) -> set[alert_id]
+    # TODO: Rethink the cache structure once a single alert supports more than a single id
+    _cache: dict[(str, str, str), set[int]] = {}
     cache_initialized = False
 
     @staticmethod
@@ -42,20 +43,20 @@ class Events(
 
         return bool(event_data.is_valid())
 
-    def add_event_configuration(self, project, event_kind, alert_id):
-        self._cache.setdefault((project, event_kind), set()).add(alert_id)
+    def add_event_configuration(self, project, event_kind, alert_id, entity_id):
+        self._cache.setdefault((project, event_kind, entity_id), set()).add(alert_id)
 
-    def remove_event_configuration(self, project, event_kind, alert_id):
-        alerts = self._cache.get((project, event_kind), set())
+    def remove_event_configuration(self, project, event_kind, alert_id, entity_id):
+        alerts = self._cache.get((project, event_kind, entity_id), set())
         if alert_id in alerts:
             alerts.remove(alert_id)
             if len(alerts) == 0:
-                self._cache.pop((project, event_kind))
+                self._cache.pop((project, event_kind, entity_id))
 
     def delete_project_alert_events(self, project):
-        to_delete = [event_kind for proj, event_kind in self._cache if proj == project]
-        for event_kind in to_delete:
-            self._cache.pop((project, event_kind))
+        to_delete = [key for key in self._cache if key[0] == project]
+        for key in to_delete:
+            self._cache.pop(key)
 
     def process_event(
         self,
@@ -81,7 +82,21 @@ class Events(
             return
 
         try:
-            for alert_id in self._cache.get((project, event_name), set()):
+            # TODO: Remove log once the flow is stable
+            logger.debug(
+                "Processing alerts for event",
+                project=project,
+                event_name=event_name,
+                entity=event_data.entity.ids[0],
+                num_of_alerts=len(
+                    self._cache.get(
+                        (project, event_name, event_data.entity.ids[0]), set()
+                    )
+                ),
+            )
+            for alert_id in self._cache.get(
+                (project, event_name, event_data.entity.ids[0]), set()
+            ):
                 services.alerts.crud.Alerts().process_event(
                     session, alert_id, event_data
                 )

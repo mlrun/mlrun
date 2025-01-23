@@ -634,7 +634,7 @@ def test_v2_mock():
     assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"
 
 
-def test_function():
+def test_function(rundb_mock):
     fn = mlrun.new_function("tests", kind="serving")
     fn.set_topology("router")
     fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
@@ -649,7 +649,7 @@ def test_function():
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
 
 
-def test_sampling_percentage():
+def test_sampling_percentage(rundb_mock):
     fn = mlrun.new_function("tests", kind="serving")
     fn.set_topology("router")
     fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
@@ -819,7 +819,7 @@ def test_updating_model():
     resp = server.test("/v2/models/my/infer", testdata)
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
-    with patch("mlrun.utils.logger.info") as mock_warning:
+    with patch("mlrun.utils.helpers.logger.info") as mock_warning:
         # update the model
         fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=200))
         mock_warning.assert_called_with("Model my already exists, updating it.")

@@ -62,3 +62,4 @@ class EngineType(StrEnum):
     LOCAL = "local"
     REMOTE = "remote"
     KFP = "kfp"
+    REMOTE_KFP = "remote:kfp"

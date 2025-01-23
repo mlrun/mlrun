@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import datetime
 import os
 import typing
@@ -302,7 +301,7 @@ class EventStreamProcessor:
                     "controller_stream_kafka",
                     path=path,
                     kafka_brokers=brokers,
-                    _sharding_func="kafka_sharding_func",  # TODO: remove this when storey handle str key
+                    _sharding_func=ControllerEvent.ENDPOINT_ID,
                     after="ForwardNOP",
                 )
 
@@ -373,9 +372,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         self.first_request: dict[str, str] = dict()
         self.last_request: dict[str, str] = dict()
 
-        # Number of errors (value) per endpoint (key)
-        self.error_count: dict[str, int] = collections.defaultdict(int)
-
         # Set of endpoints in the current events
         self.endpoints: set[str] = set()
 
@@ -417,10 +413,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         predictions = event.get("resp", {}).get("outputs")
 
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            timestamp,
-            ["when"],
+            validation_function=is_not_none,
+            field=timestamp,
+            dict_path=["when"],
         ):
             return None
 
@@ -432,31 +427,27 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         self.last_request[endpoint_id] = timestamp
 
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            request_id,
-            ["request", "id"],
+            validation_function=is_not_none,
+            field=request_id,
+            dict_path=["request", "id"],
         ):
             return None
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            latency,
-            ["microsec"],
+            validation_function=is_not_none,
+            field=latency,
+            dict_path=["microsec"],
         ):
             return None
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            features,
-            ["request", "inputs"],
+            validation_function=is_not_none,
+            field=features,
+            dict_path=["request", "inputs"],
         ):
             return None
         if not self.is_valid(
-            endpoint_id,
-            is_not_none,
-            predictions,
-            ["resp", "outputs"],
+            validation_function=is_not_none,
+            field=predictions,
+            dict_path=["resp", "outputs"],
         ):
             return None
 
@@ -514,7 +505,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.LAST_REQUEST_TIMESTAMP: mlrun.utils.enrich_datetime_with_tz_info(
                         self.last_request[endpoint_id]
                     ).timestamp(),
-                    EventFieldType.ERROR_COUNT: self.error_count[endpoint_id],
                     EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
                     EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),
                     EventFieldType.ENTITIES: event.get("request", {}).get(
@@ -545,7 +535,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 .flat_dict()
             )
 
-            # If model endpoint found, get first_request, last_request and error_count values
+            # If model endpoint found, get first_request & last_request values
             if endpoint_record:
                 first_request = endpoint_record.get(EventFieldType.FIRST_REQUEST)
 
@@ -556,24 +546,18 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 if last_request:
                     self.last_request[endpoint_id] = last_request
 
-                error_count = endpoint_record.get(EventFieldType.ERROR_COUNT)
-
-                if error_count:
-                    self.error_count[endpoint_id] = int(error_count)
-
             # add endpoint to endpoints set
             self.endpoints.add(endpoint_id)
 
     def is_valid(
         self,
-        endpoint_id: str,
         validation_function,
         field: typing.Any,
         dict_path: list[str],
     ):
         if validation_function(field, dict_path):
             return True
-        self.error_count[endpoint_id] += 1
+
         return False
 
     @staticmethod
@@ -893,7 +877,3 @@ def update_monitoring_feature_set(
         )
 
     monitoring_feature_set.save()
-
-
-def kafka_sharding_func(event):
-    return event.body[ControllerEvent.ENDPOINT_ID].encode("UTF-8")

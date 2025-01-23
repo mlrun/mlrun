@@ -286,6 +286,8 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
 
     run_1_update_time = datetime.now(timezone.utc)
 
+    run_1_end_time = run_1_update_time + timedelta(milliseconds=100)
+
     run_1_name = "run_1_name"
     run_1_uid = "run_1_uid"
     run_1 = {
@@ -298,6 +300,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         iteration=0,
         start_time=run_1_start_time,
         updated=run_1_update_time,
+        end_time=run_1_end_time,
     )
     run.struct = run_1
     get_db()._upsert(db, [run], ignore=True)
@@ -312,6 +315,8 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
 
     run_2_update_time = datetime.now(timezone.utc)
 
+    run_2_end_time = run_2_update_time + timedelta(milliseconds=100)
+
     run_2_uid = "run_2_uid"
     run_2_name = "run_2_name"
     run_2 = {
@@ -324,6 +329,7 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         iteration=0,
         start_time=run_2_start_time,
         updated=run_2_update_time,
+        end_time=run_2_end_time,
     )
     run.struct = run_2
     get_db()._upsert(db, [run], ignore=True)
@@ -390,6 +396,25 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         client,
         [run_2_uid],
         last_update_time_from=run_2_start_time,
+    )
+
+    assert_time_range_request(
+        client,
+        [run_1_uid, run_2_uid],
+        end_time_from=run_1_start_time,
+    )
+
+    assert_time_range_request(
+        client,
+        [run_1_uid],
+        end_time_from=run_1_start_time,
+        end_time_to=run_2_start_time,
+    )
+
+    assert_time_range_request(
+        client,
+        [run_2_uid],
+        end_time_from=run_2_start_time,
     )
 
 

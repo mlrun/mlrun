@@ -29,6 +29,8 @@ import pydantic.v1
 from mlrun import errors
 from mlrun.config import config
 
+from framework.middlewares.request_logger import request_id_var
+
 
 class _BaseFormatter(logging.Formatter):
     def _json_dump(self, json_object):
@@ -352,11 +354,20 @@ class Logger:
     def _update_bound_vars_and_log(
         self, level, message, *args, exc_info=None, **kw_args
     ):
+        request_id = request_id_var.get() or "N/A"
+
         kw_args.update(self._bound_variables)
 
         if kw_args:
             self._logger.log(
-                level, message, *args, exc_info=exc_info, extra={"with": kw_args}
+                level,
+                message,
+                *args,
+                exc_info=exc_info,
+                extra={
+                    "with": kw_args,
+                    "request_id": request_id,
+                },
             )
             return
 

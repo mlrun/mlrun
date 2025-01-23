@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import contextvars
 import time
 import traceback
 import uuid
@@ -29,14 +29,15 @@ from uvicorn._types import (
 
 import mlrun
 import mlrun.common.schemas
-from mlrun.utils.logger import Logger
+
+request_id_var = contextvars.ContextVar("request_id", default=None)
 
 
 class RequestLoggerMiddleware:
     def __init__(
         self,
         app: "ASGI3Application",
-        logger: Logger,
+        logger: "Logger",
     ) -> None:
         self.app = app
         self._logger = logger
@@ -55,6 +56,7 @@ class RequestLoggerMiddleware:
 
         headers = MutableHeaders(scope=scope)
         request_id = headers.get("x-request-id") or str(uuid.uuid4())
+        request_id_var.set(request_id)
         # limit request id to 36 characters (uuid4 length) to avoid log lines being too long
         request_id = request_id[:36]
         path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(

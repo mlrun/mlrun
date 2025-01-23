@@ -15,6 +15,7 @@
 import contextvars
 import time
 import traceback
+import typing
 import uuid
 
 import uvicorn.protocols.utils
@@ -29,6 +30,8 @@ from uvicorn._types import (
 
 import mlrun
 import mlrun.common.schemas
+if typing.TYPE_CHECKING:
+    from mlrun.utils.logger import Logger
 
 request_id_var = contextvars.ContextVar("request_id", default=None)
 

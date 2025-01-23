@@ -2837,7 +2837,7 @@ class MlrunProject(ModelObj):
 
         :param name:    name of the function (under the project)
         :param from_cache_only: if set, do not delete the function from the DB.
-            Function will be deleted from project's cache only
+            Function will be deleted from project's cache and spec only
         """
         if not from_cache_only:
             mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)

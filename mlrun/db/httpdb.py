@@ -762,7 +762,6 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
         project = project or config.default_project
-
         response = self.api_call(
             "POST",
             path=f"projects/{project}/runs/{uid}/push-notifications",
@@ -905,6 +904,8 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: Optional[datetime] = None,
         last_update_time_from: Optional[datetime] = None,
         last_update_time_to: Optional[datetime] = None,
+        end_time_from: Optional[datetime] = None,
+        end_time_to: Optional[datetime] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.RunPartitionByField, str]
         ] = None,
@@ -951,6 +952,8 @@ class HTTPRunDB(RunDBInterface):
         :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param end_time_from: Filter by run end time in ``[end_time_from, end_time_to]``.
+        :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.
         :param partition_by: Field to group results by. When `partition_by` is specified, the `partition_sort_by`
             parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -976,6 +979,8 @@ class HTTPRunDB(RunDBInterface):
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            end_time_from=end_time_from,
+            end_time_to=end_time_to,
             partition_by=partition_by,
             rows_per_partition=rows_per_partition,
             partition_sort_by=partition_sort_by,
@@ -2368,9 +2373,9 @@ class HTTPRunDB(RunDBInterface):
     def retry_pipeline(
         self,
         run_id: str,
+        project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
-        project: Optional[str] = None,
     ):
         """
         Retry a specific pipeline run using its run ID. This function sends an API request
@@ -2380,8 +2385,7 @@ class HTTPRunDB(RunDBInterface):
         :param run_id: The unique ID of the pipeline run to retry.
         :param namespace: Kubernetes namespace where the pipeline is running. Optional.
         :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
-        :param project: Name of the MLRun project associated with the pipeline. Can be
-            ``*`` to query across all projects. Optional.
+        :param project: Name of the MLRun project associated with the pipeline.
 
         :raises ValueError: Raised if the API response is not successful or contains an
             error.
@@ -2392,14 +2396,13 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if namespace:
             params["namespace"] = namespace
-        project_path = project if project else "*"
 
         resp_text = ""
         resp_code = None
         try:
             resp = self.api_call(
                 "POST",
-                f"projects/{project_path}/pipelines/{run_id}/retry",
+                f"projects/{project}/pipelines/{run_id}/retry",
                 params=params,
                 timeout=timeout,
             )
@@ -2414,7 +2417,7 @@ class HTTPRunDB(RunDBInterface):
             logger.error(
                 "Retry pipeline API call encountered an error.",
                 run_id=run_id,
-                project=project_path,
+                project=project,
                 namespace=namespace,
                 response_code=resp_code,
                 response_text=resp_text,
@@ -2429,7 +2432,7 @@ class HTTPRunDB(RunDBInterface):
         logger.info(
             "Successfully retried pipeline run",
             run_id=run_id,
-            project=project_path,
+            project=project,
             namespace=namespace,
         )
         return resp.json()
@@ -5021,6 +5024,27 @@ class HTTPRunDB(RunDBInterface):
             **kwargs,
         )
 
+    def get_alert_activation(
+        self,
+        project,
+        activation_id,
+    ) -> mlrun.common.schemas.AlertActivation:
+        """
+        Retrieve the alert activation by id
+
+        :param project: Project name for which the summary belongs.
+        :param activation_id: alert activation id.
+        :returns: alert activation object.
+        """
+        project = project or config.default_project
+
+        error = "get alert activation"
+        path = f"projects/{project}/alert-activations/{activation_id}"
+
+        response = self.api_call("GET", path, error)
+
+        return mlrun.common.schemas.AlertActivation(**response.json())
+
     def get_project_summary(
         self, project: Optional[str] = None
     ) -> mlrun.common.schemas.ProjectSummary:
@@ -5205,6 +5229,8 @@ class HTTPRunDB(RunDBInterface):
         start_time_to: Optional[datetime] = None,
         last_update_time_from: Optional[datetime] = None,
         last_update_time_to: Optional[datetime] = None,
+        end_time_from: Optional[datetime] = None,
+        end_time_to: Optional[datetime] = None,
         partition_by: Optional[
             Union[mlrun.common.schemas.RunPartitionByField, str]
         ] = None,
@@ -5256,6 +5282,8 @@ class HTTPRunDB(RunDBInterface):
             and not start_time_to
             and not last_update_time_from
             and not last_update_time_to
+            and not end_time_from
+            and not end_time_to
             and not partition_by
             and not partition_sort_by
             and not iter
@@ -5280,6 +5308,8 @@ class HTTPRunDB(RunDBInterface):
             "start_time_to": datetime_to_iso(start_time_to),
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
+            "end_time_from": datetime_to_iso(end_time_from),
+            "end_time_to": datetime_to_iso(end_time_to),
             "with-notifications": with_notifications,
             "page": page,
             "page-size": page_size,

@@ -21,7 +21,8 @@ import tempfile
 import pytest
 import yaml
 
-from mlrun.artifacts import DocumentLoaderSpec, MLRunLoader
+from mlrun.artifacts import DocumentArtifact, DocumentLoaderSpec, MLRunLoader
+from mlrun.datastore import get_store_resource
 from mlrun.datastore.datastore_profile import (
     ConfigProfile,
     register_temporary_client_datastore_profile,
@@ -54,16 +55,28 @@ class TestDatastoreProfile(TestMLRunSystem):
         pass
 
     def test_vectorstore_document_artifact(self):
+        key = DocumentArtifact.key_from_source("data/file-name(v1).txt")
+        assert key == "data_file-name_v1__txt"
+
         sample_content = generate_random_text(1000)
-        artifact_key = "test_document_artifact"
         # Create a temporary text file with a simple context
         with tempfile.NamedTemporaryFile(mode="w") as temp_file:
             temp_file.write(sample_content)
             temp_file.flush()
             # Test logging a document localy
             artifact = self.project.log_document(
-                artifact_key, local_path=temp_file.name, upload=False
+                local_path=temp_file.name, upload=False
             )
+            artifact_key = artifact.key
+            assert artifact_key == DocumentArtifact.key_from_source(temp_file.name)
+
+            get_store_resource(
+                f"store://documents/{self.project.name}/{artifact_key}#0:latest"
+            )
+            get_store_resource(
+                f"store://artifacts/{self.project.name}/{artifact_key}#0:latest"
+            )
+
             langchain_documents = artifact.to_langchain_documents()
 
             assert len(langchain_documents) == 1

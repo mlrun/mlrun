@@ -200,7 +200,7 @@ class NotificationPusher(_NotificationPusherBase):
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
                         traceback=traceback.format_exception(
-                            etype=type(result),
+                            result,
                             value=result,
                             tb=result.__traceback__,
                         ),
@@ -637,7 +637,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
         if has_workflow_url:
             url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
         else:
-            url = mlrun.utils.helpers.get_ui_url(project)
+            url = mlrun.utils.helpers.get_runs_url(project)
         html = ""
         if url:
             html = (

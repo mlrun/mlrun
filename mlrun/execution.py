@@ -876,7 +876,7 @@ class MLClientCtx:
 
     def log_document(
         self,
-        key: str,
+        key: str = "",
         tag: str = "",
         local_path: str = "",
         artifact_path: Optional[str] = None,
@@ -890,7 +890,8 @@ class MLClientCtx:
         """
         Log a document as an artifact.
 
-        :param key: Artifact key
+        :param key: Optional artifact key. If not provided, will be derived from local_path
+                or target_path using DocumentArtifact.key_from_source()
         :param tag: Version tag
         :param local_path: path to the local file we upload, will also be use
                         as the destination subpath (under "artifact_path")
@@ -923,7 +924,6 @@ class MLClientCtx:
         Example:
             >>> # Log a PDF document with custom loader
             >>> project.log_document(
-            ...     key="my_doc",
             ...     local_path="path/to/doc.pdf",
             ...     document_loader_spec=DocumentLoaderSpec(
             ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
@@ -932,6 +932,14 @@ class MLClientCtx:
             ...     ),
             ... )
         """
+
+        if not key and not local_path and not target_path:
+            raise ValueError(
+                "Must provide either 'key' parameter or 'local_path'/'target_path' to derive the key from"
+            )
+        if not key:
+            key = DocumentArtifact.key_from_source(local_path or target_path)
+
         doc_artifact = DocumentArtifact(
             key=key,
             original_source=local_path or target_path,
@@ -965,12 +973,12 @@ class MLClientCtx:
     def get_artifact(
         self, key, tag=None, iter=None, tree=None, uid=None
     ) -> Optional[Artifact]:
-        if tag or iter or tree or uid:
+        cached_artifact_uri = self._artifacts_manager.artifact_uris.get(key, None)
+        if tag or iter or tree or uid or (not cached_artifact_uri):
             project = self.get_project_object()
             return project.get_artifact(key=key, tag=tag, iter=iter, tree=tree, uid=uid)
         else:
-            artifact_uri = self._artifacts_manager.artifact_uris[key]
-            return self.get_store_resource(artifact_uri)
+            return self.get_store_resource(cached_artifact_uri)
 
     def update_artifact(self, artifact_object: Artifact):
         """Update an artifact object in the DB and the cached uri"""

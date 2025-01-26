@@ -146,7 +146,6 @@ class EventFieldType:
 
 class FeatureSetFeatures(MonitoringStrEnum):
     LATENCY = EventFieldType.LATENCY
-    ERROR_COUNT = EventFieldType.ERROR_COUNT
     METRICS = EventFieldType.METRICS
 
     @classmethod
@@ -328,6 +327,7 @@ class V3IOTSDBTables(MonitoringStrEnum):
     METRICS = "metrics"
     EVENTS = "events"
     ERRORS = "errors"
+    PREDICTIONS = "predictions"
 
 
 class TDEngineSuperTables(MonitoringStrEnum):

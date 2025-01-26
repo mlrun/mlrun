@@ -138,6 +138,8 @@ class NopDB(RunDBInterface):
         start_time_to: Optional[datetime.datetime] = None,
         last_update_time_from: Optional[datetime.datetime] = None,
         last_update_time_to: Optional[datetime.datetime] = None,
+        end_time_from: Optional[datetime.datetime] = None,
+        end_time_to: Optional[datetime.datetime] = None,
         partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
         rows_per_partition: int = 1,
         partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
@@ -946,6 +948,13 @@ class NopDB(RunDBInterface):
         page_token: Optional[str] = None,
         **kwargs,
     ):
+        pass
+
+    def get_alert_activation(
+        self,
+        project,
+        activation_id,
+    ) -> mlrun.common.schemas.AlertActivation:
         pass
 
     def get_project_summary(self, project: str):

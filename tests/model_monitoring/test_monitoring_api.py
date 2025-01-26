@@ -175,14 +175,21 @@ def test_project_create_model_monitoring_alert_configs() -> None:
             summary="summary",
             events=alert_constants.EventKind.FAILED,
             notifications=[alert_notification],
-            result_names=[f"{APP}.metric-*", "*.result-b"],
+            result_names=[
+                f"{APP}.metric-*",
+                "*.result-b",
+                "mep_id1.test_app.result.metric-3",
+            ],
         )
+        #  "mep_id1.test_app.result.metric-3" is not exist, but because it is a full result name,
+        #  it should raise a warning and create an alert config.
         alert_ids = []
         for alert in alerts:
             alert_ids += alert.entities.ids
         expected_ids = [
             "mep_id1.test_app.result.metric-1",
             "mep_id1.test_app.result.metric-2",
+            "mep_id1.test_app.result.metric-3",
             "mep_id2.test_app.result.metric-1",
             "mep_id2.test_app.result.result-b",
         ]

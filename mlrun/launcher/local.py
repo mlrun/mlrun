@@ -283,3 +283,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         # "handler" and "dask" kinds are special cases of local runs which don't set local=True
         if self._is_run_local or runtime.kind in ["handler"]:
             mlrun.utils.notifications.NotificationPusher([runobj]).push()
+        elif runtime.kind in ["dask"]:
+            runtime._get_db().push_run_notifications(
+                uid=runobj.metadata.uid, project=runobj.metadata.project
+            )

@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import itertools
 import typing
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
 import pandas as pd
 import sqlalchemy.orm
@@ -27,6 +28,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.datastore
 import mlrun.datastore.datastore_profile
+import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
@@ -857,18 +859,26 @@ class ModelEndpoints:
 
         return endpoint_list
 
-    def delete_model_endpoints_resources(
-        self,
+    @classmethod
+    def delete_model_endpoint_monitoring_resources(
+        cls,
+        *,
         project_name: str,
         db_session: sqlalchemy.orm.Session,
+        stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+        tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
         model_monitoring_applications: typing.Optional[list[str]] = None,
         model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
-        Delete all model endpoints resources, including the store data, time series data, and stream resources.
+        Delete all model endpoints monitoring resources, including the store data, time series data, and stream
+        resources.
+        This function is called only when the caller knows there is model monitoring for the project.
 
         :param project_name:                  The name of the project.
         :param db_session:                    A session that manages the current dialog with the database.
+        :param stream_profile:                The datastore profile for the stream.
+        :param tsdb_profile:                  The datastore profile for the TSDB.
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
@@ -877,16 +887,9 @@ class ModelEndpoints:
         logger.debug(
             "Deleting model monitoring endpoints resources", project_name=project_name
         )
-        try:
-            stream_path = mlrun.model_monitoring.get_stream_path(
-                project=project_name,
-                secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                    project=project_name
-                ),
-            )
-        except mlrun.errors.MLRunNotFoundError:
-            # There is no MM infra in place for the project - no resources to delete
-            return
+        stream_path = mlrun.model_monitoring.get_stream_path(
+            project=project_name, profile=stream_profile
+        )
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
@@ -914,10 +917,7 @@ class ModelEndpoints:
         try:
             # Delete model monitoring TSDB resources
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                project=project_name,
-                secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                    project=project_name
-                ),
+                project=project_name, profile=tsdb_profile
             )
         except mlrun.errors.MLRunTSDBConnectionFailureError as e:
             logger.warning(
@@ -939,10 +939,11 @@ class ModelEndpoints:
                 tsdb_connector = None
         if tsdb_connector:
             tsdb_connector.delete_tsdb_resources()
-        self._delete_model_monitoring_stream_resources(
+        cls._delete_model_monitoring_stream_resources(
             project_name=project_name,
             model_monitoring_applications=model_monitoring_applications,
             model_monitoring_access_key=model_monitoring_access_key,
+            stream_profile=stream_profile,
         )
         # Delete model monitoring stats folder.
         delete_model_monitoring_stats_folder(project=project_name)
@@ -1016,6 +1017,7 @@ class ModelEndpoints:
     def _delete_model_monitoring_stream_resources(
         project_name: str,
         model_monitoring_applications: typing.Optional[list[str]],
+        stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
         model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
@@ -1024,6 +1026,7 @@ class ModelEndpoints:
         :param project_name:                  The name of the project.
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
+        :param stream_profile:                The datastore profile for the stream.
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
@@ -1034,12 +1037,9 @@ class ModelEndpoints:
 
         model_monitoring_applications = model_monitoring_applications or []
 
-        # Add the writer and monitoring stream to the application streams list
-        model_monitoring_applications.append(
-            mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.WRITER
-        )
-        model_monitoring_applications.append(
-            mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.STREAM
+        # Add the writer, controller, and monitoring stream to the application streams list
+        model_monitoring_applications.extend(
+            mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.list()
         )
 
         try:
@@ -1048,6 +1048,7 @@ class ModelEndpoints:
             )._delete_model_monitoring_stream_resources(
                 function_names=model_monitoring_applications,
                 access_key=model_monitoring_access_key,
+                stream_profile=stream_profile,
             )
             logger.debug(
                 "Successfully deleted model monitoring stream resources",
@@ -1267,3 +1268,117 @@ class ModelEndpoints:
 
         model_endpoint_object.spec.feature_stats = feature_stats
         return model_endpoint_object, model_obj
+
+
+class ModelMonitoringResourcesDeleter:
+    def __init__(
+        self,
+        *,
+        project: str,
+        db_session: typing.Optional[sqlalchemy.orm.Session],
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo],
+        model_monitoring_access_key: typing.Optional[str],
+    ) -> None:
+        self._project = project
+        self._db_session = db_session
+        self._auth_info = auth_info
+        self._model_monitoring_access_key = model_monitoring_access_key
+
+        # get model monitoring application names, important for deleting model monitoring resources
+        logger.debug("Getting monitoring applications to delete", project_name=project)
+        self._model_monitoring_applications = (
+            services.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=project,
+                db_session=db_session,
+                auth_info=auth_info,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
+        )._get_monitoring_application_to_delete(delete_user_applications=True)
+
+        self._secret_provider = services.api.crud.secrets.get_project_secret_provider(
+            project=project
+        )
+
+        self._has_mm = self._does_project_have_mm()
+        self._stream_profile = self._get_stream_profile()
+        self._tsdb_profile = self._get_tsdb_profile()
+
+    def _does_project_have_mm(self) -> bool:
+        mandatory_secrets = mm_constants.ProjectSecretKeys.mandatory_secrets()
+        keys_not_none = [
+            self._secret_provider(key) is not None for key in mandatory_secrets
+        ]
+        has_mm = all(keys_not_none)
+
+        if not has_mm and any(keys_not_none):
+            # An unexpected situation in which only some of the mandatory MM secrets are set
+            set_secrets = [
+                secret
+                for (not_none, secret) in zip(keys_not_none, mandatory_secrets)
+                if not_none
+            ]
+            logger.warn(
+                "Not all of the mandatory model monitoring secrets are set in the project's secrets. "
+                "Assuming the project has no model monitoring in place.",
+                project_name=self._project,
+                mandatory_secrets=mandatory_secrets,
+                set_secrets=set_secrets,
+            )
+
+        return has_mm
+
+    def _get_profile(
+        self, get_profile_function: Callable
+    ) -> Optional[mlrun.datastore.datastore_profile.DatastoreProfile]:
+        if not self._has_mm:
+            return
+        try:
+            return get_profile_function(
+                project=self._project, secret_provider=self._secret_provider
+            )
+        except mlrun.errors.MLRunNotFoundError as err:
+            # An unexpected situation in which the secrets are set but the datastore profile was removed
+            logger.warn(
+                "The project is marked as having model monitoring according to the secrets, "
+                "but the profile was not found.",
+                project_name=self._project,
+                err=mlrun.errors.err_to_str(err),
+            )
+
+    def _get_stream_profile(
+        self,
+    ) -> Optional[mlrun.datastore.datastore_profile.DatastoreProfile]:
+        return self._get_profile(
+            get_profile_function=mlrun.model_monitoring.helpers._get_stream_profile
+        )
+
+    def _get_tsdb_profile(
+        self,
+    ) -> Optional[mlrun.datastore.datastore_profile.DatastoreProfile]:
+        return self._get_profile(
+            get_profile_function=mlrun.model_monitoring.helpers._get_tsdb_profile
+        )
+
+    def delete(self) -> None:
+        if not self._stream_profile or not self._tsdb_profile:
+            logger.debug(
+                "No model monitoring resources were found in this project",
+                project_name=self._project,
+            )
+            return
+        try:
+            # Delete model monitoring resources
+            ModelEndpoints.delete_model_endpoint_monitoring_resources(
+                project_name=self._project,
+                db_session=self._db_session,
+                tsdb_profile=self._tsdb_profile,
+                stream_profile=self._stream_profile,
+                model_monitoring_applications=self._model_monitoring_applications,
+                model_monitoring_access_key=self._model_monitoring_access_key,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete model monitoring resources",
+                project_name=self._project,
+            )
+            raise exc

@@ -31,7 +31,7 @@ import mlrun_pipelines.patcher
 import mlrun_pipelines.utils
 from mlrun.errors import err_to_str
 from mlrun.utils import (
-    get_ui_url,
+    get_workflow_url,
     logger,
     normalize_workflow_name,
     retry_until_successful,
@@ -1225,7 +1225,7 @@ def notify_scheduled_workflow_failure(
         notification_pusher = mlrun.utils.notifications.CustomNotificationPusher(
             ["slack"]
         )
-        url = get_ui_url(project_name, context_uid)
+        url = get_workflow_url(project_name, context_uid)
         link = f"<{url}|*view workflow job details*>"
         message = (
             f":x: Failed to run scheduled workflow {workflow_name} "

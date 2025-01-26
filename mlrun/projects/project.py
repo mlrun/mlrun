@@ -31,6 +31,7 @@ from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 from urllib.parse import urlparse
 
+import deprecated
 import dotenv
 import git
 import git.exc
@@ -1913,7 +1914,7 @@ class MlrunProject(ModelObj):
 
     def log_document(
         self,
-        key: str,
+        key: str = "",
         tag: str = "",
         local_path: str = "",
         artifact_path: Optional[str] = None,
@@ -1926,7 +1927,8 @@ class MlrunProject(ModelObj):
         """
         Log a document as an artifact.
 
-        :param key: Artifact key
+        :param key: Optional artifact key. If not provided, will be derived from local_path
+                or target_path using DocumentArtifact.key_from_source()
         :param tag: Version tag
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
@@ -1955,7 +1957,6 @@ class MlrunProject(ModelObj):
         Example:
             >>> # Log a PDF document with custom loader
             >>> project.log_document(
-            ...     key="my_doc",
             ...     local_path="path/to/doc.pdf",
             ...     document_loader=DocumentLoaderSpec(
             ...         loader_class_name="langchain_community.document_loaders.PDFLoader",
@@ -1965,6 +1966,13 @@ class MlrunProject(ModelObj):
             ... )
 
         """
+        if not key and not local_path and not target_path:
+            raise ValueError(
+                "Must provide either 'key' parameter or 'local_path'/'target_path' to derive the key from"
+            )
+        if not key:
+            key = DocumentArtifact.key_from_source(local_path or target_path)
+
         document_loader_spec = document_loader_spec or DocumentLoaderSpec()
         if not document_loader_spec.download_object and upload:
             raise ValueError(
@@ -2119,8 +2127,9 @@ class MlrunProject(ModelObj):
         """
         :param name:                   AlertConfig name.
         :param summary:                Summary of the alert, will be sent in the generated notifications
-        :param endpoints:              The endpoints from which to retrieve the metrics that the
-                                       alerts will be based on.
+        :param endpoints:              The endpoints from which metrics will be retrieved to configure the alerts.
+                                       This `ModelEndpointList` object obtained via the `list_model_endpoints`
+                                       method or created manually using `ModelEndpoint` objects.
         :param events:                 AlertTrigger event types (EventKind).
         :param notifications:          List of notifications to invoke once the alert is triggered
         :param result_names:           Optional. Filters the result names used to create the alert configuration,
@@ -2129,6 +2138,8 @@ class MlrunProject(ModelObj):
                                        For example:
                                        [`app1.result-*`, `*.result1`]
                                        will match "mep1.app1.result.result-1" and "mep1.app2.result.result1".
+                                       A specific result_name (not a wildcard) will always create a new alert
+                                       config, regardless of whether the result name exists.
         :param severity:               Severity of the alert.
         :param criteria:               When the alert will be triggered based on the
                                        specified number of events within the defined time period.
@@ -2139,6 +2150,11 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         matching_results = []
+        specific_result_names = [
+            result_name
+            for result_name in result_names
+            if result_name.count(".") == 3 and "*" not in result_name
+        ]
         alerts = []
         endpoint_ids = [endpoint.metadata.uid for endpoint in endpoints.endpoints]
         # using separation to group by endpoint IDs:
@@ -2162,7 +2178,14 @@ class MlrunProject(ModelObj):
                 existing_result_names=results_fqn_by_endpoint,
                 result_name_filters=result_names,
             )
-        for result_fqn in matching_results:
+        for specific_result_name in specific_result_names:
+            if specific_result_name not in matching_results:
+                logger.warning(
+                    f"The specific result name '{specific_result_name}' was"
+                    f" not found in the existing endpoint results. Adding alert configuration anyway."
+                )
+        alert_result_names = list(set(specific_result_names + matching_results))
+        for result_fqn in alert_result_names:
             alerts.append(
                 mlrun.alerts.alert.AlertConfig(
                     project=self.name,
@@ -2817,11 +2840,29 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
+    # TODO: Remove this in 1.10.0
+    @deprecated.deprecated(
+        version="1.8.0",
+        reason="'remove_function' is deprecated and will be removed in 1.10.0. "
+        "Please use `delete_function` instead.",
+        category=FutureWarning,
+    )
     def remove_function(self, name):
         """remove the specified function from the project
 
         :param name:    name of the function (under the project)
         """
+        self.spec.remove_function(name)
+
+    def delete_function(self, name, from_cache_only=True):
+        """deletes the specified function from the project
+
+        :param name:    name of the function (under the project)
+        :param from_cache_only: if set, do not delete the function from the DB.
+            Function will be deleted from project's cache and spec only. Default is True.
+        """
+        if not from_cache_only:
+            mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):
@@ -4639,6 +4680,8 @@ class MlrunProject(ModelObj):
         start_time_to: Optional[datetime.datetime] = None,
         last_update_time_from: Optional[datetime.datetime] = None,
         last_update_time_to: Optional[datetime.datetime] = None,
+        end_time_from: Optional[datetime.datetime] = None,
+        end_time_to: Optional[datetime.datetime] = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
         """Retrieve a list of runs.
@@ -4682,6 +4725,8 @@ class MlrunProject(ModelObj):
         :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param end_time_from: Filter by run end time in ``[end_time_from, end_time_to]``.
+        :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.
         """
         if state:
             # TODO: Remove this in 1.9.0
@@ -4708,6 +4753,8 @@ class MlrunProject(ModelObj):
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            end_time_from=end_time_from,
+            end_time_to=end_time_to,
             **kwargs,
         )
 

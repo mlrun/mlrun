@@ -271,6 +271,9 @@ class VectorStoreCollection:
                     DocumentArtifact.METADATA_SOURCE_KEY: {"$eq": artifact.get_source()}
                 }
                 self._collection_impl.delete(filter=filter)
+            elif store_class == "mongodbatlasvectorsearch":
+                filter = {DocumentArtifact.METADATA_SOURCE_KEY: artifact.get_source()}
+                self._collection_impl.collection.delete_many(filter=filter)
             elif (
                 hasattr(self._collection_impl, "delete")
                 and "filter"

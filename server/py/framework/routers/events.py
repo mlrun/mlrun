@@ -28,7 +28,7 @@ router = APIRouter()
 
 @router.post("/projects/{project}/events/{name}")
 @inject
-async def post_event(
+async def process_event(
     request: Request,
     project: str,
     name: str,
@@ -40,7 +40,7 @@ async def post_event(
     ),
 ):
     return await service.handle_request(
-        "post_event",
+        "process_event",
         request,
         project,
         name,

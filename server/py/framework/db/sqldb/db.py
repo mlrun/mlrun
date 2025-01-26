@@ -6720,6 +6720,7 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunNotFoundError(
                 f"Run not found: uid={run_uid}, project={project}"
             )
+        # Remove any previously saved notifications for this run to prevent duplicates when saving new notifications
         self.delete_run_notifications(
             session,
             run_uid=run.uid,

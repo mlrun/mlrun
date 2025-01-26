@@ -482,10 +482,6 @@ class MonitoringApplicationController:
             ),
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
-            mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
-                project=project,
-                function_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ),
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})

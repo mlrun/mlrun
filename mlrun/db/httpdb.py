@@ -2374,9 +2374,9 @@ class HTTPRunDB(RunDBInterface):
     def retry_pipeline(
         self,
         run_id: str,
+        project: str,
         namespace: Optional[str] = None,
         timeout: int = 30,
-        project: Optional[str] = None,
     ):
         """
         Retry a specific pipeline run using its run ID. This function sends an API request
@@ -2386,8 +2386,7 @@ class HTTPRunDB(RunDBInterface):
         :param run_id: The unique ID of the pipeline run to retry.
         :param namespace: Kubernetes namespace where the pipeline is running. Optional.
         :param timeout: Timeout (in seconds) for the API call. Defaults to 30 seconds.
-        :param project: Name of the MLRun project associated with the pipeline. Can be
-            ``*`` to query across all projects. Optional.
+        :param project: Name of the MLRun project associated with the pipeline.
 
         :raises ValueError: Raised if the API response is not successful or contains an
             error.
@@ -2398,14 +2397,13 @@ class HTTPRunDB(RunDBInterface):
         params = {}
         if namespace:
             params["namespace"] = namespace
-        project_path = project if project else "*"
 
         resp_text = ""
         resp_code = None
         try:
             resp = self.api_call(
                 "POST",
-                f"projects/{project_path}/pipelines/{run_id}/retry",
+                f"projects/{project}/pipelines/{run_id}/retry",
                 params=params,
                 timeout=timeout,
             )
@@ -2420,7 +2418,7 @@ class HTTPRunDB(RunDBInterface):
             logger.error(
                 "Retry pipeline API call encountered an error.",
                 run_id=run_id,
-                project=project_path,
+                project=project,
                 namespace=namespace,
                 response_code=resp_code,
                 response_text=resp_text,
@@ -2435,7 +2433,7 @@ class HTTPRunDB(RunDBInterface):
         logger.info(
             "Successfully retried pipeline run",
             run_id=run_id,
-            project=project_path,
+            project=project,
             namespace=namespace,
         )
         return resp.json()

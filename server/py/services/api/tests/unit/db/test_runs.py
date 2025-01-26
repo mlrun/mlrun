@@ -421,6 +421,21 @@ class TestRuns(TestDatabaseBase):
         run = self._db.read_run(self._db_session, uid, project, iteration)
         assert run["metadata"]["labels"] == {"a": "b"}
 
+        run["metadata"]["labels"] = {"a": "b" * 256}
+        # too long value
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Value of `a` label is too long. "
+            "Maximum allowed length is 255 characters.",
+        ):
+            self._db.update_run(
+                self._db_session,
+                run,
+                uid,
+                project,
+                iteration,
+            )
+
     def test_store_and_update_run_update_name_failure(self):
         project, name, uid, iteration, run = self._create_new_run()
 

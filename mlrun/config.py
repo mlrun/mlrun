@@ -870,6 +870,14 @@ class Config:
             return self.__class__(val)
         return val
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        # create a new Config without calling __init__ (avoid recursion)
+        result = cls.__new__(cls)
+        # manually deep-copy _cfg
+        object.__setattr__(result, "_cfg", copy.deepcopy(self._cfg, memo))
+        return result
+
     def __setattr__(self, attr, value):
         # in order for the dbpath setter to work
         if attr == "dbpath":

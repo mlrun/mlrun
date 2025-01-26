@@ -481,12 +481,19 @@ class Service(framework.service.Service):
             db_session,
             activation_id,
         )
+        if alert_activation.project != project:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Alert activation not found. "
+                f"activation_id={activation_id}, "
+                f"project={project}"
+            )
         if name and alert_activation.name != name:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Alert activation not found. "
                 f"activation_id={activation_id}, "
                 f"name={name}"
             )
+
         return alert_activation
 
     async def _move_service_to_online(self):

@@ -275,7 +275,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 handler=handler,
             )
 
-        :param class_handler:     The handler to the class, e.g. ``path.to.module::MonitoringApplication``.
+        :param class_handler:     The handler to the class, e.g. ``path.to.module::MonitoringApplication``,
+                                  useful when using Git sources or code from images.
                                   If ``None``, the current class, deriving from
                                   :py:class:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase`,
                                   is used.
@@ -284,7 +285,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param tag:               Tag for the function.
         :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
-        :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param project:           The current project to set the function to. If not set, the current project is used.

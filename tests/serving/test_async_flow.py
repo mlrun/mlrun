@@ -183,7 +183,7 @@ class MyModelSelector(ModelSelector):
 
 @pytest.mark.parametrize(
     "execution_mechanism",
-    ("multiprocessing", "threading", "asyncio", "naive"),
+    ("process_pool", "dedicated_process", "thread_pool", "asyncio", "naive"),
 )
 def test_model_runner_with_selector(execution_mechanism: str):
     m1 = MyModel(name="m1", inc=1)

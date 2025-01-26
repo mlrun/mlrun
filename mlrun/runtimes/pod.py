@@ -214,9 +214,7 @@ class KubeResourceSpec(FunctionSpec):
         # default service account is set in mlrun.utils.process_function_service_account
         # due to project specific defaults
         self.service_account = service_account
-        self.image_pull_secret = (
-            image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
-        )
+        self.image_pull_secret = image_pull_secret
         self.node_name = node_name
         self.node_selector = node_selector or {}
         self._affinity = affinity

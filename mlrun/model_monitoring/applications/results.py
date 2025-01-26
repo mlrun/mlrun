@@ -22,7 +22,7 @@ from pydantic.v1.dataclasses import dataclass
 
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas.model_monitoring.constants as mm_constant
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
@@ -63,8 +63,8 @@ class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
 
     name: str
     value: float
-    kind: mm_constant.ResultKindApp
-    status: mm_constant.ResultStatusApp
+    kind: mm_constants.ResultKindApp
+    status: mm_constants.ResultStatusApp
     extra_data: dict = dataclasses.field(default_factory=dict)
 
     def to_dict(self):
@@ -74,11 +74,11 @@ class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
         :returns:    (dict) Dictionary representation of the result.
         """
         return {
-            mm_constant.ResultData.RESULT_NAME: self.name,
-            mm_constant.ResultData.RESULT_VALUE: self.value,
-            mm_constant.ResultData.RESULT_KIND: self.kind.value,
-            mm_constant.ResultData.RESULT_STATUS: self.status.value,
-            mm_constant.ResultData.RESULT_EXTRA_DATA: json.dumps(self.extra_data),
+            mm_constants.ResultData.RESULT_NAME: self.name,
+            mm_constants.ResultData.RESULT_VALUE: self.value,
+            mm_constants.ResultData.RESULT_KIND: self.kind.value,
+            mm_constants.ResultData.RESULT_STATUS: self.status.value,
+            mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(self.extra_data),
         }
 
     @validator("extra_data")
@@ -118,8 +118,8 @@ class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
         :returns:    (dict) Dictionary representation of the result.
         """
         return {
-            mm_constant.MetricData.METRIC_NAME: self.name,
-            mm_constant.MetricData.METRIC_VALUE: self.value,
+            mm_constants.MetricData.METRIC_NAME: self.name,
+            mm_constants.MetricData.METRIC_VALUE: self.value,
         }
 
 
@@ -134,7 +134,7 @@ class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
 
     """
 
-    name: mm_constant.StatsKind
+    name: mm_constants.StatsKind
     timestamp: str
     stats: dict = dataclasses.field(default_factory=dict)
 
@@ -145,7 +145,7 @@ class _ModelMonitoringApplicationStats(_ModelMonitoringApplicationDataRes):
         :returns:    (dict) Dictionary representation of the result.
         """
         return {
-            mm_constant.StatsData.STATS_NAME: self.name,
-            mm_constant.StatsData.STATS: self.stats,
-            mm_constant.StatsData.TIMESTAMP: self.timestamp,
+            mm_constants.StatsData.STATS_NAME: self.name,
+            mm_constants.StatsData.STATS: self.stats,
+            mm_constants.StatsData.TIMESTAMP: self.timestamp,
         }

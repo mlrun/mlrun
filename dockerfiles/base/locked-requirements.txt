@@ -1628,15 +1628,48 @@ grpcio==1.70.0 \
     #   google-cloud-bigquery
     #   grpcio-status
     #   grpcio-tools
-grpcio-status==1.48.2 ; python_full_version < '3.11' \
+grpcio-status==1.48.2 ; python_full_version == '3.10.*' \
     --hash=sha256:2c33bbdbe20188b2953f46f31af669263b6ee2a9b2d38fa0d36ee091532e21bf \
     --hash=sha256:53695f45da07437b7c344ee4ef60d370fd2850179f5a28bb26d8e2aa1102ec11
     # via google-api-core
-grpcio-status==1.62.3 ; python_full_version >= '3.11' \
+grpcio-status==1.62.3 ; python_full_version != '3.10.*' \
     --hash=sha256:289bdd7b2459794a12cf95dc0cb727bd4a1742c37bd823f760236c937e53a485 \
     --hash=sha256:f9049b762ba8de6b1086789d8315846e094edac2c50beaf462338b301a8fd4b8
     # via google-api-core
-grpcio-tools==1.48.2 ; python_full_version < '3.11' \
+grpcio-tools==1.30.0 ; python_full_version < '3.10' \
+    --hash=sha256:089be110fc7e853709f68505be508aa055eff96bcb9b138e15f043bdb9d89011 \
+    --hash=sha256:0928912acdf5a9e93fc3c47e37f2c81fc48ed019a40964abe8cbd927d3b2a9cb \
+    --hash=sha256:0c78d3b2d46f5b704928dcedc34ec084d765b492781ebeae565ee2adba18ad9a \
+    --hash=sha256:160c8c1f27bb44629da5e0c1e8e656ca2cda001bfb2fb7e346172933e08dc456 \
+    --hash=sha256:169c4b218584b071201b01ae2354bf3adf2f7d927b04154825f19b3764394fbf \
+    --hash=sha256:296acc97fd54957a2e3a25c28ab667a1e8e7ccc5daf97866e2af0960c63341cb \
+    --hash=sha256:2af37ee55e466d364ca121273c1332e6430c0006c172a490d3594c8cacceb577 \
+    --hash=sha256:2ca9b683db30cb29b00eb6a8274e700f8a585c9c8678213ec83f52cd1895eac5 \
+    --hash=sha256:2df744b0a1b70e80392fba66fb2141f8c88ecd4fff5c46f04e7e4c976fe05339 \
+    --hash=sha256:33d448bfdb65763ae2d4889b3981688dcf805df9b038c73fed12addf7bebd0a4 \
+    --hash=sha256:3454b4332dbe80f0692317d315f34acc086d6c347d3f6527b05a774a5712af84 \
+    --hash=sha256:3a03757a79ed9cff536bec1394721bbdc279dd59d8c0827101ba80eab894836d \
+    --hash=sha256:5f2b65df9ba3b83141d9a53a841758c97792ce36d7cf2067f657af0b43773c29 \
+    --hash=sha256:601bd2001ba9e4f2ccdf7b363c436397dcc5211194fe180fa0ad2a21df5a738e \
+    --hash=sha256:62bb395d1d4e077bc1109d248e23af3200429c8e3358d47cf1a6c2ec7a429716 \
+    --hash=sha256:6876271f360248a9cf37e7c2d0f8c3c034be53b3d6a5d015fb5e69a014bf121f \
+    --hash=sha256:755ccf09cbb16c0516a1e3d8db49ce2a657fd78d0bfc2491cb6520dfa6b43ddc \
+    --hash=sha256:7874f5783bdf6afd8f8b6de721952ccc6568cf71fc7dae695a296998cd2cf1d5 \
+    --hash=sha256:7878adb93b0c1941eb2e0bed60719f38cda2ae5568bc0bcaa701f457e719a329 \
+    --hash=sha256:83cd3231ce1c88fa2c896cab164320245ee371d45ea054375beb5a0cd75ce4da \
+    --hash=sha256:912dbabb7e29dbc0f4457c214a2cb9738e224553e9d177224ec357c2f295b533 \
+    --hash=sha256:9165773bb93aff153abce255a25ccabb5d94d1103ee195ec60fef127a2c5a035 \
+    --hash=sha256:96338008a77fc284443707ebd014bb4114cd97ab529ebd63f157f83cbcb6e88d \
+    --hash=sha256:9af3bcfdceb3a5f89670808a129c2cf4f5d5d0d5018f0e1c7faf58a4d9547f76 \
+    --hash=sha256:a4fca9bea2ee4896164f83dde28aaa7407ce27343eb265f41b1122e5c91da6ec \
+    --hash=sha256:c3528d8f72fbd8cec8770af6989054a9b945c58bd685042abcbd8d5ea4333f9f \
+    --hash=sha256:de1ee76eba242d866fc030d5cc58f90181eb89de9ae30387e6e8d5a11f547981 \
+    --hash=sha256:e82b7d382d525a0649f87fb86a993fdf385b16f15c9c29d15f8da7b9e53dc6ac \
+    --hash=sha256:ecdd0fa0fd71a9754bbd75927d391be26c4f0b556563c742780da085aa8d530d \
+    --hash=sha256:faa9ae69d1c623da0e65385406c4cfa782966be3cf3bdf2c6faa6f46281a4d49 \
+    --hash=sha256:fd61d5492219f59d11d390bc223b937ef80e36aee84218497135226fdf5f41d1
+    # via v3io-frames
+grpcio-tools==1.48.2 ; python_full_version == '3.10.*' \
     --hash=sha256:0119aabd9ceedfdf41b56b9fdc8284dd85a7f589d087f2694d743f346a368556 \
     --hash=sha256:072234859f6069dc43a6be8ad6b7d682f4ba1dc2e2db2ebf5c75f62eee0f6dfb \
     --hash=sha256:0fb6c1c1e56eb26b224adc028a4204b6ad0f8b292efa28067dff273bbc8b27c4 \
@@ -3356,7 +3389,7 @@ proto-plus==1.25.0 \
     # via
     #   google-api-core
     #   google-cloud-bigquery-storage
-protobuf==3.20.3 ; python_full_version < '3.11' \
+protobuf==3.20.3 ; python_full_version == '3.10.*' \
     --hash=sha256:03038ac1cfbc41aa21f6afcbcd357281d7521b4157926f30ebecc8d4ea59dcb7 \
     --hash=sha256:28545383d61f55b57cf4df63eebd9827754fd2dc25f80c5253f9184235db242c \
     --hash=sha256:2e3427429c9cffebf259491be0af70189607f365c2f41c7c3764af6f337105f2 \
@@ -3387,7 +3420,7 @@ protobuf==3.20.3 ; python_full_version < '3.11' \
     #   grpcio-tools
     #   mlflow-skinny
     #   proto-plus
-protobuf==4.25.6 ; python_full_version >= '3.11' \
+protobuf==4.25.6 ; python_full_version != '3.10.*' \
     --hash=sha256:07972021c8e30b870cfc0863409d033af940213e0e7f64e27fe017b929d2c9f7 \
     --hash=sha256:3f3b0b39db04b509859361ac9bca65a265fe9342e6b9406eda58029f5b1d10b2 \
     --hash=sha256:4434ff8bb5576f9e0c78f47c41cdf3a152c0b44de475784cd3fd170aef16205a \

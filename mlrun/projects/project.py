@@ -2854,14 +2854,15 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_function(name)
 
-    def delete_function(self, name, from_cache_only=True):
+    def delete_function(self, name, delete_from_db=False):
         """deletes the specified function from the project
 
-        :param name:    name of the function (under the project)
-        :param from_cache_only: if set, do not delete the function from the DB.
-            Function will be deleted from project's cache and spec only. Default is True.
+        :param name: name of the function (under the project)
+        :param delete_from_db: default is False. If False, the function is removed
+                               only from the project's cache and spec.
+                               If True, the function is also removed from the database.
         """
-        if not from_cache_only:
+        if delete_from_db:
             mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)
         self.spec.remove_function(name)
 

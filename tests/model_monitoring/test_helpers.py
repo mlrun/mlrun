@@ -14,7 +14,7 @@
 
 import datetime
 from collections.abc import Iterator
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 from unittest.mock import patch
 
 import nuclio
@@ -27,6 +27,7 @@ from mlrun.common.model_monitoring.helpers import (
     _MAX_FLOAT,
     FeatureStats,
     Histogram,
+    get_kafka_topic,
     pad_features_hist,
     pad_hist,
 )
@@ -535,3 +536,31 @@ def test_filter_results_by_regex():
         result_name_filters=results_names_filters,
     )
     assert sorted(filtered_results) == sorted(expected_result_names)
+
+
+@pytest.mark.parametrize(
+    ("project", "function_name", "expected_topic"),
+    [
+        ("p1", None, "monitoring_stream_p1_v1"),
+        ("mm", "model-monitoring-stream", "monitoring_stream_mm_v1"),
+        (
+            "mm",
+            "model-monitoring-controller",
+            "monitoring_stream_mm_model-monitoring-controller_v1",
+        ),
+        ("mm", "model-monitoring-stream", "monitoring_stream_mm_v1"),
+        (
+            "special-mm-12",
+            "model-monitoring-writer",
+            "monitoring_stream_special-mm-12_model-monitoring-writer_v1",
+        ),
+    ],
+)
+def test_get_kafka_topic(
+    project: str,
+    function_name: Optional[str],
+    expected_topic: str,
+) -> None:
+    assert (
+        get_kafka_topic(project=project, function_name=function_name) == expected_topic
+    ), "The topic is different than expected"

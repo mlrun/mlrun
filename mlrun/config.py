@@ -870,6 +870,14 @@ class Config:
             return self.__class__(val)
         return val
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        # create a new Config without calling __init__ (avoid recursion)
+        result = cls.__new__(cls)
+        # manually deep-copy _cfg
+        object.__setattr__(result, "_cfg", copy.deepcopy(self._cfg, memo))
+        return result
+
     def __setattr__(self, attr, value):
         # in order for the dbpath setter to work
         if attr == "dbpath":
@@ -1304,7 +1312,7 @@ class Config:
                     project=project,
                     kind=kind
                     if function_name is None
-                    else f"{kind}-{function_name.lower()}",
+                    else f"{kind}-{function_name.lower()}-v1",
                 )
             elif (
                 kind == "stream"
@@ -1313,18 +1321,22 @@ class Config:
             ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
-                    kind=kind,
+                    kind=f"{kind}-v1",
                 )
-            else:
-                if (
-                    function_name
-                    == mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
-                ):
-                    kind = function_name
+            elif (
+                function_name
+                == mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+                and kind == "stream"
+            ):
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                     project=project,
-                    kind=kind,
+                    kind=f"{kind}-{function_name.lower()}-v1",
                 )
+
+            return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=project,
+                kind=kind,
+            )
 
         # Get the current offline path from the configuration
         file_path = mlrun.mlconf.model_endpoint_monitoring.offline_storage_path.format(

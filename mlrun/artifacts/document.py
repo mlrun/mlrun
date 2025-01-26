@@ -34,7 +34,9 @@ class DocumentLoaderSpec(ModelObj):
 
     This class is responsible for loading documents from a given source path using a specified loader class.
     The loader class is dynamically imported and instantiated with the provided arguments. The loaded documents
-    can be optionally uploaded as artifacts.
+    can be optionally uploaded as artifacts. Note that only loader classes that return single results
+    (e.g., TextLoader, UnstructuredHTMLLoader, WebBaseLoader(scalar)) are supported - loaders returning multiple
+    results like DirectoryLoader or WebBaseLoader(list) are not compatible.
 
     Attributes:
         loader_class_name (str): The name of the loader class to use for loading documents.
@@ -61,7 +63,7 @@ class DocumentLoaderSpec(ModelObj):
             kwargs (Optional[dict]): Additional keyword arguments to pass to the loader class.
             download_object (bool, optional): If True, the file will be downloaded before launching
                 the loader. If False, the loader accepts a link that should not be downloaded.
-                Defaults to False.
+                Defaults to True.
         Example:
             >>> # Create a loader specification for PDF documents
             >>> loader_spec = DocumentLoaderSpec(
@@ -228,30 +230,8 @@ class MLRunLoader:
     @staticmethod
     def artifact_key_instance(artifact_key: str, src_path: str) -> str:
         if "%%" in artifact_key:
-            pattern = mlrun.utils.regex.artifact_key[0]
-            # Convert anchored pattern (^...$) to non-anchored version for finditer
-            search_pattern = pattern.strip("^$")
-            result = []
-            current_pos = 0
-
-            # Find all valid sequences
-            for match in re.finditer(search_pattern, src_path):
-                # Add hex values for characters between matches
-                for char in src_path[current_pos : match.start()]:
-                    result.append(hex(ord(char))[2:].zfill(2))
-
-                # Add the valid sequence
-                result.append(match.group())
-                current_pos = match.end()
-
-            # Handle any remaining characters after the last match
-            for char in src_path[current_pos:]:
-                result.append(hex(ord(char))[2:].zfill(2))
-
-            resolved_path = "".join(result)
-
+            resolved_path = DocumentArtifact.key_from_source(src_path)
             artifact_key = artifact_key.replace("%%", resolved_path)
-
         return artifact_key
 
 
@@ -259,6 +239,41 @@ class DocumentArtifact(Artifact):
     """
     A specific artifact class inheriting from generic artifact, used to maintain Document meta-data.
     """
+
+    @staticmethod
+    def key_from_source(src_path: str) -> str:
+        """Convert a source path into a valid artifact key by replacing invalid characters with underscores.
+        Args:
+            src_path (str): The source path to be converted into a valid artifact key
+        Returns:
+            str: A modified version of the source path where all invalid characters are replaced
+                with underscores while preserving valid sequences in their original positions
+        Examples:
+            >>> DocumentArtifact.key_from_source("data/file-name(v1).txt")
+            "data_file-name_v1__txt"
+        """
+        pattern = mlrun.utils.regex.artifact_key[0]
+        # Convert anchored pattern (^...$) to non-anchored version for finditer
+        search_pattern = pattern.strip("^$")
+        result = []
+        current_pos = 0
+
+        # Find all valid sequences
+        for match in re.finditer(search_pattern, src_path):
+            # Add '_' values for characters between matches
+            for char in src_path[current_pos : match.start()]:
+                result.append("_")
+
+            # Add the valid sequence
+            result.append(match.group())
+            current_pos = match.end()
+
+        # Handle any remaining characters after the last match
+        for char in src_path[current_pos:]:
+            result.append("_")
+
+        resolved_path = "".join(result)
+        return resolved_path
 
     class DocumentArtifactSpec(ArtifactSpec):
         _dict_fields = ArtifactSpec._dict_fields + [
@@ -384,7 +399,7 @@ class DocumentArtifact(Artifact):
             metadata[self.METADATA_ORIGINAL_SOURCE_KEY] = self.spec.original_source
             metadata[self.METADATA_SOURCE_KEY] = self.get_source()
             metadata[self.METADATA_ARTIFACT_TAG] = self.tag or "latest"
-            metadata[self.METADATA_ARTIFACT_KEY] = self.key
+            metadata[self.METADATA_ARTIFACT_KEY] = self.db_key
             metadata[self.METADATA_ARTIFACT_PROJECT] = self.metadata.project
 
             if self.get_target_path():

@@ -397,6 +397,26 @@ def test_log_artifact_with_invalid_key(artifact_key, expected):
         pytest.fail(f"Unexpected exception raised: {e}")
 
 
+def test_get_model_without_suffix():
+    project = mlrun.new_project("get-model-without-suffix")
+    model_name = f"custom_suffix_model_{uuid.uuid4()}"
+    for suffix in mlrun.artifacts.model.MODEL_OPTIONAL_SUFFIXES:
+        file_name = f"model.{suffix}"
+        project.log_model(
+            model_name,
+            body=b"123",
+            model_file=file_name,
+            artifact_path=results_dir,
+        )
+        model_dir_path = os.path.join(results_dir, model_name)
+        model_path = os.path.join(model_dir_path, file_name)
+        temp_path, _, _ = mlrun.artifacts.get_model(model_path)
+        assert temp_path == model_path
+        with open(temp_path, "rb") as fp:
+            data = fp.read()
+        assert data == b"123"
+
+
 @pytest.mark.parametrize(
     "local_path, fail",
     [

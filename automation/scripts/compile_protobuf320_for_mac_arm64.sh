@@ -18,16 +18,19 @@ set -e
 
 TARGET_PROTOBUF_VERSION=3.20.3
 
-# uncomment above and delete this line once `uv` would be able to accept
-# cpp_implementation as a global option.
-install_command=$(echo pip install protobuf=="${TARGET_PROTOBUF_VERSION}" --force-reinstall --force --no-cache --no-binary :all: --global-option=\"--cpp_implementation\")
+# ensure running on mac
+if [[ "$(uname)" != "Darwin" ]]; then
+    echo "This script is intended to run on macOS"
+    exit 1
+fi
 
-
-# Install and use protobuf 3.20
+echo "Installing protobuf version ${TARGET_PROTOBUF_VERSION} on macOS"
 brew install --force protobuf@3.20
 
-# Ensure that the correct version of protobuf is linked
+echo "Ensure that the correct version of protobuf is linked"
 brew unlink protobuf@3 && brew link --force protobuf@3
+
+echo "Compiling protobuf from source"
 
 # Compile protobuf on mac
 #   used https://github.com/protocolbuffers/protobuf/issues/8820#issuecomment-961552604
@@ -49,8 +52,8 @@ PROTOC_SRC_PATH="/tmp/protobuf-${TARGET_PROTOBUF_VERSION}" && \
 # Export protobuf to install package correctly
 export PATH="/opt/homebrew/opt/protobuf@3/bin:$PATH"
 
-# Install protobuf package
+echo "Installing protobuf package"
 INSTALL_PREFIX_PATH="/usr/local" && \
    CFLAGS="-I${INSTALL_PREFIX_PATH}/include" && \
    LDFLAGS="-L${INSTALL_PREFIX_PATH}/lib" && \
-   $install_command
+   pip install protobuf=="${TARGET_PROTOBUF_VERSION}" --force-reinstall --force --no-cache --no-binary :all: --global-option="--cpp_implementation"

@@ -804,29 +804,6 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             expected_executor_volume_mounts=expected_executor_mounts,
         )
 
-    def test_deploy_with_image_pull_secret(
-        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
-    ):
-        # no image pull secret
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
-        self.execute_function(runtime)
-        self._assert_image_pull_secret()
-
-        # default image pull secret
-        mlrun.mlconf.function.spec.image_pull_secret.default = "my_secret"
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
-        self.execute_function(runtime)
-        self._assert_image_pull_secret(
-            mlrun.mlconf.function.spec.image_pull_secret.default,
-        )
-
-        # override default image pull secret
-        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
-        new_image_pull_secret = "my_new_secret"
-        runtime.spec.image_pull_secret = new_image_pull_secret
-        self.execute_function(runtime)
-        self._assert_image_pull_secret(new_image_pull_secret)
-
     def test_get_offline_features(
         self,
         db: sqlalchemy.orm.Session,

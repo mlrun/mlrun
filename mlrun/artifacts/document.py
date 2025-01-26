@@ -34,7 +34,9 @@ class DocumentLoaderSpec(ModelObj):
 
     This class is responsible for loading documents from a given source path using a specified loader class.
     The loader class is dynamically imported and instantiated with the provided arguments. The loaded documents
-    can be optionally uploaded as artifacts.
+    can be optionally uploaded as artifacts. Note that only loader classes that return single results
+    (e.g., TextLoader, UnstructuredHTMLLoader, WebBaseLoader(scalar)) are supported - loaders returning multiple
+    results like DirectoryLoader or WebBaseLoader(list) are not compatible.
 
     Attributes:
         loader_class_name (str): The name of the loader class to use for loading documents.
@@ -61,7 +63,7 @@ class DocumentLoaderSpec(ModelObj):
             kwargs (Optional[dict]): Additional keyword arguments to pass to the loader class.
             download_object (bool, optional): If True, the file will be downloaded before launching
                 the loader. If False, the loader accepts a link that should not be downloaded.
-                Defaults to False.
+                Defaults to True.
         Example:
             >>> # Create a loader specification for PDF documents
             >>> loader_spec = DocumentLoaderSpec(

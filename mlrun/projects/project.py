@@ -31,6 +31,7 @@ from os import environ, makedirs, path
 from typing import Callable, Optional, Union, cast
 from urllib.parse import urlparse
 
+import deprecated
 import dotenv
 import git
 import git.exc
@@ -2839,11 +2840,29 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
+    # TODO: Remove this in 1.10.0
+    @deprecated.deprecated(
+        version="1.8.0",
+        reason="'remove_function' is deprecated and will be removed in 1.10.0. "
+        "Please use `delete_function` instead.",
+        category=FutureWarning,
+    )
     def remove_function(self, name):
         """remove the specified function from the project
 
         :param name:    name of the function (under the project)
         """
+        self.spec.remove_function(name)
+
+    def delete_function(self, name, from_cache_only=True):
+        """deletes the specified function from the project
+
+        :param name:    name of the function (under the project)
+        :param from_cache_only: if set, do not delete the function from the DB.
+            Function will be deleted from project's cache and spec only. Default is True.
+        """
+        if not from_cache_only:
+            mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):
@@ -4661,6 +4680,8 @@ class MlrunProject(ModelObj):
         start_time_to: Optional[datetime.datetime] = None,
         last_update_time_from: Optional[datetime.datetime] = None,
         last_update_time_to: Optional[datetime.datetime] = None,
+        end_time_from: Optional[datetime.datetime] = None,
+        end_time_to: Optional[datetime.datetime] = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
         """Retrieve a list of runs.
@@ -4704,6 +4725,8 @@ class MlrunProject(ModelObj):
         :param last_update_time_from: Filter by run last update time in ``(last_update_time_from,
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
+        :param end_time_from: Filter by run end time in ``[end_time_from, end_time_to]``.
+        :param end_time_to: Filter by run end time in ``[end_time_from, end_time_to]``.
         """
         if state:
             # TODO: Remove this in 1.9.0
@@ -4730,6 +4753,8 @@ class MlrunProject(ModelObj):
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            end_time_from=end_time_from,
+            end_time_to=end_time_to,
             **kwargs,
         )
 

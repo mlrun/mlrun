@@ -772,10 +772,11 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 
         runs = run_db.list_runs(uid=uid, project=project, labels=selector)
         df = runs.to_df()[
-            ["name", "uid", "iter", "start", "state", "parameters", "results"]
+            ["name", "uid", "iter", "start", "end", "state", "parameters", "results"]
         ]
         # df['uid'] = df['uid'].apply(lambda x: f'..{x[-6:]}')
-        df["start"] = df["start"].apply(time_str)
+        for time_column in ["start", "end"]:
+            df[time_column] = df[time_column].apply(time_str)
         df["parameters"] = df["parameters"].apply(dict_to_str)
         df["results"] = df["results"].apply(dict_to_str)
         print(tabulate(df, headers="keys"))

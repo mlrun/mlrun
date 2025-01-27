@@ -3657,8 +3657,8 @@ starlette==0.45.3 \
     --hash=sha256:2cbcba2a75806f8a41c722141486f37c28e30a0921c5f6fe4346cb0dcee1302f \
     --hash=sha256:dfb6d332576f136ec740296c7e8bb8c8a7125044e7c6da30744718880cdd059d
     # via fastapi
-storey==1.8.8 \
-    --hash=sha256:fcdeabae9be839f8e9526f28173c6f1d96d6a0c65e70bf7ac4c5261d82cd6d58
+storey==1.8.9 \
+    --hash=sha256:cc5ffe86130db92b7b1d3af0344cf4863ab5473057b127c1a1713ad2e2d99678
     # via -r requirements.txt
 strip-hints==0.1.10 ; python_full_version < '3.11' \
     --hash=sha256:307c2bd147cd35997c8ed2e9a3bdca48ad9c9617e04ea46599095201b4ce998f

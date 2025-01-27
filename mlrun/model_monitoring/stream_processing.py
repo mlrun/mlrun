@@ -20,11 +20,8 @@ import storey
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
-import mlrun.config
-import mlrun.datastore.targets
 import mlrun.feature_store as fstore
 import mlrun.feature_store.steps
-import mlrun.model_monitoring.db
 import mlrun.serving.states
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (

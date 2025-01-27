@@ -21,11 +21,18 @@ from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, get_range, make_datastore_schema_sanitizer
+from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
 
 class S3Store(DataStore):
     using_bucket = True
+
+    @staticmethod
+    def get_range(size, offset):
+        byterange = f"bytes={offset}-"
+        if size:
+            byterange += str(offset + size - 1)
+        return byterange
 
     def __init__(
         self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
@@ -185,7 +192,7 @@ class S3Store(DataStore):
         bucket, key = self.get_bucket_and_key(key)
         obj = self.s3.Object(bucket, key)
         if size or offset:
-            return obj.get(Range=get_range(size, offset))["Body"].read()
+            return obj.get(Range=S3Store.get_range(size, offset))["Body"].read()
         return obj.get()["Body"].read()
 
     def put(self, key, data, append=False):

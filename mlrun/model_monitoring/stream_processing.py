@@ -378,7 +378,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
     def do(self, full_event):
         event = full_event.body
         if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
-            logger.info("Skipped nop event inside of ProcessEndpointEvent", event=event)
+            logger.debug(
+                "Skipped nop event inside of ProcessEndpointEvent", event=event
+            )
             return storey.Event(body=[event])
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
@@ -637,7 +639,6 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
     def do(self, event: dict):
         if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
-            logger.info("Skipped nop event inside of MapFeatureNames", event=event)
             return event
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 

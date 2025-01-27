@@ -216,6 +216,116 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         function.deploy()
 
     @classmethod
+    def get_job_handler(cls, handler_to_class: str) -> str:
+        """
+        A helper function to get the handler to the application job ``_handler``.
+
+        :param handler_to_class: The handler to the application class, e.g. ``my_package.sub_module1.MonitoringApp1``.
+        :returns:                The handler to the job of the application class.
+        """
+        return f"{handler_to_class}::{cls._handler.__name__}"
+
+    @classmethod
+    def to_job(
+        cls,
+        *,
+        class_handler: Optional[str] = None,
+        func_path: Optional[str] = None,
+        func_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        image: Optional[str] = None,
+        with_repo: Optional[bool] = False,
+        requirements: Optional[Union[str, list[str]]] = None,
+        requirements_file: str = "",
+        project: Optional["mlrun.MlrunProject"] = None,
+    ) -> mlrun.runtimes.KubejobRuntime:
+        """
+        Get the application's :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
+        model monitoring logic as a :py:class:`~mlrun.runtimes.KubejobRuntime`.
+
+        The returned job can be run as any MLRun job with the relevant inputs and params to your application:
+
+        .. code-block:: python
+
+            job = ModelMonitoringApplicationBase.to_job(
+                class_handler="package.module.AppClass"
+            )
+            job.run(inputs={}, params={}, local=False)  # Add the relevant inputs and params
+
+        Optional inputs:
+
+        * ``sample_data``, ``pd.DataFrame``
+        * ``reference_data``, ``pd.DataFrame``
+
+        Optional params:
+
+        * ``endpoints``, ``list[tuple[str, str]]``
+        * ``start``, ``datetime``
+        * ``end``, ``datetime``
+        * ``base_period``, ``int``
+
+        For Git sources, add the source archive to the returned job and change the handler:
+
+        .. code-block:: python
+
+            handler = ModelMonitoringApplicationBase.get_job_handler("module.AppClass")
+            job.with_source_archive(
+                "git://github.com/owner/repo.git#branch-category/specific-task",
+                workdir="path/to/application/folder",
+                handler=handler,
+            )
+
+        :param class_handler:     The handler to the class, e.g. ``path.to.module::MonitoringApplication``,
+                                  useful when using Git sources or code from images.
+                                  If ``None``, the current class, deriving from
+                                  :py:class:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase`,
+                                  is used.
+        :param func_path:         The path to the function. If ``None``, the current notebook is used.
+        :param func_name:         The name of the function. If not ``None``, the class name is used.
+        :param tag:               Tag for the function.
+        :param image:             Docker image to run the job on (when running remotely).
+        :param with_repo:         Whether to clone the current repo to the build source.
+        :param requirements:      List of Python requirements to be installed in the image.
+        :param requirements_file: Path to a Python requirements file to be installed in the image.
+        :param project:           The current project to set the function to. If not set, the current project is used.
+
+        :returns: The :py:class:`~mlrun.runtimes.KubejobRuntime` job that wraps the model monitoring application's
+                  logic.
+        """
+        project = project or cast("mlrun.MlrunProject", mlrun.get_current_project())
+
+        if not class_handler and cls == ModelMonitoringApplicationBase:
+            raise ValueError(
+                "You must provide a handler to the model monitoring application class"
+            )
+
+        handler_to_class = class_handler or cls.__name__
+        handler = cls.get_job_handler(handler_to_class)
+
+        if not class_handler:
+            class_name = cls.__name__
+        else:
+            class_name = handler_to_class.split(".")[-1].split("::")[-1]
+
+        job_name = func_name if func_name else class_name
+
+        job = cast(
+            mlrun.runtimes.KubejobRuntime,
+            project.set_function(
+                func=func_path,
+                name=job_name,
+                kind=mlrun.runtimes.KubejobRuntime.kind,
+                handler=handler,
+                tag=tag,
+                image=image,
+                with_repo=with_repo,
+                requirements=requirements,
+                requirements_file=requirements_file,
+            ),
+        )
+        return job
+
+    @classmethod
     def evaluate(
         cls,
         func_path: Optional[str] = None,
@@ -227,6 +337,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         reference_data: Optional[pd.DataFrame] = None,
         image: Optional[str] = None,
         with_repo: Optional[bool] = False,
+        class_handler: Optional[str] = None,
         requirements: Optional[Union[str, list[str]]] = None,
         requirements_file: str = "",
         endpoints: Optional[list[tuple[str, str]]] = None,
@@ -239,7 +350,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :py:meth:`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase.do_tracking`
         model monitoring logic as a :py:class:`~mlrun.runtimes.KubejobRuntime`, which is an MLRun function.
 
-        This method has default values for all of its arguments. You should be change them when you want to pass
+        This function has default values for all of its arguments. You should be change them when you want to pass
         data to the application.
 
         :param func_path:         The path to the function. If ``None``, the current notebook is used.
@@ -250,8 +361,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                                   When set, it replaces the data read from the model endpoint's offline source.
         :param reference_data:    Pandas data-frame of the reference dataset.
                                   When set, its statistics override the model endpoint's feature statistics.
-        :param image:             Docker image to run the job on.
+        :param image:             Docker image to run the job on (when running remotely).
         :param with_repo:         Whether to clone the current repo to the build source.
+        :param class_handler:     The relative path to the class, useful when using Git sources or code from images.
         :param requirements:      List of Python requirements to be installed in the image.
         :param requirements_file: Path to a Python requirements file to be installed in the image.
         :param endpoints:         A list of tuples of the model endpoint (name, uid) to get the data from.
@@ -268,23 +380,17 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                   method with the given parameters and inputs, wrapped in a :py:class:`~mlrun.model.RunObject`.
         """
         project = cast("mlrun.MlrunProject", mlrun.get_current_project())
-        class_name = cls.__name__
-        job_name = func_name if func_name is not None else class_name
-        handler = f"{class_name}::{cls._handler.__name__}"
 
-        job = cast(
-            mlrun.runtimes.KubejobRuntime,
-            project.set_function(
-                func=func_path,
-                name=job_name,
-                kind=mlrun.runtimes.KubejobRuntime.kind,
-                handler=handler,
-                tag=tag,
-                image=image,
-                with_repo=with_repo,
-                requirements=requirements,
-                requirements_file=requirements_file,
-            ),
+        job = cls.to_job(
+            func_path=func_path,
+            func_name=func_name,
+            class_handler=class_handler,
+            tag=tag,
+            image=image,
+            with_repo=with_repo,
+            requirements=requirements,
+            requirements_file=requirements_file,
+            project=project,
         )
 
         params: dict[str, Union[list[tuple[str, str]], datetime, int, None]] = {}
@@ -305,14 +411,15 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             (reference_data, "reference_data"),
         ]:
             if data is not None:
-                key = f"{job_name}_{identifier}"
+                key = f"{job.metadata.name}_{identifier}"
                 inputs[identifier] = project.log_dataset(
                     key,
                     data,
                     labels={
                         mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
                         mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-job",
-                        mlrun_constants.MLRunInternalLabels.app_name: class_name,
+                        mlrun_constants.MLRunInternalLabels.app_name: func_name
+                        or cls.__name__,
                     },
                 ).uri
 

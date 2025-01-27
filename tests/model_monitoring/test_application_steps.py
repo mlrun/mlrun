@@ -44,19 +44,6 @@ class TestEventPreparation:
     ENDPOINT_ID = "test-ep-id"
     APPLICATION_NAME = "test-app"
 
-    @staticmethod
-    @pytest.fixture
-    def mock_load_project(tmp_path: Path) -> typing.Iterator[None]:
-        with patch(
-            "mlrun.load_project",
-            Mock(
-                return_value=mlrun.projects.MlrunProject(
-                    spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path))
-                )
-            ),
-        ):
-            yield
-
     @classmethod
     @pytest.fixture
     def controller_event(cls) -> dict[str, typing.Any]:
@@ -66,57 +53,69 @@ class TestEventPreparation:
         }
 
     @classmethod
-    @pytest.mark.usefixtures("mock_load_project")
     def test_prepare_monitoring_event(
-        cls, controller_event: dict[str, typing.Any]
+        cls, controller_event: dict[str, typing.Any], tmp_path: Path
     ) -> None:
         with patch.object(
             mlrun.db.get_run_db(), "get_model_endpoint"
         ) as patch_get_model_endpoint:
-            logger.info("Set up a mock server with a `_PrepareMonitoringEvent` step")
-
-            fn = typing.cast(
-                mlrun.runtimes.ServingRuntime,
-                mlrun.code_to_function(
-                    filename=__file__,
-                    name="model-monitoring-context-preparation",
-                    kind=mlrun.run.RuntimeKinds.serving,
+            with patch.object(
+                mlrun.db.get_run_db(),
+                "get_project",
+                Mock(
+                    return_value=mlrun.projects.MlrunProject(
+                        spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path))
+                    )
                 ),
-            )
-            graph = fn.set_topology(mlrun.serving.states.StepKinds.flow)
+            ):
+                logger.info(
+                    "Set up a mock server with a `_PrepareMonitoringEvent` step"
+                )
 
-            graph.to(
-                "_PrepareMonitoringEvent", application_name=cls.APPLICATION_NAME
-            ).respond()
-            server = fn.to_mock_server()
-            monitoring_context = typing.cast(
-                mm_context.MonitoringApplicationContext,
-                server.test(body=controller_event),
-            )
+                fn = typing.cast(
+                    mlrun.runtimes.ServingRuntime,
+                    mlrun.code_to_function(
+                        filename=__file__,
+                        name="model-monitoring-context-preparation",
+                        kind=mlrun.run.RuntimeKinds.serving,
+                    ),
+                )
+                graph = fn.set_topology(mlrun.serving.states.StepKinds.flow)
 
-            logger.info("Test `monitoring_context` functionality")
+                graph.to(
+                    "_PrepareMonitoringEvent", application_name=cls.APPLICATION_NAME
+                ).respond()
+                server = fn.to_mock_server()
+                monitoring_context = typing.cast(
+                    mm_context.MonitoringApplicationContext,
+                    server.test(body=controller_event),
+                )
 
-            monitoring_context.logger.debug("Checking `get_endpoint_record` was called")
-            patch_get_model_endpoint.assert_called_once()
+                logger.info("Test `monitoring_context` functionality")
 
-            monitoring_context.logger.debug("Logging an artifact")
-            artifact = monitoring_context.log_artifact(
-                "my-app-data",
-                body=b"Sometimes, context is important.",
-                format="txt",
-                labels={"framework": "deepeval"},
-            )
+                monitoring_context.logger.debug(
+                    "Checking `get_endpoint_record` was called"
+                )
+                patch_get_model_endpoint.assert_called_once()
 
-            monitoring_context.logger.debug("Checking logged artifact labels")
-            assert {
-                "framework": "deepeval",
-                "mlrun/producer-type": "model-monitoring-app",
-                "mlrun/app-name": cls.APPLICATION_NAME,
-                "mlrun/endpoint-id": cls.ENDPOINT_ID,
-            }.items() <= artifact.labels.items()
+                monitoring_context.logger.debug("Logging an artifact")
+                artifact = monitoring_context.log_artifact(
+                    "my-app-data",
+                    body=b"Sometimes, context is important.",
+                    format="txt",
+                    labels={"framework": "deepeval"},
+                )
 
-            server.wait_for_completion()
-            monitoring_context.logger.debug("I'm done")
+                monitoring_context.logger.debug("Checking logged artifact labels")
+                assert {
+                    "framework": "deepeval",
+                    "mlrun/producer-type": "model-monitoring-app",
+                    "mlrun/app-name": cls.APPLICATION_NAME,
+                    "mlrun/endpoint-id": cls.ENDPOINT_ID,
+                }.items() <= artifact.labels.items()
+
+                server.wait_for_completion()
+                monitoring_context.logger.debug("I'm done")
 
 
 class Pusher:

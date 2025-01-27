@@ -1483,6 +1483,7 @@ grpcio==1.70.0 \
     --hash=sha256:fe9dbd916df3b60e865258a8c72ac98f3ac9e2a9542dcb72b7a34d236242a5ce \
     --hash=sha256:ff4a8112a79464919bb21c18e956c54add43ec9a4850e3949da54f61c241a4a6
     # via
+    #   -r dockerfiles/mlrun-api/requirements.txt
     #   google-api-core
     #   google-cloud-bigquery
     #   grpcio-status
@@ -4037,8 +4038,8 @@ starlette==0.45.3 \
     --hash=sha256:2cbcba2a75806f8a41c722141486f37c28e30a0921c5f6fe4346cb0dcee1302f \
     --hash=sha256:dfb6d332576f136ec740296c7e8bb8c8a7125044e7c6da30744718880cdd059d
     # via fastapi
-storey==1.8.8 \
-    --hash=sha256:fcdeabae9be839f8e9526f28173c6f1d96d6a0c65e70bf7ac4c5261d82cd6d58
+storey==1.8.9 \
+    --hash=sha256:cc5ffe86130db92b7b1d3af0344cf4863ab5473057b127c1a1713ad2e2d99678
     # via -r requirements.txt
 strip-hints==0.1.10 ; python_full_version < '3.11' \
     --hash=sha256:307c2bd147cd35997c8ed2e9a3bdca48ad9c9617e04ea46599095201b4ce998f

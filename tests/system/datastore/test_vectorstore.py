@@ -67,6 +67,7 @@ class TestDatastoreProfile(TestMLRunSystem):
             artifact = self.project.log_document(
                 local_path=temp_file.name, upload=False
             )
+            assert artifact.labels["source"] == temp_file.name
             artifact_key = artifact.key
             assert artifact_key == DocumentArtifact.key_from_source(temp_file.name)
 

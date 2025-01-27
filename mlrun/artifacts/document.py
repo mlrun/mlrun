@@ -273,6 +273,7 @@ class DocumentArtifact(Artifact):
             result.append("_")
 
         resolved_path = "".join(result)
+        resolved_path = resolved_path.lstrip("_")
         return resolved_path
 
     class DocumentArtifactSpec(ArtifactSpec):

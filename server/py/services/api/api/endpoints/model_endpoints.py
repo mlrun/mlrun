@@ -591,20 +591,13 @@ async def get_model_endpoint_monitoring_metrics_values(
     invocations_full_name = mlrun.model_monitoring.helpers.get_invocations_fqn(
         params.project
     )
-    try:
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=params.project,
-            secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                project=params.project
-            ),
-        )
-    except mlrun.errors.MLRunNotFoundError as e:
-        logger.debug(
-            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
-            "Returning an empty list of metric-values",
-            error=mlrun.errors.err_to_str(e),
-        )
-        return []
+
+    tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+        project=params.project,
+        secret_provider=services.api.crud.secrets.get_project_secret_provider(
+            project=params.project
+        ),
+    )
 
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
         if metrics:

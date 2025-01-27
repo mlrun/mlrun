@@ -260,12 +260,16 @@ def get_project_secret_mock() -> Iterator[Mock]:
 
 async def test_get_metrics_values_no_tsdb(get_project_secret_mock: Mock) -> None:
     """Test getting model endpoint metrics values when the TSDB datastore profile is not set"""
-    metrics_values = await services.api.api.endpoints.model_endpoints.get_model_endpoint_monitoring_metrics_values(
+    params = (
         await services.api.api.endpoints.model_endpoints._get_metrics_values_params(
             project=TEST_PROJECT,
             endpoint_id="123",
             name=[f"{TEST_PROJECT}.app2.result.res1"],
         )
     )
-    assert metrics_values == []
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        await services.api.api.endpoints.model_endpoints.get_model_endpoint_monitoring_metrics_values(
+            params
+        )
+
     assert get_project_secret_mock.call_count == 1

@@ -403,6 +403,17 @@ class BaseLauncher(abc.ABC):
             )
             if (
                 run.status.state
+                in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            ):
+                end_time = mlrun.utils.now_date().isoformat()
+                # TODO: remove log
+                logger.error("yacouby: updating run with", end_time=end_time)
+                updates = {"status.end_time": end_time}
+                runtime._get_db().update_run(
+                    updates, run.metadata.uid, run.metadata.project
+                )
+            if (
+                run.status.state
                 in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
             ):
                 if runtime._is_remote and not runtime.is_child:

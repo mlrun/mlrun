@@ -45,6 +45,13 @@ def run_start_time(run):
     return parser.parse(ts)
 
 
+def run_end_time(run):
+    ts = get_in(run, "status.end_time", "")
+    if not ts:
+        return None
+    return parser.parse(ts)
+
+
 def run_labels(run) -> dict:
     return get_in(run, "metadata.labels", {})
 

@@ -20,7 +20,6 @@ from mlrun.config import Config, config, default_config
 
 import framework.utils.runtimes.mpijob
 import framework.utils.runtimes.nuclio
-import services.api.utils.helpers
 
 
 class ClientSpec(
@@ -34,7 +33,6 @@ class ClientSpec(
         mpijob_crd_version = (
             framework.utils.runtimes.mpijob.resolve_mpijob_crd_version()
         )
-
 
         return mlrun.common.schemas.ClientSpec(
             version=config.version,

@@ -38,5 +38,3 @@ def resolve_client_default_kfp_image(
         image=image,
     )
     return image
-
-

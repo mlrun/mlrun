@@ -168,7 +168,7 @@ def test_client_spec(
             "mlrun/ml-base:unstable",
         ),
         # Server is "1.8.0"
-        ("1.8.0", "", "",  "mlrun/ml-base:1.8.0"),
+        ("1.8.0", "", "", "mlrun/ml-base:1.8.0"),
         ("1.8.0", "1.2.0", None, "mlrun/ml-base:1.2.0"),
         (
             "1.8.0",

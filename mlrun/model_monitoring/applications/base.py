@@ -393,6 +393,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         )
 
+        if job.requires_build():
+            # build the image when needed - e.g. when there are requirements
+            job.deploy()
+
         params: dict[str, Union[list[tuple[str, str]], datetime, int, None]] = {}
         if endpoints:
             start, end = cls._validate_times(start, end, base_period)

@@ -333,6 +333,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         *,
         tag: Optional[str] = None,
         run_local: bool = True,
+        auto_build: bool = True,
         sample_data: Optional[pd.DataFrame] = None,
         reference_data: Optional[pd.DataFrame] = None,
         image: Optional[str] = None,
@@ -357,6 +358,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         :param func_name:         The name of the function. If not ``None``, the class name is used.
         :param tag:               Tag for the function.
         :param run_local:         Whether to run the function locally or remotely.
+        :param auto_build:        Whether to auto build the function.
         :param sample_data:       Pandas data-frame as the current dataset.
                                   When set, it replaces the data read from the model endpoint's offline source.
         :param reference_data:    Pandas data-frame of the reference dataset.
@@ -393,10 +395,6 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             project=project,
         )
 
-        if job.requires_build():
-            # build the image when needed - e.g. when there are requirements
-            job.deploy()
-
         params: dict[str, Union[list[tuple[str, str]], datetime, int, None]] = {}
         if endpoints:
             start, end = cls._validate_times(start, end, base_period)
@@ -427,7 +425,9 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     },
                 ).uri
 
-        run_result = job.run(local=run_local, params=params, inputs=inputs)
+        run_result = job.run(
+            local=run_local, auto_build=auto_build, params=params, inputs=inputs
+        )
         return run_result
 
     @abstractmethod

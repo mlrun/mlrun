@@ -27,13 +27,6 @@ from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 class S3Store(DataStore):
     using_bucket = True
 
-    @staticmethod
-    def get_range(size, offset):
-        byterange = f"bytes={offset}-"
-        if size:
-            byterange += str(offset + size - 1)
-        return byterange
-
     def __init__(
         self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
     ):
@@ -114,6 +107,13 @@ class S3Store(DataStore):
                 self.s3.meta.client.meta.events.register(
                     "choose-signer.s3.*", disable_signing
                 )
+
+    @staticmethod
+    def get_range(size, offset):
+        byterange = f"bytes={offset}-"
+        if size:
+            byterange += str(offset + size - 1)
+        return byterange
 
     def get_spark_options(self):
         res = {}

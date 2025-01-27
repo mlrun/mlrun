@@ -1089,13 +1089,20 @@ class ModelEndpoints:
         :param metrics_format:  Determines the format of the result. Can be either 'list' or 'dict'.
         :return: metrics in the chosen format.
         """
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=project,
-            secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                project=project
-            ),
-        )
-
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=project
+                ),
+            )
+        except mlrun.errors.MLRunNotFoundError as e:
+            logger.debug(
+                f"Failed to list model endpoint {type}s because TSDB profile was not found. "
+                "Returning an empty list of metrics",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return []
         if type == "metric":
             df = tsdb_connector.get_metrics_metadata(endpoint_id=endpoint_id)
         elif type == "result":
@@ -1228,12 +1235,20 @@ class ModelEndpoints:
         if model_endpoint_object.status.metrics is None:
             model_endpoint_object.status.metrics = {}
 
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=model_endpoint_object.metadata.project,
-            secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                project=model_endpoint_object.metadata.project
-            ),
-        )
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=model_endpoint_object.metadata.project,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=model_endpoint_object.metadata.project
+                ),
+            )
+        except mlrun.errors.MLRunNotFoundError as e:
+            logger.debug(
+                "Failed to add real time metrics because tsdb connection is not defined."
+                " Returning without adding real time metrics.",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return model_endpoint_object
 
         endpoint_metrics = tsdb_connector.get_model_endpoint_real_time_metrics(
             endpoint_id=model_endpoint_object.metadata.uid,
@@ -1299,12 +1314,20 @@ class ModelEndpoints:
 
             return mep
 
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=project,
-            secret_provider=services.api.crud.secrets.get_project_secret_provider(
-                project=project
-            ),
-        )
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=project,
+                secret_provider=services.api.crud.secrets.get_project_secret_provider(
+                    project=project
+                ),
+            )
+        except mlrun.errors.MLRunNotFoundError as e:
+            logger.debug(
+                "Failed to add basic metrics because the TSDB profile was not found. "
+                "Returning without adding the basic metrics.",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return model_endpoint_objects
 
         uids = [mep.metadata.uid for mep in model_endpoint_objects]
         tasks = [

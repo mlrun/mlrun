@@ -2407,7 +2407,6 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
-        rebuild_images: bool = False,
         fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         """
@@ -2429,7 +2428,6 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
                                                   Otherwise, deploy the model monitoring infrastructure on the
                                                   background, including the histogram data drift app if selected.
-        :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
         if default_controller_image != "mlrun/mlrun":
@@ -2452,7 +2450,6 @@ class MlrunProject(ModelObj):
             image=image,
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
-            rebuild_images=rebuild_images,
             fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
         )
 
@@ -3782,8 +3779,8 @@ class MlrunProject(ModelObj):
                 "Please keep in mind that if you already had model monitoring functions "
                 "/ model monitoring infra / tracked model server "
                 "deployed on your project, you will need to redeploy them. "
-                "For redeploying the model monitoring infra, please use `enable_model_monitoring` API "
-                "and set `rebuild_images=True`"
+                "For redeploying the model monitoring infra, first disable it using "
+                "`project.disable_model_monitoring()` and then enable it using `project.enable_model_monitoring()`."
             )
 
     def list_model_endpoints(

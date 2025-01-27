@@ -1325,6 +1325,7 @@ grpcio==1.70.0 \
     --hash=sha256:fe9dbd916df3b60e865258a8c72ac98f3ac9e2a9542dcb72b7a34d236242a5ce \
     --hash=sha256:ff4a8112a79464919bb21c18e956c54add43ec9a4850e3949da54f61c241a4a6
     # via
+    #   -r dockerfiles/mlrun-api/requirements.txt
     #   google-api-core
     #   google-cloud-bigquery
     #   grpcio-status

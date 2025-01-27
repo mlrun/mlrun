@@ -35,12 +35,6 @@ class ClientSpec(
             framework.utils.runtimes.mpijob.resolve_mpijob_crd_version()
         )
 
-        kfp_image = services.api.utils.helpers.resolve_client_default_kfp_image(
-            client_version=client_version,
-            workflow_spec=mlrun.common.schemas.WorkflowSpec(
-                name="dontcare", engine=mlrun.common.schemas.workflow.EngineType.KFP
-            ),
-        )
 
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
@@ -54,7 +48,9 @@ class ClientSpec(
             spark_app_image_tag=config.spark_app_image_tag,
             spark_history_server_path=config.spark_history_server_path,
             kfp_image=self._resolve_image_by_client_versions(
-                kfp_image, client_version, client_python_version
+                image=mlrun.mlconf.default_base_image,
+                client_version=client_version,
+                client_python_version=client_python_version,
             ),
             kfp_url=config.kfp_url,
             dask_kfp_image=self._resolve_image_by_client_versions(

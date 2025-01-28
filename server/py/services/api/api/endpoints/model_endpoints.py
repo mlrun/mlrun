@@ -94,10 +94,12 @@ async def create_model_endpoint(
     if not model_endpoint.metadata.project or not model_endpoint.metadata.name:
         raise MLRunInvalidArgumentError("Model endpoint must have project and name")
 
-    return await services.api.crud.ModelEndpoints().create_model_endpoint(
+    return await run_in_threadpool(
+        services.api.crud.ModelEndpoints().create_model_endpoint,
         db_session=db_session,
         model_endpoint=model_endpoint,
         creation_strategy=creation_strategy,
+        upsert=True,
     )
 
 
@@ -145,8 +147,7 @@ async def patch_model_endpoint(
     )
     attributes = {key: model_endpoint.get(key) for key in attributes_keys}
 
-    return await run_in_threadpool(
-        services.api.crud.ModelEndpoints().patch_model_endpoint,
+    return await services.api.crud.ModelEndpoints().patch_model_endpoint(
         name=model_endpoint.metadata.name,
         project=project,
         function_name=model_endpoint.spec.function_name,
@@ -191,8 +192,7 @@ async def delete_model_endpoint(
         )
     )
 
-    await run_in_threadpool(
-        services.api.crud.ModelEndpoints().delete_model_endpoint,
+    await services.api.crud.ModelEndpoints().delete_model_endpoint(
         project=project,
         name=name,
         function_name=function_name,
@@ -249,8 +249,7 @@ async def list_model_endpoints(
         auth_info=auth_info,
     )
 
-    endpoints = await run_in_threadpool(
-        services.api.crud.ModelEndpoints().list_model_endpoints,
+    endpoints = await services.api.crud.ModelEndpoints().list_model_endpoints(
         project=project,
         name=name,
         model_name=model_name,
@@ -470,8 +469,7 @@ async def get_model_endpoint(
         project=project, name_or_uid=name, auth_info=auth_info
     )
 
-    return await run_in_threadpool(
-        services.api.crud.ModelEndpoints().get_model_endpoint,
+    return await services.api.crud.ModelEndpoints().get_model_endpoint(
         name=name,
         project=project,
         function_name=function_name,
@@ -600,10 +598,10 @@ async def get_model_endpoint_monitoring_metrics_values(
                 project=params.project
             ),
         )
-    except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
+    except mlrun.errors.MLRunNotFoundError as e:
         logger.debug(
-            "Failed to retrieve model endpoint metrics-values because tsdb connection is not defined."
-            " Returning an empty list of metric-values",
+            "Failed to retrieve model endpoint metrics-values because the TSDB datastore profile was not found. "
+            "Returning an empty list of metric-values",
             error=mlrun.errors.err_to_str(e),
         )
         return []

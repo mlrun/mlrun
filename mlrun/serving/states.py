@@ -595,10 +595,6 @@ class TaskStep(BaseStep):
                 creation_strategy=self.model_endpoint_creation_strategy,
                 endpoint_type=self.endpoint_type,
             )
-            if hasattr(self._object, "model_endpoint_uid"):
-                self.endpoint_uid = self._object.model_endpoint_uid
-            if hasattr(self._object, "name"):
-                self.endpoint_name = self._object.name
 
     def respond(self):
         """mark this step as the responder.

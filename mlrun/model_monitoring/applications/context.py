@@ -169,9 +169,8 @@ class MonitoringApplicationContext:
         sample_df: Optional[pd.DataFrame] = None,
         feature_stats: Optional[FeatureStats] = None,
     ) -> "MonitoringApplicationContext":
-        project = mlrun.load_project(url=graph_context.project)
         nuclio_logger = graph_context.logger
-        artifacts_logger = project
+        artifacts_logger = graph_context.project_obj
         logger = mlrun.utils.create_logger(
             level=mlrun.mlconf.log_level,
             formatter_kind=mlrun.mlconf.log_formatter,
@@ -180,7 +179,7 @@ class MonitoringApplicationContext:
         return cls(
             application_name=application_name,
             event=event,
-            project=project,
+            project=graph_context.project_obj,
             model_endpoint_dict=model_endpoint_dict,
             logger=logger,
             nuclio_logger=nuclio_logger,

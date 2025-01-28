@@ -599,6 +599,18 @@ class RemoteRuntime(KubeResource):
         # when a function is deployed, we wait for it to be ready by default
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
+        # check if there are any background tasks related to creating model endpoints
+        model_endpoints_creation_background_tasks = (
+            mlrun.common.schemas.BackgroundTaskList(
+                **data.pop("background_tasks", {"background_tasks": []})
+            ).background_tasks
+        )
+        if model_endpoints_creation_background_tasks:
+            self._check_model_endpoint_task_state(
+                db=db,
+                background_task=model_endpoints_creation_background_tasks[0],
+                wait_for_completion=False,
+            )
 
         return self._enrich_command_from_status()
 
@@ -1284,6 +1296,33 @@ class RemoteRuntime(KubeResource):
         if validate_nuclio_version_compatibility("1.13.11"):
             return mlrun.model.Credentials.generate_access_key
         return None
+
+    def _check_model_endpoint_task_state(
+        self,
+        db: mlrun.db.RunDBInterface,
+        background_task: mlrun.common.schemas.BackgroundTask,
+        wait_for_completion: bool,
+    ):
+        if wait_for_completion:
+            background_task = db._wait_for_background_task_to_reach_terminal_state(
+                name=background_task.metadata.name, project=self.metadata.project
+            )
+        else:
+            background_task = db.get_project_background_task(
+                project=self.metadata.project, name=background_task.metadata.name
+            )
+        if (
+            background_task.status.state
+            in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+        ):
+            logger.info(
+                f"Model endpoint creation task completed with state {background_task.status.state}"
+            )
+        else:
+            logger.warning(
+                f"Model endpoint creation task is still running with state {background_task.status.state}"
+                f"You can use the serving function, but it won't be monitored for the next few minutes"
+            )
 
 
 def parse_logs(logs):

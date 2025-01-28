@@ -11,13 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import asyncio
 import json
 import time
 import traceback
 import typing
 import uuid
+from asyncio import Semaphore
 from http import HTTPStatus
 from pathlib import Path
 
@@ -107,7 +107,6 @@ class MonitoringDeployment:
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-        rebuild_images: bool = False,
         fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         """
@@ -119,8 +118,6 @@ class MonitoringDeployment:
                                                   stream functions, which are real time nuclio function.
                                                   By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-        :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
-                                                  (controller, writer & stream).
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
         # check if credentials should be fetched from the system configuration or if they are already been set.
@@ -129,16 +126,16 @@ class MonitoringDeployment:
         self.check_if_credentials_are_set()
 
         self.deploy_model_monitoring_controller(
-            controller_image=image, base_period=base_period, overwrite=rebuild_images
+            controller_image=image, base_period=base_period
         )
         self.deploy_model_monitoring_writer_application(
-            writer_image=image, overwrite=rebuild_images
+            writer_image=image,
         )
         self.deploy_model_monitoring_stream_processing(
-            stream_image=image, overwrite=rebuild_images
+            stream_image=image,
         )
         if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image, overwrite=rebuild_images)
+            self.deploy_histogram_data_drift_app(image=image)
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
@@ -211,7 +208,9 @@ class MonitoringDeployment:
                 f"Deploying {mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} function",
                 project=self.project,
             )
-            fn = self._get_model_monitoring_controller_function(image=controller_image)
+            fn = self._get_model_monitoring_controller_function(
+                image=controller_image, ignore_stream_already_exists_failure=overwrite
+            )
             minutes = base_period
             hours = days = 0
             batch_dict = {
@@ -279,6 +278,7 @@ class MonitoringDeployment:
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
+        ignore_stream_already_exists_failure: bool = False,
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be
@@ -289,9 +289,12 @@ class MonitoringDeployment:
         Note: this method also disables the default HTTP trigger of the function, so it remains
         only with stream trigger(s).
 
-        :param function:      The serving function object that will be applied with the stream trigger.
-        :param function_name: The name of the function that be applied with the stream trigger.
-        :param stream_args:   Stream args from the config.
+        :param function:                             The serving function object that will be applied with the stream
+                                                     trigger.
+        :param function_name:                        The name of the function that be applied with the stream trigger.
+        :param stream_args:                          Stream args from the config.
+        :param ignore_stream_already_exists_failure: If True, ignores `TopicAlreadyExistsError` error on
+                                                     MM-infra-functions deployment when using kafka.
 
         :return: `ServingRuntime` object with stream trigger.
         """
@@ -306,8 +309,8 @@ class MonitoringDeployment:
             self._apply_and_create_kafka_source(
                 stream_path=stream_path,
                 function=function,
-                function_name=function_name,
                 stream_args=stream_args,
+                ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
             )
 
         elif stream_path.startswith("v3io://"):
@@ -337,8 +340,8 @@ class MonitoringDeployment:
         self,
         stream_path: str,
         function: mlrun.runtimes.ServingRuntime,
-        function_name: str,
         stream_args: mlrun.config.Config,
+        ignore_stream_already_exists_failure: bool,
     ):
         import kafka.errors
 
@@ -358,10 +361,10 @@ class MonitoringDeployment:
                 replication_factor=stream_args.kafka.replication_factor,
             )
         except kafka.errors.TopicAlreadyExistsError as exc:
-            if function_name == mm_constants.MonitoringFunctionNames.STREAM:
+            if ignore_stream_already_exists_failure:
                 logger.info(
                     "Kafka topic of model monitoring stream already exists. "
-                    "Skipping topic creation and using `earliest` offsett.",
+                    "Skipping topic creation and using `earliest` offset.",
                     project=self.project,
                     stream_path=stream_path,
                 )
@@ -472,6 +475,7 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.STREAM,
             stream_args=config.model_endpoint_monitoring.serving_stream,
+            ignore_stream_already_exists_failure=True,
         )
 
         # Apply feature store run configurations on the serving function
@@ -480,12 +484,16 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_model_monitoring_controller_function(self, image: str):
+    def _get_model_monitoring_controller_function(
+        self, image: str, ignore_stream_already_exists_failure: bool
+    ):
         """
         Initialize model monitoring controller function.
 
-        :param image:         Base docker image to use for building the function container
-        :return:              A function object from a mlrun runtime class
+        :param image:                               Base docker image to use for building the function container.
+        :param ignore_stream_already_exists_failure: If True, ignores `TopicAlreadyExistsError` error on
+                                                     MM-infra-functions deployment when using kafka.
+        :return:                                    A function object from a mlrun runtime class.
         """
         # Create job function runtime for the controller
         function = mlrun.code_to_function(
@@ -508,6 +516,7 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             stream_args=config.model_endpoint_monitoring.controller_stream_args,
+            ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
         )
 
         function = self._apply_access_key_and_mount_function(
@@ -600,6 +609,7 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
             stream_args=config.model_endpoint_monitoring.writer_stream_args,
+            ignore_stream_already_exists_failure=True,
         )
 
         # Apply feature store run configurations on the serving function
@@ -766,10 +776,7 @@ class MonitoringDeployment:
                     function_name=function_name,
                     auth_info=self.auth_info,
                     delete_app_stream_resources=function_name
-                    not in [
-                        mm_constants.MonitoringFunctionNames.STREAM,
-                        mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                    ],
+                    != mm_constants.MonitoringFunctionNames.STREAM,
                     access_key=self.model_monitoring_access_key,
                 )
                 tasks.append(task)
@@ -1300,7 +1307,12 @@ class MonitoringDeployment:
             return False
         return True
 
-    async def create_model_endpoints(self, function: dict, function_name: str):
+    @staticmethod
+    async def create_model_endpoints(
+        function: dict,
+        function_name: str,
+        project: str,
+    ):
         """
         Create model endpoints for the given function.
         1. Create model endpoint instructions list from the function graph.
@@ -1311,11 +1323,17 @@ class MonitoringDeployment:
 
         :param function:        The function object.
         :param function_name:   The name of the function.
+        :param project:         The project name.
         """
+        logger.info(
+            "Start Running BGT for model endpoint creation",
+            project=project,
+            function=function_name,
+        )
         try:
             function = mlrun.new_function(
                 runtime=function,
-                project=self.project,
+                project=project,
                 name=function_name,
             )
         except Exception as err:
@@ -1324,14 +1342,15 @@ class MonitoringDeployment:
                 HTTPStatus.BAD_REQUEST.value,
                 reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
             )
-        tasks: list[asyncio.Task] = []
         model_endpoints_instructions: list[
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
                 mm_constants.ModelEndpointCreationStrategy,
                 str,
             ]
-        ] = self._extract_model_endpoints_from_function_graph(
+        ] = MonitoringDeployment(
+            project=project
+        )._extract_model_endpoints_from_function_graph(
             function_name=function.metadata.name,
             function_tag=function.metadata.tag,
             track_models=function.spec.track_models,
@@ -1340,60 +1359,43 @@ class MonitoringDeployment:
                 mm_constants.EventFieldType.SAMPLING_PERCENTAGE, 100
             ),
         )  # model endpoint, creation strategy, model path
-        router_model_endpoints_instructions: list[
+        semaphore = Semaphore(50)  # Limit concurrent tasks
+        coroutines = []
+        batchsize = 500
+        for i in range(0, len(model_endpoints_instructions), batchsize):
+            batch = model_endpoints_instructions[i : i + batchsize]
+            coroutines.append(
+                MonitoringDeployment._create_model_endpoint_limited(
+                    semaphore, batch, project
+                )
+            )
+
+        await asyncio.gather(*coroutines)
+        logger.info(
+            "Finish Running BGT for model endpoint creation",
+            project=project,
+            function=function_name,
+        )
+
+    @staticmethod
+    async def _create_model_endpoint_limited(
+        semaphore: Semaphore,
+        model_endpoints_instructions: list[
             tuple[
                 mlrun.common.schemas.ModelEndpoint,
                 mm_constants.ModelEndpointCreationStrategy,
                 str,
             ]
-        ] = []
-        for (
-            model_endpoint,
-            creation_strategy,
-            model_path,
-        ) in model_endpoints_instructions:
-            if (
-                model_endpoint.metadata.endpoint_type
-                != mm_constants.EndpointType.ROUTER
-            ):
-                tasks.append(
-                    asyncio.create_task(
-                        framework.db.session.run_async_function_with_new_db_session(
-                            func=services.api.crud.ModelEndpoints().create_model_endpoint,
-                            model_endpoint=model_endpoint,
-                            creation_strategy=creation_strategy,
-                            model_path=model_path,
-                        )
-                    )
-                )
-            else:
-                router_model_endpoints_instructions.append(
-                    (model_endpoint, creation_strategy, model_path)
-                )
-
-        created_model_endpoint = await asyncio.gather(*tasks)
-        router_tasks: list[asyncio.Task] = []
-        for (
-            model_endpoint,
-            creation_strategy,
-            model_path,
-        ) in router_model_endpoints_instructions:
-            for mep in created_model_endpoint:
-                if mep.metadata.name in model_endpoint.spec.children:
-                    model_endpoint.spec.children_uids.append(mep.metadata.uid)
-            router_tasks.append(
-                asyncio.create_task(
-                    framework.db.session.run_async_function_with_new_db_session(
-                        func=services.api.crud.ModelEndpoints().create_model_endpoint,
-                        model_endpoint=model_endpoint,
-                        creation_strategy=creation_strategy,
-                        model_path=model_path,
-                    )
-                )
+        ],
+        project: str,
+    ):
+        async with semaphore:
+            result = await framework.db.session.run_async_function_with_new_db_session(
+                func=services.api.crud.ModelEndpoints().create_model_endpoints,
+                model_endpoints_instructions=model_endpoints_instructions,
+                project=project,
             )
-        created_model_endpoint.extend(await asyncio.gather(*router_tasks))
-
-        return created_model_endpoint
+            return result
 
     def _extract_model_endpoints_from_function_graph(
         self,
@@ -1450,12 +1452,13 @@ class MonitoringDeployment:
     ]:
         model_endpoints_instructions = []
         routes_names = []
-
+        routes_uids = []
         for route in router_step.routes.values():
             if (
                 route.model_endpoint_creation_strategy
                 != mm_constants.ModelEndpointCreationStrategy.SKIP
             ):
+                uid = uuid.uuid4().hex
                 model_endpoints_instructions.append(
                     (
                         self._model_endpoint_draft(
@@ -1466,12 +1469,14 @@ class MonitoringDeployment:
                             function_tag=function_tag,
                             track_models=track_models,
                             sampling_percentage=sampling_percentage,
+                            uid=uid,
                         ),
                         route.model_endpoint_creation_strategy,
                         route.class_args.get("model_path", ""),
                     )
                 )
                 routes_names.append(route.name)
+                routes_uids.append(uid)
         if (
             router_step.model_endpoint_creation_strategy
             != mm_constants.ModelEndpointCreationStrategy.SKIP
@@ -1486,6 +1491,7 @@ class MonitoringDeployment:
                         function_tag=function_tag,
                         track_models=track_models,
                         children_names=routes_names,
+                        children_uids=routes_uids,
                         sampling_percentage=sampling_percentage,
                     ),
                     router_step.model_endpoint_creation_strategy,
@@ -1550,15 +1556,15 @@ class MonitoringDeployment:
         function_name: str,
         function_tag: str,
         track_models: bool,
+        uid: typing.Optional[str] = None,
         children_names: typing.Optional[list[str]] = None,
+        children_uids: typing.Optional[list[str]] = None,
         sampling_percentage: typing.Optional[float] = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
         return mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                project=self.project,
-                name=name,
-                endpoint_type=endpoint_type,
+                project=self.project, name=name, endpoint_type=endpoint_type, uid=uid
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_name=function_name,
@@ -1566,6 +1572,7 @@ class MonitoringDeployment:
                 function_uid=f"{unversioned_tagged_object_uid_prefix}{function_tag}",  # TODO: remove after ML-8596
                 model_class=model_class,
                 children=children_names,
+                children_uids=children_uids,
             ),
             status=mlrun.common.schemas.ModelEndpointStatus(
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
@@ -1573,6 +1580,27 @@ class MonitoringDeployment:
                 else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
                 sampling_percentage=sampling_percentage,
             ),
+        )
+
+    @staticmethod
+    def _create_model_endpoint_background_task(
+        db_session: sqlalchemy.orm.Session,
+        background_tasks: BackgroundTasks,
+        function_name: str,
+        function: dict,
+        project_name: str,
+    ):
+        background_task_name = str(uuid.uuid4())
+        return framework.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+            db_session,
+            project_name,
+            background_tasks,
+            MonitoringDeployment.create_model_endpoints,
+            mlrun.mlconf.background_tasks.default_timeouts.operations.model_endpoint_creation,
+            background_task_name,
+            function,
+            function_name,
+            project_name,
         )
 
 

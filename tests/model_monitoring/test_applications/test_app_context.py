@@ -14,11 +14,13 @@
 
 import inspect
 import logging
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 from nuclio.request import Logger as NuclioLogger
 
+import mlrun
 from mlrun import MLClientCtx, MlrunProject
 from mlrun.errors import MLRunValueError
 from mlrun.model_monitoring.applications.context import MonitoringApplicationContext
@@ -33,18 +35,26 @@ def test_log_object_signature(method: str) -> None:
     ) == inspect.signature(getattr(MlrunProject, method))
 
 
-@patch("mlrun.load_project")
-def test_from_graph_context(mock: Mock) -> None:
-    app_ctx = MonitoringApplicationContext._from_graph_ctx(
-        application_name="app-context-from-graph",
-        event={},
-        graph_context=GraphContext(
-            server=GraphServer(function_uri="project-name/function-name"),
-            logger=NuclioLogger(level=logging.DEBUG),
+def test_from_graph_context(tmp_path: Path) -> None:
+    with patch.object(
+        mlrun.db.get_run_db(),
+        "get_project",
+        Mock(
+            return_value=mlrun.projects.MlrunProject(
+                spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path))
+            )
         ),
-    )
-    app_ctx.logger.info("Test from graph_context logger")
-    mock.assert_called_once()
+    ) as get_project_mock:
+        app_ctx = MonitoringApplicationContext._from_graph_ctx(
+            application_name="app-context-from-graph",
+            event={},
+            graph_context=GraphContext(
+                server=GraphServer(function_uri="project-name/function-name"),
+                logger=NuclioLogger(level=logging.DEBUG),
+            ),
+        )
+        app_ctx.logger.info("Test from graph_context logger")
+        get_project_mock.assert_called_once()
 
 
 @pytest.mark.parametrize(

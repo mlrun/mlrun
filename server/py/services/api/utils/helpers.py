@@ -34,7 +34,8 @@ def resolve_client_default_kfp_image(
     logger.debug(
         "Resolved KFP image for workflow",
         project=project,
-        workflow_spec=workflow_spec,
-        image=image,
+        workflow_spec_image=workflow_spec.image,
+        project_spec_default_image=project.spec.default_image,
+        resolved_image=image,
     )
     return image

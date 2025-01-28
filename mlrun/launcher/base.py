@@ -406,8 +406,6 @@ class BaseLauncher(abc.ABC):
                 in mlrun.common.runtimes.constants.RunStates.terminal_states()
             ):
                 end_time = mlrun.utils.now_date().isoformat()
-                # TODO: remove log
-                logger.error("yacouby: updating run with", end_time=end_time)
                 updates = {"status.end_time": end_time}
                 runtime._get_db().update_run(
                     updates, run.metadata.uid, run.metadata.project

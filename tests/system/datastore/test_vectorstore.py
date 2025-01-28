@@ -67,6 +67,7 @@ class TestDatastoreProfile(TestMLRunSystem):
             artifact = self.project.log_document(
                 local_path=temp_file.name, upload=False
             )
+            assert artifact.labels["source"] == temp_file.name
             artifact_key = artifact.key
             assert artifact_key == DocumentArtifact.key_from_source(temp_file.name)
 
@@ -176,7 +177,7 @@ class TestDatastoreProfile(TestMLRunSystem):
         sample_content1 = generate_random_text(1000)
         sample_content2 = generate_random_text(1000)
 
-        artifact_key = "doc%%"
+        artifact_key = "%%"
         artifact_key1 = MLRunLoader.artifact_key_instance(
             artifact_key, f"{temp_dir}/sample1.txt"
         )

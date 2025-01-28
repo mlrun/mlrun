@@ -75,10 +75,11 @@ def get_tsdb_connector(
     :param secret_provider:         An optional secret provider to get the connection string secret.
     :param profile:                 An optional profile to initialize the TSDB connector from.
 
-    :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
+    :return: ``TSDBConnector`` object. The main goal of this object is to handle different operations on the
              TSDB connector such as updating drift metrics or write application record result.
-    :raise: `MLRunInvalidMMStoreTypeError` if the user didn't provide TSDB connection
-            or the provided TSDB connection is invalid.
+    :raise: ``MLRunNotFoundError`` if the user didn't set the TSDB datastore profile and didn't provide it through
+            the ``profile`` parameter.
+    :raise: ``MLRunInvalidMMStoreTypeError`` if the TSDB datastore profile is of an invalid type.
     """
     profile = profile or mlrun.model_monitoring.helpers._get_tsdb_profile(
         project=project, secret_provider=secret_provider
@@ -93,9 +94,15 @@ def get_tsdb_connector(
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
         kwargs["connection_string"] = profile.dsn()
     else:
+        extra_message = (
+            ""
+            if profile
+            else " by using `project.set_model_monitoring_credentials` API"
+        )
         raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-            "You must provide a valid tsdb store connection by using "
-            "set_model_monitoring_credentials API."
+            "You must provide a valid TSDB datastore profile"
+            f"{extra_message}. "
+            f"Found an unexpected profile of class: {type(profile)}"
         )
 
     # Get connector type value from ObjectTSDBFactory enum class

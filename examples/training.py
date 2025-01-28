@@ -29,7 +29,8 @@ def my_job(context, p1=1, p2="x"):
     print(f"Run: {context.name} (uid={context.uid})")
     print(f"Params: p1={p1}, p2={p2}")
     access_key = context.get_secret("ACCESS_KEY")
-    print(f"Access key = {access_key}")
+    if access_key:
+        print("Access key retrieved successfully.")
     input_file = context.get_input("infile.txt", "infile.txt").get()
     print(f"File\n{input_file}\n")
 

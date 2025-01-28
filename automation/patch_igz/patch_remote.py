@@ -39,10 +39,12 @@ class Constants:
     log_collector_container = "mlrun-log-collector"
     api = "api"
     mlrun = "mlrun"
+    mlrun_kfp = "mlrun-kfp"
     log_collector = "log-collector"
     targets_to_image_name = {
         api: api_container,
         mlrun: mlrun,
+        mlrun_kfp: mlrun_kfp,
         log_collector: log_collector,
     }
 
@@ -90,7 +92,7 @@ class MLRunPatcher:
         if not self._skip_patch_api:
             targets.append(Constants.api)
         if self._patch_mlrun_image:
-            targets.append(Constants.mlrun)
+            targets.extend([Constants.mlrun, Constants.mlrun_kfp])
         if self._patch_log_collector_image:
             targets.append(Constants.log_collector)
         if not targets:

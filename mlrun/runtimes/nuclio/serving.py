@@ -152,6 +152,7 @@ class ServingSpec(NuclioSpec):
         clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        model_endpoint_creation_task_name=None,
     ):
         super().__init__(
             command=command,
@@ -209,6 +210,7 @@ class ServingSpec(NuclioSpec):
         self.tracking_policy = tracking_policy
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
+        self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
 
     @property
     def graph(self) -> Union[RouterStep, RootFlowStep]:
@@ -696,6 +698,7 @@ class ServingRuntime(RemoteRuntime):
             "track_models": self.spec.track_models,
             "tracking_policy": None,
             "default_content_type": self.spec.default_content_type,
+            "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
         }
 
         if self.spec.secret_sources:

@@ -123,6 +123,7 @@ install-requirements: ## Install all requirements needed for development
 
 .PHONY: install-conda-requirements
 install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
+	conda install --yes --file conda-arm64-requirements.txt
 	make install-requirements
 
 .PHONY: install-complete-requirements

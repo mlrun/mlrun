@@ -232,6 +232,7 @@ default_config = {
                 "abort_grace_period": "10",
                 "delete_project": "900",
                 "delete_function": "900",
+                "model_endpoint_creation": "600",
             },
             "runtimes": {"dask": "600"},
             "push_notifications": "60",

@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, Header, Path, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+from mlrun.utils import logger
 
 import framework.api.utils
 import framework.utils.auth.verifier
@@ -139,11 +140,21 @@ async def enable_model_monitoring(
                                               stream functions, which are real time nuclio functions.
                                               By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-    :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
-                                              (controller, writer & stream).
+    :param rebuild_images:                    Deprecated. If true, force rebuild of model monitoring infrastructure
+                                              images (controller, writer & stream).
     :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
 
     """
+
+    if rebuild_images:
+        logger.warn(
+            "The `rebuild_images` is no longer supported. "
+            "If you need to rebuild the images, `please call disable_model_monitoring()`, "
+            "followed by `enable_model_monitoring()` with the new image",
+            # TODO: Remove this in 1.10
+            FutureWarning,
+        )
+
     MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
@@ -153,7 +164,6 @@ async def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
-        rebuild_images=rebuild_images,
         fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
     )
 

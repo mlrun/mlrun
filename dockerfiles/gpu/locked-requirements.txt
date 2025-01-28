@@ -4442,8 +4442,8 @@ statsmodels==0.14.4 \
     --hash=sha256:e332c2d9b806083d1797231280602340c5c913f90d4caa0213a6a54679ce9331 \
     --hash=sha256:f5f537f7d000de4a1708c63400755152b862cd4926bb81a86568e347c19c364b
     # via pyod
-storey==1.8.8 \
-    --hash=sha256:fcdeabae9be839f8e9526f28173c6f1d96d6a0c65e70bf7ac4c5261d82cd6d58
+storey==1.8.9 \
+    --hash=sha256:cc5ffe86130db92b7b1d3af0344cf4863ab5473057b127c1a1713ad2e2d99678
     # via -r requirements.txt
 sympy==1.13.3 \
     --hash=sha256:54612cf55a62755ee71824ce692986f23c88ffa77207b30c1368eda4a7060f73 \

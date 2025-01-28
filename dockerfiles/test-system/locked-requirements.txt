@@ -878,9 +878,9 @@ dependency-injector==4.45.0 \
     --hash=sha256:f4aefc511be8ba97d823a71fb52a3b0ccaa7f9387cb51444862ebcb919822cae \
     --hash=sha256:fd1afbbf03ed97007f6d4cb11944776e79207d9d7634ba5c4f897f4802b382ae
     # via -r requirements.txt
-deprecated==1.2.17 \
-    --hash=sha256:0114a10f0bbb750b90b2c2296c90cf7e9eaeb0abb5cf06c80de2c60138de0a82 \
-    --hash=sha256:69cdc0a751671183f569495e2efb14baee4344b0236342eec29f1fde25d61818
+deprecated==1.2.18 \
+    --hash=sha256:422b6f6d859da6f2ef57857761bfb392480502a64c3028ca9bbe86085d72115d \
+    --hash=sha256:bd5011788200372a32418f888e326a09ff80d0214bd961147cfed01b5c018eec
     # via
     #   -r requirements.txt
     #   igz-mgmt
@@ -1130,9 +1130,9 @@ gitpython==3.1.44 \
     # via
     #   -r requirements.txt
     #   mlflow-skinny
-google-api-core==2.24.0 \
-    --hash=sha256:10d82ac0fca69c82a25b3efdeefccf6f28e02ebb97925a8cce8edbfe379929d9 \
-    --hash=sha256:e255640547a597a4da010876d333208ddac417d60add22b6851a0c66a831fcaf
+google-api-core==2.24.1 \
+    --hash=sha256:bc78d608f5a5bf853b80bd70a795f703294de656c096c0968320830a4bc280f1 \
+    --hash=sha256:f8b36f5456ab0dd99a1b693a40a31d1e7757beea380ad1b38faaf8941eae9d8a
     # via
     #   google-api-python-client
     #   google-cloud-bigquery
@@ -1242,9 +1242,9 @@ graphene==3.4.3 \
     --hash=sha256:2a3786948ce75fe7e078443d37f609cbe5bb36ad8d6b828740ad3b95ed1a0aaa \
     --hash=sha256:820db6289754c181007a150db1f7fff544b94142b556d12e3ebc777a7bf36c71
     # via mlflow
-graphql-core==3.2.5 \
-    --hash=sha256:2f150d5096448aa4f8ab26268567bbfeef823769893b39c1a2e1409590939c8a \
-    --hash=sha256:e671b90ed653c808715645e3998b7ab67d382d55467b7e2978549111bbabf8d5
+graphql-core==3.2.6 \
+    --hash=sha256:78b016718c161a6fb20a7d97bbf107f331cd1afe53e45566c59f776ed7f0b45f \
+    --hash=sha256:c08eec22f9e40f0bd61d805907e3b3b1b9a320bc606e23dc145eebca07c8fbab
     # via
     #   graphene
     #   graphql-relay
@@ -2495,9 +2495,9 @@ nbclient==0.10.2 \
     --hash=sha256:4ffee11e788b4a27fabeb7955547e4318a5298f34342a4bfd01f2e1faaeadc3d \
     --hash=sha256:90b7fc6b810630db87a6d0c2250b1f0ab4cf4d3c27a299b0cde78a4ed3fd9193
     # via nbconvert
-nbconvert==7.16.5 \
-    --hash=sha256:c83467bb5777fdfaac5ebbb8e864f300b277f68692ecc04d6dab72f2d8442344 \
-    --hash=sha256:e12eac052d6fd03040af4166c563d76e7aeead2e9aadf5356db552a1784bd547
+nbconvert==7.16.6 \
+    --hash=sha256:1375a7b67e0c2883678c48e506dc320febb57685e5ee67faa51b18a90f3a712b \
+    --hash=sha256:576a7e37c6480da7b8465eefa66c17844243816ce1ccc372633c6b71c3c0f582
     # via
     #   jupyter-server
     #   nuclio-jupyter
@@ -2990,9 +2990,9 @@ propcache==0.2.1 \
     --hash=sha256:f7a31fc1e1bd362874863fdeed71aed92d348f5336fd84f2197ba40c59f061bd \
     --hash=sha256:f9479aa06a793c5aeba49ce5c5692ffb51fcd9a7016e017d555d5e2b0045d212
     # via yarl
-proto-plus==1.25.0 \
-    --hash=sha256:c91fc4a65074ade8e458e95ef8bac34d4008daa7cce4a12d6707066fca648961 \
-    --hash=sha256:fbb17f57f7bd05a68b7707e745e26528b0b3c34e378db91eef93912c54982d91
+proto-plus==1.26.0 \
+    --hash=sha256:6e93d5f5ca267b54300880fff156b6a3386b3fa3f43b1da62e680fc0c586ef22 \
+    --hash=sha256:bf2dfaa3da281fc3187d12d224c707cb57214fb2c22ba854eb0c105a3fb2d4d7
     # via
     #   google-api-core
     #   google-cloud-bigquery-storage
@@ -3020,6 +3020,7 @@ protobuf==3.20.3 ; python_full_version < '3.11' \
     --hash=sha256:f4bd856d702e5b0d96a00ec6b307b0f51c1982c2bf9c0052cf9019e9a544ba99 \
     --hash=sha256:f4c42102bc82a51108e449cbb32b19b180022941c727bac0cfd50170341f16ee
     # via
+    #   -r requirements.txt
     #   google-api-core
     #   google-cloud-bigquery-storage
     #   googleapis-common-protos
@@ -3042,6 +3043,7 @@ protobuf==4.25.6 ; python_full_version >= '3.11' \
     --hash=sha256:b8f837bfb77513fe0e2f263250f423217a173b6d85135be4d81e96a4653bcd3c \
     --hash=sha256:f8cfbae7c5afd0d0eaccbe73267339bff605a2315860bb1ba08eb66670a9a91f
     # via
+    #   -r requirements.txt
     #   google-api-core
     #   google-cloud-bigquery-storage
     #   googleapis-common-protos

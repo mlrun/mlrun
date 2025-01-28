@@ -213,6 +213,11 @@ def test_requirement_specifiers_inconsistencies():
             '~=2024.12.1; python_version >= "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
+        "protobuf": {
+            ">=3.20.3, <4",
+            '~=3.20; python_version < "3.11"',
+            '~=4.25; python_version >= "3.11"',
+        },
     }
 
     all_keys_verified = set(ignored_inconsistencies_map.keys())

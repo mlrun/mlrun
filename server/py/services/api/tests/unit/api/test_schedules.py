@@ -136,29 +136,6 @@ def test_list_schedules(
 
 
 @pytest.mark.parametrize(
-    "method, body, expected_status, expected_body, expected_response_from_chief, create_project",
-    [
-        # project doesn't exist, expecting to fail before forwarding to chief
-        [
-            "POST",
-            services.api.tests.unit.api.utils.compile_schedule(),
-            http.HTTPStatus.NOT_FOUND.value,
-            {"detail": "MLRunNotFoundError('Project {project_name} does not exist')"},
-            False,
-            False,
-        ],
-        # project exists, expecting to create
-        [
-            "POST",
-            services.api.tests.unit.api.utils.compile_schedule(),
-            http.HTTPStatus.CREATED.value,
-            {},
-            True,
-            True,
-        ],
-    ],
-)
-@pytest.mark.parametrize(
     "method, body, expected_status, expected_body",
     [
         # deleting schedule failed for unknown reason

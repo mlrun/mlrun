@@ -126,6 +126,7 @@ class _PrepareMonitoringEvent(StepToDict):
         :param application_name: Application name.
         """
         self.graph_context = context
+        _ = self.graph_context.project_obj  # Ensure project exists
         self.application_name = application_name
         self.model_endpoints: dict[str, mlrun.common.schemas.ModelEndpoint] = {}
 

@@ -23,9 +23,12 @@ from http import HTTPStatus
 from pathlib import Path
 
 import fastapi
+import kafka
 import kafka.errors
 import nuclio
 import sqlalchemy.orm
+import v3io.dataplane
+import v3io.dataplane.response
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 
@@ -952,6 +955,7 @@ class MonitoringDeployment:
             "Deleting model monitoring stream resources deployment",
             project_name=self.project,
         )
+        profile = stream_profile or self._stream_profile
         stream_paths = []
         for function_name in function_names:
             qualified_function_name = f"{self.project}-{function_name}"
@@ -963,7 +967,7 @@ class MonitoringDeployment:
                 )
                 continue
             label_selector = f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={qualified_function_name}"
-            for i in range(10):
+            for _ in range(10):
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
                 try:
@@ -1000,11 +1004,10 @@ class MonitoringDeployment:
             # No stream paths to delete
             return
 
-        elif stream_paths[0].startswith("v3io"):
+        elif isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
             # Delete V3IO stream
-            import v3io.dataplane
-            import v3io.dataplane.response
-
             v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
 
             for stream_path in stream_paths:
@@ -1013,20 +1016,19 @@ class MonitoringDeployment:
                         stream_path
                     )
                 )
-
+                logger.debug(
+                    "Deleting v3io stream",
+                    project=self.project,
+                    stream_path=stream_path,
+                )
                 try:
                     # if the stream path is in the users directory, we need to use pipelines access key to delete it
-                    logger.debug(
-                        "Deleting v3io stream",
-                        project=self.project,
-                        stream_path=stream_path,
-                    )
                     v3io_client.stream.delete(
                         container,
                         stream_path,
                         access_key=mlrun.mlconf.get_v3io_access_key()
                         if container.startswith("users")
-                        else access_key,
+                        else profile.v3io_access_key or access_key,
                     )
                     logger.debug(
                         "Deleted v3io stream",
@@ -1038,23 +1040,35 @@ class MonitoringDeployment:
                     raise mlrun.errors.MLRunStreamConnectionFailureError(
                         f"Failed to delete v3io stream {stream_path}"
                     ) from exc
-        elif stream_paths[0].startswith("kafka://"):
+        elif isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        ):
             # Delete Kafka topics
-            import kafka
-            import kafka.errors
+            topics = [
+                mlrun.datastore.utils.parse_kafka_url(url=stream_path)[0]
+                for stream_path in stream_paths
+            ]
 
-            topics = []
+            sasl_mechanism = None
+            sasl_plain_username = None
+            sasl_plain_password = None
 
-            topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_paths[0])
-            topics.append(topic)
+            kafka_attributes = profile.attributes()
+            if "sasl" in kafka_attributes:
+                sasl = kafka_attributes["sasl"]
+                sasl_mechanism = sasl["mechanism"]
+                sasl_plain_username = sasl["user"]
+                sasl_plain_password = sasl["password"]
 
-            for stream_path in stream_paths[1:]:
-                topic, _ = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-                topics.append(topic)
+            client_id = f"{mlrun.mlconf.system_id}_{self.project}_kafka-python_{kafka.__version__}"
 
             try:
                 kafka_client = kafka.KafkaAdminClient(
-                    bootstrap_servers=brokers, client_id=self.project
+                    bootstrap_servers=profile.brokers,
+                    client_id=client_id,
+                    sasl_mechanism=sasl_mechanism,
+                    sasl_plain_username=sasl_plain_username,
+                    sasl_plain_password=sasl_plain_password,
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
@@ -1065,8 +1079,8 @@ class MonitoringDeployment:
                 ) from exc
         else:
             logger.warning(
-                "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
-                stream_path=stream_paths[0],
+                "Stream profile is not supported and therefore can't be deleted, expected v3io or kafka",
+                stream_profile_type=str(type(profile)),
             )
         logger.debug(
             "Successfully deleted model monitoring stream resources deployment",

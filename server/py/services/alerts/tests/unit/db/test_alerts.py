@@ -24,7 +24,7 @@ from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 class TestAlerts(TestDatabaseBase):
     def test_store_alert_created_time(self):
         project = "project"
-        alert_name = "test_alert"
+        alert_name = "test-alert"
         alert_entity = alert_objects.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project,

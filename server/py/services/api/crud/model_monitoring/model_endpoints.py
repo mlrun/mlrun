@@ -66,10 +66,7 @@ class ModelEndpoints:
         creation_strategy: mlrun.common.schemas.ModelEndpointCreationStrategy,
         model_path: Optional[str] = None,
         upsert: bool = True,
-    ) -> typing.Union[
-        mlrun.common.schemas.ModelEndpoint,
-        tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict],
-    ]:
+    ) -> typing.Union[tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict],]:
         """
         Creates model endpoint record in DB. The DB store target is defined either by a provided connection string
         or by the default store target that is defined in MLRun configuration.
@@ -90,7 +87,8 @@ class ModelEndpoints:
         :param upsert:                 If True, will execute the creation/deletion/updating
                                        of the model endpoint in the DB.
 
-        :return:    The created `ModelEndpoint` object or `None` if the creation strategy is `SKIP`.
+        :return:    The created `ModelEndpoint` object, the method that was used to create it, the uids of the model
+                    endpoints that were deleted and the attributes that were updated.
         :raise:     MLRunInvalidArgumentError if the creation strategy is not valid
         """
         if model_endpoint.spec.function_name and not model_endpoint.spec.function_tag:
@@ -208,8 +206,6 @@ class ModelEndpoints:
         # If none of the above was supplied, feature names will be assigned on first contact with the model monitoring
         # system
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
-        if upsert:
-            return model_endpoint
         return model_endpoint, method, uid_to_delete, attributes
 
     async def create_model_endpoints(
@@ -567,7 +563,7 @@ class ModelEndpoints:
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> str:
         """
         Update a model endpoint record with a given attributes.
 
@@ -582,12 +578,12 @@ class ModelEndpoints:
         :param function_tag: The tag of the function.
         :param endpoint_id: The unique id of the model endpoint.
 
-        :return: A patched `ModelEndpoint` object without operative data.
+        :return: The patched `ModelEndpoint` uid.
         """
         if function_name and function_tag is None:
             logger.info("Function tag not provided, setting to 'latest'")
             function_tag = DEFAULT_FUNCTION_TAG
-        model_endpoint = await run_in_threadpool(
+        uid = await run_in_threadpool(
             framework.utils.singletons.db.get_db().update_model_endpoint,
             session=db_session,
             project=project,
@@ -604,10 +600,10 @@ class ModelEndpoints:
             project=project,
             function_name=function_name,
             function_tag=function_tag,
-            endpoint_id=model_endpoint.metadata.uid,
+            endpoint_id=uid,
         )
 
-        return model_endpoint
+        return uid
 
     @staticmethod
     def _get_features(

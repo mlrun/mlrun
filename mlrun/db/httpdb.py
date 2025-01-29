@@ -3896,7 +3896,7 @@ class HTTPRunDB(RunDBInterface):
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> None:
         """
         Updates a model endpoint with the given attributes.
 
@@ -3906,7 +3906,6 @@ class HTTPRunDB(RunDBInterface):
         :param function_name:              The name of the function
         :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
-        :return:                          The updated `ModelEndpoint` object.
         """
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
@@ -3929,8 +3928,11 @@ class HTTPRunDB(RunDBInterface):
             },
             body=model_endpoint.json(),
         )
-
-        return mlrun.common.schemas.ModelEndpoint(**response.json())
+        logger.info(
+            "Updating model endpoint done",
+            model_endpoint_uid=response.json(),
+            status_code=response.status_code,
+        )
 
     @staticmethod
     def _check_model_endpoint_representation(

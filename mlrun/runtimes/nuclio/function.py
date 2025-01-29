@@ -369,8 +369,9 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
-        # update handler in function_handler
-        self.spec.function_handler = handler
+        # update handler in function_handler if needed
+        if handler:
+            self.spec.function_handler = handler
         if workdir:
             self.spec.workdir = workdir
         if runtime:

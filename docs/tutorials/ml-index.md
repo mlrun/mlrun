@@ -28,9 +28,9 @@ mlflow
 ```
 
 
-Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png">at the top of each page.
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png"> at the top of each page.
 
-
+- {ref}`quick-start-ml`
 - {ref}`model-training-tutorial`
 - {ref}`serving-ml-dl-models`
 - {ref}`projects-auto-ml-pipe`

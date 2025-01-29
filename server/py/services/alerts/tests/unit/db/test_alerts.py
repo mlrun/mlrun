@@ -49,7 +49,7 @@ class TestAlerts(TestDatabaseBase):
             tz=timezone.utc
         )
 
-        alert2_name = "test_alert2"
+        alert2_name = "test-alert2"
         alert2 = services.alerts.tests.unit.crud.utils.generate_alert_data(
             project=project,
             name=alert2_name,

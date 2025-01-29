@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG CUDA_VER
+ARG CUDA_VER=11.8.0-cudnn8-devel-ubuntu22.04
 
 # CUDA Based image (including cudnn and cuda-toolkit):
 FROM gcr.io/iguazio/nvidia/cuda:$CUDA_VER
@@ -31,6 +31,7 @@ RUN apt update -qqq --fix-missing \
     wget \
     bzip2 \
     ca-certificates \
+    unzip \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 

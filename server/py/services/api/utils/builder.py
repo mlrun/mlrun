@@ -107,12 +107,12 @@ def make_dockerfile(
     if source:
         args = args.rstrip("\n")
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
+        # it is up to base image to have unzip included in case source is zip
         if source.endswith(".zip"):
             source_dir = os.path.join(target_dir, "source")
             stage_lines = [
                 f"FROM {base_image} AS extractor",
                 args,
-                "RUN apt-get update -qqy && apt install --assume-yes unzip",
                 f"RUN mkdir -p {source_dir}",
                 f"COPY {source} {source_dir}",
                 f"RUN cd {source_dir} && unzip {source} && rm {source}",

@@ -30,6 +30,7 @@ RUN apt-get update  \
       graphviz \
       curl \
       apt-transport-https \
+      unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and install kubectl

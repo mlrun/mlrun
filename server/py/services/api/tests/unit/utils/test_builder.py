@@ -860,7 +860,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
                 expected_output_re = re.compile(
                     rf"COPY {expected_source} /home/mlrun_code/source"
                 )
-                expected_line_index = 3
+                expected_line_index = 2
 
             else:
                 expected_output_re = re.compile(

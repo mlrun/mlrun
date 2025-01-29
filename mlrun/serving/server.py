@@ -85,8 +85,12 @@ class _StreamContext:
             if log_stream:
                 # Update the stream path to the log stream value
                 stream_uri = log_stream.format(project=project)
-
-            self.output_stream = get_stream_pusher(stream_uri, **stream_args)
+                self.output_stream = get_stream_pusher(stream_uri, **stream_args)
+            else:
+                # Get the output stream from the profile
+                self.output_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                    project=project, mock=stream_args.get("mock", False)
+                )
 
 
 class GraphServer(ModelObj):

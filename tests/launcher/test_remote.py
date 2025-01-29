@@ -17,7 +17,6 @@ import unittest.mock
 
 import pytest
 
-import mlrun.common.runtimes.constants
 import mlrun.config
 import mlrun.launcher.remote
 

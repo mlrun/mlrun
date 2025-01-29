@@ -1049,16 +1049,18 @@ class MonitoringDeployment:
                 for stream_path in stream_paths
             ]
 
-            sasl_mechanism = None
-            sasl_plain_username = None
-            sasl_plain_password = None
-
-            kafka_attributes = profile.attributes()
-            if "sasl" in kafka_attributes:
-                sasl = kafka_attributes["sasl"]
-                sasl_mechanism = sasl["mechanism"]
-                sasl_plain_username = sasl["user"]
-                sasl_plain_password = sasl["password"]
+            kafka_profile_attributes = profile.attributes()
+            kafka_admin_client_kwargs = {}
+            if "sasl" in kafka_profile_attributes:
+                sasl = kafka_profile_attributes["sasl"]
+                kafka_admin_client_kwargs.update(
+                    {
+                        "security_protocol": "SASL_PLAINTEXT",
+                        "sasl_mechanism": sasl["mechanism"],
+                        "sasl_plain_username": sasl["user"],
+                        "sasl_plain_password": sasl["password"],
+                    }
+                )
 
             client_id = f"{mlrun.mlconf.system_id}_{self.project}_kafka-python_{kafka.__version__}"
 
@@ -1066,9 +1068,7 @@ class MonitoringDeployment:
                 kafka_client = kafka.KafkaAdminClient(
                     bootstrap_servers=profile.brokers,
                     client_id=client_id,
-                    sasl_mechanism=sasl_mechanism,
-                    sasl_plain_username=sasl_plain_username,
-                    sasl_plain_password=sasl_plain_password,
+                    **kafka_admin_client_kwargs,
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)

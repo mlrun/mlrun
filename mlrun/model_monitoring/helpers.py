@@ -333,6 +333,7 @@ def _get_kafka_output_stream(
         sasl = profile_attributes["sasl"]
         producer_options.update(
             {
+                "security_protocol": "SASL_PLAINTEXT",
                 "sasl_mechanism": sasl["mechanism"],
                 "sasl_plain_username": sasl["user"],
                 "sasl_plain_password": sasl["password"],

@@ -3,7 +3,8 @@ dask-kubernetes~=0.11.0
 # dask 2023 does not work on python 3.11
 # dask 2024 requires dependencies that current mlrun with 3.9 cannot support
 dask-ml~=1.4,<1.9.0; python_version < "3.11"
-dask[complete]~=2023.12.1; python_version < "3.11"
+# Exclude dask[diagnostics] due to ML-9200
+dask[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"
 dask-ml~=2024.4.4; python_version >= "3.11"
 dask[complete]~=2024.12.1; python_version >= "3.11"
 vaex~=4.0

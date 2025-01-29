@@ -1151,7 +1151,6 @@ class MonitoringDeployment:
     def _verify_kafka_access(
         kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
     ) -> None:
-        import kafka
         import kafka.errors
 
         kafka_brokers = kafka_profile.brokers

@@ -17,6 +17,7 @@ import unittest.mock
 
 import pytest
 
+import mlrun.common.runtimes.constants
 import mlrun.config
 import mlrun.launcher.remote
 
@@ -135,3 +136,48 @@ def test_run_error_status(rundb_mock):
     with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
         launcher.launch(runtime, run, watch=True)
     assert "some error" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "end_time, run_state, should_update",
+    [
+        (None, mlrun.common.runtimes.constants.RunStates.completed, True),
+        (None, mlrun.common.runtimes.constants.RunStates.error, True),
+        (
+            "2024-01-28T12:00:00Z",
+            mlrun.common.runtimes.constants.RunStates.completed,
+            False,
+        ),
+        (
+            "2024-01-28T12:00:00Z",
+            mlrun.common.runtimes.constants.RunStates.error,
+            False,
+        ),
+        (None, mlrun.common.runtimes.constants.RunStates.running, False),
+        (
+            "2024-01-28T12:00:00Z",
+            mlrun.common.runtimes.constants.RunStates.running,
+            False,
+        ),
+    ],
+)
+def test_update_end_time_if_terminal_state(end_time, run_state, should_update):
+    runtime = unittest.mock.MagicMock()
+    runtime._get_db.return_value = unittest.mock.MagicMock()
+
+    uid = "123"
+    run = mlrun.run.RunObject(metadata=mlrun.model.RunMetadata(uid=uid))
+    run.status.state = run_state
+    run.status.end_time = end_time
+
+    launcher = mlrun.launcher.remote.ClientRemoteLauncher()
+    launcher._update_end_time_if_terminal_state(runtime, run)
+
+    if should_update:
+        db = runtime._get_db()
+        db.update_run.assert_called_once()
+        updates = db.update_run.call_args[0][0]
+        assert "status.end_time" in updates
+        assert updates["status.end_time"] is not None
+    else:
+        runtime._get_db().update_run.assert_not_called()

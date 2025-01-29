@@ -174,7 +174,8 @@ async def submit_workflow(
         db_session=db_session,
         auth_info=auth_info,
         image=services.api.utils.helpers.resolve_client_default_kfp_image(
-            project, workflow_spec, client_version
+            project=project,
+            workflow_spec=workflow_spec,
         ),
     )
 

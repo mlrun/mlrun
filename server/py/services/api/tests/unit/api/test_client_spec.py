@@ -152,45 +152,40 @@ def test_client_spec(
 
 
 @pytest.mark.parametrize(
-    "server_version, client_version, python_version, expected_kfp, expected_dask_kfp",
+    "server_version, client_version, python_version, expected_dask_kfp",
     [
         # Server is "unstable"
         (
             "0.0.0+unstable",
             None,
             None,
-            "mlrun/mlrun-kfp:unstable",
             "mlrun/ml-base:unstable",
         ),
         (
             "0.0.0+unstable",
             "",
             "",
-            "mlrun/mlrun-kfp:unstable",
             "mlrun/ml-base:unstable",
         ),
         # Server is "1.8.0"
-        ("1.8.0", "", "", "mlrun/mlrun-kfp:1.8.0", "mlrun/ml-base:1.8.0"),
-        ("1.8.0", "1.2.0", None, "mlrun/mlrun:1.2.0", "mlrun/ml-base:1.2.0"),
+        ("1.8.0", "", "", "mlrun/ml-base:1.8.0"),
+        ("1.8.0", "1.2.0", None, "mlrun/ml-base:1.2.0"),
         (
             "1.8.0",
             "1.3.0-rc20",
             "3.7.13",
-            "mlrun/mlrun:1.3.0-rc20-py37",
             "mlrun/ml-base:1.3.0-rc20-py37",
         ),
         (
             "1.8.0",
             "1.3.0-rc20",
             "3.9.13",
-            "mlrun/mlrun:1.3.0-rc20",
             "mlrun/ml-base:1.3.0-rc20",
         ),
         (
             "1.8.0",
             "test-integration",
             "3.9.13",
-            "mlrun/mlrun-kfp:1.8.0",
             "mlrun/ml-base:1.8.0",
         ),
     ],
@@ -201,7 +196,6 @@ def test_client_spec_response_based_on_client_version(
     server_version,
     client_version,
     python_version,
-    expected_kfp,
     expected_dask_kfp,
 ):
     # Clear any cached spec to ensure fresh resolution each time
@@ -224,7 +218,6 @@ def test_client_spec_response_based_on_client_version(
 
         # Validate response
         response_body = response.json()
-        assert response_body["kfp_image"] == expected_kfp
         assert response_body["dask_kfp_image"] == expected_dask_kfp
 
 

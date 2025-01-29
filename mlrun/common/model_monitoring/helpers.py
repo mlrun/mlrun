@@ -45,7 +45,9 @@ def get_kafka_topic(project: str, function_name: typing.Optional[str] = None) ->
     else:
         function_specifier = f"_{function_name}"
 
-    return f"monitoring_stream_{mlrun.mlconf.system_id}_{project}{function_specifier}_v1"
+    return (
+        f"monitoring_stream_{mlrun.mlconf.system_id}_{project}{function_specifier}_v1"
+    )
 
 
 def parse_monitoring_stream_path(

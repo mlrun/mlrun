@@ -549,18 +549,18 @@ def test_filter_results_by_regex():
 @pytest.mark.parametrize(
     ("project", "function_name", "expected_topic"),
     [
-        ("p1", None, "monitoring_stream_p1_v1"),
-        ("mm", "model-monitoring-stream", "monitoring_stream_mm_v1"),
+        ("p1", None, "monitoring_stream__p1_v1"),
+        ("mm", "model-monitoring-stream", "monitoring_stream__mm_v1"),
         (
             "mm",
             "model-monitoring-controller",
-            "monitoring_stream_mm_model-monitoring-controller_v1",
+            "monitoring_stream__mm_model-monitoring-controller_v1",
         ),
-        ("mm", "model-monitoring-stream", "monitoring_stream_mm_v1"),
+        ("mm", "model-monitoring-stream", "monitoring_stream__mm_v1"),
         (
             "special-mm-12",
             "model-monitoring-writer",
-            "monitoring_stream_special-mm-12_model-monitoring-writer_v1",
+            "monitoring_stream__special-mm-12_model-monitoring-writer_v1",
         ),
     ],
 )

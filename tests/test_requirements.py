@@ -149,6 +149,7 @@ def test_requirement_specifiers_convention():
         "setuptools": {">=75.2"},
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
+            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {
@@ -207,6 +208,7 @@ def test_requirement_specifiers_inconsistencies():
         },
         "dask": {
             '~=2024.12.1; python_version >= "3.11"',
+            '[array,dataframe,distributed]~=2023.12.1; python_version < "3.11"',
             '~=2023.12.1; python_version < "3.11"',
         },
         "distributed": {

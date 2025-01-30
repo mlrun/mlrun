@@ -300,6 +300,7 @@ def _get_v3io_output_stream(
     v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
     project: str,
     function_name: str,
+    v3io_access_key: Optional[str],
     mock: bool = False,
 ) -> mlrun.platforms.iguazio.OutputStream:
     stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -312,7 +313,7 @@ def _get_v3io_output_stream(
     return mlrun.platforms.iguazio.OutputStream(
         stream_path,
         endpoint=endpoint,
-        access_key=v3io_profile.v3io_access_key,
+        access_key=v3io_profile.v3io_access_key or v3io_access_key,
         mock=mock,
     )
 
@@ -352,6 +353,7 @@ def get_output_stream(
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
     secret_provider: Optional[Callable[[str], str]] = None,
     profile: Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
+    v3io_access_key: Optional[str] = None,
     mock: bool = False,
 ) -> Union[
     mlrun.platforms.iguazio.OutputStream, mlrun.platforms.iguazio.KafkaOutputStream
@@ -364,6 +366,7 @@ def get_output_stream(
     :param secret_provider:     Optional secret provider to get the connection string secret.
                                 If not set, the env vars are used.
     :param profile:             Optional datastore profile of the stream (V3IO/KafkaSource profile).
+    :param v3io_access_key:     Optional V3IO access key.
     :param mock:                Should the output stream be mocked or not.
     :return:                    Monitoring stream path to the relevant application.
     """
@@ -377,6 +380,7 @@ def get_output_stream(
             v3io_profile=profile,
             project=project,
             function_name=function_name,
+            v3io_access_key=v3io_access_key,
             mock=mock,
         )
 

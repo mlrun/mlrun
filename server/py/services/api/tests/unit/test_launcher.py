@@ -19,6 +19,7 @@ from contextlib import nullcontext as does_not_raise
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
@@ -167,3 +168,49 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
         run=run,
     )
     assert run.spec.image_pull_secret == mlrun.mlconf.function.spec.image_pull_secret
+
+
+@pytest.mark.parametrize(
+    "end_time, run_state, should_update",
+    [
+        (None, mlrun.common.runtimes.constants.RunStates.completed, True),
+        (None, mlrun.common.runtimes.constants.RunStates.error, True),
+        (
+            "2024-01-28T12:00:00Z",
+            mlrun.common.runtimes.constants.RunStates.completed,
+            False,
+        ),
+        (
+            "2024-01-28T12:00:00Z",
+            mlrun.common.runtimes.constants.RunStates.error,
+            False,
+        ),
+        (None, mlrun.common.runtimes.constants.RunStates.running, False),
+        (
+            "2024-01-28T12:00:00Z",
+            mlrun.common.runtimes.constants.RunStates.running,
+            False,
+        ),
+    ],
+)
+def test_update_end_time_if_terminal_state(end_time, run_state, should_update):
+    runtime = unittest.mock.MagicMock()
+    runtime._get_db.return_value = unittest.mock.MagicMock()
+
+    uid = "123"
+    run = mlrun.run.RunObject(metadata=mlrun.model.RunMetadata(uid=uid))
+    run.status.state = run_state
+    run.status.end_time = end_time
+
+    services.api.launcher.ServerSideLauncher._update_end_time_if_terminal_state(
+        runtime, run
+    )
+
+    if should_update:
+        db = runtime._get_db()
+        db.update_run.assert_called_once()
+        updates = db.update_run.call_args[0][0]
+        assert "status.end_time" in updates
+        assert updates["status.end_time"] is not None
+    else:
+        runtime._get_db().update_run.assert_not_called()

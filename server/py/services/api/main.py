@@ -778,7 +778,7 @@ class Service(framework.service.Service):
             db_session,
             project="*",
             states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
-            last_update_time_from=last_update_time,
+            end_time_from=last_update_time,
             with_notifications=True,
         )
 

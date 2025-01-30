@@ -39,7 +39,15 @@ def transform_label_list_to_dict(label_list):
 
 
 def run_start_time(run):
-    ts = get_in(run, "status.start_time", "")
+    return _parse_run_time(run, "status.start_time")
+
+
+def run_end_time(run):
+    return _parse_run_time(run, "status.end_time")
+
+
+def _parse_run_time(run, time_key):
+    ts = get_in(run, time_key, "")
     if not ts:
         return None
     return parser.parse(ts)

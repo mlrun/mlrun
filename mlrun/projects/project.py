@@ -1254,7 +1254,13 @@ class MlrunProject(ModelObj):
         mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
 
         self.spec.load_source_on_run = pull_at_runtime
+
+        source_has_changed = source != self.spec.source
         self.spec.source = source or self.spec.source
+
+        # new source should not relay on old workdir
+        if source_has_changed:
+            self.spec.workdir = workdir
 
         if self.spec.source.startswith("git://"):
             source, reference, branch = resolve_git_reference_from_source(source)
@@ -1264,7 +1270,6 @@ class MlrunProject(ModelObj):
                     "'git://<url>/org/repo.git#<branch-name or refs/heads/..>'"
                 )
 
-        self.spec.workdir = workdir or self.spec.workdir
         try:
             # reset function objects (to recalculate build attributes)
             self.sync_functions()
@@ -3456,12 +3461,13 @@ class MlrunProject(ModelObj):
 
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
-        if self.spec.repo and self.spec.repo.is_dirty():
-            msg = "You seem to have uncommitted git changes, use .push()"
-            if dirty or not need_repo:
-                logger.warning("WARNING!, " + msg)
-            else:
-                raise ProjectError(msg + " or dirty=True")
+        if not dirty:
+            if self.spec.repo and self.spec.repo.is_dirty():
+                msg = "You seem to have uncommitted git changes, use .push()"
+                if not need_repo:
+                    logger.warning("WARNING!, " + msg)
+                else:
+                    raise ProjectError(msg + " or dirty=True")
 
         if need_repo and self.spec.repo and not self.spec.source:
             raise ProjectError(

@@ -24,7 +24,7 @@ from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 class TestAlerts(TestDatabaseBase):
     def test_store_alert_created_time(self):
         project = "project"
-        alert_name = "test_alert"
+        alert_name = "test-alert"
         alert_entity = alert_objects.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project,
@@ -49,7 +49,7 @@ class TestAlerts(TestDatabaseBase):
             tz=timezone.utc
         )
 
-        alert2_name = "test_alert2"
+        alert2_name = "test-alert2"
         alert2 = services.alerts.tests.unit.crud.utils.generate_alert_data(
             project=project,
             name=alert2_name,

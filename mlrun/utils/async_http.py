@@ -24,9 +24,16 @@ from aiohttp_retry import ExponentialRetry, RequestParams, RetryClient, RetryOpt
 from aiohttp_retry.client import _RequestContext
 
 from mlrun.config import config
-from mlrun.errors import err_to_str, raise_for_status
+from mlrun.errors import err_to_str
+from mlrun.errors import raise_for_status as ml_raise_for_status
 
 from .helpers import logger as mlrun_logger
+
+DEFAULT_BLACKLISTED_METHODS = [
+    "POST",
+    "PUT",
+    "PATCH",
+]
 
 
 class AsyncClientWithRetry(RetryClient):
@@ -46,16 +53,6 @@ class AsyncClientWithRetry(RetryClient):
         *args,
         **kwargs,
     ):
-        # do not retry on PUT / PATCH as they might have side effects (not truly idempotent)
-        blacklisted_methods = (
-            blacklisted_methods
-            if blacklisted_methods is not None
-            else [
-                "POST",
-                "PUT",
-                "PATCH",
-            ]
-        )
         super().__init__(
             *args,
             retry_options=ExponentialRetryOverride(
@@ -72,9 +69,13 @@ class AsyncClientWithRetry(RetryClient):
             **kwargs,
         )
 
+    @property
+    def retry_options(self) -> "ExponentialRetryOverride":
+        return typing.cast(ExponentialRetryOverride, self._retry_options)
+
     def methods_blacklist_update_required(self, new_blacklist: str):
         self._retry_options: ExponentialRetryOverride
-        return set(self._retry_options.blacklisted_methods).difference(
+        return set(self.retry_options.blacklisted_methods).difference(
             set(new_blacklist)
         )
 
@@ -114,8 +115,8 @@ class ExponentialRetryOverride(ExponentialRetry):
 
     def __init__(
         self,
-        retry_on_exception: bool,
-        blacklisted_methods: list[str],
+        retry_on_exception: typing.Optional[bool] = True,
+        blacklisted_methods: typing.Optional[list[str]] = None,
         *args,
         **kwargs,
     ):
@@ -123,7 +124,12 @@ class ExponentialRetryOverride(ExponentialRetry):
         self.retry_on_exception = retry_on_exception
 
         # methods that should not be retried
-        self.blacklisted_methods = blacklisted_methods
+        # do not retry on PUT / PATCH as they might have side effects (not truly idempotent)
+        self.blacklisted_methods = (
+            blacklisted_methods
+            if blacklisted_methods is not None
+            else DEFAULT_BLACKLISTED_METHODS
+        )
 
         # default exceptions that should be retried on (when retry_on_exception is True)
         if "exceptions" not in kwargs:
@@ -135,6 +141,10 @@ class _CustomRequestContext(_RequestContext):
     """
     Extends by adding retry logic on both error statuses and certain exceptions.
     """
+
+    @property
+    def retry_options(self) -> ExponentialRetryOverride:
+        return typing.cast(ExponentialRetryOverride, self._retry_options)
 
     async def _do_request(self) -> aiohttp.ClientResponse:
         current_attempt = 0
@@ -186,9 +196,9 @@ class _CustomRequestContext(_RequestContext):
                     return response
 
                 last_attempt = current_attempt == self._retry_options.attempts
-                if self._is_status_code_ok(response.status) or last_attempt:
+                if not self._is_status_retryable(response.status) or last_attempt:
                     if self._raise_for_status:
-                        raise_for_status(response)
+                        ml_raise_for_status(response)
 
                     self._response = response
                     return response
@@ -204,7 +214,7 @@ class _CustomRequestContext(_RequestContext):
                     )
 
             except Exception as exc:
-                if not self._retry_options.retry_on_exception:
+                if not self.retry_options.retry_on_exception:
                     self._logger.warning(
                         "Request failed, retry on exception is disabled",
                         method=params.method,
@@ -250,7 +260,10 @@ class _CustomRequestContext(_RequestContext):
             await asyncio.sleep(retry_wait)
 
     def _is_method_retryable(self, method: str):
-        return method not in self._retry_options.blacklisted_methods
+        return method not in self.retry_options.blacklisted_methods
+
+    def _is_status_retryable(self, status: int):
+        return status in self._retry_options.statuses
 
     async def _check_response_callback(
         self,

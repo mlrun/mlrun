@@ -1057,7 +1057,13 @@ class AsyncClient(Client):
                 "POST",
                 mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
                 "Failed verifying iguazio session",
-                blacklisted_methods=[],  # iguazio session verification endpoint is idempotent
+                retry_options_override=mlrun.utils.async_http.ExponentialRetryOverride(
+                    blacklisted_methods=[],  # iguazio session verification endpoint is idempotent
+                    # 1, 2, 4, 8, ...
+                    start_timeout=1,
+                    max_timeout=30.0,
+                    factor=2.0,
+                ),
                 headers=headers,
             ) as response
         ):
@@ -1071,17 +1077,33 @@ class AsyncClient(Client):
         method,
         path: str,
         error_message: str,
-        session=None,
-        blacklisted_methods=None,
+        session: typing.Optional[str] = None,
+        retry_options_override: typing.Optional[
+            mlrun.utils.async_http.ExponentialRetryOverride
+        ] = None,
         **kwargs,
-    ) -> aiohttp.ClientResponse:
+    ) -> typing.AsyncGenerator[aiohttp.ClientResponse, None]:
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        await self._ensure_async_session(blacklisted_methods)
+        await self._ensure_async_session()
+
+        # take the session default
+        retry_options = copy.deepcopy(self._async_session.retry_options)
+
+        # override with cherry-picked options
+        if retry_options_override:
+            if retry_options_override.blacklisted_methods is not None:
+                retry_options.blacklisted_methods = (
+                    retry_options_override.blacklisted_methods
+                )
+            retry_options._start_timeout = retry_options_override._start_timeout
+            retry_options._max_timeout = retry_options_override._max_timeout
+            retry_options._factor = retry_options_override._factor
+
         response = None
         try:
             response = await self._async_session.request(
-                method, url, verify_ssl=False, **kwargs
+                method, url, verify_ssl=False, retry_options=retry_options, **kwargs
             )
             if not response.ok:
                 try:
@@ -1096,16 +1118,10 @@ class AsyncClient(Client):
             if response:
                 response.release()
 
-    async def _ensure_async_session(self, blacklisted_methods=None):
-        if (
-            not self._async_session
-            or self._async_session.methods_blacklist_update_required(
-                blacklisted_methods
-            )
-        ):
+    async def _ensure_async_session(self):
+        if not self._async_session:
             self._async_session = mlrun.utils.AsyncClientWithRetry(
                 retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
                 == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
                 logger=logger,
-                blacklisted_methods=blacklisted_methods,
             )

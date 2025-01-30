@@ -1088,8 +1088,7 @@ class TestArtifacts(TestDatabaseBase):
         # 2. Log an artifact hyperparameters - iteration 2, best_iteration=False
         # 3. Log an artifact without hyperparameters - iteration 0, best_iteration=True
         # 4. Delete the artifact with the "latest" tag - the last artifact that was logged (iteration 0)
-        # 5. The "latest" tag should move to the most recent artifact with the best_iteration flag
-        # (the first artifact that was logged)
+        # 5. The "latest" tag should move to both iteration artifacts of the hyperparameter run
 
         project = "artifact_project"
         artifact_key = "artifact-key"
@@ -1152,15 +1151,16 @@ class TestArtifacts(TestDatabaseBase):
             self._db_session, artifact_key, project=project, tag="latest"
         )
 
-        # The "latest" tag should move to the most recent artifact with the best_iteration flag
-        # This should be the artifact with uid1 (iteration 1, best_iteration=True)
-        # even though it is not the latest artifact in the iteration
+        # The "latest" tag should move to the most recent artifacts
+        # This should be both iterations of the hyperparameter run (uid1 and uid2)
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )
-        assert len(artifacts) == 1
-        assert artifacts[0]["metadata"]["uid"] == uid1
-        assert artifacts[0]["metadata"]["tag"] == "latest"
+        assert len(artifacts) == 2
+        assert sorted(
+            [artifact["metadata"]["uid"] for artifact in artifacts]
+        ) == sorted([uid1, uid2])
+        assert all(artifact["metadata"]["tag"] == "latest" for artifact in artifacts)
 
     def test_delete_artifact_with_latest_tag_and_iteration_not_0(self):
         # This test is based on the following scenario:

@@ -69,7 +69,7 @@ COPY --chown=$NB_UID:$NB_GID . $HOME/mlrun
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    cd $HOME/mlrun && uv pip install .[complete-api]
+    cd $HOME/mlrun && uv pip install .[complete]
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
@@ -93,11 +93,4 @@ RUN mkdir data && \
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 
-# run the mlrun api and the notebook in parallel
-CMD echo "1" > "${HOME}/.intdata" && \
-    cd $HOME/mlrun && \
-    MLRUN_LOG_LEVEL=DEBUG \
-    PYTHONPATH=$HOME/mlrun/server/py \
-    MLRUN_ARTIFACT_PATH=$HOME/data \
-    python server/py/services/api/main.py & \
-    MLRUN_DBPATH=http://localhost:8080 /usr/local/bin/mlce-start.sh
+CMD echo "1" > "${HOME}/.intdata" && /usr/local/bin/mlce-start.sh

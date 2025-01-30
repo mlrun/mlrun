@@ -67,7 +67,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
 
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    cd $HOME/mlrun && uv pip install .[complete]
+    cd $HOME/mlrun && uv pip install '.[complete]'
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
@@ -85,8 +85,7 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__PORT=8080
 
 # backup home since it will be deleted when using pvc
-RUN mkdir data && \
-    tar -cvf /tmp/basehome.tar $HOME
+RUN mkdir data && tar -cvf /tmp/basehome.tar $HOME
 
 # use tini as entrypoint to allow signal handling
 # and avoid zombie processes

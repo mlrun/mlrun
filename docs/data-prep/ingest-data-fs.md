@@ -130,7 +130,7 @@ df = stocks_set.ingest(stocks, run_config=config)
 Real-time use cases (e.g. real-time fraud detection) require feature engineering on live data (e.g. z-score calculation)
 while the data is coming from a streaming engine (e.g. Kafka) or a live http endpoint. <br>
 The feature store enables you to start real-time ingestion service. <br>
-When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service` the feature store creates an elastic real-time serverless function 
+When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service_v2` the feature store creates an elastic real-time serverless function 
 (the Nuclio function) that runs the pipeline and stores the data results in the "offline" and "online" feature store by default. <br>
 There are multiple data source options including HTTP, Kafka, Kinesis, v3io stream, etc. <br>
 Due to the asynchronous nature of feature store's execution engine, errors are not returned, but rather logged and pushed to the defined
@@ -142,10 +142,10 @@ project = mlrun.get_or_create_project("real-time")
 source = HTTPSource()
 func = project.set_function(name="ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
-my_set.deploy_ingestion_service(source, run_config=config)
+my_set.deploy_ingestion_service_v2(source, run_config=config)
 ```
 
-To learn more about `deploy_ingestion_service` go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
+To learn more, see {py:class}`~mlrun.feature_store.deploy_ingestion_service_v2`.
 
 ## Incremental ingestion
 

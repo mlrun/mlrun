@@ -1932,18 +1932,28 @@ class SQLDB(DBInterface):
                 )
                 return
 
-        # Step 3: Move the "latest" tag to the most recently updated artifact with the same key
-        most_recent_artifact_id = self._find_previous_most_recent_artifact_id(
+        # Step 3: Move the "latest" tag to the most recently updated artifacts with the same key
+        most_recent_artifact_ids = self._find_previous_most_recent_artifact_ids(
             session, object_record
         )
 
-        if most_recent_artifact_id:
+        if most_recent_artifact_ids:
             logger.debug(
-                "Moving 'latest' tag to the most recent artifact",
-                artifact_id=most_recent_artifact_id,
+                "Moving 'latest' tag to the most recent artifacts",
+                artifact_id=most_recent_artifact_ids,
             )
-            latest_tag.obj_id = most_recent_artifact_id
+            latest_tag.obj_id = most_recent_artifact_ids[0]
             session.add(latest_tag)
+
+            # if there are more than one recent artifacts (hyperparam run), we need to add the latest tag to all of them
+            for recent_artifact_id in most_recent_artifact_ids[1:]:
+                tag = ArtifactV2.Tag(
+                    project=object_record.project,
+                    name=mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                    obj_name=object_record.key,
+                )
+                tag.obj_id = recent_artifact_id
+                session.add(tag)
         else:
             logger.warning(
                 "No recent artifact found to move 'latest' tag",
@@ -1987,20 +1997,32 @@ class SQLDB(DBInterface):
         )
 
     @staticmethod
-    def _find_previous_most_recent_artifact_id(session, object_record):
-        """Find the most recent artifact id based on the update timestamp, excluding the current artifact."""
-        query = session.query(ArtifactV2.id).filter(
+    def _find_previous_most_recent_artifact_ids(session, object_record):
+        """Find the most recent artifact ids based on the update timestamp, excluding the current artifact."""
+        query = session.query(ArtifactV2).filter(
             ArtifactV2.id != object_record.id,
             ArtifactV2.project == object_record.project,
             ArtifactV2.key == object_record.key,
-            ArtifactV2.best_iteration,
         )
 
-        # Return the ID of the most recent artifact based on the update timestamp.
+        # Find of the most recent artifact based on the update timestamp.
         # Since `.first()` returns a tuple when selecting specific columns (e.g., artifact ID),
-        # we access the first element of the tuple to retrieve the ID.
-        result = query.order_by(ArtifactV2.updated.desc()).first()
-        return result[0] if result else None
+        # we access the first element of the tuple to retrieve the artifact.
+        artifact = query.order_by(ArtifactV2.updated.desc()).first()
+        if not artifact:
+            return None
+
+        # if the latest artifact is a part of a hyperparam run, we need to add the latest tag to all the artifacts
+        # with the same producer_id, key and project
+        if artifact.iteration != 0:
+            query = session.query(ArtifactV2.id).filter(
+                ArtifactV2.producer_id == artifact.producer_id,
+                ArtifactV2.key == artifact.key,
+                ArtifactV2.project == artifact.project,
+            )
+            return [result[0] for result in query.all()]
+
+        return [artifact.id]
 
     # ---- Functions ----
     @retry_on_conflict

@@ -1168,13 +1168,13 @@ class TestArtifacts(TestDatabaseBase):
         # 2. Log 2 artifacts with hyperparameters (same artifacts, but fewer iterations) - iteration 1 and iteration 2.
         # 3. Delete an artifact from the second run (iteration 2).
         # 4. The "latest" tag should not move because there is still an artifact with the latest tag in other
-        # iterations with the same producer id.
+        #    iterations with the same producer id.
         # 5. Delete an artifact from the first run (iteration 3).
-        # 6. The "latest" tag should not move, because artifact is not holding the latest tag (artifact is untaged).
-        # 7. Delete the last artifact from the first run (iteration 1).
+        # 6. The "latest" tag should not move, because artifact is not holding the latest tag (artifact is untagged).
+        # 7. Delete the last artifact from the second run (iteration 1).
         # 8. The "latest" tag should move because there is no other latest tag in the same producer id
-        # for other iterations
-        # move the latest tag to the best-iteration of the previous latest run.
+        #    for other iterations.
+        #    move the latest tag to the all iterations of the previous latest run.
 
         project = "artifact_project"
         artifact_key = "artifact-key"
@@ -1277,8 +1277,10 @@ class TestArtifacts(TestDatabaseBase):
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )
-        assert len(artifacts) == 1
-        assert artifacts[0]["metadata"]["uid"] == uid1
+        assert len(artifacts) == 2
+        assert sorted(
+            [artifact["metadata"]["uid"] for artifact in artifacts]
+        ) == sorted([uid1, uid2])
 
     def test_list_artifacts_exact_name_match(self):
         artifact_1_key = "pre_artifact_key_suffix"

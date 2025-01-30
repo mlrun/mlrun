@@ -90,6 +90,7 @@ from framework.db.sqldb.helpers import (
     generate_query_predicate_for_name,
     generate_time_range_query,
     label_set,
+    run_end_time,
     run_labels,
     run_start_time,
     run_state,
@@ -296,6 +297,10 @@ class SQLDB(DBInterface):
         start_time = run_start_time(struct)
         if start_time:
             run.start_time = start_time
+
+        end_time = run_end_time(struct)
+        if end_time:
+            run.end_time = end_time
 
         # Update the labels only if the run updates contains labels
         if run_labels(updates):

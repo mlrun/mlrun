@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import unittest.mock
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -500,19 +500,32 @@ class TestRuns(TestDatabaseBase):
         )
         assert len(runs) == 4
 
-    def test_store_run_with_end_time(self):
+    def test_list_runs_with_end_time(self):
         project, name, run_uid, iteration, run = self._create_new_run()
 
-        # add the end_time to the run's status
-        end_time = datetime.now(timezone.utc).isoformat()
-        run["status"]["end_time"] = end_time
-        self._db.store_run(self._db_session, run, run_uid, project, iter=iteration)
+        assert not run["status"].get("end_time")
 
-        runs = self._db.list_runs(self._db_session, project=project)
+        # update the run's end_time
+        end_time = datetime.now(timezone.utc)
+        end_time_iso = end_time.isoformat()
+        updates = {"status.end_time": end_time_iso}
+        self._db.update_run(self._db_session, updates, run_uid, project)
+
+        # fetch the run and verify the end_time
+        run = self._db.read_run(self._db_session, run_uid, project, iteration)
+        assert run["status"].get("end_time")
+        assert run["status"]["end_time"] == end_time_iso
+
+        # list runs with end_time filter
+        runs = self._db.list_runs(
+            self._db_session,
+            project=project,
+            end_time_from=end_time - timedelta(milliseconds=100),
+        )
         assert len(runs) == 1
         stored_run = runs[0]
         assert stored_run["metadata"]["uid"] == run_uid
-        assert stored_run["status"]["end_time"] == end_time
+        assert stored_run["status"]["end_time"] == end_time_iso
         assert stored_run["status"]["end_time"] > stored_run["status"]["start_time"]
 
     @staticmethod

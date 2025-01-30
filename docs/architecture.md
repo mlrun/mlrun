@@ -6,7 +6,7 @@ MLRun started as a community effort to map the different components in the ML pr
  
 Instead of a siloed, complex, and manual process, MLRun enables production pipeline design using a modular strategy, 
 where the different parts contribute to a continuous, automated, and far simpler path from research and development to scalable 
-production pipelines without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering.
+production pipelines without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering. **MLRun simplifies and accelerates the time to production.**
 
 MLRun uses **Serverless Function** technology: write the code once, using your preferred development environment and 
 simple "local" semantics, and then run it as-is on different platforms and at scale. MLRun automates the build process, execution, 
@@ -31,16 +31,10 @@ MLRun has two main components, the service and the client (SDK):
 ## MLRun: an integrated and open approach
 
 Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: 
-they cannot be managed in silos. This is where MLRun AI orchestration comes in. ML, data, and DevOps/MLOps teams 
+they cannot be managed in silos. This is where MLRun AI orchestration comes in. Gen AI, ML, data, and DevOps/MLOps teams 
 collaborate using the same set of tools, practices, APIs, metadata, and version control.
 
 MLRun provides an open architecture that supports your existing development tools, services, and practices through an open API/SDK and pluggable architecture. 
-
-<b>MLRun simplifies & accelerates the time to production !</b>
-
-<p align="center"><img src="_static/images/pipeline.png" alt="pipeline" width="400"/>
-
-<br><br>
 
 While each component in MLRun is independent, the integration provides much greater value and simplicity. For example:
 - The training jobs obtain features from the feature store and update the feature store with metadata, which will be used in the serving or monitoring.

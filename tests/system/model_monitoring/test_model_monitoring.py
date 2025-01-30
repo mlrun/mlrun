@@ -1156,7 +1156,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         assert function_config["spec.triggers.kafka"]
         assert (
             function_config["spec.triggers.kafka"]["attributes"]["topics"][0]
-            == f"monitoring_stream_{self.project_name}"
+            == f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}"
         )
         assert (
             function_config["spec.triggers.kafka"]["attributes"]["brokers"][0]
@@ -1168,7 +1168,9 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         # Validate that the topic exist as expected
         consumer = kafka.KafkaConsumer(bootstrap_servers=[self.brokers])
         topics = consumer.topics()
-        assert f"monitoring_stream_{self.project_name}" in topics
+        assert (
+            f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}" in topics
+        )
 
         # Simulating Requests
         iris_data = iris["data"].tolist()

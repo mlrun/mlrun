@@ -33,6 +33,7 @@ RUN apt update -qqq \
     git-core \
     graphviz \
     wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun

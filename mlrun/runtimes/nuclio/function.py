@@ -369,8 +369,9 @@ class RemoteRuntime(KubeResource):
                 )
         """
         self.spec.build.source = source
-        # update handler in function_handler
-        self.spec.function_handler = handler
+        # update handler in function_handler if needed
+        if handler:
+            self.spec.function_handler = handler
         if workdir:
             self.spec.workdir = workdir
         if runtime:
@@ -1016,6 +1017,7 @@ class RemoteRuntime(KubeResource):
     ):
         """
         Add a sidecar container to the function pod
+
         :param name:    Sidecar container name.
         :param image:   Sidecar container image.
         :param ports:   Sidecar container ports to expose. Can be a single port or a list of ports.

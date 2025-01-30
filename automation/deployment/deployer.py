@@ -25,7 +25,7 @@ import requests
 class Constants:
     helm_repo_name = "mlrun-ce"
     helm_release_name = "mlrun-ce"
-    helm_chart_name = f"{helm_repo_name}/{helm_release_name}"
+    default_helm_chart_name = f"{helm_repo_name}/{helm_release_name}"
     helm_repo_url = "https://mlrun.github.io/ce"
     default_registry_secret_name = "registry-credentials"
     mlrun_image_values = [
@@ -49,6 +49,7 @@ class ExcecutionParams:
         self,
         registry_url: str,
         registry_secret_name: typing.Optional[str] = None,
+        chart_name: typing.Optional[str] = None,
         chart_version: typing.Optional[str] = None,
         mlrun_version: typing.Optional[str] = None,
         override_mlrun_api_image: typing.Optional[str] = None,
@@ -68,6 +69,7 @@ class ExcecutionParams:
     ):
         self.registry_url = registry_url
         self.registry_secret_name = registry_secret_name
+        self.chart_name = chart_name
         self.chart_version = chart_version
         self.mlrun_version = mlrun_version
         self.override_mlrun_api_image = override_mlrun_api_image
@@ -99,6 +101,7 @@ class CommunityEditionDeployer:
         remote: typing.Optional[str] = None,
         remote_ssh_username: typing.Optional[str] = None,
         remote_ssh_password: typing.Optional[str] = None,
+        chart_name: typing.Optional[str] = None,
     ) -> None:
         self._debug = log_level == "debug"
         self._log_file_handler = None
@@ -115,6 +118,7 @@ class CommunityEditionDeployer:
             self._logger.addHandler(handler)
 
         self._namespace = namespace
+        self._chart_name = chart_name or Constants.default_helm_chart_name
         self._remote = remote
         self._remote_ssh_username = remote_ssh_username or os.environ.get(
             "MLRUN_REMOTE_SSH_USERNAME"
@@ -142,6 +146,7 @@ class CommunityEditionDeployer:
         registry_username: typing.Optional[str] = None,
         registry_password: typing.Optional[str] = None,
         registry_secret_name: typing.Optional[str] = None,
+        chart_name: typing.Optional[str] = None,
         chart_version: typing.Optional[str] = None,
         mlrun_version: typing.Optional[str] = None,
         override_mlrun_api_image: typing.Optional[str] = None,
@@ -166,6 +171,7 @@ class CommunityEditionDeployer:
         :param registry_username:   Username for the container registry (required unless providing registry_secret_name)
         :param registry_password:   Password for the container registry (required unless providing registry_secret_name)
         :param registry_secret_name:    Name of the secret containing the credentials for the container registry
+        :param chart_name:          Name or local path of the helm chart to deploy (defaults to mlrun-ce/mlrun-ce)
         :param chart_version:       Version of the helm chart to deploy (defaults to the latest stable version)
         :param mlrun_version:       Version of MLRun to deploy (defaults to the latest stable version)
         :param override_mlrun_api_image:            Override the default MLRun API image
@@ -196,6 +202,7 @@ class CommunityEditionDeployer:
         ep = ExcecutionParams(
             registry_url,
             registry_secret_name,
+            chart_name,
             chart_version,
             mlrun_version,
             override_mlrun_api_image,
@@ -400,7 +407,7 @@ class CommunityEditionDeployer:
             self._namespace,
             "upgrade",
             Constants.helm_release_name,
-            Constants.helm_chart_name,
+            self._chart_name,
             "--install",
             "--wait",
             "--timeout",

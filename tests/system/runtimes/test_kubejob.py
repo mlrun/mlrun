@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import datetime
 import json
 import subprocess
+from datetime import datetime, timedelta, timezone
 from sys import executable
 
 import pandas as pd
@@ -381,6 +381,91 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         print(run.status.results)
         assert run.output("return") == '{"x": 99}'
 
+    def test_list_runs_with_end_time(self):
+        beginning_time = datetime.now(timezone.utc)
+
+        sleep_func = mlrun.code_to_function(
+            "sleep-function",
+            filename=str(self.assets_path / "sleep.py"),
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        run = sleep_func.run(
+            params={"time_to_sleep": 2},
+            watch=False,
+        )
+
+        # validate that the end_time is not set before the run is finished
+        assert not run.status.end_time
+        runs = mlrun.get_run_db().list_runs(project=self.project_name)
+        assert not runs[0]["status"].get("end_time")
+
+        # wait for the run to finish
+        run.wait_for_completion()
+
+        runs = mlrun.get_run_db().list_runs(project=self.project_name)
+        run = mlrun.RunObject.from_dict(runs[0])
+
+        assert run.status.end_time > run.status.start_time
+
+        runs = mlrun.get_run_db().list_runs(
+            project=self.project_name, end_time_from=beginning_time
+        )
+        assert len(runs) == 1
+
+        # update the filter to start from the run's end_time
+        run_end_time = datetime.fromisoformat(run.status.end_time).replace(
+            tzinfo=timezone.utc
+        )
+        runs = mlrun.get_run_db().list_runs(
+            project=self.project_name, end_time_from=run_end_time
+        )
+        assert len(runs) == 1
+
+        # update the filter to start after the run's end_time
+        runs = mlrun.get_run_db().list_runs(
+            project=self.project_name,
+            end_time_from=run_end_time + timedelta(milliseconds=200),
+        )
+        assert len(runs) == 0
+
+        # execute a failing function
+        code_path = str(self.assets_path / "raise_func.py")
+        err_function = mlrun.code_to_function(
+            name="test-func",
+            kind="job",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        with pytest.raises(Exception):
+            err_function.run()
+
+        # list all runs
+        runs = mlrun.get_run_db().list_runs(
+            project=self.project_name, end_time_from=beginning_time
+        )
+        assert len(runs) == 2
+
+        # list only the failed runs
+        runs = mlrun.get_run_db().list_runs(
+            project=self.project_name,
+            end_time_from=beginning_time,
+            states=mlrun.common.runtimes.constants.RunStates.error,
+        )
+        assert len(runs) == 1
+
+        # list failed runs from now, should not return any
+        now = datetime.now(timezone.utc)
+        runs = mlrun.get_run_db().list_runs(
+            project=self.project_name,
+            end_time_from=now,
+            states=mlrun.common.runtimes.constants.RunStates.error,
+        )
+        assert len(runs) == 0
+
     def test_run_cli_watch_remote_job(self):
         sleep_func = mlrun.code_to_function(
             "sleep-function",
@@ -410,9 +495,9 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--handler",
             "handler",
         ]
-        start_time = datetime.datetime.now()
+        start_time = datetime.now()
         exec_cli(args)
-        end_time = datetime.datetime.now()
+        end_time = datetime.now()
 
         assert (
             end_time - start_time

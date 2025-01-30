@@ -1370,7 +1370,7 @@ def _create_resources_of_all_kinds(
 
     alert = mlrun.common.schemas.AlertConfig(
         project=project,
-        name="test_alert",
+        name="test-alert",
         summary="oops",
         severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
         entities={

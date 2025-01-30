@@ -206,6 +206,7 @@ linkcheck_ignore = [
     "project.yaml",
     "http://function.py",
     "http://localhost:30040",
+    "https://dev.mysql.com/doc/refman/8.0/en/keywords.html",
 ]
 
 # -- Autosummary -------------------------------------------------------------

@@ -433,12 +433,14 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             )
             topics = consumer.topics()
 
-            project_topics_list = [f"monitoring_stream_{self.project_name}"]
+            project_topics_list = [
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}"
+            ]
             for func in func_to_validate + [
                 mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             ]:
                 project_topics_list.append(
-                    f"monitoring_stream_{self.project_name}_{func}"
+                    f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{func}"
                 )
 
             for topic in project_topics_list:
@@ -1009,7 +1011,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                     ignore_cache=True,
                 )
             assert (
-                f"monitoring_stream_{self.project_name}_{mm_constants.MonitoringFunctionNames.WRITER}"
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.MonitoringFunctionNames.WRITER}"
                 not in topics
             )
 
@@ -1020,7 +1022,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                     ignore_cache=True,
                 )
             assert (
-                f"monitoring_stream_{self.project_name}_{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER}"
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER}_v1"
                 not in topics
             )
 
@@ -1030,7 +1032,10 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 ignore_cache=True,
             )
 
-            assert f"monitoring_stream_{self.project_name}_v1" in topics
+            assert (
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_v1"
+                in topics
+            )
 
             self._disable_stream_function()
 
@@ -1039,7 +1044,10 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 bootstrap_servers=brokers,
             )
             topics = consumer.topics()
-            assert f"monitoring_stream_{self.project_name}_v1" in topics
+            assert (
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_v1"
+                in topics
+            )
 
             self._delete_histogram_app()
 
@@ -1049,7 +1057,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             )
             topics = consumer.topics()
             assert (
-                f"monitoring_stream_{self.project_name}_{mm_constants.HistogramDataDriftApplicationConstants.NAME}_v1"
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.HistogramDataDriftApplicationConstants.NAME}_v1"
                 not in topics
             )
 

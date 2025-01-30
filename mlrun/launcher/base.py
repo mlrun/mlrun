@@ -401,6 +401,7 @@ class BaseLauncher(abc.ABC):
                 status=run.status.state,
                 name=run.metadata.name,
             )
+            self._update_end_time_if_terminal_state(runtime, run)
             if (
                 run.status.state
                 in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
@@ -415,6 +416,21 @@ class BaseLauncher(abc.ABC):
             return run
 
         return None
+
+    @staticmethod
+    def _update_end_time_if_terminal_state(
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+    ):
+        if (
+            run.status.state
+            in mlrun.common.runtimes.constants.RunStates.terminal_states()
+            and not run.status.end_time
+        ):
+            end_time = mlrun.utils.now_date().isoformat()
+            updates = {"status.end_time": end_time}
+            runtime._get_db().update_run(
+                updates, run.metadata.uid, run.metadata.project
+            )
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):

@@ -65,9 +65,15 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=bind,source=dockerfiles/jupyter/locked-requirements.txt,target=locked-requirements.txt \
     uv pip install --no-deps --require-hashes -r locked-requirements.txt
 
+# ensure we have the latest source code to be installed
+COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
+
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,target=/root/.cache/uv \
-    cd $HOME/mlrun && uv pip install '.[complete]'
+    cd /tmp/mlrun && uv pip install '.[complete]'
+
+# cleanup, source code is not needed anymore
+RUN rm -rf /tmp/mlrun
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial

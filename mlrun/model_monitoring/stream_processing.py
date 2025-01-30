@@ -392,7 +392,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         if not is_not_none(model, [EventFieldType.MODEL]):
             return None
 
-        version = full_event.body.get(EventFieldType.VERSION)
+        version = full_event.body.get(EventFieldType.VERSION, "")
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
         full_event.body[EventFieldType.VERSIONED_MODEL] = versioned_model

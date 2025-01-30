@@ -278,7 +278,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if full:
             self._enrich_full_spec(runtime)
 
-        # Enrich the runtime with the project's image pull secret if it exists, otherwise use the default from the config
+        # Enrich the runtime with the project's image pull secret if it exists,
+        # otherwise use the default from the config
         existing_image_pull_secret = getattr(runtime.spec, "image_pull_secret", None)
         runtime.spec.image_pull_secret = (
             existing_image_pull_secret

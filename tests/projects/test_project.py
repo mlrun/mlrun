@@ -2264,6 +2264,25 @@ def test_remove_remote(name):
         assert name not in project.spec.repo.remotes
 
 
+def test_set_source():
+    project_name = "project1"
+    project = mlrun.new_project(project_name, save=False)
+    # set source + workdir, make sure it persist correctly
+    project.set_source("git://some/repo", workdir="/x")
+    assert project.spec.source == "git://some/repo"
+    assert project.spec.workdir == "/x"
+
+    # set another source, workdir needs to be reset
+    project.set_source("git://some/other/repo")
+    assert project.spec.source == "git://some/other/repo"
+    assert project.spec.workdir is None
+
+    # set workdir, retain it as source would be the same as it was before
+    project.spec.workdir = "/y"
+    project.set_source("git://some/other/repo")
+    assert project.spec.workdir == "/y"
+
+
 @pytest.mark.parametrize(
     "source_url, pull_at_runtime, base_image, image_name, target_dir",
     [

@@ -611,7 +611,7 @@ class Service(framework.service.Service):
             db_session,
             project="*",
             states=[mlrun.common.runtimes.constants.RunStates.error],
-            last_update_time_from=last_update_time,
+            end_time_from=last_update_time,
         )
 
         for run in runs:

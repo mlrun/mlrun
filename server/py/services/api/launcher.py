@@ -278,6 +278,12 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if full:
             self._enrich_full_spec(runtime)
 
+        # Enrich the runtime with the project's image pull secret if it exists, otherwise use the default from the config
+        existing_image_pull_secret = getattr(runtime.spec, "image_pull_secret", None)
+        runtime.spec.image_pull_secret = (
+            existing_image_pull_secret
+            or mlrun.config.config.function.spec.image_pull_secret
+        )
         # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
         framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 

@@ -145,7 +145,7 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
     func_path = assets_path / "sample_function.py"
     handler = "hello_word"
 
-    mlrun.mlconf.function.spec.image_pull_secret = "adam-docker-registry-auth"
+    mlrun.mlconf.function.spec.image_pull_secret.default = "adam-docker-registry-auth"
     launcher = services.api.launcher.ServerSideLauncher(
         auth_info=mlrun.common.schemas.AuthInfo()
     )
@@ -167,7 +167,8 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
         runtime,
         run=run,
     )
-    assert run.spec.image_pull_secret == mlrun.mlconf.function.spec.image_pull_secret
+    assert run.spec.image_pull_secret == mlrun.mlconf.function.spec.image_pull_secret.default
+    assert runtime.spec.image_pull_secret == mlrun.mlconf.function.spec.image_pull_secret.default
 
 
 @pytest.mark.parametrize(

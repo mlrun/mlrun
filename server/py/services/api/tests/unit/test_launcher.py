@@ -167,8 +167,14 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
         runtime,
         run=run,
     )
-    assert run.spec.image_pull_secret == mlrun.mlconf.function.spec.image_pull_secret.default
-    assert runtime.spec.image_pull_secret == mlrun.mlconf.function.spec.image_pull_secret.default
+    assert (
+        run.spec.image_pull_secret
+        == mlrun.mlconf.function.spec.image_pull_secret.default
+    )
+    assert (
+        runtime.spec.image_pull_secret
+        == mlrun.mlconf.function.spec.image_pull_secret.default
+    )
 
 
 @pytest.mark.parametrize(

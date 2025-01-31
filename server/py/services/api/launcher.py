@@ -181,8 +181,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     def _enrich_run(
         self,
-        runtime,
-        run,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: mlrun.run.RunObject,
         handler=None,
         project_name=None,
         name=None,
@@ -219,10 +219,14 @@ class ServerSideLauncher(launcher.BaseLauncher):
             state_thresholds=state_thresholds,
         )
 
-        run = self._pre_run_image_pull_secret_enrichment(run)
+        run = self._pre_run_image_pull_secret_enrichment(runtime, run)
         return self._pre_run_node_selector_enrichement(runtime, run)
 
-    def _pre_run_node_selector_enrichement(self, runtime, run):
+    def _pre_run_node_selector_enrichement(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: mlrun.run.RunObject,
+    ):
         """
         Enrich the run object with the project's default node selector.
         This ensures the node selector is correctly set on the run
@@ -240,17 +244,25 @@ class ServerSideLauncher(launcher.BaseLauncher):
             run.spec.node_selector = resolved_node_selectors
         return run
 
-    def _pre_run_image_pull_secret_enrichment(self, run):
+    def _pre_run_image_pull_secret_enrichment(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: mlrun.run.RunObject,
+    ):
         """
-        Enrich the run object with the project's image pull secret.
+        Enrich both the run object and runtime with the project's image pull secret.
         This ensures the image pull secret is correctly set on the run,
         either from the run spec or from the MLRun config
         """
         existing_image_pull_secret = getattr(run.spec, "image_pull_secret", None)
+        if existing_image_pull_secret is not None:
+            existing_image_pull_secret = existing_image_pull_secret.default
         run.spec.image_pull_secret = (
             existing_image_pull_secret
-            or mlrun.config.config.function.spec.image_pull_secret
+            or mlrun.config.config.function.spec.image_pull_secret.default
         )
+
+        runtime.spec.image_pull_secret = run.spec.image_pull_secret
         return run
 
     def enrich_runtime(
@@ -277,14 +289,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         if full:
             self._enrich_full_spec(runtime)
-
-        # Enrich the runtime with the project's image pull secret if it exists,
-        # otherwise use the default from the config
-        existing_image_pull_secret = getattr(runtime.spec, "image_pull_secret", None)
-        runtime.spec.image_pull_secret = (
-            existing_image_pull_secret
-            or mlrun.config.config.function.spec.image_pull_secret
-        )
         # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
         framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 

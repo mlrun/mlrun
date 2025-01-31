@@ -33,8 +33,8 @@ PROJECT = "project-name"
 
 
 async def test_deploy_function(
-    client: fastapi.testclient.TestClient,
     db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
 ):
     # ensure the project exists
     services.api.tests.unit.api.utils.create_project(client, PROJECT)

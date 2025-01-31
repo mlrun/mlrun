@@ -498,9 +498,6 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
-        0,
-        0,
-        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -516,9 +513,6 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
-        0,
-        0,
-        0,
         0,
         0,
         0,
@@ -548,9 +542,6 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
-        0,
-        0,
-        0,
     )
 
     # Docker installation configuration
@@ -566,9 +557,6 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
-        0,
-        0,
-        0,
         0,
         0,
         0,

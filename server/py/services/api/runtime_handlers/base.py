@@ -615,11 +615,11 @@ class BaseRuntimeHandler(ABC):
                     crd_group, crd_version, crd_plural = crd_info
                     # Identify as a CRD if any part of the CRD info is non-empty
                     resource_type = f"Kubernetes custom resource of type {crd_group}/{crd_version}/{crd_plural}"
-                    reason = f"{resource_type} related to this run could not be found."
+                    reason = f"{resource_type} related to this run cannot be found."
                 else:
                     # Default to pod if CRD info is empty
                     reason = (
-                        "A Kubernetes pod related to this run could not be found, "
+                        "A Kubernetes pod related to this run cannot be found, "
                         "possibly it was preempted or evicted. "
                         "Additional details may be available from Kubernetes events."
                     )

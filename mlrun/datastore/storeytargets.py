@@ -43,7 +43,13 @@ def get_url_and_storage_options(path, external_storage_options=None):
 
 class TDEngineStoreyTarget(storey.TDEngineTarget):
     def __init__(self, *args, **kwargs):
-        kwargs["url"] = mlrun.model_monitoring.helpers.get_tsdb_connection_string()
+        path = kwargs.pop("url")
+        if path and path.startswith("ds://"):
+            datastore_profile = (
+                mlrun.datastore.datastore_profile.datastore_profile_read(path)
+            )
+            path = datastore_profile.dsn()
+        kwargs["url"] = path
         super().__init__(*args, **kwargs)
 
 

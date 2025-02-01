@@ -3788,6 +3788,24 @@ class MlrunProject(ModelObj):
             self.register_datastore_profile(stream_profile)
             stream_profile_name = stream_profile.name
 
+            if mlrun.mlconf.artifact_path.startswith("v3io://"):
+                profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
+                    name=mm_constants.DefaultProfileName.PARQUET,
+                    v3io_access_key=mlrun.get_secret_or_env("V3IO_ACCESS_KEY"),
+                )
+                self.register_datastore_profile(profile)
+            elif mlrun.mlconf.artifact_path.startswith("s3://"):
+                profile = mlrun.datastore.datastore_profile.DatastoreProfileS3(
+                    name=mm_constants.DefaultProfileName.PARQUET,
+                    access_key_id=mlrun.get_secret_or_env("AWS_ACCESS_KEY_ID"),
+                    secret_key=mlrun.get_secret_or_env("AWS_SECRET_ACCESS_KEY"),
+                    endpoint_url=mlrun.get_secret_or_env("S3_ENDPOINT_URL"),
+                    force_non_anonymous=mlrun.get_secret_or_env("S3_NON_ANONYMOUS"),
+                    profile_name=mlrun.get_secret_or_env("AWS_PROFILE"),
+                    assume_role_arn=mlrun.get_secret_or_env("MLRUN_AWS_ROLE_ARN"),
+                )
+                self.register_datastore_profile(profile)
+
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={

@@ -253,6 +253,7 @@ class TSDBTarget(MonitoringStrEnum):
 class DefaultProfileName(StrEnum):
     STREAM = "mm-infra-stream"
     TSDB = "mm-infra-tsdb"
+    PARQUET = "mm-infra-parquet"
 
 
 class ProjectSecretKeys:

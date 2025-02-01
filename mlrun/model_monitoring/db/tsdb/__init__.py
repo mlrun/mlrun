@@ -29,7 +29,9 @@ class ObjectTSDBFactory(enum.Enum):
     v3io_tsdb = "v3io-tsdb"
     tdengine = "tdengine"
 
-    def to_tsdb_connector(self, project: str, **kwargs) -> TSDBConnector:
+    def to_tsdb_connector(
+        self, project: str, connection_profile, **kwargs
+    ) -> TSDBConnector:
         """
         Return a TSDBConnector object based on the provided enum value.
         :param project: The name of the project.
@@ -51,7 +53,9 @@ class ObjectTSDBFactory(enum.Enum):
 
         from .tdengine.tdengine_connector import TDEngineConnector
 
-        return TDEngineConnector(project=project, **kwargs)
+        return TDEngineConnector(
+            project=project, connection_profile=connection_profile, **kwargs
+        )
 
     @classmethod
     def _missing_(cls, value: typing.Any):
@@ -92,7 +96,6 @@ def get_tsdb_connector(
         profile, mlrun.datastore.datastore_profile.TDEngineDatastoreProfile
     ):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
-        kwargs["connection_string"] = profile.dsn()
     else:
         extra_message = (
             ""
@@ -109,4 +112,6 @@ def get_tsdb_connector(
     tsdb_connector_factory = ObjectTSDBFactory(tsdb_connector_type)
 
     # Convert into TSDB connector object
-    return tsdb_connector_factory.to_tsdb_connector(project=project, **kwargs)
+    return tsdb_connector_factory.to_tsdb_connector(
+        project=project, connection_profile=profile, **kwargs
+    )

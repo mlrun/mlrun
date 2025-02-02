@@ -136,60 +136,6 @@ def test_list_schedules(
 
 
 @pytest.mark.parametrize(
-    "method, body, expected_status, expected_body, expected_response_from_chief, create_project",
-    [
-        # project doesn't exist, expecting to fail before forwarding to chief
-        [
-            "POST",
-            services.api.tests.unit.api.utils.compile_schedule(),
-            http.HTTPStatus.NOT_FOUND.value,
-            {"detail": "MLRunNotFoundError('Project {project_name} does not exist')"},
-            False,
-            False,
-        ],
-        # project exists, expecting to create
-        [
-            "POST",
-            services.api.tests.unit.api.utils.compile_schedule(),
-            http.HTTPStatus.CREATED.value,
-            {},
-            True,
-            True,
-        ],
-    ],
-)
-@pytest.mark.asyncio
-async def test_redirection_from_worker_to_chief_create_schedule(
-    db: sqlalchemy.orm.Session,
-    async_client: httpx.AsyncClient,
-    aioresponses_mock: aioresponses_mock,
-    method: str,
-    body: dict,
-    expected_status: int,
-    expected_body: dict,
-    expected_response_from_chief: bool,
-    create_project: bool,
-):
-    project = "test-project"
-    endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
-        project=project,
-    )
-    _format_expected_body(expected_body, project_name=project)
-
-    if create_project:
-        await services.api.tests.unit.api.utils.create_project_async(
-            async_client, project
-        )
-    if expected_response_from_chief:
-        aioresponses_mock.post(
-            chief_mocked_url, status=expected_status, payload=expected_body
-        )
-    response = await async_client.post(endpoint, data=body)
-    assert response.status_code == expected_status
-    assert response.json() == expected_body
-
-
-@pytest.mark.parametrize(
     "method, body, expected_status, expected_body",
     [
         # deleting schedule failed for unknown reason

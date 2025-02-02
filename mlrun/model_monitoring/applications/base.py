@@ -394,7 +394,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         params: dict[str, Union[list[tuple[str, str]], str, int, None]] = {}
         if endpoints:
             params["endpoints"] = endpoints
-            if not sample_data:
+            if sample_data is None:
                 if start is None or end is None:
                     raise mlrun.errors.MLRunValueError(
                         "`start` and `end` times must be provided when `endpoints` "

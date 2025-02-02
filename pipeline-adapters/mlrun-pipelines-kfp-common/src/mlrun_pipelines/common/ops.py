@@ -496,11 +496,6 @@ def format_summary_from_kfp_run(kfp_run, project=None):
             elif alternative_step_name in dag:
                 step_name = alternative_step_name
             else:
-                logger.debug(
-                    "Step not in DAG",
-                    step=step,
-                    alternative_step_name=alternative_step_name,
-                )
                 continue
             dag[step_name]["run_uid"] = get_in(run, "metadata.uid")
             dag[step_name]["kind"] = get_in(run, "metadata.labels.kind")

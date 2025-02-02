@@ -88,24 +88,16 @@ class TestEvaluate:
 @pytest.mark.parametrize(
     ("start", "end", "base_period", "expectation"),
     [
+        (None, None, None, does_not_raise()),
         (
-            None,
-            None,
-            None,
-            pytest.raises(
-                mlrun.errors.MLRunValueError,
-                match=".* you must also pass the start and end times",
-            ),
-        ),
-        (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
             None,
             does_not_raise(),
         ),
         (
-            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc),
-            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc),
+            datetime(2008, 9, 1, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
+            datetime(2008, 9, 2, 10, 2, 1, tzinfo=timezone.utc).isoformat(),
             0,
             pytest.raises(
                 mlrun.errors.MLRunValueError,
@@ -114,14 +106,14 @@ class TestEvaluate:
         ),
     ],
 )
-def test_validate_times(
-    start: Optional[datetime],
-    end: Optional[datetime],
+def test_window_generator_validation(
+    start: Optional[str],
+    end: Optional[str],
     base_period: Optional[int],
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:
-        ModelMonitoringApplicationBase._validate_times(start, end, base_period)
+        next(ModelMonitoringApplicationBase._window_generator(start, end, base_period))
 
 
 @pytest.mark.parametrize(
@@ -191,7 +183,7 @@ def test_windows(
     assert (
         list(
             ModelMonitoringApplicationBase._window_generator(
-                start=start, end=end, base_period=base_period
+                start=start.isoformat(), end=end.isoformat(), base_period=base_period
             )
         )
         == expected_windows

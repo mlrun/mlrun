@@ -1551,7 +1551,8 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
             executor.submit(self._deploy_model_serving)
             executor.submit(self._set_infra)
 
-    def test_count_app(self) -> None:
+    @pytest.mark.parametrize("run_local", [False, True])
+    def test_count_app(self, run_local: bool) -> None:
         # Set up the serving function with a model endpoint, and the necessary infrastructure
         self._setup_resources()
 
@@ -1601,7 +1602,7 @@ class TestAppJobModelEndpointData(TestMLRunSystem):
             endpoints=[(model_endpoint.metadata.name, model_endpoint.metadata.uid)],
             start=start,
             end=end,
-            run_local=True,  # `False` does not work, see ML-8817
+            run_local=run_local,
             image=self.image,
             base_period=1,
         )

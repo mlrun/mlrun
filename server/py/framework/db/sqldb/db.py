@@ -1999,30 +1999,36 @@ class SQLDB(DBInterface):
     @staticmethod
     def _find_previous_most_recent_artifact_ids(session, object_record):
         """Find the most recent artifact ids based on the update timestamp, excluding the current artifact."""
-        query = session.query(ArtifactV2).filter(
+
+        # get only the fields that we care about to reduce the amount of data we load into memory
+        query = session.query(
+            ArtifactV2.id,
+            ArtifactV2.iteration,
+            ArtifactV2.producer_id,
+        ).filter(
             ArtifactV2.id != object_record.id,
             ArtifactV2.project == object_record.project,
             ArtifactV2.key == object_record.key,
         )
 
         # Find of the most recent artifact based on the update timestamp.
-        # Since `.first()` returns a tuple when selecting specific columns (e.g., artifact ID),
-        # we access the first element of the tuple to retrieve the artifact.
-        artifact = query.order_by(ArtifactV2.updated.desc()).first()
-        if not artifact:
+        result = query.order_by(ArtifactV2.updated.desc()).first()
+        if not result:
             return None
+
+        artifact_id, artifact_iteration, artifact_producer_id = result
 
         # if the latest artifact is a part of a hyperparam run, we need to add the latest tag to all the artifacts
         # with the same producer_id, key and project
-        if artifact.iteration != 0:
+        if artifact_iteration != 0:
             query = session.query(ArtifactV2.id).filter(
-                ArtifactV2.producer_id == artifact.producer_id,
-                ArtifactV2.key == artifact.key,
-                ArtifactV2.project == artifact.project,
+                ArtifactV2.producer_id == artifact_producer_id,
+                ArtifactV2.key == object_record.key,
+                ArtifactV2.project == object_record.project,
             )
             return [result[0] for result in query.all()]
 
-        return [artifact.id]
+        return [artifact_id]
 
     # ---- Functions ----
     @retry_on_conflict

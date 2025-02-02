@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.grafana as grafana_schemas
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import config, logger
@@ -33,17 +34,17 @@ from framework.utils.singletons.project_member import get_project_member
 
 
 def grafana_list_projects(
-    db_session: Session,
-    auth_info: mlrun.common.schemas.AuthInfo,
     query_parameters: dict[str, str],
+    auth_info: mlrun.common.schemas.AuthInfo,
+    db_session: Session,
 ) -> list[str]:
     """
     List available project names. Will be used as a filter in each grafana dashboard.
 
-    :param db_session:        A session that manages the current dialog with the database.
-    :param auth_info:         The auth info of the request.
     :param query_parameters:  Dictionary of query parameters attached to the request. Note that this parameter is
                               required by the API even though it is not being used in this function.
+    :param auth_info:         The auth info of the request.
+    :param db_session:        A session that manages the current dialog with the database.
 
     :return: List of available project names.
     """
@@ -56,33 +57,23 @@ def grafana_list_projects(
     return projects_output.projects
 
 
-# The following functions were not removed due to backward compatibility that is related to iguazio version <= 3.5.2
-
-
-async def grafana_list_endpoints(
-    body: dict[str, Any],
+async def grafana_list_endpoints_uids(
     query_parameters: dict[str, str],
     auth_info: mlrun.common.schemas.AuthInfo,
-) -> list[mlrun.common.schemas.model_monitoring.grafana.GrafanaTable]:
+    db_session: Session,
+) -> list[str]:
+    """
+    List available model endpoint uids. Will be used as a filter in each model endpoint grafana dashboard.
+
+    :param query_parameters:  Dictionary of query parameters attached to the request. Note that this parameter is
+                              required by the API even though it is not being used in this function.
+    :param auth_info:         The auth info of the request.
+    :param db_session:        A session that manages the current dialog with the database.
+
+    :return: List model endpoints uids.
+    """
+
     project = query_parameters.get("project")
-
-    # Filters
-    model = query_parameters.get("model", None)
-    function = query_parameters.get("function", None)
-    labels = query_parameters.get("labels", "")
-    labels = labels.split(",") if labels else []
-
-    # Metrics to include
-    metrics = query_parameters.get("metrics", "")
-    metrics = metrics.split(",") if metrics else []
-
-    # Time range for metrics
-    start = body.get("rangeRaw", {}).get("start", "now-1h")
-    end = body.get("rangeRaw", {}).get("end", "now")
-
-    # Endpoint type filter - will be used to filter the router models
-    filter_router = query_parameters.get("filter_router", None)
-
     if project:
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
@@ -91,14 +82,95 @@ async def grafana_list_endpoints(
         )
     endpoint_list = await run_in_threadpool(
         services.api.crud.ModelEndpoints().list_model_endpoints,
+        db_session=db_session,
         project=project,
-        model=model,
-        function=function,
-        labels=labels,
-        metrics=metrics,
-        start=start,
-        end=end,
     )
+
+    return [model_endpoint.metadata.uid for model_endpoint in endpoint_list.endpoints]
+
+
+async def grafana_list_metrics(
+    query_parameters: dict[str, str],
+    auth_info: mlrun.common.schemas.AuthInfo,
+    db_session: Session,
+) -> list[str]:
+    """
+    List available metrics and results. Will be used as a filter in the application dashboard.
+
+    :param query_parameters:  Dictionary of query parameters attached to the request.
+    :param auth_info:         The auth info of the request.
+    :param db_session:        A session that manages the current dialog with the database. Note that this parameter is
+                              required by the API even though it is not being used in this function.
+
+    :return: List of available metrics and results.
+    """
+
+    project = query_parameters.get("project")
+
+    endpoint_id = query_parameters.get("endpoint_id")
+
+    await (
+        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
+            project,
+            endpoint_id,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+    )
+
+    metrics = []
+
+    task_results = await services.api.api.endpoints.model_endpoints._collect_get_metrics_tasks_results(
+        endpoint_ids=[endpoint_id], project=project, application_result_types="all"
+    )
+    for task_result in task_results:
+        metrics.extend(task_result)
+
+    return [metric.name for metric in metrics]
+
+
+async def grafana_list_endpoints(
+    body: dict[str, Any],
+    query_parameters: dict[str, str],
+    auth_info: mlrun.common.schemas.AuthInfo,
+    db_session: Session,
+) -> list[grafana_schemas.GrafanaTable]:
+    project = query_parameters.get("project")
+    if project:
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            project,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+
+    # Filters
+    model = query_parameters.get("model", None)
+    function = query_parameters.get("function", None)
+
+    uids = (
+        query_parameters.get("uids", "").split(",")
+        if query_parameters.get("uids")
+        else None
+    )
+
+    labels = query_parameters.get("labels", "")
+    labels = labels.split(",") if labels else []
+
+    # Endpoint type filter - will be used to filter the router models
+    filter_router = query_parameters.get("filter_router", None)
+
+    endpoint_list = await run_in_threadpool(
+        services.api.crud.ModelEndpoints().list_model_endpoints,
+        db_session=db_session,
+        project=project,
+        model_name=model,
+        function_name=function,
+        labels=labels,
+        uids=uids,
+        tsdb_metrics=True,
+    )
+
     allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoint_list.endpoints,
@@ -110,43 +182,7 @@ async def grafana_list_endpoints(
     )
     endpoint_list.endpoints = allowed_endpoints
 
-    columns = [
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="endpoint_id", type="string"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="endpoint_function", type="string"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="endpoint_model", type="string"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="endpoint_model_class", type="string"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="first_request", type="time"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="last_request", type="time"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="accuracy", type="number"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="error_count", type="number"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="drift_status", type="number"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="predictions_per_second", type="number"
-        ),
-        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-            text="latency_avg_1h", type="number"
-        ),
-    ]
-
-    table = mlrun.common.schemas.model_monitoring.grafana.GrafanaTable(columns=columns)
+    table = grafana_schemas.GrafanaModelEndpointsTable()
     for endpoint in endpoint_list.endpoints:
         if (
             filter_router
@@ -156,35 +192,14 @@ async def grafana_list_endpoints(
             continue
         row = [
             endpoint.metadata.uid,
-            endpoint.spec.function_uri,
-            endpoint.spec.model,
+            endpoint.metadata.name,
+            endpoint.spec.function_name,
+            endpoint.spec.model_name,
             endpoint.spec.model_class,
-            endpoint.status.first_request,
-            endpoint.status.last_request,
-            "N/A",  # Leaving here for backwards compatibility
             endpoint.status.error_count,
-            endpoint.status.drift_status,
+            endpoint.status.result_status,
+            endpoint.status.sampling_percentage,
         ]
-
-        if (
-            endpoint.status.metrics
-            and mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC
-            in endpoint.status.metrics
-        ):
-            row.extend(
-                [
-                    endpoint.status.metrics[
-                        mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC
-                    ][
-                        mlrun.common.schemas.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND
-                    ],
-                    endpoint.status.metrics[
-                        mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC
-                    ][
-                        mlrun.common.schemas.model_monitoring.EventLiveStats.LATENCY_AVG_1H
-                    ],
-                ]
-            )
 
         table.add_row(*row)
 
@@ -220,38 +235,18 @@ async def grafana_individual_feature_analysis(
     current_stats = endpoint.status.current_stats or {}
     drift_measures = endpoint.status.drift_measures or {}
 
-    table = mlrun.common.schemas.model_monitoring.grafana.GrafanaTable(
+    table = grafana_schemas.GrafanaTable(
         columns=[
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="feature_name", type="string"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="actual_min", type="number"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="actual_mean", type="number"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="actual_max", type="number"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="expected_min", type="number"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="expected_mean", type="number"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="expected_max", type="number"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="tvd", type="number"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="hellinger", type="number"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
-                text="kld", type="number"
-            ),
+            grafana_schemas.GrafanaColumn(text="feature_name", type="string"),
+            grafana_schemas.GrafanaColumn(text="actual_min", type="number"),
+            grafana_schemas.GrafanaColumn(text="actual_mean", type="number"),
+            grafana_schemas.GrafanaColumn(text="actual_max", type="number"),
+            grafana_schemas.GrafanaColumn(text="expected_min", type="number"),
+            grafana_schemas.GrafanaColumn(text="expected_mean", type="number"),
+            grafana_schemas.GrafanaColumn(text="expected_max", type="number"),
+            grafana_schemas.GrafanaColumn(text="tvd", type="number"),
+            grafana_schemas.GrafanaColumn(text="hellinger", type="number"),
+            grafana_schemas.GrafanaColumn(text="kld", type="number"),
         ]
     )
 
@@ -298,26 +293,14 @@ async def grafana_overall_feature_analysis(
         feature_analysis=True,
     )
 
-    table = mlrun.common.schemas.model_monitoring.grafana.GrafanaTable(
+    table = grafana_schemas.GrafanaTable(
         columns=[
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
-                text="tvd_sum"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
-                text="tvd_mean"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
-                text="hellinger_sum"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
-                text="hellinger_mean"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
-                text="kld_sum"
-            ),
-            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
-                text="kld_mean"
-            ),
+            grafana_schemas.GrafanaNumberColumn(text="tvd_sum"),
+            grafana_schemas.GrafanaNumberColumn(text="tvd_mean"),
+            grafana_schemas.GrafanaNumberColumn(text="hellinger_sum"),
+            grafana_schemas.GrafanaNumberColumn(text="hellinger_mean"),
+            grafana_schemas.GrafanaNumberColumn(text="kld_sum"),
+            grafana_schemas.GrafanaNumberColumn(text="kld_mean"),
         ]
     )
 
@@ -396,11 +379,9 @@ async def grafana_incoming_features(
     data.index = data.index.astype(np.int64) // 10**6
 
     for feature, indexed_values in data.to_dict().items():
-        target = mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget(
-            target=feature
-        )
+        target = grafana_schemas.GrafanaTimeSeriesTarget(target=feature)
         for index, value in indexed_values.items():
-            data_point = mlrun.common.schemas.model_monitoring.grafana.GrafanaDataPoint(
+            data_point = grafana_schemas.GrafanaDataPoint(
                 value=float(value), timestamp=index
             )
             target.add_data_point(data_point)

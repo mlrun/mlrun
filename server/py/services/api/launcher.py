@@ -31,6 +31,7 @@ import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
+from mlrun.model import RunSpec, RunTemplate
 
 import framework.api.utils
 import framework.utils.helpers
@@ -181,8 +182,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     def _enrich_run(
         self,
-        runtime,
-        run,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: Union[RunSpec, RunTemplate],
         handler=None,
         project_name=None,
         name=None,
@@ -222,7 +223,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
         run = self._pre_run_image_pull_secret_enrichment(run)
         return self._pre_run_node_selector_enrichement(runtime, run)
 
-    def _pre_run_node_selector_enrichement(self, runtime, run):
+    def _pre_run_node_selector_enrichement(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: mlrun.run.RunObject,
+    ):
         """
         Enrich the run object with the project's default node selector.
         This ensures the node selector is correctly set on the run
@@ -240,7 +245,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             run.spec.node_selector = resolved_node_selectors
         return run
 
-    def _pre_run_image_pull_secret_enrichment(self, run):
+    def _pre_run_image_pull_secret_enrichment(self, run: Union[RunSpec, RunTemplate]):
         """
         Enrich the run object with the project's image pull secret.
         This ensures the image pull secret is correctly set on the run,
@@ -249,7 +254,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         existing_image_pull_secret = getattr(run.spec, "image_pull_secret", None)
         run.spec.image_pull_secret = (
             existing_image_pull_secret
-            or mlrun.config.config.function.spec.image_pull_secret
+            or mlrun.config.config.function.spec.image_pull_secret.default
         )
         return run
 
@@ -277,7 +282,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         if full:
             self._enrich_full_spec(runtime)
-
         # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
         framework.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 
@@ -289,7 +293,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
         # this is mainly for tests with nop db
         # in normal use cases if no project is found we will get an error
         if project:
-            project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
+            if not isinstance(project, mlrun.projects.project.MlrunProject):
+                project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
             # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
             mlrun.projects.pipelines.enrich_function_object(
                 project, runtime, copy_function=False, try_auto_mount=False
@@ -319,6 +324,12 @@ class ServerSideLauncher(launcher.BaseLauncher):
         framework.api.utils.process_function_service_account(runtime)
 
         framework.api.utils.ensure_function_security_context(runtime, self._auth_info)
+
+        existing_image_pull_secret = runtime.spec.image_pull_secret
+        runtime.spec.image_pull_secret = (
+            existing_image_pull_secret
+            or mlrun.config.config.function.spec.image_pull_secret.default
+        )
 
     def _save_notifications(self, runobj):
         if not self._run_has_valid_notifications(runobj):

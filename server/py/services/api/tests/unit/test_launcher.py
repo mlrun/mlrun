@@ -23,6 +23,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
+from mlrun.config import Config
 
 import framework.utils.clients.iguazio
 import services.api.launcher
@@ -145,7 +146,9 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
     func_path = assets_path / "sample_function.py"
     handler = "hello_word"
 
-    mlrun.mlconf.function.spec.image_pull_secret = "adam-docker-registry-auth"
+    mlrun.mlconf.function.spec.image_pull_secret = Config(
+        {"default": "adam-docker-registry-auth"}
+    )
     launcher = services.api.launcher.ServerSideLauncher(
         auth_info=mlrun.common.schemas.AuthInfo()
     )
@@ -167,7 +170,15 @@ def test_new_function_args_with_default_image_pull_secret(rundb_mock):
         runtime,
         run=run,
     )
-    assert run.spec.image_pull_secret == mlrun.mlconf.function.spec.image_pull_secret
+    assert (
+        run.spec.image_pull_secret
+        == mlrun.mlconf.function.spec.image_pull_secret.default
+    )
+    launcher.enrich_runtime(runtime, full=True)
+    assert (
+        runtime.spec.image_pull_secret
+        == mlrun.mlconf.function.spec.image_pull_secret.default
+    )
 
 
 @pytest.mark.parametrize(

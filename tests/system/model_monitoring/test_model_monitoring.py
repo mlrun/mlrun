@@ -51,8 +51,6 @@ from tests.system.base import TestMLRunSystem
 
 from . import get_tsdb_datastore_profile_from_env
 
-_MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_monitoring"
-
 
 def mock_random_endpoint(
     project_name: str,

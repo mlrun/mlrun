@@ -454,6 +454,13 @@ def get_default_reg():
     return ""
 
 
+def replace_last(string, old, new):
+    head, separator, tail = string.rpartition(old)
+    if separator:
+        return head + new + tail
+    return string
+
+
 def format_summary_from_kfp_run(kfp_run, project=None):
     from mlrun_pipelines.ops import generate_kfp_dag_and_resolve_project
 
@@ -467,6 +474,7 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     # enrich DAG with mlrun run info
     runs = mlrun.db.get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
     for run in runs:
+        run_name = get_in(run, "metadata.name")
         step = get_in(
             run,
             [
@@ -475,12 +483,26 @@ def format_summary_from_kfp_run(kfp_run, project=None):
                 mlrun.common.constants.MLRunInternalLabels.runner_pod,
             ],
         )
-        if step and step in dag:
-            dag[step]["run_uid"] = get_in(run, "metadata.uid")
-            dag[step]["kind"] = get_in(run, "metadata.labels.kind")
+        alternative_step_name = replace_last(step, f"-{run_name}", "")
+        if step:
+            if step in dag:
+                step_name = step
+            elif alternative_step_name in dag:
+                step_name = alternative_step_name
+            else:
+                logger.debug(
+                    "Step not in DAG",
+                    step=step,
+                    alternative_step_name=alternative_step_name,
+                )
+                continue
+            dag[step_name]["run_uid"] = get_in(run, "metadata.uid")
+            dag[step_name]["kind"] = get_in(run, "metadata.labels.kind")
             error = get_in(run, "status.error")
             if error:
                 dag[step]["error"] = error
+        else:
+            logger.debug("Step not in DAG", step=step, run_id=run_id)
 
     short_run = {
         "graph": dag,
@@ -488,7 +510,12 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message
-    logger.debug("Completed summary formatting", run_id=run_id, project=project)
+    logger.debug(
+        "Completed summary formatting",
+        run_id=run_id,
+        project=project,
+        short_run=short_run,
+    )
     return short_run
 
 

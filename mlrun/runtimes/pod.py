@@ -1201,27 +1201,111 @@ class KubeResource(BaseRuntime):
         """
         self.spec.with_requests(mem, cpu, patch=patch)
 
+    def _detect_overlap(
+            self,
+            provided: Iterable,
+            preemptible: Iterable,
+            key_fn: typing.Callable[[typing.Any], typing.Any],
+            warn_msg_fn: typing.Callable[[typing.Any], str],
+    ) -> None:
+        """
+        Logs a warning for each provided item whose key (as given by key_fn)
+        appears in the set of preemptible items.
+        """
+        preemptible_keys = {key_fn(item) for item in preemptible}
+        for item in provided:
+            if key_fn(item) in preemptible_keys:
+                warnings.warn(warn_msg_fn(item))
+
+    def detect_preemptible_node_selector(self, node_selector: dict[str, str]) -> None:
+        """
+        Checks if any provided node selector matches the preemptible node selectors.
+        Issues a warning if a selector may be pruned at runtime depending on preemption mode.
+        """
+        preemptible_node_selector = mlconf.get_preemptible_node_selector()
+        # Convert both dicts to lists of key-value tuples.
+        provided = list(node_selector.items())
+        preemptible = list(preemptible_node_selector.items())
+
+        self._detect_overlap(
+            provided=provided,
+            preemptible=preemptible,
+            key_fn=lambda pair: pair,
+            warn_msg_fn=lambda pair: (
+                f"The node selector '{pair[0]}: {pair[1]}' may be pruned at runtime depending "
+                "on the function's preemption mode."
+            ),
+        )
+
+    def detect_preemptible_tolerations(self, tolerations: list[k8s_client.V1Toleration]) -> None:
+        """
+        Checks if any provided toleration matches preemptible tolerations.
+        Issues a warning if a toleration may be pruned at runtime depending on preemption mode.
+        """
+        preemptible_tolerations = mlconf.get_preemptible_tolerations()
+
+        self._detect_overlap(
+            provided=tolerations,
+            preemptible=preemptible_tolerations,
+            key_fn=lambda t: (t.key, t.value, t.effect),
+            warn_msg_fn=lambda t: (
+                f"The toleration '{t.key}: {t.value}' with effect '{t.effect}' may be pruned at "
+                "runtime depending on the function's preemption mode."
+            ),
+        )
+
+    def detect_preemptible_affinity(self, affinity: typing.Optional[k8s_client.V1Affinity]) -> None:
+        """
+        Checks if any provided affinity rules match preemptible affinity configurations.
+        Issues a warning if an affinity rule may be pruned at runtime depending on preemption mode.
+        """
+        # Ensure affinity is provided and contains the required node affinity.
+        if (
+                affinity
+                and affinity.node_affinity
+                and affinity.node_affinity.required_during_scheduling_ignored_during_execution
+        ):
+            user_terms = (
+                affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms
+            )
+            preemptible_affinity_terms = generate_preemptible_nodes_affinity_terms()
+
+            self._detect_overlap(
+                provided=user_terms,
+                preemptible=preemptible_affinity_terms,
+                # Here we assume that each term’s match_expressions is a list. Converting to tuple
+                # makes it hashable.
+                key_fn=lambda term: tuple(term.match_expressions),
+                warn_msg_fn=lambda term: (
+                    "The provided node affinity may be pruned at runtime depending on the function's "
+                    "preemption mode."
+                ),
+            )
+
     def with_node_selection(
-        self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[k8s_client.V1Affinity] = None,
-        tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
+            self,
+            node_name: typing.Optional[str] = None,
+            node_selector: typing.Optional[dict[str, str]] = None,
+            affinity: typing.Optional[k8s_client.V1Affinity] = None,
+            tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
     ):
         """
-        Enables to control on which k8s node the job will run
+        Enables control over which Kubernetes node the job will run on.
 
-        :param node_name:       The name of the k8s node
-        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
-        :param affinity:        Expands the types of constraints you can express - see
-                                https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
-                                for details
-        :param tolerations:     Tolerations are applied to pods, and allow (but do not require) the pods to schedule
-                                onto nodes with matching taints - see
-                                https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration
-                                for details
-
+        :param node_name:       The name of the Kubernetes node.
+        :param node_selector:   Label selector, only nodes with matching labels will be eligible.
+        :param affinity:        Defines scheduling constraints.
+        :param tolerations:     Allows scheduling onto nodes with matching taints.
         """
+
+        if node_selector:
+            self.detect_preemptible_node_selector(node_selector)
+        if tolerations:
+            self.detect_preemptible_tolerations(tolerations)
+        if affinity:
+            self.detect_preemptible_affinity(affinity)
+
+        # Apply values as before
         if node_name:
             self.spec.node_name = node_name
         if node_selector is not None:

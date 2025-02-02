@@ -353,27 +353,13 @@ class Logger:
     def bind(self, **kw_args):
         self._bound_variables.update(kw_args)
 
-    def _update_bound_vars_and_log(
-        self, level, message, *args, exc_info=None, **kw_args
-    ):
+    def _update_bound_vars_and_log(self, level, message, *args, exc_info=None, **kw_args):
         request_id = request_id_var.get() or "N/A"
-
         kw_args.update(self._bound_variables)
-
+        extra_fields = {"request_id": request_id}
         if kw_args:
-            self._logger.log(
-                level,
-                message,
-                *args,
-                exc_info=exc_info,
-                extra={
-                    "with": kw_args,
-                    "request_id": request_id,
-                },
-            )
-            return
-
-        self._logger.log(level, message, *args, exc_info=exc_info)
+            extra_fields["with"] = kw_args
+        self._logger.log(level, message, *args, exc_info=exc_info, extra=extra_fields)
 
 
 class FormatterKinds(Enum):

@@ -685,12 +685,16 @@ def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
         trigger_kind=event.trigger.kind,
     )
 
-    if event.trigger.kind == "http":
+    if event.trigger.kind in mm_constants.CRON_TRIGGER_KINDS:
         # Runs controller chief:
         context.user_data.monitor_app_controller.push_regular_event_to_controller_stream()
-    else:
+    elif event.trigger.kind in mm_constants.STREAM_TRIGGER_KINDS:
         # Runs controller worker:
         context.user_data.monitor_app_controller.run(event)
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Wrong trigger kind for model monitoring controller"
+        )
 
 
 def init_context(context):

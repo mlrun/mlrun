@@ -44,6 +44,7 @@ import framework.utils.projects.remotes.leader
 import framework.utils.runtimes.nuclio
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
+import framework.utils.singletons.project_member
 from services.api.initial_data import init_data
 
 
@@ -193,37 +194,41 @@ class TestServiceBase:
         This fixture initialize the db singleton (so it will be accessible using services.api.singletons.get_db()
         and generates a db session that can be used by the test
         """
-        db_file = NamedTemporaryFile(suffix="-mlrun.db")
-        logger.info(f"Created temp db file: {db_file.name}")
-        config.httpdb.db_type = "sqldb"
-        dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
-        config.httpdb.dsn = dsn
-        mlrun.config._is_running_as_api = True
+        db_file = None
+        try:
+            db_file = NamedTemporaryFile(suffix="-mlrun.db")
+            logger.info(f"Created temp db file: {db_file.name}")
+            config.httpdb.db_type = "sqldb"
+            dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
+            config.httpdb.dsn = dsn
+            mlrun.config._is_running_as_api = True
 
-        # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
-        # we need to force re-init the engine cause otherwise it is cached between tests
-        _init_engine(dsn=config.httpdb.dsn)
+            # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
+            # we need to force re-init the engine cause otherwise it is cached between tests
+            _init_engine(dsn=config.httpdb.dsn)
 
-        # SQLite foreign keys constraint must be enabled manually to allow cascade deletions on DB level
-        @event.listens_for(Engine, "connect")
-        def set_sqlite_pragma(dbapi_connection, connection_record):
-            cursor = dbapi_connection.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.close()
+            # SQLite foreign keys constraint must be enabled manually to allow cascade deletions on DB level
+            @event.listens_for(Engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
 
-        # forcing from scratch because we created an empty file for the db
-        # TODO: init data initializes the tables, we should remove this coupling with the API service code
-        init_data(from_scratch=True)
-        framework.utils.singletons.db.initialize_db()
-        framework.utils.singletons.project_member.initialize_project_member()
+            # forcing from scratch because we created an empty file for the db
+            # TODO: init data initializes the tables, we should remove this coupling with the API service code
+            init_data(from_scratch=True)
+            framework.utils.singletons.db.initialize_db()
+            framework.utils.singletons.project_member.initialize_project_member()
 
-        # we're also running client code in tests so set dbpath as well
-        # note that setting this attribute triggers connection to the run db therefore must happen
-        # after the initialization
-        config.dbpath = dsn
-        yield create_session()
-        logger.info(f"Removing temp db file: {db_file.name}")
-        db_file.close()
+            # we're also running client code in tests so set dbpath as well
+            # note that setting this attribute triggers connection to the run db therefore must happen
+            # after the initialization
+            config.dbpath = dsn
+            yield create_session()
+        finally:
+            if db_file:
+                logger.info(f"Removing temp db file: {db_file.name}")
+                db_file.close()
 
     def set_base_url_for_test_client(
         self,

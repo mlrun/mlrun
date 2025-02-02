@@ -15,9 +15,9 @@
 import unittest
 from unittest.mock import patch
 
-import fastapi
 import fastapi.testclient
 import pytest
+import sqlalchemy.orm
 
 import mlrun
 import mlrun.common.schemas
@@ -27,8 +27,30 @@ from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
 import framework.utils.clients.async_nuclio
 import framework.utils.clients.iguazio
 import services.api.crud
+import services.api.tests.unit.api.utils
 
 PROJECT = "project-name"
+
+
+async def test_deploy_function(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+):
+    # ensure the project exists
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    func_name = "test"
+
+    # mock the actual function deployment as it is not relevant for this test
+    with patch("services.api.api.endpoints.nuclio._deploy_function") as f:
+        f.return_value = mlrun.runtimes.RemoteRuntime()
+        response = client.post(
+            f"projects/{PROJECT}/nuclio/{func_name}/deploy",
+            json={
+                "function": {},
+            },
+        )
+        f.assert_called_once()
+        assert response.status_code == 200
 
 
 @patch.object(framework.utils.clients.async_nuclio.Client, "list_api_gateways")

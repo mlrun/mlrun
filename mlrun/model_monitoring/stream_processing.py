@@ -489,7 +489,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             events.append(
                 {
                     EventFieldType.FUNCTION_URI: function_uri,
-                    EventFieldType.MODEL: model,
                     EventFieldType.ENDPOINT_NAME: event.get(EventFieldType.MODEL),
                     EventFieldType.MODEL_CLASS: model_class,
                     EventFieldType.TIMESTAMP: timestamp,

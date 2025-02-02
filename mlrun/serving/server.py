@@ -112,6 +112,7 @@ class GraphServer(ModelObj):
         function_name=None,
         function_tag=None,
         project=None,
+        model_endpoint_creation_task_name=None,
     ):
         self._graph = None
         self.graph: Union[RouterStep, RootFlowStep] = graph
@@ -137,6 +138,7 @@ class GraphServer(ModelObj):
         self.function_name = function_name
         self.function_tag = function_tag
         self.project = project
+        self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -332,6 +334,7 @@ def v2_serving_init(context, namespace=None):
     context.logger.info("Initializing server from spec")
     spec = mlrun.utils.get_serving_spec()
     server = GraphServer.from_dict(spec)
+
     if config.log_level.lower() == "debug":
         server.verbose = True
     if hasattr(context, "trigger"):
@@ -544,10 +547,18 @@ class GraphContext:
         self.get_store_resource = None
         self.get_table = None
         self.is_mock = False
+        self.monitoring_mock = False
+        self._project_obj = None
 
     @property
     def server(self):
         return self._server
+
+    @property
+    def project_obj(self):
+        if not self._project_obj:
+            self._project_obj = mlrun.get_run_db().get_project(name=self.project)
+        return self._project_obj
 
     @property
     def project(self) -> str:

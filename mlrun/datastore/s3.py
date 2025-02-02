@@ -21,7 +21,7 @@ from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, get_range, make_datastore_schema_sanitizer
+from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
 
 class S3Store(DataStore):
@@ -108,6 +108,13 @@ class S3Store(DataStore):
                     "choose-signer.s3.*", disable_signing
                 )
 
+    @staticmethod
+    def get_range(size, offset):
+        byterange = f"bytes={offset}-"
+        if size:
+            byterange += str(offset + size - 1)
+        return byterange
+
     def get_spark_options(self):
         res = {}
         st = self.get_storage_options()
@@ -185,7 +192,7 @@ class S3Store(DataStore):
         bucket, key = self.get_bucket_and_key(key)
         obj = self.s3.Object(bucket, key)
         if size or offset:
-            return obj.get(Range=get_range(size, offset))["Body"].read()
+            return obj.get(Range=S3Store.get_range(size, offset))["Body"].read()
         return obj.get()["Body"].read()
 
     def put(self, key, data, append=False):

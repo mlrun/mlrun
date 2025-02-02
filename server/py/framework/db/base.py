@@ -1209,13 +1209,28 @@ class DBInterface(ABC):
         self,
         session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> str:
         """
         Store a model endpoint in the DB.
 
         :param session:         The database session.
         :param model_endpoint:  The model endpoint object.
-        :return:                The created model endpoint.
+        :return:                The created model endpoint uid.
+        """
+        pass
+
+    def store_model_endpoints(
+        self,
+        session,
+        model_endpoints: list[mlrun.common.schemas.ModelEndpoint],
+        project: str,
+    ) -> None:
+        """
+        Store list of model endpoints in the DB.
+
+        :param session:         The database session.
+        :param model_endpoints: Model endpoints object to store.
+        :param project:         The project name.
         """
         pass
 
@@ -1251,7 +1266,7 @@ class DBInterface(ABC):
         function_name: Optional[str] = None,
         function_tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> str:
         """
         Update a model endpoint by project, name and uid.
         If uid is not provided, the latest model endpoint with the provided name and project will be updated.
@@ -1265,6 +1280,24 @@ class DBInterface(ABC):
         :param function_tag:    The function tag.
         :param uid:             The model endpoint uid.
         :return:                The updated model endpoint uid.
+        """
+        pass
+
+    def update_model_endpoints(
+        self,
+        session,
+        project: str,
+        attributes: dict[str, dict[str, Any]],
+    ) -> None:
+        """
+        Update a model endpoint by project, name and uid.
+        If uid is not provided, the latest model endpoint with the provided name and project will be updated.
+        The attributes parameter is a flatten dictionary which should contain the fields that need to be update.
+
+        :param session:         The database session.
+        :param project:         The project name.
+        :param attributes:      Dictionary where the key is the model endpoint uids to update
+                                and the value are the attribute to update in.
         """
         pass
 

@@ -40,7 +40,7 @@ class TDEngineConnector(TSDBConnector):
     def __init__(
         self,
         project: str,
-        database: str = tdengine_schemas._MODEL_MONITORING_DATABASE,
+        database: typing.Optional[str] = None,
         **kwargs,
     ):
         super().__init__(project=project)
@@ -48,8 +48,12 @@ class TDEngineConnector(TSDBConnector):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "connection_string is a required parameter for TDEngineConnector."
             )
+
         self._tdengine_connection_string = kwargs.get("connection_string")
-        self.database = database
+        self.database = (
+            database
+            or f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
+        )
 
         self._connection = None
         self._init_super_tables()

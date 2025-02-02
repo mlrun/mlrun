@@ -232,6 +232,7 @@ default_config = {
                 "abort_grace_period": "10",
                 "delete_project": "900",
                 "delete_function": "900",
+                "model_endpoint_creation": "600",
             },
             "runtimes": {"dask": "600"},
             "push_notifications": "60",
@@ -869,6 +870,14 @@ class Config:
         if isinstance(val, Mapping):
             return self.__class__(val)
         return val
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        # create a new Config without calling __init__ (avoid recursion)
+        result = cls.__new__(cls)
+        # manually deep-copy _cfg
+        object.__setattr__(result, "_cfg", copy.deepcopy(self._cfg, memo))
+        return result
 
     def __setattr__(self, attr, value):
         # in order for the dbpath setter to work

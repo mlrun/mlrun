@@ -84,7 +84,7 @@ result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_te
 # Construct a list of notifications to be included in the alert config
 notifications = [alert_objects.AlertNotification(notification=notification)]
 
-alert_name = "drift_alert"
+alert_name = "drift-alert"
 
 # The summary you will see in the notification once it is invoked
 alert_summary = "A drift was detected"
@@ -126,7 +126,7 @@ notification = mlrun.model.Notification(
 ).to_dict()
 
 notifications = [alert_objects.AlertNotification(notification=notification)]
-alert_name = "failure_alert"
+alert_name = "failure-alert"
 alert_summary = "Running a job has failed"
 entity_kind = alert_objects.EventEntityKind.JOB
 event_name = alert_objects.EventKind.FAILED

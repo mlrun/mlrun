@@ -1326,9 +1326,10 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     def test_load_function_with_source_archive_git(self):
         fn = self._generate_runtime(self.runtime_kind)
+        handler = "main:handler"
         fn.with_source_archive(
             "git://github.com/org/repo#my-branch",
-            handler="main:handler",
+            handler=handler,
             workdir="path/inside/repo",
         )
         secrets = {"GIT_PASSWORD": "my-access-token"}
@@ -1336,7 +1337,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         get_archive_spec(fn, secrets)
         assert get_archive_spec(fn, secrets) == {
             "spec": {
-                "handler": "main:handler",
+                "handler": handler,
                 "build": {
                     "path": "https://github.com/org/repo",
                     "codeEntryType": "git",
@@ -1353,13 +1354,13 @@ class TestNuclioRuntime(TestRuntimeBase):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
             "git://github.com/org/repo#refs/heads/my-branch",
-            handler="main:handler",
+            handler=handler,
             workdir="path/inside/repo",
         )
 
         assert get_archive_spec(fn, secrets) == {
             "spec": {
-                "handler": "main:handler",
+                "handler": handler,
                 "build": {
                     "path": "https://github.com/org/repo",
                     "codeEntryType": "git",
@@ -1372,6 +1373,12 @@ class TestNuclioRuntime(TestRuntimeBase):
                 },
             },
         }
+
+        # ensure handler is not overridden if not passed
+        fn.with_source_archive(
+            "git://github.com/org/repo#refs/heads/my-other-branch",
+        )
+        assert fn.spec.function_handler == handler
 
     def test_nuclio_run_without_specifying_resources(
         self, db: Session, client: TestClient

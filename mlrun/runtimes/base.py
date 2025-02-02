@@ -855,7 +855,7 @@ class BaseRuntime(ModelObj):
 
     def requires_build(self) -> bool:
         build = self.spec.build
-        return (
+        return bool(
             build.commands
             or build.requirements
             or (build.source and not build.load_source_on_run)

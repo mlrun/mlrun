@@ -182,7 +182,7 @@ class ListGenerator(TaskGenerator):
             yield newrun
 
 
-def get_run_copy(run):
+def get_run_copy(run: RunObject):
     newrun = deepcopy(run)
     newrun.spec.hyperparams = None
     newrun.spec.param_file = None

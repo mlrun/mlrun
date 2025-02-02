@@ -104,7 +104,7 @@ In any `run` method you can configure the notifications via their model. For exa
 ```python
 notification = mlrun.model.Notification(
     kind="webhook",
-    when=["completed", "error", "running"],
+    when=["completed", "error"],
     name="notification-1",
     message="completed",
     severity="info",

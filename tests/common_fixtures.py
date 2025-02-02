@@ -306,6 +306,21 @@ class RunDBMock:
 
         return ArtifactList(filter(filter_artifact, self._artifacts.values()))
 
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: Optional[dict] = None,
+        iter=None,
+    ):
+        self._artifacts.pop((key, iter or 0), None)
+
     def store_run(self, struct, uid, project="", iter=0):
         if hasattr(struct, "to_dict"):
             struct = struct.to_dict()

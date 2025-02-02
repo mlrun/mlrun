@@ -914,7 +914,8 @@ class MLClientCtx:
                     kwargs={"extract_images": True}
                 )
         :param upload: Whether to upload the artifact
-        :param labels: Key-value labels
+        :param labels:  Key-value labels. A 'source' label is automatically added using either
+                        local_path or target_path to facilitate easier document searching.
         :param target_path: Path to the local file
         :param db_key: The key to use in the artifact DB table, by default its run name + '_' + key
                        db_key=False will not register it in the artifacts table
@@ -932,20 +933,30 @@ class MLClientCtx:
             ...     ),
             ... )
         """
+        original_source = local_path or target_path
 
-        if not key and not local_path and not target_path:
+        if not key and not original_source:
             raise ValueError(
                 "Must provide either 'key' parameter or 'local_path'/'target_path' to derive the key from"
             )
         if not key:
-            key = DocumentArtifact.key_from_source(local_path or target_path)
+            key = DocumentArtifact.key_from_source(original_source)
 
         doc_artifact = DocumentArtifact(
             key=key,
-            original_source=local_path or target_path,
+            original_source=original_source,
             document_loader_spec=document_loader_spec,
             collections=kwargs.pop("collections", None),
             **kwargs,
+        )
+
+        # limit label to a max of 255 characters (for db reasons)
+        max_length = 255
+        labels = labels or {}
+        labels["source"] = (
+            original_source[: max_length - 3] + "..."
+            if len(original_source) > max_length
+            else original_source
         )
 
         item = self._artifacts_manager.log_artifact(

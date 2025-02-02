@@ -677,13 +677,6 @@ class DataItem:
         return f"'{self.url}'"
 
 
-def get_range(size, offset):
-    byterange = f"bytes={offset}-"
-    if size:
-        byterange += str(offset + size)
-    return byterange
-
-
 def basic_auth_header(user, password):
     username = user.encode("latin1")
     password = password.encode("latin1")

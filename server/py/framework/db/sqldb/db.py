@@ -2019,12 +2019,21 @@ class SQLDB(DBInterface):
         artifact_id, artifact_iteration, artifact_producer_id = result
 
         # if the latest artifact is a part of a hyperparam run, we need to add the latest tag to all the artifacts
-        # with the same producer_id, key and project
+        # with the same producer_id, key and project that don't have the latest tag
         if artifact_iteration != 0:
-            query = session.query(ArtifactV2.id).filter(
-                ArtifactV2.producer_id == artifact_producer_id,
-                ArtifactV2.key == object_record.key,
-                ArtifactV2.project == object_record.project,
+            query = (
+                session.query(ArtifactV2.id)
+                .filter(
+                    ArtifactV2.producer_id == artifact_producer_id,
+                    ArtifactV2.key == object_record.key,
+                    ArtifactV2.project == object_record.project,
+                )
+                .join(ArtifactV2.Tag)
+                .filter(
+                    ArtifactV2.Tag.obj_id == ArtifactV2.id,
+                    ArtifactV2.Tag.name
+                    != mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                )
             )
             return [result[0] for result in query.all()]
 

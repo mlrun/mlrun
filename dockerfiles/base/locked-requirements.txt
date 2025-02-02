@@ -277,9 +277,9 @@ astropy==7.0.0 ; python_full_version >= '3.11' \
     --hash=sha256:e92d7c9fee86eb3df8714e5dd41bbf9f163d343e1a183d95bf6bd09e4313c940 \
     --hash=sha256:f8a00fcb30c2317b111d8b6a99eb60a81e8292c24dce65e986ee4610ea16b8d2
     # via vaex-astro
-astropy-iers-data==0.2025.1.27.0.32.44 \
-    --hash=sha256:3e445ad9699787c6b907f71aaeff7ccc21f702d822dcf2dbf72020186f7e800e \
-    --hash=sha256:c03c3a7cb18d6419e3e64c197e0388854d111abea0328ea1ecabb19af6b44709
+astropy-iers-data==0.2025.1.31.12.41.4 \
+    --hash=sha256:21d1701c6d30723b16a4b3be47a96b88b5e4b21e9b4b3962b95ef50c5e5f8b22 \
+    --hash=sha256:847f3e4f7b96818f60e30af2a2c9349ed3dd465f178581860c337a2ca51b9b47
     # via astropy
 asttokens==3.0.0 \
     --hash=sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7 \
@@ -505,9 +505,9 @@ cachetools==5.5.1 \
     #   google-auth
     #   mlflow-skinny
     #   vaex-server
-certifi==2024.12.14 \
-    --hash=sha256:1275f7a45be9464efc1173084eaa30f866fe2e47d389406136d332ed4967ec56 \
-    --hash=sha256:b650d30f370c2b724812bee08008be0c4163b163ddaec3f2546c1caf65f191db
+certifi==2025.1.31 \
+    --hash=sha256:3d5da6925056f6f18f119200434a4780a94263f10d1c21d032a6f6b2baa20651 \
+    --hash=sha256:ca78db4565a652026a4db2bcdf68f2fb589ea80d0be70e03929ed730746b84fe
     # via
     #   kfp-server-api
     #   kubernetes
@@ -1858,9 +1858,9 @@ ipython==8.18.1 ; python_full_version < '3.10' \
     #   ipympl
     #   ipywidgets
     #   nuclio-jupyter
-ipython==8.31.0 ; python_full_version >= '3.10' \
-    --hash=sha256:46ec58f8d3d076a61d128fe517a51eb730e3aaf0c184ea8c17d16e366660c6a6 \
-    --hash=sha256:b6a2274606bec6166405ff05e54932ed6e5cfecaca1fc05f2cacde7bb074d70b
+ipython==8.32.0 ; python_full_version >= '3.10' \
+    --hash=sha256:be2c91895b0b9ea7ba49d33b23e2040c352b33eb6a519cca7ce6e0c743444251 \
+    --hash=sha256:cae85b0c61eff1fc48b0a8002de5958b6528fa9c8defb1894da63f42613708aa
     # via
     #   -r requirements.txt
     #   ipykernel
@@ -3701,9 +3701,9 @@ pythreejs==2.4.2 \
     --hash=sha256:8418807163ad91f4df53b58c4e991b26214852a1236f28f1afeaadf99d095818 \
     --hash=sha256:a568bfdc4c3797c4c2339158928edc7dcf6fa4a267b08e3cec5121e2078b5bd6
     # via ipyvolume
-pytz==2024.2 \
-    --hash=sha256:2aa355083c50a0f93fa581709deac0c9ad65cca8a9e9beac660adcbd493c798a \
-    --hash=sha256:31c7c1817eb7fae7ca4b8c7ee50c72f93aa2dd863de768e1ef4245d426aa0725
+pytz==2025.1 \
+    --hash=sha256:89dd22dca55b46eac6eda23b2d72721bf1bdfef212645d81513ef5d03038de57 \
+    --hash=sha256:c2db42be2a2518b28e65f9207c4d05e6ff547d1efa4086469ef855e4ab70178e
     # via
     #   pandas
     #   snowflake-connector-python
@@ -5000,9 +5000,9 @@ xarray==2024.7.0 ; python_full_version < '3.10' \
     --hash=sha256:1b0fd51ec408474aa1f4a355d75c00cc1c02bd425d97b2c2e551fd21810e7f64 \
     --hash=sha256:4cae512d121a8522d41e66d942fb06c526bc1fd32c2c181d5fe62fe65b671638
     # via vaex-jupyter
-xarray==2025.1.1 ; python_full_version >= '3.10' \
-    --hash=sha256:1a3011d00ca92a94ba31b297c2eccd310b87a7dacf5acc8d0468385d4a834342 \
-    --hash=sha256:8a69d17c1e4ad09664fd0bc2dbb398e7368eda25bd19456fb919a6eb6490fb72
+xarray==2025.1.2 ; python_full_version >= '3.10' \
+    --hash=sha256:a7ad6a36c6e0becd67f8aff6a7808d20e4bdcd344debb5205f0a34b1a4a7f8d6 \
+    --hash=sha256:e7675c79ac69d274dd3b3c5450ce57176928d2792947576251ed1c7df1783224
     # via vaex-jupyter
 xxhash==3.5.0 \
     --hash=sha256:02c2e816896dc6f85922ced60097bcf6f008dedfc5073dcba32f9c8dd786f3c1 \

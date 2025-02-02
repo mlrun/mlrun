@@ -53,6 +53,7 @@ class _BaseFormatter(logging.Formatter):
             json_object,
             option=orjson.OPT_NAIVE_UTC
             | orjson.OPT_SERIALIZE_NUMPY
+            | orjson.OPT_NON_STR_KEYS
             | orjson.OPT_SORT_KEYS,
             default=default,
         ).decode()

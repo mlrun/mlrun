@@ -30,8 +30,7 @@ from uvicorn._types import (
 import mlrun
 import mlrun.common.schemas
 
-if typing.TYPE_CHECKING:
-    from mlrun.utils.logger import Logger, request_id_var
+from mlrun.utils.logger import Logger, request_id_var
 
 
 class RequestLoggerMiddleware:

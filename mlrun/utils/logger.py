@@ -251,7 +251,7 @@ class HumanReadableExtendedFormatter(HumanReadableFormatter):
         return stdout.isatty()
 
 
-request_id_var = contextvars.ContextVar("request_id", default=None)
+context_id_var = contextvars.ContextVar("context_id", default=None)
 
 
 class Logger:
@@ -357,10 +357,10 @@ class Logger:
     def _update_bound_vars_and_log(
         self, level, message, *args, exc_info=None, **kw_args
     ):
-        request_id = request_id_var.get() or None
+        request_id = context_id_var.get() or None
         kw_args.update(self._bound_variables)
         if request_id is not None:
-            kw_args["request_id"] = request_id
+            kw_args["ctx"] = request_id
         if kw_args:
             self._logger.log(
                 level, message, *args, exc_info=exc_info, extra={"with": kw_args}

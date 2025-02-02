@@ -16,7 +16,7 @@
 from fastapi import APIRouter, Depends
 
 import framework.api.deps
-from . import config, logging, memory_reports
+from . import config, memory_reports
 
 internal_router = APIRouter(
     prefix="/_internal",
@@ -27,12 +27,6 @@ internal_router = APIRouter(
 internal_router.include_router(
     config.router,
     tags=["config"],
-    dependencies=[Depends(framework.api.deps.authenticate_request)],
-)
-
-internal_router.include_router(
-    logging.router,
-    tags=["logging"],
     dependencies=[Depends(framework.api.deps.authenticate_request)],
 )
 

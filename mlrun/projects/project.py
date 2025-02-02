@@ -4126,7 +4126,7 @@ class MlrunProject(ModelObj):
 
         :param image: target image name/path. If not specified the project's existing `default_image` name will be
                         used. If not set, the `mlconf.default_project_image_name` value will be used
-        :param set_as_default: set `image` to be the project's default image (default False)
+        :param set_as_default: set `image` to be the project's default image (default True)
         :param with_mlrun:      add the current mlrun package to the container build
         :param base_image:      base image name/path (commands and source code will be added to it) defaults to
                                 mlrun.mlconf.default_base_image

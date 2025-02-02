@@ -2032,7 +2032,8 @@ class SQLDB(DBInterface):
                 .filter(
                     or_(
                         ArtifactV2.Tag.name.is_(None),
-                        ArtifactV2.Tag.name != mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                        ArtifactV2.Tag.name
+                        != mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
                     )
                 )
             )

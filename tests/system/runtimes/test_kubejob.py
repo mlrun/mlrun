@@ -419,7 +419,8 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             tzinfo=timezone.utc
         )
         runs = mlrun.get_run_db().list_runs(
-            project=self.project_name, end_time_from=run_end_time
+            project=self.project_name,
+            end_time_from=run_end_time - timedelta(milliseconds=100),
         )
         assert len(runs) == 1
 

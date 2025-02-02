@@ -31,20 +31,20 @@ import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
+from mlrun.model import RunSpec, RunTemplate
 
 import framework.api.utils
 import framework.utils.helpers
 import services.api.crud
 import services.api.runtime_handlers
-from mlrun.model import RunSpec, RunTemplate
 
 
 class ServerSideLauncher(launcher.BaseLauncher):
     def __init__(
-            self,
-            local: bool = False,
-            auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
-            **kwargs,
+        self,
+        local: bool = False,
+        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         if local:
@@ -55,34 +55,34 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self._auth_info = auth_info
 
     def launch(
-            self,
-            runtime: mlrun.runtimes.BaseRuntime,
-            task: Optional[
-                Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-            ] = None,
-            handler: Optional[str] = None,
-            name: Optional[str] = "",
-            project: Optional[str] = "",
-            params: Optional[dict] = None,
-            inputs: Optional[dict[str, str]] = None,
-            out_path: Optional[str] = "",
-            workdir: Optional[str] = "",
-            artifact_path: Optional[str] = "",
-            watch: Optional[bool] = True,
-            schedule: Optional[
-                Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
-            ] = None,
-            hyperparams: Optional[dict[str, list]] = None,
-            hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
-            verbose: Optional[bool] = None,
-            scrape_metrics: Optional[bool] = None,
-            local_code_path: Optional[str] = None,
-            auto_build: Optional[bool] = None,
-            param_file_secrets: Optional[dict[str, str]] = None,
-            notifications: Optional[list[mlrun.model.Notification]] = None,
-            returns: Optional[list[Union[str, dict[str, str]]]] = None,
-            state_thresholds: Optional[dict[str, int]] = None,
-            reset_on_run: Optional[bool] = None,
+        self,
+        runtime: mlrun.runtimes.BaseRuntime,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[
+            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+        ] = None,
+        hyperparams: Optional[dict[str, list]] = None,
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[dict[str, str]] = None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
+        reset_on_run: Optional[bool] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -181,24 +181,24 @@ class ServerSideLauncher(launcher.BaseLauncher):
         return self._wrap_run_result(runtime, result, run, err=last_err)
 
     def _enrich_run(
-            self,
-            runtime: "mlrun.runtimes.base.BaseRuntime",
-            run: Union[RunSpec, RunTemplate],
-            handler=None,
-            project_name=None,
-            name=None,
-            params=None,
-            inputs=None,
-            returns=None,
-            hyperparams=None,
-            hyper_param_options=None,
-            verbose=None,
-            scrape_metrics=None,
-            out_path=None,
-            artifact_path=None,
-            workdir=None,
-            notifications: Optional[list[mlrun.model.Notification]] = None,
-            state_thresholds: Optional[dict[str, int]] = None,
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: Union[RunSpec, RunTemplate],
+        handler=None,
+        project_name=None,
+        name=None,
+        params=None,
+        inputs=None,
+        returns=None,
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=None,
+        scrape_metrics=None,
+        out_path=None,
+        artifact_path=None,
+        workdir=None,
+        notifications: Optional[list[mlrun.model.Notification]] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
     ):
         run = super()._enrich_run(
             runtime=runtime,
@@ -224,9 +224,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         return self._pre_run_node_selector_enrichement(runtime, run)
 
     def _pre_run_node_selector_enrichement(
-            self,
-            runtime: "mlrun.runtimes.base.BaseRuntime",
-            run: mlrun.run.RunObject,
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        run: mlrun.run.RunObject,
     ):
         """
         Enrich the run object with the project's default node selector.
@@ -253,16 +253,16 @@ class ServerSideLauncher(launcher.BaseLauncher):
         """
         existing_image_pull_secret = getattr(run.spec, "image_pull_secret", None)
         run.spec.image_pull_secret = (
-                existing_image_pull_secret
-                or mlrun.config.config.function.spec.image_pull_secret.default
+            existing_image_pull_secret
+            or mlrun.config.config.function.spec.image_pull_secret.default
         )
         return run
 
     def enrich_runtime(
-            self,
-            runtime: "mlrun.runtimes.base.BaseRuntime",
-            project_name: Optional[str] = "",
-            full: bool = True,
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        project_name: Optional[str] = "",
+        full: bool = True,
     ):
         """
         Enrich the runtime object with the project spec and metadata.
@@ -287,7 +287,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
-                project_name or runtime.metadata.project or mlrun.mlconf.default_project
+            project_name or runtime.metadata.project or mlrun.mlconf.default_project
         )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db
@@ -300,18 +300,18 @@ class ServerSideLauncher(launcher.BaseLauncher):
             )
 
         if (
-                not runtime.spec.image
-                and not runtime.requires_build()
-                and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
-                and not runtime.skip_image_enrichment()
+            not runtime.spec.image
+            and not runtime.requires_build()
+            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+            and not runtime.skip_image_enrichment()
         ):
             runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
                 runtime.kind
             ]
 
     def _enrich_full_spec(
-            self,
-            runtime: "mlrun.runtimes.base.BaseRuntime",
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
     ):
         # If this was triggered by the UI, we will need to attempt auto-mount based on auto-mount
         # config and params passed in the auth_info.
@@ -326,8 +326,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         existing_image_pull_secret = runtime.spec.image_pull_secret
         runtime.spec.image_pull_secret = (
-                existing_image_pull_secret
-                or mlrun.config.config.function.spec.image_pull_secret.default
+            existing_image_pull_secret
+            or mlrun.config.config.function.spec.image_pull_secret.default
         )
 
     def _save_notifications(self, runobj):
@@ -345,7 +345,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         )
 
     def _store_function(
-            self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
+        self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         db = runtime._get_db()
@@ -357,13 +357,13 @@ class ServerSideLauncher(launcher.BaseLauncher):
             run.spec.function = runtime._function_uri(hash_key=hash_key)
 
     def _validate_runtime(
-            self,
-            runtime: "mlrun.runtimes.BaseRuntime",
-            run: "mlrun.run.RunObject",
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        run: "mlrun.run.RunObject",
     ):
         if (
-                mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
-                and not mlrun.mlconf.httpdb.jobs.allow_local_run
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
+            and not mlrun.mlconf.httpdb.jobs.allow_local_run
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Local runtimes can not be run through API (not locally)"
@@ -372,8 +372,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self._validate_state_thresholds(run.spec.state_thresholds)
 
         if (
-                mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind)
-                and not runtime.spec.image
+            mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind)
+            and not runtime.spec.image
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"This runtime kind ({runtime.kind}) must have a valid image"
@@ -383,7 +383,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     @staticmethod
     def _validate_state_thresholds(
-            state_thresholds: Optional[dict[str, str]] = None,
+        state_thresholds: Optional[dict[str, str]] = None,
     ):
         """
         Validate the state thresholds

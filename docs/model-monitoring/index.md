@@ -65,41 +65,38 @@ For example:
 
 ## Selecting the streaming and TSDB platforms
 
-Model monitoring supports Kafka or V3io as streaming platforms, and TDEngine or V3IO as TSDB platforms.
-In addition, internal model-monitoring metadata can be saved in MySQL or V3IO.
+Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO TSDB platforms.
 
 We recommend the following versions:
-* TDEngine - `3.3.2.0`.
-* MySQL - `8.0.39`, or higher `8.0` compatible versions.
 
-Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`. 
-There are three credentials you can set, and each one can have a different value. For example:
-```py
-stream_path = "kafka://<some_kafka_broker>:<port>"  # or "v3io"
-tsdb_connection = "taosws://<username>:<password>@<host>:<port>"  # or "v3io"
-endpoint_store_connection = (
-    "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"  # or "v3io"
-)
-```
+- TDEngine - `3.3.2.0`.
+- Kafka - `3.9.0`.
+
+Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`.
 
 ## Model monitoring applications
 
-When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app, `HistogramDataDriftApplication`, which is 
+When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app, `HistogramDataDriftApplication`, which is
 tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.). It includes:
-* Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
-* Hellinger Distance &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
-* The average of TVD & Hellinger as the general drift result.
-* Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
 
-You can create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 
-See {ref}`mm-applications`. </br>
-You can also integrate [Evidently](https://github.com/evidentlyai/evidently) 
-as an MLRun function and create MLRun artifacts, using the built-in class `EvidentlyModelMonitoringApplicationBase`. See an example in {ref}`realtime-monitor-drift-tutor`. 
+- Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
+- Hellinger Distance &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
+- The average of TVD & Hellinger as the general drift result.
+- Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's
+  trained reference probability distribution.
 
-Projects are used to group functions that use the same model monitoring application. You first need to create a project for a specific application. 
-Then you disable the default app, enable your customer app, and create and run the functions. 
+You can create your own model monitoring applications for LLMs, gen AI, deep-learning models, etc., based on the
+{py:class}`~mlrun.model_monitoring.applications.ModelMonitoringApplicationBase` class.
+See {ref}`mm-applications`.</br>
+You can also integrate [Evidently](https://github.com/evidentlyai/evidently)
+as an MLRun function and create MLRun artifacts, using the built-in
+{py:class}`~mlrun.model_monitoring.applications.EvidentlyModelMonitoringApplicationBase` class.
+See an example in {ref}`realtime-monitor-drift-tutor`.
 
-The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. 
+Projects are used to group functions that use the same model monitoring application. You first need to create a project for a specific application.
+Then you disable the default app, enable your customer app, and create and run the functions.
+
+The basic flow for classic ML and other models is the same, but the apps and the infer requests are different.
 
 ## Multi-port predictions
 

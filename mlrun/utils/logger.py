@@ -31,7 +31,6 @@ from mlrun import errors
 from mlrun.config import config
 
 
-
 class _BaseFormatter(logging.Formatter):
     def _json_dump(self, json_object):
         def default(obj):

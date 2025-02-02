@@ -304,6 +304,28 @@ def create_node_affinity_with_terms(terms):
         )
     )
 
+def mock_preemptible_config():
+    """Fixture to set up mock preemptible configurations before each test."""
+    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
+        json.dumps(
+            {
+                "app.iguazio.com/lifecycle": "preemptible",
+                "cloud.google.com/gke-spot": "true",
+            }
+        ).encode("utf-8")
+    )
+    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
+        json.dumps(
+            [
+                {
+                    "key": "cloud.google.com/gke-spot",
+                    "value": "true",
+                    "operator": "Equal",
+                    "effect": "NoSchedule",
+                }
+            ]
+        ).encode("utf-8")
+    )
 
 @pytest.mark.parametrize(
     "mode, tolerations, node_selector, affinity, expected_tolerations, expected_node_selector, expected_affinity",
@@ -505,7 +527,7 @@ def create_node_affinity_with_terms(terms):
         ),
     ],
 )
-def test_enrich_function_preemption_spec2(
+def test_enrich_function_preemption_spec(
     mode,
     tolerations,
     node_selector,
@@ -527,26 +549,7 @@ def test_enrich_function_preemption_spec2(
     )
 
     # Simulated mlconf preemptible settings
-    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
-        json.dumps(
-            {
-                "app.iguazio.com/lifecycle": "preemptible",
-                "cloud.google.com/gke-spot": "true",
-            }
-        ).encode("utf-8")
-    )
-    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
-        json.dumps(
-            [
-                {
-                    "key": "cloud.google.com/gke-spot",
-                    "value": "true",
-                    "operator": "Equal",
-                    "effect": "NoSchedule",
-                }
-            ]
-        ).encode("utf-8")
-    )
+    mock_preemptible_config()
 
     # Call the enrichment logic.
     function.spec.enrich_function_preemption_spec()
@@ -623,8 +626,6 @@ def test_enrich_function_preemption_spec2(
     ],
 )
 def test_with_node_selection_warnings(
-    monkeypatch,
-    caplog,
     node_selector,
     tolerations,
     affinity,
@@ -634,27 +635,7 @@ def test_with_node_selection_warnings(
     This test verifies that mlrun.Function.with_node_selection logs the expected warnings when
     user-provided configuration (node_selector, tolerations, affinity) matches the preemptible settings.
     """
-    # Simulated mlconf preemptible settings
-    mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
-        json.dumps(
-            {
-                "app.iguazio.com/lifecycle": "preemptible",
-                "cloud.google.com/gke-spot": "true",
-            }
-        ).encode("utf-8")
-    )
-    mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
-        json.dumps(
-            [
-                {
-                    "key": "cloud.google.com/gke-spot",
-                    "value": "true",
-                    "operator": "Equal",
-                    "effect": "NoSchedule",
-                }
-            ]
-        ).encode("utf-8")
-    )
+    mock_preemptible_config()
 
     # Create a new function instance.
     function = mlrun.new_function("test-func", kind="job")

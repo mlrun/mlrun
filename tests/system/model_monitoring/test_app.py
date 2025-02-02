@@ -433,12 +433,14 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             )
             topics = consumer.topics()
 
-            project_topics_list = [f"monitoring_stream_{self.project_name}"]
+            project_topics_list = [
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}"
+            ]
             for func in func_to_validate + [
                 mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             ]:
                 project_topics_list.append(
-                    f"monitoring_stream_{self.project_name}_{func}"
+                    f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{func}"
                 )
 
             for topic in project_topics_list:
@@ -901,7 +903,6 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             wait_for_deployment=False,
-            rebuild_images=False,
         )
         # check that all the function are still deployed
         for name in all_functions:
@@ -911,23 +912,6 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             )
             func._get_db().get_nuclio_deploy_status(func, verbose=False)
             assert func.status.state == "ready"
-
-        self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
-            wait_for_deployment=False,
-            rebuild_images=True,
-        )
-
-        # check that all the function are in building state
-        for name in all_functions:
-            func = self.project.get_function(
-                key=name,
-                ignore_cache=True,
-            )
-            func._get_db().get_nuclio_deploy_status(func, verbose=False)
-            assert func.status.state == "building"
-
-        self.project._wait_for_functions_deployment(all_functions)
 
         self.project.update_model_monitoring_controller(
             image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True
@@ -1020,22 +1004,38 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             )
             topics = consumer.topics()
 
+            # Verify that controller resources were deleted
             with pytest.raises(mlrun.errors.MLRunNotFoundError):
                 self.project.get_function(
                     key=mm_constants.MonitoringFunctionNames.WRITER,
                     ignore_cache=True,
                 )
             assert (
-                f"monitoring_stream_{self.project_name}_{mm_constants.MonitoringFunctionNames.WRITER}"
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.MonitoringFunctionNames.WRITER}"
                 not in topics
             )
 
+            # Verify that controller resources were deleted
+            with pytest.raises(mlrun.errors.MLRunNotFoundError):
+                self.project.get_function(
+                    key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                    ignore_cache=True,
+                )
+            assert (
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER}_v1"
+                not in topics
+            )
+
+            # Verify that monitoring stream resources were not deleted
             self.project.get_function(
                 key=mm_constants.MonitoringFunctionNames.STREAM,
                 ignore_cache=True,
             )
 
-            assert f"monitoring_stream_{self.project_name}" in topics
+            assert (
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_v1"
+                in topics
+            )
 
             self._disable_stream_function()
 
@@ -1044,7 +1044,10 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
                 bootstrap_servers=brokers,
             )
             topics = consumer.topics()
-            assert f"monitoring_stream_{self.project_name}" in topics
+            assert (
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_v1"
+                in topics
+            )
 
             self._delete_histogram_app()
 
@@ -1054,7 +1057,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             )
             topics = consumer.topics()
             assert (
-                f"monitoring_stream_{self.project_name}_{mm_constants.HistogramDataDriftApplicationConstants.NAME}"
+                f"monitoring_stream_{mlrun.mlconf.system_id}_{self.project_name}_{mm_constants.HistogramDataDriftApplicationConstants.NAME}_v1"
                 not in topics
             )
 

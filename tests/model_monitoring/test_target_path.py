@@ -103,5 +103,5 @@ def test_get_kafka_profile_stream_path(kafka_profile_name: str) -> None:
     )
     assert (
         stream_path
-        == f"kafka://some_kafka_broker:8080?topic=monitoring_stream_{TEST_PROJECT}_v1"
+        == f"kafka://some_kafka_broker:8080?topic=monitoring_stream_{mlrun.mlconf.system_id}_{TEST_PROJECT}_v1"
     )

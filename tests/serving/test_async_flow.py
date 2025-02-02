@@ -148,13 +148,16 @@ def test_push_error():
 class MyModel(Model):
     execution_mechanism = "naive"
 
-    def __init__(self, *args, inc: int, **kwargs):
+    def __init__(self, *args, inc: int, gpu_number: Optional[int] = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.inc = inc
+        self.gpu_number = gpu_number
 
     def predict(self, body):
         body["n"] += self.inc
         body.pop("models", None)
+        if self.gpu_number is not None:
+            body["gpu"] = self.gpu_number
         return body
 
     async def predict_async(self, body):
@@ -183,7 +186,7 @@ class MyModelSelector(ModelSelector):
 
 @pytest.mark.parametrize(
     "execution_mechanism",
-    ("multiprocessing", "threading", "asyncio", "naive"),
+    ("process_pool", "dedicated_process", "thread_pool", "asyncio", "naive"),
 )
 def test_model_runner_with_selector(execution_mechanism: str):
     m1 = MyModel(name="m1", inc=1)
@@ -210,5 +213,29 @@ def test_model_runner_with_selector(execution_mechanism: str):
         # only m2
         resp = server.test(body={"n": 1, "models": ["m2"]})
         assert resp == {"m2": {"n": 3}}
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_with_gpu_allocation():
+    m1 = MyModel(name="m1", inc=1, gpu_number=1)
+    m2 = MyModel(name="m2", inc=2, gpu_number=2)
+
+    m1.execution_mechanism = m2.execution_mechanism = "dedicated_process"
+
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner",
+    )
+    model_runner_step.add_model(m1)
+    model_runner_step.add_model(m2)
+    graph.to(model_runner_step).respond()
+
+    server = function.to_mock_server()
+    try:
+        for n in range(10):
+            resp = server.test(body={"n": n})
+            assert resp == {"m1": {"n": n + 1, "gpu": 1}, "m2": {"n": n + 2, "gpu": 2}}
     finally:
         server.wait_for_completion()

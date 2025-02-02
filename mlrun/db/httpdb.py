@@ -1734,36 +1734,10 @@ class HTTPRunDB(RunDBInterface):
     def create_schedule(
         self, project: str, schedule: mlrun.common.schemas.ScheduleInput
     ):
-        """Create a new schedule on the given project. The details on the actual object to schedule as well as the
-        schedule itself are within the schedule object provided.
-        The :py:class:`~ScheduleCronTrigger` follows the guidelines in
-        https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html.
-        It also supports a :py:func:`~ScheduleCronTrigger.from_crontab` function that accepts a
-        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format and
-        note that the 0 weekday is always monday).
-
-
-        Example::
-
-            from mlrun.common import schemas
-
-            # Execute the get_data_func function every Tuesday at 15:30
-            schedule = schemas.ScheduleInput(
-                name="run_func_on_tuesdays",
-                kind="job",
-                scheduled_object=get_data_func,
-                cron_trigger=schemas.ScheduleCronTrigger(
-                    day_of_week="tue", hour=15, minute=30
-                ),
-            )
-            db.create_schedule(project_name, schedule)
-        """
-
-        project = project or config.default_project
-        path = f"projects/{project}/schedules"
-
-        error_message = f"Failed creating schedule {project}/{schedule.name}"
-        self.api_call("POST", path, error_message, body=dict_to_json(schedule.dict()))
+        """The create_schedule functionality has been deprecated."""
+        raise mlrun.errors.MLRunBadRequestError(
+            "The create_schedule functionality has been deprecated."
+        )
 
     def update_schedule(
         self, project: str, name: str, schedule: mlrun.common.schemas.ScheduleUpdate
@@ -3896,7 +3870,7 @@ class HTTPRunDB(RunDBInterface):
         function_name: Optional[str] = None,
         function_tag: Optional[str] = None,
         endpoint_id: Optional[str] = None,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> None:
         """
         Updates a model endpoint with the given attributes.
 
@@ -3906,7 +3880,6 @@ class HTTPRunDB(RunDBInterface):
         :param function_name:              The name of the function
         :param function_tag:               The tag of the function
         :param endpoint_id:                The id of the endpoint
-        :return:                          The updated `ModelEndpoint` object.
         """
         attributes_keys = list(attributes.keys())
         attributes["name"] = name
@@ -3929,8 +3902,11 @@ class HTTPRunDB(RunDBInterface):
             },
             body=model_endpoint.json(),
         )
-
-        return mlrun.common.schemas.ModelEndpoint(**response.json())
+        logger.info(
+            "Updating model endpoint done",
+            model_endpoint_uid=response.json(),
+            status_code=response.status_code,
+        )
 
     @staticmethod
     def _check_model_endpoint_representation(
@@ -3971,7 +3947,6 @@ class HTTPRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-        rebuild_images: bool = False,
         fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         """
@@ -3989,7 +3964,6 @@ class HTTPRunDB(RunDBInterface):
                                                   stream functions, which are real time nuclio functions.
                                                   By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
-        :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
 
         """
@@ -4000,7 +3974,6 @@ class HTTPRunDB(RunDBInterface):
                 "base_period": base_period,
                 "image": image,
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
-                "rebuild_images": rebuild_images,
                 "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
         )

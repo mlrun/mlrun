@@ -16,6 +16,7 @@ from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 from unittest.mock import Mock, patch
 
@@ -68,9 +69,9 @@ def test_no_deprecation_instantiation() -> None:
 
 
 class TestEvaluate:
-    @classmethod
+    @staticmethod
     @pytest.fixture(autouse=True)
-    def _set_project(cls) -> Iterator[None]:
+    def _set_project() -> Iterator[None]:
         project = mlrun.get_or_create_project("test")
         with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
             yield
@@ -195,3 +196,45 @@ def test_windows(
         )
         == expected_windows
     ), "The generated windows are different than expected"
+
+
+def test_job_handler() -> None:
+    assert (
+        ModelMonitoringApplicationBase.get_job_handler(
+            "package.subpackage.module.AppClass"
+        )
+        == "package.subpackage.module.AppClass::_handler"
+    )
+
+
+class TestToJob:
+    @staticmethod
+    @pytest.fixture
+    def project(tmpdir: Path) -> mlrun.projects.MlrunProject:
+        return mlrun.get_or_create_project("test-to-job", context=str(tmpdir))
+
+    @staticmethod
+    @pytest.fixture
+    def _set_project(project: mlrun.projects.MlrunProject) -> Iterator[None]:
+        with patch("mlrun.db.nopdb.NopDB.get_project", Mock(return_value=project)):
+            yield
+
+    @staticmethod
+    def test_base_is_blocked(project: mlrun.projects.MlrunProject) -> None:
+        with pytest.raises(
+            ValueError,
+            match="You must provide a handler to the model monitoring application class",
+        ):
+            ModelMonitoringApplicationBase.to_job(project=project)
+
+    @staticmethod
+    @pytest.mark.usefixtures("_set_project")
+    def test_with_class_handler(project: mlrun.projects.MlrunProject) -> None:
+        job = ModelMonitoringApplicationBase.to_job(
+            func_path=__file__,
+            class_handler="NoOpApp",
+            project=project,
+        )
+        assert isinstance(job, mlrun.runtimes.KubejobRuntime)
+        run = job.run(local=True)
+        assert run.state() == "completed"

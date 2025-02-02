@@ -153,8 +153,8 @@ untags
 upperbound
 upsell
 uri
+uv
 vgo
 volumize
 westeurope
 yaml
-uv

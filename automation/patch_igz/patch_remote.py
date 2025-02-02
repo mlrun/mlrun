@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import io
 import json
 import logging
 import os
 import shlex
 import subprocess
+import time
 import typing
 
 import click
@@ -39,10 +41,12 @@ class Constants:
     log_collector_container = "mlrun-log-collector"
     api = "api"
     mlrun = "mlrun"
+    mlrun_kfp = "mlrun-kfp"
     log_collector = "log-collector"
     targets_to_image_name = {
         api: api_container,
         mlrun: mlrun,
+        mlrun_kfp: mlrun_kfp,
         log_collector: log_collector,
     }
 
@@ -90,7 +94,7 @@ class MLRunPatcher:
         if not self._skip_patch_api:
             targets.append(Constants.api)
         if self._patch_mlrun_image:
-            targets.append(Constants.mlrun)
+            targets.extend([Constants.mlrun, Constants.mlrun_kfp])
         if self._patch_log_collector_image:
             targets.append(Constants.log_collector)
         if not targets:
@@ -353,22 +357,39 @@ class MLRunPatcher:
                 live=True,
             )
 
+        self._wait_for_pods_readiness()
+
+    def _wait_for_pods_readiness(self):
+        """
+        Waits for a pod to become ready.
+        Since some deployments' strategy is RollingUpdate, using 'kubectl wait --for condition=Ready' sometimes times
+        out because it waits for the terminating pod to be ready. To mitigate it, we use smaller timeouts and retries
+        """
+
         logger.info("Waiting for mlrun pods to become ready")
-        self._exec_remote(
-            [
-                "kubectl",
-                "-n",
-                "default-tenant",
-                "wait",
-                "pods",
-                "-l",
-                "app.kubernetes.io/name=mlrun",
-                "--for",
-                "condition=Ready",
-                "--timeout=300s",
-            ],
-            live=True,
-        )
+
+        timeout = datetime.datetime.now() + datetime.timedelta(seconds=300)
+        while datetime.datetime.now() < timeout:
+            try:
+                self._exec_remote(
+                    [
+                        "kubectl",
+                        "-n",
+                        "default-tenant",
+                        "wait",
+                        "pods",
+                        "-l",
+                        "app.kubernetes.io/name=mlrun",
+                        "--for",
+                        "condition=Ready",
+                        "--timeout=20s",
+                    ],
+                    live=True,
+                )
+                break
+            except RuntimeError:
+                # Retry until timeout is reached
+                time.sleep(5)
 
     def _reset_mlrun_db(self):
         mlrun_api_services_deployment_selector = (

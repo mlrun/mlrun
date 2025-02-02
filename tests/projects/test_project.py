@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os
 import os.path
 import pathlib
@@ -1193,6 +1192,33 @@ def test_artifact_owner(
         assert artifact.producer.get("owner") == project_owner
 
 
+def test_delete_artifacts_with_iteration(rundb_mock):
+    project_name = "my-project"
+    project = mlrun.new_project(project_name, save=False)
+
+    artifact_key = "my-artifact"
+    for iteration in range(1, 4):
+        artifact = mlrun.artifacts.Artifact(
+            key=artifact_key,
+            body="123",
+        )
+        artifact.db_key = artifact_key
+        artifact.iter = iteration
+        # store the artifacts directly to the rundb as with project iteration is always 0
+        rundb_mock.store_artifact(artifact_key, artifact.to_dict(), iter=iteration)
+
+    artifacts = project.list_artifacts()
+    assert len(artifacts) == 3
+
+    artifact_2 = project.get_artifact(artifact_key, iter=2)
+    assert artifact_2.iter == 2
+
+    project.delete_artifact(artifact_2)
+
+    artifacts = project.list_artifacts()
+    assert len(artifacts) == 2
+
+
 @pytest.mark.parametrize(
     "relative_artifact_path,project_context,expected_path,expected_in_context",
     [
@@ -2262,6 +2288,25 @@ def test_remove_remote(name):
         )
         project.remove_remote(name)
         assert name not in project.spec.repo.remotes
+
+
+def test_set_source():
+    project_name = "project1"
+    project = mlrun.new_project(project_name, save=False)
+    # set source + workdir, make sure it persist correctly
+    project.set_source("git://some/repo", workdir="/x")
+    assert project.spec.source == "git://some/repo"
+    assert project.spec.workdir == "/x"
+
+    # set another source, workdir needs to be reset
+    project.set_source("git://some/other/repo")
+    assert project.spec.source == "git://some/other/repo"
+    assert project.spec.workdir is None
+
+    # set workdir, retain it as source would be the same as it was before
+    project.spec.workdir = "/y"
+    project.set_source("git://some/other/repo")
+    assert project.spec.workdir == "/y"
 
 
 @pytest.mark.parametrize(

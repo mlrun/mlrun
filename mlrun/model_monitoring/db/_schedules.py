@@ -140,6 +140,14 @@ class ModelMonitoringSchedulesFile(AbstractContextManager):
         self._check_open_schedules()
         self._schedules[application] = timestamp
 
+    def get_application_list(self) -> set[str]:
+        self._check_open_schedules()
+        return set(self._schedules.keys())
+
+    def get_min_timestamp(self) -> Optional[int]:
+        self._check_open_schedules()
+        return min(self._schedules.values(), default=None)
+
 
 def delete_model_monitoring_schedules_folder(project: str) -> None:
     """Delete the model monitoring schedules folder of the project"""

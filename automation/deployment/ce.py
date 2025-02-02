@@ -93,6 +93,10 @@ def cli():
     help="Version of mlrun to install. If not specified, will install the latest version",
 )
 @click.option(
+    "--chart",
+    help="Specify a custom helm chart name or local path",
+)
+@click.option(
     "-cv",
     "--chart-version",
     help="Version of the mlrun chart to install. If not specified, will install the latest version",
@@ -187,6 +191,7 @@ def deploy(
     remote_ssh_username: Optional[str] = None,
     remote_ssh_password: Optional[str] = None,
     mlrun_version: Optional[str] = None,
+    chart: Optional[str] = None,
     chart_version: Optional[str] = None,
     registry_url: Optional[str] = None,
     registry_secret_name: Optional[str] = None,
@@ -215,6 +220,7 @@ def deploy(
         remote=remote,
         remote_ssh_username=remote_ssh_username,
         remote_ssh_password=remote_ssh_password,
+        chart_name=chart,
     )
     deployer.deploy(
         registry_url=registry_url,
@@ -222,6 +228,7 @@ def deploy(
         registry_password=registry_password,
         registry_secret_name=registry_secret_name,
         mlrun_version=mlrun_version,
+        chart_name=chart,
         chart_version=chart_version,
         override_mlrun_api_image=override_mlrun_api_image,
         override_mlrun_log_collector_image=override_mlrun_log_collector_image,

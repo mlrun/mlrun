@@ -115,9 +115,9 @@ class V2ModelServer(StepToDict):
             self.model = model
             self.ready = True
         self.model_endpoint_uid = None
-        self.model_endpoint = None
         self.shard_by_endpoint = shard_by_endpoint
         self._model_logger = None
+        self.initialized = False
 
     def _load_and_update_state(self):
         try:
@@ -139,36 +139,69 @@ class V2ModelServer(StepToDict):
             else:
                 self._load_and_update_state()
 
+    def _lazy_init(self, event_id):
         server: mlrun.serving.GraphServer = getattr(
             self.context, "_server", None
         ) or getattr(self.context, "server", None)
         if not server:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
-
         if not self.context.is_mock and not self.model_spec:
             self.get_model()
         if not self.context.is_mock or self.context.monitoring_mock:
-            try:
-                self.model_endpoint = mlrun.get_run_db().get_model_endpoint(
-                    project=server.project,
-                    name=self.name,
-                    function_name=server.function_name,
-                    function_tag=server.function_tag or "latest",
+            if server.model_endpoint_creation_task_name:
+                background_task = mlrun.get_run_db().get_project_background_task(
+                    server.project, server.model_endpoint_creation_task_name
                 )
-                self.model_endpoint_uid = self.model_endpoint.metadata.uid
+                logger.debug(
+                    "Checking model endpoint creation task status",
+                    task_name=server.model_endpoint_creation_task_name,
+                )
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+                ):
+                    logger.debug(
+                        f"Model endpoint creation task completed with state {background_task.status.state}"
+                    )
+                else:  # in progress
+                    logger.debug(
+                        f"Model endpoint creation task is still in progress with the current state: "
+                        f"{background_task.status.state}. This event will not be monitored.",
+                        name=self.name,
+                        event_id=event_id,
+                    )
+                    self.initialized = False
+                    return
+            else:
+                logger.debug(
+                    "Model endpoint creation task name not provided",
+                )
+            try:
+                self.model_endpoint_uid = (
+                    mlrun.get_run_db()
+                    .get_model_endpoint(
+                        project=server.project,
+                        name=self.name,
+                        function_name=server.function_name,
+                        function_tag=server.function_tag or "latest",
+                        tsdb_metrics=False,
+                    )
+                    .metadata.uid
+                )
             except mlrun.errors.MLRunNotFoundError:
                 logger.info(
-                    "Model Endpoint not found for this step we will not monitor this model",
+                    "Model endpoint not found for this step; monitoring for this model will not be performed",
                     function_name=server.function_name,
                     name=self.name,
                 )
-                self.model_endpoint, self.model_endpoint_uid = None, None
+                self.model_endpoint_uid = None
         self._model_logger = (
             _ModelLogPusher(self, self.context)
             if self.context and self.context.stream.enabled and self.model_endpoint_uid
             else None
         )
+        self.initialized = True
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -246,6 +279,8 @@ class V2ModelServer(StepToDict):
 
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
+        if not self.initialized:
+            self._lazy_init(event.id)
         start = now_date()
         original_body = event.body
         event_body = _extract_input_data(self._input_path, event.body)

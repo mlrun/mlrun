@@ -389,7 +389,7 @@ class ParallelRun(BaseModelRouter):
                 self._pool = executor_class(
                     max_workers=len(self.routes),
                     initializer=ParallelRun.init_pool,
-                    initargs=(server, routes),
+                    initargs=(server, routes, self.context.is_mock),
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
                 executor_class = concurrent.futures.ThreadPoolExecutor
@@ -452,9 +452,9 @@ class ParallelRun(BaseModelRouter):
         return results
 
     @staticmethod
-    def init_pool(server_spec, routes):
+    def init_pool(server_spec, routes, is_mock):
         server = mlrun.serving.GraphServer.from_dict(server_spec)
-        server.init_states(None, None)
+        server.init_states(None, None, is_mock=is_mock)
         global local_routes
         for route in routes.values():
             route.context = server.context
@@ -596,11 +596,6 @@ class VotingEnsemble(ParallelRun):
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
         self.weights = weights
-        self._model_logger = (
-            _ModelLogPusher(self, context)
-            if context and context.stream.enabled
-            else None
-        )
         self.version = kwargs.get("version", "v1")
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
@@ -608,8 +603,12 @@ class VotingEnsemble(ParallelRun):
         self.model_endpoint_uid = None
         self.model_endpoint = None
         self.shard_by_endpoint = shard_by_endpoint
+        self.initialized = False
 
     def post_init(self, mode="sync", **kwargs):
+        self._update_weights(self.weights)
+
+    def _lazy_init(self, event_id):
         server: mlrun.serving.GraphServer = getattr(
             self.context, "_server", None
         ) or getattr(self.context, "server", None)
@@ -617,14 +616,59 @@ class VotingEnsemble(ParallelRun):
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
         if not self.context.is_mock or self.context.monitoring_mock:
-            self.model_endpoint = mlrun.get_run_db().get_model_endpoint(
-                project=server.project,
-                name=self.name,
-                function_name=server.function_name,
-                function_tag=server.function_tag or "latest",
-            )
-            self.model_endpoint_uid = self.model_endpoint.metadata.uid
-        self._update_weights(self.weights)
+            if server.model_endpoint_creation_task_name:
+                background_task = mlrun.get_run_db().get_project_background_task(
+                    server.project, server.model_endpoint_creation_task_name
+                )
+                logger.info(
+                    "Checking model endpoint creation task status",
+                    task_name=server.model_endpoint_creation_task_name,
+                )
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+                ):
+                    logger.info(
+                        f"Model endpoint creation task completed with state {background_task.status.state}"
+                    )
+                else:  # in progress
+                    logger.debug(
+                        f"Model endpoint creation task is still in progress with the current state: "
+                        f"{background_task.status.state}. This event will not be monitored.",
+                        name=self.name,
+                        event_id=event_id,
+                    )
+                    self.initialized = False
+                    return
+            else:
+                logger.info(
+                    "Model endpoint creation task name not provided",
+                )
+            try:
+                self.model_endpoint_uid = (
+                    mlrun.get_run_db()
+                    .get_model_endpoint(
+                        project=server.project,
+                        name=self.name,
+                        function_name=server.function_name,
+                        function_tag=server.function_tag or "latest",
+                        tsdb_metrics=False,
+                    )
+                    .metadata.uid
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info(
+                    "Model endpoint not found for this step; monitoring for this model will not be performed",
+                    function_name=server.function_name,
+                    name=self.name,
+                )
+                self.model_endpoint_uid = None
+        self._model_logger = (
+            _ModelLogPusher(self, self.context)
+            if self.context and self.context.stream.enabled and self.model_endpoint_uid
+            else None
+        )
+        self.initialized = True
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -829,8 +873,9 @@ class VotingEnsemble(ParallelRun):
         Response
             Event response after running the requested logic
         """
+        if not self.initialized:
+            self._lazy_init(event.id)
         start = now_date()
-
         # Handle and verify the request
         original_body = event.body
         event.body = _extract_input_data(self._input_path, event.body)

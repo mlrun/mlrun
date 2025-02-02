@@ -43,53 +43,11 @@ async def create_schedule(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().ensure_project,
-        db_session,
-        project,
-        auth_info=auth_info,
+    return Response(
+        status_code=HTTPStatus.BAD_REQUEST.value,
+        headers={"Deprecation": "true"},
+        content="This API has been deprecated.",
     )
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.schedule,
-            project,
-            schedule.name,
-            mlrun.common.schemas.AuthorizationAction.create,
-            auth_info,
-        )
-    )
-    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        logger.info(
-            "Requesting to create schedule, re-routing to chief",
-            project=project,
-            schedule=schedule.dict(),
-        )
-        chief_client = framework.utils.clients.chief.Client()
-        return await chief_client.create_schedule(
-            project=project,
-            request=request,
-            json=schedule.dict(),
-        )
-
-    if schedule.credentials.access_key:
-        auth_info.access_key = schedule.credentials.access_key
-    await run_in_threadpool(
-        get_scheduler().create_schedule,
-        db_session,
-        auth_info,
-        project,
-        schedule.name,
-        schedule.kind,
-        schedule.scheduled_object,
-        schedule.cron_trigger,
-        schedule.labels,
-        schedule.concurrency_limit,
-    )
-    return Response(status_code=HTTPStatus.CREATED.value)
 
 
 @router.put("/{name}")

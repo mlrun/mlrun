@@ -454,7 +454,11 @@ def get_default_reg():
     return ""
 
 
-def replace_last(string, old, new):
+def replace_last_occurrence(string: str, old: str, new: str) -> str:
+    """
+    Replace the last occurrence of `old` in `string` with `new`.
+
+    If `old` is not found, returns the original string."""
     head, separator, tail = string.rpartition(old)
     if separator:
         return head + new + tail
@@ -483,7 +487,9 @@ def format_summary_from_kfp_run(kfp_run, project=None):
                 mlrun.common.constants.MLRunInternalLabels.runner_pod,
             ],
         )
-        alternative_step_name = replace_last(step, f"-{run_name}", "")
+        # In KFP v1, the step name is suffixed with the run name, whereas in KFP v2, the step name is not suffixed.
+        # We need to check both cases to find the step in the DAG.
+        alternative_step_name = replace_last_occurrence(step, f"-{run_name}", "")
         if step:
             if step in dag:
                 step_name = step
@@ -501,8 +507,6 @@ def format_summary_from_kfp_run(kfp_run, project=None):
             error = get_in(run, "status.error")
             if error:
                 dag[step]["error"] = error
-        else:
-            logger.debug("Step not in DAG", step=step, run_id=run_id)
 
     short_run = {
         "graph": dag,
@@ -510,12 +514,6 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message
-    logger.debug(
-        "Completed summary formatting",
-        run_id=run_id,
-        project=project,
-        short_run=short_run,
-    )
     return short_run
 
 

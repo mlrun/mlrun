@@ -14,7 +14,6 @@
 #
 import time
 import traceback
-import typing
 import uuid
 
 import uvicorn.protocols.utils
@@ -29,7 +28,6 @@ from uvicorn._types import (
 
 import mlrun
 import mlrun.common.schemas
-
 from mlrun.utils.logger import Logger, request_id_var
 
 

@@ -2018,9 +2018,9 @@ class SQLDB(DBInterface):
 
         artifact_id, artifact_iteration, artifact_producer_id = result
 
-        # if the latest artifact is a part of a hyperparam run, we need to add the latest tag to all the artifacts
-        # with the same producer_id, key and project that don't have the latest tag
         if artifact_iteration != 0:
+            # latest artifact is a part of a hyperparam run, so we need to add the latest tag to all the artifacts
+            # with the same producer_id, key and project, that don't have the latest tag, or don't have a tag at all
             query = (
                 session.query(ArtifactV2.id)
                 .filter(
@@ -2028,11 +2028,12 @@ class SQLDB(DBInterface):
                     ArtifactV2.key == object_record.key,
                     ArtifactV2.project == object_record.project,
                 )
-                .join(ArtifactV2.Tag)
+                .outerjoin(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
                 .filter(
-                    ArtifactV2.Tag.obj_id == ArtifactV2.id,
-                    ArtifactV2.Tag.name
-                    != mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                    or_(
+                        ArtifactV2.Tag.name.is_(None),
+                        ArtifactV2.Tag.name != mlrun.common.constants.RESERVED_TAG_NAME_LATEST,
+                    )
                 )
             )
             return [result[0] for result in query.all()]

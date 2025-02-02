@@ -1174,7 +1174,7 @@ class TestArtifacts(TestDatabaseBase):
         # 7. Delete the last artifact from the second run (iteration 1).
         # 8. The "latest" tag should move because there is no other latest tag in the same producer id
         #    for other iterations.
-        #    move the latest tag to the all iterations of the previous latest run.
+        #    move the latest tag to all remaining iterations of the previous latest run.
 
         project = "artifact_project"
         artifact_key = "artifact-key"
@@ -1273,7 +1273,7 @@ class TestArtifacts(TestDatabaseBase):
         self._db.del_artifact(self._db_session, artifact_key, project=project, uid=uid4)
 
         # The "latest" tag should be moved because there is no other "latest" tag for the same producer ID in
-        # other iterations. Moved to the best iteration of the previous latest run.
+        # other iterations. Moved to all remaining iterations of the previous latest run.
         artifacts = self._db.list_artifacts(
             self._db_session, name=artifact_key, project=project, tag="latest"
         )

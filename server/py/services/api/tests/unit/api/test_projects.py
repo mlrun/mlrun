@@ -397,17 +397,6 @@ async def test_list_and_get_project_summaries(
         two_days_ago,
     )
 
-    # create schedules for the project
-
-    (
-        schedules_count,
-        distinct_scheduled_jobs_pending_count,
-        distinct_scheduled_pipelines_pending_count,
-    ) = _create_schedules(
-        client,
-        project_name,
-    )
-
     # mock pipelines for the project
     running_pipelines_count = _mock_pipelines(
         project_name,
@@ -432,7 +421,7 @@ async def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
@@ -442,9 +431,6 @@ async def test_list_and_get_project_summaries(
                 runs_completed_recent_count,
                 recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
-                schedules_count,
-                distinct_scheduled_jobs_pending_count,
-                distinct_scheduled_pipelines_pending_count,
                 running_pipelines_count,
             )
         else:
@@ -461,9 +447,6 @@ async def test_list_and_get_project_summaries(
         runs_completed_recent_count,
         recent_failed_runs_count + recent_aborted_runs_count,
         running_runs_count,
-        schedules_count,
-        distinct_scheduled_jobs_pending_count,
-        distinct_scheduled_pipelines_pending_count,
         running_pipelines_count,
     )
 
@@ -515,9 +498,6 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
-        0,
-        0,
-        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -533,9 +513,6 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
-        0,
-        0,
-        0,
         0,
         0,
         0,
@@ -565,9 +542,6 @@ async def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
-        0,
-        0,
-        0,
     )
 
     # Docker installation configuration
@@ -583,9 +557,6 @@ async def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
-        0,
-        0,
-        0,
         0,
         0,
         0,
@@ -1762,9 +1733,6 @@ def _assert_project_summary(
     runs_completed_recent_count,
     runs_failed_recent_count: int,
     runs_running_count: int,
-    schedules_count: int,
-    distinct_scheduled_jobs_pending_count: int,
-    distinct_scheduled_pipelines_pending_count: int,
     pipelines_running_count: int,
 ):
     assert project_summary.files_count == files_count
@@ -1773,15 +1741,6 @@ def _assert_project_summary(
     assert project_summary.runs_completed_recent_count == runs_completed_recent_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
-    assert project_summary.distinct_schedules_count == schedules_count
-    assert (
-        project_summary.distinct_scheduled_jobs_pending_count
-        == distinct_scheduled_jobs_pending_count
-    )
-    assert (
-        project_summary.distinct_scheduled_pipelines_pending_count
-        == distinct_scheduled_pipelines_pending_count
-    )
     assert project_summary.pipelines_running_count == pipelines_running_count
 
 

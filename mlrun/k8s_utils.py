@@ -142,6 +142,7 @@ def verify_label_key(key: str, allow_k8s_prefix: bool = False):
     if not key:
         raise mlrun.errors.MLRunInvalidArgumentError("label key cannot be empty")
 
+    prefix = ""
     parts = key.split("/")
     if len(parts) == 1:
         name = parts[0]
@@ -180,11 +181,7 @@ def verify_label_key(key: str, allow_k8s_prefix: bool = False):
 
     # Allow the use of Kubernetes reserved prefixes ('k8s.io/' or 'kubernetes.io/')
     # only when setting node selectors, not when adding new labels.
-    if (
-        key.startswith("k8s.io/")
-        or key.startswith("kubernetes.io/")
-        and not allow_k8s_prefix
-    ):
+    if not allow_k8s_prefix and prefix in {"k8s.io", "kubernetes.io"}:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Labels cannot start with 'k8s.io/' or 'kubernetes.io/'"
         )

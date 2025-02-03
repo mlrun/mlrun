@@ -78,6 +78,7 @@ async def grafana_list_endpoints_uids(
     endpoint_list = await services.api.crud.ModelEndpoints().list_model_endpoints(
         db_session=db_session,
         project=project,
+        latest_only=True,
     )
 
     return [model_endpoint.metadata.uid for model_endpoint in endpoint_list.endpoints]
@@ -161,6 +162,7 @@ async def grafana_list_endpoints(
         labels=labels,
         uids=uids,
         tsdb_metrics=True,
+        latest_only=True,
     )
 
     allowed_endpoints = await framework.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(

@@ -3671,7 +3671,6 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_credentials(
         self,
-        access_key: Optional[str] = None,
         stream_path: Optional[str] = None,  # Deprecated
         tsdb_connection: Optional[str] = None,  # Deprecated
         replace_creds: bool = False,
@@ -3684,11 +3683,6 @@ class MlrunProject(ModelObj):
         infrastructure functions. Important to note that you have to set the credentials before deploying any
         model monitoring or serving function.
 
-        :param access_key:                Model monitoring access key for managing user permissions.
-
-                                          * None - will be set from the system configuration.
-                                          * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
-                                            exact path.
         :param stream_path:               (Deprecated) This argument is deprecated. Use ``stream_profile_name`` instead.
                                           Path to the model monitoring stream. By default, None. Options:
 
@@ -3788,28 +3782,10 @@ class MlrunProject(ModelObj):
             self.register_datastore_profile(stream_profile)
             stream_profile_name = stream_profile.name
 
-            if mlrun.mlconf.artifact_path.startswith("v3io://"):
-                profile = mlrun.datastore.datastore_profile.DatastoreProfileV3io(
-                    name=mm_constants.DefaultProfileName.PARQUET,
-                    v3io_access_key=mlrun.get_secret_or_env("V3IO_ACCESS_KEY"),
-                )
-                self.register_datastore_profile(profile)
-            elif mlrun.mlconf.artifact_path.startswith("s3://"):
-                profile = mlrun.datastore.datastore_profile.DatastoreProfileS3(
-                    name=mm_constants.DefaultProfileName.PARQUET,
-                    access_key_id=mlrun.get_secret_or_env("AWS_ACCESS_KEY_ID"),
-                    secret_key=mlrun.get_secret_or_env("AWS_SECRET_ACCESS_KEY"),
-                    endpoint_url=mlrun.get_secret_or_env("S3_ENDPOINT_URL"),
-                    force_non_anonymous=mlrun.get_secret_or_env("S3_NON_ANONYMOUS"),
-                    profile_name=mlrun.get_secret_or_env("AWS_PROFILE"),
-                    assume_role_arn=mlrun.get_secret_or_env("MLRUN_AWS_ROLE_ARN"),
-                )
-                self.register_datastore_profile(profile)
-
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
-                "access_key": access_key,
+                "access_key": None,
                 "tsdb_profile_name": tsdb_profile_name,
                 "stream_profile_name": stream_profile_name,
             },

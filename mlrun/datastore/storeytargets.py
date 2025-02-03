@@ -48,6 +48,14 @@ class TDEngineStoreyTarget(storey.TDEngineTarget):
             datastore_profile = (
                 mlrun.datastore.datastore_profile.datastore_profile_read(path)
             )
+            if not isinstance(
+                datastore_profile,
+                mlrun.datastore.datastore_profile.TDEngineDatastoreProfile,
+            ):
+                raise ValueError(
+                    f"Unexpected datastore profile type:{datastore_profile.type}."
+                    "Only TDEngineDatastoreProfile is supported"
+                )
             path = datastore_profile.dsn()
         kwargs["url"] = path
         super().__init__(*args, **kwargs)
@@ -75,7 +83,12 @@ class StoreyTargetUtils:
 
 class ParquetStoreyTarget(storey.ParquetTarget):
     def __init__(self, *args, **kwargs):
+        alt_key_name = kwargs.pop("alternative_v3io_access_key", None)
         args, kwargs = StoreyTargetUtils.process_args_and_kwargs(args, kwargs)
+        storage_options = kwargs.get("storage_options", {})
+        if storage_options and storage_options.get("v3io_access_key") and alt_key_name:
+            if alt_key := mlrun.get_secret_or_env(alt_key_name):
+                storage_options["v3io_access_key"] = alt_key
         super().__init__(*args, **kwargs)
 
 

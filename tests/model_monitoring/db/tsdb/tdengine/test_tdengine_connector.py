@@ -42,12 +42,12 @@ def is_tdengine_defined() -> bool:
 
 @pytest.fixture
 def connector() -> Iterator[TDEngineConnector]:
-    connection = taosws.connect()
+    connection = taosws.connect(connection_string)
     drop_database(connection)
     profile = TDEngineDatastoreProfile.from_dsn(
         profile_name="mm-profile", dsn=connection_string
     )
-    conn = TDEngineConnector(project, connection_profile=profile, database=database)
+    conn = TDEngineConnector(project, profile=profile, database=database)
     try:
         yield conn
     finally:

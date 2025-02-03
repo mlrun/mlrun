@@ -243,6 +243,7 @@ class EventStreamProcessor:
         def apply_parquet_target():
             graph.add_step(
                 "mlrun.datastore.storeytargets.ParquetStoreyTarget",
+                alternative_v3io_access_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                 name="ParquetTarget",
                 after="ProcessBeforeParquet",
                 graph_shape="cylinder",

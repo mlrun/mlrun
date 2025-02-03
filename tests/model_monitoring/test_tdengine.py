@@ -497,7 +497,7 @@ class TestTDEngineConnector:
         profile = TDEngineDatastoreProfile(
             name="mm-profile", host="localhost", port=6041, user="root"
         )
-        return TDEngineConnector(project="test-project", connection_profile=profile)
+        return TDEngineConnector(project="test-project", profile=profile)
 
     def test_get_last_request(self, connector):
         df = pd.DataFrame(

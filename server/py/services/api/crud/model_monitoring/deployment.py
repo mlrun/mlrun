@@ -182,21 +182,6 @@ class MonitoringDeployment:
                 )
             )
 
-            if parquet_target.startswith("v3io://"):
-                parquet_target = parquet_target.replace(
-                    "v3io:///", f"ds://{mm_constants.DefaultProfileName.PARQUET}/"
-                )
-            elif parquet_target.startswith("s3://"):
-                parquet_target = parquet_target.replace(
-                    "s3://", f"ds://{mm_constants.DefaultProfileName.PARQUET}/"
-                )
-            elif parquet_target.startswith("ds://"):
-                pass
-            else:
-                raise mlrun.errors.MLRunValueError(
-                    f"Unsupported model monitoring parquet type: '{parquet_target}'."
-                )
-
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )

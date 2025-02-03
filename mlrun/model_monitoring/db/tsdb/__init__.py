@@ -19,6 +19,7 @@ import mlrun.common.schemas.secret
 import mlrun.datastore.datastore_profile
 import mlrun.errors
 import mlrun.model_monitoring.helpers
+from mlrun.datastore.datastore_profile import DatastoreProfile
 
 from .base import TSDBConnector
 
@@ -30,11 +31,12 @@ class ObjectTSDBFactory(enum.Enum):
     tdengine = "tdengine"
 
     def to_tsdb_connector(
-        self, project: str, connection_profile, **kwargs
+        self, project: str, profile: DatastoreProfile, **kwargs
     ) -> TSDBConnector:
         """
         Return a TSDBConnector object based on the provided enum value.
         :param project: The name of the project.
+        :param profile: Datastore profile containing DSN and credentials for TSDB connection
         :return: `TSDBConnector` object.
         """
 
@@ -53,9 +55,7 @@ class ObjectTSDBFactory(enum.Enum):
 
         from .tdengine.tdengine_connector import TDEngineConnector
 
-        return TDEngineConnector(
-            project=project, connection_profile=connection_profile, **kwargs
-        )
+        return TDEngineConnector(project=project, profile=profile, **kwargs)
 
     @classmethod
     def _missing_(cls, value: typing.Any):
@@ -91,7 +91,6 @@ def get_tsdb_connector(
     kwargs = {}
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
-        kwargs["v3io_access_key"] = profile.v3io_access_key
     elif isinstance(
         profile, mlrun.datastore.datastore_profile.TDEngineDatastoreProfile
     ):
@@ -113,5 +112,5 @@ def get_tsdb_connector(
 
     # Convert into TSDB connector object
     return tsdb_connector_factory.to_tsdb_connector(
-        project=project, connection_profile=profile, **kwargs
+        project=project, profile=profile, **kwargs
     )

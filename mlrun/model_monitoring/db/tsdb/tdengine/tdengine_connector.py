@@ -41,13 +41,13 @@ class TDEngineConnector(TSDBConnector):
     def __init__(
         self,
         project: str,
-        connection_profile: DatastoreProfile,
+        profile: DatastoreProfile,
         database: typing.Optional[str] = None,
         **kwargs,
     ):
         super().__init__(project=project)
 
-        self._tdengine_connection_profile = connection_profile
+        self._tdengine_connection_profile = profile
         self.database = (
             database
             or f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"

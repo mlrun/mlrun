@@ -159,9 +159,9 @@ attrs==25.1.0 \
     #   aiohttp
     #   jsonschema
     #   referencing
-beautifulsoup4==4.12.3 \
-    --hash=sha256:74e3d1928edc070d21748185c46e3fb33490f22f52a3addee9aee0f4f7781051 \
-    --hash=sha256:b80878c9f40111313e55da8ba20bdba06d8fa3969fc68304167741bbf9e082ed
+beautifulsoup4==4.13.1 \
+    --hash=sha256:72465267014897bb10ca749bb632bde6c2d20f3254afd5458544bd74e6c2e6d8 \
+    --hash=sha256:741c8b6903a1e4ae8ba32b9c9ae7510dab7a197fdbadcf9fcdeb0891ef5ec66a
     # via nbconvert
 bleach==6.2.0 \
     --hash=sha256:117d9c6097a7c3d22fd578fcd8d35ff1e125df6736f554da4e432fdd63f31e5e \
@@ -1099,9 +1099,9 @@ mistune==3.1.1 \
     --hash=sha256:02106ac2aa4f66e769debbfa028509a275069dcffce0dfa578edd7b991ee700a \
     --hash=sha256:e0740d635f515119f7d1feb6f9b192ee60f0cc649f80a8f944f905706a21654c
     # via nbconvert
-mlrun-pipelines-kfp-common==0.3.6 \
-    --hash=sha256:6967c9b40df43176412bd5334aff5b9dc1d32d56821a3605c55ceabde5f5deb1 \
-    --hash=sha256:f80d4ae8ffd2faa5a457ba3cd23b91cb10ebec0fa15d50319092498f9aa806c4
+mlrun-pipelines-kfp-common==0.3.7 \
+    --hash=sha256:3a15de546c6f01bfb1b3c4e871acfca6d8f58f3c2b321ac862f05d5d66db74fd \
+    --hash=sha256:81070e948039d448b28db2a40a09eaa656ab5d884a77233de2f559a27d3dc104
     # via -r requirements.txt
 mlrun-pipelines-kfp-v1-8==0.3.6 ; python_full_version < '3.11' \
     --hash=sha256:7912aa00b9acc4de5fef6273d2be5b5bf5b2589bbc01c04b5397ebafef29021c \
@@ -2323,6 +2323,7 @@ typing-extensions==4.12.2 \
     --hash=sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8
     # via
     #   anyio
+    #   beautifulsoup4
     #   ipython
     #   mistune
     #   multidict

@@ -250,11 +250,6 @@ class TSDBTarget(MonitoringStrEnum):
     TDEngine = "tdengine"
 
 
-class DefaultProfileName(StrEnum):
-    STREAM = "mm-infra-stream"
-    TSDB = "mm-infra-tsdb"
-
-
 class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"

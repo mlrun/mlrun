@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
 - [v1.6.4](#v164-2-july-2024) | [v1.6.3](#v163-4-june-2024)  | [v1.6.2](#v162-29-march-2024) | [v1.6.1](#v161-29-february-2024) | [v1.6.0](#v160-22-february-2024)
 - [v1.5.2](#v152-30-november-2023) | [v1.5.1](#v151-2-november-2023) | [v1.5.0](#v150-23-october-2023)
@@ -13,9 +14,9 @@
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
 
-## v1.8.0(date)
+## v1.8.0
 
-### Model monitoring??????
+### Model monitoring
 ```{admonition} Note
 {ref}`model-monitoring-overview` is no longer in TechPreview.
 ```
@@ -30,6 +31,7 @@
 |-------|----------------------------------------------------------------------------|
 |ML-7870|Alerts are now enabled by default.|
 |ML-8472|You can now list the alert activations and filter the list by various parameters using the SDK. See {ref}`alert_activations`.|
+||The |
 
 ### Infrastructure
 | ID    |Description                                                                 |
@@ -40,8 +42,8 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-8276|You can now retry a workflow. The retry maintains the same experiment ID and just re-runs it, without changing anything in the workflow spec or code. The retry option is in enable in the 3-dots menu for the pipeline.|
-|ML-8346|The cross-project view now shows the number of alert activations within the project. From there you can drill down per endpoint, jobs, and application.<p align="center"><img src="../_static/images/alerts-dashboard.png.png" alt="alerts-summary" /></p><br>| 
-|ML-8352|Queries are now implemented with pagination, increasing responsiveness and reducing resource requirements .|
+|ML-8346|The cross-project view now shows the number of alert activations within the project. From there you can drill down per endpoint, jobs, and application.<p align="center"><img src="../_static/images/alerts-dashboard.png" alt="alerts-summary" /></p><br>| 
+|ML-8352|Queries are now implemented with pagination, increasing responsiveness and reducing resource requirements.|
 
 
 

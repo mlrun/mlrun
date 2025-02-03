@@ -26,6 +26,7 @@ __all__ = [
     "VolumeMount",
 ]
 
+import collections
 from os import environ, path
 from typing import Optional
 
@@ -238,7 +239,7 @@ def order_env_vars(env_vars: dict[str, str]) -> dict[str, str]:
     """
     ordered_keys = mlconf.get_ordered_keys()
 
-    ordered_env_vars: dict[str, str] = {}
+    ordered_env_vars = collections.OrderedDict()
 
     # First, add the ordered keys to the dictionary
     for key in ordered_keys:

@@ -313,7 +313,7 @@ def _get_v3io_output_stream(
     return mlrun.platforms.iguazio.OutputStream(
         stream_path,
         endpoint=endpoint,
-        access_key=v3io_profile.v3io_access_key or v3io_access_key,
+        access_key=v3io_access_key or v3io_profile.v3io_access_key,
         mock=mock,
     )
 

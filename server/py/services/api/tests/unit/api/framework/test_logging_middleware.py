@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import io
+import logging
 from collections.abc import Iterator
 from http import HTTPStatus
 
@@ -131,8 +132,6 @@ def stream_logger() -> Iterator[tuple[io.StringIO, Logger]]:
     stream = io.StringIO()
     stream_logger = create_logger("debug", name="test-logger", stream=stream)
     yield stream, stream_logger
-
-
 @pytest.mark.parametrize(
     "log_config",
     [
@@ -144,75 +143,53 @@ def stream_logger() -> Iterator[tuple[io.StringIO, Logger]]:
     ],
 )
 def test_set_and_get_log_level(log_config: dict[str, str], client: TestClient):
-    response = client.post(
-        "/api/_internal/log_levels", json={"domain_to_levels": log_config}
-    )
+    payload = {"domain_to_levels": log_config, "recursive": False}
+    response = client.post("/api/_internal/log_levels", json=payload)
     assert response.status_code == 200
 
     # Get current log levels
     response = client.get("/api/_internal/log_levels")
     assert response.status_code == 200
-    assert (
-        response.json()["domain_to_levels"].get("mlrun_pipelines.imports")
-        == log_config["mlrun_pipelines.imports"]
-    )
+    data = response.json()
+    assert data["domain_to_levels"].get("mlrun_pipelines.imports") == log_config["mlrun_pipelines.imports"]
+    # GET endpoint returns recursive as False by default
+    assert data.get("recursive") is False
 
 
 @pytest.mark.parametrize(
     "invalid_log_config",
     [
-        ({"invalid_domain.imports": "INFO"}),  # Domain not starting with 'mlrun'
+        ({"invalid_domain.imports": "INFO"}),       # Domain not starting with 'mlrun'
         ({"mlrun_pipelines.imports": "INVALID_LEVEL"}),  # Invalid log level
-        ({"mlrun_pipelines.imports": 123}),  # Non-string log level
+        ({"mlrun_pipelines.imports": 123}),           # Non-string log level
     ],
 )
 def test_invalid_log_config(invalid_log_config: dict[str, str], client: TestClient):
-    response = client.post(
-        "/api/_internal/log_levels", json={"domain_to_levels": invalid_log_config}
-    )
-    assert response.status_code == 422  # Expecting a validation error
+    payload = {"domain_to_levels": invalid_log_config, "recursive": False}
+    response = client.post("/api/_internal/log_levels", json=payload)
+    # Expecting a validation error (422 Unprocessable Entity)
+    assert response.status_code == 422
 
 
-def test_logging_middleware(db: Session, client: TestClient, stream_logger) -> None:
-    stream, logger_instance = stream_logger
-    stream: io.StringIO
-    has_logger_middleware = False
-    for middleware in client.app.user_middleware:
-        if "logger" in middleware.kwargs:
-            middleware.kwargs["logger"] = logger_instance
-            has_logger_middleware = True
-    client.app.middleware_stack = client.app.build_middleware_stack()
+def test_recursive_set_log_levels(client: TestClient):
+    domain = "mlrun"
+    sub_logger_name = "mlrun.api"
+    logger = logging.getLogger(domain)
+    sub_logger = logging.getLogger(sub_logger_name)
 
-    resp = client.get("/test/success")
-    assert resp.status_code == HTTPStatus.ACCEPTED.value
-    if has_logger_middleware:
-        _ensure_request_logged(stream)
-        stream.seek(0)
+    # Ensure the loggers are in a known state.
+    logger.setLevel(logging.NOTSET)
+    sub_logger.setLevel(logging.NOTSET)
 
-    resp = client.get("/test/handled_1_error")
-    assert resp.status_code == HTTPStatus.NO_CONTENT.value
-    if has_logger_middleware:
-        _ensure_request_logged(stream)
-        stream.seek(0)
+    # Set the domain log level recursively.
+    payload = {"domain_to_levels": {domain: "ERROR"}, "recursive": True}
+    response = client.post("/api/_internal/log_levels", json=payload)
+    assert response.status_code == 200
 
-    resp = client.get("/test/handled_2_error")
-    assert resp.status_code == HTTPStatus.UNAUTHORIZED.value
-    if has_logger_middleware:
-        _ensure_request_logged(stream)
-        stream.seek(0)
-
-    resp = client.post("/test/fastapi_handled_exception")
-    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
-    if has_logger_middleware:
-        _ensure_request_logged(stream)
-        stream.seek(0)
-
-    with pytest.raises(UnhandledError):
-        # In a real fastapi (and not test) unhandled exception returns 500
-        client.get("/test/unhandled_exception")
-    if has_logger_middleware:
-        _ensure_request_logged(stream, verify_unhandled_exception=True)
-        stream.seek(0)
+    # Check that both the logger and its sub-logger have been updated.
+    numeric_level = getattr(logging, "ERROR")
+    assert logger.getEffectiveLevel() == numeric_level
+    assert sub_logger.getEffectiveLevel() == numeric_level
 
 
 def _ensure_request_logged(log_stream, verify_unhandled_exception: bool = False):

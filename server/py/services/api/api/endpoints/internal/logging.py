@@ -25,8 +25,16 @@ router = fastapi.APIRouter()
 async def set_log_levels(log_config: LogLevelMapping):
     for domain, level in log_config.domain_to_levels.items():
         numeric_level = getattr(logging, level.upper())
-        logger_instance = logging.getLogger(domain)
-        logger_instance.setLevel(numeric_level)
+        if log_config.recursive:
+            for logger_name, logger_obj in logging.root.manager.loggerDict.items():
+                if (
+                    isinstance(logger_obj, logging.Logger)
+                    and (logger_name == domain or logger_name.startswith(f"{domain}."))
+                ):
+                    logger_obj.setLevel(numeric_level)
+        else:
+            logger_instance = logging.getLogger(domain)
+            logger_instance.setLevel(numeric_level)
     return {"message": "Log levels updated successfully"}
 
 
@@ -41,4 +49,4 @@ async def get_log_levels():
             if isinstance(logger_obj, logging.Logger):
                 level = logging.getLevelName(logger_obj.getEffectiveLevel())
                 domain_to_levels[name] = level
-    return {"domain_to_levels": domain_to_levels}
+    return {"domain_to_levels": domain_to_levels, "recursive": False}

@@ -28,6 +28,10 @@ class LogLevelMapping(BaseModel):
         example={"mlrun.api": "INFO"},
         description="Dictionary mapping log domains to log levels. Domains must start with 'mlrun'.",
     )
+    recursive: bool = Field(
+        False,
+        description="Whether to set the log level for all sub-loggers of the specified domains.",
+    )
 
     @validator("domain_to_levels")
     def validate_levels(cls, values: dict[str, LogLevel]) -> dict[str, LogLevel]:  # noqa: N805

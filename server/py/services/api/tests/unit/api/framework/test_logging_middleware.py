@@ -22,7 +22,6 @@ import pydantic.v1
 import pytest
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 from mlrun.utils import logger
 from mlrun.utils.logger import Logger, create_logger
@@ -132,6 +131,8 @@ def stream_logger() -> Iterator[tuple[io.StringIO, Logger]]:
     stream = io.StringIO()
     stream_logger = create_logger("debug", name="test-logger", stream=stream)
     yield stream, stream_logger
+
+
 @pytest.mark.parametrize(
     "log_config",
     [
@@ -151,7 +152,10 @@ def test_set_and_get_log_level(log_config: dict[str, str], client: TestClient):
     response = client.get("/api/_internal/log_levels")
     assert response.status_code == 200
     data = response.json()
-    assert data["domain_to_levels"].get("mlrun_pipelines.imports") == log_config["mlrun_pipelines.imports"]
+    assert (
+        data["domain_to_levels"].get("mlrun_pipelines.imports")
+        == log_config["mlrun_pipelines.imports"]
+    )
     # GET endpoint returns recursive as False by default
     assert data.get("recursive") is False
 
@@ -159,9 +163,9 @@ def test_set_and_get_log_level(log_config: dict[str, str], client: TestClient):
 @pytest.mark.parametrize(
     "invalid_log_config",
     [
-        ({"invalid_domain.imports": "INFO"}),       # Domain not starting with 'mlrun'
+        ({"invalid_domain.imports": "INFO"}),  # Domain not starting with 'mlrun'
         ({"mlrun_pipelines.imports": "INVALID_LEVEL"}),  # Invalid log level
-        ({"mlrun_pipelines.imports": 123}),           # Non-string log level
+        ({"mlrun_pipelines.imports": 123}),  # Non-string log level
     ],
 )
 def test_invalid_log_config(invalid_log_config: dict[str, str], client: TestClient):

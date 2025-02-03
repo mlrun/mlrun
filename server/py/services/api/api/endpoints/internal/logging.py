@@ -27,9 +27,8 @@ async def set_log_levels(log_config: LogLevelMapping):
         numeric_level = getattr(logging, level.upper())
         if log_config.recursive:
             for logger_name, logger_obj in logging.root.manager.loggerDict.items():
-                if (
-                    isinstance(logger_obj, logging.Logger)
-                    and (logger_name == domain or logger_name.startswith(f"{domain}."))
+                if isinstance(logger_obj, logging.Logger) and (
+                    logger_name == domain or logger_name.startswith(f"{domain}.")
                 ):
                     logger_obj.setLevel(numeric_level)
         else:

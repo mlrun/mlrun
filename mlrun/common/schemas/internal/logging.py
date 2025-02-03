@@ -16,7 +16,7 @@
 import logging
 from enum import Enum
 
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, Field, validator
 
 VALID_LOG_LEVELS = set(logging._nameToLevel.keys())
 LogLevel = Enum("LogLevel", {level: level for level in VALID_LOG_LEVELS}, type=str)
@@ -26,8 +26,9 @@ class LogLevelMapping(BaseModel):
     domain_to_levels: dict[str, LogLevel] = Field(
         ...,
         example={"mlrun.api": "INFO"},
-        description="Dictionary mapping log domains to log levels. Domains must start with 'mlrun'."
+        description="Dictionary mapping log domains to log levels. Domains must start with 'mlrun'.",
     )
+
     @validator("domain_to_levels")
     def validate_levels(cls, values: dict[str, LogLevel]) -> dict[str, LogLevel]:  # noqa: N805
         for domain, level in values.items():

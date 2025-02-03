@@ -652,6 +652,14 @@ class TaskStep(BaseStep):
             if isinstance(self.endpoint_type, schemas.EndpointType)
             else self.endpoint_type
         )
+        self.model_endpoint_creation_strategy = (
+            self.model_endpoint_creation_strategy.value
+            if isinstance(
+                self.model_endpoint_creation_strategy,
+                schemas.ModelEndpointCreationStrategy,
+            )
+            else self.model_endpoint_creation_strategy
+        )
         return super().to_dict(fields, exclude, strip)
 
 

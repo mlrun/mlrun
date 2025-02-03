@@ -14,7 +14,6 @@
 #
 import asyncio
 from http import HTTPStatus
-from typing import Union
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -36,9 +35,6 @@ NAME_TO_SEARCH_FUNCTION_DICTIONARY = {
 }
 NAME_TO_QUERY_FUNCTION_DICTIONARY = {
     "list_endpoints": services.api.crud.model_monitoring.grafana.grafana_list_endpoints,
-    "individual_feature_analysis": services.api.crud.model_monitoring.grafana.grafana_individual_feature_analysis,
-    "overall_feature_analysis": services.api.crud.model_monitoring.grafana.grafana_overall_feature_analysis,
-    "incoming_features": services.api.crud.model_monitoring.grafana.grafana_incoming_features,
 }
 
 SUPPORTED_QUERY_FUNCTIONS = set(NAME_TO_QUERY_FUNCTION_DICTIONARY.keys())
@@ -101,23 +97,13 @@ async def grafana_proxy_model_endpoints_search(
 
 @router.post(
     "/query",
-    response_model=list[
-        Union[
-            grafana_schemas.GrafanaTable,
-            grafana_schemas.GrafanaTimeSeriesTarget,
-        ]
-    ],
+    response_model=list[grafana_schemas.GrafanaTable,],
 )
 async def grafana_proxy_model_endpoints_query(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-) -> list[
-    Union[
-        grafana_schemas.GrafanaTable,
-        grafana_schemas.GrafanaTimeSeriesTarget,
-    ]
-]:
+) -> list[grafana_schemas.GrafanaTable,]:
     """
     Query route for model-endpoints grafana proxy API, used for creating an interface between grafana queries and
     model-endpoints logic.
@@ -129,7 +115,7 @@ async def grafana_proxy_model_endpoints_query(
     :param auth_info:  The auth info of the request.
     :param db_session: A session that manages the current dialog with the database.
 
-    :return: Either a `GrafanaTable` or a `GrafanaTimeSeriesTarget` object, depending on the query.
+    :return: List of `GrafanaTable` objects.
     """
 
     body = await request.json()
@@ -151,7 +137,5 @@ async def grafana_proxy_model_endpoints_query(
     function = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint]
 
     if asyncio.iscoroutinefunction(function):
-        return await function(body, query_parameters, auth_info, db_session)
-    return await run_in_threadpool(
-        function, body, query_parameters, auth_info, db_session
-    )
+        return await function(query_parameters, auth_info, db_session)
+    return await run_in_threadpool(function, query_parameters, auth_info, db_session)

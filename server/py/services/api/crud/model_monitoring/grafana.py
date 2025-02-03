@@ -15,18 +15,13 @@
 
 from typing import Any, Optional
 
-import numpy as np
-import pandas as pd
-from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.grafana as grafana_schemas
-from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils import config, logger
-from mlrun.utils.v3io_clients import get_frames_client
+from mlrun.utils import logger
 
 import framework.utils.auth.verifier
 import services.api.crud
@@ -130,7 +125,6 @@ async def grafana_list_metrics(
 
 
 async def grafana_list_endpoints(
-    body: dict[str, Any],
     query_parameters: dict[str, str],
     auth_info: mlrun.common.schemas.AuthInfo,
     db_session: Session,
@@ -202,190 +196,6 @@ async def grafana_list_endpoints(
         table.add_row(*row)
 
     return [table]
-
-
-async def grafana_individual_feature_analysis(
-    body: dict[str, Any],
-    query_parameters: dict[str, str],
-    auth_info: mlrun.common.schemas.AuthInfo,
-):
-    endpoint_id = query_parameters.get("endpoint_id")
-    project = query_parameters.get("project")
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-            project,
-            endpoint_id,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-    )
-
-    endpoint = await run_in_threadpool(
-        services.api.crud.ModelEndpoints().get_model_endpoint,
-        project=project,
-        endpoint_id=endpoint_id,
-        feature_analysis=True,
-    )
-
-    # Load JSON data from KV, make sure not to fail if a field is missing
-    feature_stats = endpoint.status.feature_stats or {}
-    current_stats = endpoint.status.current_stats or {}
-    drift_measures = endpoint.status.drift_measures or {}
-
-    table = grafana_schemas.GrafanaTable(
-        columns=[
-            grafana_schemas.GrafanaColumn(text="feature_name", type="string"),
-            grafana_schemas.GrafanaColumn(text="actual_min", type="number"),
-            grafana_schemas.GrafanaColumn(text="actual_mean", type="number"),
-            grafana_schemas.GrafanaColumn(text="actual_max", type="number"),
-            grafana_schemas.GrafanaColumn(text="expected_min", type="number"),
-            grafana_schemas.GrafanaColumn(text="expected_mean", type="number"),
-            grafana_schemas.GrafanaColumn(text="expected_max", type="number"),
-            grafana_schemas.GrafanaColumn(text="tvd", type="number"),
-            grafana_schemas.GrafanaColumn(text="hellinger", type="number"),
-            grafana_schemas.GrafanaColumn(text="kld", type="number"),
-        ]
-    )
-
-    for feature, base_stat in feature_stats.items():
-        current_stat = current_stats.get(feature, {})
-        drift_measure = drift_measures.get(feature, {})
-
-        table.add_row(
-            feature,
-            current_stat.get("min"),
-            current_stat.get("mean"),
-            current_stat.get("max"),
-            base_stat.get("min"),
-            base_stat.get("mean"),
-            base_stat.get("max"),
-            drift_measure.get("tvd"),
-            drift_measure.get("hellinger"),
-            drift_measure.get("kld"),
-        )
-
-    return [table]
-
-
-async def grafana_overall_feature_analysis(
-    body: dict[str, Any],
-    query_parameters: dict[str, str],
-    auth_info: mlrun.common.schemas.AuthInfo,
-):
-    endpoint_id = query_parameters.get("endpoint_id")
-    project = query_parameters.get("project")
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-            project,
-            endpoint_id,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-    )
-    endpoint = await run_in_threadpool(
-        services.api.crud.ModelEndpoints().get_model_endpoint,
-        project=project,
-        endpoint_id=endpoint_id,
-        feature_analysis=True,
-    )
-
-    table = grafana_schemas.GrafanaTable(
-        columns=[
-            grafana_schemas.GrafanaNumberColumn(text="tvd_sum"),
-            grafana_schemas.GrafanaNumberColumn(text="tvd_mean"),
-            grafana_schemas.GrafanaNumberColumn(text="hellinger_sum"),
-            grafana_schemas.GrafanaNumberColumn(text="hellinger_mean"),
-            grafana_schemas.GrafanaNumberColumn(text="kld_sum"),
-            grafana_schemas.GrafanaNumberColumn(text="kld_mean"),
-        ]
-    )
-
-    if endpoint.status.drift_measures:
-        table.add_row(
-            endpoint.status.drift_measures.get("tvd_sum"),
-            endpoint.status.drift_measures.get("tvd_mean"),
-            endpoint.status.drift_measures.get("hellinger_sum"),
-            endpoint.status.drift_measures.get("hellinger_mean"),
-            endpoint.status.drift_measures.get("kld_sum"),
-            endpoint.status.drift_measures.get("kld_mean"),
-        )
-
-    return [table]
-
-
-async def grafana_incoming_features(
-    body: dict[str, Any],
-    query_parameters: dict[str, str],
-    auth_info: mlrun.common.schemas.AuthInfo,
-):
-    endpoint_id = query_parameters.get("endpoint_id")
-    project = query_parameters.get("project")
-    start = body.get("rangeRaw", {}).get("from", "now-1h")
-    end = body.get("rangeRaw", {}).get("to", "now")
-
-    await (
-        framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-            project,
-            endpoint_id,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-    )
-
-    endpoint = await run_in_threadpool(
-        services.api.crud.ModelEndpoints().get_model_endpoint,
-        project=project,
-        endpoint_id=endpoint_id,
-    )
-
-    time_series = []
-
-    feature_names = endpoint.spec.feature_names
-
-    if not feature_names:
-        logger.warn(
-            "'feature_names' is either missing or not initialized in endpoint record",
-            endpoint_id=endpoint.metadata.uid,
-        )
-        return time_series
-
-    path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=project, kind=mlrun.common.schemas.ModelMonitoringStoreKinds.EVENTS
-    )
-    _, container, path = parse_model_endpoint_store_prefix(path)
-
-    client = get_frames_client(
-        token=auth_info.data_session,
-        address=config.v3io_framesd,
-        container=container,
-    )
-
-    data: pd.DataFrame = await run_in_threadpool(
-        client.read,
-        backend="tsdb",
-        table=path,
-        columns=feature_names,
-        filter=f"endpoint_id=='{endpoint_id}'",
-        start=start,
-        end=end,
-    )
-
-    data.drop(["endpoint_id"], axis=1, inplace=True, errors="ignore")
-    data.index = data.index.astype(np.int64) // 10**6
-
-    for feature, indexed_values in data.to_dict().items():
-        target = grafana_schemas.GrafanaTimeSeriesTarget(target=feature)
-        for index, value in indexed_values.items():
-            data_point = grafana_schemas.GrafanaDataPoint(
-                value=float(value), timestamp=index
-            )
-            target.add_data_point(data_point)
-        time_series.append(target)
-
-    return time_series
 
 
 def parse_query_parameters(request_body: dict[str, Any]) -> dict[str, str]:

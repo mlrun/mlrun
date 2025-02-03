@@ -51,7 +51,8 @@ class GrafanaModelEndpointsTable(GrafanaTable):
         columns = self._init_columns()
         super().__init__(columns=columns)
 
-    def _init_columns(self):
+    @staticmethod
+    def _init_columns():
         return [
             GrafanaColumn(text="endpoint_id", type=GrafanaColumnType.STRING),
             GrafanaColumn(text="endpoint_name", type=GrafanaColumnType.STRING),
@@ -62,16 +63,3 @@ class GrafanaModelEndpointsTable(GrafanaTable):
             GrafanaColumn(text="drift_status", type=GrafanaColumnType.NUMBER),
             GrafanaColumn(text="sampling_percentage", type=GrafanaColumnType.NUMBER),
         ]
-
-
-class GrafanaDataPoint(BaseModel):
-    value: float
-    timestamp: int  # Unix timestamp in milliseconds
-
-
-class GrafanaTimeSeriesTarget(BaseModel):
-    target: str
-    datapoints: list[tuple[float, int]] = []
-
-    def add_data_point(self, data_point: GrafanaDataPoint):
-        self.datapoints.append((data_point.value, data_point.timestamp))

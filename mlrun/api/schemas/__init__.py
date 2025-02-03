@@ -193,9 +193,7 @@ FeatureValues = DeprecationHelper(mlrun.common.schemas.FeatureValues)
 GrafanaColumn = DeprecationHelper(
     mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn
 )
-GrafanaDataPoint = DeprecationHelper(
-    mlrun.common.schemas.model_monitoring.grafana.GrafanaDataPoint
-)
+
 GrafanaNumberColumn = DeprecationHelper(
     mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn
 )
@@ -204,9 +202,6 @@ GrafanaStringColumn = DeprecationHelper(
 )
 GrafanaTable = DeprecationHelper(
     mlrun.common.schemas.model_monitoring.grafana.GrafanaTable
-)
-GrafanaTimeSeriesTarget = DeprecationHelper(
-    mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget
 )
 ModelEndpoint = DeprecationHelper(mlrun.common.schemas.ModelEndpoint)
 ModelEndpointList = DeprecationHelper(mlrun.common.schemas.ModelEndpointList)

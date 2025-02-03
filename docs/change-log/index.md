@@ -12,6 +12,39 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
+
+## v1.8.0(date)
+
+### Model monitoring??????
+```{admonition} Note
+{ref}`model-monitoring-overview` is no longer in TechPreview.
+```
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7731|Model monitoring can now be run on a larger scale, using MLRun's additional replicas/workers. To benefit from the scale-out: After upgrading to v1.8.0, in projects that already have model monitoring enabled, run `disable model-monitoring` followed by `enable_model_monitoring`.|
+|    |The model monitoring APIs changed. And new APIs
+
+### Alerts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7870|Alerts are now enabled by default.|
+|ML-8472|You can now list the alert activations and filter the list by various parameters using the SDK. See {ref}`alert_activations`.|
+
+### Infrastructure
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-8314|KFP is no longer part of the MLRun images, except for the new `mlrun/mlrun-kfp`. This gives you greater flexibility for installing packages whose dependencies conflict with KFP 1.8. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images).|
+
+### UI
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-8276|You can now retry a workflow. The retry maintains the same experiment ID and just re-runs it, without changing anything in the workflow spec or code. The retry option is in enable in the 3-dots menu for the pipeline.|
+|ML-8346|The cross-project view now shows the number of alert activations within the project. From there you can drill down per endpoint, jobs, and application.<p align="center"><img src="../_static/images/alerts-dashboard.png.png" alt="alerts-summary" /></p><br>| 
+|ML-8352|Queries are now implemented with pagination, increasing responsiveness and reducing resource requirements .|
+
+
+
 ## v1.7.2 (16 January 2025)
 
 ### Closed issues
@@ -1152,6 +1185,16 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.10.0      |v1.8.0 |mlrun.platforms.VolumeMount                                                  |mlrun.runtimes.mounts.VolumeMount|
+| v1.10.0      |v1.8.0 |mlrun.platforms.auto_mount                                                  |.mounts.auto_mount|
+| v1.10.0      |v1.8.0 |mlrun.platforms.mount_configmap                                                  |.mounts.mount_configmap|
+| v1.10.0      |v1.8.0 |mlrun.platforms.mount_hostpath                                                  |.mounts.mount_hostpath|
+| v1.10.0      |v1.8.0 |mlrun.platforms.mount_pvc                                                  |.mounts.mount_pvc|
+| v1.10.0      |v1.8.0 |mlrun.platforms.mount_s3                                                  |.mounts.mount_s3|
+| v1.10.0      |v1.8.0 |mlrun.platforms.mount_secret                                                  |.mounts.mount_secret|
+| v1.10.0      |v1.8.0 |mlrun.platforms.mount_v3io                                                  |.mounts.mount_v3io|
+| v1.10.0      |v1.8.0 |mlrun.platforms.set_env_variables                                                  |.mounts.set_env_variables|
+| v1.10.0      |v1.8.0 |mlrun.platforms.v3io_cred                                                  |.mounts.v3io_cred instead"|
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
 | v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
@@ -1166,18 +1209,19 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.9.0       |v1.7.0    |Query parameter: DELETE `/projects/{project}/artifacts/{key:path}?uid="some-uid"`    |`object-uid`                                    |
 | v1.9.0       |v1.7.0    |Query parameter: GET `/projects/{project}/artifacts/{key:path}?uid="some-uid"`       |`object-uid`                                    |
 | v1.9.0       |v1.6.3    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
-| v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
-| v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
-| v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
-| v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
-| v1.8.0       |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
-| v1.8.0       |v1.6.0    |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
-| v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
+
 
 ### Removed APIs
 
-| Version|API                                                                                                                                                                                                                                                                                                 |Use instead                                                                  |
+| Version|API                                                                                                   |Replaced by                        |                                                                                                                                                                                                                                                                                              |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| v1.8.0 |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
+| v1.8.0 |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
+| v1.8.0 |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
+| v1.8.0 |Feature store: `preview`                                                             |`FeatureSet.preview()`|
+| v1.8.0 |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
+| v1.8.0 |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
+| v1.8.0 |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
 | v1.7.0 |Function: `mlrun.utils.helpers.parse_versioned_object_uri`                                  |`mlrun.common.helpers.parse_versioned_object_uri`         |
 | v1.7.0 |`func_info`                                                                       |`ast_func_info`                                                |
 | v1.7.0 |Class: `MpiRuntimeV1Alpha1`                                                         |`MpiRuntimeV1`          |
@@ -1196,7 +1240,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.6.0 |`new_pipe_meta`                                                                      |`new_pipe_metadata`                                                                                                                                      |
 | v1.6.0 |ttl param from pipeline                                                            |`cleanup_ttl`                                                                                                                                              |
 | v1.6.0 |objects methods from artifacts list                                                |`to_objects`                
-| v1.5.0 |user_project- and project-related parameters of `set_environment`. (Global-related parameters are not deprecated.)                                                                                                                                                                                  |The same parameters in project-related APIs, such as `get_or_create_project` |
+| v1.5.0 |user_project- and project-related parameters of `set_environment`. (Global-related parameters are not deprecated.) |The same parameters in project-related APIs, such as `get_or_create_project` |
 | v1.5.0 |`KubeResource.gpus`                                                                                                                                                                                                                                                                                 |`with_limits`                                                                |
 | v1.5.0 |Dask `gpus`                                                                                                                                                                                                                                                                                         |`with_scheduler_limits` / `with_worker_limits`                               |
 | v1.5.0 |`ExecutorTypes`                                                                                                                                                                                                                                                                                     |`ParallelRunnerModes`                                                        |

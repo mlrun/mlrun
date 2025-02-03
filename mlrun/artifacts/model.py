@@ -431,6 +431,9 @@ def get_model(model_dir, suffix=""):
 
     if hasattr(model_dir, "artifact_url"):
         model_dir = model_dir.artifact_url
+        print("has attributes artifact url : {}".format(model_dir))
+    else:
+        print("get model model dir : {}".format(model_dir))
 
     alternative_suffix = next(
         (

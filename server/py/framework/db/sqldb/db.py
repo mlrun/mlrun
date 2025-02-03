@@ -1515,7 +1515,7 @@ class SQLDB(DBInterface):
         query = session.query(ArtifactV2).with_entities(
             ArtifactV2.id,
             ArtifactV2.Tag.name,
-        )
+        ).with_hint(ArtifactV2, "USE INDEX idx_project_bi_updated")
 
         if project:
             query = query.filter(ArtifactV2.project == project)

@@ -26,6 +26,7 @@ from sklearn.datasets import load_iris
 
 import mlrun
 from mlrun.runtimes import nuclio_init_hook
+from mlrun.runtimes.funcdoc import py_eval
 from mlrun.runtimes.nuclio.serving import serving_subkind
 from mlrun.serving import V2ModelServer
 from mlrun.serving.server import (
@@ -264,8 +265,9 @@ def test_ensemble_get_models():
     assert fn_dict.get("spec", {}).get("graph", {}).get("name", "") == "VotingEnsemble"
 
 
-def test_ensemble_get_metadata_of_models():
+def test_ensemble_get_metadata_of_models(rundb_mock):
     fn = mlrun.new_function("tests", kind="serving")
+    fn.set_tracking("dummy://")  # track using the _DummyStream
     graph = fn.set_topology(
         "router",
         mlrun.serving.routers.VotingEnsemble(
@@ -273,23 +275,44 @@ def test_ensemble_get_metadata_of_models():
         ),
     )
     graph.routes = generate_test_routes("EnsembleModelTestingClass")
+
     server = fn.to_mock_server()
     resp = server.test("/v2/models/m1")
-    expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
+    expected = {
+        "name": "m1",
+        "model_endpoint_uid": "m1_uid",
+        "inputs": [],
+        "outputs": [],
+    }
     assert resp == expected, f"wrong get models response {resp}"
 
     resp = server.test("/v2/models/m3/versions/v2")
-    expected = {"name": "m3", "version": "v2", "inputs": [], "outputs": []}
+    expected = {
+        "name": "m3",
+        "model_endpoint_uid": "m3_uid",
+        "inputs": [],
+        "outputs": [],
+    }
     assert resp == expected, f"wrong get models response {resp}"
 
     resp = server.test("/v2/models/VotingEnsemble")
     print(resp)
-    expected = {"name": "VotingEnsemble", "version": "v1", "inputs": [], "outputs": []}
+    expected = {
+        "name": "VotingEnsemble",
+        "model_endpoint_uid": "VotingEnsemble_uid",
+        "inputs": [],
+        "outputs": [],
+    }
     assert resp == expected, f"wrong get models response {resp}"
 
     mlrun.deploy_function(fn, mock=True)
     resp = fn.invoke("/v2/models/m1")
-    expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
+    expected = {
+        "name": "m1",
+        "model_endpoint_uid": "m1_uid",
+        "inputs": [],
+        "outputs": [],
+    }
     assert resp == expected, f"wrong get models response {resp}"
 
 
@@ -526,6 +549,7 @@ def test_v2_get_modelmeta(rundb_mock):
     fn.add_model("m1", model_uri, "ModelTestingClass")
     fn.add_model("m2", model_uri, "ModelTestingClass")
     fn.add_model("m3:v2", model_uri, "ModelTestingClass")
+    fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
 
@@ -533,7 +557,7 @@ def test_v2_get_modelmeta(rundb_mock):
     resp = server.test("/v2/models/m2/", method="GET")
     logger.info(f"resp: {resp}")
     assert (
-        resp["name"] == "m2" and resp["version"] == ""
+        resp["name"] == "m2" and resp["model_endpoint_uid"] == "m2_uid"
     ), f"wrong get model meta response {resp}"
     assert len(resp["inputs"]) == 4 and len(resp["outputs"]) == 1
     assert resp["inputs"][0]["value_type"] == "float"
@@ -541,7 +565,7 @@ def test_v2_get_modelmeta(rundb_mock):
     # test versioned model m3 metadata + get method not explicit
     resp = server.test("/v2/models/m3/versions/v2")
     assert (
-        resp["name"] == "m3" and resp["version"] == "v2"
+        resp["name"] == "m3" and resp["model_endpoint_uid"] == "m3_uid"
     ), f"wrong get model meta response {resp}"
 
     # test raise if model doesnt exist
@@ -842,3 +866,13 @@ def test_add_route_exceeds_max_models():
     assert (
         len(server.graph.routes) == max_models
     ), f"expected to have {max_models} models"
+
+
+def test_serialize():
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.set_topology("router")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+
+    # simulate mlrun/__main__.py
+    eval_fn_result = py_eval(str(fn.to_dict()))
+    mlrun.utils.helpers.as_dict(eval_fn_result)

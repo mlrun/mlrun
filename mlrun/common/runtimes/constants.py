@@ -229,6 +229,8 @@ class RunStates:
             mlrun_pipelines.common.models.RunStatuses.runtime_state_unspecified: RunStates.unknown,
             mlrun_pipelines.common.models.RunStatuses.error: RunStates.error,
             mlrun_pipelines.common.models.RunStatuses.paused: RunStates.unknown,
+            # TODO: Uncomment once pipelines-adapters 0.3.7 is released
+            # mlrun_pipelines.common.models.RunStatuses.unknown: RunStates.unknown,
         }[pipeline_run_status]
 
 

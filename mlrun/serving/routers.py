@@ -596,7 +596,6 @@ class VotingEnsemble(ParallelRun):
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
         self.weights = weights
-        self.version = kwargs.get("version", "v1")
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
         self.format_response_with_col_name_flag = format_response_with_col_name_flag
@@ -927,14 +926,14 @@ class VotingEnsemble(ParallelRun):
                     "model_name": self.name,
                     "outputs": votes,
                 }
-                if self.version:
-                    response_body["model_version"] = self.version
+                if self.model_endpoint_uid:
+                    response_body["model_endpoint_uid"] = self.model_endpoint_uid
                 response.body = response_body
             elif name == self.name and event.method == "GET" and not subpath:
                 response = copy.copy(event)
                 response_body = {
                     "name": self.name,
-                    "version": self.version or "",
+                    "model_endpoint_uid": self.model_endpoint_uid or "",
                     "inputs": [],
                     "outputs": [],
                 }

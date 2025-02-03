@@ -51,8 +51,6 @@ from tests.system.base import TestMLRunSystem
 
 from . import get_tsdb_datastore_profile_from_env
 
-_MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_monitoring"
-
 
 def mock_random_endpoint(
     project_name: str,
@@ -1261,12 +1259,15 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         feature_set = self._get_monitoring_feature_set()
         features = feature_set.spec.features
         feature_names = [feat.name for feat in features]
-        assert feature_names == [
+        feature_names.sort()
+        columns_feature_names = [
             mlrun.feature_store.api.norm_column_name(feat)
             for feat in self.columns
             + [self.y_name]
             + mm_constants.FeatureSetFeatures.list()
         ]
+        columns_feature_names.sort()
+        assert feature_names == columns_feature_names
 
         df = pd.read_parquet(
             f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet"

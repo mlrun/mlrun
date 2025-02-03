@@ -652,6 +652,14 @@ class TaskStep(BaseStep):
             if isinstance(self.endpoint_type, schemas.EndpointType)
             else self.endpoint_type
         )
+        self.model_endpoint_creation_strategy = (
+            self.model_endpoint_creation_strategy.value
+            if isinstance(
+                self.model_endpoint_creation_strategy,
+                schemas.ModelEndpointCreationStrategy,
+            )
+            else self.model_endpoint_creation_strategy
+        )
         return super().to_dict(fields, exclude, strip)
 
 
@@ -755,9 +763,11 @@ class RouterStep(TaskStep):
         self._routes: ObjectDict = None
         self.routes = routes
         self.endpoint_type = schemas.EndpointType.ROUTER
+        if isinstance(class_name, type):
+            class_name = class_name.__name__
         self.model_endpoint_creation_strategy = (
             schemas.ModelEndpointCreationStrategy.INPLACE
-            if class_name and "serving.VotingEnsemble" in class_name
+            if class_name and "VotingEnsemble" in class_name
             else schemas.ModelEndpointCreationStrategy.SKIP
         )
 

@@ -480,3 +480,6 @@ INTERSECT_DICT_KEYS = {
     ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",
     ModelEndpointMonitoringMetricType.RESULT: "intersect_results",
 }
+
+CRON_TRIGGER_KINDS = ("http", "cron")
+STREAM_TRIGGER_KINDS = ("v3io-stream", "kafka-cluster")

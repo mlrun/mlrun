@@ -240,7 +240,7 @@ class Pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
         run_id: str,
-        project: typing.Optional[str] = None,
+        project: str,
         namespace: typing.Optional[str] = None,
     ) -> str:
         """
@@ -248,8 +248,7 @@ class Pipelines(
 
         :param db_session: The SQLAlchemy session used for retrieving and storing pipeline information.
         :param run_id: The unique identifier of the pipeline run to retry.
-        :param project: (Optional) The name of the MLRun project associated with the pipeline run.
-                        If provided, the pipeline run's project will be validated against this.
+        :param project: The name of the MLRun project associated with the pipeline run.
         :param namespace: (Optional) The Kubernetes namespace in which the pipeline is running.
                           Defaults to the configured namespace if not specified.
         :raises MLRunBadRequestError: If the pipeline run is not in a retryable state.
@@ -275,7 +274,7 @@ class Pipelines(
             ) from exc
         run = mlrun_pipelines.models.PipelineRun(api_run_detail)
 
-        if project and project != "*":
+        if project:
             run_project = self.resolve_project_from_pipeline(run)
             if run_project != project:
                 raise mlrun.errors.MLRunNotFoundError(

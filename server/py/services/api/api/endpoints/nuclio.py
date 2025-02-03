@@ -286,6 +286,11 @@ async def deploy_function(
         )
         returned_background_tasks.background_tasks.append(returned_background_task)
 
+    model_endpoint_creation_task_name = (
+        returned_background_tasks.background_tasks[0].metadata.name
+        if returned_background_tasks.background_tasks
+        else None
+    )
     fn = await run_in_threadpool(
         _deploy_function,
         db_session,
@@ -296,9 +301,7 @@ async def deploy_function(
         data.get("builder_env"),
         client_version,
         client_python_version,
-        returned_background_tasks.background_tasks[0].metadata.name
-        if returned_background_tasks.background_tasks[0]
-        else None,
+        model_endpoint_creation_task_name,
     )
 
     return DeployResponse(

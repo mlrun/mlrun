@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import os
 import pathlib
 import subprocess
@@ -587,12 +588,15 @@ def test_set_environment_cred():
 def test_env_from_file():
     env_path = str(assets_path / "envfile")
     env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
-    assert env_dict == {
-        "ENV_ARG1": "123",
-        "ENV_ARG2": "abc",
-        "MLRUN_HTTPDB__HTTP__VERIFY": "false",
-        "MLRUN_KFP_TTL": "12345",
-    }
+
+    assert env_dict == collections.OrderedDict(
+        {
+            "MLRUN_HTTPDB__HTTP__VERIFY": "false",
+            "MLRUN_KFP_TTL": "12345",
+            "ENV_ARG1": "123",
+            "ENV_ARG2": "abc",
+        }
+    )
     assert mlrun.mlconf.kfp_ttl == 12345
     for key, value in env_dict.items():
         assert os.environ[key] == value

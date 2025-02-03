@@ -115,7 +115,7 @@ def test_tracked_function(rundb_mock, enable_tracking):
         server.test("/v2/models/m1/infer", testdata)
         dummy_stream = server.context.stream.output_stream
         if enable_tracking:
-            rundb_mock.get_model_endpoint.assert_called_once()
+            rundb_mock.assert_called_get_model_endpoint_once()
             assert (
                 len(dummy_stream.event_list) == 1
             ), "expected stream to get one message"

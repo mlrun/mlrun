@@ -249,7 +249,7 @@ class MonitoringApplicationController:
         self._window_length = _get_window_length()
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
-        self.v3io_access_key = mlrun.get_secret_or_env("V3IO_ACCESS_KEY")
+        self.v3io_access_key = mlrun.mlconf.get_v3io_access_key()
         self.storage_options = None
         if mlrun.mlconf.artifact_path.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
@@ -660,7 +660,7 @@ class MonitoringApplicationController:
         mm_stream = mlrun.model_monitoring.helpers.get_output_stream(
             project=event.get(ControllerEvent.PROJECT),
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            v3io_access_key=self.model_monitoring_access_key,
+            v3io_access_key=self.v3io_access_key,
         )
         logger.info(
             "Pushing data to main stream, NOP event is been generated",

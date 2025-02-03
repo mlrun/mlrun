@@ -987,7 +987,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
     # it's valid here.
     data = json.dumps(object_dict, sort_keys=True, default=str).encode()
-    h = hashlib.sha1()
+    h = hashlib.sha256()
     h.update(data)
     uid = h.hexdigest()
 

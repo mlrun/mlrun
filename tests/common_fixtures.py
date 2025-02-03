@@ -247,6 +247,7 @@ class RunDBMock:
         self._project = None
         self._runs = {}
         self._api_gateways = {}
+        self._get_model_endpoint_calls = 0
 
     def reset(self):
         self._functions = {}
@@ -676,6 +677,44 @@ class RunDBMock:
 
         assert categories == expected_categories
 
+    def get_model_endpoint(
+        self,
+        project: str = "default",
+        name: str = "default",
+        function_name: Optional[str] = "function-1",
+        function_uid: Optional[str] = None,
+        function_tag: Optional[str] = "v1",
+        model_name: Optional[str] = None,
+        model_uid: Optional[str] = None,
+        tsdb_metrics: Optional[str] = None,
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
+        self._get_model_endpoint_calls += 1
+        name = str.split(name, ":")[0]
+        model_uid = model_uid or f"{name}_uid"
+        return mlrun.common.schemas.model_monitoring.ModelEndpoint(
+            metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+                name=name,
+                project=project,
+                labels={},
+                uid=model_uid,
+            ),
+            spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
+                function_name=function_name,
+                function_tag=function_tag,
+                function_uid=function_uid,
+                model_name=model_name,
+                model_uid=model_uid,
+                model_class="modelcc",
+                model_tag="latest",
+            ),
+            status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
+                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
+            ),
+        )
+
+    def assert_called_get_model_endpoint_once(self):
+        assert self._get_model_endpoint_calls == 1
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
@@ -690,9 +729,6 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
-    mock_object.get_model_endpoint = unittest.mock.Mock(
-        return_value=mock_random_endpoint()
-    )
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -786,35 +822,3 @@ def remote_builder_mock(monkeypatch):
         mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
     )
     return builder_mock
-
-
-def mock_random_endpoint(
-    project: str = "default",
-    name: str = "default",
-    function_name: Optional[str] = "function-1",
-    function_uid: Optional[str] = None,
-    function_tag: Optional[str] = "v1",
-    model_name: Optional[str] = None,
-    model_uid: Optional[str] = None,
-) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
-    model_uid = model_uid or f"{project}-{name}"
-    return mlrun.common.schemas.model_monitoring.ModelEndpoint(
-        metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
-            name=name,
-            project=project,
-            labels={},
-            uid=model_uid,
-        ),
-        spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
-            function_name=function_name,
-            function_tag=function_tag,
-            function_uid=function_uid,
-            model_name=model_name,
-            model_uid=model_uid,
-            model_class="modelcc",
-            model_tag="latest",
-        ),
-        status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
-            monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
-        ),
-    )

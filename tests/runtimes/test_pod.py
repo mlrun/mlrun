@@ -304,6 +304,7 @@ def create_node_affinity_with_terms(terms):
         )
     )
 
+
 def mock_preemptible_config():
     """Fixture to set up mock preemptible configurations before each test."""
     mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
@@ -326,6 +327,7 @@ def mock_preemptible_config():
             ]
         ).encode("utf-8")
     )
+
 
 @pytest.mark.parametrize(
     "mode, tolerations, node_selector, affinity, expected_tolerations, expected_node_selector, expected_affinity",

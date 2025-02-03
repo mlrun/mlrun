@@ -277,9 +277,9 @@ astropy==7.0.0 ; python_full_version >= '3.11' \
     --hash=sha256:e92d7c9fee86eb3df8714e5dd41bbf9f163d343e1a183d95bf6bd09e4313c940 \
     --hash=sha256:f8a00fcb30c2317b111d8b6a99eb60a81e8292c24dce65e986ee4610ea16b8d2
     # via vaex-astro
-astropy-iers-data==0.2025.1.31.12.41.4 \
-    --hash=sha256:21d1701c6d30723b16a4b3be47a96b88b5e4b21e9b4b3962b95ef50c5e5f8b22 \
-    --hash=sha256:847f3e4f7b96818f60e30af2a2c9349ed3dd465f178581860c337a2ca51b9b47
+astropy-iers-data==0.2025.2.3.0.32.42 \
+    --hash=sha256:58a4e5df793c7ce7e0f956649f26e62a86ca3343428a7951117a30d58207dd11 \
+    --hash=sha256:a678caee1ee9ccb793fda36a4603170a136dad5a046aa39650e849f0999fd4a4
     # via astropy
 asttokens==3.0.0 \
     --hash=sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7 \
@@ -338,9 +338,9 @@ azure-storage-blob==12.24.1 \
     --hash=sha256:052b2a1ea41725ba12e2f4f17be85a54df1129e13ea0321f5a2fcc851cbf47d4 \
     --hash=sha256:77fb823fdbac7f3c11f7d86a5892e2f85e161e8440a7489babe2195bf248f09e
     # via adlfs
-beautifulsoup4==4.12.3 \
-    --hash=sha256:74e3d1928edc070d21748185c46e3fb33490f22f52a3addee9aee0f4f7781051 \
-    --hash=sha256:b80878c9f40111313e55da8ba20bdba06d8fa3969fc68304167741bbf9e082ed
+beautifulsoup4==4.13.1 \
+    --hash=sha256:72465267014897bb10ca749bb632bde6c2d20f3254afd5458544bd74e6c2e6d8 \
+    --hash=sha256:741c8b6903a1e4ae8ba32b9c9ae7510dab7a197fdbadcf9fcdeb0891ef5ec66a
     # via nbconvert
 blake3==1.0.4 \
     --hash=sha256:00605aa59923205c6a4f21131840840eb2d9a754c59b163357d890566755b97a \
@@ -2522,9 +2522,9 @@ mlflow-skinny==2.20.1 \
     --hash=sha256:98c3c73aea528a03a25ba422506a9d37dff4061707569e6e6cb8ea6e7382385e \
     --hash=sha256:de094d6495e2e6a842bd47a68641aa400528b6ea48be258f269cc4e2a43b3288
     # via mlflow
-mlrun-pipelines-kfp-common==0.3.6 \
-    --hash=sha256:6967c9b40df43176412bd5334aff5b9dc1d32d56821a3605c55ceabde5f5deb1 \
-    --hash=sha256:f80d4ae8ffd2faa5a457ba3cd23b91cb10ebec0fa15d50319092498f9aa806c4
+mlrun-pipelines-kfp-common==0.3.7 \
+    --hash=sha256:3a15de546c6f01bfb1b3c4e871acfca6d8f58f3c2b321ac862f05d5d66db74fd \
+    --hash=sha256:81070e948039d448b28db2a40a09eaa656ab5d884a77233de2f559a27d3dc104
     # via -r requirements.txt
 mlrun-pipelines-kfp-v1-8==0.3.6 ; python_full_version < '3.11' \
     --hash=sha256:7912aa00b9acc4de5fef6273d2be5b5bf5b2589bbc01c04b5397ebafef29021c \
@@ -4555,6 +4555,7 @@ typing-extensions==4.12.2 \
     #   azure-identity
     #   azure-keyvault-secrets
     #   azure-storage-blob
+    #   beautifulsoup4
     #   fastapi
     #   graphene
     #   graphql-core

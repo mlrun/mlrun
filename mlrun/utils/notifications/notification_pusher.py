@@ -55,6 +55,7 @@ class _NotificationPusherBase:
                 event_loop = asyncio.get_event_loop()
             except RuntimeError:
                 event_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(event_loop)
 
             if not event_loop.is_running():
                 event_loop.run_until_complete(async_push_callback())

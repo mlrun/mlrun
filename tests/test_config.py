@@ -589,7 +589,6 @@ def test_env_from_file():
     env_path = str(assets_path / "envfile")
     env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
 
-    assert isinstance(env_dict, collections.OrderedDict)
     assert env_dict == collections.OrderedDict(
         {
             "MLRUN_HTTPDB__HTTP__VERIFY": "false",

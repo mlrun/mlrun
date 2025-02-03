@@ -131,6 +131,7 @@ class JobCache:
             event_loop = asyncio.get_event_loop()
         except RuntimeError:
             event_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(event_loop)
 
         event_loop.call_later(self._ttl, self.invalidate_cache, project, job_id)
 

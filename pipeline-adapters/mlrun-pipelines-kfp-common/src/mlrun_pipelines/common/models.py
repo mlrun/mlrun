@@ -113,4 +113,7 @@ class RunStatuses(StrEnum):
         ]
 
     def retryable_statuses(self):
-        return self.stable_statuses() + [RunStatuses.unknown]
+        return self.stable_statuses() + [
+            RunStatuses.unknown,
+            RunStatuses.runtime_state_unspecified,
+        ]

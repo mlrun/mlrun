@@ -34,6 +34,7 @@ from importlib import import_module, reload
 from os import path
 from types import ModuleType
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 import git
 import inflection
@@ -1736,7 +1737,9 @@ setting partitioned=False"""
 
 def is_ecr_url(registry: str) -> bool:
     # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
-    return ".ecr." in registry and ".amazonaws.com" in registry
+    parsed_url = urlparse(f"https://{registry}")
+    hostname = parsed_url.hostname
+    return hostname and ".ecr." in hostname and hostname.endswith(".amazonaws.com")
 
 
 def get_local_file_schema() -> list:

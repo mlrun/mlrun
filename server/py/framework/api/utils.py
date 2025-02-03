@@ -19,7 +19,7 @@ import re
 import traceback
 import typing
 import uuid
-from hashlib import sha1
+from hashlib import sha256
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -827,8 +827,8 @@ def submit_run_sync(
     return project, fn.kind, run_uid, {"data": response}
 
 
-# uid is hexdigest of sha1 value, which is double the digest size due to hex encoding
-hash_len = sha1().digest_size * 2
+# uid is hexdigest of sha256 value, which is double the digest size due to hex encoding
+hash_len = sha256().digest_size * 2
 uid_regex = re.compile(f"^[0-9a-f]{{{hash_len}}}$", re.IGNORECASE)
 
 

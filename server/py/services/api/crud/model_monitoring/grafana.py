@@ -80,8 +80,7 @@ async def grafana_list_endpoints_uids(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
-    endpoint_list = await run_in_threadpool(
-        services.api.crud.ModelEndpoints().list_model_endpoints,
+    endpoint_list = await services.api.crud.ModelEndpoints().list_model_endpoints(
         db_session=db_session,
         project=project,
     )
@@ -160,8 +159,7 @@ async def grafana_list_endpoints(
     # Endpoint type filter - will be used to filter the router models
     filter_router = query_parameters.get("filter_router", None)
 
-    endpoint_list = await run_in_threadpool(
-        services.api.crud.ModelEndpoints().list_model_endpoints,
+    endpoint_list = await services.api.crud.ModelEndpoints().list_model_endpoints(
         db_session=db_session,
         project=project,
         model_name=model,

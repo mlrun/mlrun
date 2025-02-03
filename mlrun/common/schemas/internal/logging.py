@@ -14,20 +14,30 @@
 #
 
 import logging
+from enum import Enum
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 
 VALID_LOG_LEVELS = set(logging._nameToLevel.keys())
+LogLevel = Enum("LogLevel", {level: level for level in VALID_LOG_LEVELS}, type=str)
 
 
 class LogLevelMapping(BaseModel):
-    domain_to_levels: dict[str, str]
-
+    domain_to_levels: dict[str, LogLevel] = Field(
+        ...,
+        example={"mlrun.api": "INFO"},
+        description="Dictionary mapping log domains to log levels. Domains must start with 'mlrun'."
+    )
     @validator("domain_to_levels")
-    def validate_levels(cls, values: dict[str, str]) -> dict[str, str]:  # noqa: N805
+    def validate_levels(cls, values: dict[str, LogLevel]) -> dict[str, LogLevel]:  # noqa: N805
         for domain, level in values.items():
             if not isinstance(domain, str):
                 raise ValueError("Log domain must be a string")
+            if not domain.startswith("mlrun"):
+                raise ValueError(
+                    f"Invalid log domain '{domain}'. "
+                    f"Only domains starting with 'mlrun' are allowed."
+                )
             if not isinstance(level, str):
                 raise ValueError("Log level must be a string")
             if level.upper() not in VALID_LOG_LEVELS:

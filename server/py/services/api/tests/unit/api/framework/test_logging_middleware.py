@@ -133,6 +133,46 @@ def stream_logger() -> Iterator[tuple[io.StringIO, Logger]]:
     yield stream, stream_logger
 
 
+@pytest.mark.parametrize(
+    "log_config",
+    [
+        ({"mlrun_pipelines.imports": "DEBUG"}),
+        ({"mlrun_pipelines.imports": "INFO"}),
+        ({"mlrun_pipelines.imports": "WARNING"}),
+        ({"mlrun_pipelines.imports": "ERROR"}),
+        ({"mlrun_pipelines.imports": "CRITICAL"}),
+    ],
+)
+def test_set_and_get_log_level(log_config: dict[str, str], client: TestClient):
+    response = client.post(
+        "/api/_internal/log_levels", json={"domain_to_levels": log_config}
+    )
+    assert response.status_code == 200
+
+    # Get current log levels
+    response = client.get("/api/_internal/log_levels")
+    assert response.status_code == 200
+    assert (
+        response.json()["domain_to_levels"].get("mlrun_pipelines.imports")
+        == log_config["mlrun_pipelines.imports"]
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid_log_config",
+    [
+        ({"invalid_domain.imports": "INFO"}),  # Domain not starting with 'mlrun'
+        ({"mlrun_pipelines.imports": "INVALID_LEVEL"}),  # Invalid log level
+        ({"mlrun_pipelines.imports": 123}),  # Non-string log level
+    ],
+)
+def test_invalid_log_config(invalid_log_config: dict[str, str], client: TestClient):
+    response = client.post(
+        "/api/_internal/log_levels", json={"domain_to_levels": invalid_log_config}
+    )
+    assert response.status_code == 422  # Expecting a validation error
+
+
 def test_logging_middleware(db: Session, client: TestClient, stream_logger) -> None:
     stream, logger_instance = stream_logger
     stream: io.StringIO

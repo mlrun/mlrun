@@ -187,9 +187,7 @@ class TestAlerts(TestMLRunSystem):
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
             profile=DatastoreProfileV3io(name="tmp"),
         )
-        output_stream = get_stream_pusher(
-            stream_uri,
-        )
+        output_stream = get_stream_pusher(stream_uri)
 
         result_name = (
             mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME

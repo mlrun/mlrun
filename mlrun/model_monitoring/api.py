@@ -619,8 +619,8 @@ def _create_model_monitoring_function_base(
     app_step.__class__ = mlrun.serving.MonitoringApplicationStep
 
     app_step.error_handler(
-        name="ApplicationErrorHandler",
         class_name="mlrun.model_monitoring.applications._application_steps._ApplicationErrorHandler",
+        name="ApplicationErrorHandler",
         full_event=True,
         project=project,
     )
@@ -629,7 +629,6 @@ def _create_model_monitoring_function_base(
         class_name="mlrun.model_monitoring.applications._application_steps._PushToMonitoringWriter",
         name="PushToMonitoringWriter",
         project=project,
-        writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
     )
 
     def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:

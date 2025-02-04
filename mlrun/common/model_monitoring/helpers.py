@@ -36,6 +36,20 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
     return endpoint, container, path
 
 
+def get_kafka_topic(project: str, function_name: typing.Optional[str] = None) -> str:
+    if (
+        function_name is None
+        or function_name == mm_constants.MonitoringFunctionNames.STREAM
+    ):
+        function_specifier = ""
+    else:
+        function_specifier = f"_{function_name}"
+
+    return (
+        f"monitoring_stream_{mlrun.mlconf.system_id}_{project}{function_specifier}_v1"
+    )
+
+
 def parse_monitoring_stream_path(
     stream_uri: str, project: str, function_name: typing.Optional[str] = None
 ) -> str:
@@ -43,15 +57,8 @@ def parse_monitoring_stream_path(
         if "?topic" in stream_uri:
             raise mlrun.errors.MLRunValueError("Custom kafka topic is not allowed")
         # Add topic to stream kafka uri
-        if (
-            function_name is None
-            or function_name == mm_constants.MonitoringFunctionNames.STREAM
-        ):
-            stream_uri += (
-                f"?topic=monitoring_stream_{mlrun.mlconf.system_id}_{project}_v1"
-            )
-        else:
-            stream_uri += f"?topic=monitoring_stream_{mlrun.mlconf.system_id}_{project}_{function_name}_v1"
+        topic = get_kafka_topic(project=project, function_name=function_name)
+        stream_uri += f"?topic={topic}"
 
     return stream_uri
 

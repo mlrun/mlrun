@@ -37,8 +37,6 @@ from mlrun.model_monitoring.applications._application_steps import (
 )
 from mlrun.utils import Logger, logger
 
-STREAM_PATH = "./test_stream.json"
-
 
 class TestEventPreparation:
     ENDPOINT_ID = "test-ep-id"
@@ -119,28 +117,28 @@ class TestEventPreparation:
 
 
 class Pusher:
-    def __init__(self, stream_uri):
-        self.stream_uri = stream_uri
+    def __init__(self, filename: str) -> None:
+        self.stream_filename = filename
 
-    def push(self, data: list[dict[str, typing.Any]]):
+    def push(self, data: list[dict[str, typing.Any]]) -> None:
         data = data[0]
-        with open(self.stream_uri, "w") as json_file:
+        with open(self.stream_filename, "w") as json_file:
             json.dump(data, json_file)
             json_file.write("\n")
 
 
 @pytest.fixture
-def push_to_monitoring_writer():
-    return _PushToMonitoringWriter(
-        project="demo-project",
-        writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-        name="PushToMonitoringWriter",
-        stream_uri="./test_stream.json",
-    )
+def pusher(tmp_path: Path) -> Pusher:
+    return Pusher(filename=f"{tmp_path}/test_stream.txt")
 
 
 @pytest.fixture
-def monitoring_context() -> Mock:
+def push_to_monitoring_writer():
+    return _PushToMonitoringWriter(project="demo-project")
+
+
+@pytest.fixture
+def monitoring_context() -> mm_context.MonitoringApplicationContext:
     mock_monitoring_context = Mock(spec=mm_context.MonitoringApplicationContext)
     mock_monitoring_context.log_stream = Logger(
         name="test_data_drift_app", level=logging.DEBUG
@@ -159,18 +157,18 @@ def monitoring_context() -> Mock:
     return mock_monitoring_context
 
 
-@patch("mlrun.datastore.get_stream_pusher")
+@patch("mlrun.model_monitoring.helpers.get_output_stream")
 def test_push_result_to_monitoring_writer_stream(
-    mock_get_stream_pusher,
+    mock_get_output_stream: Mock,
+    pusher: Pusher,
     push_to_monitoring_writer: _PushToMonitoringWriter,
-    monitoring_context: Mock,
-    tmp_path: Path,
+    monitoring_context: mm_context.MonitoringApplicationContext,
 ):
     """
     Test that the `_PushToMonitoringWriter` step pushes the results to the monitoring writer stream. In addition,
     test that the extra data is not pushed to the stream if it exceeds the maximum size of 998 characters.
     """
-    mock_get_stream_pusher.return_value = Pusher(stream_uri=f"{tmp_path}/{STREAM_PATH}")
+    mock_get_output_stream.return_value = pusher
     results = [
         ModelMonitoringApplicationResult(
             name="res1",
@@ -186,22 +184,14 @@ def test_push_result_to_monitoring_writer_stream(
             extra_data={"extra_data": "extra_data" * 1000},
             kind=mm_constants.ResultKindApp.data_drift,
         ),
-        ModelMonitoringApplicationMetric(
-            name="met",
-            value=2,
-        ),
+        ModelMonitoringApplicationMetric(name="met", value=2),
     ]
 
     for result in results:
-        push_to_monitoring_writer.do(
-            (
-                [result],
-                monitoring_context,
-            )
-        )
+        push_to_monitoring_writer.do(([result], monitoring_context))
 
-        with open(f"{tmp_path}/{STREAM_PATH}") as json_file:
-            for i, line in enumerate(json_file):
+        with open(pusher.stream_filename) as file:
+            for line in file:
                 loaded_data = json.loads(line.strip())
             if isinstance(result, ModelMonitoringApplicationResult):
                 event_kind = mm_constants.WriterEventKind.RESULT

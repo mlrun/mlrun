@@ -1200,19 +1200,20 @@ class KafkaSource(OnlineSource):
         new_topics = [
             NewTopic(topic, num_partitions, replication_factor) for topic in topics
         ]
-        kafka_admin = KafkaAdminClient(
-            bootstrap_servers=brokers,
-            sasl_mechanism=self.attributes.get("sasl", {}).get("sasl_mechanism"),
-            sasl_plain_username=self.attributes.get("sasl", {}).get("username"),
-            sasl_plain_password=self.attributes.get("sasl", {}).get("password"),
-            sasl_kerberos_service_name=self.attributes.get("sasl", {}).get(
-                "sasl_kerberos_service_name", "kafka"
-            ),
-            sasl_kerberos_domain_name=self.attributes.get("sasl", {}).get(
-                "sasl_kerberos_domain_name"
-            ),
-            sasl_oauth_token_provider=self.attributes.get("sasl", {}).get("mechanism"),
-        )
+
+        kafka_admin_kwargs = {}
+        if "sasl" in self.attributes:
+            sasl = self.attributes["sasl"]
+            kafka_admin_kwargs.update(
+                {
+                    "security_protocol": "SASL_PLAINTEXT",
+                    "sasl_mechanism": sasl["mechanism"],
+                    "sasl_plain_username": sasl["user"],
+                    "sasl_plain_password": sasl["password"],
+                }
+            )
+
+        kafka_admin = KafkaAdminClient(bootstrap_servers=brokers, **kafka_admin_kwargs)
         try:
             kafka_admin.create_topics(new_topics)
         finally:

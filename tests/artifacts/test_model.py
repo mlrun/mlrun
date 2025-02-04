@@ -14,6 +14,7 @@
 #
 import os
 import pathlib
+import uuid
 
 import pytest
 import yaml
@@ -97,3 +98,47 @@ def test_sanitize_model_spec():
     assert "tag" not in sanitized_model_spec["metadata"]
     assert some_extra_data in sanitized_model_spec["spec"]["extra_data"]
     assert future_extra_data not in sanitized_model_spec["spec"]["extra_data"]
+
+
+def test_get_model_without_suffix():
+    project = mlrun.new_project("get-model-without-suffix")
+    model_name = f"custom_suffix_model_{uuid.uuid4()}"
+    for suffix in mlrun.artifacts.model.MODEL_OPTIONAL_SUFFIXES:
+        file_name = f"model.{suffix}"
+        project.log_model(
+            model_name,
+            body=b"123",
+            model_file=file_name,
+            artifact_path=results_dir,
+        )
+        model_dir_path = os.path.join(results_dir, model_name)
+        model_path = os.path.join(model_dir_path, file_name)
+        temp_path, _, _ = mlrun.artifacts.get_model(model_path)
+        assert temp_path == model_path
+        with open(temp_path, "rb") as fp:
+            data = fp.read()
+        assert data == b"123"
+
+
+def test_get_model_with_dataitem(rundb_mock, tmpdir: pathlib.Path):
+    model_name = "my-model"
+    tag = "some-tag"
+    project_name = "get-model-with-data-item"
+    artifact_path = tmpdir / project_name
+    body = "model body"
+    file_name = "trained_model.pkl"
+
+    # create a project and log a model
+    project = mlrun.new_project(project_name, save=False)
+    model_artifact = project.log_model(
+        model_name,
+        body=body,
+        model_file=file_name,
+        tag=tag,
+        artifact_path=artifact_path,
+        upload=True,
+    )
+
+    model_dataitem = model_artifact.to_dataitem()
+    model_path, model_spec, _ = mlrun.artifacts.get_model(model_dataitem)
+    assert f"{artifact_path}/{model_name}/{file_name}" == model_path

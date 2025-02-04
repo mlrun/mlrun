@@ -429,6 +429,9 @@ def get_model(model_dir, suffix=""):
     extra_dataitems = {}
     default_suffix = ".pkl"
 
+    if hasattr(model_dir, "artifact_url"):
+        model_dir = model_dir.artifact_url
+
     alternative_suffix = next(
         (
             optional_suffix
@@ -437,9 +440,6 @@ def get_model(model_dir, suffix=""):
         ),
         None,
     )
-
-    if hasattr(model_dir, "artifact_url"):
-        model_dir = model_dir.artifact_url
 
     if mlrun.datastore.is_store_uri(model_dir):
         model_spec, target = mlrun.datastore.store_manager.get_store_artifact(model_dir)

@@ -1219,13 +1219,21 @@ class MonitoringDeployment:
     def _verify_v3io_access(
         self, v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io
     ) -> None:
+        stream_access_key = v3io_profile.v3io_access_key
+        if not stream_access_key:
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                "The model monitoring stream profile must be set with an explicit `v3io_access_key`. "
+                f"The passed profile '{v3io_profile.name}' has an empty access key. "
+                "You may register it again and set `v3io_access_key=mlrun.mlconf.get_v3io_access_key()`"
+            )
+
         stream_path = mlrun.model_monitoring.get_stream_path(
             project=self.project, profile=v3io_profile
         )
         container, path = split_path(stream_path)
 
         v3io_client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api, access_key=v3io_profile.v3io_access_key
+            endpoint=mlrun.mlconf.v3io_api, access_key=stream_access_key
         )
         # We don't expect the stream to exist. The purpose is to make sure we have access.
         v3io_client.stream.describe(

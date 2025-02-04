@@ -706,21 +706,6 @@ class KubeResourceSpec(FunctionSpec):
             )
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
         elif self_preemption_mode == PreemptionModes.allow.value:
-            # remove preemptible anti-affinity
-            self._prune_affinity_node_selector_requirement(
-                generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_not_in.value
-                ),
-                affinity_field_name=affinity_field_name,
-            )
-            # remove preemptible affinity
-            self._prune_affinity_node_selector_requirement(
-                generate_preemptible_node_selector_requirements(
-                    NodeSelectorOperator.node_selector_op_in.value
-                ),
-                affinity_field_name=affinity_field_name,
-            )
-
             # enrich with tolerations
             self._merge_tolerations(
                 generate_preemptible_tolerations(),

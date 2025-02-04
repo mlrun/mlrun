@@ -400,16 +400,16 @@ def mock_preemptible_config():
                     "toleration_seconds": None,
                     "effect": "NoSchedule",
                 },
-            ],  # Preemptible tolerations cleared
-            {"some-node-selector": "some-value"},  # Preemptible node selector cleared
-            None,  # Affinity removed
+            ],
+            {"some-node-selector": "some-value"},
+            None,
         ),
         # Mode "constrain" – preemptible toleration is merged, affinity is set to preemptible.
         (
             "constrain",
             [],
             {"user-node-selector": "some-value"},
-            None,  # No affinity set initially
+            None,
             [
                 {
                     "key": "cloud.google.com/gke-spot",
@@ -454,8 +454,8 @@ def mock_preemptible_config():
             {
                 "user-node-selector": "some-value",
                 "app.iguazio.com/lifecycle": "preemptible",
-            },  # Node selector is preserved
-            None,  # Affinity cleared
+            },
+            None,
         ),
         # Mode "allow" with no preemptible toleration.
         (
@@ -473,7 +473,7 @@ def mock_preemptible_config():
                 }
             ],
             {"user-node-selector": "some-value"},
-            None,  # No affinity changes
+            None,
         ),
         # Mode "prevent" without initial tolerations.
         (
@@ -484,11 +484,9 @@ def mock_preemptible_config():
                 "app.iguazio.com/lifecycle": "preemptible",
             },
             None,
-            [],  # No tolerations remain
-            {
-                "user-node-selector": "some-value"
-            },  # Preemptible node selector is cleared
-            None,  # Affinity remains unchanged (None)
+            [],
+            {"user-node-selector": "some-value"},
+            None,
         ),
         # Mode "constrain" with tolerations already set.
         (
@@ -511,7 +509,7 @@ def mock_preemptible_config():
                     "toleration_seconds": None,
                     "effect": "NoSchedule",
                 }
-            ],  # Tolerations unchanged
+            ],
             {"user-node-selector": "some-value"},
             create_node_affinity_with_terms(
                 preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
@@ -524,8 +522,8 @@ def mock_preemptible_config():
             {},
             None,
             [],
-            {},  # No changes
-            None,  # Affinity remains unchanged (None)
+            {},
+            None,
         ),
     ],
 )
@@ -553,10 +551,8 @@ def test_enrich_function_preemption_spec(
     # Simulated mlconf preemptible settings
     mock_preemptible_config()
 
-    # Call the enrichment logic.
     function.spec.enrich_function_preemption_spec()
 
-    # Verify the results.
     assert (
         [t.to_dict() for t in function.spec.tolerations]
         if function.spec.tolerations
@@ -569,14 +565,16 @@ def test_enrich_function_preemption_spec(
 @pytest.mark.parametrize(
     "node_selector, tolerations, affinity, expected_warning_substrings",
     [
-        # Case 1: Only node_selector matches the preemptible configuration.
+        # Only node_selector matches the preemptible configuration.
         (
             {"app.iguazio.com/lifecycle": "preemptible", "other": "value"},
             None,
             None,
-            ["node selector 'app.iguazio.com/lifecycle: preemptible'"],
+            [
+                "Node selector 'app.iguazio.com/lifecycle: preemptible' may be removed at runtime"
+            ],
         ),
-        # Case 2: Only tolerations match the preemptible configuration.
+        # Only tolerations match the preemptible configuration.
         (
             None,
             [
@@ -585,16 +583,16 @@ def test_enrich_function_preemption_spec(
                 )
             ],
             None,
-            ["toleration 'cloud.google.com/gke-spot: true'"],
+            ["Toleration 'cloud.google.com/gke-spot: true'"],
         ),
-        # Case 3: Only affinity matches the preemptible configuration.
+        # Only affinity matches the preemptible configuration.
         (
             None,
             None,
             create_node_affinity_with_terms(preemptible_affinity_iguazio),
-            ["node affinity may be pruned"],
+            ["Node affinity constraints may be adjusted at runtime"],
         ),
-        # Case 4: All three match.
+        # All three match.
         (
             {"app.iguazio.com/lifecycle": "preemptible", "other": "value"},
             [
@@ -605,12 +603,12 @@ def test_enrich_function_preemption_spec(
             ],
             create_node_affinity_with_terms(preemptible_affinity_iguazio),
             [
-                "node selector 'app.iguazio.com/lifecycle: preemptible'",
-                "toleration 'cloud.google.com/gke-spot: true'",
-                "node affinity may be pruned",
+                "Node selector 'app.iguazio.com/lifecycle: preemptible'",
+                "Toleration 'cloud.google.com/gke-spot: true'",
+                "Node affinity constraints may be adjusted at runtime",
             ],
         ),
-        # Case 5: No matching values.
+        # No matching values.
         (
             {"custom": "value"},
             [k8s_client.V1Toleration(key="custom", value="yes", effect="NoSchedule")],
@@ -639,7 +637,6 @@ def test_with_node_selection_warnings(
     """
     mock_preemptible_config()
 
-    # Create a new function instance.
     function = mlrun.new_function("test-func", kind="job")
 
     # Capture warnings raised during with_node_selection.
@@ -651,7 +648,6 @@ def test_with_node_selection_warnings(
             affinity=affinity,
         )
 
-    # Extract warning messages.
     warning_messages = [str(w.message) for w in caught]
 
     # Assert that each expected warning substring is found in the warnings.

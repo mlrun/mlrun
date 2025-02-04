@@ -704,7 +704,7 @@ class KubeResourceSpec(FunctionSpec):
                 ),
                 affinity_field_name=affinity_field_name,
             )
-        # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
+        # enrich with preemptible tolerations
         elif self_preemption_mode == PreemptionModes.allow.value:
             # enrich with tolerations
             self._merge_tolerations(
@@ -1181,7 +1181,7 @@ class KubeResource(BaseRuntime):
         """
         self.spec.with_requests(mem, cpu, patch=patch)
 
-    def detect_preemptible_node_selector(self, node_selector: dict[str, str]):
+    def detect_preemptible_node_selector(self, node_selector: dict[str, str]) -> None:
         """
         Checks if any provided node selector matches the preemptible node selectors.
         Issues a warning if a selector may be pruned at runtime depending on preemption mode.
@@ -1198,7 +1198,7 @@ class KubeResource(BaseRuntime):
 
     def detect_preemptible_tolerations(
         self, tolerations: list[k8s_client.V1Toleration]
-    ):
+    ) -> None:
         """
         Checks if any provided toleration matches preemptible tolerations.
         Issues a warning if a toleration may be pruned at runtime depending on preemption mode.
@@ -1223,7 +1223,7 @@ class KubeResource(BaseRuntime):
                     f"(effect: '{toleration.effect}') may be removed at runtime"
                 )
 
-    def detect_preemptible_affinity(self, affinity: k8s_client.V1Affinity):
+    def detect_preemptible_affinity(self, affinity: k8s_client.V1Affinity) -> None:
         """
         Checks if any provided affinity rules match preemptible affinity configurations.
         Issues a warning if an affinity rule may be pruned at runtime depending on preemption mode.
@@ -1257,7 +1257,7 @@ class KubeResource(BaseRuntime):
                             message="Node affinity constraints may be adjusted at runtime"
                         )
 
-    def raise_preemptible_warning(self, message):
+    def raise_preemptible_warning(self, message: str) -> None:
         warnings.warn(
             f"Warning: {message} based on the preemptible node settings configured in your MLRun configuration. "
             f"This adjustment depends on the function's preemption mode. "

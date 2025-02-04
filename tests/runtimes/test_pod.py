@@ -424,7 +424,7 @@ def mock_preemptible_config():
                 preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
             ),
         ),
-        # Mode "allow" – conflicting node selector settings are purged, affinity is cleared.
+        # Mode "allow" – conflicting node selector settings are purged.
         (
             "allow",
             [
@@ -455,7 +455,9 @@ def mock_preemptible_config():
                 "user-node-selector": "some-value",
                 "app.iguazio.com/lifecycle": "preemptible",
             },
-            None,
+            create_node_affinity_with_terms(
+                preemptible_affinity_iguazio + preemptible_affinity_cloud_provider
+            ),
         ),
         # Mode "allow" with no preemptible toleration.
         (

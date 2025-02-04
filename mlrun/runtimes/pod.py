@@ -1207,9 +1207,9 @@ class KubeResource(BaseRuntime):
         """
         preemptible_tolerations = [
             k8s_client.V1Toleration(
-                key=toleration["key"],
-                value=toleration["value"],
-                effect=toleration["effect"],
+                key=toleration.get("key"),
+                value=toleration.get("value"),
+                effect=toleration.get("effect"),
             )
             for toleration in mlconf.get_preemptible_tolerations()
         ]

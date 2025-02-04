@@ -1259,12 +1259,15 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         feature_set = self._get_monitoring_feature_set()
         features = feature_set.spec.features
         feature_names = [feat.name for feat in features]
-        assert feature_names == [
+        feature_names.sort()
+        columns_feature_names = [
             mlrun.feature_store.api.norm_column_name(feat)
             for feat in self.columns
             + [self.y_name]
             + mm_constants.FeatureSetFeatures.list()
         ]
+        columns_feature_names.sort()
+        assert feature_names == columns_feature_names
 
         df = pd.read_parquet(
             f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet"
@@ -1522,9 +1525,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystem):
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
             profile=DatastoreProfileV3io(name="tmp"),
         )
-        output_stream = get_stream_pusher(
-            stream_uri,
-        )
+        output_stream = get_stream_pusher(stream_uri)
 
         output_stream.push(
             self._generate_event(

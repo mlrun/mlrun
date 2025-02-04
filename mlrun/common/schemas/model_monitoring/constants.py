@@ -163,7 +163,6 @@ class ApplicationEvent:
     END_INFER_TIME = "end_infer_time"
     ENDPOINT_ID = "endpoint_id"
     ENDPOINT_NAME = "endpoint_name"
-    OUTPUT_STREAM_URI = "output_stream_uri"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -481,3 +480,6 @@ INTERSECT_DICT_KEYS = {
     ModelEndpointMonitoringMetricType.METRIC: "intersect_metrics",
     ModelEndpointMonitoringMetricType.RESULT: "intersect_results",
 }
+
+CRON_TRIGGER_KINDS = ("http", "cron")
+STREAM_TRIGGER_KINDS = ("v3io-stream", "kafka-cluster")

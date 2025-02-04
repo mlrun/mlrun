@@ -97,9 +97,9 @@ class MLRunLoader:
     A factory class for creating instances of a dynamically defined document loader.
 
     Args:
-        artifact_key (str, optional): The key for the artifact to be logged. Special characters and symbols
-            not valid in artifact names will be encoded as their hexadecimal representation. The '%%' pattern
-            in the key will be replaced by the hex-encoded version of the source path. Defaults to "%%".
+        artifact_key (str, optional): The key for the artifact to be logged.
+            The '%%' pattern in the key will be replaced by the source path
+            with any unsupported characters converted to '_'. Defaults to "%%".
         local_path (str): The source path of the document to be loaded.
         loader_spec (DocumentLoaderSpec): Specification for the document loader.
         producer (Optional[Union[MlrunProject, str, MLClientCtx]], optional): The producer of the document.

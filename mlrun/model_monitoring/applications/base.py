@@ -130,6 +130,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             ):
                 if isinstance(endpoints, str):
                     endpoints_list = mlrun.get_run_db().list_model_endpoints(context.project, name=endpoints)
+                    print(endpoints_list)
                     endpoints = [(endpoint.metadata.name, endpoint.metadata.uid) for endpoint in endpoints_list]
                 elif isinstance(endpoints, tuple):
                     endpoints = [endpoints]

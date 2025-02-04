@@ -66,7 +66,7 @@ class _BaseFormatter(logging.Formatter):
         if record.exc_info:
             record_with.update(exc_info=format_exception(*record.exc_info))
         if "ctx" not in record_with:
-            if ctx_id := context_id_var.get():
+            if (ctx_id := context_id_var.get()) is not None:
                 record_with["ctx"] = ctx_id
         return record_with
 

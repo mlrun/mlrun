@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import os
 import typing
 
 import storey
@@ -84,12 +83,10 @@ class EventStreamProcessor:
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
-        self.v3io_access_key = v3io_access_key or mlrun.get_secret_or_env(
-            "V3IO_ACCESS_KEY"
-        )
+        self.v3io_access_key = v3io_access_key or mlrun.mlconf.get_v3io_access_key()
         self.model_monitoring_access_key = (
             model_monitoring_access_key
-            or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
+            or mlrun.get_secret_or_env(ProjectSecretKeys.ACCESS_KEY)
             or self.v3io_access_key
         )
 

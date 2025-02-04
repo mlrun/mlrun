@@ -377,7 +377,7 @@ class ModelEndpoints:
                 await run_in_threadpool(
                     framework.utils.singletons.db.get_db().list_model_endpoints,
                     project=model_endpoint.metadata.project,
-                    name=model_endpoint.metadata.name,
+                    names=[model_endpoint.metadata.name],
                     function_name=model_endpoint.spec.function_name,
                     function_tag=model_endpoint.spec.function_tag,
                     latest_only=True,
@@ -746,7 +746,7 @@ class ModelEndpoints:
             model_endpoint_list = await run_in_threadpool(
                 framework.utils.singletons.db.get_db().list_model_endpoints,
                 project=project,
-                name=name,
+                names=[name],
                 function_name=function_name,
                 function_tag=function_tag,
                 latest_only=False,

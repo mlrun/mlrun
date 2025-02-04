@@ -198,6 +198,7 @@ class TSDBConnector(ABC):
         endpoint_ids: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
@@ -217,6 +218,7 @@ class TSDBConnector(ABC):
         endpoint_ids: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         """
         Fetches data from the app-results TSDB table and returns the highest status among all
@@ -273,6 +275,7 @@ class TSDBConnector(ABC):
         endpoint_ids: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         """
         Fetches data from the error TSDB table and returns the error count for each specified endpoint.
@@ -291,6 +294,7 @@ class TSDBConnector(ABC):
         endpoint_ids: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
@@ -303,6 +307,13 @@ class TSDBConnector(ABC):
         :return: A pd.DataFrame containing the columns [avg_latency, endpoint_id].
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.
         """
+
+    def get_basic_metrics(
+        self,
+        model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
+        project: str,
+    ) -> list[mlrun.common.schemas.ModelEndpoint]:
+        raise NotImplementedError()
 
     @staticmethod
     def df_to_metrics_values(

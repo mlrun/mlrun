@@ -533,6 +533,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start, end = self._get_start_end(start, end)
@@ -573,6 +574,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
@@ -682,6 +684,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         filter_query = self._get_endpoint_filter(endpoint_id=endpoint_ids)
         filter_query += f"AND {mm_schemas.EventFieldType.ERROR_TYPE} = '{mm_schemas.EventFieldType.INFER_ERROR}'"
@@ -712,6 +715,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: typing.Union[str, list[str]],
         start: typing.Optional[datetime] = None,
         end: typing.Optional[datetime] = None,
+        get_raw: bool = False,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -738,6 +742,58 @@ class TDEngineConnector(TSDBConnector):
         if not df.empty:
             df.dropna(inplace=True)
         return df
+
+    def get_basic_metrics(
+        self,
+        model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
+        project: str,
+    ) -> list[mlrun.common.schemas.ModelEndpoint]:
+        """
+        Add basic metrics to the model endpoint object.
+
+        :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
+                                        be filled with the relevant basic metrics.
+        :param project:                The name of the project.
+
+        :return: A list of `ModelEndpointMonitoringMetric` objects.
+        """
+
+        def _add_metric(
+            mep: mlrun.common.schemas.ModelEndpoint,
+            df_dictionary: dict[str, pd.DataFrame],
+        ):
+            for metric in df_dictionary.keys():
+                df = df_dictionary.get(metric, pd.DataFrame())
+                if not df.empty:
+                    line = df[df["endpoint_id"] == mep.metadata.uid]
+                    if not line.empty and metric in line:
+                        value = line[metric].item()
+                        if isinstance(value, pd.Timestamp):
+                            value = value.to_pydatetime()
+                        setattr(mep.status, metric, value)
+
+            return mep
+
+        uids = [mep.metadata.uid for mep in model_endpoint_objects]
+        error_count_df = self.get_error_count(endpoint_ids=uids)
+        last_request_df = self.get_last_request(endpoint_ids=uids)
+        avg_latency_df = self.get_avg_latency(endpoint_ids=uids)
+        drift_status_df = self.get_drift_status(endpoint_ids=uids)
+
+        return list(
+            map(
+                lambda mep: _add_metric(
+                    mep=mep,
+                    df_dictionary={
+                        "error_count": error_count_df,
+                        "last_request": last_request_df,
+                        "avg_latency": avg_latency_df,
+                        "result_status": drift_status_df,
+                    },
+                ),
+                model_endpoint_objects,
+            )
+        )
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
     #

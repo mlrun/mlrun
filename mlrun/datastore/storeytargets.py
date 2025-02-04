@@ -42,11 +42,10 @@ def get_url_and_storage_options(path, external_storage_options=None):
 
 
 class TDEngineStoreyTarget(storey.TDEngineTarget):
-    def __init__(self, *args, **kwargs):
-        path = kwargs.pop("url")
-        if path and path.startswith("ds://"):
+    def __init__(self, *args, url: str, **kwargs):
+        if url.startswith("ds://"):
             datastore_profile = (
-                mlrun.datastore.datastore_profile.datastore_profile_read(path)
+                mlrun.datastore.datastore_profile.datastore_profile_read(url)
             )
             if not isinstance(
                 datastore_profile,
@@ -56,9 +55,8 @@ class TDEngineStoreyTarget(storey.TDEngineTarget):
                     f"Unexpected datastore profile type:{datastore_profile.type}."
                     "Only TDEngineDatastoreProfile is supported"
                 )
-            path = datastore_profile.dsn()
-        kwargs["url"] = path
-        super().__init__(*args, **kwargs)
+            url = datastore_profile.dsn()
+        super().__init__(*args, url=url, **kwargs)
 
 
 class StoreyTargetUtils:

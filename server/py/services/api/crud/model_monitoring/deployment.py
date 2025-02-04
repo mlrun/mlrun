@@ -297,9 +297,9 @@ class MonitoringDeployment:
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be
-        either Kafka or V3IO, depends on the stream path schema that is defined by:
+        either Kafka or V3IO, depends on the stream profile defined by::
 
-            project.set_model_monitoring_credentials(..., stream_path="...")
+            project.set_model_monitoring_credentials(stream_profile_name="...", ...)
 
         Note: this method also disables the default HTTP trigger of the function, so it remains
         only with stream trigger(s).
@@ -1089,9 +1089,7 @@ class MonitoringDeployment:
 
         return credentials_dict
 
-    def check_if_credentials_are_set(
-        self,
-    ):
+    def check_if_credentials_are_set(self) -> None:
         """
         Check if the model monitoring credentials are set. If not, raise an error.
 
@@ -1099,7 +1097,7 @@ class MonitoringDeployment:
         """
 
         credentials_dict = self._get_monitoring_mandatory_project_secrets()
-        if all([val is not None for key, val in credentials_dict.items()]):
+        if all([val is not None for val in credentials_dict.values()]):
             return
 
         raise mlrun.errors.MLRunBadRequestError(

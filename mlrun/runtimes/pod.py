@@ -1254,15 +1254,16 @@ class KubeResource(BaseRuntime):
                     # Ensure operators match and preemptible expressions are present
                     if user_expressions & preemptible_expressions:
                         self.raise_preemptible_warning(
-                            message="Node affinity constraints may be adjusted at runtime"
+                            message="The selected node affinity constraints may be adjusted at runtime"
                         )
 
     def raise_preemptible_warning(self, message: str) -> None:
         warnings.warn(
             f"Warning: {message} based on the preemptible node settings configured in your MLRun configuration. "
             f"This adjustment depends on the function's preemption mode. "
-            f"To review or modify these settings, check: "
+            f"The list of potential adjusted preemptible selectors can be viewed here: "
             f"mlrun.mlconf.get_preemptible_node_selector() and mlrun.mlconf.get_preemptible_tolerations()."
+            f"For more information about preemptible mode, see:  "
         )
 
     def with_node_selection(

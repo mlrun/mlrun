@@ -590,7 +590,7 @@ def test_enrich_function_preemption_spec(
             None,
             None,
             create_node_affinity_with_terms(preemptible_affinity_iguazio),
-            ["Node affinity constraints may be adjusted at runtime"],
+            ["The selected node affinity constraints may be adjusted at runtime"],
         ),
         # All three match.
         (
@@ -605,7 +605,7 @@ def test_enrich_function_preemption_spec(
             [
                 "Node selector 'app.iguazio.com/lifecycle: preemptible'",
                 "Toleration 'cloud.google.com/gke-spot: true'",
-                "Node affinity constraints may be adjusted at runtime",
+                "The selected node affinity constraints may be adjusted at runtime",
             ],
         ),
         # No matching values.

@@ -1192,9 +1192,8 @@ class KubeResource(BaseRuntime):
 
         for key, value in node_selector.items():
             if preemptible_node_selector.get(key) == value:
-                warnings.warn(
-                    f"The node selector '{key}: {value}' may be pruned at runtime,"
-                    f" depending on the function's preemption mode."
+                self.raise_preemptible_warning(
+                    message=f"Node selector '{key}: {value}' may be removed at runtime"
                 )
 
     def detect_preemptible_tolerations(
@@ -1206,19 +1205,23 @@ class KubeResource(BaseRuntime):
 
         :param tolerations: The user-provided list of tolerations.
         """
-        preemptible_tolerations = mlconf.get_preemptible_tolerations()
+        preemptible_tolerations = [
+            k8s_client.V1Toleration(
+                key=toleration["key"],
+                value=toleration["value"],
+                effect=toleration["effect"],
+            )
+            for toleration in mlconf.get_preemptible_tolerations()
+        ]
+
+        transform_attribute_to_k8s_class_instance("tolerations", tolerations)
 
         for toleration in tolerations:
-            for preemptible_toleration in preemptible_tolerations:
-                if (
-                    toleration.key == preemptible_toleration["key"]
-                    and toleration.value == preemptible_toleration["value"]
-                    and toleration.effect == preemptible_toleration["effect"]
-                ):
-                    warnings.warn(
-                        f"The toleration '{toleration.key}: {toleration.value}' with effect '{toleration.effect}' "
-                        "may be pruned at runtime depending on the function's preemption mode."
-                    )
+            if toleration in preemptible_tolerations:
+                self.raise_preemptible_warning(
+                    message=f"Toleration '{toleration.key}: {toleration.value}' "
+                    f"(effect: '{toleration.effect}') may be removed at runtime"
+                )
 
     def detect_preemptible_affinity(self, affinity: k8s_client.V1Affinity):
         """
@@ -1250,10 +1253,17 @@ class KubeResource(BaseRuntime):
 
                     # Ensure operators match and preemptible expressions are present
                     if user_expressions & preemptible_expressions:
-                        warnings.warn(
-                            "The provided node affinity may be pruned at runtime,"
-                            " depending on the function's preemption mode."
+                        self.raise_preemptible_warning(
+                            message="Node affinity constraints may be adjusted at runtime"
                         )
+
+    def raise_preemptible_warning(self, message):
+        warnings.warn(
+            f"Warning: {message} based on the preemptible node settings configured in your MLRun configuration. "
+            f"This adjustment depends on the function's preemption mode. "
+            f"To review or modify these settings, check: "
+            f"mlrun.mlconf.get_preemptible_node_selector() and mlrun.mlconf.get_preemptible_tolerations()."
+        )
 
     def with_node_selection(
         self,
@@ -1270,24 +1280,19 @@ class KubeResource(BaseRuntime):
         :param affinity:        Defines scheduling constraints.
         :param tolerations:     Allows scheduling onto nodes with matching taints.
         """
-
-        if node_selector:
-            self.detect_preemptible_node_selector(node_selector)
-        if tolerations:
-            self.detect_preemptible_tolerations(tolerations)
-        if affinity:
-            self.detect_preemptible_affinity(affinity)
-
         # Apply values as before
         if node_name:
             self.spec.node_name = node_name
         if node_selector is not None:
             validate_node_selectors(node_selectors=node_selector, raise_on_error=False)
             self.spec.node_selector = node_selector
+            self.detect_preemptible_node_selector(self.spec.node_selector)
         if affinity is not None:
             self.spec.affinity = affinity
+            self.detect_preemptible_affinity(self.spec.affinity)
         if tolerations is not None:
             self.spec.tolerations = tolerations
+            self.detect_preemptible_tolerations(self.spec.tolerations)
 
     def with_priority_class(self, name: typing.Optional[str] = None):
         """

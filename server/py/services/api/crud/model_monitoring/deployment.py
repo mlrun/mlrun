@@ -1234,7 +1234,7 @@ class MonitoringDeployment:
 
     def set_credentials(
         self,
-        access_key: typing.Optional[str] = None,
+        *,
         tsdb_profile_name: typing.Optional[str] = None,
         stream_profile_name: typing.Optional[str] = None,
         replace_creds: bool = False,
@@ -1242,7 +1242,6 @@ class MonitoringDeployment:
         """
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
-        :param access_key:                Model Monitoring access key for managing user permissions.
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
                                           Either V3IO or TDEngine profile.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
@@ -1272,12 +1271,6 @@ class MonitoringDeployment:
 
         secrets_dict = {}
         old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
-        if access_key:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key or old_secrets_dict.get(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            )
 
         stream_profile_name = stream_profile_name or old_secrets_dict.get(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME

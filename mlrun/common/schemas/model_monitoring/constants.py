@@ -163,7 +163,6 @@ class ApplicationEvent:
     END_INFER_TIME = "end_infer_time"
     ENDPOINT_ID = "endpoint_id"
     ENDPOINT_NAME = "endpoint_name"
-    OUTPUT_STREAM_URI = "output_stream_uri"
 
 
 class WriterEvent(MonitoringStrEnum):

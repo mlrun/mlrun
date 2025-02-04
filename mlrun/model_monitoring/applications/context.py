@@ -111,9 +111,6 @@ class MonitoringApplicationContext:
         self.endpoint_name = cast(
             str, event.get(mm_constants.ApplicationEvent.ENDPOINT_NAME)
         )
-        self.output_stream_uri = cast(
-            str, event.get(mm_constants.ApplicationEvent.OUTPUT_STREAM_URI)
-        )
 
         self._feature_stats: Optional[FeatureStats] = feature_stats
         self._sample_df_stats: Optional[FeatureStats] = None

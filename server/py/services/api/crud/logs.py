@@ -326,6 +326,10 @@ class Logs(
 
     @staticmethod
     def _get_log_size_legacy(project: str, uid: str) -> int:
+        # sanitize inputs to prevent path traversal or unsafe file access
+        project = os.path.basename(project)
+        uid = os.path.basename(uid)
+
         log_file = framework.api.utils.log_path(project, uid)
         if not log_file.exists():
             raise mlrun.errors.MLRunNotFoundError(

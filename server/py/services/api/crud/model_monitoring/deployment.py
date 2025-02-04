@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import asyncio
 import json
 import time
@@ -22,8 +23,12 @@ from http import HTTPStatus
 from pathlib import Path
 
 import fastapi
+import kafka
+import kafka.errors
 import nuclio
 import sqlalchemy.orm
+import v3io.dataplane
+import v3io.dataplane.response
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 
@@ -101,6 +106,15 @@ class MonitoringDeployment:
         self._secret_provider = services.api.crud.secrets.get_project_secret_provider(
             project=project
         )
+        self.__stream_profile = None
+
+    @property
+    def _stream_profile(self) -> mlrun.datastore.datastore_profile.DatastoreProfile:
+        if not self.__stream_profile:
+            self.__stream_profile = mlrun.model_monitoring.helpers._get_stream_profile(
+                project=self.project, secret_provider=self._secret_provider
+            )
+        return self.__stream_profile
 
     def deploy_monitoring_functions(
         self,
@@ -298,24 +312,23 @@ class MonitoringDeployment:
 
         :return: `ServingRuntime` object with stream trigger.
         """
-
-        # Get the stream path from the configuration
-        stream_path = mlrun.model_monitoring.get_stream_path(
-            project=self.project,
-            function_name=function_name,
-            secret_provider=self._secret_provider,
-        )
-        if stream_path.startswith("kafka://"):
+        profile = self._stream_profile
+        if isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        ):
             self._apply_and_create_kafka_source(
-                stream_path=stream_path,
+                kafka_profile=profile,
                 function=function,
+                function_name=function_name,
                 stream_args=stream_args,
                 ignore_stream_already_exists_failure=ignore_stream_already_exists_failure,
             )
 
-        elif stream_path.startswith("v3io://"):
+        elif isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
             self._apply_and_create_v3io_source(
-                stream_path=stream_path,
+                v3io_profile=profile,
                 function=function,
                 function_name=function_name,
                 stream_args=stream_args,
@@ -323,7 +336,7 @@ class MonitoringDeployment:
         else:
             framework.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
-                reason="Unexpected stream path schema",
+                reason="Unexpected stream profile",
             )
 
         if not mlrun.mlconf.is_ce_mode():
@@ -338,19 +351,25 @@ class MonitoringDeployment:
 
     def _apply_and_create_kafka_source(
         self,
-        stream_path: str,
+        *,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
         function: mlrun.runtimes.ServingRuntime,
+        function_name: str,
         stream_args: mlrun.config.Config,
         ignore_stream_already_exists_failure: bool,
-    ):
-        import kafka.errors
-
-        topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+    ) -> None:
         # Generate Kafka stream source
+        topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+            project=self.project, function_name=function_name
+        )
         stream_source = mlrun.datastore.sources.KafkaSource(
-            brokers=brokers,
+            brokers=kafka_profile.brokers,
             topics=[topic],
-            attributes={
+            group=kafka_profile.group,
+            initial_offset=kafka_profile.initial_offset,
+            partitions=kafka_profile.partitions,
+            attributes=kafka_profile.attributes()
+            | {
                 "max_workers": stream_args.kafka.num_workers,
                 "worker_allocation_mode": "static",
             },
@@ -364,9 +383,9 @@ class MonitoringDeployment:
             if ignore_stream_already_exists_failure:
                 logger.info(
                     "Kafka topic of model monitoring stream already exists. "
-                    "Skipping topic creation and using `earliest` offset.",
+                    "Skipping topic creation and using `earliest` offset",
                     project=self.project,
-                    stream_path=stream_path,
+                    error_message=mlrun.errors.err_to_str(exc),
                 )
             else:
                 raise exc
@@ -377,13 +396,21 @@ class MonitoringDeployment:
 
     def _apply_and_create_v3io_source(
         self,
-        stream_path: str,
+        *,
+        v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
         stream_args: mlrun.config.Config,
-    ):
+    ) -> None:
+        stream_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mm_constants.FileTargetKind.STREAM,
+            target="online",
+            function_name=function_name,
+        )
+
         access_key = (
-            self.model_monitoring_access_key
+            v3io_profile.v3io_access_key or self.model_monitoring_access_key
             if function_name
             != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             else mlrun.mlconf.get_v3io_access_key()
@@ -928,6 +955,7 @@ class MonitoringDeployment:
             "Deleting model monitoring stream resources deployment",
             project_name=self.project,
         )
+        profile = stream_profile or self._stream_profile
         stream_paths = []
         for function_name in function_names:
             qualified_function_name = f"{self.project}-{function_name}"
@@ -939,7 +967,7 @@ class MonitoringDeployment:
                 )
                 continue
             label_selector = f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={qualified_function_name}"
-            for i in range(10):
+            for _ in range(10):
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
                 try:
@@ -976,11 +1004,10 @@ class MonitoringDeployment:
             # No stream paths to delete
             return
 
-        elif stream_paths[0].startswith("v3io"):
+        elif isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
             # Delete V3IO stream
-            import v3io.dataplane
-            import v3io.dataplane.response
-
             v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
 
             for stream_path in stream_paths:
@@ -989,20 +1016,19 @@ class MonitoringDeployment:
                         stream_path
                     )
                 )
-
+                logger.debug(
+                    "Deleting v3io stream",
+                    project=self.project,
+                    stream_path=stream_path,
+                )
                 try:
                     # if the stream path is in the users directory, we need to use pipelines access key to delete it
-                    logger.debug(
-                        "Deleting v3io stream",
-                        project=self.project,
-                        stream_path=stream_path,
-                    )
                     v3io_client.stream.delete(
                         container,
                         stream_path,
                         access_key=mlrun.mlconf.get_v3io_access_key()
                         if container.startswith("users")
-                        else access_key,
+                        else profile.v3io_access_key or access_key,
                     )
                     logger.debug(
                         "Deleted v3io stream",
@@ -1014,23 +1040,35 @@ class MonitoringDeployment:
                     raise mlrun.errors.MLRunStreamConnectionFailureError(
                         f"Failed to delete v3io stream {stream_path}"
                     ) from exc
-        elif stream_paths[0].startswith("kafka://"):
+        elif isinstance(
+            profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+        ):
             # Delete Kafka topics
-            import kafka
-            import kafka.errors
+            topics = [
+                mlrun.datastore.utils.parse_kafka_url(url=stream_path)[0]
+                for stream_path in stream_paths
+            ]
 
-            topics = []
+            kafka_profile_attributes = profile.attributes()
+            kafka_admin_client_kwargs = {}
+            if "sasl" in kafka_profile_attributes:
+                sasl = kafka_profile_attributes["sasl"]
+                kafka_admin_client_kwargs.update(
+                    {
+                        "security_protocol": "SASL_PLAINTEXT",
+                        "sasl_mechanism": sasl["mechanism"],
+                        "sasl_plain_username": sasl["user"],
+                        "sasl_plain_password": sasl["password"],
+                    }
+                )
 
-            topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_paths[0])
-            topics.append(topic)
-
-            for stream_path in stream_paths[1:]:
-                topic, _ = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-                topics.append(topic)
+            client_id = f"{mlrun.mlconf.system_id}_{self.project}_kafka-python_{kafka.__version__}"
 
             try:
                 kafka_client = kafka.KafkaAdminClient(
-                    bootstrap_servers=brokers, client_id=self.project
+                    bootstrap_servers=profile.brokers,
+                    client_id=client_id,
+                    **kafka_admin_client_kwargs,
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
@@ -1041,8 +1079,8 @@ class MonitoringDeployment:
                 ) from exc
         else:
             logger.warning(
-                "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
-                stream_path=stream_paths[0],
+                "Stream profile is not supported and therefore can't be deleted, expected v3io or kafka",
+                stream_profile_type=str(type(profile)),
             )
         logger.debug(
             "Successfully deleted model monitoring stream resources deployment",

@@ -65,7 +65,7 @@ class _StreamContext:
         self.hostname = socket.gethostname()
         self.function_uri = function_uri
         self.output_stream = None
-        self.stream_uri = None
+        stream_uri = None
         log_stream = parameters.get(FileTargetKind.LOG_STREAM, "")
 
         if (enabled or log_stream) and function_uri:
@@ -78,17 +78,19 @@ class _StreamContext:
 
             if log_stream == DUMMY_STREAM:
                 # Dummy stream used for testing, see tests/serving/test_serving.py
-                self.stream_uri = DUMMY_STREAM
+                stream_uri = DUMMY_STREAM
             elif not stream_args.get("mock"):  # if not a mock: `context.is_mock = True`
-                self.stream_uri = mlrun.model_monitoring.get_stream_path(
-                    project=project
-                )
+                stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
 
             if log_stream:
                 # Update the stream path to the log stream value
-                self.stream_uri = log_stream.format(project=project)
-
-            self.output_stream = get_stream_pusher(self.stream_uri, **stream_args)
+                stream_uri = log_stream.format(project=project)
+                self.output_stream = get_stream_pusher(stream_uri, **stream_args)
+            else:
+                # Get the output stream from the profile
+                self.output_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                    project=project, mock=stream_args.get("mock", False)
+                )
 
 
 class GraphServer(ModelObj):

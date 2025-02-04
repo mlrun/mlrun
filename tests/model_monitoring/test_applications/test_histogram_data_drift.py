@@ -194,7 +194,6 @@ class TestApplication:
         monitoring_context.end_infer_time = Mock(spec=pd.Timestamp)
         monitoring_context.latest_request = Mock(spec=pd.Timestamp)
         monitoring_context.endpoint_id = Mock(spec=str)
-        monitoring_context.output_stream_uri = Mock(spec=str)
         monitoring_context.dict_to_histogram = (
             mm_context.MonitoringApplicationContext.dict_to_histogram
         )

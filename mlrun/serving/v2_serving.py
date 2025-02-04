@@ -507,7 +507,6 @@ class _ModelLogPusher:
         self.verbose = context.verbose
         self.hostname = context.stream.hostname
         self.function_uri = context.stream.function_uri
-        self.stream_path = context.stream.stream_uri
         self.sampling_percentage = float(context.get_param("sampling_percentage", 100))
         self.output_stream = output_stream or context.stream.output_stream
         self._worker = context.worker_id

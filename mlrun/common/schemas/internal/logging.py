@@ -38,11 +38,6 @@ class LogLevelMapping(BaseModel):
         for domain, level in values.items():
             if not isinstance(domain, str):
                 raise ValueError("Log domain must be a string")
-            if not domain.startswith("mlrun"):
-                raise ValueError(
-                    f"Invalid log domain '{domain}'. "
-                    f"Only domains starting with 'mlrun' are allowed."
-                )
             if not isinstance(level, str):
                 raise ValueError("Log level must be a string")
             if level.upper() not in VALID_LOG_LEVELS:

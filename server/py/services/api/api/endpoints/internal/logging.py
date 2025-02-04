@@ -17,14 +17,17 @@ import logging
 import fastapi
 
 from mlrun.common.schemas.internal.logging import LogLevelMapping
+from mlrun.errors import MLRunBadRequestError
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(prefix="/log_levels")
 
 
-@router.post("/log_levels")
+@router.post(path="")
 async def set_log_levels(log_config: LogLevelMapping):
     for domain, level in log_config.domain_to_levels.items():
-        numeric_level = getattr(logging, level.upper())
+        numeric_level = getattr(logging, level.upper(), None)
+        if numeric_level is None:
+            raise MLRunBadRequestError(f"Invalid log level: {level}")
         if log_config.recursive:
             for logger_name, logger_obj in logging.root.manager.loggerDict.items():
                 if isinstance(logger_obj, logging.Logger) and (
@@ -38,14 +41,13 @@ async def set_log_levels(log_config: LogLevelMapping):
 
 
 @router.get(
-    "/log_levels",
+    path="",
     response_model=LogLevelMapping,
 )
 async def get_log_levels():
     domain_to_levels = {}
     for name, logger_obj in logging.root.manager.loggerDict.items():
-        if name.startswith("mlrun"):
-            if isinstance(logger_obj, logging.Logger):
-                level = logging.getLevelName(logger_obj.getEffectiveLevel())
-                domain_to_levels[name] = level
-    return {"domain_to_levels": domain_to_levels, "recursive": False}
+        if isinstance(logger_obj, logging.Logger):
+            level = logging.getLevelName(logger_obj.getEffectiveLevel())
+            domain_to_levels[name] = level
+    return LogLevelMapping(domain_to_levels=domain_to_levels, recursive=False)

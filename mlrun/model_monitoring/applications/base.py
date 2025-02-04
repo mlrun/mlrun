@@ -135,6 +135,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                         (endpoint.metadata.name, endpoint.metadata.uid)
                         for endpoint in endpoints_list
                     ]
+                    context.logger.info("endpoints", endpoints=endpoints, list_endpoints=endpoints_list)
                 else:
                     raise mlrun.errors.MLRunNotFoundError(
                         f"Did not find any model endpoint named ' {endpoints}'"

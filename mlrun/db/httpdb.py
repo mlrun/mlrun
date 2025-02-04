@@ -3804,7 +3804,7 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.GET,
             path=path,
             params={
-                "names": names,
+                "name": names,
                 "model_name": model_name,
                 "model_tag": model_tag,
                 "function_name": function_name,

@@ -323,7 +323,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             filename=filename,
             handler="secret_test_function",
             kind="job",
-            image="artifactory.iguazeng.com:10557/yaelg/mlrun/mlrun:1.8.0-rc21",
+            image="mlrun/mlrun",
         )
 
         test_cases = [

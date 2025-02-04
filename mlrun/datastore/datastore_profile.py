@@ -193,7 +193,7 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
-    def attributes(self):
+    def attributes(self) -> dict[str, typing.Any]:
         attributes = {}
         if self.kwargs_public:
             attributes = merge(attributes, self.kwargs_public)

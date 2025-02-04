@@ -27,15 +27,15 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring
+import mlrun.model_monitoring.helpers
 from mlrun.common.schemas import EndpointType
 from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEvent,
     ControllerEventKind,
 )
-from mlrun.datastore import get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
-from mlrun.model_monitoring.helpers import batch_dict2timedelta, get_stream_path
+from mlrun.model_monitoring.helpers import batch_dict2timedelta
 from mlrun.utils import datetime_now, logger
 
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
@@ -249,7 +249,7 @@ class MonitoringApplicationController:
         self._window_length = _get_window_length()
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
-        self.v3io_access_key = mlrun.get_secret_or_env("V3IO_ACCESS_KEY")
+        self.v3io_access_key = mlrun.mlconf.get_v3io_access_key()
         self.storage_options = None
         if mlrun.mlconf.artifact_path.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
@@ -482,24 +482,23 @@ class MonitoringApplicationController:
             ),
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.ENDPOINT_NAME: endpoint_name,
-            mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
-                project=project,
-                function_name=mm_constants.MonitoringFunctionNames.WRITER,
-            ),
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
-            stream_uri = get_stream_path(project=project, function_name=app_name)
+
+            app_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                project=project,
+                function_name=app_name,
+                v3io_access_key=model_monitoring_access_key,
+            )
 
             logger.info(
                 "Pushing data to application stream",
                 endpoint_id=endpoint_id,
                 app_name=app_name,
-                stream_uri=stream_uri,
+                app_stream_type=str(type(app_stream)),
             )
-            get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
-                [data]
-            )
+            app_stream.push([data])
 
     def push_regular_event_to_controller_stream(self) -> None:
         """
@@ -628,10 +627,6 @@ class MonitoringApplicationController:
         :param feature_set_uri: the feature set uri string
         :param stream_access_key: access key to apply the model monitoring process.
         """
-        stream_uri = get_stream_path(
-            project=project,
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        )
         event = {
             ControllerEvent.KIND.value: kind,
             ControllerEvent.PROJECT.value: project,
@@ -643,15 +638,18 @@ class MonitoringApplicationController:
             ControllerEvent.FEATURE_SET_URI.value: feature_set_uri,
             ControllerEvent.ENDPOINT_POLICY.value: endpoint_policy,
         }
+        controller_stream = mlrun.model_monitoring.helpers.get_output_stream(
+            project=project,
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            v3io_access_key=stream_access_key,
+        )
         logger.info(
             "Pushing data to controller stream",
             event=event,
             endpoint_id=endpoint_id,
-            stream_uri=stream_uri,
+            controller_stream_type=str(type(controller_stream)),
         )
-        get_stream_pusher(stream_uri, access_key=stream_access_key).push(
-            [event], partition_key=endpoint_id
-        )
+        controller_stream.push([event], partition_key=endpoint_id)
 
     def _push_to_main_stream(self, event: dict, endpoint_id: str) -> None:
         """
@@ -659,17 +657,18 @@ class MonitoringApplicationController:
         :param event: event dictionary to push to stream
         :param endpoint_id: endpoint id string
         """
-        stream_uri = get_stream_path(project=event.get(ControllerEvent.PROJECT))
-
+        mm_stream = mlrun.model_monitoring.helpers.get_output_stream(
+            project=event.get(ControllerEvent.PROJECT),
+            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            v3io_access_key=self.v3io_access_key,
+        )
         logger.info(
             "Pushing data to main stream, NOP event is been generated",
             event=json.dumps(event),
             endpoint_id=endpoint_id,
-            stream_uri=stream_uri,
+            mm_stream_type=str(type(mm_stream)),
         )
-        get_stream_pusher(stream_uri, access_key=self.model_monitoring_access_key).push(
-            [event], partition_key=endpoint_id
-        )
+        mm_stream.push([event], partition_key=endpoint_id)
 
 
 def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
@@ -685,12 +684,16 @@ def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
         trigger_kind=event.trigger.kind,
     )
 
-    if event.trigger.kind == "http":
+    if event.trigger.kind in mm_constants.CRON_TRIGGER_KINDS:
         # Runs controller chief:
         context.user_data.monitor_app_controller.push_regular_event_to_controller_stream()
-    else:
+    elif event.trigger.kind in mm_constants.STREAM_TRIGGER_KINDS:
         # Runs controller worker:
         context.user_data.monitor_app_controller.run(event)
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Wrong trigger kind for model monitoring controller"
+        )
 
 
 def init_context(context):

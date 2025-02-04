@@ -18,10 +18,8 @@ from typing import Any, Optional, Union
 
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
-import mlrun.common.schemas.model_monitoring.constants as mm_constant
-import mlrun.datastore
-import mlrun.model_monitoring
-from mlrun.model_monitoring.helpers import get_stream_path
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.model_monitoring.helpers
 from mlrun.serving import GraphContext
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -37,29 +35,14 @@ from .results import (
 class _PushToMonitoringWriter(StepToDict):
     kind = "monitoring_application_stream_pusher"
 
-    def __init__(
-        self,
-        project: str,
-        writer_application_name: str,
-        stream_uri: Optional[str] = None,
-        name: Optional[str] = None,
-    ):
+    def __init__(self, project: str) -> None:
         """
         Class for pushing application results to the monitoring writer stream.
 
-        :param project:                     Project name.
-        :param writer_application_name:     Writer application name.
-        :param stream_uri:                  Stream URI for pushing results.
-        :param name:                        Name of the PushToMonitoringWriter
-                                            instance default to PushToMonitoringWriter.
+        :param project: Project name.
         """
         self.project = project
-        self.application_name_to_push = writer_application_name
-        self.stream_uri = stream_uri or get_stream_path(
-            project=self.project, function_name=self.application_name_to_push
-        )
         self.output_stream = None
-        self.name = name or "PushToMonitoringWriter"
 
     def do(
         self,
@@ -82,40 +65,43 @@ class _PushToMonitoringWriter(StepToDict):
         self._lazy_init()
         application_results, application_context = event
         writer_event = {
-            mm_constant.WriterEvent.ENDPOINT_NAME: application_context.endpoint_name,
-            mm_constant.WriterEvent.APPLICATION_NAME: application_context.application_name,
-            mm_constant.WriterEvent.ENDPOINT_ID: application_context.endpoint_id,
-            mm_constant.WriterEvent.START_INFER_TIME: application_context.start_infer_time.isoformat(
+            mm_constants.WriterEvent.ENDPOINT_NAME: application_context.endpoint_name,
+            mm_constants.WriterEvent.APPLICATION_NAME: application_context.application_name,
+            mm_constants.WriterEvent.ENDPOINT_ID: application_context.endpoint_id,
+            mm_constants.WriterEvent.START_INFER_TIME: application_context.start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
-            mm_constant.WriterEvent.END_INFER_TIME: application_context.end_infer_time.isoformat(
+            mm_constants.WriterEvent.END_INFER_TIME: application_context.end_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
         }
         for result in application_results:
             data = result.to_dict()
             if isinstance(result, ModelMonitoringApplicationResult):
-                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                    mm_constant.WriterEventKind.RESULT
+                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+                    mm_constants.WriterEventKind.RESULT
                 )
             elif isinstance(result, _ModelMonitoringApplicationStats):
-                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                    mm_constant.WriterEventKind.STATS
+                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+                    mm_constants.WriterEventKind.STATS
                 )
             else:
-                writer_event[mm_constant.WriterEvent.EVENT_KIND] = (
-                    mm_constant.WriterEventKind.METRIC
+                writer_event[mm_constants.WriterEvent.EVENT_KIND] = (
+                    mm_constants.WriterEventKind.METRIC
                 )
-            writer_event[mm_constant.WriterEvent.DATA] = json.dumps(data)
-            logger.info(
-                f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
+            writer_event[mm_constants.WriterEvent.DATA] = json.dumps(data)
+            logger.debug(
+                "Pushing data to output stream", writer_event=str(writer_event)
             )
             self.output_stream.push([writer_event])
-            logger.info(f"Pushed data to {self.stream_uri} successfully")
+            logger.debug("Pushed data to output stream successfully")
 
     def _lazy_init(self):
         if self.output_stream is None:
-            self.output_stream = mlrun.datastore.get_stream_pusher(self.stream_uri)
+            self.output_stream = mlrun.model_monitoring.helpers.get_output_stream(
+                project=self.project,
+                function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            )
 
 
 class _PrepareMonitoringEvent(StepToDict):

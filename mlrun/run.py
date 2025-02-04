@@ -911,7 +911,7 @@ def _run_pipeline(
 
 def retry_pipeline(
     run_id: str,
-    project: Optional[str] = None,
+    project: str,
     namespace: Optional[str] = None,
 ) -> str:
     """Retry a pipeline run.
@@ -920,7 +920,7 @@ def retry_pipeline(
     retryable state, a new run is created as a clone of the original run.
 
     :param run_id: ID of the pipeline run to retry.
-    :param project: Optional; name of the project associated with the pipeline run.
+    :param project: name of the project associated with the pipeline run.
     :param namespace: Optional; Kubernetes namespace to use if not the default.
 
     :returns: ID of the retried pipeline run or the ID of a cloned run if the original run is not retryable.

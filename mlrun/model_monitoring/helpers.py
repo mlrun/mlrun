@@ -16,7 +16,7 @@ import datetime
 import functools
 import os
 from fnmatch import fnmatchcase
-from typing import TYPE_CHECKING, Callable, Optional, TypedDict, cast
+from typing import TYPE_CHECKING, Callable, Optional, TypedDict, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.datastore.datastore_profile
 import mlrun.model_monitoring
+import mlrun.platforms.iguazio
 import mlrun.utils.helpers
 from mlrun.common.schemas import ModelEndpoint
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -292,6 +293,112 @@ _get_tsdb_profile = functools.partial(
 _get_stream_profile = functools.partial(
     _get_profile, profile_name_key=mm_constants.ProjectSecretKeys.STREAM_PROFILE_NAME
 )
+
+
+def _get_v3io_output_stream(
+    *,
+    v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
+    project: str,
+    function_name: str,
+    v3io_access_key: Optional[str],
+    mock: bool = False,
+) -> mlrun.platforms.iguazio.OutputStream:
+    stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project,
+        kind=mm_constants.FileTargetKind.STREAM,
+        target="online",
+        function_name=function_name,
+    )
+    endpoint, stream_path = mlrun.platforms.iguazio.parse_path(stream_uri)
+    return mlrun.platforms.iguazio.OutputStream(
+        stream_path,
+        endpoint=endpoint,
+        access_key=v3io_access_key or v3io_profile.v3io_access_key,
+        mock=mock,
+    )
+
+
+def _get_kafka_output_stream(
+    *,
+    kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource,
+    project: str,
+    function_name: str,
+    mock: bool = False,
+) -> mlrun.platforms.iguazio.KafkaOutputStream:
+    topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
+        project=project, function_name=function_name
+    )
+    profile_attributes = kafka_profile.attributes()
+    producer_options = profile_attributes.get("producer_options", {})
+    if "sasl" in profile_attributes:
+        sasl = profile_attributes["sasl"]
+        producer_options.update(
+            {
+                "security_protocol": "SASL_PLAINTEXT",
+                "sasl_mechanism": sasl["mechanism"],
+                "sasl_plain_username": sasl["user"],
+                "sasl_plain_password": sasl["password"],
+            },
+        )
+    return mlrun.platforms.iguazio.KafkaOutputStream(
+        brokers=kafka_profile.brokers,
+        topic=topic,
+        producer_options=producer_options,
+        mock=mock,
+    )
+
+
+def get_output_stream(
+    project: str,
+    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+    secret_provider: Optional[Callable[[str], str]] = None,
+    profile: Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
+    v3io_access_key: Optional[str] = None,
+    mock: bool = False,
+) -> Union[
+    mlrun.platforms.iguazio.OutputStream, mlrun.platforms.iguazio.KafkaOutputStream
+]:
+    """
+    Get stream path from the project secret. If wasn't set, take it from the system configurations
+
+    :param project:             Project name.
+    :param function_name:       Application name. Default is model_monitoring_stream.
+    :param secret_provider:     Optional secret provider to get the connection string secret.
+                                If not set, the env vars are used.
+    :param profile:             Optional datastore profile of the stream (V3IO/KafkaSource profile).
+    :param v3io_access_key:     Optional V3IO access key.
+    :param mock:                Should the output stream be mocked or not.
+    :return:                    Monitoring stream path to the relevant application.
+    """
+
+    profile = profile or _get_stream_profile(
+        project=project, secret_provider=secret_provider
+    )
+
+    if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
+        return _get_v3io_output_stream(
+            v3io_profile=profile,
+            project=project,
+            function_name=function_name,
+            v3io_access_key=v3io_access_key,
+            mock=mock,
+        )
+
+    elif isinstance(
+        profile, mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource
+    ):
+        return _get_kafka_output_stream(
+            kafka_profile=profile,
+            project=project,
+            function_name=function_name,
+            mock=mock,
+        )
+
+    else:
+        raise mlrun.errors.MLRunValueError(
+            f"Received an unexpected stream profile type: {type(profile)}\n"
+            "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaSource`."
+        )
 
 
 def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:

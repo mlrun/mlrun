@@ -18,10 +18,10 @@ import platform
 import subprocess
 import sys
 import typing
+from typing import Optional
 
 import paramiko
 import requests
-from typing_extensions import Optional
 
 
 class Constants:
@@ -754,7 +754,6 @@ def run_command(
     live: bool = True,
     log_file_handler: typing.Optional[typing.IO[str]] = None,
 ) -> (str, str, int):
-
     if args:
         command = [command] + args
     else:
@@ -770,7 +769,7 @@ def run_command(
         )
     except subprocess.CalledProcessError as exc:
         return exc.stdout, exc.stderr, exc.returncode
-    
+
     stdout_buffer = io.BytesIO()
     stdout_buffer.write(process.stdout)
     stdout_buffer.seek(0)

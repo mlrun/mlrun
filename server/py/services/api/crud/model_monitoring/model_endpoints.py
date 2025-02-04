@@ -908,7 +908,7 @@ class ModelEndpoints:
         List model endpoints based on the provided filters.
         :param project:             The name of the project.
         :param db_session:          A session that manages the current dialog with the database.
-        :param names:                The name of the model endpoint.
+        :param names:               A list of the names of the model endpoints.
         :param model_name:          The name of the model.
         :param function_name:       The name of the function.
         :param function_tag:        The tag of the function.
@@ -928,7 +928,7 @@ class ModelEndpoints:
 
         logger.info(
             "Listing endpoints",
-            name=names,
+            names=names,
             project=project,
             model_name=model_name,
             model_tag=model_tag,

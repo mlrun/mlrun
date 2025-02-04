@@ -358,14 +358,6 @@ async def delete_model_monitoring_function(
     return tasks
 
 
-# TODO: remove /projects/{project}/model-monitoring/set-model-monitoring-credentials in 1.8.0
-@router.post(
-    "/set-model-monitoring-credentials",
-    deprecated=True,
-    description="/projects/{project}/model-monitoring/set-model-monitoring-credentials "
-    "will be removed in 1.8.0, "
-    "use PUT /projects/{project}/model-monitoring/credentials instead",
-)
 @router.put("/credentials")
 def set_model_monitoring_credentials(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],

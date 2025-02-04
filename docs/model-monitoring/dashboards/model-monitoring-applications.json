@@ -22,7 +22,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 16,
+  "id": 28,
   "links": [
     {
       "asDropdown": true,
@@ -110,7 +110,12 @@
         }
       ],
       "title": "# Predictions",
-      "transformations": [],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
       "type": "stat"
     },
     {
@@ -174,7 +179,12 @@
         }
       ],
       "title": "# Metrics",
-      "transformations": [],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
       "type": "stat"
     },
     {
@@ -257,6 +267,10 @@
             "indexByName": {},
             "renameByName": {}
           }
+        },
+        {
+          "id": "merge",
+          "options": {}
         }
       ],
       "type": "stat"

@@ -22,7 +22,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 13,
+  "id": 30,
   "links": [
     {
       "icon": "external link",
@@ -118,6 +118,10 @@
               "count"
             ]
           }
+        },
+        {
+          "id": "merge",
+          "options": {}
         }
       ],
       "transparent": true,
@@ -331,6 +335,10 @@
               "sum"
             ]
           }
+        },
+        {
+          "id": "merge",
+          "options": {}
         }
       ],
       "transparent": true,
@@ -478,7 +486,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Drift Status"
+              "options": "Drift Status (Last 24H)"
             },
             "properties": [
               {
@@ -605,7 +613,7 @@
             },
             "renameByName": {
               "accuracy": "Accuracy",
-              "drift_status": "Drift Status",
+              "drift_status": "Drift Status (Last 24H)",
               "endpoint_function": "Function",
               "endpoint_id": "Endpoint ID",
               "endpoint_model": "Model",

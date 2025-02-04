@@ -21,7 +21,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 15,
+  "id": 27,
   "links": [
     {
       "icon": "external link",
@@ -81,7 +81,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Drift Status"
+              "options": "Drift Status (Last 24H)"
             },
             "properties": [
               {
@@ -185,7 +185,7 @@
               "sampling_percentage": 6
             },
             "renameByName": {
-              "drift_status": "Drift Status",
+              "drift_status": "Drift Status (Last 24H)",
               "endpoint_function": "Function",
               "endpoint_id": "Endpoint ID",
               "endpoint_model": "Model",
@@ -206,7 +206,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "seriesBy": "last"
           },
           "custom": {
             "axisCenteredZero": false,

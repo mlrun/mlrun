@@ -128,6 +128,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             for window_start, window_end in self._window_generator(
                 start, end, base_period
             ):
+                if isinstance(endpoints, str):
+                    endpoints_list = mlrun.get_run_db().list_model_endpoints(context.project, name=endpoints)
+                    endpoints = [(endpoint.metadata.name, endpoint.metadata.uid) for endpoint in endpoints_list]
+                elif isinstance(endpoints, tuple):
+                    endpoints = [endpoints]
                 for endpoint_name, endpoint_id in endpoints:
                     result = call_do_tracking(
                         event={

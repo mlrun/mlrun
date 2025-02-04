@@ -1050,7 +1050,6 @@ class ModelEndpoints:
         cls._delete_model_monitoring_stream_resources(
             project_name=project_name,
             model_monitoring_applications=model_monitoring_applications,
-            model_monitoring_access_key=model_monitoring_access_key,
             stream_profile=stream_profile,
         )
         # Delete model monitoring stats folder.
@@ -1126,7 +1125,6 @@ class ModelEndpoints:
         project_name: str,
         model_monitoring_applications: typing.Optional[list[str]],
         stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
-        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
         Delete model monitoring stream resources.
@@ -1135,8 +1133,6 @@ class ModelEndpoints:
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
         :param stream_profile:                The datastore profile for the stream.
-        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
-                                              V3IO resources.
         """
         logger.debug(
             "Deleting model monitoring stream resources",
@@ -1155,7 +1151,6 @@ class ModelEndpoints:
                 project=project_name
             )._delete_model_monitoring_stream_resources(
                 function_names=model_monitoring_applications,
-                access_key=model_monitoring_access_key,
                 stream_profile=stream_profile,
             )
             logger.debug(

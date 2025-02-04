@@ -411,7 +411,7 @@ class MonitoringDeployment:
         )
 
         access_key = (
-            v3io_profile.v3io_access_key or self.model_monitoring_access_key
+            v3io_profile.v3io_access_key
             if function_name
             != mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
             else mlrun.mlconf.get_v3io_access_key()
@@ -805,7 +805,6 @@ class MonitoringDeployment:
                     auth_info=self.auth_info,
                     delete_app_stream_resources=function_name
                     != mm_constants.MonitoringFunctionNames.STREAM,
-                    access_key=self.model_monitoring_access_key,
                 )
                 tasks.append(task)
 
@@ -874,7 +873,6 @@ class MonitoringDeployment:
         function_name: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         delete_app_stream_resources: bool,
-        access_key: str,
     ):
         background_task_name = str(uuid.uuid4())
 
@@ -892,7 +890,6 @@ class MonitoringDeployment:
             auth_info,
             background_task_name,
             delete_app_stream_resources,
-            access_key,
         )
 
     @staticmethod
@@ -903,7 +900,6 @@ class MonitoringDeployment:
         auth_info: mlrun.common.schemas.AuthInfo,
         background_task_name: str,
         delete_app_stream_resources: bool,
-        access_key: str,
     ) -> None:
         """
         Delete the model monitoring function and its resources.
@@ -928,8 +924,7 @@ class MonitoringDeployment:
                 MonitoringDeployment(
                     project=project
                 )._delete_model_monitoring_stream_resources(
-                    function_names=[function_name],
-                    access_key=access_key,
+                    function_names=[function_name]
                 )
             except mlrun.errors.MLRunStreamConnectionFailureError as e:
                 logger.warning(
@@ -945,12 +940,10 @@ class MonitoringDeployment:
         stream_profile: typing.Optional[
             mlrun.datastore.datastore_profile.DatastoreProfile
         ] = None,
-        access_key: typing.Optional[str] = None,
     ) -> None:
         """
         :param function_names: A list of functions that their resources should be deleted.
         :param stream_profile: An optional datastore profile for the stream.
-        :param access_key:     If the stream is V3IO, the access key is required.
         """
         logger.debug(
             "Deleting model monitoring stream resources deployment",
@@ -1029,7 +1022,7 @@ class MonitoringDeployment:
                         stream_path,
                         access_key=mlrun.mlconf.get_v3io_access_key()
                         if container.startswith("users")
-                        else profile.v3io_access_key or access_key,
+                        else profile.v3io_access_key,
                     )
                     logger.debug(
                         "Deleted v3io stream",

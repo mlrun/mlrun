@@ -129,9 +129,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                 start, end, base_period
             ):
                 if isinstance(endpoints, str):
-                    endpoints_list = mlrun.get_run_db().list_model_endpoints(context.project, name=endpoints)
-                    print(endpoints_list)
-                    endpoints = [(endpoint.metadata.name, endpoint.metadata.uid) for endpoint in endpoints_list]
+                    endpoints_list = mlrun.get_run_db().list_model_endpoints(context.project)
+                    context.logger.info("Got list model endpoints", endpoints_list=endpoints_list)
+                    if endpoints_list:
+                        endpoints = [(endpoint.metadata.name, endpoint.metadata.uid) for endpoint in endpoints_list]
                 elif isinstance(endpoints, tuple):
                     endpoints = [endpoints]
                 for endpoint_name, endpoint_id in endpoints:

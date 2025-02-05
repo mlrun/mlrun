@@ -150,13 +150,11 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     def _handle_endpoints_type(project: str, endpoints):
         if endpoints:
             if isinstance(endpoints, str) or (
-                    isinstance(endpoints, list) and isinstance(endpoints[0], str)
+                isinstance(endpoints, list) and isinstance(endpoints[0], str)
             ):
                 endpoints_list = (
                     mlrun.get_run_db()
-                    .list_model_endpoints(
-                        project, names=endpoints, latest_only=True
-                    )
+                    .list_model_endpoints(project, names=endpoints, latest_only=True)
                     .endpoints
                 )
                 if endpoints_list:
@@ -171,8 +169,10 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             elif isinstance(endpoints, tuple) and len(endpoints) == 2:
                 endpoints = [endpoints]
 
-            if not (isinstance(endpoints, list) and isinstance(endpoints[0],tuple)):
-                raise mlrun.errors.MLRunInvalidArgumentError("Could not resolve endpoints as list[tuple] of [(name, uid)]")
+            if not (isinstance(endpoints, list) and isinstance(endpoints[0], tuple)):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Could not resolve endpoints as list[tuple] of [(name, uid)]"
+                )
         return endpoints
 
     @staticmethod

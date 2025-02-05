@@ -971,13 +971,13 @@ class V3IOTSDBConnector(TSDBConnector):
             )
         return df.reset_index(drop=True)
 
-    def get_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
-        Fetch basic metrics from V3IO TSDB.
+        Fetch basic metrics from V3IO TSDB and add them to MEP objects.
 
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
@@ -1016,7 +1016,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 model_endpoint_object
             )
 
-        def add_metrics(
+        def add_metric(
             metric: str,
             column_name: str,
             frames: list,
@@ -1030,22 +1030,22 @@ class V3IOTSDBConnector(TSDBConnector):
                     if mep and value is not None and not math.isnan(value):
                         setattr(mep.status, metric, value)
 
-        add_metrics(
+        add_metric(
             "error_count",
             "count(error_count)",
             error_count_res,
         )
-        add_metrics(
+        add_metric(
             "last_request",
             "last(last_request_timestamp)",
             last_request_res,
         )
-        add_metrics(
+        add_metric(
             "avg_latency",
             "max(result_status)",
             drift_status_res,
         )
-        add_metrics(
+        add_metric(
             "result_status",
             "avg(latency)",
             avg_latency_res,

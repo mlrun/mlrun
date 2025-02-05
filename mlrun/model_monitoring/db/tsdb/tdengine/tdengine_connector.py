@@ -743,7 +743,7 @@ class TDEngineConnector(TSDBConnector):
             df.dropna(inplace=True)
         return df
 
-    def get_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,

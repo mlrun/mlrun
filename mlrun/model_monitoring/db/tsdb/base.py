@@ -317,7 +317,7 @@ class TSDBConnector(ABC):
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.
         """
 
-    def get_basic_metrics(
+    def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,

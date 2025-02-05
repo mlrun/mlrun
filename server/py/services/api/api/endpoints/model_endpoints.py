@@ -214,7 +214,7 @@ async def delete_model_endpoint(
 )
 async def list_model_endpoints(
     project: ProjectAnnotation,
-    names: Optional[list[str]] = None,
+    names: Optional[list[str]] = Query(None, alias="name"),
     model_name: Optional[str] = None,
     model_tag: Optional[str] = None,
     function_name: Optional[str] = None,

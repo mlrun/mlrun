@@ -96,8 +96,8 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
         reference_data: Optional[pd.DataFrame] = None,
         endpoints: Optional[Union[list[tuple[str, str]], list[str], str]] = None,
         start: Optional[str] = None,
-            end: Optional[str] = None,
-            base_period: Optional[int] = None,
+        end: Optional[str] = None,
+        base_period: Optional[int] = None,
     ):
         """
         A custom handler that wraps the application's logic implemented in
@@ -124,29 +124,7 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
             return self.do_tracking(monitoring_context)
 
         if endpoints is not None:
-            if isinstance(endpoints, str) or (
-                isinstance(endpoints, list) and isinstance(endpoints[0], str)
-            ):
-                endpoints_list = (
-                    mlrun.get_run_db()
-                    .list_model_endpoints(
-                        context.project, names=endpoints, latest_only=True
-                    )
-                    .endpoints
-                )
-                if endpoints_list:
-                    endpoints = [
-                        (endpoint.metadata.name, endpoint.metadata.uid)
-                        for endpoint in endpoints_list
-                    ]
-                else:
-                    raise mlrun.errors.MLRunNotFoundError(
-                        f"Did not find any model endpoint named ' {endpoints}'"
-                    )
-            elif isinstance(endpoints, tuple) and len(endpoints) == 2:
-                endpoints = [endpoints]
-
-            start, end = self._validate_times(start, end, base_period)
+            endpoints = self._handle_endpoints_type(context.project, endpoints)
             for window_start, window_end in self._window_generator(
                 start, end, base_period
             ):
@@ -167,6 +145,35 @@ class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
                     context.log_result(result_key, result)
         else:
             return call_do_tracking()
+
+    @staticmethod
+    def _handle_endpoints_type(project: str, endpoints):
+        if endpoints:
+            if isinstance(endpoints, str) or (
+                    isinstance(endpoints, list) and isinstance(endpoints[0], str)
+            ):
+                endpoints_list = (
+                    mlrun.get_run_db()
+                    .list_model_endpoints(
+                        project, names=endpoints, latest_only=True
+                    )
+                    .endpoints
+                )
+                if endpoints_list:
+                    endpoints = [
+                        (endpoint.metadata.name, endpoint.metadata.uid)
+                        for endpoint in endpoints_list
+                    ]
+                else:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"Did not find any model endpoint named ' {endpoints}'"
+                    )
+            elif isinstance(endpoints, tuple) and len(endpoints) == 2:
+                endpoints = [endpoints]
+
+            if not (isinstance(endpoints, list) and isinstance(endpoints[0],tuple)):
+                raise mlrun.errors.MLRunInvalidArgumentError("Could not resolve endpoints as list[tuple] of [(name, uid)]")
+        return endpoints
 
     @staticmethod
     def _window_generator(

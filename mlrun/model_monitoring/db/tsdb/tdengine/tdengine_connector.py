@@ -773,7 +773,7 @@ class TDEngineConnector(TSDBConnector):
             drift_status_df,
         ) = await asyncio.gather(*coroutines)
 
-        def _add_metric(
+        def add_metrics(
             mep: mlrun.common.schemas.ModelEndpoint,
             df_dictionary: dict[str, pd.DataFrame],
         ):
@@ -791,7 +791,7 @@ class TDEngineConnector(TSDBConnector):
 
         return list(
             map(
-                lambda mep: _add_metric(
+                lambda mep: add_metrics(
                     mep=mep,
                     df_dictionary={
                         "error_count": error_count_df,

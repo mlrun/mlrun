@@ -615,13 +615,21 @@ class _KFPRunner(_PipelineRunner):
                 "Notifications will only be sent if you wait for pipeline completion. "
                 "Some of the features (like setting message or severity level) are not supported."
             )
-            # for start message, fallback to old notification behavior
             for notification in notifications or []:
                 params = notification.params
                 params.update(notification.secret_params)
-                project.notifiers.add_notification(notification.kind, params)
+                project.notifiers.add_notification(
+                    notification_type=notification.kind,
+                    params=params,
+                    name=notification.name,
+                    message=notification.message,
+                    severity=notification.severity,
+                    when=notification.when,
+                    condition=notification.condition,
+                    secret_params=notification.secret_params,
+                )
 
-            project.spec.notifications = notifications
+            project.spec.notifications = project.notifiers.server_notifications
 
         run_id = _run_pipeline(
             workflow_handler,

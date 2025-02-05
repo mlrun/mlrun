@@ -25,6 +25,7 @@ from taoswswrap.tdengine_connection import (
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
+from mlrun.datastore.datastore_profile import DatastoreProfile
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
@@ -40,16 +41,13 @@ class TDEngineConnector(TSDBConnector):
     def __init__(
         self,
         project: str,
+        profile: DatastoreProfile,
         database: typing.Optional[str] = None,
         **kwargs,
     ):
         super().__init__(project=project)
-        if "connection_string" not in kwargs:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "connection_string is a required parameter for TDEngineConnector."
-            )
 
-        self._tdengine_connection_string = kwargs.get("connection_string")
+        self._tdengine_connection_profile = profile
         self.database = (
             database
             or f"{tdengine_schemas._MODEL_MONITORING_DATABASE}_{mlrun.mlconf.system_id}"
@@ -70,7 +68,7 @@ class TDEngineConnector(TSDBConnector):
     def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
-        conn = TDEngineConnection(self._tdengine_connection_string)
+        conn = TDEngineConnection(self._tdengine_connection_profile.dsn())
         conn.run(
             statements=f"CREATE DATABASE IF NOT EXISTS {self.database}",
             timeout=self._timeout,
@@ -200,10 +198,10 @@ class TDEngineConnector(TSDBConnector):
 
         def apply_tdengine_target(name, after):
             graph.add_step(
-                "storey.TDEngineTarget",
+                "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
                 name=name,
                 after=after,
-                url=self._tdengine_connection_string,
+                url=f"ds://{self._tdengine_connection_profile.name}",
                 supertable=self.tables[
                     mm_schemas.TDEngineSuperTables.PREDICTIONS
                 ].super_table,
@@ -242,10 +240,10 @@ class TDEngineConnector(TSDBConnector):
             after="ForwardError",
         )
         graph.add_step(
-            "storey.TDEngineTarget",
+            "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
             name="tsdb_error",
             after="error_extractor",
-            url=self._tdengine_connection_string,
+            url=f"ds://{self._tdengine_connection_profile.name}",
             supertable=self.tables[mm_schemas.TDEngineSuperTables.ERRORS].super_table,
             table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
             time_col=mm_schemas.EventFieldType.TIME,

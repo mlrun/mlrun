@@ -2514,9 +2514,9 @@ mlflow-skinny==2.20.1 \
     --hash=sha256:98c3c73aea528a03a25ba422506a9d37dff4061707569e6e6cb8ea6e7382385e \
     --hash=sha256:de094d6495e2e6a842bd47a68641aa400528b6ea48be258f269cc4e2a43b3288
     # via mlflow
-mlrun-pipelines-kfp-common==0.3.7 \
-    --hash=sha256:3a15de546c6f01bfb1b3c4e871acfca6d8f58f3c2b321ac862f05d5d66db74fd \
-    --hash=sha256:81070e948039d448b28db2a40a09eaa656ab5d884a77233de2f559a27d3dc104
+mlrun-pipelines-kfp-common==0.3.9 \
+    --hash=sha256:7a39476cc921e73c8da86b3d5f2b14c45fe72f9fb3feba749b16a96895929c27 \
+    --hash=sha256:a45f606cd4f7476f333738b5391df4d1b213011d578963222f679cd51dd867e2
     # via -r requirements.txt
 mlrun-pipelines-kfp-v1-8==0.3.6 ; python_full_version < '3.11' \
     --hash=sha256:7912aa00b9acc4de5fef6273d2be5b5bf5b2589bbc01c04b5397ebafef29021c \

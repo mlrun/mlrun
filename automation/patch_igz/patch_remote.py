@@ -22,6 +22,7 @@ import shlex
 import subprocess
 import time
 import typing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
 import coloredlogs
@@ -273,15 +274,19 @@ class MLRunPatcher:
 
     def _push_docker_images(self, built_images):
         logger.info(f"Pushing mlrun docker images: {built_images}")
-        for image in built_images:
-            self._exec_local(
-                cmd=[
-                    "docker",
-                    "push",
-                    image,
-                ],
-                live=True,
-            )
+        with ThreadPoolExecutor(max_workers=len(built_images)) as executor:
+            futures = {
+                executor.submit(
+                    self._exec_local, cmd=["docker", "push", image], live=True
+                ): image
+                for image in built_images
+            }
+            for future in as_completed(futures):
+                image = futures[future]
+                try:
+                    future.result()
+                except Exception as exc:
+                    logger.error(f"Error pushing image {image}: {exc}")
 
     def _patch_deployment_from_file(self):
         for deployment in self._deployments:

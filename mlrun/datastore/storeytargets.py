@@ -42,9 +42,21 @@ def get_url_and_storage_options(path, external_storage_options=None):
 
 
 class TDEngineStoreyTarget(storey.TDEngineTarget):
-    def __init__(self, *args, **kwargs):
-        kwargs["url"] = mlrun.model_monitoring.helpers.get_tsdb_connection_string()
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, url: str, **kwargs):
+        if url.startswith("ds://"):
+            datastore_profile = (
+                mlrun.datastore.datastore_profile.datastore_profile_read(url)
+            )
+            if not isinstance(
+                datastore_profile,
+                mlrun.datastore.datastore_profile.TDEngineDatastoreProfile,
+            ):
+                raise ValueError(
+                    f"Unexpected datastore profile type:{datastore_profile.type}."
+                    "Only TDEngineDatastoreProfile is supported"
+                )
+            url = datastore_profile.dsn()
+        super().__init__(*args, url=url, **kwargs)
 
 
 class StoreyTargetUtils:
@@ -69,7 +81,12 @@ class StoreyTargetUtils:
 
 class ParquetStoreyTarget(storey.ParquetTarget):
     def __init__(self, *args, **kwargs):
+        alt_key_name = kwargs.pop("alternative_v3io_access_key", None)
         args, kwargs = StoreyTargetUtils.process_args_and_kwargs(args, kwargs)
+        storage_options = kwargs.get("storage_options", {})
+        if storage_options and storage_options.get("v3io_access_key") and alt_key_name:
+            if alt_key := mlrun.get_secret_or_env(alt_key_name):
+                storage_options["v3io_access_key"] = alt_key
         super().__init__(*args, **kwargs)
 
 

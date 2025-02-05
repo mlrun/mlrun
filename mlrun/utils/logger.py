@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextvars
 import datetime
 import logging
 import os
@@ -28,6 +29,8 @@ import pydantic.v1
 
 from mlrun import errors
 from mlrun.config import config
+
+context_id_var = contextvars.ContextVar("context_id", default=None)
 
 
 class _BaseFormatter(logging.Formatter):
@@ -58,12 +61,19 @@ class _BaseFormatter(logging.Formatter):
             default=default,
         ).decode()
 
-
-class JSONFormatter(_BaseFormatter):
-    def format(self, record) -> str:
+    def _record_with(self, record):
         record_with = getattr(record, "with", {})
         if record.exc_info:
             record_with.update(exc_info=format_exception(*record.exc_info))
+        if "ctx" not in record_with:
+            if (ctx_id := context_id_var.get()) is not None:
+                record_with["ctx"] = ctx_id
+        return record_with
+
+
+class JSONFormatter(_BaseFormatter):
+    def format(self, record) -> str:
+        record_with = self._record_with(record)
         record_fields = {
             "datetime": self.formatTime(record, self.datefmt),
             "level": record.levelname.lower(),
@@ -89,12 +99,6 @@ class HumanReadableFormatter(_BaseFormatter):
         record_with_encoded = self._json_dump(record_with) if record_with else ""
         more = f": {record_with_encoded}" if record_with_encoded else ""
         return more
-
-    def _record_with(self, record):
-        record_with = getattr(record, "with", {})
-        if record.exc_info:
-            record_with.update(exc_info=format_exception(*record.exc_info))
-        return record_with
 
 
 class CustomFormatter(HumanReadableFormatter):
@@ -354,7 +358,6 @@ class Logger:
         self, level, message, *args, exc_info=None, **kw_args
     ):
         kw_args.update(self._bound_variables)
-
         if kw_args:
             self._logger.log(
                 level, message, *args, exc_info=exc_info, extra={"with": kw_args}

@@ -208,6 +208,8 @@ class TSDBConnector(ABC):
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.
         :param end:             The end time for the query.
+        :param get_raw:         Whether to return the request as raw frames rather than a pandas dataframe. Defaults
+          to False. This can greatly improve performance when a dataframe isn't needed.
 
         :return: A pd.DataFrame containing the columns [endpoint_id, last_request, last_latency].
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.
@@ -228,6 +230,8 @@ class TSDBConnector(ABC):
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.
         :param end:             The end time for the query.
+        :param get_raw:         Whether to return the request as raw frames rather than a pandas dataframe. Defaults
+          to False. This can greatly improve performance when a dataframe isn't needed.
 
         :return: A pd.DataFrame containing the columns [result_status, endpoint_id].
         If an endpoint has not been monitored within the specified time range (last 24 hours),
@@ -284,6 +288,8 @@ class TSDBConnector(ABC):
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.
         :param end:             The end time for the query.
+        :param get_raw:         Whether to return the request as raw frames rather than a pandas dataframe. Defaults
+          to False. This can greatly improve performance when a dataframe isn't needed.
 
         :return: A pd.DataFrame containing the columns [error_count, endpoint_id].
         If an endpoint have not raised error within the specified time range, it will not appear in the result.
@@ -304,6 +310,8 @@ class TSDBConnector(ABC):
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.
         :param end:             The end time for the query.
+        :param get_raw:         Whether to return the request as raw frames rather than a pandas dataframe. Defaults
+          to False. This can greatly improve performance when a dataframe isn't needed.
 
         :return: A pd.DataFrame containing the columns [avg_latency, endpoint_id].
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.

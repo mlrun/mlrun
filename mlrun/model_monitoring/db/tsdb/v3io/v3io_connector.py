@@ -518,6 +518,10 @@ class V3IOTSDBConnector(TSDBConnector):
                                       `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
         :param kwargs:                Additional keyword arguments passed to the read method of frames client.
+        :param get_raw:               Whether to return the request as raw frames rather than a pandas dataframe.
+                                      Defaults to False. This can greatly improve performance when a dataframe isn't
+                                      needed.
+
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """

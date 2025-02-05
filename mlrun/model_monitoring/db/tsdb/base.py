@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import ClassVar, Literal, Optional, Union
+from typing import Callable, ClassVar, Literal, Optional, Union
 
 import pandas as pd
 import pydantic.v1
@@ -317,10 +317,11 @@ class TSDBConnector(ABC):
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.
         """
 
-    def add_basic_metrics(
+    async def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
+        run_in_threadpool: Callable,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()
 

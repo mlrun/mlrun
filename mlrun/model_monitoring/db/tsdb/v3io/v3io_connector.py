@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import math
 from datetime import datetime, timedelta, timezone
 from io import StringIO
-from typing import Literal, Optional, Union
+from typing import Callable, Literal, Optional, Union
 
 import pandas as pd
 import v3io_frames
@@ -971,10 +972,11 @@ class V3IOTSDBConnector(TSDBConnector):
             )
         return df.reset_index(drop=True)
 
-    def add_basic_metrics(
+    async def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
+        run_in_threadpool: Callable,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Fetch basic metrics from V3IO TSDB and add them to MEP objects.
@@ -982,6 +984,7 @@ class V3IOTSDBConnector(TSDBConnector):
         :param model_endpoint_objects: A list of `ModelEndpoint` objects that will
                                         be filled with the relevant basic metrics.
         :param project:                The name of the project.
+        :param run_in_threadpool:      A function that runs another function in a thread pool.
 
         :return: A list of `ModelEndpointMonitoringMetric` objects.
         """
@@ -993,22 +996,35 @@ class V3IOTSDBConnector(TSDBConnector):
             uids.append(uid)
             model_endpoint_objects_by_uid[uid] = model_endpoint_object
 
-        error_count_res = self.get_error_count(
-            endpoint_ids=uids,
-            get_raw=True,
-        )
-        last_request_res = self.get_last_request(
-            endpoint_ids=uids,
-            get_raw=True,
-        )
-        avg_latency_res = self.get_avg_latency(
-            endpoint_ids=uids,
-            get_raw=True,
-        )
-        drift_status_res = self.get_drift_status(
-            endpoint_ids=uids,
-            get_raw=True,
-        )
+        coroutines = [
+            run_in_threadpool(
+                self.get_error_count,
+                endpoint_ids=uids,
+                get_raw=True,
+            ),
+            run_in_threadpool(
+                self.get_last_request,
+                endpoint_ids=uids,
+                get_raw=True,
+            ),
+            run_in_threadpool(
+                self.get_avg_latency,
+                endpoint_ids=uids,
+                get_raw=True,
+            ),
+            run_in_threadpool(
+                self.get_drift_status,
+                endpoint_ids=uids,
+                get_raw=True,
+            ),
+        ]
+
+        (
+            error_count_res,
+            last_request_res,
+            avg_latency_res,
+            drift_status_res,
+        ) = await asyncio.gather(*coroutines)
 
         model_endpoint_objects_by_uid = {}
         for model_endpoint_object in model_endpoint_objects:

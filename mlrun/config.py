@@ -1402,13 +1402,6 @@ class Config:
             >= semver.VersionInfo.parse("1.12.10")
         )
 
-    @staticmethod
-    def get_ordered_keys():
-        # Define the keys to process first
-        return [
-            "MLRUN_HTTPDB__HTTP__VERIFY"  # Ensure this key is processed first for proper connection setup
-        ]
-
 
 # Global configuration
 config = Config.from_dict(default_config)

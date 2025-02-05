@@ -224,16 +224,9 @@ class TestMLRunSystem:
         cls._logger.debug("Setting up test environment")
         cls._test_env.update(env)
 
-        ordered_keys = mlconf.get_ordered_keys()
-
-        # Process ordered keys
-        for key in ordered_keys & env.keys():
-            cls._process_env_var(key, env[key])
-
-        # Process remaining keys
+        # Process keys
         for key, value in env.items():
-            if key not in ordered_keys:
-                cls._process_env_var(key, value)
+            cls._process_env_var(key, value)
 
         # Reload the config so changes to the env vars will take effect
         mlrun.mlconf.reload()
